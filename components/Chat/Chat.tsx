@@ -1251,7 +1251,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             <div 
                                                 className={`
                                                     relative flex items-center transition-all duration-300 ease-in-out cursor-pointer
-                                                    rounded-full bg-white dark:bg-[#343541] shadow-lg hover:shadow-xl
+                                                    rounded-full bg-white dark:bg-[#454757] shadow-lg hover:shadow-xl
                                                     border border-gray-200 dark:border-gray-600 h-10 text-gray-800 dark:text-gray-200
                                                     ${isPillExpanded ? 'px-6' : 'px-3'}
                                                 `}

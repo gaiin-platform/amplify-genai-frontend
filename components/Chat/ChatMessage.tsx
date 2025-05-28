@@ -351,7 +351,7 @@ export const ChatMessage: FC<Props> = memo(({
             const viewportHeight = window.innerHeight;
             const messageHeight = rect.height;
             
-            // Step 1: Determine ideal position
+            // Step 1: Determine ideal top position
             let idealTop;
             if (messageHeight > viewportHeight) {
                 // Long message: use viewport center
@@ -371,9 +371,19 @@ export const ChatMessage: FC<Props> = memo(({
                 Math.min(messageBottom - padding, idealTop)
             );
             
+            // Step 3: Calculate right position relative to message container
+            const messageLeft = rect.left;
+            const messageRight = rect.right;
+            const iconsPadding = 2; // Distance from the right edge of the message
+            const viewportWidth = window.innerWidth;
+            
+            // Position icons relative to the message's right edge, but ensure they stay within viewport
+            const idealRight = viewportWidth - messageRight + iconsPadding;
+            const constrainedRight = Math.max(iconsPadding, idealRight);
+            
             setIconsPosition({
                 top: constrainedTop,
-                right: 20
+                right: constrainedRight
             });
         }
     };

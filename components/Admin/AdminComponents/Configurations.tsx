@@ -265,39 +265,37 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
             </div>
 
             
-            <div className="admin-style-settings-card">
+            <div className="admin-style-settings-card flex flex-row gap-14">
                 <div className="admin-style-settings-card-header">
                     <h3 className="admin-style-settings-card-title">Default User Conversation Storage</h3>
                     <p className="admin-style-settings-card-description">Choose the default storage location for user conversations</p>
                 </div>
                 
-                <div className="settings-card-content px-6">
-                    <div className="settings-theme-options">
-                        {["future-local", "future-cloud"].map((storage) => (
-                            <label className="settings-theme-option" key={storage}>
-                                <input 
-                                    type="radio" 
-                                    name="conversationStorage"
-                                    id="conversationStorageCheck"
-                                    value={storage}
-                                    checked={defaultConversationStorage === storage}
-                                    onChange={(event) => handleUpdateDefaultConversationStorage(event.target.value as ConversationStorage)}
-                                    className="settings-theme-radio"
-                                />
-                                <div className="settings-theme-option-content">
-                                    <div className="settings-theme-option-icon">
-                                        {storage === 'future-cloud' ? 
-                                            <IconCloudFilled className='text-blue-100 dark:text-white'/> : 
-                                            <IconMessage className='text-gray-600 dark:text-white'/>
-                                        }
-                                    </div>
-                                    <span className="settings-theme-option-label">
-                                        {capitalize(storage.split('-')[1])}
-                                    </span>
+                <div className="settings-theme-options">
+                    {["future-local", "future-cloud"].map((storage) => (
+                        <label className="settings-theme-option" key={storage}>
+                            <input 
+                                type="radio" 
+                                name="conversationStorage"
+                                id="conversationStorageCheck"
+                                value={storage}
+                                checked={defaultConversationStorage === storage}
+                                onChange={(event) => handleUpdateDefaultConversationStorage(event.target.value as ConversationStorage)}
+                                className="settings-theme-radio"
+                            />
+                            <div className="settings-theme-option-content">
+                                <div className="settings-theme-option-icon">
+                                    {storage === 'future-cloud' ? 
+                                        <IconCloudFilled className='text-blue-100 dark:text-white'/> : 
+                                        <IconMessage className='text-gray-600 dark:text-white'/>
+                                    }
                                 </div>
-                            </label>
-                        ))}
-                    </div>
+                                <span className="settings-theme-option-label">
+                                    {capitalize(storage.split('-')[1])}
+                                </span>
+                            </div>
+                        </label>
+                    ))}
                 </div>
             </div>
         
@@ -482,7 +480,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                             title={'Manage Amplify Groups'} 
                             content={ 
                                 <>
-                                <table className="modern-table mt-4 w-full mr-10" style={{boxShadow: 'none'}} id="groupTable">
+                                <table className="modern-table hide-last-column mt-4 w-full mr-10 " style={{boxShadow: 'none'}} id="groupTable">
                                     <thead>
                                     <tr className="gradient-header">
                                         {['Group Name', 'Members', 'Membership by Amplify Groups', 'Created By'].map((title, i) => (

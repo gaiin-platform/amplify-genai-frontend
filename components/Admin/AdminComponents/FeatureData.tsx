@@ -490,7 +490,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
                         content={ 
                             stillLoadingData ? loading :
                             <>
-                                <table id="assistantAdminGroupsTable" className="modern-table mt-4 w-full mr-10" style={{boxShadow: 'none'}}>
+                                <table id="assistantAdminGroupsTable" className="modern-table hide-last-column mt-4 w-full mr-10" style={{boxShadow: 'none'}}>
                                     <thead>
                                     <tr className="gradient-header">
                                         {['Group Name', 'Created By', 'Support Conversation Analysis', 'Public', 'Membership by Amplify Groups', 'Number of Assistants',
@@ -713,7 +713,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
                         title={'Manage PowerPoint Templates'} 
                         content={ 
                             <>
-                                <table id="powerpointTemplateTable" className="modern-table mt-4 w-full mr-10" style={{boxShadow: 'none'}}>
+                                <table id="powerpointTemplateTable" className="modern-table hide-last-column mt-4 w-full mr-10" style={{boxShadow: 'none'}}>
                                     <thead>
                                     <tr className="gradient-header">
                                         {['Template Name', 'Public', 'Available to User via Amplify Group Membership'

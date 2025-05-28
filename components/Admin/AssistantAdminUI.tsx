@@ -1463,7 +1463,7 @@ const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup,
 
                 {users.length === 0 ? <div className='ml-4'> No members to display</div> :
                     <div className='overflow-y-auto max-h-[300px]'>
-                        <table className="modern-table round-last-column w-full" style={{boxShadow: 'none', tableLayout: 'fixed'}}>
+                        <table className="modern-table w-full" style={{boxShadow: 'none', tableLayout: 'fixed'}}>
                             <thead>
                                 <tr className="gradient-header">
                                     {isDeleting && <th className="py-2">{
@@ -2400,7 +2400,7 @@ const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupMembers,
         {Object.keys(groupMembers).length > 0 &&
             <div>
                 Set Member Access
-                <table className="modern-table round-last-column mt-2 w-full" style={{boxShadow: 'none', tableLayout: 'fixed'}}>
+                <table className="modern-table mt-2 w-full" style={{boxShadow: 'none', tableLayout: 'fixed'}}>
                     <thead>
                         <tr className="gradient-header">
                             <th className="border px-4 py-2">User</th>

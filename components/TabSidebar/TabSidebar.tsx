@@ -61,7 +61,6 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
 
 
     useEffect(() => {
-    
         const handleTabSwitchEvent = (event:any) => {
             if (isMultipleTabs) {
                 const detail = event.detail;
@@ -81,11 +80,25 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
                 }
             }
         };
+
+        const handleArtifactEvent = (event:any) => {
+            const isArtifactsOpen = event.detail.isOpen;
+            if (isArtifactsOpen) {
+                setIsOpen(false);
+            } else {
+                // honor users open state preference
+                const showChatbar = localStorage.getItem('showChatbar');
+                setIsOpen(!!showChatbar ? showChatbar === 'true' : true);
         
+            }
+        };
+
+        window.addEventListener('openArtifactsTrigger', handleArtifactEvent);
         window.addEventListener('homeChatBarTabSwitch', handleTabSwitchEvent);
 
         return () => {
             window.removeEventListener('homeChatBarTabSwitch', handleTabSwitchEvent);
+            window.removeEventListener('openArtifactsTrigger', handleArtifactEvent);
         };
     }, []);
 

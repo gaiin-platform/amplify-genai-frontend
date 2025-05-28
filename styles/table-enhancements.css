@@ -494,13 +494,6 @@
   border-top-right-radius: 12px;
 }
 
-/* Hide the last column styling but keep it minimal */
-/* .modern-table thead th:last-child,
-.modern-table tbody td:last-child {
-  border: none;
-  background: transparent;
-  padding: 0;
-} */
 
 /* Remove any border shadows from last column */
 .modern-table tbody td:last-child {
@@ -560,71 +553,102 @@
   }
 }
 
-/* Override for tables that want the actual last column rounded */
-.modern-table.round-last-column tbody tr:last-child td:nth-last-child(2) {
-  border-bottom-right-radius: 0;
+
+/* Base modern table with rounded corners */
+.modern-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid #4b5563;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
-.modern-table.round-last-column tbody tr:last-child td:last-child {
-  border-bottom-right-radius: 12px;
-}
-
-/* Restore the right border for the last column when using round-last-column */
-.modern-table.round-last-column tbody td:last-child {
-  border-right: 1px solid #6b7280; /* gray-500 to match border-gray-500 */
-  box-shadow: inherit;
-}
-
-/* Dark mode border color for round-last-column */
-.dark .modern-table.round-last-column tbody td:last-child {
-  border-right: 1px solid #6b7280; /* Same gray-500 for consistency */
-}
-
-/* Override for tables that want no bottom rounding at all */
-.modern-table.no-bottom-radius tbody tr:last-child td {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-/* Uniform darker borders for all modern-table elements */
-.modern-table,
-.modern-table th,
-.modern-table td {
-  border: 1px solid #4b5563; /* gray-600 - much darker */
-}
-
-/* Override the light header border */
+/* Header cells */
 .modern-table thead th {
-  position: relative;
   font-weight: 400;
   letter-spacing: 0.02em;
   font-size: 0.825rem;
-  text-transform: none;
   background: linear-gradient(180deg, rgba(0,0,0,0.03) 0%, rgba(0,0,0,0.01) 100%);
-  border-bottom: 1px solid #4b5563; /* Much darker */
-  border-left: 1px solid #4b5563;
+  border-bottom: 1px solid #4b5563;
   border-right: 1px solid #4b5563;
-  border-top: 1px solid #4b5563;
+  padding: 12px;
 }
 
-/* Body cells with darker borders */
+/* Remove right border from last header cell */
+.modern-table thead th:last-child {
+  border-right: none;
+}
+
+/* Body cells */
 .modern-table tbody td {
-  border: 1px solid #4b5563; /* Consistent dark border */
+  border-bottom: 1px solid #4b5563;
+  border-right: 1px solid #4b5563;
 }
 
-/* Update the round-last-column to match */
-.modern-table.round-last-column tbody td:last-child {
-  border-right: 1px solid #4b5563; /* Match the darker border */
-  box-shadow: inherit;
+/* Remove right border from last cell in each row */
+.modern-table tbody td:last-child {
+  border-right: none;
 }
 
-/* Dark mode - keep existing or make even more visible */
+/* Remove bottom border from last row */
+.modern-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Dark mode adjustments */
 .dark .modern-table,
 .dark .modern-table th,
 .dark .modern-table td {
-  border-color: #6b7280; /* Keep gray-500 for dark mode */
+  border-color: #6b7280;
 }
 
-.dark .modern-table.round-last-column tbody td:last-child {
-  border-right: 1px solid #6b7280;
+
+
+
+/* ===== HIDE LAST COLUMN MODIFIER ===== */
+
+/* Remove right border from table container */
+.modern-table.hide-last-column {
+  border: none;
+}
+
+
+.modern-table.hide-last-column tbody td:last-child {
+  background: transparent !important;
+  border: none !important;
+  color: transparent;
+  padding: 0;
+}
+
+.modern-table.hide-last-column tbody td:last-child * {
+  visibility: visible !important; /* Keep the content visible (like trash icons) */
+  color: initial !important;
+}
+
+/* Ensure last row keeps bottom border except for last column */
+.modern-table.hide-last-column tbody tr:last-child td:not(:last-child) {
+  border-bottom: 1px solid #4b5563;
+}
+
+.dark .modern-table.hide-last-column tbody tr:last-child td:not(:last-child) {
+  border-bottom: 1px solid #6b7280;
+}
+
+.modern-table.hide-last-column thead th:last-child {
+  border-right: 1px solid #4b5563;
+}
+
+/* Make second-to-last column act like the visual end */
+.modern-table.hide-last-column tbody td:nth-last-child(1) {
+  border-right: none;
+}
+
+/* Move top-right corner rounding to second-to-last column header */
+.modern-table.hide-last-column thead tr:first-child th:nth-last-child(1) {
+  border-top-right-radius: 12px;
+}
+
+/* Move bottom-right corner rounding to second-to-last column */
+.modern-table.hide-last-column tbody tr:last-child td:nth-last-child(1) {
+  border-bottom-right-radius: 12px;
 }

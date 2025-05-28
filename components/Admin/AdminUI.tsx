@@ -569,7 +569,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     </div>
 
                     { Object.keys(appSecrets).length > 0 ?
-                        <div className="mx-4">
+                        <div className="mx-4 truncate">
                             <InputsMap
                             id = {AdminConfigTypes.APP_VARS}
                             inputs={Object.keys(appVars)

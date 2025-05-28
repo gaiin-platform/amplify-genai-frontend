@@ -423,26 +423,10 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                 {(isModalOpen) &&  
                     <div className="shadow-xl flex justify-center w-full">
                         <div id="shareArtifactModal" className="p-4  border border-gray-500 rounded z-50 absolute bg-white dark:bg-[#444654]" style={{ transform: `translateY(50%)`}}>
-                        {/* {isSaving || isUploading && <>
-                        <TagsList tags={selectArtifactList[versionIndex].tags} 
-                            setTags={(tags) => {
-                                    const artifactTags =  selectArtifactList[versionIndex].tags;                                
-                                        // setTags(tags);
-                                        // item.tags = [...itemTags, ...tags.filter(tag => !itemTags.includes(tag))]
-                                    
-                                    }}
-                            removeTag={(tag) => {
-                            
-                                    // item.tags = item.tags?.filter(x => x != tag)
-                                
-                            }}
-                        /> 
 
-                        </>} */}
                         
                     {isSharing && <div className="flex flex-col gap-2" >
 
-                        {/* <div className="flex w-full flex-wrap pb-2 mt-2"> */}
                         {"Send Amplify Artifact"}
                         {featureFlags.assistantAdminInterface && groups && groups.length > 0  &&  <>{includeGroupInfoBox}</>}
                         <div className='flex flex-row gap-2'>
@@ -497,33 +481,9 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                         onSubmit={() => handleShareArtifact()}
                         onCancel={() => setIsSharing(false)}
                         />
-                    {/* </div> */}
                     </div>
                     }
 
-
-                    {/* {isUploading && <>
-                        <CancelSubmitButtons
-                        submitText="Upload"
-                        onSubmit={handleUploadAsFile}
-                        onCancel={() => {
-                            setIsUploading(false)
-                            setTags([])
-                        }}
-                        />
-                    
-                    </>}
-
-                    {isSaving && <>
-                        <CancelSubmitButtons
-                        submitText="Save"
-                        onSubmit={handleSaveArtifact}
-                        onCancel={() => {
-                            setIsSaving(false)
-                            setTags([])
-                        }}
-                        />
-                    </>} */}
                     </div>
                     </div>
                 }

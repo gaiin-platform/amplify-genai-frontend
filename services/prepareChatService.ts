@@ -534,7 +534,7 @@ function relevantArtifactContent(response: string, artifactMap: { [key: string]:
     if (artifactIds.length > 0 ) {
         artifactContent = "\n\n You may or may not find the following artifacts useful to answer the users prompt:\n";
         artifactIds.forEach((id: string) => {
-            artifactContent += `\n\n ArtifactId: ${id} \n${lzwUncompress(artifactMap[id])}`;
+            if (artifactMap[id]) artifactContent += `\n\n ArtifactId: ${id} \n${lzwUncompress(artifactMap[id])}`;
         });
     } 
     return artifactContent;

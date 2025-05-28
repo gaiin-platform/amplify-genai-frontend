@@ -11,7 +11,7 @@ import { PeriodType, formatRateLimit, UNLIMITED, rateLimitObj} from '@/types/rat
 import { useSession } from 'next-auth/react';
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import { formatDateYMDToMDY, userFriendlyDate } from '@/utils/app/date';
-import { AccountSelect, isValidCOA } from './Account';
+import { AccountSelect } from './Account';
 import { RateLimiter} from './RateLimit';
 import cloneDeep from 'lodash/cloneDeep';
 import { Prompt } from '@/types/prompt';
@@ -62,15 +62,14 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
 
     const { data: session } = useSession();
     const user = session?.user?.email;
-    const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+    const [apiKeys, setApiKeys] = useState<ApiKey[] | null>(null);
 
     const { t } = useTranslation('settings');
     const [validAccounts, setValidAccounts] = useState<any>(accounts.filter((a: Account) => a.id !== noCoaAccount.id));
     
-    const [ownerApiKeys, setOwnerApiKeys] = useState<ApiKey[]>([]);
-    const [delegateApiKeys, setDelegateApiKeys] = useState<ApiKey[]>([]);
+    const [ownerApiKeys, setOwnerApiKeys] = useState<ApiKey[] | null>(null);
+    const [delegateApiKeys, setDelegateApiKeys] = useState<ApiKey[] | null>(null);
     const [isCreating, setIsCreating] = useState<boolean>(false);
-    const [isSaving, setIsSaving ] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
     const [appName, setAppName] = useState<string>("");
@@ -100,12 +99,11 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
 
 
     const fetchApiKeys = async () => {
-    const result = await fetchAllApiKeys();
+       const result = await fetchAllApiKeys();
 
         if (!result.success) {
             alert("Unable to fetch your API keys. Please try again.");
             setIsLoading(false);
-
         } else {
             setApiKeys(result.data); 
         }
@@ -174,8 +172,10 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
     }, [delegateInput]);
 
     useEffect(() => {
+        if (apiKeys) {
         setDelegateApiKeys(apiKeys.filter((k: ApiKey) => k.delegate === user));
         setOwnerApiKeys(apiKeys.filter((k: ApiKey) => k.owner === user));
+        }
     }, [apiKeys]);
 
 
@@ -226,7 +226,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
     const handleDeactivateApikey = async (apiKeyId: string, name: string) => {
         if (confirm(`Are you sure you want to deactivate API key: ${name}?\nOnce deactivate, it cannot be undone.`)) {
             const result = await deactivateApiKey(apiKeyId);
-            if (result) {
+            if (result && apiKeys) {
                 setApiKeys(apiKeys.map((k: ApiKey) => {;
                     if (k.api_owner_id === apiKeyId) return {...k, active: false}
                     return k;
@@ -252,9 +252,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
     };
 
     const handleSave = async () => {
-        setIsSaving(true);
         if (Object.keys(editedKeys).length !== 0) await handleApplyEdits();
-        setIsSaving(false);
     };
 
     useEffect(() => {
@@ -491,7 +489,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                             <span>{"Loading API Keys..."}</span>
                         </div> : (
                 <div className='overflow-x-auto'>
-                {ownerApiKeys.length === 0 ? (
+                {ownerApiKeys && ownerApiKeys.length === 0 ? (
                     <div className="text-center text-md italic text-black dark:text-neutral-200">
                         You do not have any API keys set up. Add one above.
                     </div>
@@ -511,7 +509,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                             </tr>
                         </thead>
                         <tbody>
-                            {ownerApiKeys.map((apiKey, index) => (
+                            {ownerApiKeys && ownerApiKeys.map((apiKey, index) => (
                                 <tr key={index}>
                                     <td>{
                                         <IconUser style={{ strokeWidth: 2.5 }} className={`mb-2 mr-2 flex-shrink-0 ${apiKey.systemId 
@@ -549,7 +547,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
 
             </div>
             <div>
-                { delegateApiKeys.length > 0 &&
+                {delegateApiKeys && delegateApiKeys.length > 0 &&
                 <>
                 <div className="text-lg text-black dark:text-neutral-200 border-b">
                         Delegated API Keys
@@ -1047,6 +1045,10 @@ const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
                 <div>
                 <div className='absolute top-[130px] h-[100px] bg-pink-100 dark:bg-[#2b2c36]'> </div>
                 <ActiveTabs
+                onClose={() => {
+                    showDocsRef.current = false;
+                    setDocumentElement(null)
+                }}
                 id="ApiDocumentationTabs"
                 depth={1}
                 tabs={[
@@ -1058,7 +1060,7 @@ const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
                 <div>
                 <iframe
                     src={fileContentsRef.current}
-                    width={`${window.innerWidth * 0.55 }px`}
+                    width={`${window.innerWidth * .85 }px`}
                     height={`${window.innerHeight * 0.5}px`}
                     onError={() => docError()}
                     style={{ border: 'none' }} />   
@@ -1099,16 +1101,6 @@ const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
                     </div>}
                 ]}
                 />
-                 <div className='absolute top-[150px] right-[60px]'>
-                    <ActionButton
-                        handleClick={() => {
-                            showDocsRef.current = false;
-                            setDocumentElement(null)
-                        }}
-                        title={"Close"}>
-                        <IconX size={26}/>
-                    </ActionButton>
-                </div>  
                 </div>
             )}
         </>);

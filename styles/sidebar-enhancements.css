@@ -1939,7 +1939,7 @@
     color: #6b7280;
     background: rgba(255, 255, 255, 0.8);
     border: none;
-    cursor: pointer;
+    cursor: pointer !important;
     display: flex;
     align-items: center;
     justify-content: center;

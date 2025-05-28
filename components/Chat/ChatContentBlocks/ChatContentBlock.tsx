@@ -84,7 +84,7 @@ const ChatContentBlock: React.FC<Props> = (
     }, [showChatbar]);
 
 
-    const calcWidth = () => window.innerWidth - ((+promptbarRef.current + +chatbarRef.current) * 450);
+    const calcWidth = () => window.innerWidth - ((+promptbarRef.current + +chatbarRef.current) * 300);
     
 
     const [windowInnerWidth, setWindowInnerWidth] = useState<number>(calcWidth());
@@ -113,7 +113,7 @@ const ChatContentBlock: React.FC<Props> = (
 //   console.log(transformedMessageContent)
   
     return (
-    <div className="chatContentBlock w-full overflow-x-auto" 
+    <div className="chatContentBlock overflow-x-auto" 
          id="chatContentBlock"
          style={{maxWidth: windowInnerWidth}}
          data-message-index={messageIndex}

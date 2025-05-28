@@ -781,7 +781,7 @@ export const ChatInput = ({
                 </div>
             }
             <div style={{width: chatContainerWidth}}
-                 className="px-14 absolute bottom-0 left-0 border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2">
+                 className="px-20 absolute bottom-0 left-0 border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2">
 
                 <div className="relative z-15 flex flex-col gap-2 justify-center items-center stretch mx-2 mt-4 flex flex-row last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6">
 
@@ -818,7 +818,7 @@ export const ChatInput = ({
                             <>
                                 <button
                                     id="stopGenerating"
-                                    className="mt-10 flex w-fit items-center gap-1 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 "
+                                    className="z-20 -mt-4 flex w-fit items-center gap-1 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 "
                                     onClick={handleStopConversation}
                                 >
                                     <IconPlayerStop size={16}/> {t('Stop Generating')}
@@ -975,12 +975,14 @@ export const ChatInput = ({
                             setSelectedProject(project);
                             setShowProjectList(false);
                         }}/>} */}
-                     {documents && documents.length > 0 && (
-                        <FileList documents={documents}
-                                  documentStates={documentState}
-                                  onCancelUpload={onCancelUpload}
-                                  setDocuments={setDocuments}/>
-                     )}
+                     {documents && documents.length > 0 && 
+                        <div  style={{transform: 'translateY(-4px)'}}>
+                            <FileList documents={documents}
+                                    documentStates={documentState}
+                                    onCancelUpload={onCancelUpload}
+                                    setDocuments={setDocuments}/>
+                        </div>
+                     }
 
                     </div>
 
@@ -1130,7 +1132,7 @@ export const ChatInput = ({
 
 
                             {showScrollDownButton && (
-                                <div className="absolute bottom-12 right-0 lg:bottom-0 lg:-right-10 bg-pink-500 py-2.5 px-1.5 bg-white dark:bg-[#343541]">
+                                <div className="absolute -bottom-1 -right-10 py-2.5 px-1.5">
                                     <button
                                         className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-300 text-gray-800 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-neutral-200"
                                         onClick={onScrollDownClick}
@@ -1169,7 +1171,7 @@ export const ChatInput = ({
                     </div>
 
 
-                    <div className="h-8 w-full flex flex-row gap-2 items-center bg-white dark:bg-[#343541] mt-[-8px]">
+                    <div className="h-8 pt-4 w-full flex flex-row gap-2 items-center bg-white dark:bg-[#343541] mt-[-8px]">
 
 
                         {featureFlags.dataSourceSelectorOnInput && (

@@ -361,7 +361,7 @@ return <>
                 title={"Manage Ops"}
                 content={
                 <div style={{ maxHeight: '500px', overflowY: 'auto', overflowX: 'hidden'}}>
-                <table id="manageOpsTable" className="modern-table mt-4 w-full mr-10" style={{boxShadow: 'none'}}>
+                <table id="manageOpsTable" className="modern-table hide-last-column mt-4 w-full mr-10" style={{boxShadow: 'none'}}>
                     <thead className="sticky top-0">
                     <tr className="gradient-header">
                         {['Function Name', 'Tags', 'Path', 'Method', 'Parameters', 'Description']

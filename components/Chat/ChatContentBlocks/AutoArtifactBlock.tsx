@@ -1,4 +1,3 @@
-
 import React, {useContext, useEffect, useRef, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import {Conversation, Message, newMessage} from "@/types/chat";
@@ -29,6 +28,7 @@ const AutoArtifactsBlock: React.FC<Props> = ({content, ready, message}) => {
             statsService,
             chatEndpoint,
             artifactIsStreaming,
+            messageIsStreaming
         },
         dispatch: homeDispatch, handleUpdateSelectedConversation, getDefaultModel
     } = useContext(HomeContext);
@@ -102,7 +102,7 @@ const ARTIFACT_CUSTOM_INSTRUCTIONS = `Follow these structural guidelines strictl
     
     **Additional Guidelines:**
     - For interactive components (e.g., HTML, CSS, or widgets), ensure users can preview or download the artifact files if relevant (This will be handled for you). 
-    - If any ambiguities exist in the user’s request, provide fallback suggestions within the ${startMarker} and ${endMarker} tags.
+    - If any ambiguities exist in the user's request, provide fallback suggestions within the ${startMarker} and ${endMarker} tags.
     - ensure your artifacts are as complete as possible.
 `  
 
@@ -141,7 +141,8 @@ const repairJson = async () => {
     const fixedJson: string | null = await fixJsonString( model, chatEndpoint || "", statsService, content, "Failed to create artifact, attempting to fix...");
      // try to repair json
      if (fixedJson) {
-        message.data.artifactStatus = ArtifactMessageStatus.RETRY;   
+        message.data.artifactStatus = ArtifactMessageStatus.RETRY; 
+        llmPromptedRef.current = false;
         prepareArtifacts(fixedJson, false);
      } else {
          message.data.artifactStatus = ArtifactMessageStatus.CANCELLED;
@@ -162,13 +163,45 @@ const repairJson = async () => {
 useEffect(() => {
     if (!llmPromptedRef.current) {
         llmPromptedRef.current = true;
-        if (ready && !message.data.artifactStatus && !artifactIsStreaming ) prepareArtifacts(content, true); 
+        if (ready && !message.data.artifactStatus && !artifactIsStreaming && !messageIsStreaming) prepareArtifacts(content, true); 
     }
     
 }, [ready]);
 
+const isInEndState = (status: ArtifactMessageStatus) => {
+    return [ArtifactMessageStatus.STOPPED, ArtifactMessageStatus.CANCELLED, ArtifactMessageStatus.COMPLETE].includes(status);
+}
+
+useEffect(() => {
+    if (isInEndState(message.data.artifactStatus)) {
+        llmPromptedRef.current = false;
+    }
+    
+}, [message.data]);
+
 
 const prepareArtifacts = (jsonContent: string, retry: boolean) => {
+        // Create a unique key for this specific message content
+        const contentHash = message.id ? `msg-${message.id}` : `content-${jsonContent.slice(0, 50).replace(/\s/g, '')}`;
+        const messageKey = `processing-${contentHash}`;
+        const cooldownKey = `cooldown-${contentHash}`;
+        
+        // Check if we're in cooldown period (3 seconds after last completion)
+        const lastCompletion = (window as any)[cooldownKey];
+        if (lastCompletion && Date.now() - lastCompletion < 3000) {
+            console.log("Still in cooldown period, skipping artifact creation:", messageKey);
+            return;
+        }
+        
+        // Check if this message is already being processed
+        if ((window as any)[messageKey] && !retry) {
+            console.log("Message already being processed, skipping:", messageKey);
+            return;
+        }
+        
+        // Mark this message as being processed
+        (window as any)[messageKey] = true;
+        
         message.data.artifactStatus = ArtifactMessageStatus.RUNNING;
         homeDispatch({field: 'messageIsStreaming', value: true}); 
         homeDispatch({field: 'artifactIsStreaming', value: true});
@@ -189,10 +222,12 @@ const prepareArtifacts = (jsonContent: string, retry: boolean) => {
 
             const additionalContent =  appendRelevantArtifacts(includeArtifactsId, data.id);
             // includeArtifactsId
-            getArtifactMessages(instr + additionalContent,  artifactDetail as ArtifactBlockDetail, data.type);
+            getArtifactMessages(instr + additionalContent,  artifactDetail as ArtifactBlockDetail, data.type, messageKey, cooldownKey);
 
         } catch {
             console.log("error parsing auto artifacts block ");
+            // Clean up the processing flag on error
+            delete (window as any)[messageKey];
             // try to repair json
             if (retry) repairJson();
         }        
@@ -243,7 +278,7 @@ const containsPartialMarker = (buffer: string) => {
 }
 
 
-const getArtifactMessages = async (llmInstructions: string, artifactDetail: ArtifactBlockDetail, type: string = '') => {
+const getArtifactMessages = async (llmInstructions: string, artifactDetail: ArtifactBlockDetail, type: string = '', messageKey?: string, cooldownKey?: string) => {
     statsService.createArtifactEvent(type);
     const requestId = Math.random().toString(36).substring(7);
     console.log("Artifact Request id: ", requestId);
@@ -406,10 +441,20 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             } catch (error) {
                 if (!controller.signal.aborted) console.error("Artifact Streaming Error occurred", error);
             } finally {
+                // Clean up the processing flag and set cooldown
+                if (messageKey) {
+                    delete (window as any)[messageKey];
+                }
+                if (cooldownKey) {
+                    (window as any)[cooldownKey] = Date.now(); // Set cooldown timestamp
+                    console.log("Artifact completed, setting cooldown for:", cooldownKey);
+                }
+                
                 if (reader && !controller.signal.aborted) {
                     await reader.cancel(); 
                     reader.releaseLock();
                 } 
+                llmPromptedRef.current = false;
                 homeDispatch({field: 'messageIsStreaming', value: false});
                 homeDispatch({field: 'artifactIsStreaming', value: false});
 
@@ -424,7 +469,11 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
 
         } catch (e) {
             console.error("Error prompting for Artifact Messages: ", e);
-        }   
+            // Clean up the processing flag on error (but don't set cooldown for errors)
+            if (messageKey) {
+                delete (window as any)[messageKey];
+            }
+        }
         // clean up event listener
         window.removeEventListener('killArtifactRequest', handleStopGenerationEvent);
 

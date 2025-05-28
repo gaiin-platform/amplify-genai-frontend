@@ -182,7 +182,7 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                         </span>
                     }
                     />
-                    <table id="featureFlagsTable" className="modern-table round-last-column mt-4 w-full mr-10" style={{boxShadow: 'none', tableLayout: 'fixed'}}>
+                    <table id="featureFlagsTable" className="modern-table mt-4 w-full mr-10" style={{boxShadow: 'none', tableLayout: 'fixed'}}>
                         <thead>
                         <tr className="gradient-header">
                             {['Feature', 'Status', 'User Exceptions', 'User Exceptions by Amplify Group Membership']
