@@ -69,52 +69,33 @@ const handleAllCloud = async (conversations: Conversation[], folders: FolderInte
 }
 
 // when individual conversation is changed to be sent to the cloud
-const handleConversationLocalToCloud = async (selectedConversation: Conversation, conversations: Conversation[], folders: FolderInterface[], statsService: any) => {
+const handleConversationLocalToCloud = async (selectedConversation: Conversation, folders: FolderInterface[], statsService: any) => {
     const copyConv = cloneDeep(selectedConversation)
     const uploadResult = await uploadConversation({...copyConv, isLocal: false}, folders)
     if (!uploadResult) {
         alert("Failed to send conversation to the cloud. Please try again later...");
-        return conversations
+        return selectedConversation;
     }
-    statsService.moveConversationRemoteEvent(selectedConversation);
-    const updatedConversations: Conversation[] = conversations.map(
-            (conversation) => {
-                if (conversation.id === selectedConversation.id) {
-                    const cloudConversation = remoteForConversationHistory(selectedConversation);
-                    cloudConversation.isLocal = false;
-                    return cloudConversation;
-                }
-                return conversation;
-            },
-        );
+    statsService.moveConversationRemoteEvent(copyConv);
     selectedConversation.isLocal = false;
-    return updatedConversations;
+    return selectedConversation;
 }
 
 // when individual conversation is changed to be saved in local
-const handleConversationCloudToLocal = (selectedConversation: Conversation, conversations: Conversation[]) => {
+const handleConversationCloudToLocal = (selectedConversation: Conversation) => {
     deleteRemoteConversation(selectedConversation.id);
-    const updatedConversations: Conversation[] = conversations.map(
-        (conversation) => {
-            if (conversation.id === selectedConversation.id) {
-                selectedConversation.isLocal = true;
-                 // selected Conversation has the whole conversation
-                return conversationWithCompressedMessages(cloneDeep(selectedConversation)); 
-            }
-            return conversation;
-        },
-    );
-    return updatedConversations;
+    selectedConversation.isLocal = true;
+    return selectedConversation;
 }
 
 
-export const  handleConversationIsLocalChange = (selectedConversation: Conversation, conversations: Conversation[], folders:FolderInterface[], statsService: any) => {
+export const  handleSelectedConversationStorageChange = (selectedConversation: Conversation, folders:FolderInterface[], statsService: any) => {
     if (selectedConversation.isLocal) {  
-        return handleConversationLocalToCloud(selectedConversation, conversations, folders, statsService)
+        return handleConversationLocalToCloud(selectedConversation, folders, statsService)
     } else {
         // switching to local
         statsService.moveConversationFromRemoteEvent(selectedConversation);
-        return handleConversationCloudToLocal(selectedConversation, conversations)
+        return handleConversationCloudToLocal(selectedConversation)
     }
    
 }
@@ -139,22 +120,9 @@ export const getIsLocalStorageSelection = (storageSelection: string | null) => {
 
   
 export const saveStorageSettings = (storage: ConversationStorage) => {
-    localStorage.setItem('storageSelection', storage.storageLocation);
+    localStorage.setItem('storageSelection', storage);
 };
 
-
-
-//currently unused
-export const syncCloudConversation = async (selectedConversation: Conversation, conversations: Conversation[], folders: FolderInterface[], dispatch: any) => {
-        //ensure upload is successfull todo else dont switch
-        const result = await uploadConversation(selectedConversation, folders);
-        if (!result) {
-            alert("We've encountered problems updating your last selected conversation in the cloud. To avoid losing your conversation, it has been saved locally. You will need to click the lock icon once again to send your conversation to the cloud.");
-            const updatedConversations = handleConversationCloudToLocal(selectedConversation, conversations); // ensure its up to date
-            dispatch({field: 'conversations', value: updatedConversations});
-            saveConversations(updatedConversations); 
-        }
-}
 
 
 const fillInMissingData = async (conversationId: string, defaultModel: Model, folders:FolderInterface[]) => {
@@ -168,6 +136,16 @@ const fillInMissingData = async (conversationId: string, defaultModel: Model, fo
         uploadConversation(fullConv, folders);
     }
 }
+
+const updateRemoteConversation = async (conversationId: string, attributes: any, folders:FolderInterface[]) => {
+    const fullConv = await fetchRemoteConversation(conversationId);
+    if (fullConv) {
+        const updatedConv = {...fullConv, ...attributes};
+        // console.log("Update data on remote conversation: ", attributes);
+        uploadConversation(updatedConv, folders);
+    }
+}
+
 export interface remoteConvData {
     conversation: Conversation;
     folder: FolderInterface | null;
@@ -208,9 +186,11 @@ export const updateWithRemoteConversations = async (remoteConversations: remoteC
                         newFolders.push(cd.folder);
                     } else {
                         remoteConv.folderId = similarFolderExists.id;
+                        // update the folder id in the remote conversation, this will ensure we are fully in sync in this browser 
+                        updateRemoteConversation(remoteConv.id, {folderId: similarFolderExists.id}, updatedFolders);
                     }
                 }
-            }   else if  (existsLocally && folderExists && existsLocally.folderId !== folderExists.id) {
+            }   else if  (existsLocally && folderExists && existsLocally.folderId !== folderExists?.id) {
                 remoteConv.folderId = folderExists.id;
             }
             currentConversationsMap.set(remoteConv.id, {...remoteConv, isLocal: false});  // in case

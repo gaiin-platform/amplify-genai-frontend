@@ -7,8 +7,8 @@ import { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 
 import HomeContext from '@/pages/api/home/home.context';
-import { handleConversationIsLocalChange} from '@/utils/app/conversationStorage';
-import { saveConversations, isRemoteConversation } from '@/utils/app/conversation';
+import { handleSelectedConversationStorageChange} from '@/utils/app/conversationStorage';
+import { isRemoteConversation, isLocalConversation } from '@/utils/app/conversation';
 import { Conversation } from '@/types/chat';
 
 
@@ -22,7 +22,7 @@ export const CloudStorage: FC<Props> = ({
   iconSize
 }) => {
   const { 
-    state: { selectedConversation, conversations, folders, statsService, messageIsStreaming}, dispatch: homeDispatch
+    state: { selectedConversation, conversations, folders, statsService, messageIsStreaming}, dispatch: homeDispatch, handleUpdateSelectedConversation
   } = useContext(HomeContext);
 
   const conversationsRef = useRef(conversations);
@@ -63,13 +63,10 @@ const title = () => {
 
 const handleConversationLockChange = async () => {
     if (selectedConversation) { // should always be true
-      setInCloud(!inCloud);
-      const updatedConversations = await handleConversationIsLocalChange(selectedConversation, conversationsRef.current, foldersRef.current, statsService);
-      // in case failure happens, update isLocked. it should match isLocked otherwise.   
-      //@ts-ignore       
-      setInCloud(selectedConversation.isLocal); 
-      homeDispatch({field: 'conversations', value: updatedConversations});
-      saveConversations(updatedConversations); 
+      const updatedConversation = await handleSelectedConversationStorageChange(selectedConversation, foldersRef.current, statsService);
+      // in case failure happens, update isLocked. it should match isLocked otherwise.         
+      setInCloud(!!isLocalConversation(updatedConversation)); 
+      handleUpdateSelectedConversation(updatedConversation);
     }
 }
 

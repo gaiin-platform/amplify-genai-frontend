@@ -5,6 +5,7 @@ import { fetchAllSystemIds } from '@/services/apiKeysService';
 import HomeContext from '@/pages/api/home/home.context';
 import { Group } from '@/types/groups';
 import { useSession } from 'next-auth/react';
+import { stringToColor } from '@/utils/app/data';
 
 
 interface Props {
@@ -22,7 +23,8 @@ interface EmailModalProps {
     setInput: (input: string) => void;
     message: string;
     allEmails: string[] | null;
-    alreadyAddedEmails: string[]
+    alreadyAddedEmails: string[];
+    containsSystemUsers: boolean;
 }
 
 export const includeGroupInfoBox = (
@@ -33,24 +35,7 @@ export const includeGroupInfoBox = (
 )
 
 
-export function stringToColor(str: string): string {
-    const colors = [
-        "#fbfbfb", "#979197", "#f69833", "#419bf9", "#f7f7f7",
-        "#ee6723", "#fecf33", "#c8cf2d", "#0dcfda", "#edeced",
-        "#c1bec1", "#fdbd39"
-    ];
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    hash = Math.abs(hash);
-    const index = hash % colors.length;
-    return colors[index];
-}
-
-
-
-const EmailModal: FC<EmailModalProps> = ({ isOpen, onClose, onSubmit, input, setInput, message, allEmails, alreadyAddedEmails}) => {
+const EmailModal: FC<EmailModalProps> = ({ isOpen, onClose, onSubmit, input, setInput, message, allEmails, alreadyAddedEmails, containsSystemUsers}) => {
     const { state: { featureFlags, groups}, dispatch: homeDispatch } = useContext(HomeContext);
     
     if (!isOpen) return null;
@@ -64,6 +49,12 @@ const EmailModal: FC<EmailModalProps> = ({ isOpen, onClose, onSubmit, input, set
                             
                             { featureFlags.assistantAdminInterface && groups && groups.length > 0  && 
                             <>{includeGroupInfoBox}</>
+                            }
+                            {containsSystemUsers && 
+                            <div className='mb-4 flex flex-row gap-2 text-[0.795rem]'>
+                                <IconInfoCircle size={14} className='mt-0.5 flex-shrink-0 text-gray-600 dark:text-gray-400' />
+                                {'Use the "@" symbol to list your API created system users.'}
+                            </div>
                             }
 
                             {message}
@@ -123,8 +114,9 @@ export const EmailsList: FC<Props> = ({
             const sysIds = apiSysIds.map((k: any) => k.systemId).filter((k: any) => k);
             // add groups  #groupName
             const groupForMembers = groups.map((group:Group) => `#${group.name}`);
+            const systemIdMembers = sysIds.map((id:string) => `@${id}`);
             setAllEmails(emailSuggestions ? [...emailSuggestions, ...groupForMembers, 
-                                             ...sysIds].filter((e: string) => e !== user)
+                                             ...systemIdMembers].filter((e: string) => e !== user)
                                                     : []);
         };
         if (!allEmails) fetchEmails();
@@ -136,12 +128,14 @@ export const EmailsList: FC<Props> = ({
         let entriesWithGroupMembers:string[] = [];
 
         entries.forEach((e: any) => { 
-            if ( e.startsWith('#')) {
+            if ( e.startsWith('#') ) {
                 const group = groups.find((g:Group) => g.name === e.slice(1));
                 if (group) entriesWithGroupMembers = [...entriesWithGroupMembers, 
                                                       ...Object.keys(group.members).filter((e: string) => e !== user)]; 
+            } else if (e.startsWith('@') ) {
+                entriesWithGroupMembers.push(e.slice(1));
             } else {
-                entriesWithGroupMembers.push(e);
+                entriesWithGroupMembers.push(e.toLowerCase());
             }
         });
 
@@ -172,7 +166,9 @@ export const EmailsList: FC<Props> = ({
                 input={input}
                 setInput={setInput}
                 message={addMessage} allEmails={allEmails}
-                alreadyAddedEmails={emails}/>    
+                alreadyAddedEmails={emails}
+                containsSystemUsers={!!allEmails?.some((s:string) => s.startsWith('@'))}
+                />    
             <div className="flex w-full flex-wrap pb-2 mt-2">
                 {emails.map((email, index) => (
                     <div 

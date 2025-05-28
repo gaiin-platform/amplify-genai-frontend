@@ -1,5 +1,6 @@
 import React, {FC} from 'react';
 import { IconCircleX, IconPlus } from '@tabler/icons-react';
+import { stringToColor } from '@/utils/app/data';
 
 interface Props {
     label?: string;
@@ -13,37 +14,6 @@ interface Props {
 
 }
 
-function stringToColor(str:string) {
-    // Array of the color options provided
-    const colors = [
-        "#fbfbfb", // snowman
-        "#979197", // gandalf
-        "#f69833", // orange
-        "#419bf9", // cornflower-blue
-        "#f7f7f7", // whitey
-        // "#554d56", // teflon
-        "#ee6723", // peach
-        "#fecf33", // yellow
-        "#c8cf2d", // green
-        "#0dcfda", // turquoise
-        "#edeced", // karl
-        "#c1bec1", // clooney
-        "#fdbd39", // light-orange
-    ];
-
-    // Hash function
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    hash = Math.abs(hash); // Ensure hash is positive
-
-    // Use the hashed value to select a color
-    const index = hash % colors.length; // Modulus operation to get a valid array index
-    return colors[index];
-}
-
-
 export const TagsList: FC<Props> = (
     { tags, setTags , maxWidth="200px", label="Tags", tagParser=(t:string)=>t.split(","), addMessage="Tag names separated by commas:", removeTag=((t:string)=>{}), isDisabled=false}) => {
 
@@ -53,6 +23,7 @@ export const TagsList: FC<Props> = (
             <div className="flex flex-row items-start justify-between px-1 py-1 mr-2">
                 { !isDisabled && 
                     <button
+                        id="addTag"
                         className="text-gray-400 hover:text-gray-600 transition-all"
                         onClick={(e) =>{
                             e.preventDefault();
@@ -79,12 +50,14 @@ export const TagsList: FC<Props> = (
                 {tags?.map((tag, i) => (
                     <div
                         key={i}
+                        id="tagContainer"
                         className="flex items-center justify-between bg-white dark:bg-neutral-200 rounded-md px-2 py-0 mr-2 mb-2 shadow-lg"
                         style={{ flex: 'none', backgroundColor: stringToColor(tag) }} // Prevent flex-shrink which can distort items
                     >
                         { !isDisabled && 
                             <button
                                 className="text-gray-800 transition-all color-gray-800"
+                                id="removeTag"
                                 onClick={(e) =>{
                                     e.preventDefault();
                                     e.stopPropagation();
@@ -98,7 +71,7 @@ export const TagsList: FC<Props> = (
                         }
                         {/* Tag text container, without truncation to allow wrapping */}
                         <div className="ml-1">
-                            <p className="text-gray-800 font-medium text-sm">
+                            <p id="tagName" className="text-gray-800 font-medium text-sm">
                                 {tag}
                             </p>
                         </div>

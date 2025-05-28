@@ -16,10 +16,12 @@ import { Model } from '@/types/model';
 import toast from 'react-hot-toast';
 import { ActiveTabs } from '../ReusableComponents/ActiveTabs';
 import LegacyWorkspaces from '../Workspace/LegacyWorkspace';
+import { capitalize } from '@/utils/app/data';
 
   interface Props {
   open: boolean;
   onClose: () => void;
+  openToTab?: string;
 }
 
 export const modelOptionFlags = [
@@ -27,26 +29,44 @@ export const modelOptionFlags = [
     "label": "OpenAI",
     "key": "allOpenAI",
     "defaultValue": false,
-    "identifers": ['gpt', 'o1', 'o3']
+    "identifiers": ['gpt', 'o1', 'o3']
   },
   {
       "label": "Claude",
       "key": "allClaude",
       "defaultValue": false,
-      "identifers": ['anthropic']
+      "identifiers": ['anthropic']
   },
   {
       "label": "Mistral",
       "key": "allMistral",
       "defaultValue": false,
-      "identifers": ['mistral']
+      "identifiers": ['mistral']
   },
   {
-    "label": "Llama",
-    "key": "allLlama",
+    "label": "Amazon",
+    "key": "allAmazon",
     "defaultValue": false,
-    "identifers": ['llama']
-},
+    "identifiers": ['amazon', 'nova']
+  },
+  {
+    "label": "Meta",
+    "key": "allMeta",
+    "defaultValue": false,
+    "identifiers": ['llama', 'meta']
+  },
+  {"label": "DeepSeek",
+    "key": "allDeepSeek",
+    "defaultValue": false,
+    "identifiers": ['deepseek']
+  },
+  {"label": "Google",
+    "key": "allGemini",
+    "defaultValue": false,
+    "identifiers": ['gemini']
+  },
+
+
   ];
 
 
@@ -54,7 +74,7 @@ export const modelOptionFlags = [
 type ModelKey = (typeof modelOptionFlags)[number]["key"];
 
 
-export const SettingDialog: FC<Props> = ({ open, onClose }) => {
+export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
   const { t } = useTranslation('settings');
   const { dispatch: homeDispatch, state:{statsService, featureFlags, availableModels: allAvailableModels, defaultModelId, workspaces} } = useContext(HomeContext);
   let initSettingsRef = useRef<Settings | null>(null);
@@ -68,10 +88,10 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
     const models: Model[] = Object.values(allAvailableModels);
 
     type ModelsMap = {
-      [K in ModelKey]: { id: string; name: string }[];
+      [K in ModelKey]: Model[];
     };
 
-    const sortedModels = modelOptionFlags.reduce((acc, flag) => {
+    const modelsMap = modelOptionFlags.reduce((acc, flag) => {
       acc[flag.key] = [];
       return acc;
     }, {} as ModelsMap);
@@ -79,22 +99,40 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
     models.forEach((model) => {
       const matchedOption = modelOptionFlags.find(flag => {
             // Check if any pattern matches the model.id
-            const identifers = flag.identifers;
+            const identifiers = flag.identifiers;
 
-            return !!identifers.find((identifier: string) => model.id.includes(identifier));
+            return !!identifiers.find((identifier: string) => model.id.includes(identifier));
         }
       );
 
-      if (matchedOption) sortedModels[matchedOption.key].push({ id: model.id, name: model.name });
+      if (matchedOption) modelsMap[matchedOption.key].push(model);
     });
 
+      const sortModelFlags = (a: string, b: string) => {
+        const bLength = modelsMap[b].length;
+        const aLength = modelsMap[a].length;
+        if (bLength === aLength) {
+          // Find the labels for comparison
+          const aFlag = modelOptionFlags.find(flag => flag.key === a);
+          const bFlag = modelOptionFlags.find(flag => flag.key === b);
+          return (aFlag?.label || '').localeCompare(bFlag?.label || '');
+        }
+        return bLength - aLength;
+      }
+      
+      // Create a new ordered object with sorted keys
+      const orderedSortedModels: Record<ModelKey, any[]> = {};
+      Object.keys(modelsMap)
+        .sort(sortModelFlags)
+        .forEach(key => {
+          orderedSortedModels[key as ModelKey] = modelsMap[key as ModelKey];
+        });
 
-      Object.entries(sortedModels).forEach(([key, models]) => 
-          sortedModels[key] = (models as any).sort((a: any, b: any) => b.name.length - a.name.length),
+      Object.entries(orderedSortedModels).forEach(([key, models]) => 
+          modelsMap[key] = (models as any).sort((a: any, b: any) => a.name.localeCompare(b.name)),
       );
-
-      return sortedModels;
-
+      
+      return orderedSortedModels;
     }
 
 
@@ -133,7 +171,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
 
 
   const handleSave = async () => {
-    if (Object.values(allAvailableModels).every((model: Model) => hiddenModelIds.includes(model.id))) {
+    if (Object.values(allAvailableModels).every((model: Model) => hiddenModelIds.includes(model.id) || model.id === defaultModelId)) {
         alert("All models are currently set to be hidden. At least one model needs to remain visible, please adjust your selection.");
         return;
     }
@@ -143,7 +181,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
 
     const updatedSettings: Settings = { theme: theme, 
                                         featureOptions: featureOptions, 
-                                        hiddenModelIds: hiddenModelIds
+                                        hiddenModelIds: hiddenModelIds.filter((id: string) => id !== defaultModelId)
                                       }
     statsService.saveSettingsEvent(updatedSettings);
     // console.log(updatedSettings);
@@ -190,7 +228,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose }) => {
 const modelLabel = (modelId: string, name: string) => {
   const isVisible = !hiddenModelIds.includes(modelId);
   const isDisabled = modelId === defaultModelId;
-  return <div key={modelId} className={` text-sm ${isVisible ? "text-blue-600":""}`}> 
+  return <div key={modelId} className={` text-sm ${isVisible || modelId === defaultModelId ? "text-blue-600":""}`}> 
           <button
             disabled={isDisabled}
             title={isDisabled? "Default model can't be hidden": `${isVisible ? "Hide" : "Show"} model from selection menus`}
@@ -226,6 +264,7 @@ const modelLabel = (modelId: string, name: string) => {
       disableSubmit={!hasUnsavedChanges}
       content={
         <ActiveTabs
+            initialActiveTab={openToTab}
             width={() => window.innerWidth * 0.58}
             tabs={[
       
@@ -241,34 +280,20 @@ const modelLabel = (modelId: string, name: string) => {
                                 {t('Theme')}
                               </div>
               
-                              <div className="flex flex-row gap-6 mb-8">
-                                <label className="flex items-center">
-                                  <input
-                                    type="radio"
-                                    name="theme"
-                                    value="dark"
-                                    checked={theme === 'dark'}
-                                    onChange={(event) => {
-                                      setTheme(event.target.value as Theme);
-                                    }}
-                                    className="form-radio cursor-pointer"
-                                  />
-                                  <span className="ml-2 text-neutral-700 dark:text-neutral-200">{t('Dark mode')}</span>
-                                </label>
-                                      
-                                <label className="flex items-center">
-                                  <input
-                                    type="radio"
-                                    name="theme"
-                                    value="light"
-                                    checked={theme === 'light'}
-                                    onChange={(event) => {
-                                      setTheme(event.target.value as Theme);
-                                    }}
-                                    className="form-radio cursor-pointer"
-                                  />
-                                  <span className="ml-2 text-neutral-700 dark:text-neutral-200">{t('Light mode')}</span>
-                                </label>
+                              <div className="flex flex-row gap-6 mb-6">
+                                {["dark", "light"].map((color) => (
+                                  <label className="flex items-center" key={color}>
+                                      <input type="radio" name="theme"
+                                      value={color}
+                                      checked={theme === color}
+                                      onChange={(event) =>  setTheme(event.target.value as Theme)}
+                                      className="form-radio cursor-pointer"
+                                      />
+                                      <span className="ml-2 text-neutral-700 dark:text-neutral-200">
+                                        {t(`${capitalize(color)} mode`)} 
+                                      </span>
+                                  </label>
+                                ))}
                               </div>
               
                               { Object.keys(allAvailableModels).length > 0 && <>
@@ -285,11 +310,17 @@ const modelLabel = (modelId: string, name: string) => {
                                     </div> 
                               </div>      
                               <div className='flex flex-row pr-8'>
-                                <div className='w-[100px] border border-gray-300 mr-[-1px] mt-[-2px] dark:border-neutral-700 px-2'>
+                                <div className='w-[140px] border border-gray-300 mr-[-1px] mt-[-2px] dark:border-neutral-700 px-2'>
                                   <div className='mt-1'>
                                     <FlagsMap 
                                       id={'modelOptionFlags'}
-                                      flags={modelOptionFlags.filter((f: Flag) => availableModels[f.key].length > 0 )}
+                                      flags={modelOptionFlags
+                                            .filter((f: Flag) => availableModels[f.key].length > 0 )
+                                            .sort((a, b) => {
+                                              // Get the keys in the order they appear in availableModels
+                                              const orderedKeys = Object.keys(availableModels);
+                                              return orderedKeys.indexOf(a.key) - orderedKeys.indexOf(b.key);
+                                            })}
                                       state={modelOptions}
                                       flagChanged={(key, value) => {
                                         handleModelOptionChange(key as ModelKey, value);
@@ -320,7 +351,7 @@ const modelLabel = (modelId: string, name: string) => {
                               </div>
                                     
                               </>}
-                              <div className="mt-4 mb-2 text-lg font-bold text-black dark:text-neutral-200">
+                              <div className="mt-6 mb-2 text-lg font-bold text-black dark:text-neutral-200">
                                 {t('Features')}
                               </div>
                               <div className='pr-4'>
@@ -355,7 +386,79 @@ const modelLabel = (modelId: string, name: string) => {
                         [{ label: `Legacy Workspaces`, 
                            title: hasUnsavedChanges ? " Contains Unsaved Changes  " : "",
                            content: <LegacyWorkspaces/>
-                        }] : [])
+                        }] : []),
+              ///////////////////////////////////////////////////////////////////////////////
+                              // Model Pricing 
+
+                        { label: "Model Pricing",
+                          content: 
+                          <>
+                          <div className='w-full text-lg font-bold '>Model Pricing / Million Tokens</div>
+
+                          <div className="mt-6 overflow-x-auto w-full pr-6">
+                            <table className="mt-1 mb-3 table-auto border-collapse w-full">
+                              <thead>
+                                <tr>
+                                  {["Model", "Input Tokens", "Output Tokens", "Cached Tokens"].map((title, index) => (
+                                    <th
+                                      key={index}
+                                      className="text-center py-0.5 border border-gray-500 text-black dark:text-white bg-neutral-400 dark:bg-neutral-800"
+                                      style={{ width: index === 0 ? '200px' : 'auto'}}
+                                    >
+                                      {title}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {modelOptionFlags
+                                  .filter((f: Flag) => availableModels[f.key].length > 0)
+                                  .map((f: Flag, i: number) => (
+                                    <React.Fragment key={f.key}>
+                                      {/* Section label */}
+                                      <tr>
+                                        <td colSpan={4} className="text-center font-bold py-2">
+                                          {f.label}
+                                        </td>
+                                      </tr>
+                                      {/* Models in the section */}
+                                      {availableModels[f.key].map((model: Model) => (
+                                        <tr key={model.id}>
+                                          <td
+                                            className="border border-neutral-500 py-2text-start"
+                                            style={{ width: '260px' }}
+                                          >
+                                            <label className="px-2">{model.name}</label>
+                                          </td>
+                                          {["inputTokenCost", "outputTokenCost", "cachedTokenCost"].map((s: string, idx: number) => (
+                                            <td
+                                              key={idx}
+                                              className="border border-neutral-500 py-2"
+                                              title={model.name}
+                                              style={{ width: 'auto' }}
+                                            >
+                                              <div className="text-center">
+                                                {model[s as keyof Model] !== 0 ? (
+                                                  `$${((model[s as keyof Model] as number) * 1000)
+                                                    .toFixed(2)
+                                                    .replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
+                                                ) : (
+                                                  <label className="opacity-60">N/A</label>
+                                                )}
+                                              </div>
+                                            </td>
+                                          ))}
+                                        </tr>
+                                      ))}
+                                    </React.Fragment>
+                                  ))}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          </>
+
+                        },
                     ]}
       />
       }

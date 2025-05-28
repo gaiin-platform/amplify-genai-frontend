@@ -3,6 +3,7 @@ import { DEFAULT_SYSTEM_PROMPT } from "./const";
 import { getDate } from "./date";
 import { ExportFormatV4 } from "@/types/export";
 import { Prompt } from "@/types/prompt";
+import { AssistantProviderID } from "@/types/assistant";
 
 const oldBasePromptFolders = ["169a24c3-32fb-4a41-9f93-532087656e50", "94d81d7f-c1dd-4786-8f22-8adca07b3c0b"];
 export const isOutDatedBaseFolder = (folderId: string) => {
@@ -85,7 +86,7 @@ export const basePrompts = {
         "id": "create_powerPoint",
         "name": "Create PowerPoint",
         "description": "",
-        "content": "Create a slide presentation by {{Authors Separated by Commas:text(optional:true)}} titled: \"{{Title}}\"\n\nThe presentation should cover:\n{{What should the presentation cover?}}",
+        "content": "Create a slide presentation by {{Authors Separated by Commas:text(optional:true)}} titled: \"{{Title}}\"\n\nThe presentation should cover:\n{{What should the presentation cover?}} {{Attach Documents:files(optional:true)}}",
         "folderId": "amplify_helpers",
         "type": "prompt",
         "data": {
@@ -162,7 +163,7 @@ export const baseAssistantCreator: Prompt = {
     "type": "root_prompt",
     "name": "Assistant Creator ",
     "description": "This assistant will guide you through the process of building a customized large language model assistant.",
-    "content": "You are going to help me build a customized ChatGPT assistant. To do this, you will need to help me create the instructions that guide the assistant in its job. \n\nWhat we want to define is:\n1. A name and description of the assistant. \n2. What the assistant does.\n3. What are the rules about how it does its work (e.g., what questions it will or won't answer, things its way of working, etc.)\n4. It's tone of voice. Is it informal or formal in style. Does it have a persona or personality?\n\nYou will ask me questions to help determine these things. As we go, try to incrementally output values for all these things. You will write the instructions in a detailed manner that incorporates all of my feedback. Every time I give you new information that changes things, update the assistant.\n\nAt the end of every message you output, you will update the assistant in a special code block WITH THIS EXACT FORMAT:\n\n```assistant\n{\n\"name\": \"<FILL IN NAME>\"\n\"description\": \"<FILL IN DESCRIPTION>\"\n\"instructions\": \"<FILL IN INSTRUCTIONS>\"\n}\n```\n    ",
+    "content": "You are going to help me build a customized assistant. To do this, you will need to help me create the instructions that guide the assistant in its job. \n\nWhat we want to define is:\n1. A name and description of the assistant. \n2. What the assistant does.\n3. What are the rules about how it does its work (e.g., what questions it will or won't answer, things its way of working, etc.)\n4. It's tone of voice. Is it informal or formal in style. Does it have a persona or personality?\n\nYou will ask me questions to help determine these things. As we go, try to incrementally output values for all these things. You will write the instructions in a detailed manner that incorporates all of my feedback. Every time I give you new information that changes things, update the assistant.\n\nAt the end of every message you output, you will update the assistant in a special code block WITH THIS EXACT FORMAT:\n\n```assistant\n{\n\"name\": \"<FILL IN NAME>\"\n\"description\": \"<FILL IN DESCRIPTION>\"\n\"instructions\": \"<FILL IN INSTRUCTIONS>\"\n}\n```\n    ",
     "folderId": "AmplifyAssistants_ec5dbb95-de2d-4e89-97f0-f251d62883eb",
     "data": {
       "assistant": {
@@ -170,7 +171,7 @@ export const baseAssistantCreator: Prompt = {
         "definition": {
           "assistantId": "astgp/0d6fb1cf-5bba-4623-a6ad-ef910595579c",
           "version": 3,
-          "instructions": "You are going to help me build a customized ChatGPT assistant. To do this, you will need to help me create the instructions that guide the assistant in its job. \n\nWhat we want to define is:\n1. A name and description of the assistant. \n2. What the assistant does.\n3. What are the rules about how it does its work (e.g., what questions it will or won't answer, things its way of working, etc.)\n4. It's tone of voice. Is it informal or formal in style. Does it have a persona or personality?\n\nYou will ask me questions to help determine these things. As we go, try to incrementally output values for all these things. You will write the instructions in a detailed manner that incorporates all of my feedback. Every time I give you new information that changes things, update the assistant.\n\nAt the end of every message you output, you will update the assistant in a special code block WITH THIS EXACT FORMAT:\n\n```assistant\n{\n\"name\": \"<FILL IN NAME>\"\n\"description\": \"<FILL IN DESCRIPTION>\"\n\"instructions\": \"<FILL IN INSTRUCTIONS>\"\n}\n```\n    ",
+          "instructions": "You are going to help me build a customized assistant. To do this, you will need to help me create the instructions that guide the assistant in its job. \n\nWhat we want to define is:\n1. A name and description of the assistant. \n2. What the assistant does.\n3. What are the rules about how it does its work (e.g., what questions it will or won't answer, things its way of working, etc.)\n4. It's tone of voice. Is it informal or formal in style. Does it have a persona or personality?\n\nYou will ask me questions to help determine these things. As we go, try to incrementally output values for all these things. You will write the instructions in a detailed manner that incorporates all of my feedback. Every time I give you new information that changes things, update the assistant.\n\nAt the end of every message you output, you will update the assistant in a special code block WITH THIS EXACT FORMAT:\n\n```assistant\n{\n\"name\": \"<FILL IN NAME>\"\n\"description\": \"<FILL IN DESCRIPTION>\"\n\"instructions\": \"<FILL IN INSTRUCTIONS>\"\n}\n```\n    ",
           "disclaimerHash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
           "coreHash": "b206bf2431ae4f4cbb2466ca2b37aa267ce5d887242a1c0b0ea19cf1676ecae0",
           "user": "AmplifyAssistants_ec5dbb95-de2d-4e89-97f0-f251d62883eb",
@@ -195,7 +196,7 @@ export const baseAssistantCreator: Prompt = {
               "ragConversationDocuments": false,
               "ragAttachedDocuments": false
             },
-            "provider": "amplify",
+            "provider": AssistantProviderID.AMPLIFY,
             "isPublished": true,
             "groupId": "AmplifyAssistants_ec5dbb95-de2d-4e89-97f0-f251d62883eb",
             "model": "gpt-4o",
@@ -225,7 +226,7 @@ export const baseAssistantCreator: Prompt = {
       "access": {
         "write": true
       },
-      "provider": "amplify",
+      "provider": AssistantProviderID.AMPLIFY,
       "tags": [
         "amplify:assistant-builder",
         "amplify:system"

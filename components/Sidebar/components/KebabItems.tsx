@@ -8,12 +8,14 @@ export interface ItemProps {
   handleAction : () => void
   icon: JSX.Element,
   title?: string;
+  id?: string;
 }
 //min-w-[${minWidth}px]
 export const KebabItem: FC<ItemProps> = ({label, handleAction, icon, title=''}) => {
   return (
     <div className={`border-b dark:border-white/20`} title={title}>
       <button   
+        id={label}
         key={label}
         value={label}
         onClick={handleAction}
@@ -33,6 +35,7 @@ interface ActionProps {
   setActiveItem: (option: actionItemAttr | null) => void;
   dropFolders: (isOpen: boolean) => void;
   icon: JSX.Element;
+  id?: string;
 }
 
 export interface actionItemAttr {
@@ -71,6 +74,7 @@ export const KebabActionItem: FC<ActionProps> = ({label, type, handleAction, set
     
       <div className="text-neutral-900 dark:text-neutral-100">{icon}</div>
       <button 
+        id={label}
         key={label}
         value={label}
         onClick={handleClick} >  
@@ -101,6 +105,7 @@ export const KebabMenuItems: FC<MenuItemsProps> = ({ label, xShift=220, minWidth
   
   return (
     <div
+    id="subMenu"
     className={`pr-1 pl-1 border-b dark:border-white/20 cursor-pointer dark:border-white/20 hover:bg-neutral-200 dark:hover:bg-[#343541]/90 flex w-full items-center `}
       onMouseEnter={() => setIsSubMenuVisible(true)}
       onMouseLeave={() => setIsSubMenuVisible(false)}
@@ -110,7 +115,7 @@ export const KebabMenuItems: FC<MenuItemsProps> = ({ label, xShift=220, minWidth
         <div 
           className={`relative`} 
           style={{ display: isSubMenuVisible ? 'block' : 'none', top: `-11px`}}>
-          <div className={`flex-grow absolute bg-neutral-100 dark:bg-[#202123] text-neutral-900 rounded border border-neutral-200 dark:border-neutral-600 dark:text-white z-50`}
+          <div id="visibleSubMenu" className={`flex-grow absolute bg-neutral-100 dark:bg-[#202123] text-neutral-900 rounded border border-neutral-200 dark:border-neutral-600 dark:text-white z-50`}
             style={{ transform: `translateX(${xShiftPercentage})`, minWidth: `${minWidth}px`}}>    
             {childrenArray} 
           </div>

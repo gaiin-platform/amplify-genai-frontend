@@ -127,8 +127,6 @@ export const Chatbar = () => {
         selectedConversation = {...newConversation}
         
       }
-
-      localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation));
       handleSelectConversation(selectedConversation);
 
     } else {
@@ -171,8 +169,6 @@ export const Chatbar = () => {
 
   useEffect(() => {
 
-    statsService.openConversationsEvent();
-
     if (searchTerm) {
 
       statsService.searchConversationsEvent(searchTerm);
@@ -203,6 +199,11 @@ export const Chatbar = () => {
     }
   }, [searchTerm, conversations]);
 
+  const conversationsWithNoFolders = () => {
+    return filteredConversations.filter((conversation) => !conversation.folderId || 
+             !foldersRef.current.find((f: FolderInterface) => f.id === conversation.folderId));
+  }
+
   return (
     <ChatbarContext.Provider
       value={{
@@ -218,7 +219,7 @@ export const Chatbar = () => {
         side={'left'}
         isOpen={showChatbar}
         addItemButtonTitle={t('New Chat')}
-        itemComponent={<Conversations conversations={filteredConversations} />}
+        itemComponent={<Conversations conversations={conversationsWithNoFolders()} />}
         folderComponent={<ChatFolders sort={folderSort} searchTerm={searchTerm} conversations={filteredConversations} />}
         items={filteredConversations}
         searchTerm={searchTerm}

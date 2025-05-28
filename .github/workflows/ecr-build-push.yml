@@ -2,9 +2,9 @@ name: Docker image build and publish
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, frontend-public-updates]
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, frontend-public-updates]
   workflow_dispatch:
     inputs:
       enable_ecr_workflow:

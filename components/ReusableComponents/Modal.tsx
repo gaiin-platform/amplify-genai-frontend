@@ -24,12 +24,12 @@ interface Props {
   disableSubmit?: boolean;
   additionalButtonOptions?: OptionButtons[];
   resizeOnVarChange?: any;
+  transform?: string;
 }
 
   export const Modal: FC<Props> = ({title, content, width , height, onCancel=()=>{}, onSubmit=()=>{}, 
                                     showClose=true, showCancel=true, showSubmit=true, cancelLabel= "Cancel", submitLabel="Submit",
-                                    additionalButtonOptions=[], disableSubmit=false, resizeOnVarChange}) => {
-
+                                    additionalButtonOptions=[], disableSubmit=false, resizeOnVarChange, transform=""}) => {
 
  const modalRef = useRef<HTMLDivElement>(null);
 
@@ -88,12 +88,13 @@ interface Props {
                         <div
                         ref={modalRef}
                         className={`inline-block transform rounded-lg border border-gray-300 dark:border-neutral-600 bg-neutral-100 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#2b2c36] sm:my-8 py-4 px-6 sm:align-middle`}
-                        style={{width: `${innderWindow.width}px`, height: `${innderWindow.height}px`}}
+                        style={{width: `${innderWindow.width}px`, height: `${innderWindow.height}px`, transform: transform || undefined}}
+                        id="modal"
                         role="dialog"  
                         >
 
                         <div className='flex flex-row'>
-                        <div className="text-xl pb-4 font-bold text-black dark:text-neutral-200">
+                        <div className="text-xl pb-4 font-bold text-black dark:text-neutral-200" id="modalTitle">
                             {title && <>{title}</>}
                             </div>
                             { showClose && 
@@ -107,7 +108,7 @@ interface Props {
                             </div> }  
                         </div>
 
-                        <div className="overflow-y-auto" style={{ maxHeight: `${innderWindow.height * 0.8}px` }}>
+                        <div id="modalScroll" className="overflow-y-auto" style={{ maxHeight: `${innderWindow.height * 0.8}px` }}>
                             {content}
                             <br className='mt-[40px]'></br>
                         </div>
@@ -121,6 +122,7 @@ interface Props {
                                            .map((option: OptionButtons, index: number) => 
                             <button key={index}
                               type="button"
+                              id="confirmationButton"
                               disabled={option.isDisabled}
                               className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                               onClick={option.handleClick}

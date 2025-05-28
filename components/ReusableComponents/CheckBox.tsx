@@ -5,12 +5,15 @@ interface CheckboxProps {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  bold?: boolean;
+  disabled?: boolean;
 }
 
-export const Checkbox: React.FC<CheckboxProps> = ({ id, label, checked, onChange }) => {
+export const Checkbox: React.FC<CheckboxProps> = ({ id, label, checked, onChange, disabled, bold = false }) => {
   return (
     <div className="checkbox-wrapper">
       <input
+        disabled={!!disabled}
         className="inp-cbx"
         id={id}
         type="checkbox"
@@ -24,7 +27,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({ id, label, checked, onChange
             <polyline points="1.5 6 4.5 9 10.5 1"></polyline>
           </svg>
         </span>
-        <span className='mt-[0.5px]'>{label}</span>
+        <span className={`mt-[1px] ${bold ? "font-bold" : ""}`}>{label}</span>
       </label>
 
       <style jsx>{`
@@ -52,7 +55,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({ id, label, checked, onChange
           height: 15px; 
           border-radius: 4px;
           transform: scale(1);
-          border: 1px solid #cccfdb;
+          border: 1px solid rgb(164, 166, 174);
           transition: all 0.2s ease;
           box-shadow: 0 1px 1px rgba(0, 16, 75, 0.05);
         }

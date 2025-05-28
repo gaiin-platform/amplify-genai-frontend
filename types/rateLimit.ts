@@ -3,13 +3,14 @@ export interface RateLimit {
     rate: number | null;
 }
 
+export const periodTypes = ["Unlimited", "Daily", "Hourly", "Monthly", "Total"] as const;
+export type PeriodType = typeof periodTypes[number];
 
-export type PeriodType = "Unlimited" | "Daily" | "Hourly" | "Monthly";
 
 export const UNLIMITED: PeriodType = 'Unlimited';
 
 export const formatRateLimit = (limits: RateLimit) =>  {
-    if (!limits.rate) return noRateLimit.period;
+    if (limits.rate === null || limits.rate === undefined) return noRateLimit.period;
     return `${limits.rate.toFixed(2)}/${limits.period}`;
 }
 

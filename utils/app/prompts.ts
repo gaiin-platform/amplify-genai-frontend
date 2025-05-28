@@ -3,9 +3,8 @@ import JSON5 from "json5";
 import { v4 as uuidv4 } from 'uuid';
 import {AttachedDocument} from "@/types/attacheddocument";
 import {parseVariableName} from "@/components/Chat/VariableModal";
-import {getToolMetadata} from "@/utils/app/tools";
-import {WorkflowContext} from "@/types/workflow";
 import {MessageType} from "@/types/chat";
+import { isAssistant, isSystemAssistant } from './assistants';
 
 export interface VariableFillOption {
     isEditable?: boolean,
@@ -115,7 +114,10 @@ export const updatePrompt = (updatedPrompt: Prompt, allPrompts: Prompt[]) => {
 };
 
 export const savePrompts = (prompts: Prompt[]) => {
-  localStorage.setItem('prompts', JSON.stringify(prompts));
+  const importedAssistants = prompts.filter(prompt => isAssistant(prompt) && prompt.data?.noShare && 
+                                                       !prompt.groupId && !isSystemAssistant(prompt));   
+  const localPrompts = prompts.filter((p:Prompt) => !isAssistant(p)); // imported ones 
+  localStorage.setItem('prompts', JSON.stringify([...localPrompts, ...importedAssistants]));
 };
 
 

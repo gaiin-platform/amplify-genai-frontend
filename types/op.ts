@@ -47,3 +47,16 @@ export interface Op extends OpDef {
     paramChecker: (params: any) => boolean;
     execute: (context: OpContext, params: any) => Promise<OpResult>;
 }
+
+
+
+
+
+export const opLanguageOptionsMap = (featureFlags: any) => {
+    const languageMap: any = {
+        v1 : "Standard",
+        custom : "Custom"
+    }
+    if (featureFlags.agentAssistantType)  languageMap.v4 = "Agent";
+    return languageMap;
+}

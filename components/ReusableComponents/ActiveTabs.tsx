@@ -10,11 +10,16 @@ export interface tab {
 interface Props {
     tabs: tab[];
     width?: () => number;
+    initialActiveTab?: number | string;
 }
 
 
-export const ActiveTabs: FC<Props> = ({tabs, width}) => {
-    const [activeTab, setActiveTab] = useState<number>(0);
+export const ActiveTabs: FC<Props> = ({tabs, width, initialActiveTab}) => {
+    const activeTabIdx = () => {
+        if (typeof initialActiveTab === 'number') return initialActiveTab;
+        return tabs.findIndex((tab) => tab.label === initialActiveTab);
+    }
+    const [activeTab, setActiveTab] = useState<number>(initialActiveTab ? activeTabIdx() : 0);
     const tabRef = useRef<HTMLDivElement>(null); 
 
 
@@ -59,7 +64,7 @@ export const ActiveTabs: FC<Props> = ({tabs, width}) => {
             </div>
             <br className="mt-[40px]"></br>
                         
-            <div className="mt-8"> {tabs[activeTab].content} </div>
+            <div className="mt-8"> {tabs[activeTab]?.content} </div>
 
         </div>
 

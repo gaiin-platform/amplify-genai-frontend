@@ -1,5 +1,5 @@
 import HomeContext from "@/pages/api/home/home.context";
-import { CodeBlockDetails, getFileExtensionFromLanguage } from "@/utils/app/codeblock";
+import { CodeBlockDetails } from "@/utils/app/codeblock";
 import { getSettings } from "@/utils/app/settings";
 import {
   SandpackCodeEditor,
@@ -165,6 +165,7 @@ export const ArtifactEditor: React.FC<Props> = ({
         <div className="prose mt-[-2px] dark:prose-invert max-w-full">
           <div
             className="flex flex-col h-full max-w-full"
+            id="editModal"
             style={{ maxHeight: `${height}px` }}
           >
             {isCodeViewAvailable && Object.keys(files).length > 0 && (
@@ -229,12 +230,14 @@ export const ArtifactEditor: React.FC<Props> = ({
       </div>
       <div className="mt-4 mb-4 flex justify-center space-x-4">
         <button
+          id="cancelEdit"
           className="h-[40px] rounded-md border border-neutral-300 px-10 py-1 text-sm font-medium text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800 shadow-lg"
           onClick={handleCancel}
         >
           Cancel
         </button>
         <button
+          id="confirmEdit"
           className="h-[40px] rounded-md bg-blue-500 px-10 py-1 text-sm font-medium text-white enabled:hover:bg-blue-600 disabled:opacity-50 shadow-lg"
           onClick={() => handleSave()}
         >

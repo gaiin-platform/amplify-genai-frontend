@@ -1,6 +1,7 @@
 import { doRequestOp } from "./doRequestOp";
 
-const URL_PATH =  "/vu-agent";
+const URL_PATH = "/vu-agent";
+const SERVICE_NAME = "agent";
 
 export interface FileDownloadOptions {
   sessionId: string;
@@ -8,13 +9,13 @@ export interface FileDownloadOptions {
   version_timestamp?: string | null;
 }
 
-
 export const getFileDownloadUrls = async (files: FileDownloadOptions) => {
   const op = {
     method: 'POST',
     path: URL_PATH,
     op: "/get-file-download-urls",
-    data: files
+    data: files,
+    service: SERVICE_NAME
   };
 
   console.log("getFileDownloadUrls", files);
@@ -22,4 +23,13 @@ export const getFileDownloadUrls = async (files: FileDownloadOptions) => {
   return await doRequestOp(op);
 }
 
+export const getAgentTools = async () => {
+  const op = {
+    method: 'GET',
+    path: URL_PATH,
+    op: "/tools",
+    service: SERVICE_NAME
+  };
 
+  return await doRequestOp(op);
+}

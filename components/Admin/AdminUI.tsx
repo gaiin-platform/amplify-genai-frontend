@@ -3,10 +3,9 @@ import { FC, useContext, useEffect, useRef, useState } from "react";
 import { Modal } from "../ReusableComponents/Modal";
 import HomeContext from "@/pages/api/home/home.context";
 import InputsMap from "../ReusableComponents/InputMap";
-import {  getAdminConfigs, testEmbeddingEndpoint, testEndpoint, updateAdminConfigs } from "@/services/adminService";
-import { AdminConfigTypes, Endpoint, FeatureFlagConfig, OpenAIModelsConfig, SupportedModel, SupportedModelsConfig, AdminTab } from "@/types/admin";
+import {  getAdminConfigs, getAvailableModels, getFeatureFlags, getPowerPoints, testEmbeddingEndpoint, testEndpoint, updateAdminConfigs } from "@/services/adminService";
+import { AdminConfigTypes, Endpoint, FeatureFlagConfig, OpenAIModelsConfig, SupportedModel, SupportedModelsConfig, AdminTab, DefaultModelsConfig } from "@/types/admin";
 import { IconCheck, IconPlus, IconRefresh, IconX} from "@tabler/icons-react";
-import { EmailsAutoComplete } from "../Emails/EmailsAutoComplete";
 import { LoadingIcon } from "../Loader/LoadingIcon";
 import toast from "react-hot-toast";
 import React from "react";
@@ -20,12 +19,13 @@ import { OpenAIEndpointsTab } from "./AdminComponents/OpenAIEndpoints";
 import { FeatureFlagsTab } from "./AdminComponents/FeatureFlags";
 import { emptySupportedModel, SupportedModelsTab } from "./AdminComponents/SupportedModels";
 import { ConfigurationsTab } from "./AdminComponents/Configurations";
-// import { integrationProvidersList, IntegrationSecretsMap, IntegrationsMap } from "@/types/integrations";
-// import { checkActiveIntegrations } from "@/services/oauthIntegrationsService";
-// import { IntegrationsTab } from "./AdminComponents/Integrations";
+import { Integration, IntegrationProviders, integrationProvidersList, IntegrationSecretsMap, IntegrationsMap } from "@/types/integrations";
+import { checkActiveIntegrations } from "@/services/oauthIntegrationsService";
+import { IntegrationsTab } from "./AdminComponents/Integrations";
 import { EmbeddingsTab } from "./AdminComponents/Embeddings";
 import { OpsTab } from "./AdminComponents/Ops";
 import { Pptx_TEMPLATES, Ast_Group_Data, FeatureDataTab, } from "./AdminComponents/FeatureData";
+import { ConversationStorage } from "@/types/conversationStorage";
 
 
 export const titleLabel = (title: string, textSize: string = "lg") => 
@@ -54,7 +54,7 @@ interface Props {
 
 
 export const AdminUI: FC<Props> = ({ open, onClose }) => {
-    const { state: { statsService, amplifyUsers}, dispatch: homeDispatch, setLoadingMessage } = useContext(HomeContext);
+    const { state: { statsService, storageSelection, amplifyUsers}, dispatch: homeDispatch, setLoadingMessage } = useContext(HomeContext);
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
 
@@ -69,8 +69,12 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     const [rateLimit, setRateLimit] = useState<{period: PeriodType, rate: string}>({...noRateLimit, rate: '0'});
     const [promptCostAlert, setPromptCostAlert] = useState<PromptCostAlert>({isActive:false, alertMessage: '', cost: 0});
+    const [emailSupport, setEmailSupport] = useState<EmailSupport>({isActive:false, email:''});
+
+    const [defaultConversationStorage, setDefaultConversationStorage] = useState<ConversationStorage>('future-local');
 
     const [availableModels, setAvailableModels] = useState<SupportedModelsConfig>({});   
+    const [defaultModels, setDefaultModels] = useState<DefaultModelsConfig>({user: '', advanced: '', cheapest: '', agent: '', embeddings: '', qa: ''});
 
     const [features, setFeatures] = useState<FeatureFlagConfig>({}); 
 
@@ -93,22 +97,44 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     const [ampGroups, setAmpGroups] = useState<Amplify_Groups>({});
 
-    // const [integrations, setIntegrations] = useState<IntegrationsMap | null >(null);
-    // const [integrationSecrets, setIntegrationSecrets] = useState<IntegrationSecretsMap>({});
+    const [integrations, setIntegrations] = useState<IntegrationsMap | null >(null);
+    const [integrationSecrets, setIntegrationSecrets] = useState<IntegrationSecretsMap>({});
 
+    const mergeIntegrationLists = ( supported: Integration[] | undefined,
+                                    baseIntegrations: Integration[] | undefined ): Integration[] => {
+        if (!supported) return baseIntegrations || [];
+        if (!baseIntegrations) return [];
+      
+        const supportedLookup = new Map(supported.map((integration) => [integration.id, integration]));
+        const mergedIntegrations = baseIntegrations.map((i: Integration) => supportedLookup.get(i.id) ?? i );
+        return mergedIntegrations;
+      };
     
-    // const getActiveIntegrations = async (supportedIntegrations: IntegrationsMap | null) => {
-    //     const checkResponsive = supportedIntegrations ? integrationProvidersList.filter((i:string) => !Object.keys(supportedIntegrations).includes(i))
-    //                                                   : integrationProvidersList;
-    //     const integrationsResult = await checkActiveIntegrations(checkResponsive);
+    const getActiveIntegrations = async (supportedIntegrations: IntegrationsMap | null) => {
+        const integrationsResult = await checkActiveIntegrations(integrationProvidersList);
         
-    //     const integrationMap = integrationsResult.integrationLists;
-    //     console.log("MAp:\n\n", integrationMap)
-    //     if (Object.keys(integrationMap).length > 0) {
-    //         setIntegrations(integrationMap);
-    //         setIntegrationSecrets(integrationsResult.secrets)
-    //     }
-    // }
+        const integrationMap: IntegrationsMap  = integrationsResult.integrationLists;
+        if (supportedIntegrations) {
+            // update the integrations to reflect changes in the base integrations compared to the saved ones in the admin table
+           Object.keys(integrationMap).forEach((integrationKey: string) => {
+                const key = integrationKey as IntegrationProviders
+                integrationMap[key] = mergeIntegrationLists(supportedIntegrations[key], integrationMap[key]);
+            }); 
+        }
+
+        // console.log("integrations map:\n\n", integrationMap)
+        if (Object.keys(integrationMap).length > 0) {
+            setIntegrations(integrationMap);
+            setIntegrationSecrets(integrationsResult.secrets)
+        }
+    }
+    // for cases when adding the integration feature flag manually 
+    useEffect(() => {
+        if (!stillLoadingData && !integrations && Object.keys(features).includes('integrations' )) {
+            getActiveIntegrations(null);
+        }
+    }, [features])
+
   
     useEffect(() => {
        
@@ -126,13 +152,15 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 const featureData = data[AdminConfigTypes.FEATURE_FLAGS];
                 setFeatures(featureData || {});
                 // handle calls to integrations 
-                // if (Object.keys(featureData).includes('integrations')) getActiveIntegrations(data[AdminConfigTypes.INTEGRATIONS]); // async no need to wait
+                if (Object.keys(featureData).includes('integrations')) getActiveIntegrations(data[AdminConfigTypes.INTEGRATIONS]); // async no need to wait
 
                 setAmpGroups(data[AdminConfigTypes.AMPLIFY_GROUPS] || {})
                 setTemplates(data[AdminConfigTypes.PPTX_TEMPLATES] || []);
                 setRateLimit(data[AdminConfigTypes.RATE_LIMIT || rateLimit]);
                 setPromptCostAlert(data[AdminConfigTypes.PROMPT_COST_ALERT || promptCostAlert]);
-
+                setDefaultConversationStorage(data[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE] || defaultConversationStorage);
+                setEmailSupport(data[AdminConfigTypes.EMAIL_SUPPORT || emailSupport]);
+                setDefaultModels(data[AdminConfigTypes.DEFAULT_MODELS] || {});
                 setLoadingMessage("");
             
                 const nonlazyResult = await nonlazyReq;
@@ -189,6 +217,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return rateLimitObj(rateLimit.period, rateLimit.rate);
             case AdminConfigTypes.PROMPT_COST_ALERT:
                 return promptCostAlert;
+            case AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE:
+                return defaultConversationStorage;
+            case AdminConfigTypes.EMAIL_SUPPORT:
+                return emailSupport;
             case AdminConfigTypes.APP_SECRETS:
                 return appSecrets;
             case AdminConfigTypes.APP_VARS:
@@ -197,6 +229,12 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return features;
             case AdminConfigTypes.AVAILABLE_MODELS:
                 return availableModels;
+            case AdminConfigTypes.DEFAULT_MODELS:
+                const nonEmptyStrDefaults: any = {...defaultModels};
+                Object.keys(nonEmptyStrDefaults).forEach((key: string) => {
+                    if (nonEmptyStrDefaults[key] === '') nonEmptyStrDefaults[key] = null;
+                });
+                return nonEmptyStrDefaults;
             case AdminConfigTypes.AST_ADMIN_GROUPS:
                 return astGroups.filter((g:Ast_Group_Data) => changedAstGroups.includes(g.group_id))
                                 .map((g:Ast_Group_Data) =>  ({ group_id: g.group_id, 
@@ -208,8 +246,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return ampGroups;
             case AdminConfigTypes.PPTX_TEMPLATES:
                 return templates.filter((pptx:Pptx_TEMPLATES) => changedTemplates.includes(pptx.name));
-            // case AdminConfigTypes.INTEGRATIONS:
-            //     return integrations;
+            case AdminConfigTypes.INTEGRATIONS:
+                return integrations;
             case AdminConfigTypes.OPENAI_ENDPONTS:
                 const toTest:{key: string, url: string, model:string}[] = [];
                 const cleanedOpenAiEndpoints: OpenAIModelsConfig = {
@@ -268,26 +306,72 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         return true;
       };
 
-    const saveUpdateAvailableModels = () => {
-        const updatedModels = Object.values(availableModels)
-        const defaultId = updatedModels.find((m:SupportedModel) => m.isDefault);
-        homeDispatch({ field: 'defaultModelId', value: defaultId });
-        const cheapestId = updatedModels.find((m:SupportedModel) => m.defaultCheapestModel);
-        homeDispatch({ field: 'cheapestModelId', value: cheapestId });
-        const advancedId = updatedModels.find((m:SupportedModel) => m.defaultAdvancedModel);
-        homeDispatch({ field: 'advancedModelId', value: advancedId });
+    const saveUpdateAvailableModels = async () => {
+        try {
+            const response = await getAvailableModels();
+            if (response.success && response.data && response.data?.models.length > 0) {
+                const defaultModel = response.data.default;
+                const models = response.data.models;
+                if (defaultModel) homeDispatch({ field: 'defaultModelId', value: defaultModel.id });
+                if (response.data.cheapest) homeDispatch({ field: 'cheapestModelId', value: response.data.cheapest.id });
+                if (response.data.advanced) homeDispatch({ field: 'advancedModelId', value: response.data.advanced.id });
+                const modelMap = models.reduce((acc:any, model:any) => ({...acc, [model.id]: model}), {});
+                homeDispatch({ field: 'availableModels', value: modelMap});  
 
-        const availModels: Model[] = updatedModels.filter((m:SupportedModel) => m.isAvailable)
-                                     .map((m:SupportedModel) => ({ id: m.id,
-                                                            "name": m.name,
-                                                            "description": m.description ?? '',
-                                                            "inputContextWindow": m.inputContextWindow,
-                                                            "supportsImages": m.supportsImages,
-                                                            } as Model));
-        homeDispatch({ field: 'availableModels', value: availModels}); 
+                //save default model 
+                localStorage.setItem('defaultModel', JSON.stringify(defaultModel));
+                return;
+            } 
+        } catch (e) {
+            console.log("Failed to fetch models: ", e);
+        } 
     }
       
-      
+    const saveUpdateFeatureFlags = async () => {
+        const result = await getFeatureFlags();
+        if (result.success && result.data) {
+            let flags: any = result.data;
+            homeDispatch({ field: 'featureFlags', value: flags});
+            localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
+        }
+    }
+
+    const saveUpdatePptx = async () => {
+        const result = await getPowerPoints();
+        let pptx: any = result.success && result.data ? result.data :  
+                        templates.filter((pptx:Pptx_TEMPLATES) => pptx.isAvailable).map((pptx:Pptx_TEMPLATES) => pptx.name);
+        homeDispatch({ field: 'powerPointTemplateOptions', value: pptx});
+    }
+
+    const validateSavedData = () => {
+        const models = Object.values(availableModels);
+        if (models.filter((m:SupportedModel) => m.isAvailable && !m.id.includes('embedding'))
+                  .length === 0) {
+            alert("No models were made available. To enable chat, update the models under the 'Supported Models' tab.");
+        }
+        if (Object.keys(defaultModels).some((key:string) => defaultModels[key as keyof DefaultModelsConfig] === '' && key !== 'agent'))  {
+            alert("Ensure all default models are set in the 'Supported Models' tab.");
+            return false;
+        }
+
+        if (emailSupport.isActive && !emailSupport.email) {
+            alert("The Support Email feature cannot be activated without providing an email address. Please add an email address or disable the feature.");
+            return false;
+        }
+        return true;
+    }
+
+    const updateOnSave = () => {
+        const saveAction = (types: AdminConfigTypes[], action: () => void) => {
+            if (types.some(type => unsavedConfigs.has(type))) action();
+        }
+
+        saveAction([AdminConfigTypes.FEATURE_FLAGS], saveUpdateFeatureFlags);
+        saveAction([AdminConfigTypes.AVAILABLE_MODELS, AdminConfigTypes.DEFAULT_MODELS], saveUpdateAvailableModels);
+        saveAction([AdminConfigTypes.PPTX_TEMPLATES], saveUpdatePptx); 
+        saveAction([AdminConfigTypes.EMAIL_SUPPORT], () => homeDispatch({ field: 'supportEmail', value: emailSupport.email}));
+        if (!storageSelection) saveAction([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () => homeDispatch({ field: 'storageSelection', value: defaultConversationStorage})); 
+    }
 
     const handleSave = async () => {
         if (Array.from(unsavedConfigs).length === 0) {
@@ -295,7 +379,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             return;
         }
         const collectUpdateData =  Array.from(unsavedConfigs).map((type: AdminConfigTypes) => ({type: type, data: getConfigTypeData(type)}));
-        // console.log("Saving... ", collectUpdateData);
+        console.log("Saving... ", collectUpdateData);
+        if (!validateSavedData()) return;
         // console.log(" testing: ", testEndpointsRef.current);
         if (testEndpointsRef.current.length > 0) {
             setLoadingMessage('Testing New Endpoints...');
@@ -309,13 +394,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         setLoadingMessage('Saving Configurations');
         const result = await updateAdminConfigs(collectUpdateData);
         if (result.success) {
-            if (unsavedConfigs.has(AdminConfigTypes.FEATURE_FLAGS)) {
-                // to do doesnt account for exclusives think about pulling them again from home same with groups
-                homeDispatch({ field: 'featureFlags',
-                               value: { ...features, 'adminInterface': admins.includes(userEmail ?? '')} });
-                localStorage.setItem('mixPanelOn', JSON.stringify(features.mixPanel ?? false));
-            }
-            if (unsavedConfigs.has(AdminConfigTypes.AVAILABLE_MODELS)) saveUpdateAvailableModels();
+            // update ui affecting changes 
+            updateOnSave();
             toast("Configurations successfully saved");
             setUnsavedConfigs(new Set());
             testEndpointsRef.current = [];
@@ -384,6 +464,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     }} 
     onSubmit={() => handleSave()
     }
+    cancelLabel={"Close"}
     submitLabel={"Save Changes"}
     disableSubmit={unsavedConfigs.size === 0}
     content={
@@ -421,6 +502,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     setRateLimit={setRateLimit}
                     promptCostAlert={promptCostAlert}
                     setPromptCostAlert={setPromptCostAlert}
+                    defaultConversationStorage={defaultConversationStorage}
+                    setDefaultConversationStorage={setDefaultConversationStorage}
+                    emailSupport={emailSupport}
+                    setEmailSupport={setEmailSupport}
                     allEmails={allEmails}
                     admin_text={admin_text}
                     updateUnsavedConfigs={updateUnsavedConfigs}
@@ -437,9 +522,12 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 <SupportedModelsTab
                     availableModels={availableModels}
                     setAvailableModels={setAvailableModels}
+                    defaultModels={defaultModels}
+                    setDefaultModels={setDefaultModels}
                     ampGroups={ampGroups}
                     isAvailableCheck={isAvailableCheck}
                     updateUnsavedConfigs={updateUnsavedConfigs}
+                    featureFlags={features}
                 />
             },
 ///////////////////////////////////////////////////////////////////////////////
@@ -537,23 +625,6 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     updateUnsavedConfigs={updateUnsavedConfigs}
                 />
             },
-///////////////////////////////////////////////////////////////////////////////
-  
-            // // Integrations Tab - only included if included in the feature flags list
-            // ...(integrations ? 
-            //     [
-            //     {label: tabTitle("Integrations"),
-            //         content:
-            //         stillLoadingData ? loading :
-            //         <IntegrationsTab
-            //             integrations={integrations}
-            //             setIntegrations={setIntegrations}
-            //             integrationSecrets={integrationSecrets}
-            //             setIntegrationSecrets={setIntegrationSecrets}
-            //             updateUnsavedConfigs={updateUnsavedConfigs}
-            //         />
-            //     }
-            //     ] : []),
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -581,6 +652,24 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     setRefreshingTypes={setRefreshingTypes}
                 />
             },
+
+            ///////////////////////////////////////////////////////////////////////////////
+  
+            // Integrations Tab - only included if included in the feature flags list
+            ...(integrations ? 
+                [
+                {label: tabTitle("Integrations"),
+                    content:
+                    stillLoadingData ? loading :
+                    <IntegrationsTab
+                        integrations={integrations}
+                        setIntegrations={setIntegrations}
+                        integrationSecrets={integrationSecrets}
+                        setIntegrationSecrets={setIntegrationSecrets}
+                        updateUnsavedConfigs={updateUnsavedConfigs}
+                    />
+                }
+                ] : []),
 
         ]
         }
@@ -637,60 +726,16 @@ export const UserAction: FC<actionProps> = ({ label, onConfirm, onCancel, top, c
 
 
 
-interface AddEmailsProps {
-    key: String;
-    emails: string[];
-    allEmails: string[]
-    handleUpdateEmails: (e: Array<string>) => void;
-}
-
-export const AddEmailWithAutoComplete: FC<AddEmailsProps> = ({ key, emails, allEmails, handleUpdateEmails}) => {
-    const [input, setInput] = useState<string>('');
-
-    const handleAddEmails = () => {
-        const entries = input.split(',').map(email => email.trim()).filter(email => email);
-
-        const newEmails = entries.filter(email => /^\S+@\S+\.\S+$/.test(email) && !emails.includes(email));
-        if (newEmails.length > 0) handleUpdateEmails([...emails, ...newEmails]);
-        setInput('');
-    };
-
-    return ( 
-    <div className='flex flex-row gap-2' key={JSON.stringify(key)}>
-        <div className='w-full relative'>
-            <EmailsAutoComplete
-                input = {input}
-                setInput =  {setInput}
-                allEmails = {allEmails.filter((e:string) => !emails.includes(e))}
-                alreadyAddedEmails = {emails}
-            /> 
-        </div>
-        <div className="flex-shrink-0 ml-[-6px]">
-            <button
-                type="button"
-                title='Add User'
-                className="ml-2 mt-0.5 px-2 py-2 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10 "
-                 
-                onClick={handleAddEmails}
-            >
-                <IconPlus size={18} />
-            </button>
-        </div>
-    
-    </div>
-    )
-}
-
-
 
 interface AmplifyGroupSelectProps {
     groups: string[];
     selected: string[];
     setSelected: (s: string[]) => void;
     isDisabled? : boolean;
+    label?: string;
   }
   
-export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, selected, setSelected, isDisabled = false}) => {
+export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, selected, setSelected, isDisabled = false, label = 'Amplify Groups'}) => {
     const [isOpen, setIsOpen] = useState(false);
     const [selectedGroups, setSelectedGroups] = useState<string[]>(selected);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -732,7 +777,7 @@ export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, 
             disabled={isDisabled}
           >
             {selectedGroups.length > 0 || isDisabled ? selectedGroups.join(', ') 
-                 : hasGroupOptions ? 'Select Amplify Groups' : 'No Amplify Groups Available'}
+                 : hasGroupOptions ? `Select ${label}` : `No ${label} Available`}
           </button>
     
           {isOpen && !isDisabled && hasGroupOptions && (
@@ -775,4 +820,9 @@ export interface PromptCostAlert {
     isActive: boolean;
     alertMessage: string;
     cost: Number;
+}
+
+export interface EmailSupport {
+    isActive: boolean;
+    email: string;
 }

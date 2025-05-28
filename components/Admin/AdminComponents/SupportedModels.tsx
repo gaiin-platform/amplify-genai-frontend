@@ -1,36 +1,55 @@
 import { FC, useEffect, useRef, useState } from "react";
 import {  Amplify_Groups, AmplifyGroupSelect, camelToTitleCase, titleLabel, UserAction } from "../AdminUI";
-import { AdminConfigTypes, modelProviders, ModelProviders, SupportedModel, SupportedModelsConfig} from "@/types/admin";
+import { AdminConfigTypes, DefaultModelsConfig, FeatureFlagConfig, ModelProviders, SupportedModel, SupportedModelsConfig} from "@/types/admin";
 import { InfoBox } from "@/components/ReusableComponents/InfoBox";
 import { IconCheck, IconPlus, IconX, IconEdit, IconTrash } from "@tabler/icons-react";
 import Search from "@/components/Search";
 import InputsMap from "@/components/ReusableComponents/InputMap";
 import ActionButton from "@/components/ReusableComponents/ActionButton";
+import toast from "react-hot-toast";
+import { capitalize } from "@/utils/app/data";
 
 
 interface Props {
     availableModels: SupportedModelsConfig;
     setAvailableModels: (m: SupportedModelsConfig) => void;
 
+    defaultModels: DefaultModelsConfig;
+    setDefaultModels: (m: DefaultModelsConfig) => void;
+
     ampGroups: Amplify_Groups;
 
     isAvailableCheck: (isAvailable: boolean, handleClick: () => void, styling?: string) => JSX.Element
 
-    updateUnsavedConfigs: (t: AdminConfigTypes) => void;   
+    updateUnsavedConfigs: (t: AdminConfigTypes) => void;
+    
+    featureFlags: FeatureFlagConfig;
 }
 
 export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableModels, ampGroups, 
-                                              isAvailableCheck, updateUnsavedConfigs}) => {
+                                              isAvailableCheck, updateUnsavedConfigs, featureFlags, 
+                                              defaultModels, setDefaultModels}) => {
 
 
     const supportedModelsRef = useRef<HTMLDivElement>(null);  // to help control the scroll bar 
     const [isAddingAvailModel, setIsAddingAvailModel] = useState< { model: SupportedModel, 
                                                                     action: 'Adding' | 'Editing'} | null>(null);  
-    const [hoveredAvailModel, setHoveredAvailModel] = useState<string>('');  
+    const [hoveredAvailModel, setHoveredAvailModel] = useState<string>(''); 
+    const [hoveredModelIcons, setHoveredModelIcons] = useState<string>(''); 
     const [modelsSearchTerm, setModelsSearchTerm] = useState<string>(''); 
     const [showModelsSearch, setShowModelsSearch] = useState<boolean>(true); 
 
 
+    const handleUpdateSupportedModels = (updatedModels: SupportedModelsConfig) => {
+        setAvailableModels(updatedModels);
+        updateUnsavedConfigs(AdminConfigTypes.AVAILABLE_MODELS);
+    }
+
+    const handleUpdateDefaultModels = (key: keyof DefaultModelsConfig, modelId: string) => {
+        const updatedModels = {...defaultModels, [key]: modelId};
+        setDefaultModels(updatedModels);
+        updateUnsavedConfigs(AdminConfigTypes.DEFAULT_MODELS);
+    }
 
     const scrollToWithOffset = () => {
         const element = supportedModelsRef.current;
@@ -59,8 +78,6 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
         useEffect(() => {
             if (isAddingAvailModel && supportedModelsRef.current) {
                 scrollToWithOffset();
-                // supportedModelsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    
             }
           }, [isAddingAvailModel]); // Run when isAddingAvailModel changes
         
@@ -81,25 +98,8 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                     return;
                 }
             }
-            setAvailableModels({...availableModels, [newModel.id]: newModel})
-            updateUnsavedConfigs(AdminConfigTypes.AVAILABLE_MODELS);
+            handleUpdateSupportedModels({...availableModels, [newModel.id]: newModel});
         }
-    }
-
-
-    const handleUpdateDefaultModel = (modelId: string, selectedKey:  keyof SupportedModel) => {
-        const updatedModels: SupportedModelsConfig = {};
-    
-        Object.keys(availableModels).forEach((key) => {
-            const model = availableModels[key];
-            updatedModels[key] = { // Update the selectedKey property
-                ...model,
-                [selectedKey]: model.id === modelId, // Set to true if it's the selected model, otherwise false
-            };
-        });
-
-        setAvailableModels(updatedModels);
-        updateUnsavedConfigs(AdminConfigTypes.AVAILABLE_MODELS);
     }
     
        
@@ -205,11 +205,11 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                 </div>
 
                                 <div className="max-w-[730px]">
-                                { Object.values(modelProviders).map((p:ModelProviders) => 
+                                { ModelProviders.map((p:string) => 
                                     <button key={p}
                                     className={`w-[182.5px] h-[39px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-300 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 
-                                    ${p === isAddingAvailModel.model.provider as ModelProviders ? "cursor-default" : "opacity-60 hover:opacity-80"}`}
-                                    disabled={p === isAddingAvailModel.model.provider as ModelProviders}
+                                    ${p === isAddingAvailModel.model.provider ? "cursor-default" : "opacity-60 hover:opacity-80"}`}
+                                    disabled={p === isAddingAvailModel.model.provider}
                                     onClick={() => {
                                         let updated = {...isAddingAvailModel.model, provider: p};
                                         setIsAddingAvailModel({...isAddingAvailModel, model: updated})
@@ -241,8 +241,10 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                     "Models Cached Token Cost/1k" )}
 
                             {modelActiveCheck('supportsSystemPrompts', isAddingAvailModel.model.supportsSystemPrompts, "Model Supports System Prompts" )}
-
+                            
                             {!isAddingAvailModel.model.id.includes('embed') && <>
+                            {modelActiveCheck('supportsReasoning', isAddingAvailModel.model.supportsReasoning,
+                                                "Model Supports Various Levels of Reasoning" ) } 
                             {modelActiveCheck('supportsImages', isAddingAvailModel.model.supportsImages,
                                                 "Model Supports Base-64 Encoded Images Attached to Prompts" )}
                             {modelActiveCheck('isAvailable', isAddingAvailModel.model.isAvailable, 
@@ -276,45 +278,55 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                         <ModelDefaultSelect 
                             models={Object.values(availableModels).filter((m:SupportedModel) => 
                                     m.isAvailable && !m.id.includes('embedding'))}
-                            selectedKey="isDefault"
-                            label="Default User Model"
+                            defaultModels={defaultModels}
+                            selectedKey="user"
                             description="This will be the default selected model for user conversations"
-                            setUpdatedModels={handleUpdateDefaultModel}
+                            onSelect={(selected: SupportedModel, key: keyof DefaultModelsConfig) =>  handleUpdateDefaultModels(key, selected.id)}
                         />
 
                         <ModelDefaultSelect 
                             models={Object.values(availableModels).filter((m:SupportedModel) => 
                                     m.isAvailable && !m.id.includes('embedding'))}
-                            selectedKey="defaultAdvancedModel"
-                            label={camelToTitleCase('defaultAdvancedModel')}
+                            defaultModels={defaultModels}
+                            selectedKey="advanced"
                             description="The advanced model is used for requests needing more complex reasoning and is automatically utilized by Amplify when required."
-                            setUpdatedModels={handleUpdateDefaultModel}
+                            onSelect={(selected: SupportedModel, key: keyof DefaultModelsConfig) =>  handleUpdateDefaultModels(key, selected.id)}
                         />
 
                         <ModelDefaultSelect 
                             models={Object.values(availableModels).filter((m:SupportedModel) => 
                                     m.isAvailable && !m.id.includes('embedding'))}
-                            selectedKey="defaultCheapestModel"
-                            label={camelToTitleCase('defaultCheapestModel')}
+                            defaultModels={defaultModels}
+                            selectedKey='cheapest'
                             description="The cheapest model is used for requests requiring less complex reasoning and is automatically utilized by Amplify when required."
-                            setUpdatedModels={handleUpdateDefaultModel}
+                            onSelect={(selected: SupportedModel, key: keyof DefaultModelsConfig) =>  handleUpdateDefaultModels(key, selected.id)}
                         />
+
+                        {Object.keys(featureFlags).includes('agentAssistantType') &&
+                        <ModelDefaultSelect 
+                            models={Object.values(availableModels).filter((m:SupportedModel) => 
+                                    !m.id.includes('embedding'))}
+                            defaultModels={defaultModels}
+                            selectedKey='agent'
+                            description="The agent model is used by 'Agent' type assistants."
+                            onSelect={(selected: SupportedModel, key: keyof DefaultModelsConfig) =>  handleUpdateDefaultModels(key, selected.id)}
+                        />}
 
                         <ModelDefaultSelect 
                             models={Object.values(availableModels).filter((m:SupportedModel) => 
                                     m.id.includes('embed'))}
-                            selectedKey="defaultEmbeddingsModel"
-                            label={camelToTitleCase('defaultEmbeddingsModel')}
+                            defaultModels={defaultModels}
+                            selectedKey='embeddings'
                             description="The embedding model will be used when requesting embeddings"
-                            setUpdatedModels={handleUpdateDefaultModel}
+                            onSelect={(selected: SupportedModel, key: keyof DefaultModelsConfig) =>  handleUpdateDefaultModels(key, selected.id)}
                         />
 
                         <ModelDefaultSelect                     
                             models={Object.values(availableModels).filter((m:SupportedModel) => !m.id.includes('embed'))}
-                            selectedKey="defaultQAModel"
-                            label={camelToTitleCase('defaultQ&AModel')}
+                            defaultModels={defaultModels}
+                            selectedKey='qa'
                             description="The Q&A model will be used for generating context-aware questions to enhance document embeddings"
-                            setUpdatedModels={handleUpdateDefaultModel}
+                            onSelect={(selected: SupportedModel, key: keyof DefaultModelsConfig) =>  handleUpdateDefaultModels(key, selected.id)}
                         />
                         
                         
@@ -323,7 +335,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                     <table className="mt-4 border-collapse w-full" >
                         <thead>
                         <tr className="bg-gray-200 dark:bg-[#373844] text-sm">
-                            {['Name', 'ID',  'Provider', 'Available', 'Supports Images',
+                            {['Name', 'ID',  'Provider', 'Available', 'Supports Images', 'Supports Reasoning',
                                 'Supports System Prompts', 'Additional System Prompt',
                                 'Description', 'Input Context Window', 'Output Token Limit', 
                                 'Input Token Cost / 1k', 'Output Token Cost / 1k', 'Cached Token Cost / 1k',
@@ -345,7 +357,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                                     .includes(modelsSearchTerm) : true))
                                 .sort((a, b) => a.name.localeCompare(b.name))
                                 .map((availModel: SupportedModel) => 
-                            <tr key={availModel.id}  className="text-xs"
+                            <tr key={availModel.id}  className={`text-xs ${hoveredModelIcons === availModel.id ? 'hover:bg-gray-200 dark:hover:bg-[#40414f]' : ''}`}
                                 onMouseEnter={() => setHoveredAvailModel(availModel.id)}
                                 onMouseLeave={() => setHoveredAvailModel('')}>
                                 <td className="border border-neutral-500 p-2">
@@ -367,8 +379,11 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                     <div className="flex justify-center">
                                         {isAvailableCheck(availModel.isAvailable, () => {
                                             const updatedModel = {...availableModels[availModel.id], isAvailable: !availModel.isAvailable};
-                                            setAvailableModels({...availableModels, [availModel.id]: updatedModel});
-                                            updateUnsavedConfigs(AdminConfigTypes.AVAILABLE_MODELS);
+                                            const updatedModels = {...availableModels, [availModel.id]: updatedModel};
+                                            handleUpdateSupportedModels(updatedModels);
+                                            const firstAvailableForDefault = Object.values(updatedModels)
+                                                                                   .filter((m:SupportedModel) => m.isAvailable && !m.id.includes('embedding'));
+                                            if (firstAvailableForDefault.length === 1) toast("Double check the default model selections before saving");
                                         })}   
                                     </div>}
                                 </td>
@@ -383,14 +398,15 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                     </div> }                          
                                 </td>
 
-
-                                <td className="border border-neutral-500 px-4 py-2 w-[74px]"
-                                    title="Model Support System Prompts">
-                                    <div className="flex justify-center">
-                                        {availModel.supportsSystemPrompts ? <IconCheck className= 'text-green-600' size={18} /> : 
-                                        <IconX  className='text-red-600' size={18} />}
-                                    </div>                           
-                                </td>
+                                {["supportsReasoning", "supportsSystemPrompts"].map((s:string) => 
+                                    <td className="border border-neutral-500 px-4 py-2 w-[74px]" key={s}
+                                        title={`Model ${camelToTitleCase(s)}`}>
+                                        <div className="flex justify-center">
+                                            {availModel[s as keyof SupportedModel] ? <IconCheck className= 'text-green-600' size={18} /> : 
+                                            <IconX  className='text-red-600' size={18} />}
+                                        </div>                           
+                                    </td>
+                                )}
 
                                 {["systemPrompt", "description"].map((s:string) => 
                                     <td className="border border-neutral-500 text-center" key={s}>
@@ -430,11 +446,12 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                     /> : <>N/A</>
                                 }
                                 </td>
-                                <td>
+                                <td className="bg-gray-100 dark:bg-[#2b2c36]">
                                         <div className="w-[30px]">
                                         {hoveredAvailModel === availModel.id && (!isAddingAvailModel 
                                         || (isAddingAvailModel.action === 'Adding' && JSON.stringify(isAddingAvailModel.model) === JSON.stringify(emptySupportedModel()))) ?
-                                        <div className="flex flex-row gap-1"> 
+                                        <div className="flex flex-row gap-1" onMouseEnter={() => setHoveredModelIcons(availModel.id)} 
+                                                                             onMouseLeave={() => setHoveredModelIcons('')}> 
                                         <ActionButton
                                             handleClick={() => {setIsAddingAvailModel( {model: availModel, action: "Editing" })}}
                                             title="Edit Model Data">
@@ -444,8 +461,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                         <ActionButton
                                             handleClick={() => {
                                                 const  { [availModel.id]: _, ...remainingModels } = availableModels;
-                                                setAvailableModels(remainingModels);
-                                                updateUnsavedConfigs(AdminConfigTypes.AVAILABLE_MODELS);
+                                                handleUpdateSupportedModels(remainingModels);
                                             }}
                                             title="Delete Model">
                                             <IconTrash size={22} />
@@ -474,32 +490,27 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
 
 
 interface SelectProps {
-    models: SupportedModel[],
-    selectedKey:  keyof SupportedModel,
-    label: string, 
-    description: string,
-    setUpdatedModels: (id: string, selectedKey:  keyof SupportedModel) => void;
+    models: SupportedModel[];
+    defaultModels: DefaultModelsConfig;
+    selectedKey:  keyof DefaultModelsConfig;
+    description: string;
+    onSelect: (selected: SupportedModel, key: keyof DefaultModelsConfig) => void;
 }
-
-const ModelDefaultSelect: FC<SelectProps> = ({models, selectedKey, label, description, setUpdatedModels}) => {
-
-    const [selected, setSelected] = useState<SupportedModel | undefined>(models.find((model:SupportedModel) => !!model[selectedKey]));
-
-
-    if (!models || models.length === 0) return null;
-
+// keyof SupportedModel,
+const ModelDefaultSelect: FC<SelectProps> = ({models, defaultModels, selectedKey, description, onSelect}) => {
+    const [selected, setSelected] = useState<SupportedModel | undefined>(models.find((model:SupportedModel) => model.id === defaultModels[selectedKey]));
 
     return (
-        <div className="flex flex-col gap-2 text-center">
-            {label}
-            <select className={"mb-2 text-center rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100  custom-shadow"} 
+        <div className="flex flex-col gap-2 text-center" title={description}>
+            <label className="font-bold text-[#0bb9f4]">{`Default ${capitalize(selectedKey)} Model`}</label>
+            <select className={`mb-2 text-center rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100  custom-shadow
+                                ${!!selected?.name ? '' : 'border-2 border-red-500'}`} 
                 value={selected?.name ?? ''}
-                title={description}
                 onChange={(e) => {
                     const newSelected = models.find((model) => model.name === e.target.value);
                     if (newSelected) {
                         setSelected(newSelected);
-                        setUpdatedModels(newSelected.id, selectedKey);
+                        onSelect(newSelected, selectedKey);
                     }
                 }}
             > 
@@ -507,7 +518,8 @@ const ModelDefaultSelect: FC<SelectProps> = ({models, selectedKey, label, descri
                 <option value="" disabled hidden>
                     Select Model
                 </option>
-                {models.map((model:SupportedModel) => (
+                {models.sort((a, b) => a.name.localeCompare(b.name))
+                       .map((model:SupportedModel) => (
                     <option key={model.id} value={model.name}>
                         {model.name}
                     </option>
@@ -538,14 +550,9 @@ export const emptySupportedModel = () => {
     description: '',
     exclusiveGroupAvailability: [],
     supportsImages: false,
+    supportsReasoning: false,
     supportsSystemPrompts: false, 
     systemPrompt: '',
-
-    defaultCheapestModel: false, // recommend cheaper model
-    defaultAdvancedModel: false,// recommend more expensive 
-    defaultEmbeddingsModel: false,
-    defaultQAModel: false,
-    isDefault: false,
 
     isAvailable: false,
     isBuiltIn: false

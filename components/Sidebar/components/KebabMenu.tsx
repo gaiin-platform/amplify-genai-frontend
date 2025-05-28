@@ -5,7 +5,8 @@ import {
     IconCheck, IconFolderOpen, 
     IconFolder, IconCalendar, IconAbc,
     IconTrashFilled,
-    IconEye
+    IconEye,
+    IconRefresh
 } from '@tabler/icons-react';
 import { KebabActionItem, actionItemAttr, KebabItem, KebabMenuItems } from "./KebabItems";
 import { ShareAnythingModal } from "@/components/Share/ShareAnythingModal";
@@ -22,13 +23,14 @@ import {v4 as uuidv4} from 'uuid';
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { CheckItemType } from "@/types/checkItem";
 import { savePrompts } from "@/utils/app/prompts";
-import { fetchEmptyRemoteConversations, fetchMultipleRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
+import { fetchAllRemoteConversations, fetchEmptyRemoteConversations, fetchMultipleRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import { conversationWithUncompressedMessages, deleteConversationCleanUp, isRemoteConversation, saveConversations } from "@/utils/app/conversation";
 import { getDateName } from "@/utils/app/date";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import React from "react";
 import toast from "react-hot-toast";
 import { getHiddenGroupFolders, saveFolders } from "@/utils/app/folders";
+import { updateWithRemoteConversations } from "@/utils/app/conversationStorage";
 
 
 interface Props {
@@ -47,6 +49,7 @@ interface Props {
     const [isShareDialogVisible, setIsShareDialogVisible] = useState<boolean>(false);
     const [isTagsDialogVisible, setIsTagsDialogVisible] = useState<boolean>(false); 
     const [allItemsChecked, setAllItemsChecked] = useState<boolean>(false);
+    const [showReSync, setShowReSync] = useState<boolean>(false);
 
     const {
         state: { statsService, selectedAssistant, checkedItems, folders, prompts, conversations,
@@ -192,8 +195,7 @@ interface Props {
                 updatedConversations.push(newConversation)
                 selectedConversation = {...newConversation}
             }
-        
-            localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation));
+    
             handleSelectConversation(selectedConversation);
     
         } else {
@@ -364,11 +366,42 @@ interface Props {
         homeDispatch({field: 'checkedItems', value: allItems}); 
     }
 
+    const reSyncConversations = async () => {
+        homeDispatch({ field: 'syncingConversations', value: true });
+        try {
+            const allRemoteConvs = await fetchAllRemoteConversations();
+            if (allRemoteConvs) {
+                const newCloudFolders = await updateWithRemoteConversations(allRemoteConvs, conversations, folders, homeDispatch, getDefaultModel(DefaultModels.DEFAULT));
+                const updatedFolders = [...folders, ...newCloudFolders.newfolders];
+                homeDispatch({ field: 'folders', value: updatedFolders });
+                saveFolders(updatedFolders);
+                toast("Cloud conversations successfully synced");
+            }
+        } catch (e) {
+            console.log("Failed to sync cloud conversations: ", e);
+            toast.error("Failed to sync cloud conversations.");
+        }
+        homeDispatch({ field: 'syncingConversations', value: false });
+    }
+        
+
     return (
         <>
-        <div className="flex items-center border-b dark:border-white/20" style={{pointerEvents: isMenuOpen ? 'none' : 'auto'}}>
+        <div className="flex items-center border-b dark:border-white/20" style={{pointerEvents: isMenuOpen ? 'none' : 'auto'}}
+             onMouseEnter={() => setShowReSync(true)}
+             onMouseLeave={() => setShowReSync(false)}
+        >
           <div className="pb-1 flex w-full text-lg ml-1 text-black dark:text-neutral-200 flex items-center">
             {label} 
+            { isConvSide && !actionItem && !isSyncing && (showReSync || isMenuOpen) &&
+               <button
+                    title='Re-sync Conversations'
+                    disabled={isSyncing}
+                    className={`ml-2 text-sidebar flex-shrink-0 select-none items-center gap-3 rounded-md border dark:border-white/20 px-2 py-1 dark:text-white transition-colors duration-200 ${!isSyncing ? "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" : ""}`}
+                    onClick={async () => reSyncConversations()}
+                >  <IconRefresh size={16}/>
+                </button>
+            }
             { isSyncing && 
                 <label className="flex flex-row gap-1 text-xs ml-auto mr-1">
                     <LoadingIcon style={{ width: "14px", height: "14px" }}/>
@@ -379,7 +412,8 @@ interface Props {
                 <div className="text-xs flex flex-row gap-1">
                     {`${actionItem.actionLabel}...`} 
                     <div className="flex flex-row gap-0.5 bg-neutral-200 dark:bg-[#343541]/90 rounded">
-                         <button 
+                         <button
+                                id="confirmItem" 
                                 className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100" 
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -396,6 +430,7 @@ interface Props {
                             </button>
                         
                         <button
+                            id="cancelItem"
                             className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 "
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -409,9 +444,9 @@ interface Props {
                 </div>
             )}
 
-          <div className="relative inline-block text-left">
+          <div className="relative inline-block text-left" >
             { actionItem && checkIsActiveSide() ?
-                <div className={`z-10 p-0.5 ${ checkingItemType?.includes("Folder")? "": ""}`}>
+                <div id="selectAllCheck" className={`z-10 p-0.5 ${ checkingItemType?.includes("Folder")? "": ""}`}>
                     <input
                     type="checkbox"
                     checked={allItemsChecked}
@@ -420,6 +455,7 @@ interface Props {
                 </div> :
                 <button
                     disabled={isSyncing}
+                    id="promptHandler"
                     className={`outline-none focus:outline-none p-0.5 ${isMenuOpen ? 'bg-neutral-200 dark:bg-[#343541]/90' : ''}`}
                     onClick={toggleDropdown}>
                     <IconDotsVertical size={20} className="flex-shrink-0 text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100"/>
@@ -490,7 +526,7 @@ interface Props {
             <div className="flex items-center justify-center min-h-screen">
               <div className="border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#202123] rounded-lg md:rounded-lg shadow-lg overflow-hidden mx-auto max-w-lg w-[400px]"
               >
-                <div className="p-2 h-[60px] overflow-y-auto">
+                <div id="tagAddModal" className="p-2 h-[60px] overflow-y-auto">
                 <TagsList tags={tags} 
                     setTags={(tags) => {
                                 setTags(tags);
@@ -525,6 +561,7 @@ interface Props {
                 <div className="p-2">
                   <button
                         type="button"
+                        id="doneButton"
                         className="w-full mb-1 px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                         onClick={() => {setIsTagsDialogVisible(false);
                                         clear();
@@ -535,7 +572,6 @@ interface Props {
                                             if (updatedSelected) {
                                                 const selectedWithTags = {...selectedConversation, tags: updatedSelected.tags};
                                                 homeDispatch({ field: 'selectedConversation', value: selectedWithTags});
-                                                localStorage.setItem('selectedConversation', JSON.stringify(selectedWithTags))
                                             }
                                         }
                                         setTags([]);

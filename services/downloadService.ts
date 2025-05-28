@@ -1,7 +1,8 @@
-import {ExportFormatV4} from "@/types/export";
+import { ExportFormatV4 } from "@/types/export";
 import { doRequestOp } from "./doRequestOp";
 
-const URL_PATH =  "/chat";
+const URL_PATH = "/chat";
+const SERVICE_NAME = "download";
 
 export interface ConversionOptions {
     format: string;
@@ -13,15 +14,13 @@ export interface ConversionOptions {
     includeConversationName?: boolean;
 }
 
-
-export const convert = async (options:ConversionOptions, content:ExportFormatV4) => {
+export const convert = async (options: ConversionOptions, content: ExportFormatV4) => {
     const op = {
         method: 'POST',
         path: URL_PATH,
         op: "/convert",
-        data: {...options, content:content}
+        data: { ...options, content: content },
+        service: SERVICE_NAME
     };
     return await doRequestOp(op);
 }
-
-

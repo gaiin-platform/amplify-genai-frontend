@@ -1,14 +1,5 @@
 // Provider Types
-
-export const modelProviders = {
-    Azure: 'Azure',
-    OpenAI: 'OpenAI',
-    Bedrock: 'Bedrock',
-  } as const;
-  
-  // Derive the type from the object keys
-  export type ModelProviders = keyof typeof modelProviders;
-
+export const ModelProviders = ['Azure', 'OpenAI', 'Bedrock', 'Gemini'];
 
 // Used for updating data in the backend
 export enum AdminConfigTypes {
@@ -25,7 +16,10 @@ export enum AdminConfigTypes {
     AMPLIFY_GROUPS = 'amplifyGroups',
     RATE_LIMIT = 'rateLimit',
     PROMPT_COST_ALERT = 'promtCostAlert',
+    EMAIL_SUPPORT = 'emailSupport',
     INTEGRATIONS = 'integrations',
+    DEFAULT_CONVERSATION_STORAGE = 'defaultConversationStorage',
+    DEFAULT_MODELS = 'defaultModels' 
 
   }
 
@@ -41,7 +35,9 @@ export const adminDataTabMap: Record<AdminTab, string[]> = {
       AdminConfigTypes.ADMINS,
       AdminConfigTypes.RATE_LIMIT,
       AdminConfigTypes.PROMPT_COST_ALERT,
+      AdminConfigTypes.EMAIL_SUPPORT,
       AdminConfigTypes.AMPLIFY_GROUPS,
+      AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE,
     ],
 
     'Feature Flags' : [
@@ -65,6 +61,7 @@ export const adminDataTabMap: Record<AdminTab, string[]> = {
     ],
     'Supported Models' : [
       AdminConfigTypes.AVAILABLE_MODELS,
+      AdminConfigTypes.DEFAULT_MODELS,
     ],
     'Application Variables' : [
       AdminConfigTypes.APP_VARS,
@@ -145,15 +142,9 @@ export interface EmbeddingsConfig  {
     description: string;
     exclusiveGroupAvailability: string[];
     supportsImages: boolean;
+    supportsReasoning: boolean;
     supportsSystemPrompts: boolean;
     systemPrompt: string;
-
-    defaultCheapestModel: boolean; // recommend cheaper model
-    defaultAdvancedModel: boolean; // recommend more expensive 
-    defaultEmbeddingsModel: boolean
-    defaultQAModel: boolean;
-    
-    isDefault: boolean;
     isAvailable: boolean;
     isBuiltIn: boolean;
 }
@@ -161,6 +152,15 @@ export interface EmbeddingsConfig  {
 
 export interface SupportedModelsConfig  { 
     [modelId: string]: SupportedModel;
+}
+
+export interface DefaultModelsConfig {
+  'user': string,
+  'advanced': string,
+  'cheapest': string,
+  'agent': string,
+  'embeddings': string,
+  'qa': string,
 }
 
 

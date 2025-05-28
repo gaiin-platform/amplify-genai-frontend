@@ -53,7 +53,7 @@ export const PromptStatusDetails: React.FC<PromptStatusDetailsProps> = ({ status
                 if (!inline && match && match[1] === 'mermaid') {
                     //console.log("mermaid")
                     //@ts-ignore
-                    return (<Mermaid chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1 }/>);
+                    return (<Mermaid chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages?.length ?? 0) - 1 }/>);
                 }
 
                 if (!inline && match && match[1] === 'assistant') {
@@ -71,7 +71,7 @@ export const PromptStatusDetails: React.FC<PromptStatusDetailsProps> = ({ status
                 if (!inline && match && (match[1].toLowerCase() === 'vega' || match[1].toLowerCase() === 'vegalite')) {
                     //console.log("mermaid")
                     //@ts-ignore
-                    return (<VegaVis chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1} />);
+                    return (<VegaVis chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages?.length ?? 0) - 1} />);
                 }
 
                 return !inline ? (

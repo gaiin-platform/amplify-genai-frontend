@@ -63,7 +63,7 @@ const ChatContentBlock: React.FC<Props> = (
     const transformedMessageContent = selectedConversation ?
         transformMessageContent(selectedConversation, message) :
         message.content;
-    const isLast = messageIndex == (selectedConversation?.messages.length ?? 0) - 1;
+    const isLast = messageIndex == (selectedConversation?.messages?.length ?? 0) - 1;
 
 
     const promptbarRef = useRef(showPromptbar);
@@ -111,6 +111,7 @@ const ChatContentBlock: React.FC<Props> = (
   
     return (
     <div className="chatContentBlock w-full overflow-x-auto" 
+         id="chatContentBlock"
          style={{maxWidth: windowInnerWidth}}
          data-message-index={messageIndex}
          data-original-content={transformedMessageContent}>
@@ -185,7 +186,7 @@ const ChatContentBlock: React.FC<Props> = (
 
                 switch (match[1]) {
                     case 'mermaid':
-                        return (<Mermaid chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1 }/>);
+                        return (<Mermaid chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages?.length ?? 0) - 1 }/>);
                     
                     case 'apiResult':
                         return (<ExpansionComponent title={"Result"} content={String(children)}/>)
@@ -234,7 +235,6 @@ const ChatContentBlock: React.FC<Props> = (
                         break;
                     case 'assistant':
                         return (<AssistantBlock definition={String(children)}/>);
-
                     case 'toggle':
                         return (<ExpansionComponent content={String(children)} title={"Source"}/>);
 
@@ -244,10 +244,22 @@ const ChatContentBlock: React.FC<Props> = (
                     case 'APIdoc':
                         return (<ApiDocBlock content={String(children)}/>);
 
+                    case 'integrationsDialog':
+                        if (featureFlags.integrations) {
+                            return (
+                                <button
+                                    onClick={() => window.dispatchEvent(new Event('openIntegrationsDialog'))}
+                                    className={`w-full px-12 py-2 text-white bg-blue-500 rounded hover:bg-green-600`}
+                                >
+                                    Click to setup service connections
+                                </button>)
+                        }
+                        break;
+
                     default:
                         if (match[1].toLowerCase() === 'vega' || match[1].toLowerCase() === 'vegalite') {
                             //console.log("mermaid")
-                            return (<VegaVis chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages.length ?? 0) - 1} />);
+                            return (<VegaVis chart={String(children)} currentMessage={messageIndex == (selectedConversation?.messages?.length ?? 0) - 1} />);
                         }
                         break;
                 }
@@ -296,7 +308,7 @@ const ChatContentBlock: React.FC<Props> = (
 >
     {`${transformedMessageContent}${
         messageIsStreaming && !document.querySelector('.highlight-pulse') && 
-        messageIndex == (selectedConversation?.messages.length ?? 0) - 1 ? '`▍`' : ''
+        messageIndex == (selectedConversation?.messages?.length ?? 0) - 1 ? '`▍`' : ''
     }`}
 </MemoizedReactMarkdown>
 </div>);

@@ -1,10 +1,12 @@
 import React, { FC, useState } from 'react';
 import { executeAssistantApiCall } from '@/services/assistantAPIService';
 import ExpansionComponent from '../Chat/ExpansionComponent';
+import { IconPlus } from '@tabler/icons-react';
 
 interface SelectProps {
   requestType: string,
   handleChange: (val: string) => void;
+  disabled?: boolean;
 }
 
 export interface Auth {
@@ -34,9 +36,10 @@ export interface API {
 export interface APIState {
   apiInfo: API[];
   setApiInfo: React.Dispatch<React.SetStateAction<API[]>>;
+  disabled?: boolean;
 }
 
-export const HTTPRequestSelect: FC<SelectProps> = ({requestType, handleChange}) => {
+export const HTTPRequestSelect: FC<SelectProps> = ({requestType, handleChange, disabled}) => {
 
   return (
     <div className='text-black dark:text-neutral-200'>
@@ -46,6 +49,7 @@ export const HTTPRequestSelect: FC<SelectProps> = ({requestType, handleChange}) 
         value={requestType}
         onChange={(e) => handleChange(e.target.value)}
         required
+        disabled={disabled}
       >
         <option value="GET">GET</option>
         <option value="POST">POST</option>
@@ -58,7 +62,7 @@ export const HTTPRequestSelect: FC<SelectProps> = ({requestType, handleChange}) 
 
 }
 
-export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo }) => {
+export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled }) => {
 
   const [apiResponse, setApiResponse] = useState<any>(null);
 
@@ -97,15 +101,45 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo }) => {
 
 
   return (
-    <div className="mt-4">
+    <div className="mt-2">
+       {!disabled && <button
+        className="mt-2 mb-4 flex items-center gap-2 rounded border border-neutral-500 px-3 py-2 text-sm text-neutral-800 dark:border-neutral-700 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+        onClick={() => setApiInfo([...apiInfo, {
+          id: '',
+          name: '',
+          requestType: '',
+          url: '',
+          params: [],
+          body: {},
+          headers: {},
+          auth: { type: '', token: '', username: '', password: '' },
+          description: ''
+        }])}
+      >
+        <IconPlus size={18} />
+        Add External API
+      </button>}
+
+
       {apiInfo.map((api, index) => (
         <div key={index}>
         <ExpansionComponent
         title={`Manage API ${api.name}`}
         isOpened={true}
         content={
-        <div className="mb-4 p-4 border border-gray-300 rounded">
-          <label className="text-sm font-bold">Name:</label>
+        <div className="mb-4 p-4 border border-gray-300 rounded ">
+          <div className="flex items-center w-full">
+            <label style={{transform: 'translateY(4px)'}} className="text-sm font-bold">Name:</label>
+            <button
+              className="ml-auto mt-[-2px] px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+              onClick={() => {
+                const newApiInfo = apiInfo.filter((_, i) => i !== index);
+                setApiInfo(newApiInfo);
+              }}
+            >
+              Remove API
+            </button>
+          </div>
           <input
             className="mt-2 mb-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
             placeholder="Name"
@@ -379,36 +413,12 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo }) => {
               <pre className="text-sm text-gray-800 dark:text-gray-200">{JSON.stringify(apiResponse, null, 2)}</pre>
             </div>
           )}
-          <div></div>
-          <button
-            className="mt-2 px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-            onClick={() => {
-              const newApiInfo = apiInfo.filter((_, i) => i !== index);
-              setApiInfo(newApiInfo);
-            }}
-          >
-            Remove API
-          </button>
+          
         </div>}
         />
         </div>
       ))}
-      <button
-        className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        onClick={() => setApiInfo([...apiInfo, {
-          id: '',
-          name: '',
-          requestType: '',
-          url: '',
-          params: [],
-          body: {},
-          headers: {},
-          auth: { type: '', token: '', username: '', password: '' },
-          description: ''
-        }])}
-      >
-        Add Additional API
-      </button>
+     
     </div>
   );
 };

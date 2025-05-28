@@ -16,7 +16,7 @@ import { PluginLocation } from '@/types/plugin';
 import { Group } from '@/types/groups';
 import { Artifact } from '@/types/artifacts';
 import { ShareItem } from '@/types/export';
-
+import { ExtractedFact } from '@/types/memory';
 
 export interface HomeInitialState {
   defaultAccount: Account | undefined;
@@ -74,8 +74,10 @@ export interface HomeInitialState {
   hiddenGroupFolders: FolderInterface[];
   powerPointTemplateOptions: string[];
   amplifyUsers: string[];
-  extractedFacts: string[];
+  extractedFacts: ExtractedFact[];
   memoryExtractionEnabled: boolean;
+  supportEmail: string;
+  aiEmailDomain: string;
 }
 
 export const initialState: HomeInitialState = {
@@ -147,4 +149,6 @@ export const initialState: HomeInitialState = {
   amplifyUsers: [],
   extractedFacts: [],
   memoryExtractionEnabled: true,
+  supportEmail: '',
+  aiEmailDomain: ''
 };

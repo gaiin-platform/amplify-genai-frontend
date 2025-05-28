@@ -6,7 +6,7 @@ import Head from 'next/head';
 import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
 import { SettingsBar } from "@/components/Settings/SettingsBar";
 import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
-import { getIsLocalStorageSelection, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
+import { getIsLocalStorageSelection, saveStorageSettings, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
 import cloneDeep from 'lodash/cloneDeep';
 import {styled} from "styled-components";
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
@@ -49,7 +49,7 @@ import {
     IconMessage,
     IconSettings,
     IconDeviceSdCard,
-    IconLogout
+    IconLogout,
 } from "@tabler/icons-react";
 
 import { initialState } from './home.state';
@@ -82,13 +82,18 @@ import { getAllArtifacts } from '@/services/artifactsService';
 import { baseAssistantFolder, basePrompts, isBaseFolder, isOutDatedBaseFolder } from '@/utils/app/basePrompts';
 import { fetchUserSettings } from '@/services/settingsService';
 import { Settings } from '@/types/settings';
-import { getAvailableModels, getFeatureFlags, getPowerPoints } from '@/services/adminService';
+import { getAvailableModels, getFeatureFlags, getPowerPoints, getUserAppConfigs } from '@/services/adminService';
 import { DefaultModels, Model } from '@/types/model';
 import { ErrorMessage } from '@/types/error';
 import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
 
 import { WorkspaceLegacyMessage } from '@/components/Workspace/WorkspaceLegacyMessage';
 import { getSharedItems } from '@/services/shareService';
+import { lowestCostModel } from '@/utils/app/models';
+import { SidebarButton } from '@/components/Sidebar/SidebarButton';
+import { useRouter } from 'next/router';
+import { AdminConfigTypes } from '@/types/admin';
+import { ConversationStorage } from '@/types/conversationStorage';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -103,6 +108,7 @@ interface Props {
     cognitoClientId: string | null;
     mixPanelToken: string;
     chatEndpoint: string | null;
+    aiEmailDomain: string;
 }
 
 
@@ -111,6 +117,7 @@ const Home = ({
     cognitoDomain,
     mixPanelToken,
     chatEndpoint,
+    aiEmailDomain,
 }: Props) => {
     const { t } = useTranslation('chat');
     const [initialRender, setInitialRender] = useState<boolean>(true);
@@ -133,7 +140,8 @@ const Home = ({
     const contextValue = useHomeReducer({
         initialState: {
             ...initialState,
-            statsService: useEventService(mixPanelToken) },
+            statsService: useEventService(mixPanelToken),
+            aiEmailDomain: aiEmailDomain },
     });
 
 
@@ -235,8 +243,19 @@ const Home = ({
         if (chatEndpoint) dispatch({ field: 'chatEndpoint', value: chatEndpoint });
     }, [chatEndpoint]);
 
+    const router = useRouter();
+
+    // Handle callback URL redirect
+    useEffect(() => {
+        const callbackUrl = router.query.callbackUrl as string;
+        if (session && callbackUrl) {
+            router.push(callbackUrl);
+        }
+    }, [session, router]);
+
 
     const handleSelectConversation = async (conversation: Conversation) => {
+        statsService.openConversationsEvent();
         window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false}} ));
         window.dispatchEvent(new Event('cleanupApiKeys'));
         // if we click on the conversation we are already on, then dont do anything
@@ -254,7 +273,7 @@ const Home = ({
         if (isRemoteConversation(conversation)) { 
             const remoteConversation = await fetchRemoteConversation(conversation.id, conversationsRef.current, dispatch);
             if (remoteConversation) {
-                newSelectedConv = remoteConversation; 
+                newSelectedConv = {...remoteConversation, folderId: conversation.folderId || null}; 
             }
         } else {
             newSelectedConv = conversationWithUncompressedMessages(cloneDeep(conversation));
@@ -358,11 +377,7 @@ const Home = ({
                         conversation.id === selectedConversation.id) : false;
                 if (!selectedNotDeleted) { // was deleted
                     const newSelectedConversation = updatedConversations[updatedConversations.length - 1];
-                    dispatch({
-                        field: 'selectedConversation',
-                        value: newSelectedConversation,
-                    });
-                    localStorage.setItem('selectedConversation', JSON.stringify(newSelectedConversation));
+                    handleSelectConversation(newSelectedConversation);
                 }
 
             } else {
@@ -670,35 +685,41 @@ const Home = ({
 
     useEffect(() => {
 
-        const fetchModels = async () => {      
+        const fetchModels = async (hasAdminAccess: boolean) => {      
             console.log("Fetching Models...");
+            let message = 'There was a problem retrieving the available models, please contact our support team.';
             try {
                 const response = await getAvailableModels();
                 if (response.success && response.data) {
-                    const defaultModel = response.data.default;
-                    const models = response.data.models;
-                    // console.log(response);
-                    // for on-load for those who have no saved default, no last conversations with a valid model reference
-                    if (selectedConversation && selectedConversation?.model?.id === '') {
-                        handleUpdateSelectedConversation({...selectedConversation, model: defaultModel});
+                    if (response.data?.models.length === 0) {
+                        if (hasAdminAccess) message = "Click on the gear icon on the left sidebar, select 'Admin Interface', and navigate to the 'Supported Models' tab to enable model availability.";
+                    } else {
+                        const defaultModel = response.data.default;
+                        const models = response.data.models;
+                        // for on-load for those who have no saved default, no last conversations with a valid model reference
+                        if (selectedConversation && selectedConversation?.model?.id === '') {
+                            handleUpdateSelectedConversation({...selectedConversation, model: defaultModel ?? lowestCostModel(models)});
+                        }
+
+                        if (defaultModel) {
+                            console.log("DefaultModel dispatch: ", defaultModel);
+                            dispatch({ field: 'defaultModelId', value: defaultModel.id });
+                        }
+                        if (response.data.cheapest) dispatch({ field: 'cheapestModelId', value: response.data.cheapest.id });
+                        if (response.data.advanced) dispatch({ field: 'advancedModelId', value: response.data.advanced.id });
+                        const modelMap = models.reduce((acc:any, model:any) => ({...acc, [model.id]: model}), {});
+                        dispatch({ field: 'availableModels', value: modelMap});  
+
+                        //save default model 
+                        localStorage.setItem('defaultModel', JSON.stringify(defaultModel));
+                        return;
                     }
-
-                    dispatch({ field: 'defaultModelId', value: defaultModel.id });
-                    dispatch({ field: 'cheapestModelId', value: response.data.cheapest.id });
-                    dispatch({ field: 'advancedModelId', value: response.data.advanced.id });
-                    const modelMap = models.reduce((acc:any, model:any) => ({...acc, [model.id]: model}), {});
-                    dispatch({ field: 'availableModels', value: modelMap});  
-
-                    //save default model 
-                    localStorage.setItem('defaultModel', JSON.stringify(defaultModel));
-                    return;
                 } 
             } catch (e) {
                 console.log("Failed to fetch models: ", e);
             } 
-            const message = 'There was a problem retrieving the available models, please contact our support team.';
-                    dispatch({ field: 'modelError', value: {code: null, title: "Failed to Retrieve Models",
-                                                            messageLines: [message]} as ErrorMessage});  
+            dispatch({ field: 'modelError', value: {code: null, title: "Failed to Retrieve Models",
+                                                    messageLines: [message]} as ErrorMessage});  
         };
 
         const fetchDataDisclosureDecision = async (featureOn: boolean) => {
@@ -750,14 +771,40 @@ const Home = ({
             console.log("Fetching Amplify Users...");
             try {
                 const response = await fetchEmailSuggestions("*");
-                if (response) {
+                if (response && response.emails) {
                     dispatch({ field: 'amplifyUsers', value: response.emails});  
-                    return;
                 } else {
-                    console.log("Failed to amplify Users.");
+                    console.log("Failed to fetch amplify users.");
                 }
             } catch (e) {
-                console.log("Failed to fetch amplify Users: ", e);
+                console.log("Failed to fetch amplify users: ", e);
+            }  
+        };
+
+        const fetchUserAppConfigs = async () => {      
+            console.log("Fetching User App Configs...");
+            try {
+                const response = await getUserAppConfigs();
+                if (response.success) {
+                    const data = response.data;
+                    if (AdminConfigTypes.EMAIL_SUPPORT in data) {
+                        const emailData = data[AdminConfigTypes.EMAIL_SUPPORT];
+                        if (emailData && emailData.isActive && emailData.email) dispatch({ field: 'supportEmail', value: emailData.email});  
+                    }
+                    if (AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE in data) {
+                        const storageData = data[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE];
+                            // honor users selection if it exists
+                        if (!storageSelection && storageData) {
+                            dispatch({ field: 'storageSelection', value: storageData as ConversationStorage}); 
+                            saveStorageSettings(storageData as ConversationStorage);
+                        }
+                    }
+
+                } else {
+                    console.log("Failed to fetch user app configs.");
+                }
+            } catch (e) {
+                console.log("Failed to fetch user app configs: ", e);
             }  
         };
 
@@ -795,12 +842,16 @@ const Home = ({
 
         const fetchArtifacts = async () => {      
             console.log("Fetching Remote Artifacts...");
-            const response = await getAllArtifacts();
-            if (response.success) { 
-                if (response.data) dispatch({ field: 'artifacts', value: response.data});  
-            } else {
-                console.log("Failed to fetch remote Artifacts.");
-            } 
+            try {
+                const response = await getAllArtifacts();
+                if (response.success) { 
+                    if (response.data) dispatch({ field: 'artifacts', value: response.data});  
+                } else {
+                    console.log("Failed to fetch remote Artifacts.");
+                } 
+            } catch (e) {
+                console.log("Failed to fetch remote Artifacts: ", e);
+            }
         };
 
 
@@ -883,11 +934,11 @@ const Home = ({
         }
 
         // return list of assistants 
-        const fetchAssistants = async (promptList:Prompt[]) => {
+        const fetchAssistants = async (promptList:Prompt[], foldersList: FolderInterface[]) => {
             console.log("Fetching Assistants...");
             try {
                 const assistants = await listAssistants();
-                if (assistants) return syncAssistants(assistants, promptList);
+                if (assistants) return syncAssistants(assistants, promptList, foldersList.map(f => f.id));
             } catch (e) {
                 console.log("Failed to  list assistants: ", e);
             }
@@ -955,7 +1006,7 @@ const Home = ({
             }
 
             // Fetch assistants
-            fetchAssistants(updatedPrompts)
+            fetchAssistants(updatedPrompts, updatedFolders)
                     .then(assistantsResultPrompts => {
                         // assistantsResultPrompts includes both list assistants and imported assistants
                         updatedPrompts = [...updatedPrompts.filter((p:Prompt) => !isAssistant(p) || (isAssistant(p) && p.groupId)),
@@ -1009,6 +1060,7 @@ const Home = ({
         const handleFeatureDependantOnLoadData = async () => {
             const flags = await fetchFeatureFlags();
             fetchDataDisclosureDecision(flags.dataDisclosure);
+            fetchModels(flags.adminInterface);
             if (flags.artifacts) fetchArtifacts(); // fetch artifacts 
 
             //Conversation, prompt, folder dependent calls
@@ -1024,10 +1076,10 @@ const Home = ({
             // local storage on load should set workspaces if fetched before  
             // saves us the extra calls   
             if (workspaces === null) fetchWorkspaces(user.email); 
-            fetchModels();
             handleFeatureDependantOnLoadData(); 
             fetchAccounts();  // fetch accounts for chatting charging
             fetchAmplifyUsers();
+            fetchUserAppConfigs();
             fetchPowerPoints();
  
         } 
@@ -1038,6 +1090,8 @@ const Home = ({
     // ON LOAD --------------------------------------------
 
     useEffect(() => {
+        if (!initialRender) return;
+        console.log("Initial On Load");
         const settings = getSettings(featureFlags);
         setSettings(settings);
 
@@ -1162,7 +1216,7 @@ const Home = ({
                 id: uuidv4(),
                 name: t('New Conversation'),
                 messages: [],
-                model: (defaultModel ?? {id:'', name: '', description: '', inputContextWindow: 0, supportsImages: false}) as Model, 
+                model: (defaultModel ?? {id:'', name: '', description: '', inputContextWindow: 0, supportsImages: false, supportsReasoning: false}) as Model, 
                 prompt: DEFAULT_SYSTEM_PROMPT,
                 temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
                 folderId: folder.id,
@@ -1179,7 +1233,6 @@ const Home = ({
         }
 
         dispatch({ field: 'selectedConversation', value: selectedConversation });
-        localStorage.setItem('selectedConversation', JSON.stringify(selectedConversation));
 
         if (conversationHistory) {
             const cleanedConversationHistory = cleanConversationHistory(conversations, getDefaultModel(DefaultModels.DEFAULT));
@@ -1192,10 +1245,7 @@ const Home = ({
             field: 'conversationStateId',
             value: 'post-init',
         });
-    }, [
-        defaultModelId,
-        dispatch,
-    ]);
+    }, [initialRender]);
 
     const [preProcessingCallbacks, setPreProcessingCallbacks] = useState([]);
     const [postProcessingCallbacks, setPostProcessingCallbacks] = useState([]);
@@ -1268,7 +1318,7 @@ const Home = ({
 
 
     if (session) {                          // dont want to go here if its null
-        if (featureFlags.dataDisclosure && hasAcceptedDataDisclosure === false) {// && window.location.hostname !== 'localhost'
+        if (featureFlags.dataDisclosure && hasAcceptedDataDisclosure === false  && window.location.hostname !== 'localhost') {
                 return (
                     <main className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}>
                         <div className="flex flex-col items-center justify-center min-h-screen text-center dark:bg-[#444654] bg-white dark:text-white text-black">
@@ -1426,7 +1476,7 @@ const Home = ({
                                 side={"left"}
                                 footerComponent={
                                     <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
-                                        <button className="dark:text-white" title="Sign Out" onClick={() => {
+                                        <button id="logout" className="dark:text-white" title="Sign Out" onClick={() => {
                                             const goLogout = async () => {
                                                 await federatedSignOut();
                                             };
@@ -1468,23 +1518,21 @@ const Home = ({
                             <TabSidebar
                                 side={"right"}
                                 footerComponent={
-                                    featureFlags.memory && settings?.featureOptions.includeMemory && (
+                                    <>
+                                    {featureFlags.memory && settings?.featureOptions.includeMemory && (
                                         <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
-                                            <button
-                                                className="dark:text-white w-full"
+                                            <SidebarButton
+                                                text={t('Memory')}
+                                                icon={<IconDeviceSdCard size={20} />}
                                                 onClick={() => setIsMemoryDialogOpen(true)}
-                                            >
-                                                <div className="flex items-center">
-                                                    <IconDeviceSdCard className="m-2" />
-                                                    <span>Memory</span>
-                                                </div>
-                                            </button>
+                                            />
                                             <MemoryDialog
                                                 open={isMemoryDialogOpen}
                                                 onClose={() => setIsMemoryDialogOpen(false)}
                                             />
                                         </div>
-                                    )
+                                    )}
+                                    </>
                                 }
                             >
                                 <Tab icon={<Icon3dCubeSphere />}><Promptbar /></Tab>
@@ -1503,12 +1551,13 @@ const Home = ({
     } else if (isLoading) {
         return (
             <main
-                className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
-            >
-                <div
-                    className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+                className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`}
+                style={{backgroundColor: lightMode === 'dark' ? 'black' : 'white'}}>
+            <div
+                className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white"
+                style={{color: lightMode === 'dark' ? 'white' : 'black'}}>
                     <Loader />
-                    <h1 className="mb-4 text-2xl font-bold">
+                    <h1 className="mt-6 mb-4 text-2xl font-bold">
                         Loading...
                     </h1>
 
@@ -1518,17 +1567,20 @@ const Home = ({
     } else {
         return (
             <main
-                className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
-            >
+                className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`} 
+                style={{backgroundColor: lightMode === 'dark' ? 'black' : 'white'}}>
                 <div
-                    className="flex flex-col items-center justify-center min-h-screen text-center text-white dark:text-white">
+                    className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white">
                     <h1 className="mb-4 text-2xl font-bold">
                         <LoadingIcon />
                     </h1>
                     <button
                         onClick={() => signIn('cognito')}
+                        id="loginButton"
+                        className="shadow-md"
                         style={{
                             backgroundColor: 'white',
+                            border: '2px solid #ccc',
                             color: 'black',
                             fontWeight: 'bold',
                             padding: '10px 20px',
@@ -1554,6 +1606,7 @@ export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
     const mixPanelToken = process.env.MIXPANEL_TOKEN;
     const cognitoClientId = process.env.COGNITO_CLIENT_ID;
     const cognitoDomain = process.env.COGNITO_DOMAIN;
+    const aiEmailDomain = process.env.AI_EMAIL_DOMAIN ?? '';
     
     // const googleApiKey = process.env.GOOGLE_API_KEY;
     // const googleCSEId = process.env.GOOGLE_CSE_ID;
@@ -1567,6 +1620,7 @@ export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
             mixPanelToken,
             cognitoClientId,
             cognitoDomain,
+            aiEmailDomain,
             ...(await serverSideTranslations(locale ?? 'en', [
                 'common',
                 'chat',

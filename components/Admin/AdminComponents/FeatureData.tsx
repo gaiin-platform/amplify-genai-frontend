@@ -73,7 +73,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
 
     const [dataDisclosureUploaded, setDataDisclosureUploaded] = useState<boolean>(false);
     
-    const [showUploadApiDocs, setShowUploadApiDocs] = useState<boolean>(false);
+    const [showUploadApiDocs, setShowUploadApiDocs] = useState<boolean>(true);
     const [apiDocsUploaded, setApiDocsUploaded] = useState<{csv: boolean, pdf: boolean, json: boolean}>(
                                                                {csv: false, pdf: false, json: false});
     
@@ -225,7 +225,8 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
                         createdBy : userEmail,
                         isPublic : false,
                         numOfAssistants: astDefs.length,
-                        supportConvAnalysis: false
+                        supportConvAnalysis: false,
+                        trackCoversations: true
                     } as Ast_Group_Data;
                     setAstGroups([...astGroups, ampAstGroup]);
                     toast("Successfully created Amplify Assistants group");
@@ -680,7 +681,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
         }
 
 
-        <div className="ml-6 mt-6">
+        <div className="ml-6 mt-6 mb-10 ">
             {templates.length > 0 ?
                     <ExpansionComponent 
                     title={'Manage PowerPoint Templates'} 
@@ -793,6 +794,7 @@ export interface Ast_Group_Data {
     isPublic : boolean;
     numOfAssistants: number;
     supportConvAnalysis: boolean;
+    trackCoversations: boolean;
 }
 
 

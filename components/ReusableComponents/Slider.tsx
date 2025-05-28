@@ -8,9 +8,10 @@ interface Props {
   onChange: (n: number) => void;
   labels: string[];
   max: number;
+  step?:number;
 }
 
-  export const Slider: FC<Props> = ({label, description, defaultState, onChange,  labels, max}) => {
+  export const Slider: FC<Props> = ({label, description, defaultState, onChange,  labels, max, step=0.1}) => {
   const [slider, setSlider] = useState(defaultState);  
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -32,6 +33,7 @@ interface Props {
       </span>
       <input
         className="w-full h-[3px] rounded-none appearance-none cursor-pointer bg-gray-300"
+        id="slider"
         style={{
             outline: 'none',
             background: 'linear-gradient(to right, #3b82f6 0%, #3b82f6 ' + (slider / max * 100) + '%, #d1d5db ' + (slider / max * 100) + '%, #d1d5db 100%)',
@@ -40,7 +42,7 @@ interface Props {
         type="range"
         min={0.0}
         max={max}
-        step={0.1}
+        step={step}
         value={slider}
         onChange={handleChange}
       />

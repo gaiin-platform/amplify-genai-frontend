@@ -6,6 +6,7 @@ import { messageTopicData, messageTopicDataPast } from "@/types/topics";
 import { lzwUncompress } from "@/utils/app/lzwCompression";
 import cloneDeep from 'lodash/cloneDeep';
 import { Model } from "@/types/model";
+import { ARTIFACT_TRIGGER_CONDITIONS } from "@/utils/app/const";
 
 
 const DIVIDER_CUSTOM_INSTRUCTIONS = `
@@ -216,11 +217,33 @@ const ARTIFACT_CUSTOM_INSTRUCTIONS = `
             For Task 3 Respond with ONLY the /ARTIFACT_RELEVANCE data
 `;
 
+const SMART_INCLUDE_ARTIFACT_INSTRUCTIONS = (prompt: string) => `
+    Task 4 Instructions:
+    Determine if we should include the artifact instructions based on the current user prompt.
+    
+    Artifact Trigger Conditions:
+    ${ARTIFACT_TRIGGER_CONDITIONS}
+
+    Guidelines:
+    - Evaluate User Input to determine if it matches the artifact trigger conditions based on keywords such as "outline," "full project," "detailed analysis," or "extensive documentation."
+    - Consider the likelihood of the user wanting to create an artifact based on the request. Anything above 40% likelihood should be included.
+    - If you are unsure then respond with true.
+    
+    User Prompt: 
+    ${prompt}
+
+    Response Format:
+    /INCLUDE_ARTIFACT_INSTRUCTIONS_START
+        includeInstructions={<boolean(true or false)>}
+    /INCLUDE_ARTIFACT_INSTRUCTIONS_END  
+`;
+
 
 export const getFocusedMessages = async (chatEndpoint:string, conversation:Conversation, statsService: any, 
                                          isArtifactsOn: boolean, isSmartMessagesOn: boolean, 
                                          homeDispatch:any, advancedModel: Model, cheapestModel: Model) => {
-    if (!isArtifactsOn && !isSmartMessagesOn)  return conversation.messages;
+    const defaultResponse = () => ({focusedMessages: conversation.messages, includeArtifactInstr: isArtifactsOn});
+    if (!isArtifactsOn && !isSmartMessagesOn)  return defaultResponse();
     
     const controller = new AbortController();
     
@@ -235,8 +258,14 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
     // only if we artifacts defined will we include the instructions 
     if (topicData.artifactLen > 0) customInstructions +=  ARTIFACT_CUSTOM_INSTRUCTIONS;
 
+    if (isArtifactsOn) {
+        // determine if we should include the artifact instructions based on the last message
+        const lastMsg = conversation.messages.slice(-1)[0];
+        customInstructions += SMART_INCLUDE_ARTIFACT_INSTRUCTIONS(lastMsg.content);
+    } 
+
     // if no artifacts in conversation or smart messages turned on then we can return 
-    if (!customInstructions) return conversation.messages;
+    if (!customInstructions) return defaultResponse();
 
     try {
         const chatBody = {
@@ -272,7 +301,6 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
         
                 text += chunkValue;
             }
-
             return focusMessages(cloneDeep(conversation), text, topicData.currentTopic, topicData.currentTopicStart, topicData.artifactMap, homeDispatch);
         } finally {
             if (reader) {
@@ -285,14 +313,14 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
         console.error("Error prompting for focused Conversation Messages: ", e);
         // think about adding artifact descriptions and ids in case of failure. 
     }   
-    return conversation.messages;
+    return defaultResponse();
     
 }
 
 
 const focusMessages = (selectedConversation: Conversation, llmResponse: string, currentTopic: string, currentTopicStart:number, artifactMap: { [key: string]: number[] }, homeDispatch:any) => {
 
-    const extractMarkers = ["/TOPIC_EVAL", "/INCLUDE_MESSAGES", "/ARTIFACT_RELEVANCE"];
+    const extractMarkers = ["/TOPIC_EVAL", "/INCLUDE_MESSAGES", "/ARTIFACT_RELEVANCE", "/INCLUDE_ARTIFACT_INSTRUCTIONS"];
 
     const tasks = extractMarkers.map((marker) => 
         extractResponseContent(cloneDeep(llmResponse), marker + '_START', marker + '_END')
@@ -317,7 +345,9 @@ const focusMessages = (selectedConversation: Conversation, llmResponse: string, 
     const relevantArtifacts = relevantArtifactContent(tasks[2], artifactMap);
     focusedMessages[lastMsgIndex].content += relevantArtifacts;
 
-    return focusedMessages as Message[]; 
+    const includeArtifactInstr = extractIncludeArtifactInstructions(tasks[3]);
+
+    return {focusedMessages: focusedMessages as Message[], includeArtifactInstr: includeArtifactInstr}; 
     
 }
 
@@ -494,7 +524,7 @@ function relevantMessages(response: string, messages: Message[]) {
 
 // add any artifact contents 
 function relevantArtifactContent(response: string, artifactMap: { [key: string]: number[] }) {
-    console.log("Artifacts: ", response);
+    console.log("Relevant Artifacts: ", response);
     if (!response) return '';
     const idsMatch = response.match(/artifactIds=\{([^}]+)\}/);
     const artifactIds = idsMatch ? idsMatch[1].split(', ') : [];
@@ -508,4 +538,13 @@ function relevantArtifactContent(response: string, artifactMap: { [key: string]:
         });
     } 
     return artifactContent;
+}
+
+function extractIncludeArtifactInstructions(response: string) {
+    console.log("Extract IncludeArtifactInstructions: ", response)
+    if (!response) return true;
+    
+    // Look for 'true' or 'false' anywhere after 'includeInstructions='
+    const includeInstr = response.match(/includeInstructions=.*?(true|false)/i);
+    return includeInstr ? includeInstr[1].toLowerCase() === 'true' : true;
 }

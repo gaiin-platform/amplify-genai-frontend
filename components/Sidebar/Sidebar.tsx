@@ -5,6 +5,7 @@ import Search from '../Search';
 import { KebabMenu } from './components/KebabMenu';
 import { SortType } from '@/types/folder';
 import HomeContext from '@/pages/api/home/home.context';
+import { getSettings } from '@/utils/app/settings';
 
 
 interface Props<T> {
@@ -43,22 +44,22 @@ const Sidebar = <T,>({
   setFolderSort,
 }: Props<T>) => {
 
-  const { state: { messageIsStreaming}} = useContext(HomeContext);
+  const { state: { messageIsStreaming, featureFlags}} = useContext(HomeContext);
   const { t } = useTranslation('promptbar');
-
+  const theme = getSettings(featureFlags).theme;
   const allowDrop = (e: any) => {
     e.preventDefault();
   };
 
   const highlightDrop = (e: any) => {
-    e.target.style.background = '#343541';
+    e.target.style.background = theme === 'dark' ? '#343541' : '#e7e8e9';
   };
 
   const removeHighlight = (e: any) => {
     e.target.style.background = 'none';
   };
 
-  const addItemButton = (width: string) => ( <button className={`text-sidebar flex ${width} flex-shrink-0 select-none items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-3 dark:text-white transition-colors duration-200 
+  const addItemButton = (width: string) => ( <button id="promptButton" className={`text-sidebar flex ${width} flex-shrink-0 select-none items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-3 dark:text-white transition-colors duration-200 
                               ${side === 'left' && messageIsStreaming ? "cursor-not-allowed" : "hover:bg-gray-500/10 cursor-pointer "}`}
                               disabled={side === 'left' && messageIsStreaming}
                               onClick={() => {
@@ -76,6 +77,7 @@ const Sidebar = <T,>({
 
     const addAssistantButton = (
       <button
+        id="addAssistantButton"
         className="text-sidebar flex w-[205px] flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-gray-500/10"
         onClick={() => {
           handleCreateAssistantItem();
@@ -102,6 +104,7 @@ const Sidebar = <T,>({
           <button
             className="ml-2 flex flex-shrink-0 cursor-pointer items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-3 text-sm dark:text-white transition-colors duration-200 hover:bg-gray-500/10"
             onClick={handleCreateFolder}
+            id="createFolderButton"
             title="Create Folder"
           >
             <IconFolderPlus size={16} />

@@ -54,6 +54,7 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
             ...chatBody.messages
         ],
         options: {
+            conversationId: chatBody.conversationId || uuidv4(),
             // Determine the current timezone
             timeZone,
             time,
@@ -84,15 +85,17 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
 
     if (res.status !== 200) {
         const result = await res.json();
-        let error = null;
+        let error = 'Error communicating with the server. Please try again in a minute.';
         if (result.error) {
             error = result.error;
-        } else {
-            error = decoder.decode(result?.value) || result.statusText;
+        } else if (result.value) {
+            error = decoder.decode(result?.value);
+        } else if (result.statusText) {
+            error = result.statusText;
         }
+        if (typeof error !== 'string')  error = JSON.stringify(error);
 
-        const string = 'Error communicating with the server. Please try again in a minute.';
-        const blob = new Blob([string], {type: 'text/plain'});
+        const blob = new Blob([error], {type: 'text/plain'});
         const stream = blob.stream();
 
         return new Response(stream, {

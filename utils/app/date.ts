@@ -12,7 +12,9 @@ export const getDateName = () => {
 
 
 export const getDate = () => {
-    return new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    // Format as YYYY-MM-DD but using local date values instead of UTC
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
 

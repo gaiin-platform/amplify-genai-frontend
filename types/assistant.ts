@@ -27,6 +27,8 @@ export interface AssistantDefinition {
     dataSources:AttachedDocument[];
     provider:string;
     uri?:string;
+    astPath?:string;
+    pathFromDefinition?:string;
     options?:{[key:string]:any};
     version?:number;
     id?:string;
@@ -39,7 +41,7 @@ export const DEFAULT_ASSISTANT: Assistant = {
     id: 'chat',
     definition:
         {
-            provider:'amplify',
+            provider: AssistantProviderID.AMPLIFY,
             name: "Standard Conversation",
             description: "No assistant will be used.",
             instructions: DEFAULT_SYSTEM_PROMPT,

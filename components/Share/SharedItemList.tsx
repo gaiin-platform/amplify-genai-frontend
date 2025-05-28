@@ -70,7 +70,10 @@ const SharedItemsList: FC<{}> = () => {
                 try {
                     const result = await getSharedItems();
                     if (result.success) {
-                        const grouped = groupBy('sharedBy', result.items);
+                        const shared = result.items.filter((item: { sharedBy: string; }) => {
+                            return item.sharedBy !== user?.email;
+                        });
+                        const grouped = groupBy('sharedBy', shared);
                         setGroupedItems(grouped);
                     }
 
@@ -172,6 +175,7 @@ const SharedItemsList: FC<{}> = () => {
             <div className="flex flex-row items-center pt-3 pl-2 pr-3">
                 <div className="mb-4 flex items-center space-x-2">
                     <button
+                        id="shareWithOtherUsers"
                         className="text-sidebar flex flex-grow flex-shrink flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-gray-500/10"
                         onClick={() => {
                             setIsModalOpen(true);
@@ -182,6 +186,7 @@ const SharedItemsList: FC<{}> = () => {
                     </button>
                     <button
                         title='Refresh'
+                        id="refreshButton"
                         disabled={isLoading}
                         className={`text-sidebar flex flex-grow flex-shrink-0 select-none items-center gap-3 rounded-md border dark:border-white/20 p-3 dark:text-white transition-colors duration-200 ${!isLoading ? "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" : ""}`}
                         onClick={async () => {
@@ -252,7 +257,10 @@ const SharedItemsList: FC<{}> = () => {
                                 <div className="w-5/6 truncate text-left text-[12.5px] leading-3 pr-1">
                                     <div className="mb-1 text-gray-500">{new Date(item.sharedAt).toLocaleString(undefined, {month: 'short', day: 'numeric',hour: 'numeric', minute: '2-digit',hour12: true})}</div>
                                     <div
-                                        className="w-full relative text-left text-[12.5px] leading-4 truncate"
+
+                                        className="relative truncate text-left text-[12.5px] leading-3 pr-1 "
+                                        style={{wordWrap: "break-word"}} // Added word wrap style
+
                                     >
                                         {item.note}
                                     </div>

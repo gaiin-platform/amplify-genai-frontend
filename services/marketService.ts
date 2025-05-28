@@ -1,10 +1,8 @@
 import { doRequestOp } from "./doRequestOp";
+import { ExportFormatV4 } from "@/types/export";
 
-import {ExportFormatV4} from "@/types/export";
-
-
-const URL_PATH =  "/market";
-
+const URL_PATH = "/market";
+const SERVICE_NAME = "market";
 
 const failureResponse = (reason: string) => {
     return {
@@ -14,8 +12,7 @@ const failureResponse = (reason: string) => {
     }
 }
 
-
-const doMarketOp = async (opName:string, data:any, errorHandler=(e:any)=>{}) => {
+const doMarketOp = async (opName: string, data: any, errorHandler = (e: any) => { }) => {
     const op = {
         data: data,
         op: opName
@@ -30,18 +27,17 @@ const doMarketOp = async (opName:string, data:any, errorHandler=(e:any)=>{}) => 
         body: JSON.stringify(op),
     });
 
-
-    if (response.ok){
+    if (response.ok) {
         try {
             const result = await response.json();
 
             return result;
-        } catch (e){
-            return {success:false, message:"Error parsing response."};
+        } catch (e) {
+            return { success: false, message: "Error parsing response." };
         }
     }
     else {
-        return {success:false, message:`Error calling assistant: ${response.statusText} .`}
+        return { success: false, message: `Error calling assistant: ${response.statusText} .` }
     }
 }
 
@@ -50,7 +46,7 @@ const serviceHook = (opName: string) => {
     return async (requestData: any) => {
         console.log(`${opName} request:`, requestData);
 
-        const {success, message, data} = await doMarketOp(
+        const { success, message, data } = await doMarketOp(
             opName,
             requestData);
 
@@ -60,85 +56,84 @@ const serviceHook = (opName: string) => {
             return failureResponse(message);
         }
 
-        return {success: true, message: `${opName} success.`, data: data};
+        return { success: true, message: `${opName} success.`, data: data };
     }
 }
 
-export const getCategory = async (category:string ) => {
+export const getCategory = async (category: string) => {
 
-    const {success, message, data} = await doMarketOp(
+    const { success, message, data } = await doMarketOp(
         '/category/get',
-        {category:category});
+        { category: category });
 
-    if(!success){
+    if (!success) {
         return failureResponse(message);
     }
 
-    return {success:true, message:"Category fetched successfully.", data:data};
+    return { success: true, message: "Category fetched successfully.", data: data };
 }
 
 export const getCategories = async () => {
 
-    const {success, message, data} = await doMarketOp(
+    const { success, message, data } = await doMarketOp(
         '/category/list',
         {});
 
-    if(!success){
+    if (!success) {
         return failureResponse(message);
     }
 
-    return {success:true, message:"Category fetched successfully.", data:data};
+    return { success: true, message: "Category fetched successfully.", data: data };
 }
 
-export const getItem = async (id:string ) => {
+export const getItem = async (id: string) => {
     try {
         const service = serviceHook('/item/get');
-        return await service({id:id});
-    } catch (e){
+        return await service({ id: id });
+    } catch (e) {
         return failureResponse("Error fetching item.");
     }
 }
 
-export const deleteItem = async (id:string ) => {
+export const deleteItem = async (id: string) => {
     try {
         const service = serviceHook('/item/delete');
-        return await service({id:id});
-    } catch (e){
+        return await service({ id: id });
+    } catch (e) {
         return failureResponse("Error deleting item.");
     }
 }
 
-
-export const getItemExamples = async (category:string, id:string) => {
+export const getItemExamples = async (category: string, id: string) => {
     try {
         const service = serviceHook('/item/examples/get');
-        return await service({id: id, category: category});
-    } catch (e){
+        return await service({ id: id, category: category });
+    } catch (e) {
         return failureResponse("Error fetching item examples.");
     }
 }
 
 export const publish = async (
-    name:string,
-    description:string,
-    category:string,
-    tags:string[],
-    content:ExportFormatV4) => {
+    name: string,
+    description: string,
+    category: string,
+    tags: string[],
+    content: ExportFormatV4) => {
 
-    const {success, message, data} = await doMarketOp(
+    const { success, message, data } = await doMarketOp(
         '/item/publish',
         {
-            name:name,
-            description:description,
-            category:category,
-            tags:tags,
-            content:content
+            name: name,
+            description: description,
+            category: category,
+            tags: tags,
+            content: content
         });
 
 
-    if(!success){
+    if (!success) {
         return failureResponse(message);
     }
 
-    return {success:true, message:"Published item successfully.", data:data};
+    return { success: true, message: "Published item successfully.", data: data };
 }

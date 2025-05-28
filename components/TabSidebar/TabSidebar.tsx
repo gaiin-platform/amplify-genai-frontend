@@ -88,14 +88,21 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
 
         const handleTabSwitchEvent = (event:any) => {
             if (isMultipleTabs) {
-                const eventSide = event.detail.side;
+                const detail = event.detail;
+                const eventSide = detail.side;
                 if (side === eventSide && !isOpen) setIsOpen(true);
                 if (eventSide === 'right' && isArtifactsOpen) setIsArtifactsOpen(false);
                 
                 const switchToIndex = childrenArray.findIndex(
-                    (child) => child.props.title === event.detail.tab
+                    (child) => child.props.title === detail.tab
                 );
                 setActiveTab(switchToIndex);
+                if (detail.action) {
+                    setTimeout(() => {
+                    detail.action();
+                    console.log("detail.action", detail.action);
+                    }, 50);
+                }
             }
         };
 
@@ -123,7 +130,7 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
         
         <div className={`fixed top-0 ${side}-0 flex h-full w-[280px] flex-none ${chatSide()? 'border-r dark:border-r-[#202123]' : 'border-l dark:border-l-[#202123]'}
             flex-col space-y-0 bg-white text-black dark:text-white bg-[#f3f3f3] dark:bg-[#202123] text-[14px] sm:relative sm:top-0`} 
-            
+            id="sideBar"
             style={{
                 zIndex: '20 !important'
               }}>
@@ -132,6 +139,7 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
                     {childrenArray.map((child, index) => (
                         <button
                             key={index}
+                            id="tabSelection"
                             onClick={() => setActiveTab(index)}
                             title={child.props.title}
                             className={`px-3 py-2 rounded-t ${activeTab === index ? 'border-l border-t border-r dark:border-gray-500 dark:text-white shadow-[1px_0_1px_rgba(0,0,0,0.1),-1px_0_1px_rgba(0,0,0,0.1)] dark:shadow-[1px_0_3px_rgba(0,0,0,0.3),-1px_0_3px_rgba(0,0,0,0.3)]' : 'text-gray-400 dark:text-gray-600'}`}>
