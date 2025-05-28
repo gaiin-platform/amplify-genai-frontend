@@ -8,7 +8,9 @@ import { useTranslation } from 'next-i18next';
 import { generateRandomString } from '@/utils/app/codeblock';
 import TestButton from '@/components/Artifacts/TestButton';
 import InferSchemaButton from '@/components/Artifacts/InferSchemaButton';
+
 import { programmingLanguages } from '@/utils/app/fileTypeTranslations';
+
 
 interface Props {
   language: string;
@@ -35,7 +37,8 @@ export const CodeBlock: FC<Props> = memo(({ language, value }) => {
     });
   };
   const downloadAsFile = () => {
-    const fileExtension = programmingLanguages[language] || '.file';
+    const fileExtension = 
+          [language] || '.file';
     const suggestedFileName = `file-${generateRandomString(
       3,
       true,
@@ -84,8 +87,7 @@ export const CodeBlock: FC<Props> = memo(({ language, value }) => {
           >
             <IconDownload size={18} />
           </button>
-          {/* {language === 'python' && <TestButton />}
-          {language === 'python' && <InferSchemaButton code={value} />} */}
+
         </div>
       </div>
 

@@ -257,8 +257,10 @@ const SharedItemsList: FC<{}> = () => {
                                 <div className="w-5/6 truncate text-left text-[12.5px] leading-3 pr-1">
                                     <div className="mb-1 text-gray-500">{new Date(item.sharedAt).toLocaleString(undefined, {month: 'short', day: 'numeric',hour: 'numeric', minute: '2-digit',hour12: true})}</div>
                                     <div
+
                                         className="relative truncate text-left text-[12.5px] leading-3 pr-1 "
                                         style={{wordWrap: "break-word"}} // Added word wrap style
+
                                     >
                                         {item.note}
                                     </div>
