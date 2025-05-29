@@ -24,6 +24,7 @@ interface Props {
     allowedFileExtensions?:string[];
     groupId?:string;
     disableRag?:boolean;
+    className?:string;
 }
 
 
@@ -144,7 +145,7 @@ export const handleFile = async (file:any,
     }
 }
 
-export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetadata, onSetKey , onSetAbortController, allowedFileExtensions, disallowedFileExtensions, groupId, disableRag}) => {
+export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetadata, onSetKey , onSetAbortController, allowedFileExtensions, disallowedFileExtensions, groupId, disableRag, className = ""}) => {
     const { t } = useTranslation('sidebar');
 
     const {state: { featureFlags, statsService, ragOn } } = useContext(HomeContext);
@@ -206,7 +207,7 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetad
           />
     
           <button
-            className="left-2 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+            className={`${className} left-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
             id="uploadFile"
             onClick={() => {
               const importFile = document.querySelector('#' + id) as HTMLInputElement;

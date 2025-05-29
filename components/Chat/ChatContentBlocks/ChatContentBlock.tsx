@@ -16,6 +16,9 @@ import OpBlock from "@/components/Chat/ChatContentBlocks/OpBlock";
 import ApiKeyBlock from "./ApiKeyBlock";
 import { ApiDocBlock } from "./APIDocBlock";
 import AutoArtifactsBlock from "./AutoArtifactBlock";
+import AgentTableBlock from "./AgentTableBlock";
+import AgentImageBlock from "./AgentImageBlock";
+import AgentFileBlock from "./AgentFileBlock";
 import DOMPurify from  "dompurify";
 import React from "react";
 import InvokeBlock from '@/components/Chat/ChatContentBlocks/InvokeBlock';
@@ -81,7 +84,7 @@ const ChatContentBlock: React.FC<Props> = (
     }, [showChatbar]);
 
 
-    const calcWidth = () => window.innerWidth - ((+promptbarRef.current + +chatbarRef.current) * 450);
+    const calcWidth = () => window.innerWidth - ((+promptbarRef.current + +chatbarRef.current) * 300);
     
 
     const [windowInnerWidth, setWindowInnerWidth] = useState<number>(calcWidth());
@@ -110,7 +113,7 @@ const ChatContentBlock: React.FC<Props> = (
 //   console.log(transformedMessageContent)
   
     return (
-    <div className="chatContentBlock w-full overflow-x-auto" 
+    <div className="chatContentBlock overflow-x-auto" 
          id="chatContentBlock"
          style={{maxWidth: windowInnerWidth}}
          data-message-index={messageIndex}
@@ -243,6 +246,15 @@ const ChatContentBlock: React.FC<Props> = (
 
                     case 'APIdoc':
                         return (<ApiDocBlock content={String(children)}/>);
+                        
+                    case 'agent_table':
+                        return (<AgentTableBlock filePath={String(children).trim()} message={message} />);
+                        
+                    case 'agent_image':
+                        return (<AgentImageBlock filePath={String(children).trim()} message={message} />);
+                        
+                    case 'agent':
+                        return (<AgentFileBlock filePath={String(children).trim()} message={message} />);
 
                     case 'integrationsDialog':
                         if (featureFlags.integrations) {

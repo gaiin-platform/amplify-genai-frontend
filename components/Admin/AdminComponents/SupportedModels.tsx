@@ -119,7 +119,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
         
     const modelNumberInputs = (key: string, value: number | null, step: number, parseInteger: boolean, description: string) => 
         isAddingAvailModel ? <div id={key} title={description} className="flex flex-row gap-3 dark:text-neutral-200 text-neutral-900">
-        <input type="number" id={key} title={description}
+        <input type="number" id={`${key}Input`} title={description}
                 className="text-center w-[100px] dark:bg-[#40414F] bg-gray-200"
                 min={0} step={step} value={value ?? 0 }
                 onChange={(e) => {
@@ -138,6 +138,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
             {titleLabel('Supported Models')}
             <button
                 title={isAddingAvailModel ? '' : 'Add Model'}
+                id="addModel"
                 disabled={isAddingAvailModel !== null}
                 className={`ml-1 mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200  ${ isAddingAvailModel ? "" : " cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" }`}
                 onClick={() => {
@@ -163,7 +164,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
             
             }
             { showModelsSearch && Object.keys(availableModels).length > 0 && !isAddingAvailModel &&
-            <div className="ml-auto mr-16" style={{transform: 'translateY(14px)'}}>
+            <div className="ml-auto mr-16">
                 <Search
                 placeholder={'Search Models...'}
                 searchTerm={modelsSearchTerm}
@@ -207,6 +208,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                 <div className="max-w-[730px]">
                                 { ModelProviders.map((p:string) => 
                                     <button key={p}
+                                    id={`provider${p}`}
                                     className={`w-[182.5px] h-[39px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-300 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 
                                     ${p === isAddingAvailModel.model.provider ? "cursor-default" : "opacity-60 hover:opacity-80"}`}
                                     disabled={p === isAddingAvailModel.model.provider}
@@ -348,16 +350,16 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                         
                     </div>
 
-                    <table className="mt-10 border-collapse w-full" >
+                    <table id="supportedModelsTable" className="mt-4 border-collapse w-full" >
                         <thead>
-                        <tr className="bg-gray-200 dark:bg-[#373844] text-sm">
+                        <tr className="gradient-header text-sm">
                             {['Name', 'ID',  'Provider', 'Available', 'Supports Images', 'Supports Reasoning',
                                 'Supports System Prompts', 'Additional System Prompt',
                                 'Description', 'Input Context Window', 'Output Token Limit', 
                                 'Input Token Cost / 1k', 'Output Token Cost / 1k', 'Cached Token Cost / 1k',
                                 'Available to User via Amplify Group Membership',
                             ].map((title, i) => (
-                            <th key={i}
+                            <th id={title} key={i}
                                 className="text-[0.8rem] px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300" >
                                 {title}
                             </th>
@@ -376,7 +378,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                             <tr key={availModel.id}  className={`text-xs ${hoveredModelIcons === availModel.id ? 'hover:bg-gray-200 dark:hover:bg-[#40414f]' : ''}`}
                                 onMouseEnter={() => setHoveredAvailModel(availModel.id)}
                                 onMouseLeave={() => setHoveredAvailModel('')}>
-                                <td className="border border-neutral-500 p-2">
+                                <td id="supportedModelTitle" className="border border-neutral-500 p-2">
                                     {availModel.name}
                                 </td>
 
@@ -519,8 +521,8 @@ const ModelDefaultSelect: FC<SelectProps> = ({models, defaultModels, selectedKey
 
     return (
         <div className="flex flex-col gap-2 text-center" title={description}>
-            <label className="font-bold text-[#0bb9f4]">{label ?? `${camelToTitleCase(selectedKey)} Model`}</label>
-            <select className={`mb-2 text-center rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100  custom-shadow
+            <label id={`${capitalize(selectedKey)}Model`} className="font-bold text-[#0bb9f4]">{label ?? `${camelToTitleCase(selectedKey)} Model`}</label>
+            <select id="modelSelect" className={`mb-2 text-center rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100  custom-shadow
                                 ${!!selected?.name ? '' : 'border-2 border-red-500'}`} 
                 value={selected?.name ?? ''}
                 onChange={(e) => {

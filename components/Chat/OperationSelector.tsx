@@ -1,44 +1,22 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import {
-    IconChevronRight,
-    IconTool,
-    IconSettings,
-    IconInfoCircle,
-    IconCheck,
-    IconCode,
-    IconUserCog,
-    IconRobot,
-    IconAlertCircle,
-    IconCirclePlus,
-    IconChevronDown,
-    IconFiles,
-    IconSend,
-    IconDeviceSdCard,
-    IconBrain,
-    IconBulb,
-    IconActivity,
-    IconSettingsAutomation,
-    IconLayoutList,
-    IconTags,
-    IconFolder,
-    IconSearch,
-    IconX
-} from '@tabler/icons-react';
+import React, { useState, useEffect, useContext } from 'react';
 import { getAgentTools } from '@/services/agentService';
-
-// Define the interfaces needed for the component
-interface AgentTool {
-    name: string;
-    description?: string;
-    schema?: any;
-    parameters?: any;
-    tags?: string[];
-}
+import ApiIntegrationsPanel from '../AssistantApi/ApiIntegrationsPanel';
+import HomeContext from '@/pages/api/home/home.context';
+import { API } from '../AssistantApi/CustomAPIEditor';
+import { ToggleOptionButtons } from '../ReusableComponents/ToggleOptionButtons';
+import { IconAlertCircle, IconCheck, IconChevronDown, IconChevronRight, IconCirclePlus, IconCode, IconInfoCircle, IconLoader2, IconRobot, IconSettings, IconTags, IconTool, IconTools, IconUserCog, IconX } from '@tabler/icons-react';
+import { getOperationIcon } from '@/types/integrations';
+import { AgentTool } from '@/types/agentTools';
+import { ActiveTabs } from '../ReusableComponents/ActiveTabs';
+import { getOpsForUser } from '@/services/opsService';
+import { filterSupportedIntegrationOps } from '@/utils/app/ops';
+import ActionSetList from '../Agent/ActionSets';
 
 interface OperationSelectorProps {
-    operations: AgentTool[];
+    operations?: AgentTool[];
     initialHeader?: React.ReactNode; // Optional header content
     onActionAdded?: (operation: AgentTool, parameters: Record<string, { value: string; mode: 'ai' | 'manual' }>, customName?: string, customDescription?: string) => void;
+    onActionSetAdded?: (actionSet: any) => void; // Callback when "Add Action Set" is clicked
     onCancel?: () => void; // Callback when cancel button is clicked
     initialAction?: { // Optional initial action for editing
         name: string;
@@ -66,22 +44,26 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
     operations,
     initialHeader = null,
     onActionAdded,
+    onActionSetAdded,
     onCancel,
     initialAction,
     editMode: initialEditMode = false,
 }) => {
-    const [viewMode, setViewMode] = useState<'name' | 'tag'>('name');
+    const { state: {featureFlags} } = useContext(HomeContext);
+    // const [isLoadingTab, setIsLoadingTab] = useState<string[]>([...(operations ? [""] : ["Actions"]), "Action Sets"]);
+    const [allOperations, setAllOperations] = useState<any[] | null>(operations ?? null);
     const [selectedOp, setSelectedOp] = useState<AgentTool | null>(null);
     const [paramModes, setParamModes] = useState<Record<string, 'ai' | 'manual'>>({});
     const [paramValues, setParamValues] = useState<Record<string, string>>({});
-    const [searchQuery, setSearchQuery] = useState<string>('');
     const [customName, setCustomName] = useState<string>(initialAction?.customName || '');
     const [customDescription, setCustomDescription] = useState<string>(initialAction?.customDescription || '');
     // Internal edit mode state - can change when user selects different operations
-    const [editMode, setEditMode] = useState<boolean>(initialEditMode);
+    const [editMode, setEditMode] = useState<boolean>(false);
+    const [viewMode, setViewMode] = useState<string>('Actions');
     // State for agent tools
     const [agentTools, setAgentTools] = useState<AgentTool[]>([]);
-    const [combinedOperations, setCombinedOperations] = useState<AgentTool[]>(operations);
+    // State for selected action set
+    const [selectedActionSet, setSelectedActionSet] = useState<any>(null);
 
     const handleParamModeChange = (param: string, mode: 'ai' | 'manual') => {
         setParamModes({ ...paramModes, [param]: mode });
@@ -91,9 +73,46 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
         setParamValues({ ...paramValues, [param]: value });
     };
 
-    const clearSearch = () => {
-        setSearchQuery('');
-    };
+    // const handleLoadedTab = (tab: string) => {
+    //     setIsLoadingTab(isLoadingTab.filter(t => t !== tab));
+    // }
+
+    // const isTabLoading = (tab: string) => {
+    //     return isLoadingTab.find(t => t === tab);
+    // }
+
+    const emptyPage = (message: string) => {
+        return (
+            <div className="h-full flex items-center justify-center">
+                <div className="text-center p-6">
+                    <div className="flex justify-center mb-3">
+                        <IconChevronRight size={24} stroke={1.5} className="text-gray-400 dark:text-gray-600" />
+                    </div>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm">
+                       {message}
+                    </p>
+                </div>
+            </div>
+        )
+    }
+
+    useEffect(() => {
+        const fetchOps = async () => {
+            if (!featureFlags?.integrations) return;
+
+            const opsResponse = await getOpsForUser();
+            if (opsResponse.success && Array.isArray(opsResponse.data)) {
+                const filtered = await filterSupportedIntegrationOps(opsResponse.data);
+                if (filtered) {
+                    setAllOperations(filtered);
+                }
+            }
+            // handleLoadedTab("Actions");
+        };
+
+        fetchOps();
+    }, [featureFlags]);
+
     
     // Fetch agent tools and combine with operations
     useEffect(() => {
@@ -113,6 +132,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                         return {
                             id: tool.tool_name,
                             name: tool.tool_name || key,
+                            tool_name: tool.tool_name || key,
                             description: tool.description || '',
                             schema: tool.parameters || {},
                             parameters: tool.parameters || {},
@@ -122,15 +142,6 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                     });
                     
                     setAgentTools(tools);
-                    
-                    // Combine with operations, avoiding duplicates
-                    const combined = [...operations];
-                    for (const tool of tools) {
-                        if (!combined.some(op => op.name === tool.name)) {
-                            combined.push(tool);
-                        }
-                    }
-                    setCombinedOperations(combined);
                 }
             } catch (error) {
                 console.error('Error fetching agent tools:', error);
@@ -142,8 +153,8 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
 
     // Initialize with the initial action if provided
     useEffect(() => {
-        if (initialAction && combinedOperations.length > 0) {
-            const matchingOp = combinedOperations.find(op => op.name === initialAction.name);
+        if (initialAction && allOperations && allOperations.length > 0) {
+            const matchingOp = allOperations.find(op => op.name === initialAction.name);
             if (matchingOp) {
                 setSelectedOp(matchingOp);
                 
@@ -165,333 +176,121 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                 }
             }
         }
-    }, [initialAction, combinedOperations, initialEditMode]);
+    }, [initialAction, allOperations, initialEditMode]);
 
-    // Reset selected operation if it's filtered out
-    useEffect(() => {
-        if (selectedOp && filteredOperations.length > 0) {
-            const isSelected = filteredOperations.some(op => op.name === selectedOp.name);
-            if (!isSelected) {
-                setSelectedOp(null);
-            }
-        }
-    }, [searchQuery, combinedOperations]);
 
     const paramSource = selectedOp ? (selectedOp.schema || selectedOp.parameters) : undefined;
 
-    // Helper function to get an appropriate icon for an operation based on its name
-    const getOperationIcon = (name: string | undefined) => {
-        if (!name) return <IconTool size={18} stroke={1.5} />;
+    // When used in JSX
+    const getIcon = (name: string | undefined) => {
+        const IconComponent = getOperationIcon(name);
+        return <IconComponent size={18} stroke={1.5} />
+    }
 
-        const nameLower = name.toLowerCase();
-        if (nameLower.includes('search')) return <IconBulb size={18} stroke={1.5} />;
-        if (nameLower.includes('code') || nameLower.includes('script')) return <IconCode size={18} stroke={1.5} />;
-        if (nameLower.includes('config') || nameLower.includes('setting')) return <IconSettings size={18} stroke={1.5} />;
-        if (nameLower.includes('file') || nameLower.includes('document')) return <IconFiles size={18} stroke={1.5} />;
-        if (nameLower.includes('api') || nameLower.includes('request')) return <IconSend size={18} stroke={1.5} />;
-        if (nameLower.includes('data') || nameLower.includes('storage')) return <IconDeviceSdCard size={18} stroke={1.5} />;
-        if (nameLower.includes('ai') || nameLower.includes('ml')) return <IconBrain size={18} stroke={1.5} />;
-        if (nameLower.includes('analyze') || nameLower.includes('monitor')) return <IconActivity size={18} stroke={1.5} />;
-        if (nameLower.includes('automate')) return <IconSettingsAutomation size={18} stroke={1.5} />;
-        return <IconTool size={18} stroke={1.5} />;
-    };
+    const loading =  (label: string) => <span className="flex flex-row gap-2 ml-10 text-sm text-gray-500 w-full justify-center w-full">
+    <IconLoader2 className="animate-spin w-5 h-5 inline-block" />
+    Loading {label}...
+    </span>
 
-    // Filter operations based on search query
-    const filteredOperations = useMemo(() => {
-        if (!searchQuery.trim()) return combinedOperations;
+    const clearAttributes = () => {
+        setCustomName('');
+        setCustomDescription('');
+        setParamModes({});
+        setParamValues({});
+    }
 
-        const query = searchQuery.toLowerCase();
-        return combinedOperations.filter(op => {
-            // Search in name
-            if (op.name.toLowerCase().includes(query)) return true;
-
-            // Search in description
-            if (op.description?.toLowerCase().includes(query)) return true;
-
-            // Search in tags
-            if (op.tags?.some(tag => tag.toLowerCase().includes(query))) return true;
-
-            return false;
-        });
-    }, [combinedOperations, searchQuery]);
-
-    // Group operations by tags
-    const { sortedOperations, tagGroups, noTagOperations } = useMemo(() => {
-        // Sort operations alphabetically
-        const sorted = [...filteredOperations].sort((a, b) =>
-            (a.name || '').localeCompare(b.name || '')
-        );
-
-        if (viewMode === 'name') {
-            return {
-                sortedOperations: sorted,
-                tagGroups: {},
-                noTagOperations: []
-            };
-        }
-
-        // Group by tags for tag view
-        const groups: Record<string, AgentTool[]> = {};
-        const noTag: AgentTool[] = [];
-
-        sorted.forEach(op => {
-            if (op.tags && op.tags.length > 0) {
-                op.tags.forEach(tag => {
-                    if (!groups[tag]) groups[tag] = [];
-                    groups[tag].push(op);
-                });
-            } else {
-                noTag.push(op);
-            }
-        });
-
-        // Sort the tag keys alphabetically
-        const sortedGroups: Record<string, AgentTool[]> = {};
-        Object.keys(groups).sort().forEach(key => {
-            sortedGroups[key] = groups[key];
-        });
-
-        return {
-            sortedOperations: sorted,
-            tagGroups: sortedGroups,
-            noTagOperations: noTag
-        };
-    }, [filteredOperations, viewMode]);
 
     return (
         <div className="flex h-[400px] w-full border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg bg-white dark:bg-[#22232b] overflow-hidden">
             {/* Left Pane - Operations List */}
-            <div className="w-1/3 border-r border-gray-300 dark:border-gray-700 overflow-auto bg-gray-50 dark:bg-[#2b2c35]">
-                <div className="sticky top-0 bg-gray-100 dark:bg-[#343541] px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                    <div className="flex flex-col gap-2">
-                        <h3 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center">
-                            <IconTool size={16} stroke={1.5} className="mr-2" />
-                            Available Operations
-                        </h3>
-                        <div className="flex items-center bg-white dark:bg-[#343541] border border-gray-300 dark:border-neutral-600 rounded-md overflow-hidden mt-1">
-                            <div
-                                className={`flex items-center px-3 py-1.5 cursor-pointer text-xs ${
-                                    viewMode === 'name'
-                                        ? 'bg-blue-100 dark:bg-[#40414F]/80 text-blue-700 dark:text-blue-400 font-medium'
-                                        : 'bg-white dark:bg-[#343541] text-gray-700 dark:text-gray-300'
-                                }`}
-                                onClick={() => setViewMode('name')}
-                            >
-                                <IconLayoutList size={14} stroke={1.5} className="mr-1" />
-                                <span>By Name</span>
-                            </div>
-                            <div
-                                className={`flex items-center px-3 py-1.5 cursor-pointer text-xs ${
-                                    viewMode === 'tag'
-                                        ? 'bg-blue-100 dark:bg-[#40414F]/80 text-blue-700 dark:text-blue-400 font-medium'
-                                        : 'bg-white dark:bg-[#343541] text-gray-700 dark:text-gray-300'
-                                }`}
-                                onClick={() => setViewMode('tag')}
-                            >
-                                <IconTags size={14} stroke={1.5} className="mr-1" />
-                                <span>By Tag</span>
-                            </div>
-                        </div>
+            <div className="w-2/5 border-r border-gray-300 dark:border-gray-700 overflow-auto bg-gray-50 dark:bg-[#2b2c35]">
+                <div className="relative bg-gray-100 dark:bg-[#343541] pl-4 pb-3 border-b border-gray-200 dark:border-gray-700 overflow-x-hidden text-black dark:text-neutral-100">
+                 
+                <ActiveTabs
+                        id="OperationSelectorTabs"
+                        // initialActiveTab={lastActiveTab.current}
+                        onTabChange={(tabIdx, tabLabel) => {
+                            setViewMode(tabLabel);
+                            // Reset selections when switching tabs
+                            if (tabLabel === 'Actions') {
+                                setSelectedActionSet(null);
+                            } else if (tabLabel === 'Action Sets') {
+                                setSelectedOp(null);
+                            }
+                        }}
+                        tabs={[
+                          {label: "Actions", 
+                           content: 
+                            <div className="flex flex-col gap-2 pl-1 pr-2">
+                                <h3 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center">
+                                    <IconTool size={16} stroke={1.5} className="mr-2" />
+                                    Available Operations
+                                </h3>
 
-                        {/* Search Bar */}
-                        <div className="relative mt-1">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <IconSearch size={14} stroke={1.5} className="text-gray-400 dark:text-gray-500" />
-                            </div>
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search operations..."
-                                className="pl-9 pr-8 py-1.5 w-full text-sm border rounded-md bg-white dark:bg-[#343541] border-gray-300
-                  dark:border-neutral-600 text-gray-800 dark:text-gray-200 placeholder-gray-400
-                  dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                  focus:outline-none transition-shadow duration-150"
+                                { featureFlags.integrations &&
+                                    <ApiIntegrationsPanel
+                                        // API-related props
+                                        availableApis={allOperations}
+                                        onClickApiItem={(api: API) => {
+                                            const apiAsTool: AgentTool = {
+                                                id: api.id,
+                                                name: api.name,
+                                                tool_name: api.name,
+                                                description: api.description || '',
+                                                schema: api.schema,
+                                                parameters: api.schema,
+                                                tags: ['API', 'Integration'],
+                                                type: "api",
+                                                iconSize: 12
+                                            };
+                                            setSelectedOp(apiAsTool);
+                                            clearAttributes();
+                                        }}
+                                        // Agent tools props
+                                        availableAgentTools={agentTools}
+                                        onClickAgentTool={ (tool: any) => {
+                                            setSelectedOp(tool);
+                                            clearAttributes();
+                                        }}
+                                        allowCreatePythonFunction={false}
+                                        hideApisPanel={['external']}
+                                        labelPrefix=""
+                                        showDetails={false}
+                                        compactDisplay={true}
+                                />}
+
+                            </div> },
+                        
+                         {label: "Action Sets", 
+                            content: 
+                            <div className="flex flex-col gap-2 pl-1 pr-2">
+                                <h3 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center">
+                                    <IconTools size={16} stroke={1.5} className="mr-2" />
+                                    Available Action Sets
+                                </h3>
+                            <ActionSetList
+                               onLoad={(actionSet) => { 
+                                console.log(actionSet);
+                                setSelectedActionSet(actionSet);
+                               }}
                             />
-                            {searchQuery && (
-                                <button
-                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                                    onClick={clearSearch}
-                                >
-                                    <IconX size={14} stroke={1.5} />
-                                </button>
-                            )}
-                        </div>
-                        {searchQuery && (
-                            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Found {filteredOperations.length} operation{filteredOperations.length !== 1 ? 's' : ''}
                             </div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                    {viewMode === 'name' ? (
-                        // Name View - flat alphabetical list
-                        sortedOperations.length > 0 ? (
-                            sortedOperations.map((op, idx) => (
-                                <div
-                                    key={idx}
-                                    onClick={() => {
-                                        // If selecting a different operation during edit mode,
-                                        // reset the form to add mode
-                                        if (selectedOp && selectedOp.name !== op.name && editMode) {
-                                            // Reset custom name and description when switching operations
-                                            setCustomName('');
-                                            setCustomDescription('');
-                                            // Reset params when switching operations
-                                            setParamModes({});
-                                            setParamValues({});
-                                            // Change mode from edit to add
-                                            setEditMode(false);
-                                        }
-                                        setSelectedOp(op);
-                                    }}
-                                    className={`px-4 py-3 cursor-pointer transition-colors duration-150 
-                    hover:bg-blue-50 dark:hover:bg-[#40414F]/70 flex items-center justify-between
-                    ${selectedOp?.name === op.name
-                                        ? 'bg-blue-100 dark:bg-[#40414F] border-l-4 border-blue-500 dark:border-blue-400'
-                                        : 'border-l-4 border-transparent'
-                                    }`}
-                                >
-                                    <div className="flex items-center">
-                                        {getOperationIcon(op.name)}
-                                        <span className="ml-2 text-sm font-medium text-gray-800 dark:text-gray-200">
-                                            {formatOperationName(op.name)}
-                                        </span>
-                                    </div>
-                                    {selectedOp?.name === op.name && (
-                                        <IconChevronRight size={16} stroke={1.5} className="text-blue-500 dark:text-blue-400" />
-                                    )}
-                                </div>
-                            ))
-                        ) : (
-                            <div className="py-6 text-center text-gray-500 dark:text-gray-400 text-sm">
-                                No operations match your search
-                            </div>
-                        )
-                    ) : (
-                        // Tag View - grouped by tags
-                        <>
-                            {Object.keys(tagGroups).length > 0 || noTagOperations.length > 0 ? (
-                                <>
-                                    {/* Tagged operations */}
-                                    {Object.entries(tagGroups).map(([tag, ops]) => (
-                                        <div key={tag} className="border-b border-gray-100 dark:border-gray-700">
-                                            <div className="px-4 py-2 bg-gray-50 dark:bg-[#2d2e37] flex items-center">
-                                                <IconFolder size={14} stroke={1.5} className="text-gray-500 dark:text-gray-400 mr-1.5" />
-                                                <span className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">
-                                                    {tag}
-                                                </span>
-                                            </div>
-                                            <div className="divide-y divide-gray-50 dark:divide-gray-800">
-                                                {ops.map((op, idx) => (
-                                                    <div
-                                                        key={idx}
-                                                        onClick={() => {
-                                        // If selecting a different operation during edit mode,
-                                        // reset the form to add mode
-                                        if (selectedOp && selectedOp.name !== op.name && editMode) {
-                                            // Reset custom name and description when switching operations
-                                            setCustomName('');
-                                            setCustomDescription('');
-                                            // Reset params when switching operations
-                                            setParamModes({});
-                                            setParamValues({});
-                                            // Change mode from edit to add
-                                            setEditMode(false);
-                                        }
-                                        setSelectedOp(op);
-                                    }}
-                                                        className={`px-4 py-3 pl-6 cursor-pointer transition-colors duration-150 
-                              hover:bg-blue-50 dark:hover:bg-[#40414F]/70 flex items-center justify-between
-                              ${selectedOp?.name === op.name
-                                                            ? 'bg-blue-100 dark:bg-[#40414F] border-l-4 border-blue-500 dark:border-blue-400'
-                                                            : 'border-l-4 border-transparent'
-                                                        }`}
-                                                    >
-                                                        <div className="flex items-center">
-                                                            {getOperationIcon(op.name)}
-                                                            <span className="ml-2 text-sm font-medium text-gray-800 dark:text-gray-200">
-                                                                {formatOperationName(op.name)}
-                                                            </span>
-                                                        </div>
-                                                        {selectedOp?.name === op.name && (
-                                                            <IconChevronRight size={16} stroke={1.5} className="text-blue-500 dark:text-blue-400" />
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ))}
-
-                                    {/* Operations with no tags */}
-                                    {noTagOperations.length > 0 && (
-                                        <div>
-                                            <div className="px-4 py-2 bg-gray-50 dark:bg-[#2d2e37] flex items-center">
-                                                <IconFolder size={14} stroke={1.5} className="text-gray-500 dark:text-gray-400 mr-1.5" />
-                                                <span className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">
-                                                    Uncategorized
-                                                </span>
-                                            </div>
-                                            <div className="divide-y divide-gray-50 dark:divide-gray-800">
-                                                {noTagOperations.map((op, idx) => (
-                                                    <div
-                                                        key={idx}
-                                                        onClick={() => {
-                                        // If selecting a different operation during edit mode,
-                                        // reset the form to add mode
-                                        if (selectedOp && selectedOp.name !== op.name && editMode) {
-                                            // Reset custom name and description when switching operations
-                                            setCustomName('');
-                                            setCustomDescription('');
-                                            // Reset params when switching operations
-                                            setParamModes({});
-                                            setParamValues({});
-                                            // Change mode from edit to add
-                                            setEditMode(false);
-                                        }
-                                        setSelectedOp(op);
-                                    }}
-                                                        className={`px-4 py-3 pl-6 cursor-pointer transition-colors duration-150 
-                              hover:bg-blue-50 dark:hover:bg-[#40414F]/70 flex items-center justify-between
-                              ${selectedOp?.name === op.name
-                                                            ? 'bg-blue-100 dark:bg-[#40414F] border-l-4 border-blue-500 dark:border-blue-400'
-                                                            : 'border-l-4 border-transparent'
-                                                        }`}
-                                                    >
-                                                        <div className="flex items-center">
-                                                            {getOperationIcon(op.name)}
-                                                            <span className="ml-2 text-sm font-medium text-gray-800 dark:text-gray-200">
-                                                                {formatOperationName(op.name)}
-                                                            </span>
-                                                        </div>
-                                                        {selectedOp?.name === op.name && (
-                                                            <IconChevronRight size={16} stroke={1.5} className="text-blue-500 dark:text-blue-400" />
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </>
-                            ) : (
-                                <div className="py-6 text-center text-gray-500 dark:text-gray-400 text-sm">
-                                    No operations match your search
-                                </div>
-                            )}
-                        </>
-                    )}
+                         }
+                        ]
+                    }
+                /> 
+                
                 </div>
             </div>
 
             {/* Right Pane - Operation Details */}
-            <div className="w-2/3 overflow-auto">
+            <div className="w-2/3 overflow-auto ">
+                { viewMode === 'Actions' && <>
                 {selectedOp ? (
                     <div className="p-6">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
-                                {getOperationIcon(selectedOp.name)}
+                                {getIcon(selectedOp.name)}
                                 <span className="ml-2">
                                     {formatOperationName(selectedOp.name)}
                                 </span>
@@ -524,15 +323,11 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                     }}
                                 >
                                     {editMode ? (
-                                        <>
-                                            <IconCheck size={16} stroke={1.5} className="mr-1" />
-                                            Save Changes
-                                        </>
+                                        <> <IconCheck size={16} stroke={1.5} className="mr-1" />
+                                            Save Changes </>
                                     ) : (
-                                        <>
-                                            <IconCirclePlus size={16} stroke={1.5} className="mr-1" />
-                                            Add Action
-                                        </>
+                                        <> <IconCirclePlus size={16} stroke={1.5} className="mr-1" />
+                                            Add Action </>
                                     )}
                                 </button>
                             </div>
@@ -610,7 +405,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                         <label className="flex items-center justify-between font-medium text-sm text-gray-900 dark:text-white mb-2">
                                             <div className="flex items-center">
                                                 {paramSource.required?.includes(paramName) ? (
-                                                    <IconAlertCircle size={14} stroke={1.5} className="text-red-500 mr-2" />
+                                                    <IconAlertCircle size={16} stroke={1.5} className="text-red-500 mr-2" />
                                                 ) : (
                                                     <IconCheck size={14} stroke={1.5} className="text-green-500 mr-2" />
                                                 )}
@@ -625,28 +420,22 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
 
                                         <div className="flex items-center gap-3 mt-2">
                                             <div className="flex items-center bg-white dark:bg-[#343541] border border-gray-300 dark:border-neutral-600 rounded-md overflow-hidden">
-                                                <div
-                                                    className={`flex items-center px-3 py-2 cursor-pointer ${
-                                                        (paramModes[paramName] || 'ai') === 'ai'
-                                                            ? 'bg-blue-100 dark:bg-[#40414F]/80 text-blue-700 dark:text-blue-400'
-                                                            : 'bg-white dark:bg-[#343541] text-gray-700 dark:text-gray-300'
-                                                    }`}
-                                                    onClick={() => handleParamModeChange(paramName, 'ai')}
-                                                >
-                                                    <IconRobot size={14} stroke={1.5} className="mr-1" />
-                                                    <span className="text-xs">AI</span>
-                                                </div>
-                                                <div
-                                                    className={`flex items-center px-3 py-2 cursor-pointer ${
-                                                        (paramModes[paramName] || 'ai') === 'manual'
-                                                            ? 'bg-blue-100 dark:bg-[#40414F]/80 text-blue-700 dark:text-blue-400'
-                                                            : 'bg-white dark:bg-[#343541] text-gray-700 dark:text-gray-300'
-                                                    }`}
-                                                    onClick={() => handleParamModeChange(paramName, 'manual')}
-                                                >
-                                                    <IconUserCog size={14} stroke={1.5} className="mr-1" />
-                                                    <span className="text-xs">Manual</span>
-                                                </div>
+
+                                                <ToggleOptionButtons
+                                                    activeColor={"text-blue-700 dark:text-blue-300"}
+                                                    options={[
+                                                        { id: 'ai', name: 'AI',
+                                                          title: 'Let AI generate the parameter value',
+                                                          icon: IconRobot
+                                                        },
+                                                        { id: 'manual', name: 'Manual',
+                                                          title: 'Manually specify the parameter value',
+                                                          icon: IconUserCog
+                                                        }
+                                                    ]}
+                                                    selected={paramModes[paramName] || 'ai'}
+                                                    onToggle={(mode) => handleParamModeChange(paramName, mode as 'ai' | 'manual')}
+                                                />
                                             </div>
                                             <input
                                                 type="text"
@@ -684,31 +473,191 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                             </div>
                         </details>
                     </div>
-                ) : (
+                ) : 
+                // (!!isTabLoading("Actions") ? 
+                //         <div className="h-full flex items-center justify-center">
+                //             {loading("Actions")}
+                //         </div>
+                //     :
                     <div className="h-full flex items-center justify-center">
                         {initialHeader ? (
                             // Custom header content when provided
                             <div className="w-full h-full flex flex-col items-center justify-center">
                                 {initialHeader}
                             </div>
-                        ) : (
-                            // Default empty state
-                            <div className="text-center p-6">
-                                <div className="flex justify-center mb-3">
-                                    <IconChevronRight size={24} stroke={1.5} className="text-gray-400 dark:text-gray-600" />
-                                </div>
-                                <p className="text-gray-500 dark:text-gray-400 text-sm">
-                                    {filteredOperations.length > 0
-                                        ? "Select an operation from the list to view details"
-                                        : "No operations match your search criteria"}
-                                </p>
+                        ) : ( emptyPage("Select an operation from the list to view details") )}
+                    </div>
+                }
+                </>}
+                { viewMode === 'Action Sets' && <>
+                    {selectedActionSet ? (
+                        <div className="p-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                                <IconTools size={20} stroke={1.5} className="mr-2" />
+                                <span>{selectedActionSet.name || 'Unnamed Action Set'}</span>
+                            </h2>
+                            <div className="flex gap-2">
+                                {onCancel && (
+                                    <button
+                                        className="flex items-center bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 shadow-sm"
+                                        onClick={onCancel}
+                                    >
+                                        <IconX size={16} stroke={1.5} className="mr-1" />
+                                        Cancel
+                                    </button>
+                                )}
+                                {onActionSetAdded && (
+                                    <button
+                                        className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 shadow-sm"
+                                        onClick={() => onActionSetAdded(selectedActionSet)}
+                                    >
+                                         <> <IconCirclePlus size={16} stroke={1.5} className="mr-1" />
+                                         Add Action Set </>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+        
+                        {/* Tags display */}
+                        {selectedActionSet.tags && selectedActionSet.tags.length > 0 && (
+                            <div className="mb-4 flex flex-wrap gap-2">
+                                {selectedActionSet.tags.map((tag: string, index: number) => (
+                                    <span key={index} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                                        <IconTags size={12} className="mr-1" />
+                                        {tag}
+                                    </span>
+                                ))}
                             </div>
                         )}
+        
+                        {/* Actions list */}
+                        <div className="space-y-3 mt-4">
+                            <h3 className="text-md font-semibold text-gray-700 dark:text-gray-300 flex items-center mb-2">
+                                Actions ({selectedActionSet.actions?.length || 0})
+                            </h3>
+                            {selectedActionSet.actions && selectedActionSet.actions.length > 0 ? (
+                                <div className="border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
+                                    <div className="divide-y divide-gray-300 dark:divide-gray-700">
+                                        {selectedActionSet.actions.map((action: any, index: number) => (
+                                            <div key={index} className="p-4 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                                <div className="flex items-start">
+                                                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 mr-3 mt-1 flex-shrink-0">
+                                                        {index + 1}
+                                                    </span>
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center">
+                                                            {getIcon(action.name)}
+                                                            <h4 className="font-medium text-gray-900 dark:text-white ml-2">
+                                                                {action.customName || formatOperationName(action.name) || 'Unnamed Action'}
+                                                            </h4>
+                                                            {action.operation?.tags && (
+                                                                <div className="ml-2 flex flex-wrap gap-1">
+                                                                    {action.operation.tags.map((tag: string, tagIndex: number) => (
+                                                                        <span key={tagIndex} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                                                            {tag}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        
+                                                        {action.customDescription ? (
+                                                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                                                {action.customDescription}
+                                                            </p>
+                                                        ) : action.operation?.description ? (
+                                                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                                                                {action.operation.description.split('\n')[0]}
+                                                            </p>
+                                                        ) : null}
+                                                        
+                                                        {/* Parameters display */}
+                                                        {action.parameters && Object.keys(action.parameters).length > 0 && (
+                                                            <div className="mt-3">
+                                                                <details className="text-sm">
+                                                                    <summary className="cursor-pointer text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium flex items-center">
+                                                                        <IconSettings size={14} className="mr-1" />
+                                                                        Parameters ({Object.keys(action.parameters).length})
+                                                                    </summary>
+                                                                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md">
+                                                                        {Object.entries(action.parameters).map(([paramName, paramDetails]: [string, any]) => {
+                                                                            const isRequired = action.operation?.schema?.required?.includes(paramName);
+                                                                            return (
+                                                                                <div key={paramName} className="flex flex-col">
+                                                                                    <div className="flex items-center">
+                                                                                        {isRequired ? (
+                                                                                            <IconAlertCircle size={14} className="text-red-500 mr-1" />
+                                                                                        ) : (
+                                                                                            <IconCheck size={14} className="text-green-500 mr-1" />
+                                                                                        )}
+                                                                                        <span className="font-medium text-gray-700 dark:text-gray-300">
+                                                                                            {formatOperationName(paramName)}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <div className="ml-5 mt-1 flex items-center">
+                                                                                        <span className={`px-2 py-0.5 rounded text-xs ${
+                                                                                            paramDetails.mode === 'manual' 
+                                                                                                ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300' 
+                                                                                                : 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+                                                                                        }`}>
+                                                                                            {paramDetails.mode === 'manual' ? 'Manual' : 'AI Generated'}
+                                                                                        </span>
+                                                                                        {paramDetails.mode === 'manual' && paramDetails.value && (
+                                                                                            <span className="ml-2 font-mono text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded truncate max-w-[150px]">
+                                                                                                {paramDetails.value}
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </details>
+                                                            </div>
+                                                        )}
+                                                        
+                                                        {/* Show operation details button */}
+                                                        {action.operation && (
+                                                            <details className="mt-2 text-sm">
+                                                                <summary className="cursor-pointer text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 flex items-center">
+                                                                    <IconInfoCircle size={14} className="mr-1" />
+                                                                    View operation details
+                                                                </summary>
+                                                                <div className="mt-2 pl-2 text-xs text-gray-600 dark:text-gray-400 border-l-2 border-gray-200 dark:border-gray-700">
+                                                                    <p className="whitespace-pre-line">{action.operation.description}</p>
+                                                                </div>
+                                                            </details>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center p-4 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-700">
+                                    No actions in this action set
+                                </div>
+                            )}
+                        </div>
                     </div>
-                )}
+                    ) :
+                    <div className="h-full flex items-center justify-center">
+                        {initialHeader ? (
+                            // Custom header content when provided
+                            <div className="w-full h-full flex flex-col items-center justify-center">
+                                {initialHeader}
+                            </div>
+                        ) : (  emptyPage("Select an action set from the list to view details") )}
+                    </div>
+                    
+                    }
+                </>}
             </div>
         </div>
     );
 };
 
 export default OperationSelector;
+

@@ -87,6 +87,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
         if (!featureEnabled) return {valid: null};
         // start he async call
         const isAppropriateResult = checkPathIsAppropriate(path);
+        // const isAppropriateResult = true;
         
         // If path is empty, it's not valid
         if (!path || path.trim() === '') return {valid: false, error: 'Path cannot be empty'};
@@ -98,7 +99,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
         // Check path length
         if (path.length < 3) return {valid: false, error: 'Path must be at least 3 characters long'};
         
-        if (path.length > 12) return {valid: false, error: 'Path is too long (maximum 12 characters)'};
+        if (path.length > 20) return {valid: false, error: 'Path is too long (maximum 20 characters)'};
         
         // Check for leading/trailing slashes
         if (path.startsWith('/') || path.endsWith('/')) return {valid: false, error: 'Path cannot start or end with a slash'};
@@ -197,7 +198,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
 
     return (
         <>
-            <div className="flex flex-row">
+            <div className="mt-4 flex flex-row">
                 <div className="text-sm font-bold text-black dark:text-neutral-200">
                     Publish Assistant Path
                 </div>
@@ -229,6 +230,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                 <input
                     className={`mt-2 w-full rounded-lg border ${pathError ? 'border-red-500' : isPathAvailable ? 'border-green-500' : 'border-neutral-500'} px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100`}
                     placeholder="Enter a name for the path where you want to publish your assistant"
+                    id="pathNameInput"
                     value={astPath || ''}
                     onChange={(e) => {
                         setAstPath(e.target.value);
@@ -246,12 +248,12 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                             {pathError ? (
                                 <div className="flex items-center text-red-500">
                                     <IconAlertTriangle className="h-5 w-5 mr-1" />
-                                    <span className="text-xs">Error</span>
+                                    <span id="pathError" className="text-xs">Error</span>
                                 </div>
                             ) : isPathAvailable ? (
                                 <div className="flex items-center text-green-500">
                                     <IconCheck className="h-5 w-5 mr-1" />
-                                    <span className="text-xs">{(validatedPathCacheRef?.current?.valid ?? {})[astPath?.toLowerCase() ?? ''] || "Available"}</span>
+                                    <span id="pathAvailable" className="text-xs">{(validatedPathCacheRef?.current?.valid ?? {})[astPath?.toLowerCase() ?? ''] || "Available"}</span>
                                 </div>
                             ) : null}
                             </>)}

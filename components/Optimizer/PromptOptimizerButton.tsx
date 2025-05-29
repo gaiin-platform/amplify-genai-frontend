@@ -98,7 +98,7 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, onOptimi
     // @ts-ignore
     return (<div>
                 <button
-                    className=" left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                    className="chat-input-button rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-black dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-white"
                     onMouseDown={ (e) => {
                         e.preventDefault();
                         e.stopPropagation();

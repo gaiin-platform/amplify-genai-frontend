@@ -12,6 +12,16 @@ export interface AgentTool {
       };
       required?: string[];
     };
+    schema?:  {
+      type: string;
+      properties: {
+        [key: string]: {
+          type: string;
+          [key: string]: any;
+        };
+      };
+      required?: string[];
+    };
     terminal?: boolean;
     [key: string]: any; // Allow additional properties
   }

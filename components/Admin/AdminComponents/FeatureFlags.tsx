@@ -43,6 +43,7 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                     {titleLabel('Feature Flags')}   
                     <button
                         title={isAddingFeature ? '' : 'Add Feature'}
+                        id="addFeatureButton"
                         disabled={isAddingFeature !== null}
                         className={`ml-1 mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200  ${ isAddingFeature ? "" : " cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" }`}
                         onClick={() => setIsAddingFeature({name: '', featureData: emptyFeature()})
@@ -76,7 +77,7 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                     
                     }
                     { showFeatureSearch && !isAddingFeature && 
-                    <div className="ml-auto mr-10" style={{transform: 'translateY(6px)'}}>
+                    <div className="ml-auto mr-9" style={{transform: 'translateY(6px)'}}>
                         <Search
                         placeholder={'Search Feature Flags...'}
                         searchTerm={featureSearchTerm}
@@ -93,6 +94,7 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                     </label>
                     <input
                     className={`mt-1.5 w-[160px] h-[38px] ${admin_text}`}
+                    id="featureNameInput"
                     placeholder={"Feature Name"}
                     onChange={(e) =>  setIsAddingFeature({...isAddingFeature, name: e.target.value})}
                     value={isAddingFeature.name}
@@ -102,7 +104,8 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                 >Status </label>
 
                 <button title={isAddingFeature.featureData.enabled ? "Click to disabled"        
-                                                                    : "Click to enabled" } 
+                                                                    : "Click to enabled" }
+                    id="statusToggle" 
                     className={`mt-1.5 h-[40px] w-[80px] px-1 items-center cursor-pointer
                                 bg-gray-200 dark:bg-[#40414F] ${isAddingFeature.featureData.enabled
                                 ? 'text-green-500 hover:text-green-600' : 'text-red-600 hover:text-red-700' }`}
@@ -146,8 +149,11 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                         ))}
                     </div>
                 </div>
-                <div className="flex-grow ml-4 flex flex-col mt-[-27px] max-w-[40%]">
-                    <InfoBox content={
+                <div className="flex-grow ml-4 flex flex-col mt-[-40px] max-w-[40%]">
+                    <InfoBox
+                     padding="py-1"
+                     color={"#60A5FA"}
+                     content={
                             <span className="ml-1 text-xs w-full text-center"> 
                             Members of the following Amplify Groups will be considered exceptions.
                             </span>
@@ -169,19 +175,21 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
             <div className="ml-4 mt-6 mb-10">
                 <div className="mr-5 pr-4">
                     <InfoBox 
+                    color="#60A5FA"
                     content={
                         <span className="text-xs w-full text-center"> 
                             When the feature is Enabled, it is active for everyone except the users listed under User Exceptions; when Disabled, the feature is inactive for everyone except those users, who will still have access.
                         </span>
                     }
                     />
-                    <table className="mt-4 border-collapse w-full" style={{ tableLayout: 'fixed' }}>
+                    <table id="featureFlagsTable" className="modern-table mt-4 w-full mr-10" style={{boxShadow: 'none', tableLayout: 'fixed'}}>
                         <thead>
-                        <tr className="bg-gray-200 dark:bg-[#373844] ">
+                        <tr className="gradient-header">
                             {['Feature', 'Status', 'User Exceptions', 'User Exceptions by Amplify Group Membership']
                                 .map((title, index) => (
                             <th key={index}
-                                className="text-center p-0.5 border border-gray-500 text-neutral-600 dark:text-neutral-300"
+                                id={title}
+                                className="px-4 py-2 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
                                 style={{
                                 width: index === 0  ? '22%' // Feature column takes as much space as needed
                                         : index === 1 ? '150px' // Fixed width for the Status button column
@@ -200,8 +208,8 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                                 .map(([featureName, featureData]) => (
                             <tr key={featureName}>
                                 {/* Feature Name Column */}
-                                <td className="border border-neutral-500 px-4 py-2" title={featureName}>
-                                    <span className="text-[0.95rem]">{camelToTitleCase(featureName)}</span>
+                                <td className="border border-neutral-500 px-4 py-2" id="featureTitle" title={featureName}>
+                                    <span id="featureTitleName" className="text-[0.95rem]">{camelToTitleCase(featureName)}</span>
                                 </td>
 
                                 {/* Status Button Column */}

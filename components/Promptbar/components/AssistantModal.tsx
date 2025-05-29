@@ -35,6 +35,7 @@ import ApiIntegrationsPanel from '@/components/AssistantApi/ApiIntegrationsPanel
 import { AssistantEmailEvents } from '@/components/Promptbar/components/AssistantModalComponents/AssistantEmailEvents';
 import { AssistantWorkflowDisplay } from './AssistantModalComponents/AssistantWorkflowDisplay';
 import { WebsiteURLInput } from '@/components/DataSources/WebsiteURLInput';
+import { Modal } from '@/components/ReusableComponents/Modal';
 
 
 interface Props {
@@ -787,12 +788,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     
 
     const assistantModalContainer = () => {
-        return ( <div
-                        className={`text-black dark:text-neutral-200 inline-block overflow-hidden ${ blackoutBackground ? 'rounded-lg border border-gray-300 dark:border-neutral-600':""} bg-white px-4 pt-5 text-left align-bottom shadow-xl transition-all dark:bg-[#22232b] sm:my-8 sm:align-middle`}
-                        ref={modalRef}
-                        role="dialog"
-                        style={{ transform: translateY ? `translateY(${translateY})` : '0' , width: width}}
-                    >
+        return ( <>
                         <label className='w-full text-xl text-center items-center mb-2 flex justify-center'> {title} </label>  
                           
                         
@@ -1117,7 +1113,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     <select
                                       title={baseWorkflowTemplateId ? "This assistant is using a workflow template. You cannot change the assistant type." : ""}
                                       disabled={baseWorkflowTemplateId !== undefined || disableEdit}
-                                      className={`mt-2 mb-4 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100 ${baseWorkflowTemplateId ? "opacity-40" : ""}`}
+                                      className={`mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100 ${baseWorkflowTemplateId ? "opacity-40" : ""}`}
                                       value={opsLanguageVersion}
                                       onChange={(e) => setOpsLanguageVersion(e.target.value)}
                                     >   
@@ -1298,11 +1294,12 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 }
                             />
                         </div>
-              <div className="flex flex-row items-center justify-end p-4 bg-white dark:bg-[#22232b]">
+              { embed &&
+              <div className="absolute bottom-0 right-0 flex flex-row items-center justify-end p-4 bg-transparent gap-2">
                   <button
                     id="cancelButton"
                     type="button"
-                    className="mr-2 w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                    className="px-3 py-1 text-sm border rounded-md shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                     onClick={() => {
                         onCancel();
                                 }}
@@ -1312,7 +1309,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             {!disableEdit && <button
                                 id="saveButton"
                                 type="button"
-                                className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
+                                className="px-3 py-1 text-sm border rounded-md shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
                                 onClick={() => {
                                     handleUpdateAssistant();
                                 }}
@@ -1320,8 +1317,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 {t('Save')}
                             </button>}
                             
-                        </div>
-                    </div>
+                </div>}
+        </>
 
         )
 
@@ -1329,20 +1326,14 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
 
     return ( embed ? assistantModalContainer() :
-        <div
-            className={`fixed inset-0 flex items-center justify-center ${blackoutBackground ?'bg-black bg-opacity-50 z-50': ""} `}
-            >
-            <div className="fixed inset-0 z-10 overflow-hidden">
-                <div
-                    className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                    <div
-                        className="hidden sm:inline-block sm:h-screen sm:align-middle"
-                        aria-hidden="true"/>
-                        {assistantModalContainer()}
-                    
-                </div>
-            </div>
-        </div>
+        <Modal
+            title={"Assistant Admin Interface "}
+            onSubmit={handleUpdateAssistant}
+            onCancel={onCancel}
+            showSubmit={!disableEdit}
+            cancelLabel={disableEdit ? "Close" : 'Cancel'}
+            content={<>{assistantModalContainer()}</>}
+        />
     );
 };
 

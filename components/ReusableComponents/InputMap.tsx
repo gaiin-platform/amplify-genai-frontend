@@ -48,6 +48,7 @@ export const InputsMap: React.FC<Props> = ({ id, inputs, state, inputChanged, sp
                   <div className="w-full rounded-r border border-neutral-500 flex flex-row gap-4 items-center dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50">
                   <ActionButton
                       handleClick={() => setShowKeys([...showKeys, input.key])}
+                      id="showSecret"
                       title={"Show Secret"}>
                       <IconEye size={20}/>
                   </ActionButton>
@@ -58,6 +59,7 @@ export const InputsMap: React.FC<Props> = ({ id, inputs, state, inputChanged, sp
                   {obscure && 
                     <ActionButton
                       handleClick={() => setShowKeys(showKeys.filter((k:string) => k !== input.key))}
+                      id="hideSecret"
                       title={"Hide Secret"}>
                       <IconEyeOff size={20}/>
                     </ActionButton>

@@ -217,12 +217,10 @@ const legend = () => {
       {legendItem( <IconBaselineDensityMedium size={16} />, 'Average Output Token Limit : 4,096 - 100,000 tokens' )}
       {legendItem(<IconBaselineDensityLarge size={16} />, 'Less than Average Output Token Limit : < 4,096 tokens' )}
       <div className='mt-2 text-sm text-gray-500 dark:text-gray-400'>
-       View the full pricing breakdown: Click on the gear icon on the left sidebar, go to <strong>Settings</strong>, and click on the 
+       View the full pricing breakdown: Click on the gear icon on the left sidebar, go to <strong>Settings</strong>, and scroll down to  
        <strong className='text-blue-500 dark:text-blue-400 cursor-pointer hover:underline'
-       onClick={() => window.dispatchEvent(new CustomEvent('homeChatBarTabSwitch', 
-                     { detail: { tab: "Settings" , side: "left", action: () => {
-                      window.dispatchEvent(new CustomEvent('openSettingsTrigger', {detail: {openToTab: "Model Pricing"}}));
-                     }} } ))}>{" Model Pricing"}
+       onClick={() => {window.dispatchEvent(new CustomEvent('openSettingsTrigger', {detail: {openToTab: "Configurations"}}));
+                     }}>{" View Model Pricing"}
        </strong> tab.
       </div>
     </div>

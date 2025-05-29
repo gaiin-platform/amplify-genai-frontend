@@ -272,500 +272,528 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
         }
 
     return <>
-        {titleLabel('Upload Documents' )}
-        <div className="mx-6 flex flex-row gap-20">
-                <div className="flex flex-row gap-2">
-                    <IconFileTypePdf className="ml-1 mt-1" size={18}/>
-                    <label className="mt-0.5 text-[1rem]" title="Upload pdf file"> Data Disclosure</label>
-                    <div className="max-h-20"> 
-                        <FileUpload
-                        id={"data_disclosure"}
-                        allowedFileExtensions={['pdf']}
-                        onAttach={(file:File, fileName: string) => {
-                            handleDataDisclosureUpload(file);
-                        }}
-                        completeCheck={() => dataDisclosureUploaded}
-                        onRemove={() => {
-                            setDataDisclosureUploaded(false);
-                        }}
-                    /> </div>
-                    
-                </div>
-
-            <div className="flex flex-col gap-2">
-                <div className="flex flex-row gap-1">
-                    <label className="ml-1  mt-0.5 text-[1rem] mb-1.5"> API Documentation</label>
-                    <button className="mt-[-2px] rounded-sm p-1 text-black dark:text-white hover:opacity-80"
-                        onClick={() => {
-                            // if (!showUploadApiDocs && !apiPresignedUrls) handleApiDocPresigned();
-                            setShowUploadApiDocs(!showUploadApiDocs);
-                        }}
-                        title="Upload API Documents"
-                        > 
-                        {showUploadApiDocs ? <IconChevronLeft size={20} /> : <IconChevronRight size={20} />}
-                    </button>
-                    {showUploadApiDocs && 
-                    <>
-                    <> <IconFileTypePdf className="flex-shrink-0 mt-1 ml-3" size={18}/>
-                    <FileUpload
-                        id={"api_documentation_pdf"}
-                        allowedFileExtensions={['pdf']}
-                        onAttach={(file:File, fileName: string) => {
-                            const overriddenFile = new File([file], "Amplify_API_Documentation.pdf", { type: file.type });
-                            handleApiDocUpload(overriddenFile);
-                        }}
-                        completeCheck={() => apiDocsUploaded.pdf}
-
-                        onRemove={() => {
-                            setApiDocsUploaded({...apiDocsUploaded, pdf: false});
-                        }}
-                        label="API PDF"
-                    /></>
-                    <> <IconFileTypeCsv className="flex-shrink-0 mt-1 ml-5" size={18}/>
-                    <FileUpload
-                        id={"api_documentation_csv"}
-                        allowedFileExtensions={['csv']}
-                        onAttach={(file:File, fileName: string) => {
-                            const overriddenFile = new File([file], "Amplify_API_Documentation.csv", { type: file.type });
-                            handleApiDocUpload(overriddenFile);
-                        }}
-                        completeCheck={() => apiDocsUploaded.csv}
-                        onRemove={() => {
-                            setApiDocsUploaded({...apiDocsUploaded, csv: false});
-                        }}
-                        label="API CSV"
-                    /></>
-
-                    <> <label className="mt-1 ml-5" title="Postman Collection JSON File">
-                        <IconFileCode className="flex-shrink-0" size={19}/></label> 
-                    <FileUpload
-                        id={"api_documentation_json"}
-                        allowedFileExtensions={['json']}
-                        onAttach={(file:File, fileName: string) => {
-                            const overriddenFile = new File([file], "Postman_Amplify_API_Collection.json", { type: file.type });
-                            handleApiDocUpload(overriddenFile);
-                        }}
-                        completeCheck={() => apiDocsUploaded.json}
-                        onRemove={() => {
-                            setApiDocsUploaded({...apiDocsUploaded, json: false});
-                        }}
-                        label="Postman Collection"
-                    /></>
-                    
-                    </>}
-                    
-                    
-                </div>
-                <button className="max-w-[216px] mt-[-10px] text-start cursor-pointer ml-1 text-xs text-blue-500 hover:opacity-70"
-                    onClick={handleDownloadApiDocTemplates}> 
-                    {'(Need the API docs? Download here)'}
-                </button>
-                
-
+        <div className="admin-style-settings-card">
+            <div className="admin-style-settings-card-header">
+                <h3 className="admin-style-settings-card-title">Upload Documents</h3>
+                <p className="admin-style-settings-card-description">Upload and manage documents for data disclosure and API documentation</p>
             </div>
-        </div>
-        {titleLabel('Assistant Admin Groups')}
 
-        <div className="ml-6">
-            <div className="flex flex-row gap-2">
-                <label className="text-[1rem] font-bold"> Amplify Group Assistants</label>
-                {amplifyAstGroupId || isCreatingAmpAstGroup || stillLoadingData ?
-                        <div className={`mt-1.5 ml-0.5 ${isCreatingAmpAstGroup || stillLoadingData? "bg-gray-400 dark:bg-gray-500 animate-pulse" : "bg-green-400 dark:bg-green-300"}`} 
-                        style={{width: '8px', height: '8px', borderRadius: '50%'}}
-                        title="The Amplify Assistants Group exists."> </div>
-                :
-                (!creatingAmpAsts ?
-                <button 
-                    className="ml-2 mt-[-2px] py-1 px-2 bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 hover:dark:bg-gray-700 mr-[-16px] rounded transition-colors duration-100 cursor-pointer" 
-                    onClick={() => {
-                        setCreatingAmpAsts([]);
-                        }}
-                    // title="It appears you currently do not have an Amplify Assistants group. If this is a mistake you will not be able to successfully create another one."
-                    >
-                    {"Create Amplify Assistants Group"}
-                        
-                </button> :
-                    <UserAction
-                    top={"mt-[1px]"}
-                    label={"Create Amplify Assistants Group With Selected Assistants"}
-                    onConfirm={() => {
-                        handleCreateAmpAsts();
-                        setAstGroupSearchTerm('');
-                    }}
-                    onCancel={() => {
-                        setCreatingAmpAsts(null);
-                    }}
-                />
-                )
-                }
-            </div>
-            <div className="ml-8 pr-10 mb-6 mt-4">
-                <InfoBox content={
-                    <span className="ml-1 text-xs w-full px-4 text-center"> 
-                    {!creatingAmpAsts 
-                        ? "Amplify Assistants are accessible to all users. You can modify these assistants through the Assistant Admin Interface. To access this interface, make sure the required feature flag is enabled under the Configurations tab. Navigate to the Assistant Admin Interface by clicking on the gear icon located in the left sidebar menu on the main Home screen. If you do not see the Assistant Admin Interface option, try to refresh the page and/or double-check the Assistant Admin Interface feature flag."
-                        : "Please select the assistants you want to include in the Amplify Assistants group. Once you've made your selections, click the green checkmark to create the group."}
-                    </span>
-                }/>
-                <div className="mt-4"></div>
-                {Object.keys(amplifyAssistants).map((ast: any) =>
-                    <div key={ast} className="mt-2 flex flex-row">
-                        <div className="flex flex-row gap-2"> 
-                            {creatingAmpAsts && 
-                                <Checkbox
-                                id={`amplifyAsts_${ast}`}
-                                label=""
-                                checked={creatingAmpAsts.includes(ast)}
-                                onChange={(isChecked: boolean) => {
-                                    if (isChecked) {
-                                        setCreatingAmpAsts([...creatingAmpAsts, ast]);
-                                    } else {
-                                        setCreatingAmpAsts(creatingAmpAsts
-                                                                .filter((a: string) => a !== ast));
-                                    }
-                                }}
-                            />
-                            }
-                            <label className="mt-0.5 text-[0.9rem]"> {ast} :</label> 
-                        </div>
-                        <label className="mt-0.5 ml-3"> 
-                            {(amplifyAssistants as any)[ast].description}
-                        </label>
-
-                        {!creatingAmpAsts && !stillLoadingData && amplifyAstGroupId && 
-                        <button 
-                            className={`ml-4 mb-1 mt-[-2px] py-1 px-2 bg-gray-300 dark:bg-gray-600 ${isAddingAst === '' ? "hover:bg-gray-400 hover:dark:bg-gray-700" : ""} mr-[-16px] rounded transition-colors duration-100 cursor-pointer flex flex-row gap-2`}
-                            onClick={() => {
-                                setIsAddingAst(ast);
-                                handleAddAssistant([(amplifyAssistants as any)[ast]]);
+            <div className="mx-6 flex flex-row gap-20">
+                    <div className="flex flex-row gap-2">
+                        <IconFileTypePdf className="ml-1 mt-1" size={18}/>
+                        <label className="mt-0.5 text-[1rem]" title="Upload pdf file"> Data Disclosure</label>
+                        <div className="max-h-20"> 
+                            <FileUpload
+                            id={"data_disclosure"}
+                            allowedFileExtensions={['pdf']}
+                            onAttach={(file:File, fileName: string) => {
+                                handleDataDisclosureUpload(file);
                             }}
-                            title="Adds a copy of this assistant to the existing Amplify Assistants Group"
-                            disabled={isAddingAst !== ''}
-                            >
-                            {isAddingAst === ast ? <>{loadingIcon()}</>
-                            : <IconPlus className="text-blue-400" size={18}/> }
-                            {"Assistant Copy"}
-                                
-                        </button>}
+                            completeCheck={() => dataDisclosureUploaded}
+                            onRemove={() => {
+                                setDataDisclosureUploaded(false);
+                            }}
+                        /> </div>
+                        
                     </div>
-                )
-                    
-                }
-            </div>
 
-            <label className="text-[1rem] font-bold"> Groups</label>
-            <div className="ml-6 mt-4">
-                
-            {astGroups.length > 0 ?
-                <>
-                    {showAstGroupSearch && 
-                    <div className="h-[0px] ml-auto mr-14 w-[278px]" style={{transform: 'translateY(-30px)'}}>
-                        <Search
-                        placeholder={'Search Assistant Admin Groups...'}
-                        searchTerm={astGroupSearchTerm}
-                        onSearch={(searchTerm: string) => setAstGroupSearchTerm(searchTerm.toLocaleLowerCase())}
-                        />
-                    </div>}
-                    <ExpansionComponent 
-                    onOpen={() => setShowAstGroupsSearch(true)}
-                    onClose={() => {
-                        setShowAstGroupsSearch(false);
-                        setAstGroupSearchTerm('');
-                    }}
-                    title={'Manage Assistant Admin Groups'} 
-                    content={ 
-                        stillLoadingData ? loading :
+                <div className="flex flex-col gap-2">
+                    <div className="flex flex-row gap-1">
+                        <label className="ml-1  mt-0.5 text-[1rem] mb-1.5"> API Documentation</label>
+                        <button className="mt-[-2px] rounded-sm p-1 text-black dark:text-white hover:opacity-80"
+                            onClick={() => {
+                                // if (!showUploadApiDocs && !apiPresignedUrls) handleApiDocPresigned();
+                                setShowUploadApiDocs(!showUploadApiDocs);
+                            }}
+                            id="expandUploadApiDocs"
+                            title="Upload API Documents"
+                            > 
+                            {showUploadApiDocs ? <IconChevronLeft size={20} /> : <IconChevronRight size={20} />}
+                        </button>
+                        {showUploadApiDocs && 
                         <>
-                            <table className="mt-4 border-collapse w-full" >
-                                <thead>
-                                <tr className="bg-gray-200 dark:bg-[#373844] ">
-                                    {['Group Name', 'Created By', 'Support Conversation Analysis', 'Public', 'Membership by Amplify Groups', 'Number of Assistants',
-                                    ].map((title, i) => (
-                                    <th key={i}
-                                        className="px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
-                                    > {title}
-                                    </th>
-                                    ))}
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {astGroups.filter((group: Ast_Group_Data) => astGroupSearchTerm ? 
-                                        group.groupName.toLowerCase().includes(astGroupSearchTerm) : true)
-                                        .map((group: Ast_Group_Data) => 
-                                    <tr key={group.group_id}
-                                        onMouseEnter={() => setHoveredAstGroup(group.group_id)}
-                                        onMouseLeave={() => setHoveredAstGroup('')}>
-                                        <td className="text-center border border-neutral-500 p-2">
-                                            {group.groupName}
-                                        </td>
-                                        <td className="text-center border border-neutral-500 p-2 break-words max-w-[200px]">
-                                            {group.createdBy}
-                                        </td>
+                        <> <IconFileTypePdf className="flex-shrink-0 mt-1 ml-3" size={18}/>
+                        <FileUpload
+                            id={"api_documentation_pdf"}
+                            allowedFileExtensions={['pdf']}
+                            onAttach={(file:File, fileName: string) => {
+                                const overriddenFile = new File([file], "Amplify_API_Documentation.pdf", { type: file.type });
+                                handleApiDocUpload(overriddenFile);
+                            }}
+                            completeCheck={() => apiDocsUploaded.pdf}
 
-                                        <td className="w-[164px] border border-neutral-500 px-4 py-2"
-                                            title="All Amplify Users Can Chat and Interact With the Assistants In the Group">
-                                            <div className="flex justify-center">
-                                                <button title={ `Click to ${group.supportConvAnalysis ?"disable" : "enable"} analysis of assistant conversations`} 
-                                                className="cursor-pointer flex flex-row gap-7 dark:text-neutral-200 text-neutral-900"
-                                                onClick={() => {
-                                                    const updatedGroups = astGroups.map((g: Ast_Group_Data) => 
-                                                        g.group_id === group.group_id ? 
-                                                                {...group, supportConvAnalysis: !group.supportConvAnalysis} : g)
-                                                    handleAstGroupChange(group.group_id, updatedGroups);
-                                                }}>
-                                            {group.supportConvAnalysis ? <IconCheck className='text-green-600 hover:opacity-60' size={18} /> 
-                                                    : <IconX  className='text-red-600 hover:opacity-60' size={18} />}       
-                                            </button>
+                            onRemove={() => {
+                                setApiDocsUploaded({...apiDocsUploaded, pdf: false});
+                            }}
+                            label="API PDF"
+                        /></>
+                        <> <IconFileTypeCsv className="flex-shrink-0 mt-1 ml-5" size={18}/>
+                        <FileUpload
+                            id={"api_documentation_csv"}
+                            allowedFileExtensions={['csv']}
+                            onAttach={(file:File, fileName: string) => {
+                                const overriddenFile = new File([file], "Amplify_API_Documentation.csv", { type: file.type });
+                                handleApiDocUpload(overriddenFile);
+                            }}
+                            completeCheck={() => apiDocsUploaded.csv}
+                            onRemove={() => {
+                                setApiDocsUploaded({...apiDocsUploaded, csv: false});
+                            }}
+                            label="API CSV"
+                        /></>
 
-                                            </div>                           
-                                        </td>
+                        <> <label className="mt-1 ml-5" title="Postman Collection JSON File">
+                            <IconFileCode className="flex-shrink-0" size={19}/></label> 
+                        <FileUpload
+                            id={"api_documentation_json"}
+                            allowedFileExtensions={['json']}
+                            onAttach={(file:File, fileName: string) => {
+                                const overriddenFile = new File([file], "Postman_Amplify_API_Collection.json", { type: file.type });
+                                handleApiDocUpload(overriddenFile);
+                            }}
+                            completeCheck={() => apiDocsUploaded.json}
+                            onRemove={() => {
+                                setApiDocsUploaded({...apiDocsUploaded, json: false});
+                            }}
+                            label="Postman Collection"
+                        /></>
+                        
+                        </>}
+                        
+                        
+                    </div>
+                    <button className="max-w-[216px] mt-[-10px] text-start cursor-pointer ml-1 text-xs text-blue-500 hover:opacity-70"
+                        onClick={handleDownloadApiDocTemplates}> 
+                        {'(Need the API docs? Download here)'}
+                    </button>
+                    
 
-
-                                        <td className="border border-neutral-500 px-4 py-2"
-                                            title="All Amplify Users Can Chat and Interact With the Assistants In the Group">
-                                            <div className="flex justify-center">
-                                                <button title={group.isPublic ? "Click to set group as private"        
-                                                                            : "Click to set group as public" } 
-                                                className="cursor-pointer flex flex-row gap-7 dark:text-neutral-200 text-neutral-900"
-                                                onClick={() => {
-                                                    const updatedGroups = astGroups.map((g: Ast_Group_Data) => 
-                                                        g.group_id === group.group_id ? 
-                                                                {...group, isPublic: !group.isPublic} : g)
-                                                    handleAstGroupChange(group.group_id, updatedGroups);
-                                                }}>
-                                            {group.isPublic ? <IconCheck className='text-green-600 hover:opacity-60' size={18} /> 
-                                                    : <IconX  className='text-red-600 hover:opacity-60' size={18} />}       
-                                            </button>
-
-                                            </div>                           
-                                        </td>
-
-
-                                        <td className="border border-neutral-500">
-                                        <AmplifyGroupSelect 
-                                            groups={Object.keys(ampGroups)}
-                                            selected={group.amplifyGroups}
-                                            setSelected={(selectedGroups: string[]) => {
-                                                const updatedGroups = astGroups.map((g: Ast_Group_Data) => 
-                                                                        g.group_id === group.group_id ? 
-                                                                {...group, amplifyGroups: selectedGroups} : g)
-                                                handleAstGroupChange(group.group_id, updatedGroups);
-                                            }}
-                                        />
-                                        </td>
-
-                                    
-                                        <td className="border border-neutral-500 px-4 py-2 text-center w-[100px]">
-                                            {group.numOfAssistants ?? 0}
-                                        </td>
-
-                                        <td>
-                                            <div className="w-[30px] flex-shrink-0">
-                                            {hoveredAstGroup === group.group_id || 
-                                            keyReplacementLoading === group.group_id ?
-                                            <button
-                                                title={"Replace Group API Key"}
-                                                type="button"
-                                                disabled={keyReplacementLoading !== ''}
-                                                className="ml-2 p-1 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none"
-                                                onClick={() => {handleReplaceGroupKey(group.group_id)}}>
-                                                {keyReplacementLoading === group.group_id ? <>{loadingIcon(20)}</> : <IconKey size={20}/>} 
-                                            </button>  
-                                            
-                                            : null}
-                                            </div>
-                                        </td>
-                                    </tr>     
-                                )}
-                                </tbody>
-                            </table>
-
-                        </>
-                    }
-                    isOpened={true}
-                />  </>
-                    :
-                    <>No Assistant Admin Groups listed. </>
-                }
+                </div>
             </div>
+        </div>
         
+        <div className="admin-style-settings-card">
+            <div className="admin-style-settings-card-header">
+                <h3 className="admin-style-settings-card-title">Assistant Admin Groups</h3>
+                <p className="admin-style-settings-card-description">Manage Amplify assistants and assistant admin groups for organized access control</p>
+            </div>
+
+            <div className="ml-6">
+                <div className="flex flex-row gap-2">
+                    <label className="text-[1rem] font-bold"> Amplify Group Assistants</label>
+                    {amplifyAstGroupId || isCreatingAmpAstGroup || stillLoadingData ?
+                            <div className={`mt-1.5 ml-0.5 ${isCreatingAmpAstGroup || stillLoadingData? "bg-gray-400 dark:bg-gray-500 animate-pulse" : "bg-green-400 dark:bg-green-300"}`} 
+                            style={{width: '8px', height: '8px', borderRadius: '50%'}}
+                            title="The Amplify Assistants Group exists."> </div>
+                    :
+                    (!creatingAmpAsts ?
+                    <button 
+                        className="ml-2 mt-[-2px] py-1 px-2 bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 hover:dark:bg-gray-700 mr-[-16px] rounded transition-colors duration-100 cursor-pointer" 
+                        onClick={() => {
+                            setCreatingAmpAsts([]);
+                            }}
+                        // title="It appears you currently do not have an Amplify Assistants group. If this is a mistake you will not be able to successfully create another one."
+                        >
+                        {"Create Amplify Assistants Group"}
+                            
+                    </button> :
+                        <UserAction
+                        top={"mt-[1px]"}
+                        label={"Create Amplify Assistants Group With Selected Assistants"}
+                        onConfirm={() => {
+                            handleCreateAmpAsts();
+                            setAstGroupSearchTerm('');
+                        }}
+                        onCancel={() => {
+                            setCreatingAmpAsts(null);
+                        }}
+                    />
+                    )
+                    }
+                </div>
+                <div className="ml-8 pr-10 mb-6 mt-4">
+                    <InfoBox color="#60A5FA"
+                    content={
+                        <span className="ml-1 text-xs w-full px-4 text-center"> 
+                        {!creatingAmpAsts 
+                            ? "Amplify Assistants are accessible to all users. You can modify these assistants through the Assistant Admin Interface. To access this interface, make sure the required feature flag is enabled under the Configurations tab. Navigate to the Assistant Admin Interface by clicking on the gear icon located in the left sidebar menu on the main Home screen. If you do not see the Assistant Admin Interface option, try to refresh the page and/or double-check the Assistant Admin Interface feature flag."
+                            : "Please select the assistants you want to include in the Amplify Assistants group. Once you've made your selections, click the green checkmark to create the group."}
+                        </span>
+                    }/>
+                    <div className="mt-4"></div>
+                    {Object.keys(amplifyAssistants).map((ast: any) =>
+                        <div key={ast} className="mt-2 flex flex-row">
+                            <div className="flex flex-row gap-2"> 
+                                {creatingAmpAsts && 
+                                    <Checkbox
+                                    id={`amplifyAsts_${ast}`}
+                                    label=""
+                                    checked={creatingAmpAsts.includes(ast)}
+                                    onChange={(isChecked: boolean) => {
+                                        if (isChecked) {
+                                            setCreatingAmpAsts([...creatingAmpAsts, ast]);
+                                        } else {
+                                            setCreatingAmpAsts(creatingAmpAsts
+                                                                    .filter((a: string) => a !== ast));
+                                        }
+                                    }}
+                                />
+                                }
+                                <label className="mt-0.5 text-[0.9rem]"> {ast} :</label> 
+                            </div>
+                            <label className="mt-0.5 ml-3"> 
+                                {(amplifyAssistants as any)[ast].description}
+                            </label>
+
+                            {!creatingAmpAsts && !stillLoadingData && amplifyAstGroupId && 
+                            <button 
+                                className={`group ml-4 mb-1 mt-[-2px] py-1 px-2 bg-gray-300 dark:bg-gray-600 ${isAddingAst === '' ? "hover:bg-gray-400 hover:dark:bg-gray-700" : ""} mr-[-16px] rounded transition-colors duration-100 cursor-pointer flex flex-row gap-2`}
+                                onClick={() => {
+                                    setIsAddingAst(ast);
+                                    handleAddAssistant([(amplifyAssistants as any)[ast]]);
+                                }}
+                                id="addAssistantCopy"
+                                title="Adds a copy of this assistant to the existing Amplify Assistants Group"
+                                disabled={isAddingAst !== ''}
+                                >
+                                {isAddingAst === ast ? <>{loadingIcon()}</>
+                                : <IconPlus className="icon-pop-group text-blue-400" size={18}/> }
+                                {"Assistant Copy"}
+                                    
+                            </button>}
+                        </div>
+                    )
+                        
+                    }
+                </div>
+
+                <label className="text-[1rem] font-bold"> Groups</label>
+                <div className="ml-6 mt-4">
+                    
+                {astGroups.length > 0 ?
+                    <>
+                        {showAstGroupSearch && 
+                        <div className="h-[0px] ml-auto mr-20 w-[280px]" style={{transform: 'translateY(-30px)'}}>
+                            <Search
+                            placeholder={'Search Assistant Admin Groups...'}
+                            searchTerm={astGroupSearchTerm}
+                            onSearch={(searchTerm: string) => setAstGroupSearchTerm(searchTerm.toLocaleLowerCase())}
+                            />
+                        </div>}
+                        <ExpansionComponent 
+                        onOpen={() => setShowAstGroupsSearch(true)}
+                        onClose={() => {
+                            setShowAstGroupsSearch(false);
+                            setAstGroupSearchTerm('');
+                        }}
+                        title={'Manage Assistant Admin Groups'} 
+                        content={ 
+                            stillLoadingData ? loading :
+                            <>
+                                <table id="assistantAdminGroupsTable" className="modern-table hide-last-column mt-4 w-full mr-10" style={{boxShadow: 'none'}}>
+                                    <thead>
+                                    <tr className="gradient-header">
+                                        {['Group Name', 'Created By', 'Support Conversation Analysis', 'Public', 'Membership by Amplify Groups', 'Number of Assistants',
+                                        ].map((title, i) => (
+                                        <th id="assistantAdminGroupsTitle" key={i}
+                                            className="px-4 py-2 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
+                                        > {title}
+                                        </th>
+                                        ))}
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    {astGroups.filter((group: Ast_Group_Data) => astGroupSearchTerm ? 
+                                            group.groupName.toLowerCase().includes(astGroupSearchTerm) : true)
+                                            .map((group: Ast_Group_Data) => 
+                                        <tr key={group.group_id}
+                                            onMouseEnter={() => setHoveredAstGroup(group.group_id)}
+                                            onMouseLeave={() => setHoveredAstGroup('')}>
+                                            <td id="groupName" className="text-center border border-neutral-500 p-2">
+                                                {group.groupName}
+                                            </td>
+                                            <td className="text-center border border-neutral-500 p-2 break-words max-w-[200px]">
+                                                {group.createdBy}
+                                            </td>
+
+                                            <td className="w-[164px] border border-neutral-500 px-4 py-2"
+                                                title="All Amplify Users Can Chat and Interact With the Assistants In the Group">
+                                                <div className="flex justify-center">
+                                                    <button title={ `Click to ${group.supportConvAnalysis ?"disable" : "enable"} analysis of assistant conversations`} 
+                                                    className="cursor-pointer flex flex-row gap-7 dark:text-neutral-200 text-neutral-900"
+                                                    onClick={() => {
+                                                        const updatedGroups = astGroups.map((g: Ast_Group_Data) => 
+                                                            g.group_id === group.group_id ? 
+                                                                    {...group, supportConvAnalysis: !group.supportConvAnalysis} : g)
+                                                        handleAstGroupChange(group.group_id, updatedGroups);
+                                                    }}>
+                                                {group.supportConvAnalysis ? <IconCheck className='text-green-600 hover:opacity-60' size={18} /> 
+                                                        : <IconX  className='text-red-600 hover:opacity-60' size={18} />}       
+                                                </button>
+
+                                                </div>                           
+                                            </td>
+
+
+                                            <td className="border border-neutral-500 px-4 py-2"
+                                                title="All Amplify Users Can Chat and Interact With the Assistants In the Group">
+                                                <div className="flex justify-center">
+                                                    <button title={group.isPublic ? "Click to set group as private"        
+                                                                                : "Click to set group as public" } 
+                                                    className="cursor-pointer flex flex-row gap-7 dark:text-neutral-200 text-neutral-900"
+                                                    onClick={() => {
+                                                        const updatedGroups = astGroups.map((g: Ast_Group_Data) => 
+                                                            g.group_id === group.group_id ? 
+                                                                    {...group, isPublic: !group.isPublic} : g)
+                                                        handleAstGroupChange(group.group_id, updatedGroups);
+                                                    }}>
+                                                {group.isPublic ? <IconCheck className='text-green-600 hover:opacity-60' size={18} /> 
+                                                        : <IconX  className='text-red-600 hover:opacity-60' size={18} />}       
+                                                </button>
+
+                                                </div>                           
+                                            </td>
+
+
+                                            <td className="border border-neutral-500">
+                                            <AmplifyGroupSelect 
+                                                groups={Object.keys(ampGroups)}
+                                                selected={group.amplifyGroups}
+                                                setSelected={(selectedGroups: string[]) => {
+                                                    const updatedGroups = astGroups.map((g: Ast_Group_Data) => 
+                                                                            g.group_id === group.group_id ? 
+                                                                    {...group, amplifyGroups: selectedGroups} : g)
+                                                    handleAstGroupChange(group.group_id, updatedGroups);
+                                                }}
+                                            />
+                                            </td>
+
+                                        
+                                            <td className="border border-neutral-500 px-4 py-2 text-center w-[100px]">
+                                                {group.numOfAssistants ?? 0}
+                                            </td>
+
+                                            <td>
+                                                <div className="w-[30px] flex-shrink-0">
+                                                {hoveredAstGroup === group.group_id || 
+                                                keyReplacementLoading === group.group_id ?
+                                                <button
+                                                    title={"Replace Group API Key"}
+                                                    type="button"
+                                                    disabled={keyReplacementLoading !== ''}
+                                                    className="ml-2 p-1 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none"
+                                                    onClick={() => {handleReplaceGroupKey(group.group_id)}}>
+                                                    {keyReplacementLoading === group.group_id ? <>{loadingIcon(20)}</> : <IconKey size={20}/>} 
+                                                </button>  
+                                                
+                                                : null}
+                                                </div>
+                                            </td>
+                                        </tr>     
+                                    )}
+                                    </tbody>
+                                </table>
+
+                            </>
+                        }
+                        isOpened={true}
+                    />  </>
+                        :
+                        <>No Assistant Admin Groups listed. </>
+                    }
+                </div>
+            
+            </div>
         </div>
 
-        <div className="flex flex-row gap-3 mb-2 ">
-            {titleLabel('PowerPoint Templates')}
-            <button
-                title={isAddingTemplate ? "" : 'Add PowerPoint Templates'}
-                disabled={isAddingTemplate !== null}
-                className={`ml-1 mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200  ${ isAddingTemplate ? "" : " cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" }`}
-                onClick={() => setIsAddingTemplate(emptyPptx())}
-            >
-                {isUploadingTemplate ? <>{loadingIcon()}</> : <IconPlus size={16}/>}
-            </button>
 
-            {isAddingTemplate && !isUploadingTemplate &&
-                <UserAction
-                top={"mt-4"}
-                label={"Add Template"}
-                onConfirm={() => {
-                    if (uploadedTemplate) {
-                        if (templates.find((t: Pptx_TEMPLATES) => t.name === isAddingTemplate.name)) {
-                            alert("PowerPoint template names must be unique. Please rename your file and try again.");
-                            return;
+        <div className="admin-style-settings-card">
+            <div className="admin-style-settings-card-header">
+                <div className="flex flex-row items-center gap-3 mb-2">
+                    <h3 className="admin-style-settings-card-title">PowerPoint Templates</h3>
+                    <div className="flex-shrink-0 flex flex-row gap-3">
+                        <button
+                            title={isAddingTemplate ? "" : 'Add PowerPoint Templates'}
+                            id="addPowerpointTemplate"
+                            disabled={isAddingTemplate !== null}
+                            className={`flex-shrink-0 items-center py-2 gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200  ${ isAddingTemplate ? "" : " cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" }`}
+                            onClick={() => setIsAddingTemplate(emptyPptx())}
+                        >
+                            {isUploadingTemplate ? <>{loadingIcon()}</> : <IconPlus size={16}/>}
+                        </button>
+
+                        {isAddingTemplate && !isUploadingTemplate &&
+                            <UserAction
+                            top={"mt-1"}
+                            label={"Add Template"}
+                            onConfirm={() => {
+                                if (uploadedTemplate) {
+                                    if (templates.find((t: Pptx_TEMPLATES) => t.name === isAddingTemplate.name)) {
+                                        alert("PowerPoint template names must be unique. Please rename your file and try again.");
+                                        return;
+                                    }
+                                    handleTemplateUpload(isAddingTemplate.name);
+                                } else {
+                                    alert("Please upload a powerpoint template.");
+                                }
+                            }}
+                            clearOnConfirm={false}
+                            onCancel={() => {
+                                setIsAddingTemplate(null);
+                                setUploadedTemplate(null);
+                            }}
+                        />
                         }
-                        handleTemplateUpload(isAddingTemplate.name);
-                    } else {
-                        alert("Please upload a powerpoint template.");
-                    }
-                }}
-                clearOnConfirm={false}
-                onCancel={() => {
-                    setIsAddingTemplate(null);
-                    setUploadedTemplate(null);
-                }}
-            />
+                    </div>
+                </div>
+                <p className="admin-style-settings-card-description">Upload and manage PowerPoint templates for users</p>
+            </div>
+
+            {isAddingTemplate && 
+                <div className="ml-6 flex flex-row flex-shrink-0">
+                    <div className="mt-1">
+                    <FileUpload
+                        id={"pptx_upload"}
+                        allowedFileExtensions={['pptx']}
+                        onAttach={(file:File, fileName: string) => {
+                            setUploadedTemplate(file);
+                            setIsAddingTemplate({...isAddingTemplate, name: fileName});
+                        }}
+                        completeCheck={() => isAddingTemplate.name != ''}
+                        onRemove={() => {
+                            setUploadedTemplate(null);
+                            setIsAddingTemplate({...isAddingTemplate, name: ''});
+                        }}
+                    /></div>
+                    <label className="h-[40px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
+                    >Template Name </label>
+                    <input
+                    title={!uploadedTemplate ? "Template name will auto-populate once a template has been uploaded"
+                                            : "" }
+                    className={`h-[40px] w-[250px] ${admin_text}`}
+                    id="templateNameInput"
+                    placeholder={"Template Name"}
+                    value={isAddingTemplate.name}
+                    disabled={true}
+                    />
+                    <label id="statusAvailability" className="ml-4 h-[40px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
+                    >Available </label>
+
+                    
+                    {isAvailableCheck(isAddingTemplate.isAvailable, () => {
+                        setIsAddingTemplate({...isAddingTemplate, isAvailable: !isAddingTemplate.isAvailable});
+                    }, "h-[40px] px-1 items-center bg-gray-200 dark:bg-[#40414F]")} 
+
+                    <div className="ml-4 flex flex-col mt-[-45px]">
+                        <InfoBox 
+                        color="#60A5FA"
+                        padding="py-1"
+                        content={
+                                <span className="ml-1 text-xs w-full text-center"> 
+                                If the template is not available for all users, it will be exclusively available for the following Amplify Groups
+                                </span>
+                            }/>
+                    
+                        <AmplifyGroupSelect 
+                            groups={Object.keys(ampGroups)}
+                            selected={isAddingTemplate.amplifyGroups}
+                            setSelected={(selectedGroups: string[]) => {
+                                setIsAddingTemplate({...isAddingTemplate, amplifyGroups: selectedGroups});
+                            }}
+                        /> 
+                    </div>
+
+            </div>
             }
 
-        </div>
 
-        {isAddingTemplate && 
-            <div className="ml-6 flex flex-row flex-shrink-0">
-                <div className="mt-1">
-                <FileUpload
-                    id={"pptx_upload"}
-                    allowedFileExtensions={['pptx']}
-                    onAttach={(file:File, fileName: string) => {
-                        setUploadedTemplate(file);
-                        setIsAddingTemplate({...isAddingTemplate, name: fileName});
-                    }}
-                    completeCheck={() => isAddingTemplate.name != ''}
-                    onRemove={() => {
-                        setUploadedTemplate(null);
-                        setIsAddingTemplate({...isAddingTemplate, name: ''});
-                    }}
-                /></div>
-                <label className="h-[40px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
-                >Template Name </label>
-                <input
-                title={!uploadedTemplate ? "Template name will auto-populate once a template has been uploaded"
-                                        : "" }
-                className={`h-[40px] w-[250px] ${admin_text}`}
-                placeholder={"Template Name"}
-                value={isAddingTemplate.name}
-                disabled={true}
-                />
-                <label className="ml-4 h-[40px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
-                >Available </label>
+            <div className="ml-6 mt-6 mb-10 ">
+                {templates.length > 0 ?
+                        <ExpansionComponent 
+                        title={'Manage PowerPoint Templates'} 
+                        content={ 
+                            <>
+                                <table id="powerpointTemplateTable" className="modern-table hide-last-column mt-4 w-full mr-10" style={{boxShadow: 'none'}}>
+                                    <thead>
+                                    <tr className="gradient-header">
+                                        {['Template Name', 'Public', 'Available to User via Amplify Group Membership'
+                                        ].map((title, i) => (
+                                        <th key={i}
+                                            id={title}
+                                            className="px-4 py-2 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
+                                            style={{width: i === 0 ? "25%" 
+                                                        : i === 1 ? "20" :"55%", 
+                                            }}>
+                                                {title}
+                                            </th>
+                                        ))}
+                                        
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    {templates.map((pptx: Pptx_TEMPLATES) => 
+                                        <tr key={pptx.name}
+                                            onMouseEnter={() => setHoveredTemplate(pptx.name)}
+                                            onMouseLeave={() => setHoveredTemplate('')}>
+                                            <td className="text-center border border-neutral-500 px-4 py-2 break-words max-w-[200px]">
+                                                {pptx.name}
+                                            </td>
 
-                
-                {isAvailableCheck(isAddingTemplate.isAvailable, () => {
-                    setIsAddingTemplate({...isAddingTemplate, isAvailable: !isAddingTemplate.isAvailable});
-                }, "h-[40px] px-1 items-center bg-gray-200 dark:bg-[#40414F]")} 
+                                            <td className="border border-neutral-500 px-4 py-2"
+                                                title="Available to All Amplify Users">
+                                                <div className="flex justify-center">
+                                                {isAvailableCheck(pptx.isAvailable, () => {
+                                                    const updatedTemplate = {...pptx, isAvailable: !pptx.isAvailable};
+                                                        handleTemplateChange(pptx.name, 
+                                                                            templates.map((t:Pptx_TEMPLATES) =>
+                                                                            t.name === pptx.name ?      
+                                                                                updatedTemplate : t ));
+                                                })} 
+                                                </div>                           
+                                            </td>
 
-                <div className="ml-4 flex flex-col mt-[-32px]">
-                    <InfoBox content={
-                            <span className="ml-1 text-xs w-full text-center"> 
-                            If the template is not available for all users, it will be exclusively available for the following Amplify Groups
-                            </span>
-                        }/>
-                
-                    <AmplifyGroupSelect 
-                        groups={Object.keys(ampGroups)}
-                        selected={isAddingTemplate.amplifyGroups}
-                        setSelected={(selectedGroups: string[]) => {
-                            setIsAddingTemplate({...isAddingTemplate, amplifyGroups: selectedGroups});
-                        }}
-                    /> 
-                </div>
-
-        </div>
-        }
-
-
-        <div className="ml-6 mt-6 mb-10 ">
-            {templates.length > 0 ?
-                    <ExpansionComponent 
-                    title={'Manage PowerPoint Templates'} 
-                    content={ 
-                        <>
-                            <table className="mt-4 border-collapse w-full" >
-                                <thead>
-                                <tr className="bg-gray-200 dark:bg-[#373844] ">
-                                    {['Template Name', 'Public', 'Available to User via Amplify Group Membership'
-                                    ].map((title, i) => (
-                                    <th key={i}
-                                        className="px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
-                                        style={{width: i === 0 ? "25%" 
-                                                    : i === 1 ? "20" :"55%", 
-                                        }}>
-                                        {title}
-                                    </th>
-                                    ))}
-                                    
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {templates.map((pptx: Pptx_TEMPLATES) => 
-                                    <tr key={pptx.name}
-                                        onMouseEnter={() => setHoveredTemplate(pptx.name)}
-                                        onMouseLeave={() => setHoveredTemplate('')}>
-                                        <td className="text-center border border-neutral-500 px-4 py-2 break-words max-w-[200px]">
-                                            {pptx.name}
-                                        </td>
-
-                                        <td className="border border-neutral-500 px-4 py-2"
-                                            title="Available to All Amplify Users">
-                                            <div className="flex justify-center">
-                                            {isAvailableCheck(pptx.isAvailable, () => {
-                                                const updatedTemplate = {...pptx, isAvailable: !pptx.isAvailable};
+                                            <td className="border border-neutral-500">
+                                                <AmplifyGroupSelect 
+                                                groups={Object.keys(ampGroups)}
+                                                selected={pptx.amplifyGroups}
+                                                setSelected={(selectedGroups: string[]) => {
+                                                    const updatedTemplate = {...pptx, amplifyGroups: selectedGroups};
                                                     handleTemplateChange(pptx.name, 
                                                                         templates.map((t:Pptx_TEMPLATES) =>
                                                                         t.name === pptx.name ?      
-                                                                            updatedTemplate : t ));
-                                            })} 
-                                            </div>                           
-                                        </td>
+                                                                            updatedTemplate : t ))
+                                                }}
+                                                />
+                                            </td>
 
-                                        <td className="border border-neutral-500">
-                                            <AmplifyGroupSelect 
-                                            groups={Object.keys(ampGroups)}
-                                            selected={pptx.amplifyGroups}
-                                            setSelected={(selectedGroups: string[]) => {
-                                                const updatedTemplate = {...pptx, amplifyGroups: selectedGroups};
-                                                handleTemplateChange(pptx.name, 
-                                                                    templates.map((t:Pptx_TEMPLATES) =>
-                                                                    t.name === pptx.name ?      
-                                                                        updatedTemplate : t ))
-                                            }}
-                                            />
-                                        </td>
+                                            <td>
+                                                <div className="w-[30px] flex-shrink-0">
+                                                {hoveredTemplate === pptx.name || deletingTemplate == pptx.name ?
+                                                <button
+                                                    title={"Delete Template"}
+                                                    type="button"
+                                                    className="ml-2 p-1 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none"
+                                                    onClick={() => {handleDeleteTemplate(pptx.name)}}
+                                                    >
+                                                    {deletingTemplate == pptx.name ? <>{loadingIcon(20)}</> : <IconTrash size={20} />} 
+                                                </button>
+                                                
+                                                : null}
+                                                </div>
+                                            </td>
+                                        </tr>     
+                                    )}
+                                    </tbody>
+                                </table>
 
-                                        <td>
-                                            <div className="w-[30px] flex-shrink-0">
-                                            {hoveredTemplate === pptx.name || deletingTemplate == pptx.name ?
-                                            <button
-                                                title={"Delete Template"}
-                                                type="button"
-                                                className="ml-2 p-1 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none"
-                                                onClick={() => {handleDeleteTemplate(pptx.name)}}
-                                                >
-                                                {deletingTemplate == pptx.name ? <>{loadingIcon(20)}</> : <IconTrash size={20} />} 
-                                            </button>
-                                            
-                                            : null}
-                                            </div>
-                                        </td>
-                                    </tr>     
-                                )}
-                                </tbody>
-                            </table>
-
-                        </>
+                            </>
+                        }
+                        isOpened={true}
+                    />  
+                        :
+                        <>No PowerPoint Templates listed. </>
                     }
-                    isOpened={true}
-                />  
-                    :
-                    <>No PowerPoint Templates listed. </>
-                }
+            </div>
         </div>
         
     </>
@@ -924,6 +952,7 @@ const handleFile = async (file:File, name: string) => {
     
             <button
             className="flex flex-row gap-1 left-2 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+            id={`uploadFile${label}`}
             onClick={() => {
                 const importFile = document.querySelector('#' + id) as HTMLInputElement;
                 if (importFile) {

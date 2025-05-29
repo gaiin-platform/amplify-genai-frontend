@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import Head from 'next/head';
 import { Theme } from '@/types/settings';
+import { UserAvatar } from '@/components/Layout/UserAvatar';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -30,6 +31,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   rightSidebar,
   header
 }) => {
+  
   // Apply theme class to document when theme changes
   useEffect(() => {
     if (theme === 'dark') {
@@ -40,6 +42,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
       document.documentElement.classList.remove('dark');
     }
   }, [theme]);
+  
   
   return (
     <div className={`flex flex-col h-screen w-screen ${theme}`}>
@@ -52,6 +55,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         />
         <link rel="icon" href="/favicon.ico" />
       </Head>
+      
 
       <div className="flex flex-1 h-full overflow-hidden">
         {/* Left Sidebar */}
@@ -65,7 +69,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         <div className="flex flex-col flex-1 overflow-hidden">
           {header && (
             <header className="border-b border-neutral-200 dark:border-neutral-600 bg-white dark:bg-[#343541] py-4 px-6 flex justify-between items-center">
-              {header}
+              <div className="flex items-center justify-between w-full">
+                <div>{header}</div>
+                <div>
+                  <UserAvatar 
+                    email="user@example.com" 
+                  />
+                </div>
+              </div>
             </header>
           )}
           {children}

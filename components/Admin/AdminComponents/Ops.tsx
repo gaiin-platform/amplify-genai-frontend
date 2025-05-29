@@ -13,14 +13,15 @@ import { InfoBox } from "@/components/ReusableComponents/InfoBox";
 
 export const opsSearchToggleButtons = (opSearchBy: string, setOpSearchBy: Dispatch<SetStateAction<"name" | "tag">>, 
                                        opSearchTerm: string, setOpSearchTerm: (s: string) => void, 
-                                       shift:string, translate: string) => {
+                                       shift:string, translate: string, showLabel=true) => {
     return <div className={`h-[0px] items-center ${shift} flex flex-row gap-4`}
                 style={{transform: translate}}>
-            <div className="ml-auto"> Search by</div>
+            {showLabel && <div className="ml-auto text-neutral-400"> Search by</div>}
             <div className="w-[140px] flex items-center rounded-md border border-neutral-600 bg-neutral-200 dark:bg-[#39394a] p-1">
             {["name", "tag"].map((search: string) => 
             <button onMouseDown={(e) =>  e.preventDefault()}
                 key={search}
+                id="nameTagToggle"
                 className={`flex flex-row gap-2 py-1 px-2 text-[12px] rounded-md focus:outline-none 
                             ${ opSearchBy === search ? 'bg-white dark:bg-[#1f1f29] text-neutral-900 dark:text-neutral-100 font-bold transform scale-105' 
                                                      : 'bg-transparent text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-[#31313f]'
@@ -115,28 +116,35 @@ export const OpsTab: FC<Props> = ({ops, setOps, admin_text}) => {
 
 
 return <>
-        <div className="flex flex-row gap-3 mb-2 ">
-                {titleLabel('OPs')}
-                <button
-                    title={'Add Op'} disabled={isRegisteringOps}
-                    className={`ml-1 mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 ${isRegisteringOps ? "" : "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10"}`}
-                    onClick={() => setNewOps([...newOps, emptyOps()])}>
-                    <IconPlus size={16}/>
-                </button>
+        <div className="admin-style-settings-card">
+            <div className="admin-style-settings-card-header">
+                <div className="flex flex-row items-center gap-3 mb-2">
+                    <h3 className="admin-style-settings-card-title">OPs</h3>
+                    <div className="flex-shrink-0 flex flex-row gap-3">
+                        <button
+                            title={'Add Op'} disabled={isRegisteringOps}
+                            id="addOp"
+                            className={`flex-shrink-0 items-center py-1.5 gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 ${isRegisteringOps ? "" : "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10"}`}
+                            onClick={() => setNewOps([...newOps, emptyOps()])}>
+                            <IconPlus size={16}/>
+                        </button>
 
-                {newOps.length > 0 && 
-                    <button
-                        title={'Register Ops'} disabled={isRegisteringOps}
-                        className={`mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 ${isRegisteringOps ? "" : "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10"}`}
-                        onClick={handleRegisterOps}
-                    >
-                        {isRegisteringOps ? "Registering..." : "Register Ops" }
-                    </button>
-                }
+                        {newOps.length > 0 && 
+                            <button
+                                title={'Register Ops'} disabled={isRegisteringOps}
+                                id="registerOps"
+                                className={`flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 ${isRegisteringOps ? "" : "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10"}`}
+                                onClick={handleRegisterOps}
+                            >
+                                {isRegisteringOps ? "Registering..." : "Register Ops" }
+                            </button>
+                        }
+                    </div>
+                </div>
+                <p className="admin-style-settings-card-description">Manage and register custom operations for assistants to interact with Amplify API functions</p>
+            </div>
 
-        </div>
-
-        <div className="mx-6 mr-4">
+            <div className="mx-6 mr-4">
             
             { newOps.length > 0 && 
             <div className="mb-4 flex flex-col gap-4">
@@ -144,7 +152,7 @@ return <>
                         <div key={i} onMouseEnter={() => setHoveredNewOp(i)}
                                         onMouseLeave={() => setHoveredNewOp(-1)}
                         >
-                            <div className="flex flex-col gap-2">
+                            <div className="flex flex-col gap-2" id="opsInfo">
                                 {i > 0 && <hr></hr>}
                                 <div className="flex flex-row items-center"> 
                                 <div className="flex-grow"> <InputsMap
@@ -203,6 +211,7 @@ return <>
                                         <label className="text-md text-black dark:text-neutral-200">Parameters</label>
                                         <button 
                                             title={'Add OP Parameter'} disabled={isRegisteringOps}
+                                            id="addOpParameter"
                                             className={`h-[28px] mt-[-1] ml-1 flex-shrink-0 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 ${isRegisteringOps ? "" : "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10"}`}
                                             onClick={() => {
                                                 const updateOps = [...newOps];
@@ -342,7 +351,7 @@ return <>
 
             { ops.length > 0 && 
             <div className="mt-8">
-            { showOpSearch && opsSearchToggleButtons(opSearchBy, setOpSearchBy, opSearchTerm, setOpSearchTerm, " ml-[200px] mr-14", 'translateY(5px)') }
+            { showOpSearch && opsSearchToggleButtons(opSearchBy, setOpSearchBy, opSearchTerm, setOpSearchTerm, " ml-[200px] mr-16 ", 'translateY(5px)') }
             <ExpansionComponent
                 onOpen={() => setShowOpSearch(true)}
                 onClose={() => {
@@ -352,13 +361,14 @@ return <>
                 title={"Manage Ops"}
                 content={
                 <div style={{ maxHeight: '500px', overflowY: 'auto', overflowX: 'hidden'}}>
-                <table className="mt-4 border-collapse w-full" >
+                <table id="manageOpsTable" className="modern-table hide-last-column mt-4 w-full mr-10" style={{boxShadow: 'none'}}>
                     <thead className="sticky top-0">
-                    <tr className="bg-gray-200 dark:bg-[#373844]">
+                    <tr className="gradient-header">
                         {['Function Name', 'Tags', 'Path', 'Method', 'Parameters', 'Description']
                             .map((title, i) => (
                         <th key={i}
-                            className=" text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
+                            id="groupName"
+                            className="px-4 py-2 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
                         > {title}
                         </th>
                         ))}
@@ -372,7 +382,7 @@ return <>
                         <tr key={op.id} 
                             onMouseEnter={() => setHoveredOp(opIdx)}
                             onMouseLeave={() => setHoveredOp(-1)}>
-                            <td className="text-center border border-neutral-500 p-2 break-words">
+                            <td id="functionName" className="text-center border border-neutral-500 p-2 break-words">
                                 {op.name}
                             </td>
                             
@@ -449,6 +459,7 @@ return <>
                 }
                 isOpened={true}
             /> </div>}
+        </div>
         </div>
         </>
 
