@@ -359,7 +359,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
           {/* Menu */}
           <div 
             ref={menuRef}
-            className="relative mt-12  py-2 w-52 bg-white dark:bg-[#202123] rounded-lg border border-neutral-200 dark:border-neutral-600 shadow-xl"
+            className="relative mt-12 py-2 w-52 bg-white dark:bg-[#202123] rounded-lg border border-neutral-200 dark:border-neutral-600 shadow-xl max-h-[calc(100vh-4rem)] overflow-y-auto"
             style={{
               boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
             }}
@@ -437,7 +437,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   }}
                   className={commonClassname}
                 >
-                  <IconShare size={16} className="enhanced-icon text-green-500" />
+                  <IconShare size={16} className="icon-pop-group enhanced-icon text-green-500" />
                   <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">Sharing</span>
                 </button>
               )}
@@ -451,7 +451,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   }}
                   className={commonClassname}
                 >
-                  <IconRocket size={16} className="enhanced-icon text-blue-500" />
+                  <IconRocket size={16} className="icon-pop-group enhanced-icon text-blue-500" />
                   <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">My Data</span>
                 </button>
 
@@ -465,7 +465,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   }}
                   className={commonClassname}
                 >
-                  <IconShield size={16} className="enhanced-icon text-red-500" />
+                  <IconShield size={16} className="icon-pop-group enhanced-icon text-red-500" />
                   <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">Admin</span>
                 </button>
               )}
@@ -477,7 +477,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   }}
                   className={commonClassname}
                 >
-                  <IconCurrencyDollar size={16} className="enhanced-icon text-green-500" />
+                  <IconCurrencyDollar size={16} className="icon-pop-group enhanced-icon text-green-500" />
                   <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">User Costs</span>
                 </button>
               )}
@@ -488,7 +488,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                 }}
                 className={commonClassname}
               >
-                <IconSettings size={16} className="enhanced-icon text-purple-500" />
+                <IconSettings size={16} className="icon-pop-group enhanced-icon text-purple-500" />
                 <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">Settings</span>
               </button>
 
@@ -496,7 +496,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                 onClick={() => { window.location.href = `mailto:${supportEmail}`}}
                 className={commonClassname}
               >
-                <IconHelp size={16} className="enhanced-icon text-red-500" />
+                <IconHelp size={16} className="icon-pop-group enhanced-icon text-red-500" />
                 <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">Send Feedback</span>
               </button>
 
@@ -504,7 +504,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                 onClick={federatedSignOut}
                 className={commonClassname}
               >  
-                <IconLogout size={16} className="enhanced-icon text-neutral-700 dark:text-neutral-200" />
+                <IconLogout size={16} className="icon-pop-group enhanced-icon text-neutral-700 dark:text-neutral-200" />
                 <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">Sign Out</span>
               </button>
             </div>
@@ -545,7 +545,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   );
 };
 
-const commonClassname = "flex w-full items-center gap-3 px-4 py-2 cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#343541]/90 transition-all duration-200";
+const commonClassname = "group flex w-full items-center gap-3 px-4 py-2 cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#343541]/90 transition-all duration-200";
 
 
 export default UserMenu;
