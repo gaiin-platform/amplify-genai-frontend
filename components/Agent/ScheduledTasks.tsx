@@ -432,7 +432,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow cursor-pointer flex justify-between items-center
               ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}`}
             >
-              <span>{selectedTask.objectInfo?.objectName ?? 'Select Action Set'}</span>
+              <span>{selectedTask.objectInfo?.objectName || 'Select Action Set'}</span>
               <IconChevronDown 
                 size={18} 
                 className={`transition-transform ${showActionSetList ? 'rotate-180' : ''}`}
@@ -990,3 +990,34 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
 };
 
 const buttonStyle = "py-2 border rounded text-sm hover:bg-neutral-200 dark:hover:bg-neutral-700 flex items-center gap-2";
+
+
+
+interface ScheduleButtonProps {
+  taskType: ScheduledTaskType;
+  objectInfo: {objectId: string, objectName: string};
+}
+
+export const ScheduledTaskButton: React.FC<ScheduleButtonProps> = ({
+  taskType, objectInfo}) => {
+    const handleClick = () => {
+      const task = emptyTask();
+      task.taskType = taskType;
+      task.objectInfo = objectInfo;
+
+      window.dispatchEvent(new CustomEvent('homeChatBarTabSwitch', 
+        { detail: { tab: "Settings" , side: "left", action: () => {
+          window.dispatchEvent(new CustomEvent('openScheduledTasksTrigger', {detail: {scheduledTask: task}}));
+        } } }))
+
+    }
+  return (
+    <button id={`scheduled-task-button-${objectInfo.objectId}`}
+        title={`Schedule ${camelCaseToTitle(taskType)} Task`}
+        className={"flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-2 dark:text-white transition-colors duration-200 cursor-pointer hover:bg-neutral-200  dark:hover:bg-gray-500/10"}
+        onClick={handleClick}
+    >
+        <IconAlarm size={16}/>
+    </button>
+  )
+};
