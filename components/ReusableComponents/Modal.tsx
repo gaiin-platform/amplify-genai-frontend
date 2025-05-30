@@ -27,11 +27,13 @@ interface Props {
   transform?: string;
   fullScreen?: boolean;
   disableContentAnimation?: boolean;
+  disableClickOutside?: boolean;
 }
 
   export const Modal: FC<Props> = ({title, content, width , height, onCancel=()=>{}, onSubmit=()=>{}, 
                                     showClose=true, showCancel=true, showSubmit=true, cancelLabel= "Cancel", submitLabel="Submit",
-                                    additionalButtonOptions=[], disableSubmit=false, resizeOnVarChange, transform="", fullScreen=false, disableContentAnimation=false}) => {
+                                    additionalButtonOptions=[], disableSubmit=false, resizeOnVarChange, transform="", fullScreen=false, 
+                                    disableContentAnimation=false, disableClickOutside=false}) => {
 
  const modalRef = useRef<HTMLDivElement>(null);
 
@@ -48,7 +50,7 @@ interface Props {
 
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
-      if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
+      if (!disableClickOutside && modalRef.current && !modalRef.current.contains(e.target as Node)) {
         window.addEventListener('mouseup', handleMouseUp);
       }
     };

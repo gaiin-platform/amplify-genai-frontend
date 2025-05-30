@@ -36,6 +36,7 @@ import { AssistantEmailEvents } from '@/components/Promptbar/components/Assistan
 import { AssistantWorkflowDisplay } from './AssistantModalComponents/AssistantWorkflowDisplay';
 import { WebsiteURLInput } from '@/components/DataSources/WebsiteURLInput';
 import { Modal } from '@/components/ReusableComponents/Modal';
+import { ScheduledTaskButton } from '@/components/Agent/ScheduledTasks';
 
 
 interface Props {
@@ -790,10 +791,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const assistantModalContainer = () => {
         return ( <>
                         <label className='w-full text-xl text-center items-center mb-2 flex justify-center'> {title} </label>  
-                          
-                        
-
-                        <div className=" max-h-[calc(100vh-10rem)] overflow-y-auto"
+                        <div className="overflow-y-auto"
                             id="assistantModalScroll"
                             style={{ height: height}}>
                             {children}
@@ -831,8 +829,18 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     <IconArrowRight size={18} />
                                 </button>
                             </div> </>}
-                            <div className="mt-2 text-sm font-bold text-black dark:text-neutral-200">
-                                {t('Assistant Name')}
+                            <div className="mt-1 flex flex-row gap-2">
+                                <div className="mt-2 text-sm font-bold text-black dark:text-neutral-200">
+                                    {t('Assistant Name')}
+                                </div>
+                                {!embed && !disableEdit && featureFlags.scheduledTasks && definition.assistantId && 
+                                    <div className="-mt-0.5 ml-auto text-sm text-gray-500 flex items-center gap-2 mr-1">
+                                        Schedule Assistant
+                                        <ScheduledTaskButton
+                                            taskType={'assistant'} 
+                                            objectInfo={{objectId: definition.assistantId, objectName: definition.name}}
+                                        />
+                                    </div>}
                             </div>
                             <input
                                 id="assistantName"
@@ -1327,6 +1335,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             showSubmit={!disableEdit}
             cancelLabel={disableEdit ? "Close" : 'Cancel'}
             content={<>{assistantModalContainer()}</>}
+            disableClickOutside={true}
         />
     );
 };

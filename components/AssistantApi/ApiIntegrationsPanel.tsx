@@ -46,7 +46,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
   allowCreatePythonFunction = true, onClickApiItem, onClickAgentTool, hideApisPanel=[], disabled=false, 
   labelPrefix="Manage", showDetails, compactDisplay=false
 }) => {
-  const { state: {featureFlags} } = useContext(HomeContext);
+  const { state: {featureFlags, lightMode} } = useContext(HomeContext);
   const [shownAPIComponent, setShownAPIComponent] = useState<string>(compactDisplay ? "internal": "");
   const [addFunctionOpen, setAddFunctionOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -74,14 +74,14 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
       isEnabled: featureFlags.integrations && !hideApisPanel?.includes("internal"),
       isDisabled: !availableApis
     },
-    {
-      id: "external",
-      label: `${labelPrefix} External APIs`,
-      loadingLabel: null,
-      icon: <IconWorldBolt className='flex-shrink-0' size={18} />,
-      isEnabled: featureFlags.assistantApis && !hideApisPanel?.includes("external"),
-      isDisabled: false
-    },
+    // {
+    //   id: "external",
+    //   label: `${labelPrefix} External APIs`,
+    //   loadingLabel: null,
+    //   icon: <IconWorldBolt className='flex-shrink-0' size={18} />,
+    //   isEnabled: featureFlags.assistantApis && !hideApisPanel?.includes("external"),
+    //   isDisabled: false
+    // },
     {
       id: "tools",
       label: `${labelPrefix} Agent Tools`,
@@ -159,11 +159,15 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
               showDetails={showDetails}
             />
             
-            {addFunctionOpen && 
-              <PythonFunctionModal
-              onCancel={() => setAddFunctionOpen(false)}
-              onSave={pythonFunctionOnSave}
-            />}
+            {addFunctionOpen && createPortal(
+              <div className={lightMode === 'dark' ? 'dark' : 'light'}>
+                <PythonFunctionModal
+                  onCancel={() => setAddFunctionOpen(false)}
+                  onSave={pythonFunctionOnSave}
+                />
+              </div>,
+              document.body
+            )}
           </>
         );
       case "tools":
