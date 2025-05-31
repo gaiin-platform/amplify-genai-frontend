@@ -312,8 +312,8 @@ export function useSendService() {
                     } else if (featureFlags.ragEnabled && featureFlags.ragEvaluation && (pluginIds?.includes(PluginID.RAG) && pluginIds?.includes(PluginID.RAG_EVAL))) {
                         options = { ...(options || {}), ragEvaluation: true };
                     }
-
-                    if (!featureFlags.cachedDocuments) {
+                                                      // Advanced Rag is default off for assistant use 
+                    if (!featureFlags.cachedDocuments || options?.assistantId || options?.groupId) {
                         options = { ...(options || {}), skipDocumentCache : true};
                     }
 

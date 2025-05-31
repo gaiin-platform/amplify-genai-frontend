@@ -360,7 +360,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                 'Available to User via Amplify Group Membership',
                             ].map((title, i) => (
                             <th id={title} key={i}
-                                className="text-[0.8rem] px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300" >
+                                className="text-[0.75rem] px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300" >
                                 {title}
                             </th>
                             ))}
@@ -520,10 +520,10 @@ const ModelDefaultSelect: FC<SelectProps> = ({models, defaultModels, selectedKey
     const [selected, setSelected] = useState<SupportedModel | undefined>(models.find((model:SupportedModel) => model.id === defaultModels[selectedKey]));
 
     return (
-        <div className="flex flex-col gap-2 text-center" title={description}>
+        <div className="flex flex-col gap-2 text-center text-[14px] " title={description}>
             <label id={`${capitalize(selectedKey)}Model`} className="font-bold text-[#0bb9f4]">{label ?? `${camelToTitleCase(selectedKey)} Model`}</label>
-            <select id="modelSelect" className={`mb-2 text-center rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100  custom-shadow
-                                ${!!selected?.name ? '' : 'border-2 border-red-500'}`} 
+            <select id="modelSelect" className={`mb-2 text-center rounded-lg border py-2 text-neutral-900 shadow focus:outline-none dark:bg-[#40414F] dark:text-neutral-100  custom-shadow
+                                ${!!selected ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50' : 'border-red-500' }`} 
                 value={selected?.name ?? ''}
                 onChange={(e) => {
                     const newSelected = models.find((model) => model.name === e.target.value);

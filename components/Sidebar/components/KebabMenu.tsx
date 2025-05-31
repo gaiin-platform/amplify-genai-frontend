@@ -430,7 +430,7 @@ interface Props {
                <button
                     title='Re-sync Conversations'
                     disabled={isSyncing}
-                    className={`ml-2 text-sidebar flex-shrink-0 select-none items-center gap-3 rounded-md border dark:border-white/20 px-2 py-1 dark:text-white transition-colors duration-200 ${!isSyncing ? "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" : ""}`}
+                    className={`-mt-2 ml-2 text-sidebar flex-shrink-0 select-none items-center gap-3 rounded-md border dark:border-white/20 p-1.5 dark:text-white transition-colors duration-200 ${!isSyncing ? "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" : ""}`}
                     onClick={async () => reSyncConversations()}
                 >  <IconRefresh size={16}/>
                 </button>

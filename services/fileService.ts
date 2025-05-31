@@ -113,6 +113,7 @@ export function checkContentReady(url: string, maxSeconds: number, abortControll
 }
 
 export const addFile = async (metadata: AttachedDocument, file: File, onProgress?: (progress: number) => void, ragEnabled: boolean = true, tags: string[] = [], abortSignal: AbortSignal | null = null) => {
+    console.log('Rag Enabled', ragEnabled);
 
     const response = await fetch('/api/files/upload', {
         method: 'POST',

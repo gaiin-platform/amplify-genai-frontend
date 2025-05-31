@@ -922,7 +922,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             onSetMetadata={onSetMetadata}
                                             onSetKey={onSetKey}
                                             onUploadProgress={onUploadProgress}
-                                            disableRag={true}
+                                            disableRag={false}
                                 />
                             </div>
                             <FileList documents={dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)))} documentStates={documentState}

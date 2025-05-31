@@ -3199,7 +3199,7 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({ groupId, astPromptId, assi
                                                     onSetMetadata={handlers.onSetMetadata}
                                                     onSetKey={handlers.onSetKey}
                                                     onUploadProgress={handlers.onUploadProgress}
-                                                    disableRag={true}
+                                                    disableRag={false}
                                         />
                                     </div>
 
