@@ -4,13 +4,16 @@ import ApiIntegrationsPanel from '../AssistantApi/ApiIntegrationsPanel';
 import HomeContext from '@/pages/api/home/home.context';
 import { API } from '../AssistantApi/CustomAPIEditor';
 import { ToggleOptionButtons } from '../ReusableComponents/ToggleOptionButtons';
-import { IconAlertCircle, IconCheck, IconChevronDown, IconChevronRight, IconCirclePlus, IconCode, IconInfoCircle, IconLoader2, IconRobot, IconSettings, IconTags, IconTool, IconTools, IconUserCog, IconX } from '@tabler/icons-react';
+import { IconAsterisk, IconMinus, IconCheck, IconChevronDown, IconChevronRight, IconCirclePlus, IconCode, IconInfoCircle, IconLoader2, IconRobot, IconSettings, IconTags, IconTool, IconTools, IconUserCog, IconX } from '@tabler/icons-react';
 import { getOperationIcon } from '@/types/integrations';
 import { AgentTool } from '@/types/agentTools';
 import { ActiveTabs } from '../ReusableComponents/ActiveTabs';
 import { getOpsForUser } from '@/services/opsService';
 import { filterSupportedIntegrationOps } from '@/utils/app/ops';
-import ActionSetList from '../Agent/ActionSets';
+import ActionSetList from './ActionSets';
+import { ScheduledTaskButton } from './ScheduledTasks';
+import { ScheduledTaskType } from '@/types/scheduledTasks';
+
 
 interface OperationSelectorProps {
     operations?: AgentTool[];
@@ -203,7 +206,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
     return (
         <div className="flex h-[400px] w-full border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg bg-white dark:bg-[#22232b] overflow-hidden">
             {/* Left Pane - Operations List */}
-            <div className="w-2/5 border-r border-gray-300 dark:border-gray-700 overflow-auto bg-gray-50 dark:bg-[#2b2c35]">
+            <div className="w-1/2 border-r border-gray-300 dark:border-gray-700 overflow-auto bg-gray-50 dark:bg-[#2b2c35]">
                 <div className="relative bg-gray-100 dark:bg-[#343541] pl-4 pb-3 border-b border-gray-200 dark:border-gray-700 overflow-x-hidden text-black dark:text-neutral-100">
                  
                 <ActiveTabs
@@ -405,9 +408,9 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                         <label className="flex items-center justify-between font-medium text-sm text-gray-900 dark:text-white mb-2">
                                             <div className="flex items-center">
                                                 {paramSource.required?.includes(paramName) ? (
-                                                    <IconAlertCircle size={16} stroke={1.5} className="text-red-500 mr-2" />
+                                                    <IconAsterisk size={16} stroke={1.5} className="text-red-500 mr-2" />
                                                 ) : (
-                                                    <IconCheck size={14} stroke={1.5} className="text-green-500 mr-2" />
+                                                    <IconMinus size={14} stroke={1.5} className="text-green-500 mr-2" />
                                                 )}
                                                 {formatOperationName(paramName)}
                                             </div>
@@ -495,7 +498,11 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
                                 <IconTools size={20} stroke={1.5} className="mr-2" />
-                                <span>{selectedActionSet.name || 'Unnamed Action Set'}</span>
+                                <span className="mr-3">{selectedActionSet.name || 'Unnamed Action Set'}</span>
+                                {featureFlags.scheduledTasks && <ScheduledTaskButton
+                                    taskType={'actionSet'} 
+                                    objectInfo={{objectId: selectedActionSet.id, objectName: selectedActionSet.name}}
+                                />}
                             </h2>
                             <div className="flex gap-2">
                                 {onCancel && (
@@ -542,9 +549,6 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                         {selectedActionSet.actions.map((action: any, index: number) => (
                                             <div key={index} className="p-4 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
                                                 <div className="flex items-start">
-                                                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 mr-3 mt-1 flex-shrink-0">
-                                                        {index + 1}
-                                                    </span>
                                                     <div className="flex-1">
                                                         <div className="flex items-center">
                                                             {getIcon(action.name)}
@@ -586,12 +590,10 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                                                             return (
                                                                                 <div key={paramName} className="flex flex-col">
                                                                                     <div className="flex items-center">
-                                                                                        {isRequired ? (
-                                                                                            <IconAlertCircle size={14} className="text-red-500 mr-1" />
-                                                                                        ) : (
-                                                                                            <IconCheck size={14} className="text-green-500 mr-1" />
-                                                                                        )}
-                                                                                        <span className="font-medium text-gray-700 dark:text-gray-300">
+                                                                                        {isRequired && <IconAsterisk size={12} className="text-blue-500 mr-1" />}
+                                                                                    
+                                                                                        <span title={`${isRequired ? "Required" : "Optional"} Parameter`}
+                                                                                            className="font-medium text-gray-700 dark:text-gray-300">
                                                                                             {formatOperationName(paramName)}
                                                                                         </span>
                                                                                     </div>

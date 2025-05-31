@@ -53,13 +53,10 @@ import { MemoryPresenter } from "@/components/Chat/MemoryPresenter";
 // import { ProjectList } from './ProjectList';
 import { useSession } from 'next-auth/react';
 import {  } from '../../services/memoryService';
-import { ProjectInUse } from './ProjectInUse';
 import { Settings } from '@/types/settings';
 import { ToggleOptionButtons } from '../ReusableComponents/ToggleOptionButtons';
 import { capitalize } from '@/utils/app/data';
-import { getOpsForUser } from '@/services/opsService';
-import { filterSupportedIntegrationOps } from '@/utils/app/ops';
-import OperationSelector from "@/components/Chat/OperationSelector";
+import OperationSelector from "@/components/Agent/OperationSelector";
 import ActionsList from "@/components/Chat/ActionsList";
 import { resolveRagEnabled } from '@/types/features';
 

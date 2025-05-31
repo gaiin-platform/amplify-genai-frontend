@@ -115,7 +115,7 @@ export const PythonFunctionModal: FC<Props> = ({
                                                    onCancel,
                                                    title = 'Manage Custom APIs',
                                                    width = '900px',
-                                                   height = '80vh',
+                                                   height = '76vh',
                                                    blackoutBackground = true,
                                                    translateY
                                                }) => {

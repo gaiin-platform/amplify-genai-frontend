@@ -16,6 +16,7 @@ import { Settings } from '@/types/settings';
 import { PythonFunctionModal } from '@/components/Operations/PythonFunctionModal';
 import { AssistantWorkflowBuilder } from '@/components/AssistantWorkflows/AssistantWorkflowBuilder';
 import { ScheduledTasks } from '@/components/Agent/ScheduledTasks';
+import { ScheduledTask } from '@/types/scheduledTasks';
 
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
@@ -23,10 +24,10 @@ export const ChatbarSettings = () => {
     const [isPyFunctionApiOpen, setIsPyFunctionApiOpen] = useState(false);
     const [isWorkflowBuilderOpen, setIsWorkflowBuilderOpen] = useState(false);
     const [isScheduledTasksOpen, setIsScheduledTasksOpen] = useState(false);
+    const initTaskRef = useRef<ScheduledTask | undefined>(undefined);
 
     const {
-        state: { featureFlags, syncingPrompts,  },
-        dispatch: homeDispatch, setLoadingMessage
+        state: { featureFlags, syncingPrompts },
     } = useContext(HomeContext);
 
     let settingRef = useRef<Settings | null>(null);
@@ -35,9 +36,16 @@ export const ChatbarSettings = () => {
     
     useEffect(() => {
         const handleFeatureFlagsEvent = (event:any) => settingRef.current = getSettings(featureFlags);
+        const handleScheduledTasksEvent = (event:any) => {
+            const {scheduledTask} = event.detail;
+            initTaskRef.current = scheduledTask;
+            setIsScheduledTasksOpen(true);
+        }
         window.addEventListener('updateFeatureSettings', handleFeatureFlagsEvent);
+        window.addEventListener('openScheduledTasksTrigger', handleScheduledTasksEvent);
         return () => {
-            window.removeEventListener('updateFeatureSettings', handleFeatureFlagsEvent)
+            window.removeEventListener('updateFeatureSettings', handleFeatureFlagsEvent);
+            window.removeEventListener('openScheduledTasksTrigger', handleScheduledTasksEvent);
         }
     }, []);
 
@@ -101,7 +109,11 @@ export const ChatbarSettings = () => {
                 />
                 {isScheduledTasksOpen && <ScheduledTasks
                 isOpen={isScheduledTasksOpen}
-                onClose={() => setIsScheduledTasksOpen(false)}
+                onClose={() => {
+                    setIsScheduledTasksOpen(false);
+                    initTaskRef.current = undefined;
+                }}
+                initTask={initTaskRef.current}
                  />
                 }
             </>}

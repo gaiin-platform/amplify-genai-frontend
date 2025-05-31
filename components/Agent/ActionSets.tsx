@@ -8,7 +8,7 @@ interface LoadActionSetModalProps {
 }
 
 export const ActionSetList: FC<LoadActionSetModalProps> = ({
-  onLoad,
+  onLoad
 }) => {
   const [actionSets, setActionSets] = useState<ActionSet[]>([]);
   const [loading, setLoading] = useState(true);
