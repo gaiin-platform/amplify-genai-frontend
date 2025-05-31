@@ -69,7 +69,7 @@ export const downloadArtifacts = (artifactName: string, textContent: string, cod
 
 
 // Upload Artifact Function
-export const uploadArtifact = async (filename: string, content: string, tags:string[]) => {
+export const uploadArtifact = async (filename: string, content: string, tags:string[], ragEnabled: boolean = true) => {
     try {
         // Create the file object from the content and type
         const fileType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -94,8 +94,7 @@ export const uploadArtifact = async (filename: string, content: string, tags:str
                     // Trigger a toast when upload reaches 100%
                     toast('File uploaded successfully'); 
                 }
-            },
-            null, tags
+            }, ragEnabled, tags
         );
 
         console.log('File uploaded successfully:', response);

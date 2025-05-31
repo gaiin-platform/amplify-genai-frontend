@@ -293,7 +293,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }, []);
 
         useEffect(() => {
-            if (!plugins && settingRef.current) setPlugins(getActivePlugins(settingRef.current));
+            if (!plugins && settingRef.current) setPlugins(getActivePlugins(settingRef.current, featureFlags));
         }, [featureFlags]);
 
 

@@ -45,12 +45,13 @@ export const PluginSelector: FC<Props> = ({
   const optionsRef = useRef<(HTMLDivElement | null)[]>([]); 
   const [isUsingKeys, setIsUsingKeys] = useState<boolean>(false);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  const [animatingIndex, setAnimatingIndex] = useState<number | null>(null);
 
 
   useEffect(() => {
     settingRef.current = getSettings(featureFlags);
     // we always do this in case the valid plugins change
-    const activePlugins:Plugin[] = getActivePlugins(settingRef.current, validPlugins);
+    const activePlugins:Plugin[] = getActivePlugins(settingRef.current, featureFlags, validPlugins);
 
     onPluginChange(activePlugins);
     // save localStorage 
@@ -141,6 +142,19 @@ export const PluginSelector: FC<Props> = ({
     
   }
 
+  const handleClickWithAnimation = (plugin: Plugin | null, index: number) => {
+    // Trigger animation
+    setAnimatingIndex(index);
+    
+    // Call the original handler
+    handlePluginChange(plugin);
+    
+    // Reset animation after it completes
+    setTimeout(() => {
+      setAnimatingIndex(null);
+    }, 200);
+  };
+
   return (
     <div className="rounded flex flex-col cursor-pointer border border-neutral-600 bg-neutral-200 dark:bg-[#282834]" 
     id="enabledFeaturesMenu"
@@ -152,11 +166,17 @@ export const PluginSelector: FC<Props> = ({
           id="enabledFeatureIndex"
           ref={el => (optionsRef.current[index] = el)}  
           tabIndex={0}
-          className={`border-b border-neutral-600 p-1 ${isActivePlugin(p) ? "text-neutral-600 dark:text-neutral-300" : "text-neutral-400 dark:text-neutral-600"} hover:text-black dark:hover:text-white`}
-          onClick={() => handlePluginChange(p)}
-            //onPluginChange(plugin?.id === p?.id ? null : p)}
+          className={`border-b border-neutral-600 p-1 ${isActivePlugin(p) ? "text-neutral-600 dark:text-neutral-300" : "text-neutral-400 dark:text-neutral-600"} hover:text-black dark:hover:text-white transition-all duration-200 ease-out ${
+            animatingIndex === index 
+              ? 'transform scale-125 shadow-lg bg-blue-100 dark:bg-blue-900/50' 
+              : ''
+          }`}
+          onClick={() => handleClickWithAnimation(p, index)}
           onKeyDown={(e) => handleKeyDown(e, index)}
-          style={{ outline: `${isUsingKeys && focusedIndex === index ? '2px solid #4287f5':'none'}` }} 
+          style={{ 
+            outline: `${isUsingKeys && focusedIndex === index ? '2px solid #4287f5':'none'}`,
+            transformOrigin: 'center'
+          }} 
           title={ p ? p.title : 'Clear All Enabled Features'}
         >
             {p ? <p.iconComponent /> : <IconX size={24}/>}

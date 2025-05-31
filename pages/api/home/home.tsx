@@ -865,10 +865,10 @@ const Home = ({
             try {
                 // returns the groups you are inquiring about in a object with the group as the key and is they are on the group as the value
                 const result = await getFeatureFlags();
-                if (result.success) {
+                if (result.success && result.data) {
                     const flags: { [key:string] : boolean } = result.data;
                     // console.log("feature flags:", flags)
-                    if (flags && Object.keys(flags).length > 0) dispatch({ field: 'featureFlags', value: flags});
+                    if (Object.keys(flags).length > 0) dispatch({ field: 'featureFlags', value: flags});
                     localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
                     return flags;
                 } else {

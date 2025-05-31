@@ -229,7 +229,7 @@ const Folder = ({
             </div>
           ) : (
             <button
-              className={`enhanced-folder-title group flex w-full cursor-pointer items-center gap-3 rounded-lg text-sm transition-all duration-200 ${isOpen && !isTodaysFolder ? 'enhanced-folder-open' : ''} ${isTodaysFolder ? 'enhanced-today-folder' : ''}`}
+              className={`enhanced-folder-title group flex w-full cursor-pointer items-center gap-3 rounded-lg text-sm transition-all duration-200 ${isOpen && !isTodaysFolder ? 'enhanced-folder-open' : ''} ${isTodaysFolder ? 'enhanced-today-folder py-0.5' : ''}`}
               id={"dropDown"}
               onClick={() => {
                 // Don't allow collapsing today's folder

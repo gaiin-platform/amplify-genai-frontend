@@ -58,6 +58,7 @@ import { ToggleOptionButtons } from '../ReusableComponents/ToggleOptionButtons';
 import { capitalize } from '@/utils/app/data';
 import OperationSelector from "@/components/Agent/OperationSelector";
 import ActionsList from "@/components/Chat/ActionsList";
+import { resolveRagEnabled } from '@/types/features';
 
 
 
@@ -96,7 +97,7 @@ export const ChatInput = ({
     const {
         state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming,
             prompts,  featureFlags, currentRequestId, chatEndpoint, statsService, availableModels,
-            extractedFacts, memoryExtractionEnabled},
+            extractedFacts, memoryExtractionEnabled, ragOn},
         getDefaultModel, handleUpdateConversation,
         dispatch: homeDispatch
     } = useContext(HomeContext);
@@ -642,10 +643,12 @@ export const ChatInput = ({
         try {
 
             if (documentAborts && documentAborts[document.id]) {
+                console.log("Aborting file upload", document.id);
                 // @ts-ignore
                 documentAborts[document.id]();
-            } else if (documentState && documentState[document.id]) {
-                // Needt to delete from server
+            }
+            if (documentState && documentState[document.id]) {
+                delete documentState[document.id];
             }
         } catch (e) {
             console.log(e);
@@ -653,10 +656,8 @@ export const ChatInput = ({
     }
 
     const handleDocumentAbortController = (document: AttachedDocument, abortController: any) => {
-
         setDocumentAborts((prevState) => {
             let newState = {...prevState, [document.id]: abortController};
-            newState[document.id] = abortController;
             return newState;
         });
     }
@@ -763,8 +764,12 @@ export const ChatInput = ({
         if (!containsRag && containsRagEval) {
             setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.RAG_EVAL));
         }
+        // will effectively detach ragOn state from rag plugin if feature flag is off 
+        // ragOn is used to track the state of the rag plugin throughout the entire app when cached documents is on
+        if (featureFlags.cachedDocuments && (containsRag && !ragOn) || (!containsRag && ragOn)) {
+            homeDispatch({field: 'ragOn', value: containsRag});
+        }
     }, [plugins]);
-
 
     return (
         <>
@@ -861,7 +866,7 @@ export const ChatInput = ({
                                 }}
                                 showActionButtons={true}
                                 onIntegrationDataSourceSelected={featureFlags.integrations ?
-                                    (file: File) => { handleFile(file, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController, featureFlags.uploadDocuments, undefined)}
+                                    (file: File) => { handleFile(file, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController, featureFlags.uploadDocuments, undefined, resolveRagEnabled(featureFlags, ragOn) )}
                                     : undefined
                                 }
                             />

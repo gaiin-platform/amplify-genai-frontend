@@ -72,7 +72,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [defaultConversationStorage, setDefaultConversationStorage] = useState<ConversationStorage>('future-local');
 
     const [availableModels, setAvailableModels] = useState<SupportedModelsConfig>({});   
-    const [defaultModels, setDefaultModels] = useState<DefaultModelsConfig>({user: '', advanced: '', cheapest: '', agent: '', embeddings: '', qa: ''});
+    const [defaultModels, setDefaultModels] = useState<DefaultModelsConfig>({user: '', advanced: '', cheapest: '', agent: '', documentCaching: '', embeddings: '', qa: ''});
 
     const [features, setFeatures] = useState<FeatureFlagConfig>({}); 
 

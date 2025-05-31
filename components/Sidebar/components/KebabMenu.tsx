@@ -5,7 +5,8 @@ import {
     IconCheck, IconFolderOpen, 
     IconFolder, IconCalendar, IconAbc,
     IconTrashFilled,
-    IconEye
+    IconEye,
+    IconRefresh
 } from '@tabler/icons-react';
 import { KebabActionItem, actionItemAttr, KebabItem, KebabMenuItems } from "./KebabItems";
 import { ShareAnythingModal } from "@/components/Share/ShareAnythingModal";
@@ -22,13 +23,14 @@ import {v4 as uuidv4} from 'uuid';
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { CheckItemType } from "@/types/checkItem";
 import { savePrompts } from "@/utils/app/prompts";
-import { fetchEmptyRemoteConversations, fetchMultipleRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
+import { fetchAllRemoteConversations, fetchEmptyRemoteConversations, fetchMultipleRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import { conversationWithUncompressedMessages, deleteConversationCleanUp, isRemoteConversation, saveConversations } from "@/utils/app/conversation";
 import { getDateName } from "@/utils/app/date";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import React from "react";
 import toast from "react-hot-toast";
 import { getArchiveNumOfDays, getHiddenGroupFolders, saveArchiveNumOfDays, saveFolders } from "@/utils/app/folders";
+import { updateWithRemoteConversations } from "@/utils/app/conversationStorage";
 import { IconArchive } from '@tabler/icons-react';
 
 
@@ -48,6 +50,7 @@ interface Props {
     const [isShareDialogVisible, setIsShareDialogVisible] = useState<boolean>(false);
     const [isTagsDialogVisible, setIsTagsDialogVisible] = useState<boolean>(false); 
     const [allItemsChecked, setAllItemsChecked] = useState<boolean>(false);
+    const [showReSync, setShowReSync] = useState<boolean>(false);
 
     const [archiveConversationPastNumOfDays, setArchiveConversationPastNumOfDays] = useState<number>(getArchiveNumOfDays());
 
@@ -397,11 +400,41 @@ interface Props {
         return archiveConversationPastNumOfDays === 0;
     }
 
+    const reSyncConversations = async () => {
+        homeDispatch({ field: 'syncingConversations', value: true });
+        try {
+            const allRemoteConvs = await fetchAllRemoteConversations();
+            if (allRemoteConvs) {
+                const newCloudFolders = await updateWithRemoteConversations(allRemoteConvs, conversations, folders, homeDispatch, getDefaultModel(DefaultModels.DEFAULT));
+                const updatedFolders = [...folders, ...newCloudFolders.newfolders];
+                homeDispatch({ field: 'folders', value: updatedFolders });
+                saveFolders(updatedFolders);
+                toast("Cloud conversations successfully synced");
+            }
+        } catch (e) {
+            console.log("Failed to sync cloud conversations: ", e);
+            toast.error("Failed to sync cloud conversations.");
+        }
+        homeDispatch({ field: 'syncingConversations', value: false });
+    }
+        
+
     return (
         <React.Fragment>
-        <div className="flex items-center pb-1" style={{pointerEvents: isMenuOpen ? 'none' : 'auto'}}>
+        <div className="flex items-center pb-1" style={{pointerEvents: isMenuOpen ? 'none' : 'auto'}}
+         onMouseEnter={() => setShowReSync(true)}
+         onMouseLeave={() => setShowReSync(false)}>
           <div className="flex w-full items-center ml-1 text-black dark:text-neutral-200">
             <span className="sidebar-title text-xs uppercase tracking-wide opacity-60">{label}</span>
+            { isConvSide && !actionItem && !isSyncing && (showReSync || isMenuOpen) &&
+               <button
+                    title='Re-sync Conversations'
+                    disabled={isSyncing}
+                    className={`-mt-2 ml-2 text-sidebar flex-shrink-0 select-none items-center gap-3 rounded-md border dark:border-white/20 p-1.5 dark:text-white transition-colors duration-200 ${!isSyncing ? "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" : ""}`}
+                    onClick={async () => reSyncConversations()}
+                >  <IconRefresh size={16}/>
+                </button>
+            }
             { isSyncing && 
                 <div className="ml-auto mr-1 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 dark:border-blue-400/20 backdrop-blur-sm">
                     <div className="sync-dot w-1.5 h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-purple-500"></div>
@@ -444,7 +477,7 @@ interface Props {
                 </div>
             )}
 
-          <div className="relative inline-block text-left">
+          <div className="relative inline-block text-left" >
             { actionItem && checkIsActiveSide() ?
                 <div id="selectAllCheck" className={`z-10 p-0.5 rounded-sm ${ checkingItemType?.includes("Folder")? "": ""}`}>
                     <input

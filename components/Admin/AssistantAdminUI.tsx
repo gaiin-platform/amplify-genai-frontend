@@ -3192,52 +3192,57 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({ groupId, astPromptId, assi
                                                             <IconFiles size={20} />
                                                         </button>
 
-                                                        <AttachFile id={`__attachFile_admin_${type}_${groupId}_${astPromptId}`}
-                                                            groupId={groupId}
-                                                            disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
-                                                            onAttach={handlers.onAttach}
-                                                            onSetMetadata={handlers.onSetMetadata}
-                                                            onSetKey={handlers.onSetKey}
-                                                            onUploadProgress={handlers.onUploadProgress}
-                                                        />
-                                                    </div>
+                                        <AttachFile id={`__attachFile_admin_${type}_${groupId}_${astPromptId}`}
+                                                    groupId={groupId}
+                                                    disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
+                                                    onAttach={handlers.onAttach}
+                                                    onSetMetadata={handlers.onSetMetadata}
+                                                    onSetKey={handlers.onSetKey}
+                                                    onUploadProgress={handlers.onUploadProgress}
+                                                    disableRag={false}
+                                        />
+                                    </div>
 
-                                                    <FileList
-                                                        documents={data.dataSources.filter((ds: AttachedDocument) => !(preexistingDSids[type].includes(ds.id)))}
-                                                        documentStates={data.documentState}
-                                                        setDocuments={(docs: AttachedDocument[]) => updateGroupType(type, 'dataSources', docs)}
-                                                    />
-
-                                                    {showDataSourceSelector === type && (
-                                                        <div className="mt-[-10px] justify-center overflow-x-hidden">
-                                                            <div className="rounded bg-white dark:bg-[#343541]">
-                                                                <DataSourceSelector
-                                                                    disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
-                                                                    onClose={() => setShowDataSourceSelector('')}
-                                                                    minWidth="500px"
-                                                                    onDataSourceSelected={(d) => {
-                                                                        const doc = {
-                                                                            id: d.id,
-                                                                            name: d.name || "",
-                                                                            raw: null,
-                                                                            type: d.type || "",
-                                                                            data: "",
-                                                                            metadata: d.metadata,
-                                                                        };
-                                                                        updateGroupType(type, 'dataSources', [...groupTypeData[type].dataSources, doc]);
-                                                                        updateDocumentState(type, doc.id, 100);
-                                                                    }}
-                                                                    onIntegrationDataSourceSelected={featureFlags.integrations ?
-                                                                        (file: File) => {
-                                                                            handleFile(file, handlers.onAttach, handlers.onUploadProgress, handlers.onSetKey,
-                                                                                handlers.onSetMetadata, () => { }, featureFlags.uploadDocuments, groupId)
-                                                                        }
-                                                                        : undefined
-                                                                    }
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    )}
+                                    <FileList 
+                                        documents={data.dataSources.filter((ds:AttachedDocument) => !(preexistingDSids[type].includes(ds.id)))} 
+                                        documentStates={data.documentState}
+                                        setDocuments={(docs:AttachedDocument[]) => updateGroupType(type, 'dataSources', docs)} 
+                                        onCancelUpload={(ds:AttachedDocument) => { 
+                                            // Remove document from documentState
+                                            const updatedDocState = {...data.documentState};
+                                            delete updatedDocState[ds.id];
+                                            updateGroupType(type, 'documentState', updatedDocState);
+                                        }}
+                                    />
+                                    
+                                    {showDataSourceSelector === type && (
+                                        <div className="mt-[-10px] justify-center overflow-x-hidden">
+                                            <div className="rounded bg-white dark:bg-[#343541]">
+                                                <DataSourceSelector
+                                                    disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
+                                                    onClose={() => setShowDataSourceSelector('')}
+                                                    minWidth="500px"
+                                                    onDataSourceSelected={(d) => {
+                                                        const doc = {
+                                                            id: d.id,
+                                                            name: d.name || "",
+                                                            raw: null,
+                                                            type: d.type || "",
+                                                            data: "",
+                                                            metadata: d.metadata,
+                                                        };
+                                                        updateGroupType(type, 'dataSources', [...groupTypeData[type].dataSources, doc]);
+                                                        updateDocumentState(type, doc.id, 100);
+                                                    }}
+                                                    onIntegrationDataSourceSelected={featureFlags.integrations ? 
+                                                        (file: File) => { handleFile(file, handlers.onAttach, handlers.onUploadProgress, handlers.onSetKey, 
+                                                                          handlers.onSetMetadata, () => {}, featureFlags.uploadDocuments, groupId, featureFlags.ragEnabled)} 
+                                                        : undefined
+                                                    }
+                                                />
+                                            </div>
+                                        </div>
+                                    )} 
 
                                                     {preexistingDSids[type].length > 0 &&
                                                         <ExistingFileList

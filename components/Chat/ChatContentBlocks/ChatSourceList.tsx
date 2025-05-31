@@ -17,6 +17,8 @@ const ChatSourceBlock: React.FC<Props> = (
             return "Document Search Results (RAG)";
         } else if(name === "documentContext") {
             return "Attached Documents";
+        } else if(name === "documentCacheContext") {
+            return "Document Search Results (Advanced RAG)";
         } else if (name === "images") {
             return "Images"
         } else {
