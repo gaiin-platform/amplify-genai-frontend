@@ -50,12 +50,11 @@ const Folder = ({
   folderComponent
   
 }: Props) => {
-  const { handleDeleteFolder, handleUpdateFolder, state: {selectedConversation, folders, allFoldersOpenPrompts, allFoldersOpenConvs, checkingItemType, checkedItems, groups, featureFlags},
+  const { handleDeleteFolder, handleUpdateFolder, state: {selectedConversation, folders, allFoldersOpenPrompts, allFoldersOpenConvs, checkingItemType, checkedItems, groups, featureFlags, lightMode},
           dispatch: homeDispatch,} = useContext(HomeContext);
 
   const { data: session } = useSession();
   const user = session?.user?.email;
-  const theme = getSettings(featureFlags).theme;
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -121,7 +120,7 @@ const Folder = ({
   };
 
   const highlightDrop = (e: any) => {
-    if (canDropInto) e.target.style.background = theme === 'dark' ? '#343541' : '#e7e8e9';
+    if (canDropInto) e.target.style.background = lightMode === 'dark' ? '#343541' : '#e7e8e9';
   };
 
   const removeHighlight = (e: any) => {

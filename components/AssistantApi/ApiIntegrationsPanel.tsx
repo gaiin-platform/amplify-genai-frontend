@@ -160,7 +160,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
             />
             
             {addFunctionOpen && createPortal(
-              <div className={lightMode === 'dark' ? 'dark' : 'light'}>
+              <div className={lightMode}>
                 <PythonFunctionModal
                   onCancel={() => setAddFunctionOpen(false)}
                   onSave={pythonFunctionOnSave}
