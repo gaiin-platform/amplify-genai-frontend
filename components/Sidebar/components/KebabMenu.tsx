@@ -307,7 +307,7 @@ interface Props {
         }, { remoteConversationIdMap: {}, localEmptyConversations: [] });
 
         const remoteConversationIds: string[] = Object.keys(remoteConversationIdMap);
-        if (remoteConversationIds.length > 0 && localEmptyConversations.length > 0 ) {
+        if (remoteConversationIds.length > 0 || localEmptyConversations.length > 0 ) {
             toast("Removing Empty Conversations...");
             const fetchRemoteConversations = await fetchEmptyRemoteConversations();
 

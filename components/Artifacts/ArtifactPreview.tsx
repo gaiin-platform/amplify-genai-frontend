@@ -284,8 +284,7 @@ const VanillaPreview: React.FC<{ codeBlocks: CodeBlockDetails[]; height: number;
   
 
 const FrameworkPreview: React.FC<{ codeBlocks: CodeBlockDetails[]; height: number; framework: any }> = ({ codeBlocks, height, framework }) => {
-  const { dispatch: homeDispatch, state:{statsService, featureFlags} } = useContext(HomeContext);
-  const theme = getSettings(featureFlags).theme;
+  const { dispatch: homeDispatch, state:{statsService, featureFlags, lightMode} } = useContext(HomeContext);
   const [files, setFiles] = useState<{ [key: string]: { code: string } }>({});
 
   const setupReactFiles = (codeBlocks: CodeBlockDetails[]) => {
@@ -872,8 +871,7 @@ const PreviewSandpack: React.FC<PreviewSandpackProps> = ({ files, template, heig
   const [errorMessages, setErrorMessages] = useState<Set<string>>(new Set());
 
   // Keep this code as per your request
-  const { state: { featureFlags } } = useContext(HomeContext);
-  const theme = getSettings(featureFlags).theme;
+  const { state: { featureFlags, lightMode } } = useContext(HomeContext);
 
   // ErrorListener definition inside PreviewSandpack
   const ErrorListener: React.FC = () => {
@@ -996,7 +994,7 @@ const PreviewSandpack: React.FC<PreviewSandpackProps> = ({ files, template, heig
           </ul>
           </div>
         ) : (
-          <SandpackProvider files={files} template={template} theme={theme}>
+          <SandpackProvider files={files} template={template} theme={lightMode}>
             <SandpackLayout>
           
               <SandpackPreview
