@@ -953,7 +953,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           type: 'execution-log'
         }}
         conversationId={selectedLogDetails.details.sessionId || 'unknown-session'}
-        width={() => window.innerWidth * 0.62}
+        width={() => window.innerWidth * 0.5}
       />);
       return agentLog;
 
