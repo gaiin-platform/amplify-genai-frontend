@@ -771,6 +771,20 @@ export const ChatInput = ({
         }
     }, [plugins]);
 
+    // Artifacts mode cant be on when addedActions is in use
+    useEffect(() => {
+        const pluginIds = plugins.map((p: Plugin) => p.id);
+        const containsArtifacts = pluginIds.includes(PluginID.ARTIFACTS);
+        if (containsArtifacts && addedActions.length > 0) {
+            setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.ARTIFACTS));
+        }
+    }, [addedActions, featureFlags.artifacts]);
+
+    useEffect(() => { // if artifacts is toggled in plugin selector, set the added actions to an empty array
+        const containsArtifacts = plugins.map((p: Plugin) => p.id).includes(PluginID.ARTIFACTS);
+        if (containsArtifacts) setAddedActions([]);
+    }, [plugins]);
+
     return (
         <>
             { featureFlags.pluginsOnInput &&

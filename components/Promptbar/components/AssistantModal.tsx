@@ -1335,10 +1335,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
     return ( embed ? assistantModalContainer() :
         <Modal
-            title={"Assistant Admin Interface "}
+            title={"Assistants"}
             onSubmit={handleUpdateAssistant}
             onCancel={onCancel}
             showSubmit={!disableEdit}
+            submitLabel={"Save"}
             cancelLabel={disableEdit ? "Close" : 'Cancel'}
             content={<>{assistantModalContainer()}</>}
             disableClickOutside={true}
