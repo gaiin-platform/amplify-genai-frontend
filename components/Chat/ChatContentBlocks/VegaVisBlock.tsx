@@ -15,12 +15,12 @@ const VegaVis: React.FC<VegaProps> = ({ chart, currentMessage }) => {
 
     const [content, setContent] = useState<string>(chart);
     const [error, setError] = useState<string | null>(null);
-    const { state: { messageIsStreaming, chatEndpoint, statsService, selectedConversation}, getDefaultModel} = useContext(HomeContext);
+    const { state: { messageIsStreaming, chatEndpoint, statsService, defaultAccount}, getDefaultModel} = useContext(HomeContext);
 
     const repairJson = async () => {
         console.log("Attempting to fix json...");
         const model = getDefaultModel(DefaultModels.ADVANCED);
-        const fixedJson: string | null = await fixJsonString(model, chatEndpoint || "", statsService, chart, "Failed to create artifact, attempting to fix...");
+        const fixedJson: string | null = await fixJsonString(model, chatEndpoint || "", statsService, chart, defaultAccount, "Failed to create visualization, attempting to fix...");
          // try to repair json
         if (fixedJson) {
             setContent(fixedJson);

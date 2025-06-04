@@ -7,6 +7,7 @@ import { lzwUncompress } from "@/utils/app/lzwCompression";
 import cloneDeep from 'lodash/cloneDeep';
 import { Model } from "@/types/model";
 import { ARTIFACT_TRIGGER_CONDITIONS } from "@/utils/app/const";
+import { Account } from "@/types/accounts";
 
 
 const DIVIDER_CUSTOM_INSTRUCTIONS = `
@@ -241,7 +242,7 @@ const SMART_INCLUDE_ARTIFACT_INSTRUCTIONS = (prompt: string) => `
 
 export const getFocusedMessages = async (chatEndpoint:string, conversation:Conversation, statsService: any, 
                                          isArtifactsOn: boolean, isSmartMessagesOn: boolean, 
-                                         homeDispatch:any, advancedModel: Model, cheapestModel: Model) => {
+                                         homeDispatch:any, advancedModel: Model, cheapestModel: Model, account: Account | undefined) => {
     const defaultResponse = () => ({focusedMessages: conversation.messages, includeArtifactInstr: isArtifactsOn});
     if (!isArtifactsOn && !isSmartMessagesOn)  return defaultResponse();
     
@@ -276,7 +277,9 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
             temperature: 0.8,
             maxTokens: 2000,
             skipRag: true,
-            skipCodeInterpreter: true
+            skipCodeInterpreter: true,
+            accountId: account?.id,
+            rateLimit: account?.rateLimit
         };
 
         

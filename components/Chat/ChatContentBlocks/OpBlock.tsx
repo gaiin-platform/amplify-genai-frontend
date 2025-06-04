@@ -73,7 +73,7 @@ const OpBlock: React.FC<OpProps> = ({definition, message}) => {
     const [loadingMessage, setLoadingMessage] = useState<string>("");
     const [op, setOp] = useState<any>({});
 
-    const {state:{messageIsStreaming, selectedConversation, selectedAssistant, chatEndpoint}, dispatch:homeDispatch, getDefaultModel} = useContext(HomeContext);
+    const {state:{messageIsStreaming, selectedConversation, selectedAssistant, chatEndpoint, defaultAccount}, dispatch:homeDispatch, getDefaultModel} = useContext(HomeContext);
     const { data: session } = useSession();
     const user = session?.user;
 
@@ -165,7 +165,7 @@ const OpBlock: React.FC<OpProps> = ({definition, message}) => {
                     .filter(([key, value]) => !hiddenKeys.includes(key))
                     .map(([key, value]) => value);
 
-                const handler = resolveServerHandler(message, id, chatEndpoint, getDefaultModel(DefaultModels.CHEAPEST));
+                const handler = resolveServerHandler(message, id, chatEndpoint, getDefaultModel(DefaultModels.CHEAPEST), defaultAccount);
 
                 let request = null;
                 const assistantId =

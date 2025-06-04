@@ -51,7 +51,8 @@ const AutonomousBlock: React.FC<Props> = (
             cheapestModelId,
             featureFlags,
             workspaceMetadata,
-            chatEndpoint
+            chatEndpoint,
+            defaultAccount
         },
         shouldStopConversation,
         handleCreateFolder,
@@ -399,7 +400,7 @@ const AutonomousBlock: React.FC<Props> = (
             Local:${Object.keys(handlers)}`);
 
                 const handler =
-                    resolveServerHandler(message, url, chatEndpoint, getDefaultModel(DefaultModels.CHEAPEST))
+                    resolveServerHandler(message, url, chatEndpoint, getDefaultModel(DefaultModels.CHEAPEST), defaultAccount)
                     || handlers[url]
                     || handlers["/" + url];
 

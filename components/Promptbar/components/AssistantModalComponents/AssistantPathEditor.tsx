@@ -44,7 +44,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
     astPathData, setAstPathData,
     disableEdit = false,
 }) => {
-    const { state: { featureFlags, chatEndpoint, statsService, amplifyUsers }, getDefaultModel} = useContext(HomeContext);
+    const { state: { featureFlags, chatEndpoint, statsService, amplifyUsers, defaultAccount }, getDefaultModel} = useContext(HomeContext);
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
     
@@ -71,7 +71,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
     const checkPathIsAppropriate = async (path: string) => {
         const prompt = "Analyze if the provided url path contains any inappropriate words, phrases, or characters. The standard of appropriateness is the same as the content of a PG-13 movie. Your response should be only YES or NO in all caps.";
         const messages = [newMessage({role: 'user', content : `Is the following path appropriate for a public assistant path: ${path} \n Respond with either YES or NO in all caps`, type: MessageType.PROMPT})];
-        const updatedResponse = await promptForData(chatEndpoint ?? '', messages, getDefaultModel(DefaultModels.CHEAPEST), prompt, statsService, 20);
+        const updatedResponse = await promptForData(chatEndpoint ?? '', messages, getDefaultModel(DefaultModels.CHEAPEST), prompt, defaultAccount, statsService, 20);
         console.log("updatedResponse", updatedResponse);
         if (!updatedResponse) {
             console.log("Fallback to built in filter");

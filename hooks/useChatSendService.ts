@@ -53,7 +53,7 @@ export type ChatRequest = {
 
 export function useSendService() {
     const {
-        state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts, memoryExtractionEnabled },
+        state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts, memoryExtractionEnabled, defaultAccount },
         getDefaultModel,
         postProcessingCallbacks,
         dispatch: homeDispatch,
@@ -217,8 +217,7 @@ export function useSendService() {
 
                     // if both artifact and smart messages is off then it returnes with the messages right away 
                     const {focusedMessages, includeArtifactInstr} = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService,
-                        isArtifactsOn, isSmartMessagesOn, homeDispatch,
-                        getDefaultModel(DefaultModels.ADVANCED), getDefaultModel(DefaultModels.CHEAPEST));
+                        isArtifactsOn, isSmartMessagesOn, homeDispatch, getDefaultModel(DefaultModels.ADVANCED), getDefaultModel(DefaultModels.CHEAPEST), defaultAccount);
 
                     if (isArtifactsOn && !includeArtifactInstr) {
                         isArtifactsOn = false;
@@ -696,6 +695,7 @@ export function useSendService() {
                                         [], // Send empty array instead of conversation messages
                                         getDefaultModel(DefaultModels.CHEAPEST),
                                         extractFactsPrompt,
+                                        defaultAccount,
                                         statsService
                                     );
 

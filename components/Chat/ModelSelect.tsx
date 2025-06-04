@@ -21,6 +21,7 @@ interface Props {
   models?: Model[];
   defaultModelId?: string;
   outlineColor?: string;
+  showPricingBreakdown?: boolean;
 }
 
 export const ModelSelect: React.FC<Props> = ({
@@ -31,7 +32,7 @@ export const ModelSelect: React.FC<Props> = ({
   applyModelFilter = true,
   disableMessage = 'Model has been predetermined and cannot be changed',
   models: presetModels, defaultModelId: backupDefaultModelId,
-  outlineColor
+  outlineColor, showPricingBreakdown = true
 }) => {
   const { t } = useTranslation('chat');
 
@@ -141,7 +142,7 @@ const getIcons = (model: Model) => {
           </label>
           <div id="legendHover" className='ml-auto' onMouseEnter={() => setShowLegend(true) } onMouseLeave={() => setShowLegend(false)}>
             <IconInfoCircle size={19} className='mr-1 mt-[-4px] flex-shrink-0 text-gray-600 dark:text-gray-300' />
-            {showLegend && legend()}
+            {showLegend && legend(showPricingBreakdown)}
           </div>
         </div>
       )}
@@ -201,7 +202,7 @@ const legendItem = (icon: JSX.Element, message: string) => {
   );
 };
 
-const legend = () => {
+const legend = (showPricingBreakdown: boolean) => {
   return (
     <div className='text-black dark:text-white absolute mt-1 w-[260px] rounded-lg border border-neutral-200 bg-white p-4 text-sm shadow-lg z-20 dark:border-neutral-600 dark:bg-[#343541]'
          style={{transform: 'translateX(-85%)'}}>
@@ -216,13 +217,14 @@ const legend = () => {
       {legendItem( <IconBaselineDensitySmall size={16} />, 'Large Output Token Limit : ≥ 100,000 tokens')}
       {legendItem( <IconBaselineDensityMedium size={16} />, 'Average Output Token Limit : 4,096 - 100,000 tokens' )}
       {legendItem(<IconBaselineDensityLarge size={16} />, 'Less than Average Output Token Limit : < 4,096 tokens' )}
+      {showPricingBreakdown &&
       <div className='mt-2 text-sm text-gray-500 dark:text-gray-400'>
        View the full pricing breakdown: Click on the gear icon on the left sidebar, go to <strong>Settings</strong>, and scroll down to  
        <strong className='text-blue-500 dark:text-blue-400 cursor-pointer hover:underline'
        onClick={() => {window.dispatchEvent(new CustomEvent('openSettingsTrigger', {detail: {openToTab: "Configurations"}}));
                      }}>{" View Model Pricing"}
        </strong> tab.
-      </div>
+      </div>}
     </div>
   );
 };
