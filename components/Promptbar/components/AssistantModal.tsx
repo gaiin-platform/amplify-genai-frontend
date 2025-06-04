@@ -49,15 +49,13 @@ interface Props {
     disableEdit?: boolean;
     title?: string;
     onCreateAssistant?: (astDef: AssistantDefinition) => Promise<{ id: string; assistantId: string; provider: string }>;
-    width?: string;
     height?: string;
-    translateY?: string;//
-    blackoutBackground?:boolean;//
     additionalTemplates?:Prompt[];
     autofillOn?:boolean;
     embed?: boolean;
     children?: ReactElement;
     additionalGroupData?: any;
+    disableEmailEvents?: boolean;
 }
 
 const dataSourceFlags = [
@@ -149,12 +147,14 @@ const apiOptionFlags = [
 
 
 export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdateAssistant, loadingMessage, loc, 
-                                          disableEdit=false, title, onCreateAssistant,height, width = `${window.innerWidth * 0.6}px`,
-                                          translateY, blackoutBackground=true, additionalTemplates, autofillOn=false, embed=false, additionalGroupData, children}) => {
+                                          disableEdit=false, title, onCreateAssistant, height, additionalTemplates, 
+                                          autofillOn=false, embed=false, additionalGroupData, children}) => {
     const {t} = useTranslation('promptbar');
     const { data: session } = useSession();
     const userEmail = session?.user?.email ?? '';
     const { state: { prompts, featureFlags, amplifyUsers, aiEmailDomain } , setLoadingMessage} = useContext(HomeContext);
+
+    const isGroupAst = loc.includes("admin");
 
     const definition = getAssistant(assistant);
 
@@ -301,7 +301,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [currentWorkflowTemplate, setCurrentWorkflowTemplate] =  useState<AstWorkflow | null>(null);
 
     // email events
-    const [enableEmailEvents, setEnableEmailEvents] = useState<boolean>(!!definition.data?.emailEvents);
+    const [enableEmailEvents, setEnableEmailEvents] = useState<boolean>(isGroupAst ? false : !!definition.data?.emailEvents);
     const [emailEventTag, setEmailEventTag] = useState<string | undefined>(definition.data?.emailEvents?.tag);
     const [emailEventTemplate, setEmailEventTemplate] = useState<{systemPrompt?: string, userPrompt?: string} | undefined>(definition.data?.emailEvents?.template);
     const [isEmailTagAvailable, setIsEmailTagAvailable] = useState<boolean>(!!emailEventTag);
@@ -471,7 +471,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 setOpsLanguageVersion(data.opsLanguageVersion);
                 if (data.operations) setApiInfo(data.operations.filter( (api:any) => api.type === "http") || []);
                 if (data.baseWorkflowTemplateId) setBaseWorkflowTemplateId(data.baseWorkflowTemplateId);
-                if (data.emailEvents?.template) {
+                if (data.emailEvents?.template && !isGroupAst) {
                     setEnableEmailEvents(true);
                     setEmailEventTemplate(data.emailEvents?.template);
                 }
@@ -950,7 +950,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     <DataSourceSelector
                                             disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                             minWidth="500px"
-                                            // height='310px'
                                             onDataSourceSelected={(d) => {
                                                 const doc = {
                                                     id: d.id,
@@ -1252,7 +1251,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         disabled={disableEdit}
                                     />}
 
-                                    {featureFlags.assistantEmailEvents && 
+                                    {featureFlags.assistantEmailEvents && !isGroupAst &&
                                      <AssistantEmailEvents
                                         assistantId={definition.assistantId}
                                         initialEmailEventTag={definition.data?.emailEvents?.tag}

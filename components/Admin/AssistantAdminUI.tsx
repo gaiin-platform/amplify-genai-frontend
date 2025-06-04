@@ -2001,11 +2001,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                         disableEdit={!!showCreateGroupAssistant}
                         loc={"admin_update"}
                         //  title={selectedGroup?.name + " Assistant"}
-                        width={`${innderWindow.width - 140}px`}
                         height={`${(innderWindow.height * 0.76) - 165}px`}
-                        translateY={'-5%'}
                         embed={true}
-                        blackoutBackground={false}
                         additionalGroupData={additionalGroupData}
                         onCreateAssistant={(astDef: AssistantDefinition) => { return handleCreateAssistant(astDef, GroupUpdateType.UPDATE) }}
                     >
@@ -2115,7 +2112,6 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                         height={`${innderWindow.height * 0.7}px`}
                                         additionalTemplates={allAssistants()}
                                         autofillOn={true}
-                                        translateY='-4%'
                                         additionalGroupData={additionalGroupData}
                                         onCreateAssistant={(astDef: AssistantDefinition) => { return handleCreateAssistant(astDef, GroupUpdateType.ADD) }}
                                     >

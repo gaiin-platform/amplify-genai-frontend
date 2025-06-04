@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import Head from 'next/head';
 import { Theme } from '@/types/settings';
-import { UserAvatar } from '@/components/Layout/UserAvatar';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -71,11 +70,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({
             <header className="border-b border-neutral-200 dark:border-neutral-600 bg-white dark:bg-[#343541] py-4 px-6 flex justify-between items-center">
               <div className="flex items-center justify-between w-full">
                 <div>{header}</div>
-                <div>
-                  <UserAvatar 
-                    email="user@example.com" 
-                  />
-                </div>
               </div>
             </header>
           )}
