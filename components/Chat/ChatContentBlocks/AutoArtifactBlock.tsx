@@ -28,7 +28,8 @@ const AutoArtifactsBlock: React.FC<Props> = ({content, ready, message}) => {
             statsService,
             chatEndpoint,
             artifactIsStreaming,
-            messageIsStreaming
+            messageIsStreaming,
+            defaultAccount
         },
         dispatch: homeDispatch, handleUpdateSelectedConversation, getDefaultModel
     } = useContext(HomeContext);
@@ -138,7 +139,7 @@ You goal is to maximize the saved tokens **while providing the user with a qulit
 
 const repairJson = async () => {
     const model = getDefaultModel(DefaultModels.ADVANCED);
-    const fixedJson: string | null = await fixJsonString( model, chatEndpoint || "", statsService, content, "Failed to create artifact, attempting to fix...");
+    const fixedJson: string | null = await fixJsonString( model, chatEndpoint || "", statsService, content, defaultAccount, "Failed to create artifact, attempting to fix...");
      // try to repair json
      if (fixedJson) {
         message.data.artifactStatus = ArtifactMessageStatus.RETRY; 
@@ -332,7 +333,9 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             skipRag: true,
             skipCodeInterpreter: true,
             artifactsMode: true,
-            requestId: requestId
+            requestId: requestId,
+            accountId: defaultAccount?.id,
+            rateLimit: defaultAccount?.rateLimit
             };
 
             statsService.sendChatEvent(chatBody);

@@ -15,11 +15,12 @@ import { Model } from "@/types/model";
 import {getSession } from "next-auth/react"
 import { sendChatRequestWithDocuments } from "@/services/chatService";
 import cloneDeep from 'lodash/cloneDeep';
+import { Account } from "@/types/accounts";
 
 
 
 export const promptForData = async (chatEndpoint:string, messages: Message[], model: Model, 
-                                     prompt: string, statsService: any = null, maxTokens: number = 4000) => {
+                                    prompt: string, account?: Account, statsService: any = null, maxTokens: number = 4000) => {
     const controller = new AbortController();
     
      const accessToken = await getSession().then((session) => { 
@@ -45,7 +46,9 @@ export const promptForData = async (chatEndpoint:string, messages: Message[], mo
             temperature: 0.5,
             maxTokens: maxTokens,
             skipRag: true,
-            skipCodeInterpreter: true
+            skipCodeInterpreter: true,
+            accountId: account?.id,
+            rateLimit: account?.rateLimit
         };
 
         if (statsService) statsService.sendChatEvent(chatBody);

@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { getSession, useSession, signIn } from 'next-auth/react';
 import { useTranslation } from 'next-i18next';
-import { IconMessage, IconSend, IconInfoCircle, IconCamera, IconCameraOff, IconCurrencyDollar, IconBaselineDensitySmall, IconBaselineDensityMedium, IconBaselineDensityLarge, IconChevronUp, IconChevronDown, IconSquare, Icon3dCubeSphere } from '@tabler/icons-react';
+import { IconMessage, IconSend, IconChevronUp, IconChevronDown, IconSquare, Icon3dCubeSphere } from '@tabler/icons-react';
 import { getAvailableModels } from '@/services/adminService';
 import { sendDirectAssistantMessage, lookupAssistant } from '@/services/assistantService';
 import { getSettings } from '@/utils/app/settings';
@@ -18,7 +18,6 @@ import { ModelSelect } from '@/components/Chat/ModelSelect';
 import { AssistantDefinition } from '@/types/assistant';
 import { GroupTypeSelector } from '@/components/Chat/GroupTypeSelector';
 import AssistantContentBlock from '@/components/StandAloneAssistant/AssistantContentBlock';
-import { isMemberOfAstAdminGroup } from '@/services/groupsService';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
 import { 
   IconCopy, 
@@ -28,6 +27,9 @@ import {
   IconMail
 } from '@tabler/icons-react';
 import styled from 'styled-components';
+import { Account, noCoaAccount } from '@/types/accounts';
+import { noRateLimit } from '@/types/rateLimit';
+import { getAccounts } from '@/services/accountService';
 
 // Extend the Model type to include isDefault property
 interface Model extends BaseModel {
@@ -80,6 +82,7 @@ const AssistantPage = ({
   const [editing, setEditing] = useState<number | null>(null);
   const [editedContent, setEditedContent] = useState("");
   const [abortController, setAbortController] = useState<AbortController>(new AbortController());
+  const [defaultAccount, setDefaultAccount] = useState<Account | null>(null);
 
   // Add the shimmer animation useEffect here with the other hooks
   useEffect(() => {
@@ -237,6 +240,18 @@ const AssistantPage = ({
         } else {
           console.error('Failed to load models:', modelsResponse.error);
         }
+
+        setLoadingMessage('Loading account...');
+        const accountResponse = await getAccounts();
+        if (accountResponse.success) {
+            const defaultAccount = accountResponse.data.find((account: any) => account.isDefault);
+            if (defaultAccount && !defaultAccount.rateLimit) defaultAccount.rateLimit = noRateLimit; 
+            setDefaultAccount(defaultAccount || noCoaAccount);
+            return;
+        } else {
+            console.log("Failed to fetch accounts.");
+        }
+
         
         // Look up the assistant by path
         setLoadingMessage('Finding assistant...');
@@ -319,7 +334,9 @@ const AssistantPage = ({
         console.error('Model is missing id:', activeModel);
         throw new Error("The selected model is invalid. Please select a different model.");
       }
-      const options = {groupType:  requiredGroupType ? groupType : undefined, groupId: assistantDefinition?.data?.groupId};
+      const options = {groupType:  requiredGroupType ? groupType : undefined, groupId: assistantDefinition?.data?.groupId, 
+                       accountId: defaultAccount?.id, rateLimit: defaultAccount?.rateLimit
+                      };
       // Send the message to the assistant with conversation history and selected model
       const result = await sendDirectAssistantMessage(
         chatEndpoint,
@@ -688,6 +705,7 @@ const AssistantPage = ({
                               handleModelChange={handleModelChange}
                               models={models}
                               defaultModelId={defaultModel?.id}
+                              showPricingBreakdown={false}
                   />
               </div>
             </div>

@@ -97,7 +97,7 @@ export const ChatInput = ({
     const {
         state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming,
             prompts,  featureFlags, currentRequestId, chatEndpoint, statsService, availableModels,
-            extractedFacts, memoryExtractionEnabled, ragOn},
+            extractedFacts, memoryExtractionEnabled, ragOn, defaultAccount},
         getDefaultModel, handleUpdateConversation,
         dispatch: homeDispatch
     } = useContext(HomeContext);
@@ -699,7 +699,7 @@ export const ChatInput = ({
         setShowMessageSelectDialog(false);
         setIsQiLoading(true);
         setShowQiDialog(true);
-        const summary = await createQiSummary(chatEndpoint || '', getDefaultModel(DefaultModels.CHEAPEST), conversation, QiSummaryType.CONVERSATION, statsService);
+        const summary = await createQiSummary(chatEndpoint || '', getDefaultModel(DefaultModels.CHEAPEST), conversation, QiSummaryType.CONVERSATION, statsService, defaultAccount);
         setQiSummary(summary);
         setIsQiLoading(false);
     }

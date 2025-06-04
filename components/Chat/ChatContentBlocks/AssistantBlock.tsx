@@ -23,7 +23,7 @@ interface AssistantProps {
 
 
 const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
-    const {state:{selectedConversation, statsService, messageIsStreaming, prompts, featureFlags, chatEndpoint},  
+    const {state:{selectedConversation, statsService, messageIsStreaming, prompts, featureFlags, chatEndpoint, defaultAccount},  
            dispatch:homeDispatch, getDefaultModel} = useContext(HomeContext);
     const { data: session } = useSession();
     const user = session?.user;
@@ -129,7 +129,7 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
             }
             catch(e) {
                 const model = getDefaultModel(DefaultModels.ADVANCED);
-                const fixedJson: string | null = await fixJsonString(model, chatEndpoint || "", statsService, definitionStr);
+                const fixedJson: string | null = await fixJsonString(model, chatEndpoint || "", statsService, definitionStr, defaultAccount);
                 // try to repair json
                 const parsed:any  = fixedJson ? JSON.parse(fixedJson) : null;
                 definition = parsed ?? parsePrefixedLines(definitionStr);

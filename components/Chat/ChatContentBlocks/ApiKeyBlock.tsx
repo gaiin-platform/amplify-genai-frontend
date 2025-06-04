@@ -40,7 +40,7 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
     const [data, setData] = useState<any>(null);
     const [requiredCreateKeys, setRequiredCreateKeys] = useState<any>(null);
     const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
-    const {state:{statsService, messageIsStreaming, chatEndpoint, advancedModelId, availableModels, selectedConversation}, 
+    const {state:{statsService, messageIsStreaming, chatEndpoint, defaultAccount}, 
            dispatch:homeDispatch, getDefaultModel} = useContext(HomeContext);
     const { data: session } = useSession();
 
@@ -54,7 +54,7 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
     const repairJson = async () => {
         console.log("Attempting to fix json...");
         const model = getDefaultModel(DefaultModels.ADVANCED);
-        const fixedJson: string | null = await fixJsonString(model, chatEndpoint || "", statsService, content, "Failed to create artifact, attempting to fix...");
+        const fixedJson: string | null = await fixJsonString(model, chatEndpoint || "", statsService, content, defaultAccount, "Failed to render request, attempting to fix...");
          // try to repair json
          const parsed:any  = fixedJson ? JSON.parse(fixedJson) : null;
         if (parsed && parsed.DATA) {
