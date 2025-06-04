@@ -231,7 +231,7 @@ export const ConversationComponent = ({ conversation}: Props) => {
           title="View Conversation"
         >
           <div className="flex-1 min-w-0 flex items-center">
-          {isLocalConversation(conversation) ? <IconMessage size={18} /> 
+          {isLocalConversation(conversation) ? <IconMessage className="flex-shrink-0" size={18} /> 
                                             : <div>
                                                 <IconCloud className="block dark:hidden flex-shrink-0" size={18} />
                                                 <IconCloudFilled className="hidden dark:block dark:text-neutral-200 flex-shrink-0" size={18} />
