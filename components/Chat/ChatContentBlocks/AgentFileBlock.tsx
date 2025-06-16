@@ -7,7 +7,6 @@ import {
   IconFileTypePdf, 
   IconPhoto,
   IconFile,
-  IconZoomIn
 } from '@tabler/icons-react';
 import { getFileDownloadUrls } from '@/services/agentService';
 import { guessMimeType } from '../ChatContentBlocks/AgentLogBlock';
@@ -60,6 +59,7 @@ const AgentFileBlock: React.FC<Props> = ({ filePath, message }) => {
           setLoading(false);
           return;
         }
+        // console.log('agentLog', agentLog);
         
         // Get download URL for the file
         const urls = await getFileDownloadUrls({
