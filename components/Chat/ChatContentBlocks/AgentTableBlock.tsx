@@ -91,26 +91,185 @@ const AgentTableBlock: React.FC<Props> = ({ filePath, message }) => {
         const response = await fetch(downloadUrl);
         const text = await response.text();
 
-        Papa.parse(text, {
-          header: true,
-          dynamicTyping: true,
-          complete: (results: { errors: string | any[]; data: any[] }) => {
-            if (results.errors && results.errors.length > 0) {
-              setError(`Parse error: ${results.errors[0].message}`);
-              setLoading(false);
-              return;
+        // Debug: Log first few lines of the file to help diagnose issues
+        console.log('File content preview:', text.substring(0, 500));
+        console.log('File length:', text.length);
+        
+        // Additional debugging: analyze file structure
+        const lines = text.split('\n').slice(0, 5); // First 5 lines
+        console.log('First 5 lines:', lines);
+        console.log('Line count:', text.split('\n').length);
+        
+        // Check for common issues
+        if (text.length === 0) {
+          setError('The file appears to be empty.');
+          setLoading(false);
+          return;
+        }
+        
+        if (text.length < 10) {
+          setError('The file is too small to contain valid CSV data.');
+          setLoading(false);
+          return;
+        }
+        
+        // Check if it looks like a binary file
+        const binaryPattern = /[\x00-\x08\x0E-\x1F\x7F-\xFF]/;
+        if (binaryPattern.test(text.substring(0, 100))) {
+          setError('The file appears to be binary or contains non-text data. Please ensure you\'re uploading a text-based CSV file.');
+          setLoading(false);
+          return;
+        }
+
+        // Try multiple delimiters in order of preference
+        const delimitersToTry = ['', ',', ';', '\t', '|'];
+        let parseSuccess = false;
+        let lastError: any = null;
+
+        // Check if the file appears to have headers
+        const firstLine = lines[0] || '';
+        const hasHeaders = !firstLine.match(/^[\d\s,;|\t.-]+$/); // If first line is only numbers and separators, probably no headers
+
+        for (const delimiter of delimitersToTry) {
+          try {
+            await new Promise<void>((resolve, reject) => {
+              Papa.parse(text, {
+                header: hasHeaders, // Use headers only if detected
+                dynamicTyping: true,
+                delimiter: delimiter,
+                skipEmptyLines: true,
+                transformHeader: (header: string) => header.trim(),
+                transform: (value: string) => value.trim(),
+                complete: (results: { errors: string | any[]; data: any[]; meta: any }) => {
+                  console.log(`Trying delimiter: "${delimiter || 'auto'}" with headers: ${hasHeaders}`, results.meta);
+                  
+                  // Check if parsing was successful
+                  const errors = Array.isArray(results.errors) ? results.errors : [results.errors];
+                  const criticalErrors = errors.filter((error: any) => 
+                    error && (
+                      error.type === 'Delimiter' || 
+                      (error.type === 'FieldMismatch' && error.code === 'TooFewFields')
+                    )
+                  );
+                  
+                  // Consider parsing successful if we have data and no critical errors
+                  if (results.data && results.data.length > 0 && criticalErrors.length === 0) {
+                    let filteredData = results.data.filter((row) =>
+                      Object.values(row).some((val) => val !== null && val !== ''),
+                    );
+                    
+                    // If no headers were detected, create column names
+                    if (!hasHeaders && filteredData.length > 0) {
+                      const firstRow = filteredData[0];
+                      if (Array.isArray(firstRow)) {
+                        // Convert array data to object with column names
+                        filteredData = filteredData.map((row: any[]) => {
+                          const obj: any = {};
+                          row.forEach((value, index) => {
+                            obj[`Column ${index + 1}`] = value;
+                          });
+                          return obj;
+                        });
+                      }
+                    }
+                    
+                    if (filteredData.length > 0) {
+                      console.log(`Successfully parsed with delimiter: "${delimiter || 'auto'}" (headers: ${hasHeaders})`);
+                      setData(filteredData);
+                      setLoading(false);
+                      parseSuccess = true;
+                      resolve();
+                      return;
+                    }
+                  }
+                  
+                  // Store the error for potential use later
+                  if (criticalErrors.length > 0) {
+                    lastError = criticalErrors[0];
+                  }
+                  
+                  reject(new Error(`Failed with delimiter: ${delimiter || 'auto'}`));
+                },
+                error: (error: { message: any }) => {
+                  console.log(`Parse error with delimiter "${delimiter || 'auto'}":`, error.message);
+                  reject(new Error(error.message));
+                },
+              });
+            });
+            
+            // If we get here, parsing was successful
+            break;
+            
+          } catch (err) {
+            console.log(`Failed to parse with delimiter "${delimiter || 'auto'}":`, err);
+            continue;
+          }
+        }
+
+        // If none of the delimiters worked, show helpful error
+        if (!parseSuccess) {
+          let errorMessage = 'Could not parse the file as CSV. ';
+          
+          // Provide more specific guidance based on file analysis
+          const firstLine = lines[0] || '';
+          const hasCommas = firstLine.includes(',');
+          const hasSemicolons = firstLine.includes(';');
+          const hasTabs = firstLine.includes('\t');
+          const hasPipes = firstLine.includes('|');
+          
+          if (lastError) {
+            if (lastError.type === 'Delimiter') {
+              errorMessage += 'The file format is not recognized as CSV. ';
+              
+              // Suggest likely delimiters based on content
+              if (hasCommas || hasSemicolons || hasTabs || hasPipes) {
+                errorMessage += 'Detected possible separators: ';
+                const separators = [];
+                if (hasCommas) separators.push('commas');
+                if (hasSemicolons) separators.push('semicolons');
+                if (hasTabs) separators.push('tabs');
+                if (hasPipes) separators.push('pipes');
+                errorMessage += separators.join(', ') + '. ';
+              }
+              
+              errorMessage += 'Please ensure the file uses standard CSV formatting.';
+            } else if (lastError.code === 'TooFewFields') {
+              errorMessage += `Row ${lastError.row + 1} has inconsistent column count. Please check the file for missing data or formatting issues.`;
+            } else {
+              errorMessage += `Parse error: ${lastError.message}`;
             }
-            const filteredData = results.data.filter((row) =>
-              Object.values(row).some((val) => val !== null && val !== ''),
-            );
-            setData(filteredData);
-            setLoading(false);
-          },
-          error: (error: { message: any }) => {
-            setError(`Error parsing CSV: ${error.message}`);
-            setLoading(false);
-          },
-        });
+          } else {
+            // No specific error, provide general guidance
+            if (lines.length === 1) {
+              errorMessage += 'The file appears to have only one line. CSV files typically need multiple rows of data.';
+            } else if (lines.length === 2 && !lines[1].trim()) {
+              if (!hasHeaders) {
+                errorMessage += 'The file appears to contain only one row of data with no headers. Consider adding column headers as the first row, or the data might be incomplete.';
+              } else {
+                errorMessage += 'The file appears to have headers but no data rows.';
+              }
+            } else if (firstLine.length > 1000) {
+              errorMessage += 'The first line is very long, which might indicate the file is not properly formatted as CSV.';
+            } else if (!hasCommas && !hasSemicolons && !hasTabs && !hasPipes) {
+              errorMessage += 'No common CSV separators (commas, semicolons, tabs, pipes) were detected in the first line.';
+            } else {
+              errorMessage += 'The file might be corrupted, in an unsupported format, or have formatting issues.';
+            }
+          }
+          
+          console.log('Final error analysis:', { 
+            firstLine, 
+            hasCommas, 
+            hasSemicolons, 
+            hasTabs, 
+            hasPipes, 
+            lines, 
+            hasHeaders,
+            lineCount: lines.length 
+          });
+          setError(errorMessage);
+          setLoading(false);
+        }
       } catch (err) {
         setError(`Failed to load table data: ${err instanceof Error ? err.message : String(err)}`);
         setLoading(false);

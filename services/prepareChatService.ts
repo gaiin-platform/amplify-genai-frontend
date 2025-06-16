@@ -8,6 +8,7 @@ import cloneDeep from 'lodash/cloneDeep';
 import { Model } from "@/types/model";
 import { ARTIFACT_TRIGGER_CONDITIONS } from "@/utils/app/const";
 import { Account } from "@/types/accounts";
+import { scrubMessages } from "@/utils/app/messages";
 
 
 const DIVIDER_CUSTOM_INSTRUCTIONS = `
@@ -255,7 +256,7 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
     let customInstructions = isSmartMessagesOn ? DIVIDER_CUSTOM_INSTRUCTIONS : "";
 
     const topicData = gatherDataForPrompt(cloneDeep(conversation), isSmartMessagesOn, isArtifactsOn);
-    const messageTopicDataOnly = topicData.messages;
+    const messageTopicDataOnly = scrubMessages(topicData.messages)
     // only if we artifacts defined will we include the instructions 
     if (topicData.artifactLen > 0) customInstructions +=  ARTIFACT_CUSTOM_INSTRUCTIONS;
 

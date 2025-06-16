@@ -26,7 +26,6 @@ import { doReadMemoryOp } from '@/services/memoryService';
 import {
     ExtractedFact,
     Memory,
-    MemoryOperationResponse
 } from '@/types/memory';
 import { getSettings } from '@/utils/app/settings';
 import { promptForData } from '@/utils/app/llm';
@@ -35,6 +34,7 @@ import {
     getRelevantMemories,
     buildMemoryContextPrompt
 } from '@/utils/app/memory';
+import { handleAgentRun, handleAgentRunResult, isWaitingForAgentResponse } from '@/utils/app/agent';
 
 export type ChatRequest = {
     message: Message;
@@ -54,7 +54,7 @@ export type ChatRequest = {
 export function useSendService() {
     const {
         state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts, memoryExtractionEnabled, defaultAccount },
-        getDefaultModel,
+        getDefaultModel, handleUpdateSelectedConversation,
         postProcessingCallbacks,
         dispatch: homeDispatch,
     } = useContext(HomeContext);
@@ -63,6 +63,9 @@ export function useSendService() {
     const user = session?.user;
 
     const conversationsRef = useRef(conversations);
+    
+    // Add ref to track running agent sessions
+    const runningAgentSessions = useRef<Set<string>>(new Set());
 
     useEffect(() => {
         conversationsRef.current = conversations;
@@ -73,6 +76,12 @@ export function useSendService() {
     useEffect(() => {
         foldersRef.current = folders;
     }, [folders]);
+
+    const cleanupHomeState = () => {
+        homeDispatch({ field: 'messageIsStreaming', value: false });
+        homeDispatch({ field: 'loading', value: false });
+        homeDispatch({ field: 'status', value: [] });
+    }
 
     const {
         sendChatRequest,
@@ -124,6 +133,49 @@ export function useSendService() {
     //         totalCost: (inputCost + outputCost).toFixed(2)
     //     };
     // }
+
+    useEffect(() => {
+        const awaitAgentRun = async (sessionId: string) => {
+            // Check if this session is already running
+            if (runningAgentSessions.current.has(sessionId)) {
+                console.log(`Agent run for session ${sessionId} is already in progress`);
+                return;
+            }
+            
+            // Mark this session as running
+            runningAgentSessions.current.add(sessionId);
+            
+            try {
+                homeDispatch({field: 'messageIsStreaming', value: true}); 
+                const agentResult = await handleAgentRun(sessionId, (status: any) => homeDispatch({ field: "status", value: [newStatus(status)] }) );
+                if (agentResult && selectedConversation) {
+                    const lastIndex = selectedConversation.messages.length - 1;
+                    selectedConversation.messages[lastIndex].data.state.agentLog = agentResult;
+                    const updatedConversation = await handleAgentRunResult(agentResult, selectedConversation, getDefaultModel(DefaultModels.CHEAPEST), defaultAccount, homeDispatch, statsService, chatEndpoint || '');
+                    handleUpdateSelectedConversation(updatedConversation);
+                } else {
+                    console.error("Agent run failed");
+                    const updatedMessages = selectedConversation?.messages;
+                    if (updatedMessages) {
+                        const lastMsgIndex = updatedMessages.length - 1;
+                        updatedMessages[lastMsgIndex].content = "No response from the agent. Please try again later.";
+                        updatedMessages[lastMsgIndex].data.state.agentRun.endTime = new Date();
+                        handleUpdateSelectedConversation({...selectedConversation, messages: updatedMessages});
+                    }
+                }
+            } finally {
+                // Always remove the session from running set when done
+                runningAgentSessions.current.delete(sessionId);
+                cleanupHomeState();
+            }
+        }
+
+        if (selectedConversation) {
+            const agentRunData =  isWaitingForAgentResponse(selectedConversation);
+            if (agentRunData?.sessionId) awaitAgentRun(agentRunData.sessionId);
+        }
+    }, [selectedConversation?.messages]);
+    
 
     const handleSend = useCallback(
         async (request: ChatRequest, shouldAbort: () => boolean) => {
@@ -458,8 +510,7 @@ export function useSendService() {
 
 
                         if (!response || !response.ok) {
-                            homeDispatch({ field: 'loading', value: false });
-                            homeDispatch({ field: 'messageIsStreaming', value: false });
+                            cleanupHomeState();
                             toast.error(response.statusText);
                             try {
                                 // Clone the response to read the body (streams can only be read once)
@@ -474,8 +525,7 @@ export function useSendService() {
                         }
                         const data = response.body;
                         if (!data) {
-                            homeDispatch({ field: 'loading', value: false });
-                            homeDispatch({ field: 'messageIsStreaming', value: false });
+                            cleanupHomeState();
                             return;
                         }
                         homeDispatch({ field: 'loading', value: false });
@@ -593,9 +643,7 @@ export function useSendService() {
                                         saveConversations(updatedConversations);
                                     }
                                 }
-                                homeDispatch({ field: 'messageIsStreaming', value: false });
-                                homeDispatch({ field: 'loading', value: false });
-                                homeDispatch({ field: 'status', value: [] });
+                                cleanupHomeState();
                                 return;
                             }
                         }
@@ -661,8 +709,8 @@ export function useSendService() {
                                 saveConversations(updatedConversations);
                             }
                         }
-
-                        homeDispatch({ field: 'messageIsStreaming', value: false });
+            
+                        if (!isWaitingForAgentResponse(updatedConversation)) homeDispatch({ field: 'messageIsStreaming', value: false });
 
                         // Run memory extraction after main response is processed
                         if (isMemoryOn && memoryExtractionEnabled) {
@@ -752,24 +800,22 @@ export function useSendService() {
                         resolve(text);
 
                     } catch (error: any) {
-                        homeDispatch({ field: 'loading', value: false });
-                        homeDispatch({ field: 'messageIsStreaming', value: false });
-                        homeDispatch({
-                            field: 'status',
-                            value: [],
-                        });
+                        cleanupHomeState();
                         return;
                         //reject(error);
                         // Handle any other errors, as required.
                     } finally {
                         window.removeEventListener('killChatRequest', handleStopGenerationEvent);
                     }
-
-                    //Reset the status display
-                    homeDispatch({
-                        field: 'status',
-                        value: [],
-                    });
+                    
+                    if (!isWaitingForAgentResponse(updatedConversation))  {
+                        //Reset the status display
+                        homeDispatch({
+                            field: 'status',
+                            value: [],
+                        });   
+                    }
+                   
                 }
             });
         },

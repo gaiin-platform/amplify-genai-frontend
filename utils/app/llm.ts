@@ -14,8 +14,8 @@ import {  Message } from "@/types/chat";
 import { Model } from "@/types/model";
 import {getSession } from "next-auth/react"
 import { sendChatRequestWithDocuments } from "@/services/chatService";
-import cloneDeep from 'lodash/cloneDeep';
 import { Account } from "@/types/accounts";
+import { scrubMessages } from "./messages";
 
 
 
@@ -29,18 +29,9 @@ export const promptForData = async (chatEndpoint:string, messages: Message[], mo
                             })
 
     try {
-        const updatedMessages = cloneDeep(messages);
-        // remove ds 
-        updatedMessages.forEach(m => {
-            if (m.data) {
-                if (m.data.dataSources) m.data.dataSources = null;
-                if (m.data.state && m.data.state.sources) m.data.state.sources = null;
-            }
-        })
-        
         const chatBody = {
             model: model,
-            messages: updatedMessages,
+            messages: scrubMessages(messages),
             key: accessToken,
             prompt: prompt,
             temperature: 0.5,

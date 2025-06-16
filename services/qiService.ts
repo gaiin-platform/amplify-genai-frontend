@@ -5,6 +5,7 @@ import { getSession } from "next-auth/react"
 import { sendChatRequestWithDocuments } from "./chatService";
 import { doRequestOp } from "./doRequestOp";
 import { Account } from "@/types/accounts";
+import { scrubMessages } from "@/utils/app/messages";
 
 const URL_PATH = "/qi";
 const SERVICE_NAME = "qi";
@@ -37,7 +38,7 @@ export const createQiSummary = async (chatEndpoint: string, model: Model, data: 
     try {
         const chatBody = {
             model: model,
-            messages: [...data.messages, { role: 'user', content: getPrompt(type) } as Message],
+            messages: scrubMessages([...data.messages, { role: 'user', content: getPrompt(type) } as Message]),
             key: accessToken,
             prompt: "Ensure to follow the instructions exactly.",
             temperature: 0.5,
