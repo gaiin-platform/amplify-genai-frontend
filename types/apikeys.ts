@@ -14,6 +14,7 @@ export interface ApiKey {
     accessTypes: string[];
     systemId: string;
     lastAccessed: string;
+    purpose?: string;
 }
 
 
