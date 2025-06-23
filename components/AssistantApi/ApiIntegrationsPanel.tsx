@@ -92,8 +92,10 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
     }
   ];
 
-  const handleOptionClick = (optionId: string) => {
-    setShownAPIComponent(optionId);
+  const handleOptionClick = (optionId: string, allowClose=false) => {
+    setShownAPIComponent(!allowClose ? optionId :
+      (shownAPIComponent === optionId ? "" : optionId)
+    );
     setDropdownOpen(false);
   };
 
@@ -290,7 +292,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
               <button 
                 key={option.id}
                 className={buttonClassName(shownAPIComponent === option.id)}
-                onClick={() => handleOptionClick(option.id)}
+                onClick={() => handleOptionClick(option.id, true)}
                 disabled={option.isDisabled}
               >
                 {option.icon}

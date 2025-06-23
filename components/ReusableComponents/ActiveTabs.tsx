@@ -92,10 +92,10 @@ export const ActiveTabs: FC<Props> = ({id, tabs, initialActiveTab, onTabChange, 
                         setActiveTab(index);
                         if (onTabChange) onTabChange(index, tab.label);
                     }}
-                    className={`group relative px-2 flex flex-shrink-0 transition-all duration-300 overflow-hidden whitespace-nowrap ${
+                    className={`group relative flex flex-shrink-0 transition-all duration-300 overflow-hidden whitespace-nowrap ${
                         isActiveTab(index) 
                             ? `px-6 py-3 border-b bg-white dark:bg-[#2d2d3a] dark:text-white shadow-lg z-10 translate-y-0 scale-105 font-medium` 
-                            : 'bg-neutral-200/50 dark:bg-[#27282f]/70 text-gray-500 dark:text-gray-400 hover:bg-neutral-100 dark:hover:bg-[#2a2b32] hover:-translate-y-1 translate-y-1 backdrop-blur-sm'
+                            : 'px-2 bg-neutral-200/50 dark:bg-[#27282f]/70 text-gray-500 dark:text-gray-400 hover:bg-neutral-100 dark:hover:bg-[#2a2b32] hover:-translate-y-1 translate-y-1 backdrop-blur-sm'
                         }`} 
                     style={{
                         color: isActiveTab(index) ? colors[depth]?.value : '',

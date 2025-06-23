@@ -506,9 +506,7 @@
   border-bottom-left-radius: 12px;
 }
 
-.modern-table tbody tr:last-child td:nth-last-child(2) {
-  border-bottom-right-radius: 12px;
-}
+
 
 /* Subtle hover effects */
 .modern-table tbody tr {

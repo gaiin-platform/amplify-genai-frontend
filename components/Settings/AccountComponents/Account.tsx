@@ -52,8 +52,6 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
 
     const [accountRateLimitPeriod, setAccountRateLimitPeriod] = useState<PeriodType>(UNLIMITED);
     const [accountRateLimitRate, setAccountRateLimitRate] = useState<string>('');
-
-    const [isSaving, setIsSaving ] = useState(false);
     
     // helps keep track of cases like added act (unsavechanges) -> delete newly addded act (no unsavedchanges)
     const [addedAccounts, setAddedAccounts ] = useState<string[]>([]);
@@ -182,7 +180,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
             alert("You must have at least one account.");
             return;
         }
-        setIsSaving(true);
+        toast("Saving Account changes..."); 
 
         let updatedAccounts = accounts.map(account => {
             return { ...account, isDefault: account.name === defaultAccount.name };
@@ -201,7 +199,6 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
             setAddedAccounts([]);
             toast("Account changes saved.");
         }
-        setIsSaving(false);
         
     }
 

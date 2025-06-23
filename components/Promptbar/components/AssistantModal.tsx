@@ -254,12 +254,13 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [builtInAgentTools, setBuiltInAgentTools] = useState<string[]>(definition.data?.builtInOperations ?? []);
 
     const [availableOnRequest, setAvailableOnRequest] = useState(definition.data?.availableOnRequest || false);
-    
+    const [astIcon, setAstIcon] = useState<AttachedDocument | undefined>(definition.data?.astIcon);
     // Path-related state
     const [astPath, setAstPath] = useState<string|null>(featureFlags.assistantPathPublishing ? definition.astPath || definition.data?.astPath || definition.pathFromDefinition : null); // initialize in useEffect
     const [isCheckingPath, setIsCheckingPath] = useState(true);
     const [isPathAvailable, setIsPathAvailable] = useState<boolean>(!!astPath); 
     const [astPathData, setAstPathData] = useState<AstPathData | null>(null);
+    const originalAstPathData = useRef<AstPathData | null>(null);
     
     useEffect(() => {
         const lookupPath = async () => {
@@ -285,6 +286,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 pathData = {isPublic: data.public ?? true, 
                             accessTo: {amplifyGroups: accessTo.amplifyGroups ?? [], 
                                         users: accessTo.users ?? []}};
+                originalAstPathData.current = pathData;
             } 
             setAstPathData(pathData);
         }
@@ -589,7 +591,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             newAssistant.data.opsLanguageVersion = opsLanguageVersion;
             newAssistant.data.availableOnRequest = availableOnRequest;
 
-            newAssistant.data.builtInOperations = builtInAgentTools; 
+            newAssistant.data.astIcon = astIcon;
 
             if (!baseWorkflowTemplateId && definition.data?.workflowTemplateId) {
                 console.log("removing workflow template")
@@ -666,7 +668,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
             newAssistant.data = {
                 ...newAssistant.data,
-                operations: combinedOps//selectedApis
+                operations: combinedOps,
+                builtInOperations: builtInAgentTools
             };
 
             if (apiOptions.IncludeApiInstr && apiInfo.some(api => !validateApiInfo(api))) {
@@ -675,7 +678,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 setLoadingMessage("");
                 return;
             }
-
+            
             if (assistant.groupId) newAssistant.data.groupId = assistant.groupId;
             
             const updatedAdditionalGroupData = prepAdditionalData();
@@ -709,7 +712,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             // If we have an assistantId and astPath, update the path in DynamoDB
             // if path has changed or pathData has changed
             if (featureFlags.assistantPathPublishing && assistantId && astPath &&
-                (astPath !== definition.astPath || isAstPathDataChanged(astPathData, definition.data?.astPathData))) {
+                (astPath !== definition.astPath || isAstPathDataChanged(astPathData, originalAstPathData.current))) {
                 try {
                     const formattedPath = astPath.toLowerCase();
                     setLoadingMessage(`Publishing assistant to ${window.location.origin}/assistants/${formattedPath}...`);
@@ -1133,7 +1136,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                     savedAstPath={definition.astPath}
                                                     astPath={astPath}
                                                     setAstPath={setAstPath}
+                                                    astIcon={astIcon}
+                                                    setAstIcon={setAstIcon}
                                                     assistantId={definition.assistantId}
+                                                    groupId={assistant.groupId}
                                                     astPathData={astPathData}
                                                     setAstPathData={setAstPathData}
                                                     isPathAvailable={isPathAvailable}

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useContext } from 'react';
 import { signOut } from 'next-auth/react';
-import { IconLogout, IconCreditCard, IconRocket, IconShare, IconTools, IconUsers, IconShield, IconSun, IconMoon, IconX, IconCurrencyDollar, IconUser, IconSettings, IconHelp } from '@tabler/icons-react';
+import { IconLogout, IconCreditCard, IconRocket, IconShare, IconTools, IconUsers, IconShield, IconSun, IconMoon, IconX, IconCurrencyDollar, IconUser, IconSettings, IconHelp, IconLoader2 } from '@tabler/icons-react';
 import { doMtdCostOp } from '@/services/mtdCostService';
 import ColorPaletteSelector, { COLOR_PALETTES } from './ColorPaletteSelector';
 import HomeContext from '@/pages/api/home/home.context';
@@ -27,7 +27,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   cognitoClientId,
 }) => {
   const { dispatch, state: { lightMode, showUserMenu, featureFlags, supportEmail }, dispatch: homeDispatch } = useContext(HomeContext);
-  const [mtdCost, setMtdCost] = useState<string>('$0.00');
+  const [mtdCost, setMtdCost] = useState<string>('0');
   const [currentPalette, setCurrentPalette] = useState<string>('warm-browns');
   const [currentTone, setCurrentTone] = useState<'userPrimary' | 'userSecondary' | 'assistantPrimary' | 'assistantSecondary'>('userPrimary');
   const menuRef = useRef<HTMLDivElement>(null);
@@ -294,19 +294,20 @@ export const UserMenu: React.FC<UserMenuProps> = ({
         title="User Menu"
       >
         <div 
-          className="p-2 text-white cursor-pointer animate-pop"
+          className="cursor-pointer animate-pop"
           style={{
             background: getAvatarGradient(),
-            borderRadius: '10px',
-            width: '40px',
-            height: '40px',
+            borderRadius: '2rem',
+            width: '45px',
+            height: '45px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             boxShadow: '0 4px 8px rgba(0, 0, 0, 0.3)',
             transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
             animation: 'pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-            transformOrigin: 'center'
+            transformOrigin: 'center',
+            padding: '2px'
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = 'scale(1.1)';
@@ -319,12 +320,39 @@ export const UserMenu: React.FC<UserMenuProps> = ({
             e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
           }}
         >
-          {/* User Avatar with initials */}
-          <div 
-            className="font-semibold font-sans" 
-            style={{ color: getContrastTextColor(getAvatarBackgroundColor()) }}
+          {/* White ring */}
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '50%',
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1px'
+            }}
           >
-            {getUserInitials()}
+            {/* Inner colored circle with initials */}
+            <div
+              style={{
+                background: getAvatarGradient(),
+                borderRadius: '50%',
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              {/* User Avatar with initials */}
+              <div 
+                className="font-semibold font-sans text-white" 
+                style={{ color: getContrastTextColor(getAvatarBackgroundColor()) }}
+              >
+                {getUserInitials()}
+              </div>
+            </div>
           </div>
           <style jsx>{`
             @keyframes pop {
@@ -349,7 +377,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 
       {/* Dropdown Menu - Only visible when showUserMenu is true */}
       {showUserMenu && (
-        <div className="fixed inset-0 z-[9998] flex items-start justify-end p-4 mt-[-4px]">
+        <div className="fixed inset-0 z-[9998] flex items-start justify-end p-4 mt-[-1px]">
           {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-black bg-opacity-25"
@@ -385,7 +413,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   <div className="sidebar-text font-medium text-neutral-700 dark:text-neutral-300">Month-To-Date Cost</div>
                 </div>
                 <div className="text-lg font-bold text-blue-600 dark:text-blue-400 text-center transition-all duration-300 hover:scale-105" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
-                  {mtdCost}
+                 {mtdCost === '0' ? <div className="flex justify-center"> <IconLoader2 size={24} className="animate-spin" /> </div> : <>{mtdCost}</>}  
                 </div>
               </div>
             )}
@@ -457,7 +485,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 
                 
               )}
-              { (
+              { featureFlagsRef.current.adminInterface && <>
                 <button
                   onClick={() => {
                     setShowAdminInterface(true);
@@ -468,8 +496,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   <IconShield size={16} className="icon-pop-group enhanced-icon text-red-500" />
                   <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">Admin</span>
                 </button>
-              )}
-              { (
+              
                 <button
                   onClick={() => {
                     setShowUserCosts(true);
@@ -480,7 +507,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   <IconCurrencyDollar size={16} className="icon-pop-group enhanced-icon text-green-500" />
                   <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">User Costs</span>
                 </button>
-              )}
+              </>
+              }
               <button
                 onClick={() => {
                   setShowSettings(true);
@@ -488,7 +516,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                 }}
                 className={commonClassname}
               >
-                <IconSettings size={16} className="icon-pop-group enhanced-icon text-purple-500" />
+         <IconSettings size={16} className="icon-pop-group enhanced-icon text-purple-500" />
                 <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">Settings</span>
               </button>
 
@@ -513,7 +541,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
       )}
 
       <div className="text-black dark:text-white">
-        <SettingDialog open={showSettings} onClose={() => setShowSettings(false)} />
+        {showSettings && <SettingDialog open={showSettings} onClose={() => setShowSettings(false)} />}
         {/* Allow this to render upon every open  */}
         {showAssistantAdmin && featureFlagsRef.current.assistantAdminInterface && 
          <AssistantAdminUI

@@ -1,6 +1,7 @@
 // components/DataSources/WebsiteURLInput.tsx
 import React, { useState } from 'react';
 import { IconWorld, IconSitemap } from '@tabler/icons-react';
+import Checkbox from '../ReusableComponents/CheckBox';
 
 interface WebsiteURLInputProps {
     onAddURL: (url: string, isSitemap: boolean) => void;
@@ -36,17 +37,13 @@ export const WebsiteURLInput: React.FC<WebsiteURLInputProps> = ({ onAddURL }) =>
                 </button>
             </div>
             <div className="flex items-center gap-2">
-                <label className="flex items-center gap-1 cursor-pointer">
-                    <input
-                        type="checkbox"
-                        checked={isSitemap}
-                        onChange={(e) => setIsSitemap(e.target.checked)}
-                        className="rounded"
-                    />
-                    <span className="text-sm flex items-center gap-1">
-                        <IconSitemap size={16} /> This is a sitemap URL
-                    </span>
-                </label>
+                <Checkbox
+                    id="sitemap-checkbox"
+                    label="This is a sitemap URL"
+                    checked={isSitemap}
+                    onChange={setIsSitemap}
+                />
+               <IconSitemap className="-mt-1 -ml-1" size={16} />
             </div>
         </form>
     );
