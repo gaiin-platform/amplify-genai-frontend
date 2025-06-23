@@ -64,7 +64,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
     const [editMode, setEditMode] = useState<boolean>(false);
     const [viewMode, setViewMode] = useState<string>('Actions');
     // State for agent tools
-    const [agentTools, setAgentTools] = useState<AgentTool[]>([]);
+    const [agentTools, setAgentTools] = useState<AgentTool[] | null>(null);
     // State for selected action set
     const [selectedActionSet, setSelectedActionSet] = useState<any>(null);
 
@@ -428,7 +428,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                                     activeColor={"text-blue-700 dark:text-blue-300"}
                                                     options={[
                                                         { id: 'ai', name: 'AI',
-                                                          title: 'Let AI generate the parameter value',
+                                                          title: "Let AI generate the parameter value. Add hints to influence the assigned parameter value (optional).",
                                                           icon: IconRobot
                                                         },
                                                         { id: 'manual', name: 'Manual',
@@ -444,7 +444,9 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                                 type="text"
                                                 value={paramValues[paramName] || ''}
                                                 onChange={(e) => handleParamValueChange(paramName, e.target.value)}
-                                                placeholder={`Enter ${formatOperationName(paramName)} value...`}
+                                                placeholder={paramModes[paramName] === 'manual' ? 
+                                                             `Enter ${formatOperationName(paramName)} value...` : 
+                                                             'AI value generation hints (optional)'}
                                                 className="flex-1 px-3 py-2 border rounded-md bg-white dark:bg-[#343541] border-gray-300 dark:border-neutral-600
                           text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500
                           focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-shadow duration-150"

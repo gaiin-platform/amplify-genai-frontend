@@ -271,7 +271,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
     const [apiUnsavedChanges, setApiUnsavedChanges] = useState(false);
    
     const handleClose = () => {
-      if (accountsUnsavedChanges || apiUnsavedChanges || hasUnsavedChanges && !confirm("You have unsaved changes.\n\nYou will lose any unsaved data, would you still like to close Settings?")) return;
+      if ((accountsUnsavedChanges || apiUnsavedChanges || hasUnsavedChanges) && !confirm("You have unsaved changes.\n\nYou will lose any unsaved data, would you still like to close Settings?")) return;
       
       // Reset all state variables to their original values when closing
       if (initSettingsRef.current) {
@@ -343,6 +343,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
       }
       submitLabel={"Save"}
       disableSubmit={!hasUnsavedChanges && !otherChanges()}
+      disableClickOutside={true}
       content={
         <>
         <ActiveTabs
