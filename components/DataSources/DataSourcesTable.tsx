@@ -152,7 +152,10 @@ const DataSourcesTable = () => {
                         setIsError(true);
                     }
 
-                    const updatedWithCommonNames = result.data.items.map((file: any) => {
+                    // dont show assistant icons in the data source table
+                    const items = result.data.items.filter((file: any) => file?.data?.type !== 'assistant-icon');
+
+                    const updatedWithCommonNames = items.map((file: any) => {
                         const commonName = mimeTypeToCommonName[file.type];
                         return {
                             ...file,

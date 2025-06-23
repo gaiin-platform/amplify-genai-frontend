@@ -33,7 +33,7 @@ import {PromptList} from './PromptList';
 import {VariableModal} from './VariableModal';
 import {DefaultModels, Model, REASONING_LEVELS, ReasoningLevels} from "@/types/model";
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
-import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
+import {COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {getAssistants} from "@/utils/app/assistants";
@@ -707,7 +707,7 @@ export const ChatInput = ({
     const getDisallowedFileExtensions = () => {
         return [ ...COMMON_DISALLOWED_FILE_EXTENSIONS,
             ...(selectedConversation?.model?.supportsImages
-                ? [] : ["jpg","png","gif", "jpeg", "webp"] ) ]
+                ? [] : IMAGE_FILE_EXTENSIONS ) ]
     }
 
     const handleCloseAllPopups = () => {

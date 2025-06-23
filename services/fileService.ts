@@ -127,7 +127,7 @@ export const addFile = async (metadata: AttachedDocument, file: File, onProgress
                 name: metadata.name,
                 knowledgeBase: "default",
                 tags: tags,
-                data: {},
+                data: metadata.data,
                 groupId: metadata.groupId,
                 ragOn: ragEnabled
             }

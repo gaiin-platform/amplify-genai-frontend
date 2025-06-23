@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { getSession, useSession, signIn } from 'next-auth/react';
 import { useTranslation } from 'next-i18next';
-import { IconMessage, IconSend, IconChevronUp, IconChevronDown, IconSquare, Icon3dCubeSphere } from '@tabler/icons-react';
+import { IconMessage, IconSend, IconChevronUp, IconChevronDown, IconSquare, Icon3dCubeSphere, IconLoader2 } from '@tabler/icons-react';
 import { getAvailableModels } from '@/services/adminService';
 import { sendDirectAssistantMessage, lookupAssistant } from '@/services/assistantService';
 import { getSettings } from '@/utils/app/settings';
@@ -30,6 +30,9 @@ import styled from 'styled-components';
 import { Account, noCoaAccount } from '@/types/accounts';
 import { noRateLimit } from '@/types/rateLimit';
 import { getAccounts } from '@/services/accountService';
+import { AttachedDocument } from '@/types/attacheddocument';
+import { getFileDownloadUrl } from '@/services/fileService';
+import { fetchImageFromPresignedUrl } from '@/utils/app/files';
 
 // Extend the Model type to include isDefault property
 interface Model extends BaseModel {
@@ -52,7 +55,6 @@ const AssistantPage = ({
   assistantSlug,
 }: Props) => {
   const { t } = useTranslation('chat');
-  const router = useRouter();
   const { data: session } = useSession();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -83,6 +85,7 @@ const AssistantPage = ({
   const [editedContent, setEditedContent] = useState("");
   const [abortController, setAbortController] = useState<AbortController>(new AbortController());
   const [defaultAccount, setDefaultAccount] = useState<Account | null>(null);
+  const [astIconUrl, setAstIconUrl] = useState<string | null>(null);
 
   // Add the shimmer animation useEffect here with the other hooks
   useEffect(() => {
@@ -137,6 +140,15 @@ const AssistantPage = ({
       document.head.removeChild(style);
     };
   }, []);
+
+  // Cleanup object URL when component unmounts or astIconUrl changes
+  useEffect(() => {
+    return () => {
+      if (astIconUrl && astIconUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(astIconUrl);
+      }
+    };
+  }, [astIconUrl]);
 
   // Get the current active model (selected or default)
   const activeModel = selectedModel || defaultModel;
@@ -261,6 +273,8 @@ const AssistantPage = ({
         
         if (assistantResult.success) {
           const { assistantId, definition } = assistantResult;
+          // console.log("definition", definition); 
+          handleGetAstIcon(definition?.data?.astIcon);
           setAssistantDefinition(definition as AssistantDefinition);
 
           if (Object.keys(definition?.data?.groupTypeData || {}).length > 0) {
@@ -532,29 +546,72 @@ const AssistantPage = ({
     setMessageState({ ...messageState, [messageIndex]: state });
   }
 
+  const handleGetAstIcon = async (dataSource: AttachedDocument | undefined) => {
+    if (astIconUrl !== null || !dataSource || !dataSource.key) return;
+    setAstIconUrl(''); // will trigger loading 
+
+    try {
+        const response = await getFileDownloadUrl(dataSource.key, dataSource.groupId);
+        if (!response.success) {
+            console.error("Error getting file download URL");
+            setAstIconUrl(null);
+            return;
+        }
+        
+        const blob = await fetchImageFromPresignedUrl(response.downloadUrl, dataSource.type || '');
+        if (!blob) {
+          setAstIconUrl(null);
+            return;
+        }
+        
+        // Convert blob to URL
+        const imageUrl = URL.createObjectURL(blob);
+        setAstIconUrl(imageUrl);
+    } catch (error) {
+        console.error("Error loading image:", error);
+        setAstIconUrl(null);
+    } 
+  }
+
+  const getAstIcon = () => { 
+    switch (astIconUrl) {
+      case null:
+        return <IconMessage className="text-blue-600 dark:text-blue-300" size={26} />;
+      case '':
+        return <IconLoader2 className="text-blue-600 dark:text-blue-300 animate-spin" size={30} />;
+      case astIconUrl:
+        return astIconUrl && (
+          <img 
+            src={astIconUrl} 
+            alt="Assistant icon" 
+            className="w-[54px] h-[54px] object-cover rounded"
+            onError={() => setAstIconUrl(null)}
+          />
+        );
+    }
+  }
+
+
   // Content for header
   const headerContent = (
     <div className="flex items-center gap-3 w-full">
-      <div className="flex-shrink-0 bg-blue-100 dark:bg-blue-900 p-2 rounded-full flex items-center justify-center">
-        <IconMessage className="text-blue-600 dark:text-blue-300" size={22} />
+      <div className={`flex-shrink-0 rounded-full flex items-center justify-center ${astIconUrl ? '' : 'bg-blue-100 dark:bg-blue-900 p-2'}`}>
+        {getAstIcon()}
       </div>
+
       <div className="group relative flex items-center">
-        <h1 id="assistantNameTitle" className="text-xl font-bold text-neutral-800 dark:text-neutral-100 leading-none py-1">
-          {assistantName}
-        </h1>
-        <div id="hoverIDDescriptionBlock" className="absolute left-0 top-full mt-1 hidden rounded-md bg-gray-800 p-3 text-xs text-white shadow-lg group-hover:block z-10 max-w-[350px] w-max">
-          <p className="mb-1 break-all"><span className="font-bold">ID:</span> {assistantId}</p>
-          <p className="break-words"><span className="font-bold">Description:</span> {assistantDefinition?.description || 'Not provided'}</p>
+          <h1 id="assistantNameTitle" className="text-[1.4rem] mt-auto h-full font-bold text-neutral-800 dark:text-neutral-100 leading-none">
+            {assistantName}
+          </h1>
+          <div id="hoverIDDescriptionBlock" className="absolute left-0 top-full mt-1 hidden rounded-md bg-gray-800 p-3 text-xs text-white shadow-lg group-hover:block z-10 max-w-[350px] w-max">
+            <p className="mb-1 break-all"><span className="font-bold">ID:</span> {assistantId}</p>
+            <p className="break-words"><span className="font-bold">Description:</span> {assistantDefinition?.description || 'Not provided'}</p>
+          </div>
         </div>
-      </div>
-      {groupType && <div className="ml-auto text-xl font-bold text-neutral-800 dark:text-neutral-100  py-1">{groupType}</div>}
+        {groupType && <div className="absolute right-10 text-xl font-bold text-neutral-800 dark:text-neutral-100">{groupType}</div>}
     </div>
   );
 
-  // Log assistant name whenever it changes - for debugging
-  useEffect(() => {
-    // Removed debug logging
-  }, [assistantName]);
 
  
   const filterMessages = () => {
