@@ -26,7 +26,7 @@ export const AssistantWorkflowSelector: React.FC<Props> = ({
     const allowWorkflowCreation = featureFlags.createAssistantWorkflows;
 
     const fetchAstWorkflowTemplates = async () => {      
-            const response = await listAstWorkflowTemplates(true);
+            const response = await listAstWorkflowTemplates(true, true);
             const baseTemplates = response.success ? response.data?.templates ?? [] : [];
             // console.log("templates", templates);
             setWorkflowTemplates(baseTemplates);
