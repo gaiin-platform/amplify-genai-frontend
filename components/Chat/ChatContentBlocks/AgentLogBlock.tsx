@@ -195,7 +195,7 @@ const getAgentLogItem = (msg: any) => {
         </div>
         <div className="ml-9">
           <div className="flex items-center gap-2 mb-1">
-            {!msg.content.skipped && <IconBrackets className="min-w-[16px] text-amber-500 dark:text-amber-400" />}
+            {!msg.content?.skipped && <IconBrackets className="min-w-[16px] text-amber-500 dark:text-amber-400" />}
             <span className="font-medium text-amber-600 dark:text-amber-300">
               {msg.content?.skipped ? "Reasoning: " : "Arguments: "}
             </span>
@@ -215,7 +215,7 @@ const getAgentLogItem = (msg: any) => {
               },
             }}
           >
-            {msg.content && msg.content.args ? `\`\`\`json\n${JSON.stringify(msg.content.args, null, 2)}\n\`\`\`` : msg.content.skipped ?? ""}
+            {msg.content && msg.content.args ? `\`\`\`json\n${JSON.stringify(msg.content.args, null, 2)}\n\`\`\`` : msg.content?.skipped ?? ""}
           </MemoizedReactMarkdown>
         </div> 
       </div>
