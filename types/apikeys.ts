@@ -15,6 +15,7 @@ export interface ApiKey {
     systemId: string;
     lastAccessed: string;
     purpose?: string;
+    needs_rotation?: boolean;
 }
 
 

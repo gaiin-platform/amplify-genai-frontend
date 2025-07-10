@@ -129,8 +129,6 @@ const Home = ({
     const [dataDisclosure, setDataDisclosure] = useState<{url: string, html: string | null}|null>(null);
     const [hasAcceptedDataDisclosure, sethasAcceptedDataDisclosure] = useState<boolean | null> (null);
 
-    const [isMemoryDialogOpen, setIsMemoryDialogOpen] = useState(false);
-
     const { data: session, status } = useSession();
     const [user, setUser] = useState<DefaultUser | null>(null);
 
@@ -737,12 +735,12 @@ const Home = ({
                     sethasAcceptedDataDisclosure(decisionValue);
                     if (!decisionValue) { // Fetch the latest data disclosure only if the user has not accepted it
                         const latestDisclosure = await getLatestDataDisclosure();
-                        // console.log(latestDisclosure);
                         const latestDisclosureBodyObject = JSON.parse(latestDisclosure.body);
+                        // console.log(latestDisclosure);
                         const latestDisclosureUrlPDF = latestDisclosureBodyObject.pdf_pre_signed_url;
                         const latestDisclosureHTML = latestDisclosureBodyObject.html_content;
                         setDataDisclosure({url: latestDisclosureUrlPDF, html: latestDisclosureHTML});
-
+                        // console.log("Data Disclosure: ", {url: latestDisclosureUrlPDF, html: latestDisclosureHTML});
                         checkScrollableContent();
                     }
                 } catch (error) {
@@ -1327,12 +1325,7 @@ const Home = ({
                                     }}
                                     onScroll={handleScroll}
                                     dangerouslySetInnerHTML={{ __html: dataDisclosure.html }}
-                                > 
-                                {/*  for when we try out markitdown in pdf to md conversion in the backend
-                                <DataDisclosure
-                                content='dataDisclosure.html'
-                                /> */}
-                                    
+                                >   
                                 </div>
 
                             ) : (

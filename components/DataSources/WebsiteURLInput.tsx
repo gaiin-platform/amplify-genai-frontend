@@ -1,7 +1,12 @@
 // components/DataSources/WebsiteURLInput.tsx
 import React, { useState } from 'react';
-import { IconWorld, IconSitemap } from '@tabler/icons-react';
+import { IconSitemap } from '@tabler/icons-react';
 import Checkbox from '../ReusableComponents/CheckBox';
+import { AttachedDocument } from '@/types/attacheddocument';
+
+export const isWebsiteDs = (document: AttachedDocument) => {
+    return ['website/url', 'website/sitemap'].includes(document.type);
+}
 
 interface WebsiteURLInputProps {
     onAddURL: (url: string, isSitemap: boolean) => void;

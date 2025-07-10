@@ -1,11 +1,11 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
-import { IconPlus, IconEye, IconCopy, IconCheck, IconX, IconUser, IconEdit, IconArticle, IconRobot, IconLoader2 } from "@tabler/icons-react";
+import { IconPlus, IconEye, IconCopy, IconCheck, IconX, IconUser, IconEdit, IconArticle, IconRobot, IconLoader2, IconExclamationCircle } from "@tabler/icons-react";
 import HomeContext from '@/pages/api/home/home.context';
 import ExpansionComponent from '../../Chat/ExpansionComponent';
 import { EmailsAutoComplete } from '@/components/Emails/EmailsAutoComplete';
 import { Account, noCoaAccount } from '@/types/accounts';
-import { createApiKey, deactivateApiKey, fetchAllApiKeys, fetchApiDoc, fetchApiKey, updateApiKeys } from '@/services/apiKeysService';
+import { createApiKey, deactivateApiKey, fetchAllApiKeys, fetchApiDoc, updateApiKeys, rotateApiKey } from '@/services/apiKeysService';
 import { ApiKey } from '@/types/apikeys';
 import { PeriodType, formatRateLimit, UNLIMITED, rateLimitObj} from '@/types/rateLimit'
 import { useSession } from 'next-auth/react';
@@ -25,6 +25,8 @@ import { InfoBox } from '@/components/ReusableComponents/InfoBox';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
 import { fetchFile } from '@/utils/app/files';
 import { ActiveTabs } from '@/components/ReusableComponents/ActiveTabs';
+import { IconRotateClockwise2 } from '@tabler/icons-react';
+import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 
 interface Props {
     setUnsavedChanges: (b: boolean) => void;
@@ -58,7 +60,7 @@ const formatAccessType = (accessType: string) => {
 }
 
 export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount, open, onClose}) => {
-    const { state: {featureFlags, statsService, amplifyUsers}, dispatch: homeDispatch } = useContext(HomeContext);
+    const { state: { statsService, amplifyUsers}, dispatch: homeDispatch } = useContext(HomeContext);
 
     const { data: session } = useSession();
     const user = session?.user?.email;
@@ -71,6 +73,10 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
     const [delegateApiKeys, setDelegateApiKeys] = useState<ApiKey[] | null>(null);
     const [isCreating, setIsCreating] = useState<boolean>(false);
     const [isLoading, setIsLoading] = useState(true);
+
+    // New state for the confirmation modal
+    const [showNewKeyModal, setShowNewKeyModal] = useState<boolean>(false);
+    const [newApiKeyValue, setNewApiKeyValue] = useState<string>('');
 
     const [appName, setAppName] = useState<string>("");
     const [appDescription, setAppDescriptione] = useState<string>("");
@@ -227,21 +233,24 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
             'systemUse' : systemUse && delegateInput.length === 0
         }
         const result = await createApiKey(data)
-        const sucess = result.success;
         setIsCreating(false);
 
-        //done first for preloadeding keys while user handles alert 
-        if (sucess) {
+        // empty out all the create key fields
+        if (result.success && (result.data?.apiKey || result.data?.delegate)) {
+            // Show the new API key in a confirmation modal for non delegate keys
+            console.log("result.data api key ", result.data?.apiKey);
+            console.log("result.data delegate ", result.data?.delegate);
+            if (result.data?.apiKey && !result.data?.delegate) {
+                setNewApiKeyValue(result.data.apiKey);
+                setShowNewKeyModal(true);
+            }
+            
             setApiKeys([]);
             statsService.createApiKeyEvent(data);
             setDelegateApiKeys([]);
             setOwnerApiKeys([]);
             // to pull in the updated changes to the ui     
             fetchApiKeys();
-        }
-      
-        // empty out all the create key fields
-        if (sucess) {
             toast("Successfuly created the API key");
             setAppName('');
             setAppDescriptione('');
@@ -252,8 +261,14 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
             setOptions(optionChoices);
             setFullAccess(true);
         }  else {
-              alert(`Unable to create the API key at this time. \n\n Error message: ${result.message}`);
+              console.log(`Error message: ${result.message}`);
+              alert(`Unable to create the API key at this time.`);
         }
+    };
+
+    const handleConfirmNewKey = () => {
+        setShowNewKeyModal(false);
+        setNewApiKeyValue('');
     };
 
     const handleDeactivateApikey = async (apiKeyId: string, name: string) => {
@@ -334,10 +349,36 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                 </div>
     }
 
+    const rotationWarningLabel = () => {
+        return (
+            <div className="apikeys-item-status mr-[12%]">
+                <div 
+                    className="apikeys-status-badge"
+                    title="There is no active key associated for this API key account. Rotation is required to have API access with this key account."
+                >
+                    <div className='flex flex-row gap-2 flex items-center'>
+                        <IconExclamationCircle size={22} className='flex-shrink-0 text-red-600' />
+                    </div>
+                    <i className="text-red-600 text-[15px]">Rotation Required</i>
+                </div>
+            </div>
+        );
+    }
+
     if (documentComponent) return documentComponent;
 
     return  (
         <div className='flex flex-col'>
+            {showNewKeyModal && (
+                <ConfirmModal
+                    title="🔑 New API Key Created"
+                    message={ <NewApiKey newApiKey={newApiKeyValue} />}
+                    confirmLabel="I have copied and stored the key safely"
+                    onConfirm={handleConfirmNewKey}
+                    height={250}
+                    width={800}
+                />
+            )}
          <div className='flex flex-col gap-4 mx-2' > 
             <div className="text-l text-black dark:text-neutral-200">
             
@@ -349,7 +390,10 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                         <p className="accounts-info-description">
                         API keys are used to authenticate and authorize access to specific Amplify services. You can create API keys for yourself and others.  
                         <br className='mb-2'></br>
-                        The following fields are editable for your active API keys: Account, Expiration, Rate Limit, and Access Types. Remove an expiration date by clearing the date in the calendar. Always remember to confirm and save your changes. You can automatically deactive any active API key by clicking the green check mark. 
+                        <strong>Important:</strong> API keys are shown only once upon creation. Make sure to copy and store your API key securely as you will not be able to view it again. If you lose your API key, you can rotate it to generate a new key while preserving all associated data and settings.
+                        <br className='mb-2'></br>
+                        The following fields are editable for your active API keys: Account, Expiration, Rate Limit, and Access Types. Remove an expiration date by clearing the date in the calendar. Always remember to confirm and save your changes.
+                        You can automatically deactivate any active API key by clicking the active button with the green check mark.
                         <br className='mb-1'></br>
                         </p>
                     </div>
@@ -378,7 +422,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                             <br className='mb-1'></br>
                             A Delegate API Key is like a personal key for another Amplify user, but with your account being responsible for the associated payments. This type of key is useful when you want to grant someone else access or certain capabilities within their own Amplify account while ensuring that the billing responsibility falls on your account. You will not be able to see this API key at any time.
                         </div>
-                        <div className='mt-2 text-black dark:text-neutral-200 text-sm text-center'> {"*** If your key has been compromised, deactivate it as soon as possible ***"} </div>
+                        <div className='mt-2 text-black dark:text-neutral-200 text-sm text-center'> {"*** If your key has been compromised, rotate or deactivate it as soon as possible ***"} </div>
                         
                     </span>}
                 />
@@ -639,15 +683,16 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                                 {apiKey.delegate && <label className={`ml-4 text-amber-500 text-xs`}> Delegate: {apiKey.delegate}</label>}
                                                             </div>
                                                             <div className='apikeys-item-summary'>
-                                                                <span>{apiKey.account ? `• ${apiKey.account.name} - ${apiKey.account.id}` : '• No Account'}</span>
+                                                                <span>{apiKey.account ? `• ${apiKey.account.name}` : '• No Account'}</span>
                                                                 {apiKey.expirationDate && <>•<span className={isExpired(apiKey.expirationDate) ? "text-red-600": ""}>Expires: {formatDateYMDToMDY(apiKey.expirationDate)}</span></>}
                                                                 {apiKey.lastAccessed && <>•<span>Last Accessed: {userFriendlyDate(apiKey.lastAccessed)}</span></>}
                                                                 
                                                             </div>
                                                         </div>
                                                     </div>
-
+                                                    {!apiKey.delegate &&apiKey.active && apiKey.needs_rotation && rotationWarningLabel()}
                                                     {activeLabel(apiKey.active, apiKey.api_owner_id, apiKey.applicationName)}
+                                                    
 
                                                 </div>
                                                 
@@ -701,12 +746,19 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                                 apiKey={apiKey}
                                                             />
                                                         </div>
-                                                        
-                                                        {!apiKey.delegate && <div>
-                                                            <span className="apikeys-item-label">API Key:</span>
-                                                            <HiddenAPIKey id={apiKey.api_owner_id} width='184px'/>
-                                                        </div>}
                                                     </div>
+                                                    
+                                                    {!apiKey.delegate && apiKey.active && (
+                                                    <RotateApiKey id={apiKey.api_owner_id} 
+                                                        onRotate={(rotatedKeyId: string) => {
+                                                                // Update owner keys
+                                                                setOwnerApiKeys(prev => prev ? prev.map(key => 
+                                                                    key.api_owner_id === rotatedKeyId 
+                                                                        ? { ...key, needs_rotation: false }
+                                                                        : key
+                                                                ) : []);}
+                                                            } />
+                                                        )}
                                                 </div>
                                             </div>
                                         )})}
@@ -764,6 +816,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                         </div>
                                     </div>
                                 </div>
+                                {apiKey.active && apiKey.needs_rotation && rotationWarningLabel()}
                                 {activeLabel(apiKey.active, apiKey.api_owner_id, apiKey.applicationName)}
                     
                             </div>
@@ -796,12 +849,19 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                         <span className="apikeys-item-label">Access Types:</span>
                                         <Label label={formatAccessTypes(apiKey.accessTypes).replaceAll(',', ', ')} widthPx="180px" />
                                     </div>
-                                    
-                                    <div>
-                                        <span className="apikeys-item-label">API Key:</span>
-                                        <HiddenAPIKey id={apiKey.api_owner_id} width='184px'/>
-                                    </div>
                                 </div>
+                                
+                                {apiKey.active && (
+                                    <RotateApiKey id={apiKey.api_owner_id} 
+                                                  onRotate={(rotatedKeyId: string) => {
+                                                    // Update delegate keys
+                                                    setDelegateApiKeys(prev => prev ? prev.map(key => 
+                                                        key.api_owner_id === rotatedKeyId 
+                                                            ? { ...key, needs_rotation: false }
+                                                            : key
+                                                    ) : []);
+                                }} />
+                                )}
                             </div>
                         </div>
                     )})}
@@ -821,96 +881,156 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
 };
 
 
-interface APIKeyProps {
-    id: string;
-    width?: string;
+interface NewApiKeyProps {
+    newApiKey: string;
+    onClose?: () => void;
 }
 
-export const HiddenAPIKey: FC<APIKeyProps> = ({ id, width=''}) => {
-
-    const { state: {statsService}} = useContext(HomeContext);
-
-    const defaultStr = "****************************************";
-    const [keyText, setKeyText] = useState<string>(defaultStr);
-    const [messagedCopied, setMessageCopied] = useState(false);
-    const [isLoading, setIsLoading ] = useState(false);
-
-
-
-    useEffect(() => {
-        const handleEvent = (event:any) => {
-            console.log("onClose was triggered", event.detail);
-            setKeyText(defaultStr);
-        };
-    
-        window.addEventListener('cleanupApiKeys', handleEvent);
-    
-        return () => {
-            window.removeEventListener('cleanupApiKeys', handleEvent);
-        };
-    }, []);
-
-    const getApiKey = async (id:string) => {
-        setIsLoading(true);
-        alert("Remember, keep your API key secure and do not share it with anyone. It it has been compromised, promptly deactivate it.");
-        const result = await fetchApiKey(id);
-        if (!result.success)  {
-            alert(result.error || "Unable to retrieve your API key at this time...");
-            setIsLoading(false);
-            return;
-        }  else {
-            statsService.getApiKeyEvent(id);
-        }
-        setIsLoading(false);
-        setKeyText(result.data);
-    }
+export const NewApiKey: FC<NewApiKeyProps> = ({ newApiKey, onClose }) => {
+    const [messageCopied, setMessageCopied] = useState(false);
 
     const copyOnClick = () => {
-        if (!navigator.clipboard) return;
+        if (!navigator.clipboard || !newApiKey) return;
 
-        navigator.clipboard.writeText(keyText).then(() => {
+        navigator.clipboard.writeText(newApiKey).then(() => {
             setMessageCopied(true);
             setTimeout(() => {
                 setMessageCopied(false);
             }, 2000);
         });
     };
+    return (
+        <div 
+            className="flex flex-col space-y-3 p-3 rounded-lg border-2 border-red-500 bg-yellow-100/70 dark:bg-gray-900 dark:border-red-800"
+        >   <div className="relative">
+                <div className="flex items-center justify-center space-x-2">
+                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                    <span className="text-red-600 dark:text-amber-300 font-semibold text-sm">
+                        ⚠️ NEW API KEY GENERATED - COPY NOW
+                    </span>
+                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                </div>
+                {onClose && 
+                <div className="absolute right-0 flex justify-center" style={{transform: "translateY(-30px)"}}>
+                    <ActionButton
+                        handleClick={() => {
+                            onClose(); 
+                        setMessageCopied(false);
+                        }}>
+                        <div className="flex items-center space-x-2 px-3 py-1">
+                            <IconCheck size={16} />
+                            <span className="text-sm font-medium">I stored it safely</span>
+                        </div>
+                    </ActionButton>
+                </div>}
+            </div>
+            <div className="relative flex items-center justify-center bg-white dark:bg-gray-800/90 px-3 rounded -mx-3">
+                <div className="flex-1 text-center py-1.5">
+                    <span className="font-mono text-green-600 dark:text-green-400 text-sm font-bold">
+                        {newApiKey}
+                    </span>
+                </div>
+                <div className="absolute right-5">
+                {messageCopied ? (
+                    <div className="flex flex-row gap-1 items-center text-green-600 dark:text-green-400">
+                        <IconCheck size={18} />
+                        <span className="text-xs font-medium">Copied!</span>
+                    </div>
+                ) : (
+                    <ActionButton
+                        handleClick={copyOnClick}
+                        title="Copy new API key">
+                        <IconCopy size={18} />
+                    </ActionButton>
+                )}
+                </div>
+            </div>
+            
+            <div className="text-center justify-center flex flex-row gap-2 items-center text-xs text-black dark:text-neutral-100">
+                <div className="font-semibold">⚠️ This key will only be shown once!</div>
+                <div>Copy and store it securely. If lost, you'll need to rotate this key.</div>
+            </div>
+            
+        </div>
+    )
 
-    return <div 
-    className="flex flex-shrink-0 items-center space-x-1 overflow-hidden rounded-md border border-neutral-500 p-1 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-    style={{ width: width, height: '34px' }}>
-
-    <div className="flex-1 overflow-x-auto whitespace-nowrap">
-        <span>{keyText}</span>
-    </div>
-
-    {keyText.includes('amp-') ?  
-        (messagedCopied ? 
-            <IconCheck
-                size={18}
-                className="min-w-[26px] text-green-500 dark:text-green-400"
-            /> 
-            :
-            <ActionButton
-                handleClick={() =>  copyOnClick()}
-                title={"Copy Api key"}>
-                <IconCopy size={18}/>
-            </ActionButton> 
-        )
-        :
-        (!isLoading &&
-        <ActionButton
-            handleClick={() => getApiKey(id)}
-            title={"See API key secret"}>
-            <IconEye size={18}/>
-        </ActionButton>)
-    }
-    {isLoading && 
-    <LoadingIcon className= 'min-w-[26px]' style={{ width: "18px", height: "18px" }}/>
-    }
-</div>
-       
 }
+
+interface RotateApiKeyProps {
+    id: string;
+    onRotate?: (id: string) => void;
+}
+
+export const RotateApiKey: FC<RotateApiKeyProps> = ({ id, onRotate }) => {
+    const { state: { statsService } } = useContext(HomeContext);
+    const [isRotating, setIsRotating] = useState(false);
+    const [newApiKey, setNewApiKey] = useState<string | null>(null);
+
+    const handleRotateKey = async () => {
+        if (!confirm("Are you sure you want to rotate this API key? This will generate a new key and invalidate the current one.")) {
+            return;
+        }
+
+        setIsRotating(true);
+        const result = await rotateApiKey(id);
+        
+        if (!result.success || !result.data.apiKey) {
+            alert(result.error || "Unable to rotate your API key at this time...");
+            setIsRotating(false);
+            return;
+        }
+
+        setNewApiKey(result.data.apiKey);
+        setIsRotating(false);
+        onRotate?.(id);
+    };
+
+
+    const handleClose = () => {
+        setNewApiKey(null);
+    };
+
+
+    // Default state - footer section with built-in divider
+    return ( newApiKey ? <NewApiKey newApiKey={newApiKey} onClose={handleClose} /> :
+        <div className="w-full">
+            <div className="mt-4 pt-3 border-t border-gray-300 dark:border-gray-600">
+                <div className="flex items-center gap-4">
+                    <div className="flex flex-row gap-2 items-center">
+                        <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                            Key Management
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-500">
+                            Replace with a new key if compromised or lost
+                        </span>
+                    </div>
+                    
+                    <div className="flex items-center">
+                        {isRotating ? (
+                            <div className="flex items-center space-x-2 px-4 py-2 bg-blue-100/20 dark:bg-blue-900/20 rounded-lg border border-blue-600 dark:border-blue-500">
+                                <LoadingIcon className="w-4 h-4" />
+                                <span className="text-sm text-blue-500 dark:text-blue-300 font-medium">
+                                    Generating new key...
+                                </span>
+                            </div>
+                        ) : (
+                            <ActionButton
+                                handleClick={handleRotateKey}
+                                title="Generate a new API key while preserving all settings and data">
+                                <div className="flex items-center space-x-2 px-4 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                    <IconRotateClockwise2 size={18} />
+                                    <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">
+                                        Rotate Key
+                                    </span>
+                                </div>
+                            </ActionButton>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 
 type EditableField = 'expirationDate' | 'accessTypes' | 'rateLimit' | 'account';

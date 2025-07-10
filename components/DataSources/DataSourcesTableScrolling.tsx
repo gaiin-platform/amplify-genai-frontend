@@ -180,8 +180,8 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 setIsError(true);
             }
             // dont show assistant icons in the data source table
-            const items = result.data.items.filter((file: any) => file?.data?.type !== 'assistant-icon');
-            const updatedWithCommonNames = items.map((file: any) => {
+            const items = result.data?.items.filter((file: any) => !(file?.data?.type && file.data.type.startsWith('assistant')));
+            const updatedWithCommonNames = items?.map((file: any) => {
                 const commonName = mimeTypeToCommonName[file.type];
                 return {
                     ...file,

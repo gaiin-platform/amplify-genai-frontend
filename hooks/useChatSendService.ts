@@ -720,7 +720,7 @@ export function useSendService() {
                                     // get the last user message
                                     const userInput = updatedConversation.messages[updatedConversation.messages.length - 2]?.content || '';
 
-                                    console.log("User input: ", userInput);
+                                    // console.log("User input: ", userInput);
 
                                     // Fetch existing memories for fact extraction
                                     const memoriesResponse = await doReadMemoryOp({});

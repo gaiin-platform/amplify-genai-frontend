@@ -129,7 +129,7 @@ interface Props {
                             ...(showSubmit ? [{isDisabled: disableSubmit, label: submitLabel, handleClick: () => onSubmit()}] : [])
                           ]
                                            .map((option: OptionButtons, index: number) => 
-                            <button key={index}
+                            <button key={`modal-button-${option.label}-${index}`}
                               type="button"
                               id="confirmationButton"
                               disabled={option.isDisabled}

@@ -837,7 +837,7 @@ export const ChatInput = ({
                                     className="z-20 -mt-4 flex w-fit items-center gap-1 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 "
                                     onClick={handleStopConversation}
                                 >
-                                    <IconPlayerStop size={16}/> {t('Stop Generating')}
+                                    <IconPlayerStop className="animate-pulse" fill="blue" size={16}/> {t('Stop Generating')}
                                 </button>
 
                                 {/*<StatusDisplay statusHistory={status}/>*/}

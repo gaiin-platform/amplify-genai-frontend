@@ -4,7 +4,7 @@ import {IconKey, IconUser} from "@tabler/icons-react";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import { useSession } from "next-auth/react"
 import { formatRateLimit, RateLimit } from "@/types/rateLimit";
-import { formatAccessTypes, HiddenAPIKey } from "@/components/Settings/AccountComponents/ApiKeys";
+import { formatAccessTypes } from "@/components/Settings/AccountComponents/ApiKeys";
 import ExpansionComponent from "../ExpansionComponent";
 import { Account } from "@/types/accounts";
 import { createApiKey, deactivateApiKey, updateApiKeys } from "@/services/apiKeysService";
@@ -204,17 +204,6 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
                             <div className="text-2xl font-bold">{`${op}${isCreated?'D':''}`}</div>
                             <IconKey className="ml-2" size={26}/>
                         </div>
-                        
-                         <div className="flex flex-col gap-4 items-center">
-                            {op === ApiKeyOps.GET && 
-                            data.map((k:KeyData) => (
-                                <div className="flex justify-center items-center w-full max-w-lg" key={k.id}>
-                                    {k.name && <div className="flex-grow text-right mr-2">{k.name}</div>}
-                                    <HiddenAPIKey id={k.id} width="380px" />
-                                </div>
-                            ))
-                            }
-                         </div>   
 
                          
                         <div className="flex flex-col gap-4">

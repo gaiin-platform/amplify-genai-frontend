@@ -14,16 +14,17 @@ export const createApiKey = async (data: any) => {
     return await doRequestOp(op);
 }
 
-export const fetchApiKey = async (apiKeyId: string) => {
+export const rotateApiKey = async (apiKeyId: string) => {
     const op = {
-        method: 'GET',
+        method: 'POST',
         path: URL_PATH,
-        op: '/key/get',
-        queryParams: { "apiKeyId": apiKeyId },
+        op: '/key/rotate',
+        data: { "apiKeyId": apiKeyId },
         service: SERVICE_NAME
     };
     return await doRequestOp(op);
 }
+
 
 export const fetchAllApiKeys = async () => {
     const op = {

@@ -7,7 +7,6 @@ import {
   } from "@codesandbox/sandpack-react";
 
 import { CodeBlockDetails } from '@/utils/app/codeblock';
-import { getSettings } from '@/utils/app/settings';
 import DOMPurify from 'dompurify';
 import HomeContext from '@/pages/api/home/home.context';
 import { IconAlertCircle, IconPresentation } from '@tabler/icons-react';

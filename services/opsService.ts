@@ -16,19 +16,6 @@ export const getOpsForUser = async (tag?: string) => {
     return await doRequestOp(op);
 }
 
-// in use? didnt find the backend for this call
-// export const getOpsForUserAllTags = async () => {
-
-//     const {success, message, data} = await doOpsOp(
-//       '/get_all_tags',
-//       {});
-
-//     if(!success){
-//         return failureResponse(message);
-//     }
-
-//     return {success:true, message:"User Ops fetched successfully.", data:data};
-// }
 
 const noPayload = ["GET", "DELETE"]
 

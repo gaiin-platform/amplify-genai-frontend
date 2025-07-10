@@ -1,11 +1,10 @@
-import { useSession } from "next-auth/react";
 import { FC, useContext, useEffect, useRef, useState } from "react";
 import { Modal } from "../ReusableComponents/Modal";
 import HomeContext from "@/pages/api/home/home.context";
 import InputsMap from "../ReusableComponents/InputMap";
 import {  getAdminConfigs, getAvailableModels, getFeatureFlags, getPowerPoints, testEmbeddingEndpoint, testEndpoint, updateAdminConfigs } from "@/services/adminService";
 import { AdminConfigTypes, Endpoint, FeatureFlagConfig, OpenAIModelsConfig, SupportedModel, SupportedModelsConfig, AdminTab, DefaultModelsConfig } from "@/types/admin";
-import { IconCheck, IconPlus, IconRefresh, IconX} from "@tabler/icons-react";
+import { IconCheck, IconRefresh, IconX} from "@tabler/icons-react";
 import { LoadingIcon } from "../Loader/LoadingIcon";
 import toast from "react-hot-toast";
 import React from "react";
@@ -14,7 +13,6 @@ import { OpDef } from "@/types/op";
 import { AMPLIFY_ASSISTANTS_GROUP_NAME } from "@/utils/app/amplifyAssistants";
 import { noRateLimit, PeriodType, rateLimitObj } from "@/types/rateLimit";
 import { adminTabHasChanges} from "@/utils/app/admin";
-import { Model } from "@/types/model";
 import { OpenAIEndpointsTab } from "./AdminComponents/OpenAIEndpoints";
 import { FeatureFlagsTab } from "./AdminComponents/FeatureFlags";
 import { emptySupportedModel, SupportedModelsTab } from "./AdminComponents/SupportedModels";
@@ -72,7 +70,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [defaultConversationStorage, setDefaultConversationStorage] = useState<ConversationStorage>('future-local');
 
     const [availableModels, setAvailableModels] = useState<SupportedModelsConfig>({});   
-    const [defaultModels, setDefaultModels] = useState<DefaultModelsConfig>({user: '', advanced: '', cheapest: '', agent: '', documentCaching: '', embeddings: '', qa: ''});
+    const [defaultModels, setDefaultModels] = useState<DefaultModelsConfig>({user: '', advanced: '', cheapest: '', agent: '', documentCaching: '', embeddings: ''});
 
     const [features, setFeatures] = useState<FeatureFlagConfig>({}); 
 
@@ -214,7 +212,12 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             case AdminConfigTypes.RATE_LIMIT:
                 return rateLimitObj(rateLimit.period, rateLimit.rate);
             case AdminConfigTypes.PROMPT_COST_ALERT:
-                return promptCostAlert;
+                return {
+                    ...promptCostAlert,
+                    cost: typeof promptCostAlert.cost === 'string' 
+                        ? parseFloat(promptCostAlert.cost as string) || 0 
+                        : Number(promptCostAlert.cost) || 0
+                };
             case AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE:
                 return defaultConversationStorage;
             case AdminConfigTypes.EMAIL_SUPPORT:
@@ -226,7 +229,47 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             case AdminConfigTypes.FEATURE_FLAGS:
                 return features;
             case AdminConfigTypes.AVAILABLE_MODELS:
-                return availableModels;
+                // Sanitize and enforce types for available models
+                const sanitizedModels: SupportedModelsConfig = {};
+                Object.entries(availableModels).forEach(([key, model]) => {
+                    const sanitizedModel = { ...model } as SupportedModel;
+                    
+                    // Ensure numeric fields are numbers, not strings
+                    const numericFields = ["inputContextWindow", "outputTokenLimit"] as const;
+                    numericFields.forEach((field) => {
+                        const value = typeof model[field] === 'string' 
+                            ? parseInt(model[field] as string, 10) || 0 
+                            : (model[field] as number) || 0;
+                        (sanitizedModel as any)[field] = value;
+                    });
+                    
+                    const floatFields = ["outputTokenCost", "inputTokenCost", "cachedTokenCost"] as const;
+                    floatFields.forEach((field) => {
+                        const value = typeof model[field] === 'string' 
+                            ? parseFloat(model[field] as string) || 0.0 
+                            : (model[field] as number) || 0.0;
+                        (sanitizedModel as any)[field] = value;
+                    });
+                    
+                    // Ensure boolean fields are booleans
+                    const booleanFields = ["supportsImages", "supportsReasoning", "supportsSystemPrompts", "isAvailable", "isBuiltIn"] as const;
+                    booleanFields.forEach((field) => {
+                        (sanitizedModel as any)[field] = Boolean(model[field]);
+                    });
+                    
+                    // Ensure string fields are strings
+                    const stringFields = ["id", "name", "provider", "description", "systemPrompt"] as const;
+                    stringFields.forEach((field) => {
+                        (sanitizedModel as any)[field] = String(model[field] || "");
+                    });
+                    
+                    // Ensure array field is an array
+                    sanitizedModel.exclusiveGroupAvailability = Array.isArray(model.exclusiveGroupAvailability) 
+                        ? model.exclusiveGroupAvailability : [];
+                    
+                    sanitizedModels[key] = sanitizedModel;
+                });
+                return sanitizedModels;
             case AdminConfigTypes.DEFAULT_MODELS:
                 const nonEmptyStrDefaults: any = {...defaultModels};
                 Object.keys(nonEmptyStrDefaults).forEach((key: string) => {
@@ -406,6 +449,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 // should always be true
                 if (unsucessful.length > 0) alert(`The following configurations were unable to be saved: \n${unsucessful}`);
             } else {
+                console.log("result: ", result);
                 alert("We are unable to save the configurations at this time. Please try again later...");
             }
         }

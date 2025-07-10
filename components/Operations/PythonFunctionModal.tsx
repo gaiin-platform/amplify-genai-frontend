@@ -37,6 +37,7 @@ import HomeContext from "@/pages/api/home/home.context";
 
 import PromptTextArea from "@/components/PromptTextArea/PromptTextArea";
 import {getSession} from "next-auth/react";
+import toast from 'react-hot-toast';
 
 
 interface Props {
@@ -1784,7 +1785,7 @@ Output only a markdown code block like this:
 
                                                     await handleSave();
 
-                                                    alert("Function published successfully.");
+                                                    toast("Function published successfully.");
                                                 }
                                                 else {
                                                     alert("Failed to publish function: "+ pubinfo.message);

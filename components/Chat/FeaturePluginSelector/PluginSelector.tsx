@@ -197,7 +197,7 @@ export const PluginSelector: FC<Props> = ({
         id="closeEnabledFeaturesMenu"
         title='Close'
       >    
-        <IconSparkles className='ml-1' />
+        <IconSparkles className='ml-1 sparkles-rainbow-stroke' />
            
       </div>
       
