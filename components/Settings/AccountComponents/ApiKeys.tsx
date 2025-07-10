@@ -948,7 +948,7 @@ export const NewApiKey: FC<NewApiKeyProps> = ({ newApiKey, onClose }) => {
             
             <div className="text-center justify-center flex flex-row gap-2 items-center text-xs text-black dark:text-neutral-100">
                 <div className="font-semibold">⚠️ This key will only be shown once!</div>
-                <div>Copy and store it securely. If lost, you'll need to rotate this key.</div>
+                <div>{"Copy and store it securely. If lost, you'll need to rotate this key."}</div>
             </div>
             
         </div>
