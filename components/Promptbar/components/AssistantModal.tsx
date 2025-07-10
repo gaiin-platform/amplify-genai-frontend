@@ -34,9 +34,10 @@ import { AddEmailWithAutoComplete } from '@/components/Emails/AddEmailsAutoCompl
 import ApiIntegrationsPanel from '@/components/AssistantApi/ApiIntegrationsPanel';
 import { AssistantEmailEvents } from '@/components/Promptbar/components/AssistantModalComponents/AssistantEmailEvents';
 import { AssistantWorkflowDisplay } from './AssistantModalComponents/AssistantWorkflowDisplay';
-import { WebsiteURLInput } from '@/components/DataSources/WebsiteURLInput';
+import { isWebsiteDs, WebsiteURLInput } from '@/components/DataSources/WebsiteURLInput';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import { ScheduledTaskButton } from '@/components/Agent/ScheduledTasks';
+import { deleteFile } from '@/services/fileService';
 
 
 interface Props {
@@ -157,13 +158,33 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const isGroupAst = loc.includes("admin");
 
     const definition = getAssistant(assistant);
+    // console.log("definition: ", definition);
 
-    const initialDs = (definition.dataSources || []).map(ds => {
+    const initialDs: AttachedDocument[] = (definition.dataSources || []).map(ds => {
         return {
             ...ds,
             key: (ds.key || ds.id)
         }
     });
+   
+    (definition?.data?.websiteUrls || []).forEach((urlItem: any) => {
+        if (!initialDs.find((ds:any) => ds.metadata?.sourceUrl === urlItem.url)) {
+            const websiteDocument = {
+                id: urlItem.url,
+                name: urlItem.url,
+                type: urlItem.isSitemap ? 'website/sitemap' : 'website/url',
+                raw: null,
+                data: null,
+                metadata: {
+                    scanFrequency: 7, // Default scan frequency in days
+                    sourceUrl: urlItem.url,
+                    isSitemap: urlItem.isSitemap,
+                    totalTokens: 0,
+                },
+            };
+            initialDs.push(websiteDocument);
+        }
+    })
 
 
     const initialStates: { [key: string]: number } = initialDs.map(ds => {
@@ -395,7 +416,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
-    const modalRef = useRef<HTMLDivElement>(null);
 
     const allDocumentsUploaded = (documentStates: { [key: string]: number }) => {
         return Object.values(documentStates).every(state => state === 100);
@@ -544,6 +564,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
           // console.log(dataSources.map((d: any)=> d.name));
 
             newAssistant.dataSources = dataSources.map(ds => {
+                if (isWebsiteDs(ds) && !ds.key) return ds; // signifies needs scraping
                 if (assistant.groupId) {
                     if (!ds.key) ds.key = ds.id;
                     if (!ds.groupId) ds.groupId = assistant.groupId;
@@ -552,10 +573,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                       id: "s3://"+ds.key
                     }
                 }
-                if(ds.key || (ds.id && ds.id.indexOf("://") > 0)){
+                if (ds.key || (ds.id && ds.id.indexOf("://") > 0)) {
                     return ds;
-                }
-                else {
+                } else {
                     return {
                         ...ds,
                         id: "s3://"+ds.id
@@ -936,10 +956,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             disableRag={false}
                                 />
                             </div>
-                            <FileList documents={dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)))} documentStates={documentState}
+                            <FileList documents={dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)) && !isWebsiteDs(ds))} documentStates={documentState}
                                 setDocuments={(docs) => {
                                 const preexisting = dataSources.filter((ds:AttachedDocument) => (preexistingDocumentIds.includes(ds.id)));
-                                setDataSources([...docs, ...preexisting ]as any[]);
+                                const websites = dataSources.filter((ds:AttachedDocument) => isWebsiteDs(ds));
+                                setDataSources([...docs, ...preexisting, ...websites] as any[]);
                             }} allowRemoval={!disableEdit} 
                                onCancelUpload={(ds:AttachedDocument) => { 
                                 console.log('onCancelUpload', documentState);
@@ -977,18 +998,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             )}
                             </>}
 
-                            { definition.dataSources.length > 0  &&
-                             <div className="mt-4">
-                                <ExistingFileList 
-                                    label={'Assistant Data Sources'}
-                                    allowRemoval={!disableEdit}
-                                    documents={dataSources.filter((ds:AttachedDocument) => (preexistingDocumentIds.includes(ds.id)))} 
-                                    setDocuments={(docs) => {
-                                        const newDocs = dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)));
-                                        setDataSources([...docs, ...newDocs] as any[]);
-                                }} />
-                              </div>
-                            }
+                
 
                             {/* Add Website URLs Section */}
                             {featureFlags.websiteUrls && (
@@ -1002,7 +1012,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                 // Create a data source object for the URL
                                                 const websiteSource = {
                                                     id: url,
-                                                    name: `${isSitemap ? 'Sitemap' : 'Website'}: ${url}`,
+                                                    name: url,
                                                     type: isSitemap ? 'website/sitemap' : 'website/url',
                                                     metadata: {
                                                         scanFrequency: 7, // Default scan frequency in days
@@ -1010,7 +1020,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                         isSitemap: isSitemap,
                                                     },
                                                 };
-
                                                 // Add to dataSources
                                                 setDataSources([...dataSources, websiteSource as any]);
 
@@ -1020,55 +1029,40 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         />
                                     )}
 
-                                    {/* Display added website URLs */}
-                                    {dataSources.filter(ds => ds.type === 'website/url' || ds.type === 'website/sitemap').length > 0 && (
-                                        <div className="mb-4">
-                                            <div className="text-sm font-bold text-black dark:text-neutral-200">
-                                                Added Website URLs
-                                            </div>
-                                            <div className="mt-2">
-                                                {dataSources
-                                                    .filter(ds => ds.type === 'website/url' || ds.type === 'website/sitemap')
-                                                    .map((ds, index) => (
-                                                        <div key={index} className="flex justify-between items-center p-2 mb-2 rounded-lg border border-neutral-500 dark:border-neutral-800">
-                                                            <div className="flex items-center gap-2">
-                                                                {ds.type === 'website/sitemap' ? (
-                                                                    <IconSitemap size={18} />
-                                                                ) : (
-                                                                    <IconWorld size={18} />
-                                                                )}
-                                                                <span className="truncate">{ds.id}</span>
-                                                            </div>
-                                                            {!disableEdit && (
-                                                                <button
-                                                                    className="p-1 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-                                                                    onClick={() => {
-                                                                        setDataSources(dataSources.filter(source => source.id !== ds.id));
-                                                                    }}
-                                                                >
-                                                                    <svg
-                                                                        stroke="currentColor"
-                                                                        fill="none"
-                                                                        strokeWidth="2"
-                                                                        viewBox="0 0 24 24"
-                                                                        strokeLinecap="round"
-                                                                        strokeLinejoin="round"
-                                                                        height="1em"
-                                                                        width="1em"
-                                                                        xmlns="http://www.w3.org/2000/svg"
-                                                                    >
-                                                                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                                                                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                                                                    </svg>
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    ))}
-                                            </div>
-                                        </div>
-                                    )}
+                                <FileList documents={dataSources.filter((ds:AttachedDocument) => 
+                                                    !(preexistingDocumentIds.includes(ds.id)) && 
+                                                     isWebsiteDs(ds))} documentStates={documentState}
+                                    setDocuments={(docs) => {
+                                    const preexisting = dataSources.filter((ds:AttachedDocument) => (preexistingDocumentIds.includes(ds.id)));
+                                    const nonWebsites = dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)) && !isWebsiteDs(ds));
+                                    setDataSources([...docs, ...preexisting, ...nonWebsites] as any[]);
+                                }} allowRemoval={!disableEdit} 
+                                   onCancelUpload={(ds:AttachedDocument) => { 
+                                    const updatedDocState = {...documentState};
+                                    delete updatedDocState[ds.id];
+                                    setDocumentState(updatedDocState);
+                               }}/>
+                               <br></br>
                                 </>
                             )}
+
+                            { definition.dataSources.length > 0  &&
+                             <div className="mt-4">
+                                <ExistingFileList 
+                                    label={'Assistant Data Sources'}
+                                    allowRemoval={!disableEdit}
+                                    documents={dataSources.filter((ds:AttachedDocument) => (preexistingDocumentIds.includes(ds.id)))} 
+                                    setDocuments={(docs) => {
+                                        const newDocs = dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)));
+                                        setDataSources([...docs, ...newDocs] as any[]);
+                                    }} 
+                                    onRemoval={(doc) => {
+                                        // since websites are assistant specific scraped data sources we need to delete upon removal
+                                        if (isWebsiteDs(doc)) deleteFile(doc.id);
+                                    }}
+                                />
+                              </div>
+                            }
 
                             {/* Workflow Template Selector - purposefully not featured flagged / outside ofthe advanced section */}
                             {baseWorkflowTemplateId && 

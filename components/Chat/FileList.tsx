@@ -1,5 +1,5 @@
 import React, {FC, useEffect, useState} from 'react';
-import { IconTrashX, IconCircleX, IconCheck } from '@tabler/icons-react';
+import { IconTrashX, IconCircleX, IconCheck, IconWorld, IconSitemap } from '@tabler/icons-react';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
@@ -32,7 +32,16 @@ const LoadingIcon = styled(FiCommand)`
   animation: ${animate} 2s infinite;
 `;
 
-
+const getIcon = (document:AttachedDocument) => {
+    switch (document.type) {
+        case 'website/sitemap':
+            return <IconSitemap className="text-blue-500" size={18}/>
+        case 'website/url':
+            return <IconWorld className="text-blue-500" size={18}/>
+        default:
+            return null;
+    }
+}
 
 export const FileList: FC<Props> = ({ documents, setDocuments , documentStates, onCancelUpload, allowRemoval = true}) => {
 
@@ -78,6 +87,16 @@ export const FileList: FC<Props> = ({ documents, setDocuments , documentStates, 
         return document.name.length > 12 ? document.name.slice(0, 12) + '...' : document.name;
     }
 
+    const getIconForFileList = (document:AttachedDocument) => {
+        const icon = getIcon(document);
+        if (!icon) {
+            return !isComplete(document) ?
+                    getProgress(document) : 
+                    <IconCheck className="text-green-500" />
+        }
+        return icon;
+    }
+
     return (
         <div className="flex overflow-x-auto pb-2 mt-2">
             {documents?.map((document, i) => (
@@ -86,11 +105,8 @@ export const FileList: FC<Props> = ({ documents, setDocuments , documentStates, 
                     className={`${isComplete(document) ? 'bg-white' : 'bg-yellow-400'} flex flex-row items-center justify-between border bg-white rounded-md px-1 py-1 ml-1 mr-1 shadow-md dark:shadow-lg`}
                     style={{ maxWidth: '220px' }}
                 >
-
-                    {!isComplete(document) ?
-                        getProgress(document) : 
-                        <IconCheck className="text-green-500" />
-                    }
+                    
+                    {getIconForFileList(document)}
 
                     <div className="ml-1" title={document.name}>
                         <p className={`truncate font-medium text-sm ${isComplete(document) ? 'text-gray-800' : 'text-gray-800'}`}
@@ -126,10 +142,11 @@ interface ExistingProps {
     documents:AttachedDocument[] | undefined;
     setDocuments: (documents: AttachedDocument[]) => void;
     allowRemoval?: boolean;
+    onRemoval?: (document: AttachedDocument) => void;
     boldTitle?: boolean;
 }
 
-export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocuments, allowRemoval = true, boldTitle=true}) => {
+export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocuments, allowRemoval = true, boldTitle=true, onRemoval}) => {
 
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [dataSources, setDataSources] = useState<AttachedDocument[]>(documents ?? []);
@@ -165,12 +182,13 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                         className={`${hovered === document.id ? 'hover:bg-gray-200 dark:hover:bg-gray-500' : ''} bg-white dark:bg-[#40414F] flex flex-row items-center border dark:border-neutral-500 dark:text-white rounded-sm px-1 py-1.5 ml-1 mr-1`}
                     >
                             <div className="ml-1 flex-1" style={{ overflow: 'hidden' }}>
-                                <p className={`truncate font-medium text-sm text-black-800`} style={{
+                                <p className={`truncate font-medium text-sm text-black-800 flex flex-row items-center gap-1`} style={{
                                     overflow: 'hidden',
                                     whiteSpace: 'nowrap', 
                                     textOverflow: 'ellipsis',
                                 }}>
-                                    {i+1}. {document.name}
+                                    {i+1}. {document.metadata?.sourceUrl || document.name} {getIcon(document)}
+                                    
                                 </p>
                             </div>
                        
@@ -189,6 +207,7 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                                     if (documents) {
                                         setDocuments(documents.filter(x => x != document));
                                         setDataSources(dataSources.filter(x => x != document));
+                                        if (onRemoval) onRemoval(document);
                                     }
                                 }}
                             >

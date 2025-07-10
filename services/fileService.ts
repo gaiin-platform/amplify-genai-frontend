@@ -11,13 +11,21 @@ const uploadFileToS3 = (
 ) => {
     const xhr = new XMLHttpRequest();
     const abortController = new AbortController();
+    let lastReported = -1; // Track last reported progress
 
     const result = new Promise((resolve, reject) => {
         // Event listener for upload progress
         xhr.upload.addEventListener('progress', (event) => {
             if (event.lengthComputable && onProgress) {
-                const progress = Math.round((event.loaded / event.total) * 100);
-                onProgress(progress);
+                const rawProgress = (event.loaded / event.total) * 95; // Cap at 95%
+                // Only report progress in 2% increments to smooth it out
+                const smoothedProgress = Math.floor(rawProgress / 2) * 2;
+                
+                // Only report if progress has increased by at least 2%
+                if (smoothedProgress >= lastReported + 2) {
+                    lastReported = smoothedProgress;
+                    onProgress(smoothedProgress);
+                }
             }
         });
 

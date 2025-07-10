@@ -29,6 +29,11 @@ interface Props {
 }
 
 
+const cleanUpFile = async (key:string) => {
+    const result = await deleteFile(key);
+    console.log("Delete file result", result);
+}
+
 export const handleFile = async (file:any,
                           onAttach:any,
                           onUploadProgress:any,
@@ -76,7 +81,17 @@ export const handleFile = async (file:any,
         } else {
             onAttach(document);
         }
-
+        let docKey = null;
+        let cleanupPerformed = false;
+        
+        const safeCleanUp = async (key: string) => {
+            if (!cleanupPerformed && key) {
+                cleanupPerformed = true;
+                console.log("Cleaning up file", key);
+                await cleanUpFile(key);
+            }
+        };
+        
         if (uploadDocuments) {
             try {
 
@@ -89,14 +104,16 @@ export const handleFile = async (file:any,
                             onUploadProgress(document, 95);
                         }
                     }, ragEnabled);
-
+                docKey = key;
                 if (onSetAbortController) onSetAbortController(document, () => {
-                                            abortController?.abort()
-                                            console.log("Deleting file from server in 45 seconds", key);
-                                            setTimeout(async () => {
-                                                const result = await deleteFile(key);
-                                                console.log("Delete file result", result);
-                                            }, 45000);
+                                            abortController?.abort()                                    
+                                            // Only set cleanup timeout if not already aborted
+                                            if (!abortController?.signal?.aborted) {
+                                              console.log("Deleting file from server in 45 seconds", key);
+                                                setTimeout(async () => {
+                                                    safeCleanUp(key);
+                                                }, 45000);
+                                            }
                                           });
 
                 if (onSetKey) {
@@ -106,12 +123,12 @@ export const handleFile = async (file:any,
 
                 await response;
                                     
-                const readyStatus = await checkContentReady(metadataUrl, 30, abortController);
+                const readyStatus = await checkContentReady(metadataUrl, 120, abortController);
 
                 if (readyStatus && readyStatus.success){
 
                     if (readyStatus.metadata) {
-                        console.log("metadata", readyStatus.metadata);
+                        // console.log("metadata", readyStatus.metadata);
                         document.metadata = readyStatus.metadata as AttachedDocumentMetadata;
 
                         // Check if document.metadata exists and has the key "totalItems"
@@ -126,13 +143,15 @@ export const handleFile = async (file:any,
 
                     onUploadProgress(document, 100);
                 } else if (!abortController?.signal?.aborted) {
-                  alert("upload failed");
+                  alert("Upload failed");
+                  safeCleanUp(key);
                 }
             }
             catch (e) {
                 // @ts-ignore
-                if(e.message !== 'Abort') {
-                    alert("upload failed");
+                if (e.message !== 'Abort') {
+                    alert("Upload file aborted");
+                    if (docKey) safeCleanUp(docKey);
                 }
             }
         } else {

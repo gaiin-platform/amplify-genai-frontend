@@ -153,9 +153,9 @@ const DataSourcesTable = () => {
                     }
 
                     // dont show assistant icons in the data source table
-                    const items = result.data.items.filter((file: any) => file?.data?.type !== 'assistant-icon');
+                    const items = result.data?.items.filter((file: any) => !(file?.data?.type && file.data.type.startsWith('assistant')));
 
-                    const updatedWithCommonNames = items.map((file: any) => {
+                    const updatedWithCommonNames = items?.map((file: any) => {
                         const commonName = mimeTypeToCommonName[file.type];
                         return {
                             ...file,
@@ -255,7 +255,7 @@ const DataSourcesTable = () => {
     const fileReprocessing = async (key: string) => {
         setLoadingMessage("Reprocessing File...");
         try {;
-            const result = {success: true};
+            const result = await reprocessFile(key);;
             if (result.success) {
                 toast("File's rag and embeddings regenerated successfully. Please wait a few minutes for the changes to take effect.");
             } else {
