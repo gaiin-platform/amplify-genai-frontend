@@ -338,14 +338,6 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                             description="The embedding model will be used when requesting embeddings"
                             onSelect={(selected: SupportedModel, key: keyof DefaultModelsConfig) =>  handleUpdateDefaultModels(key, selected.id)}
                         />
-
-                        <ModelDefaultSelect                     
-                            models={Object.values(availableModels).filter((m:SupportedModel) => !m.id.includes('embed'))}
-                            defaultModels={defaultModels}
-                            selectedKey='qa'
-                            description="The Q&A model will be used for generating context-aware questions to enhance document embeddings"
-                            onSelect={(selected: SupportedModel, key: keyof DefaultModelsConfig) =>  handleUpdateDefaultModels(key, selected.id)}
-                        />
                         
                         
                     </div>

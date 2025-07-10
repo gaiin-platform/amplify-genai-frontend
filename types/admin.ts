@@ -160,7 +160,6 @@ export interface DefaultModelsConfig {
   'cheapest': string,
   'agent': string,
   'embeddings': string,
-  'qa': string,
   'documentCaching': string,
 }
 

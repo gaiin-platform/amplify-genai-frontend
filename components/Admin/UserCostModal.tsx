@@ -60,7 +60,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     
     try {
       const result = await getAllUserMtdCosts(limit, nextKey);
-      console.log('MTD Costs API Result:', result); // Debug log
+      // console.log('MTD Costs API Result:', result); // Debug log
       
       // The result should already be decoded by doRequestOp
       let data = result;
