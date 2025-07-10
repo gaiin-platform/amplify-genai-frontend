@@ -463,7 +463,7 @@
 /* Animated Gradient Header for Tables */
 .gradient-header {
   background: linear-gradient(to right, rgb(226, 232, 240), rgb(235, 238, 245), rgb(226, 232, 240));
-  animation: pulse 5s infinite;
+  animation: pulse 12s infinite;
 }
 
 .dark .gradient-header {

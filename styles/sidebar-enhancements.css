@@ -5321,7 +5321,7 @@
       gap: 6px;
       padding: 4px 10px;
       border-radius: 12px;
-      font-size: 0.8rem;
+      font-size: 0.9rem;
       font-weight: 500;
   }
   
@@ -6556,7 +6556,7 @@
 
   /* ===== PLUGIN SELECTOR MENU HOVER EFFECT ===== */
 
-#enabledFeaturesMenu {
+/* #enabledFeaturesMenu {
   position: relative;
 }
 
@@ -6592,7 +6592,33 @@
 
 .dark #enabledFeaturesMenu:hover::after {
   opacity: 0.4;
+} */
+
+/* Rainbow animated border for closeEnabledFeaturesMenu */
+#closeEnabledFeaturesMenu {
+  position: relative;
+  border: 0.5px solid transparent;
+  animation: gradient-rotate 3s ease infinite;
+  background-clip: border-box;
+  -webkit-background-clip: border-box;
 }
+
+#closeEnabledFeaturesMenu::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: inherit;
+  border-radius: inherit;
+  z-index: -1;
+}
+
+#enabledFeaturesMenu:hover #closeEnabledFeaturesMenu {
+  border: 0.5px solid #ec4899; /* fallback to pink border when not hovering */
+}
+
 
 /* Icon Pop Animation */
 @keyframes iconPop {
@@ -6624,6 +6650,52 @@
   transition: transform 0.1s ease;
 }
 
+/* Rainbow animated stroke for IconSparkles
+.sparkles-rainbow-stroke {
+  transition: all 0.1s ease;
+}
+
+#enabledFeaturesMenu:hover .sparkles-rainbow-stroke {
+  filter: drop-shadow(0 0 4px #3b82f6);
+  animation: sparkles-glow-cycle 6s ease-in-out infinite;
+}
+
+#enabledFeaturesMenu:hover .sparkles-rainbow-stroke svg {
+  stroke: #3b82f6;
+  stroke-width: 2;
+  fill: none;
+}
+
+.sparkles-rainbow-stroke svg {
+  transition: all 0.2s ease;
+  stroke: currentColor;
+  stroke-width: 1;
+  fill: currentColor;
+} */
+
+/* @keyframes sparkles-glow-cycle {
+  0% { 
+    filter: drop-shadow(0 0 4px #3b82f6);
+  }
+  16.66% { 
+    filter: drop-shadow(0 0 4px #8b5cf6);
+  }
+  33.33% { 
+    filter: drop-shadow(0 0 4px #ef4444);
+  }
+  50% { 
+    filter: drop-shadow(0 0 4px #f97316);
+  }
+  66.66% { 
+    filter: drop-shadow(0 0 4px #22c55e);
+  }
+  83.33% { 
+    filter: drop-shadow(0 0 4px #06b6d4);
+  }
+  100% { 
+    filter: drop-shadow(0 0 4px #3b82f6);
+  }
+} */
 
 /* Enhanced Admin-Style Settings Cards - Clean Version */
 .admin-style-settings-card {
@@ -6905,6 +6977,7 @@
 }
 
 
+
 .apikeys-item-expanded-view {
   max-height: 0;
   opacity: 0;
@@ -6936,8 +7009,6 @@
 }
 
 .apikeys-item-label {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 0.8rem;
   font-weight: 500;
   color: #6b7280;
   flex-shrink: 0;
