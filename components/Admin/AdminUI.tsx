@@ -238,7 +238,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     const numericFields = ["inputContextWindow", "outputTokenLimit"] as const;
                     numericFields.forEach((field) => {
                         const value = typeof model[field] === 'string' 
-                            ? parseInt(model[field] as string, 10) || 0 
+                            ? parseInt(String(model[field]), 10) || 0 
                             : (model[field] as number) || 0;
                         (sanitizedModel as any)[field] = value;
                     });
@@ -246,7 +246,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     const floatFields = ["outputTokenCost", "inputTokenCost", "cachedTokenCost"] as const;
                     floatFields.forEach((field) => {
                         const value = typeof model[field] === 'string' 
-                            ? parseFloat(model[field] as string) || 0.0 
+                            ? parseFloat(String(model[field])) || 0.0 
                             : (model[field] as number) || 0.0;
                         (sanitizedModel as any)[field] = value;
                     });
