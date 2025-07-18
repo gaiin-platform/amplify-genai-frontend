@@ -122,8 +122,26 @@ export const ModelSelect: React.FC<Props> = ({
     </>
   }
   
+const getProviderBadge = (provider: string) => {
+  const providerColors: { [key: string]: string } = {
+    'bedrock': 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+    'openai': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+    'gemini': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+    'azure': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+  };
+  
+  const color = providerColors[provider.toLowerCase()] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+  
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${color} mr-2`}>
+      {provider.toUpperCase()}
+    </span>
+  );
+};
+
 const getIcons = (model: Model) => {
   return <div className="ml-auto flex flex-row gap-1 opacity-70">
+          {getProviderBadge(model.provider)}
           <div title={model.supportsImages ? "Supports Images in Prompts": "Does Not Support Images in Prompts"}>
            {model.supportsImages ? <IconCamera size={18}/> : <IconCameraOff size={18}/>}
          </div>
@@ -170,21 +188,51 @@ const getIcons = (model: Model) => {
         {isOpen && (
           <ul id="modelList" className="absolute z-10 mt-1 w-full overflow-auto rounded-lg border border-neutral-200 bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-[#343541] sm:text-sm"
               style={{maxHeight: window.innerHeight * 0.55}}>
-            {models.sort((a, b) => a.name.localeCompare(b.name))
+            {(() => {
+              // Group models by provider
+              const groupedModels = models.reduce((acc: { [key: string]: Model[] }, model: Model) => {
+                const provider = model.provider || 'Other';
+                if (!acc[provider]) acc[provider] = [];
+                acc[provider].push(model);
+                return acc;
+              }, {});
+              
+              // Sort providers
+              const sortedProviders = Object.keys(groupedModels).sort();
+              
+              return sortedProviders.map((provider, providerIndex) => (
+                <React.Fragment key={provider}>
+                  {providerIndex > 0 && (
+                    <div className="my-1 border-t border-neutral-200 dark:border-neutral-600" />
+                  )}
+                  <div className="px-4 py-1 text-xs font-semibold text-neutral-500 dark:text-neutral-400">
+                    {provider.toUpperCase()}
+                  </div>
+                  {groupedModels[provider]
+                    .sort((a, b) => a.name.localeCompare(b.name))
                     .map((model: Model) => (
-              <li
-                key={model.id}
-                id={model.id}
-                onClick={() => handleOptionClick(model.id)}
-                className="flex cursor-pointer items-center justify-between px-4 py-2 text-neutral-900 hover:bg-neutral-100 dark:text-white dark:hover:bg-neutral-600"
-                title={model.description}
-              >
-                <span>
-                  {model.id === defaultModelId ? defaultModelLabel(model.name) : model.name}
-                </span>
-                {getIcons(model)}
-              </li>
-            ))}
+                      <li
+                        key={model.id}
+                        id={model.id}
+                        onClick={() => handleOptionClick(model.id)}
+                        className="flex cursor-pointer items-center justify-between px-4 py-2 text-neutral-900 hover:bg-neutral-100 dark:text-white dark:hover:bg-neutral-600"
+                        title={model.description}
+                      >
+                        <span>
+                          {model.id === defaultModelId ? defaultModelLabel(model.name) : model.name}
+                        </span>
+                        <div className="ml-auto flex flex-row gap-1 opacity-70">
+                          <div title={model.supportsImages ? "Supports Images in Prompts": "Does Not Support Images in Prompts"}>
+                            {model.supportsImages ? <IconCamera size={18}/> : <IconCameraOff size={18}/>}
+                          </div>
+                          {getCostIcon(model.inputTokenCost, model.outputTokenCost)}
+                          {getOutputLimitIcon(model.outputTokenLimit)}
+                        </div>
+                      </li>
+                    ))}
+                </React.Fragment>
+              ));
+            })()}
           </ul>
         )}
       </div>

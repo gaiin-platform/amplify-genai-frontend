@@ -40,7 +40,11 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
     // Use the timzezone to get the user's local time
     const time = new Date().toLocaleString('en-US', {timeZone: timeZone});
 
-    let requestBody = {
+    // Check if we should use the LLM router endpoint
+    const useLLMRouter = process.env.NEXT_PUBLIC_LLM_ROUTER_ENDPOINT && 
+                        ['bedrock', 'gemini', 'openai'].includes(chatBody.model.provider?.toLowerCase());
+    
+    let requestBody: any = {
         model: chatBody.model.id,
         temperature: chatBody.temperature,
         max_tokens: chatBody.maxTokens || 1000,
@@ -62,12 +66,27 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
             ...vendorProps
         }
     }
+    
+    // If using LLM router, add provider information
+    if (useLLMRouter) {
+        requestBody = {
+            ...requestBody,
+            provider: chatBody.model.provider,
+            // For LLM router, we send messages differently
+            messages: chatBody.messages,
+            prompt: chatBody.prompt
+        };
+    }
 
     // console.log('sending chat request with dataSources', requestBody);
 
     const body = JSON.stringify(requestBody);
+    
+    // Use LLM router endpoint if configured and provider supports it
+    const finalEndpoint = useLLMRouter && process.env.NEXT_PUBLIC_LLM_ROUTER_ENDPOINT ? 
+                         process.env.NEXT_PUBLIC_LLM_ROUTER_ENDPOINT : endpoint;
 
-    const res = await fetch(endpoint, {
+    const res = await fetch(finalEndpoint, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
