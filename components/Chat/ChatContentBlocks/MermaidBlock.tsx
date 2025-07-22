@@ -439,13 +439,13 @@ const Mermaid: React.FC<MermaidProps> = ({ chart, currentMessage }) => {
                                     <line x1="8" y1="11" x2="14" y2="11"></line>
                                 </svg>
                             </button>
-                            <IconZoomIn 
-                                className="text-gray-400" 
+                            <div 
+                                className="text-gray-400 cursor-pointer" 
                                 onClick={() => setHeight(Math.min(4000, height + 100))}
-                                style={{ cursor: 'pointer' }}
                                 title="Zoom in"
-                                size={18}
-                            />
+                            >
+                                <IconZoomIn size={18} />
+                            </div>
                             <input
                                 type="range"
                                 min="250"
