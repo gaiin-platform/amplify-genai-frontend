@@ -59,6 +59,7 @@ import { capitalize } from '@/utils/app/data';
 import OperationSelector from "@/components/Agent/OperationSelector";
 import ActionsList from "@/components/Chat/ActionsList";
 import { resolveRagEnabled } from '@/types/features';
+import { OpBindings } from '@/types/op';
 
 
 
@@ -230,7 +231,7 @@ export const ChatInput = ({
         customName?: string;
         customDescription?: string;
         operation?: any;
-        parameters?: Record<string, { value: string; mode: 'ai' | 'manual' }>;
+        parameters?: OpBindings;
     }[]>([]);
 
     // Show Ops popup toggle state
@@ -240,7 +241,7 @@ export const ChatInput = ({
         customName?: string;
         customDescription?: string;
         index: number;
-        parameters?: Record<string, { value: string; mode: 'ai' | 'manual' }>;
+        parameters?: OpBindings;
     } | null>(null);
     
     // Action set modal states
@@ -889,7 +890,7 @@ export const ChatInput = ({
 
                     { featureFlags.actionSets &&  showOpsPopup && (
                             <div ref={actionSelectorRef} className="z-50 w-full" 
-                                 style={{transform: 'translateY(60px)'}} >
+                                 style={{transform: 'translateY(50px)'}} >
                                 <OperationSelector
                                     initialAction={editingAction ? 
                                         { 

@@ -1,3 +1,4 @@
+import { OpBindings } from '@/types/op';
 import { createAppDataClient } from './userDataService';
 
 // Constants for ActionSets storage
@@ -10,7 +11,7 @@ export interface ActionItem {
   customName?: string;
   customDescription?: string;
   operation?: any;
-  parameters?: Record<string, { value: string; mode: 'ai' | 'manual' }>;
+  parameters?: OpBindings;
 }
 
 export interface ActionSet {

@@ -2,9 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { getAgentTools } from '@/services/agentService';
 import ApiIntegrationsPanel from '../AssistantApi/ApiIntegrationsPanel';
 import HomeContext from '@/pages/api/home/home.context';
-import { API } from '../AssistantApi/CustomAPIEditor';
-import { ToggleOptionButtons } from '../ReusableComponents/ToggleOptionButtons';
-import { IconAsterisk, IconMinus, IconCheck, IconChevronDown, IconChevronRight, IconCirclePlus, IconCode, IconInfoCircle, IconLoader2, IconRobot, IconSettings, IconTags, IconTool, IconTools, IconUserCog, IconX } from '@tabler/icons-react';
+import { IconAsterisk, IconCheck, IconChevronDown, IconChevronRight, IconCirclePlus, IconCode, IconInfoCircle, IconLoader2, IconSettings, IconTags, IconTool, IconTools, IconX } from '@tabler/icons-react';
 import { getOperationIcon } from '@/types/integrations';
 import { AgentTool } from '@/types/agentTools';
 import { ActiveTabs } from '../ReusableComponents/ActiveTabs';
@@ -12,20 +10,21 @@ import { getOpsForUser } from '@/services/opsService';
 import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import ActionSetList from './ActionSets';
 import { ScheduledTaskButton } from './ScheduledTasks';
-import { ScheduledTaskType } from '@/types/scheduledTasks';
+import { OpBindingMode, OpBindings, OpDef } from '@/types/op';
+import ApiParameterBindingEditor from '../AssistantApi/ApiParameterBindingEditor';
 
 
 interface OperationSelectorProps {
     operations?: AgentTool[];
     initialHeader?: React.ReactNode; // Optional header content
-    onActionAdded?: (operation: AgentTool, parameters: Record<string, { value: string; mode: 'ai' | 'manual' }>, customName?: string, customDescription?: string) => void;
+    onActionAdded?: (operation: AgentTool, parameters: OpBindings, customName?: string, customDescription?: string) => void;
     onActionSetAdded?: (actionSet: any) => void; // Callback when "Add Action Set" is clicked
     onCancel?: () => void; // Callback when cancel button is clicked
     initialAction?: { // Optional initial action for editing
         name: string;
         customName?: string;
         customDescription?: string;
-        parameters?: Record<string, { value: string; mode: 'ai' | 'manual' }>;
+        parameters?: OpBindings;
     };
     editMode?: boolean; // Whether the component is in edit mode
 }
@@ -56,7 +55,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
     // const [isLoadingTab, setIsLoadingTab] = useState<string[]>([...(operations ? [""] : ["Actions"]), "Action Sets"]);
     const [allOperations, setAllOperations] = useState<any[] | null>(operations ?? null);
     const [selectedOp, setSelectedOp] = useState<AgentTool | null>(null);
-    const [paramModes, setParamModes] = useState<Record<string, 'ai' | 'manual'>>({});
+    const [paramModes, setParamModes] = useState<Record<string, OpBindingMode>>({});
     const [paramValues, setParamValues] = useState<Record<string, string>>({});
     const [customName, setCustomName] = useState<string>(initialAction?.customName || '');
     const [customDescription, setCustomDescription] = useState<string>(initialAction?.customDescription || '');
@@ -68,7 +67,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
     // State for selected action set
     const [selectedActionSet, setSelectedActionSet] = useState<any>(null);
 
-    const handleParamModeChange = (param: string, mode: 'ai' | 'manual') => {
+    const handleParamModeChange = (param: string, mode: OpBindingMode) => {
         setParamModes({ ...paramModes, [param]: mode });
     };
 
@@ -166,7 +165,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                 
                 // Initialize parameter values and modes if provided
                 if (initialAction.parameters) {
-                    const modes: Record<string, 'ai' | 'manual'> = {};
+                    const modes: Record<string, OpBindingMode> = {};
                     const values: Record<string, string> = {};
                     
                     Object.entries(initialAction.parameters).forEach(([key, param]) => {
@@ -234,14 +233,13 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                     <ApiIntegrationsPanel
                                         // API-related props
                                         availableApis={allOperations}
-                                        onClickApiItem={(api: API) => {
+                                        onClickApiItem={(api: OpDef) => {
                                             const apiAsTool: AgentTool = {
                                                 id: api.id,
                                                 name: api.name,
                                                 tool_name: api.name,
                                                 description: api.description || '',
-                                                schema: api.schema,
-                                                parameters: api.schema,
+                                                parameters: api.parameters,
                                                 tags: ['API', 'Integration'],
                                                 type: "api",
                                                 iconSize: 12
@@ -251,7 +249,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                         }}
                                         // Agent tools props
                                         availableAgentTools={agentTools}
-                                        onClickAgentTool={ (tool: any) => {
+                                        onClickAgentTool={ (tool: AgentTool) => {
                                             setSelectedOp(tool);
                                             clearAttributes();
                                         }}
@@ -397,70 +395,13 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                         </div>
 
                         {paramSource?.properties && (
-                            <div className="space-y-5">
-                                <h3 className="text-md font-semibold text-gray-700 dark:text-gray-300 flex items-center mb-3">
-                                    <IconSettings size={16} stroke={1.5} className="mr-1" />
-                                    Parameters
-                                </h3>
-
-                                {Object.entries(paramSource.properties).map(([paramName, paramInfo]: [string, any]) => (
-                                    <div key={paramName} className="bg-gray-50 dark:bg-[#40414F] rounded-lg p-4 border border-gray-300 dark:border-neutral-600">
-                                        <label className="flex items-center justify-between font-medium text-sm text-gray-900 dark:text-white mb-2">
-                                            <div className="flex items-center">
-                                                {paramSource.required?.includes(paramName) ? (
-                                                    <IconAsterisk size={16} stroke={1.5} className="text-red-500 mr-2" />
-                                                ) : (
-                                                    <IconMinus size={14} stroke={1.5} className="text-green-500 mr-2" />
-                                                )}
-                                                {formatOperationName(paramName)}
-                                            </div>
-                                            {paramInfo.type && (
-                                                <span className="text-xs font-normal py-1 px-2 bg-gray-200 dark:bg-gray-700 rounded-full text-gray-700 dark:text-gray-300">
-                                                    {paramInfo.type}
-                                                </span>
-                                            )}
-                                        </label>
-
-                                        <div className="flex items-center gap-3 mt-2">
-                                            <div className="flex items-center bg-white dark:bg-[#343541] border border-gray-300 dark:border-neutral-600 rounded-md overflow-hidden">
-
-                                                <ToggleOptionButtons
-                                                    activeColor={"text-blue-700 dark:text-blue-300"}
-                                                    options={[
-                                                        { id: 'ai', name: 'AI',
-                                                          title: "Let AI generate the parameter value. Add hints to influence the assigned parameter value (optional).",
-                                                          icon: IconRobot
-                                                        },
-                                                        { id: 'manual', name: 'Manual',
-                                                          title: 'Manually specify the parameter value',
-                                                          icon: IconUserCog
-                                                        }
-                                                    ]}
-                                                    selected={paramModes[paramName] || 'ai'}
-                                                    onToggle={(mode) => handleParamModeChange(paramName, mode as 'ai' | 'manual')}
-                                                />
-                                            </div>
-                                            <input
-                                                type="text"
-                                                value={paramValues[paramName] || ''}
-                                                onChange={(e) => handleParamValueChange(paramName, e.target.value)}
-                                                placeholder={paramModes[paramName] === 'manual' ? 
-                                                             `Enter ${formatOperationName(paramName)} value...` : 
-                                                             'AI value generation hints (optional)'}
-                                                className="flex-1 px-3 py-2 border rounded-md bg-white dark:bg-[#343541] border-gray-300 dark:border-neutral-600
-                          text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500
-                          focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-shadow duration-150"
-                                            />
-                                        </div>
-
-                                        {paramInfo.description && (
-                                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic">
-                                                {paramInfo.description}
-                                            </p>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
+                            <ApiParameterBindingEditor
+                                paramSource={paramSource}
+                                paramModes={paramModes}
+                                paramValues={paramValues}
+                                onParamModeChange={handleParamModeChange}
+                                onParamValueChange={handleParamValueChange}
+                            />
                         )}
 
                         <details className="mt-6 bg-gray-50 dark:bg-[#343541] border border-gray-300 dark:border-neutral-600 rounded-md">
