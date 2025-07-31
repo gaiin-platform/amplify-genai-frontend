@@ -162,12 +162,12 @@ export const fileExtensionToType: { [key: string]: string } = {
 
 export const mimeTypeToCommonName: MimeTypeMapping = {
     "text/vtt": "Voice Transcript",
-    "application/vnd.ms-excel": "Excel",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "Excel",
-    "application/vnd.ms-powerpoint": "PowerPoint",
+    "application/vnd.ms-excel": "Excel",
     "application/vnd.openxmlformats-officedocument.presentationml.presentation": "PowerPoint",
-    "application/msword": "Word",
+    "application/vnd.ms-powerpoint": "PowerPoint",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "Word",
+    "application/msword": "Word",
     "text/plain": "Text",
     "application/pdf": "PDF",
     "application/rtf": "Rich Text Format",
@@ -195,8 +195,8 @@ export const mimeTypeToCommonName: MimeTypeMapping = {
     "application/x-mswrite": "Write",
     "application/vnd.ms-works": "Microsoft Works",
     "application/vnd.google-apps.folder": "Google Drive Folder",
-    "application/vnd.google.colab": "Google Colab",
     "application/vnd.google.colaboratory": "Google Colab",
+    "application/vnd.google.colab": "Google Colab",
     'application/vnd.google-apps.drawing' : "Google Drawings",
     'application/vnd.google-apps.jam' : "Google Jamboard",
     'application/vnd.google-apps.form' : "Google Forms",
@@ -205,4 +205,29 @@ export const mimeTypeToCommonName: MimeTypeMapping = {
     'application/vnd.google-apps.fusiontable' : "Google Fusion Tables",
     'application/vnd.google-apps.map' : "Google My Maps",
     'application/vnd.google-apps.drive-sdk' : "Google Drive SDK",
+};
+
+// Programmatically create the inverse mapping
+export const commonNameToMimeTypes: { [commonName: string]: string[] } = (() => {
+    const inverse: { [commonName: string]: string[] } = {};
+    
+    Object.entries(mimeTypeToCommonName).forEach(([mimeType, commonName]) => {
+        if (!inverse[commonName]) {
+            inverse[commonName] = [];
+        }
+        inverse[commonName].push(mimeType);
+    });
+    
+    return inverse;
+})();
+
+// Helper function to get the first (primary) mime type for a common name
+export const getFirstMimeTypeFromCommonName = (commonName: string): string | null => {
+    const mimeTypes = commonNameToMimeTypes[commonName];
+    return mimeTypes && mimeTypes.length > 0 ? mimeTypes[0] : null;
+};
+
+// Helper function to get all mime types for a common name
+export const getAllMimeTypesFromCommonName = (commonName: string): string[] => {
+    return commonNameToMimeTypes[commonName] || [];
 };

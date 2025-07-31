@@ -8,7 +8,7 @@ import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
 import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
 import {createAssistant, addAssistantPath, lookupAssistant} from "@/services/assistantService";
-import {IconFiles, IconArrowRight, IconMailFast, IconCaretRight, IconCaretDown, IconSitemap, IconWorld} from "@tabler/icons-react";
+import {IconFiles, IconArrowRight, IconMailFast, IconCaretRight, IconCaretDown} from "@tabler/icons-react";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/ReusableComponents/FlagsMap";
 import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
@@ -17,7 +17,7 @@ import React from 'react';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { getOpsForUser } from '@/services/opsService';
 import { getSettings } from '@/utils/app/settings';
-import { API } from '@/components/AssistantApi/CustomAPIEditor';
+import { ExternalAPI } from '@/components/AssistantApi/CustomAPIEditor';
 import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import  {AssistantPathEditor, AstPathData, emptyAstPathData, isAstPathDataChanged} from './AssistantModalComponents/AssistantPathEditor';
 import {opLanguageOptionsMap } from '@/types/op';
@@ -34,10 +34,13 @@ import { AddEmailWithAutoComplete } from '@/components/Emails/AddEmailsAutoCompl
 import ApiIntegrationsPanel from '@/components/AssistantApi/ApiIntegrationsPanel';
 import { AssistantEmailEvents } from '@/components/Promptbar/components/AssistantModalComponents/AssistantEmailEvents';
 import { AssistantWorkflowDisplay } from './AssistantModalComponents/AssistantWorkflowDisplay';
-import { isWebsiteDs, WebsiteURLInput } from '@/components/DataSources/WebsiteURLInput';
+import { isWebsiteDs, WebsiteScanScheduler, WebsiteURLInput } from '@/components/DataSources/WebsiteURLInput';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import { ScheduledTaskButton } from '@/components/Agent/ScheduledTasks';
 import { deleteFile } from '@/services/fileService';
+import AssistantDriveDataSources, { cleanupRemovedDatasources, DriveRescanSchedule } from './AssistantModalComponents/AssistantDriveDataSources';
+import { DriveFilesDataSources } from '@/types/integrations';
+import { determineWebsiteScanCron, manageScheduledTasks, updateScheduledTasks, determineDriveScanCron, AssistantScheduledTaskUses } from '@/utils/app/scheduledTasks';
 
 
 interface Props {
@@ -49,7 +52,7 @@ interface Props {
     loc: string;
     disableEdit?: boolean;
     title?: string;
-    onCreateAssistant?: (astDef: AssistantDefinition) => Promise<{ id: string; assistantId: string; provider: string }>;
+    onCreateAssistant?: (astDef: AssistantDefinition) => Promise<{ id: string; assistantId: string; provider: string, data_sources: AttachedDocument[], ast_data: any }>;
     height?: string;
     additionalTemplates?:Prompt[];
     autofillOn?:boolean;
@@ -157,7 +160,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
     const isGroupAst = loc.includes("admin");
 
-    const definition = getAssistant(assistant);
+    const definition: AssistantDefinition = getAssistant(assistant);
     // console.log("definition: ", definition);
 
     const initialDs: AttachedDocument[] = (definition.dataSources || []).map(ds => {
@@ -166,17 +169,23 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             key: (ds.key || ds.id)
         }
     });
-   
-    (definition?.data?.websiteUrls || []).forEach((urlItem: any) => {
-        if (!initialDs.find((ds:any) => ds.metadata?.sourceUrl === urlItem.url)) {
+    const websiteUrlHasDs = (ds:AttachedDocument[], url: string) => ds.find((ds:any) => ds.metadata?.sourceUrl === url || ds.metadata?.fromSitemap === url);
+
+    const [websiteUrls, setWebsiteUrls] = useState<any[]>(definition.data?.websiteUrls || []);
+    // console.log("websiteUrls", websiteUrls);
+    (websiteUrls || []).forEach((urlItem: any) => {
+        if (!websiteUrlHasDs(initialDs, urlItem.url)) {
+            // console.log("No existing ds found for", urlItem);
+            // detect if a url or sitemap failed to scrape and turn into a ds 
             const websiteDocument = {
-                id: urlItem.url,
-                name: urlItem.url,
+                id: urlItem.sourceUrl,
+                name: urlItem.sourceUrl,
                 type: urlItem.isSitemap ? 'website/sitemap' : 'website/url',
                 raw: null,
                 data: null,
                 metadata: {
-                    scanFrequency: 7, // Default scan frequency in days
+                    scanFrequency: urlItem.scanFrequency || null, // Transfer scan frequency from backend
+                    lastScanned: urlItem.lastScanned || null, // Transfer last scanned timestamp from backend  
                     sourceUrl: urlItem.url,
                     isSitemap: urlItem.isSitemap,
                     totalTokens: 0,
@@ -260,16 +269,21 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [content, setContent] = useState(definition.instructions);
     const [disclaimer, setDisclaimer] = useState(definition.disclaimer ?? "");
     const [dataSources, setDataSources] = useState(initialDs);
+    // console.log("dataSources", dataSources);
+    const [removedWebsiteDs, setRemovedWebsiteDs] = useState<AttachedDocument[]>([]);
     const [dataSourceOptions, setDataSourceOptions] = useState<{ [key: string]: boolean }>(initialDataSourceOptionState);
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
     const [messageOptions, setMessageOptions] = useState<{ [key: string]: boolean }>(initialMessageOptionState);
     const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(initialFeatureOptionState);
-    
+
+    const [integrationDataSources, setIntegrationDataSources] = useState<DriveFilesDataSources | undefined>(definition.data?.integrationDriveData);
+    const [driveRescanSchedule, setDriveRescanSchedule] = useState<DriveRescanSchedule | null>(null);
+
     const [apiOptions, setAPIOptions] = useState<{ [key: string]: boolean }>(initialAPIOptionState);
     const [availableApis, setAvailableApis] = useState<any[] | null>(null);
 
     const [selectedApis, setSelectedApis] = useState<any[]>(initialSelectedApis);
-    const [apiInfo, setApiInfo] = useState<API[]>(initialApiCapabilities || []);
+    const [apiInfo, setApiInfo] = useState<ExternalAPI[]>(initialApiCapabilities || []);
 
     const [availableAgentTools, setAvailableAgentTools] = useState<Record<string, any> | null>(null);
     const [builtInAgentTools, setBuiltInAgentTools] = useState<string[]>(definition.data?.builtInOperations ?? []);
@@ -355,7 +369,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     }, [existingAllowedSenders, enableEmailEvents]);
 
 
-    // we need to detect name changes if there is a tag predefined because then the existing sender list is empty
     const filterOps = async (data: any[]) => {
             const filteredOps = await filterSupportedIntegrationOps(data);
             if (filteredOps) setAvailableApis(filteredOps);
@@ -395,6 +408,33 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             setOpsLanguageVersion("v1");
         }
     }, [baseWorkflowTemplateId]);
+
+    // Handle sitemap cleanup when all children are removed
+    useEffect(() => {
+        if (!definition.data?.websiteUrls || websiteUrls.length === 0) return;
+        
+        // Find sitemaps in websiteUrls that no longer have any children in dataSources
+        const sitemapsToRemove: string[] = [];
+        
+        websiteUrls.forEach((urlItem: any) => {
+            if (urlItem.isSitemap) {
+                const hasRemainingChildren = dataSources.some(ds => 
+                    ds.metadata?.fromSitemap === urlItem.sourceUrl
+                );
+                if (!hasRemainingChildren) {
+                    sitemapsToRemove.push(urlItem.sourceUrl);
+                }
+            }
+        });
+        
+        // Remove sitemaps that no longer have children
+        if (sitemapsToRemove.length > 0) {
+            const updatedWebsiteUrls = websiteUrls.filter((urlItem: any) => 
+                !sitemapsToRemove.includes(urlItem.sourceUrl)
+            );
+            setWebsiteUrls(updatedWebsiteUrls);
+        }
+    }, [dataSources, websiteUrls]);
 
     const validateApiInfo = (api: any) => {
         return api.RequestType && api.URL && api.Description;
@@ -552,6 +592,69 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             newAssistant.instructions = content;
             newAssistant.disclaimer = disclaimer;
 
+            // Handle scheduled tasks
+            const existingScheduledTasks = definition.data?.scheduledTaskIds;
+            if (featureFlags.scheduledTasks && !isGroupAst) {
+                try {
+                    // Handle website scheduled tasks
+                    const websiteCron = determineWebsiteScanCron(dataSources);
+                    const needsWebsiteTask = websiteCron !== null;
+
+                    const assistantInfo = {
+                        name: newAssistant.name,
+                        assistantId: definition.assistantId ?? ''
+                    };
+
+                    setLoadingMessage("Managing scheduled tasks for website data sources...");
+
+                    const websiteTaskId = await manageScheduledTasks({
+                        currentTaskId: existingScheduledTasks?.websites,
+                        needsScheduledTask: needsWebsiteTask,
+                        cronExpression: websiteCron,
+                        scheduledUse: 'websites',
+                        assistantInfo,
+                        dataSources
+                    });
+
+                    // Handle drive data sources similarly when that feature is ready
+                    const driveCron = driveRescanSchedule ? determineDriveScanCron(driveRescanSchedule) : null;
+                    const needsDriveTask = driveCron !== null;
+                    const driveTaskId = await manageScheduledTasks({
+                        currentTaskId: existingScheduledTasks?.driveFiles,
+                        needsScheduledTask: needsDriveTask,
+                        cronExpression: driveCron,
+                        scheduledUse: 'driveFiles',
+                        assistantInfo,
+                        dataSources
+                    });
+
+                    // Update scheduled task IDs in assistant data
+                    const updatedScheduledTaskIds: { [key:string] : string }= {};
+
+                    if (websiteTaskId) updatedScheduledTaskIds.websites = websiteTaskId;
+                    if (driveTaskId) updatedScheduledTaskIds.driveFiles = driveTaskId;
+
+
+                    // Only set scheduledTaskIds if we have any tasks
+                    if (Object.keys(updatedScheduledTaskIds).length > 0) {
+                        newAssistant.data.scheduledTaskIds = updatedScheduledTaskIds;
+                    } else {
+                        // Remove the property if no scheduled tasks exist
+                        if (newAssistant.data?.scheduledTaskIds) {
+                            delete newAssistant.data.scheduledTaskIds;
+                        }
+                    }
+
+                    console.log('Scheduled task management completed for assistant:', definition.name);
+                } catch (error) {
+                    console.error('Error managing scheduled tasks:', error);
+                    // Don't fail the assistant creation for scheduled task errors
+                }
+                
+                setLoadingMessage(loadingMessage); // Reset loading message
+            }
+
+
             if (!featureFlags.assistantPathPublishing || (definition.astPath && !astPath)) {
                 // If feature flag is disabled, ensure astPath is not set
                 if (newAssistant.astPath) delete newAssistant.astPath;
@@ -612,6 +715,18 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             newAssistant.data.availableOnRequest = availableOnRequest;
 
             newAssistant.data.astIcon = astIcon;
+
+            newAssistant.data.websiteUrls = websiteUrls;
+
+            const initDriveDataSources = definition.data?.integrationDriveData;
+            if (integrationDataSources || initDriveDataSources) {
+                if (initDriveDataSources) {
+                    // compare integrationDataSources with init so we can delete files that are no longer in the assistant
+                    cleanupRemovedDatasources(initDriveDataSources, integrationDataSources ?? {});
+                }
+                newAssistant.data.integrationDriveData = integrationDataSources;
+            }
+           
 
             if (!baseWorkflowTemplateId && definition.data?.workflowTemplateId) {
                 console.log("removing workflow template")
@@ -704,8 +819,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             const updatedAdditionalGroupData = prepAdditionalData();
             newAssistant.data = {...newAssistant.data, ...updatedAdditionalGroupData};
             
-            const {id, assistantId, provider} = onCreateAssistant ? await onCreateAssistant(newAssistant) : await createAssistant(newAssistant, null);
+            const {id, assistantId, provider, data_sources, ast_data} = onCreateAssistant ? await onCreateAssistant(newAssistant) : await createAssistant(newAssistant, null);
             console.log('Assistant created with ID:', assistantId);
+
             
             if (!id) {
                 alert("Unable to save the assistant at this time, please try again later...");
@@ -724,10 +840,37 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 }
     
             }
-
+            if (featureFlags.scheduledTasks && !definition.assistantId && newAssistant.data?.scheduledTaskIds) {
+                // update scheduled tasks to include 
+                try {
+                    Object.entries(newAssistant.data.scheduledTaskIds).forEach(async ([key, taskId]) => {
+                        const result = await updateScheduledTasks(taskId as string, '', key as AssistantScheduledTaskUses, {
+                            name: newAssistant.name,
+                            assistantId: assistantId
+                        })
+                    });
+                } catch (error) {
+                    console.error('Error updating scheduled tasks:', error);
+                }
+            }
             newAssistant.id = id;
             newAssistant.provider = provider;
             newAssistant.assistantId = assistantId;
+            // updated datasources to account for sitemap scaping into multiple datasources
+            if (data_sources) newAssistant.dataSources = data_sources;
+            // ensure we have the data synced up with the backend
+            
+            if (newAssistant.data) {
+                newAssistant.data.websiteUrls = ast_data.websiteUrls;
+                newAssistant.data.integrationDriveData = ast_data.integrationDriveData;
+            }
+            // on successful save we can delete any removed website datasources
+            if (removedWebsiteDs.length > 0) {
+                console.log("removing website datasources", removedWebsiteDs);
+                removedWebsiteDs.forEach((doc) => {
+                    if (doc.key) deleteFile(doc.key);
+                });
+            }
 
             // If we have an assistantId and astPath, update the path in DynamoDB
             // if path has changed or pathData has changed
@@ -856,7 +999,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 <div className="mt-2 text-sm font-bold text-black dark:text-neutral-200">
                                     {t('Assistant Name')}
                                 </div>
-                                {!embed && !disableEdit && featureFlags.scheduledTasks && definition.assistantId && 
+                                {!isGroupAst && !disableEdit && featureFlags.scheduledTasks && definition.assistantId && 
                                     <div className="-mt-0.5 ml-auto text-sm text-gray-500 flex items-center gap-2 mr-1">
                                         Schedule Assistant
                                         <ScheduledTaskButton
@@ -969,7 +1112,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 setDocumentState(updatedDocState);
                                }}/>
                             {showDataSourceSelector && (
-                                <div className="mt-[-8px] flex justify-center overflow-hidden">
+                                <div className="mt-[-8px] flex justify-center overflow-hidden transform scale-y-90 origin-top-left">
                                     <div className="rounded bg-white dark:bg-[#343541] mb-4">
                                     <DataSourceSelector
                                             disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
@@ -998,37 +1141,82 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             )}
                             </>}
 
+
                 
-
                             {/* Add Website URLs Section */}
-                            {featureFlags.websiteUrls && (
-                                <>
-                                    <div className="mt-6 mb-2 font-bold text-black dark:text-neutral-200">
-                                        {t('Add Website URLs')}
-                                    </div>
-                                    {!disableEdit && (
-                                        <WebsiteURLInput
-                                            onAddURL={(url, isSitemap) => {
-                                                // Create a data source object for the URL
-                                                const websiteSource = {
-                                                    id: url,
-                                                    name: url,
-                                                    type: isSitemap ? 'website/sitemap' : 'website/url',
-                                                    metadata: {
-                                                        scanFrequency: 7, // Default scan frequency in days
-                                                        sourceUrl: url,
-                                                        isSitemap: isSitemap,
-                                                    },
-                                                };
-                                                // Add to dataSources
-                                                setDataSources([...dataSources, websiteSource as any]);
+                            {featureFlags.websiteUrls && !disableEdit && (
+                                <> 
+                                <div className="mt-2 mb-2 font-bold text-black dark:text-neutral-200">
+                                    {t('Attach Website URLs')}
+                                </div>
+                                {featureFlags.scheduledTasks &&
+                                  <WebsiteScanScheduler
+                                    initAssistantDefintion={definition}
+                                    websiteUrls={websiteUrls}
+                                    onUpdateWebsiteUrl={(urlItem, updates) => {
+                                        // Update the websiteUrls
+                                        setWebsiteUrls(websiteUrls.map(item => 
+                                            item.sourceUrl === urlItem.sourceUrl ? { ...item, ...updates } : item
+                                        ));
+                                        // If this is a sitemap, also update all its children datasources
+                                        if (urlItem.isSitemap) {
+                                            setDataSources(dataSources.map(ds => 
+                                                [ds.metadata?.fromSitemap, ds.metadata?.sourceUrl].includes(urlItem.sourceUrl) 
+                                                    ? { 
+                                                        ...ds, 
+                                                        metadata: { 
+                                                            ...ds.metadata, 
+                                                            totalTokens: ds.metadata?.totalTokens || 0,
+                                                            scanFrequency: updates.scanFrequency 
+                                                        } 
+                                                    } : ds
+                                            ));
+                                        } else {
+                                            // For individual URLs, update the matching datasource
+                                            setDataSources(dataSources.map(ds => 
+                                                ds.metadata?.sourceUrl === urlItem.sourceUrl 
+                                                    ? { 
+                                                        ...ds, 
+                                                        metadata: { 
+                                                            ...ds.metadata, 
+                                                            totalTokens: ds.metadata?.totalTokens || 0,
+                                                            scanFrequency: updates.scanFrequency 
+                                                        } 
+                                                    } : ds
+                                            ));
+                                        }
+                                    }}
+                                  />}
+                                <WebsiteURLInput
+                                    onAddURL={(url, isSitemap) => {
+                                        const webType = isSitemap ? 'website/sitemap' : 'website/url';
+                                        // Create a data source object for the URL
+                                        const websiteSource = {
+                                            id: url,
+                                            name: url,
+                                            type: webType,
+                                            metadata: {
+                                                scanFrequency: null, // Default scan frequency in days
+                                                sourceUrl: url,
+                                                isSitemap: isSitemap,
+                                            },
+                                        };
+                                        // Add to dataSources
+                                        setDataSources([...dataSources, websiteSource as any]);
 
-                                                // Set document state to 100% (fully loaded)
-                                                setDocumentState({ ...documentState, [url]: 100 });
-                                            }}
-                                        />
-                                    )}
+                                        // Set document state to 100% (fully loaded)
+                                        setDocumentState({ ...documentState, [url]: 100 });
 
+                                        const websiteUrl = {
+                                            url: url,
+                                            type: webType,
+                                            lastScanned: null,
+                                            ...websiteSource.metadata,
+                                        }
+                                        setWebsiteUrls([...websiteUrls, websiteUrl]);
+                                    }}
+                                />
+                            
                                 <FileList documents={dataSources.filter((ds:AttachedDocument) => 
                                                     !(preexistingDocumentIds.includes(ds.id)) && 
                                                      isWebsiteDs(ds))} documentStates={documentState}
@@ -1041,13 +1229,27 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     const updatedDocState = {...documentState};
                                     delete updatedDocState[ds.id];
                                     setDocumentState(updatedDocState);
+                                    setWebsiteUrls(websiteUrls.filter((urlItem: any) => urlItem.url !== ds.id));
                                }}/>
-                               <br></br>
                                 </>
                             )}
 
-                            { definition.dataSources.length > 0  &&
+                            {featureFlags.integrations && !disableEdit &&!isGroupAst &&
+                                <AssistantDriveDataSources
+                                initAssistantDefintion={definition}
+                                selectedDataSources={integrationDataSources ?? {}}
+                                onSelectedDataSourcesChange={setIntegrationDataSources}
+                                //  height?: string;
+                                //  minWidth?: string;
+                                disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
+                                initRescanSchedule={driveRescanSchedule}
+                                onRescanScheduleChange={setDriveRescanSchedule}
+                                />
+                            }
+
+                            { definition.dataSources?.length > 0  &&
                              <div className="mt-4">
+                                <br></br>
                                 <ExistingFileList 
                                     label={'Assistant Data Sources'}
                                     allowRemoval={!disableEdit}
@@ -1058,11 +1260,24 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     }} 
                                     onRemoval={(doc) => {
                                         // since websites are assistant specific scraped data sources we need to delete upon removal
-                                        if (isWebsiteDs(doc)) deleteFile(doc.id);
+                                        if (isWebsiteDs(doc) ) {
+                                            setRemovedWebsiteDs([...removedWebsiteDs, doc]);
+                                            if (definition.data && definition.data.websiteUrls) {
+                                                // For regular URLs (not sitemap children), remove them directly
+                                                if (!doc.metadata?.fromSitemap) {
+                                                    const updatedWebsiteUrls = definition.data.websiteUrls.filter((urlItem: any) => 
+                                                        urlItem.sourceUrl !== doc.metadata?.sourceUrl);
+                                                    setWebsiteUrls(updatedWebsiteUrls);
+                                                }
+                                                // Sitemap children cleanup is handled by useEffect
+                                            }
+                                        }
                                     }}
                                 />
                               </div>
                             }
+
+                    
 
                             {/* Workflow Template Selector - purposefully not featured flagged / outside ofthe advanced section */}
                             {baseWorkflowTemplateId && 
@@ -1095,19 +1310,16 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 />}
                             </div>}
 
+                            <br></br>
+
                             <ExpansionComponent title={"Advanced"} content={
                                 <div className="mb-4 text-black dark:text-neutral-200 mb-6">
                                     
                                     { definition.assistantId && 
                                     <>
-                                    <div className="text-sm font-bold text-black dark:text-neutral-200">
-                                        {t('Assistant ID')}
+                                    <div className="text-sm font-bold text-black dark:text-neutral-200 flex items-center">
+                                        {t('Assistant ID:')} <span className='ml-2 font-normal'>{definition.assistantId}</span>
                                     </div>
-                                    <input
-                                        className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-                                        value={definition.assistantId || ''}
-                                        disabled={true}
-                                    />
                                     </>}
 
                                     { featureFlags.integrations && <>
@@ -1288,6 +1500,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         builtInAgentTools={builtInAgentTools}
                                         setBuiltInAgentTools={setBuiltInAgentTools}
                                         
+                                        // Configuration
+                                        allowConfiguration={true}
+                                        
                                         // Refresh APIs function
                                         pythonFunctionOnSave={(fn)=>{
                                             getOpsForUser().then((ops) => {
@@ -1342,6 +1557,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             cancelLabel={disableEdit ? "Close" : 'Cancel'}
             content={<>{assistantModalContainer()}</>}
             disableClickOutside={true}
+            height={() => window.innerHeight}
         />
     );
 };
