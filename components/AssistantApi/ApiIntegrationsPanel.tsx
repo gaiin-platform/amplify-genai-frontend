@@ -2,23 +2,23 @@ import React, { useContext, useState, useRef, useEffect } from 'react';
 import { IconPlus, IconHomeBolt, IconWorldBolt, IconTools, IconTool, IconCheck, IconChevronDown, IconLoader2 } from '@tabler/icons-react';
 import AgentToolsSelector from '../Agent/AgentToolsSelector';
 import { ApiItemSelector } from './ApiSelector';
-import APIComponent, { API } from './CustomAPIEditor';
+import APIComponent, { ExternalAPI } from './CustomAPIEditor';
 import HomeContext from '@/pages/api/home/home.context';
 import { PythonFunctionModal } from '../Operations/PythonFunctionModal';
 import { createPortal } from 'react-dom';
-
+import { OpDef } from '@/types/op';
 
 interface ApiIntegrationsPanelProps {
   // API-related props
-  availableApis: any[] | null;
+  availableApis: OpDef[] | null;
 
-  selectedApis?: any[];
-  setSelectedApis?: (apis: any[]) => void;
-  onClickApiItem?: (api: any) => void;
+  selectedApis?: OpDef[];
+  setSelectedApis?: (apis: OpDef[]) => void;
+  onClickApiItem?: (api: OpDef) => void;
   
   // External API props
-  apiInfo?: API[];
-  setApiInfo?: React.Dispatch<React.SetStateAction<API[]>>;
+  apiInfo?: ExternalAPI[];
+  setApiInfo?: React.Dispatch<React.SetStateAction<ExternalAPI[]>>;
   
   // Agent tools props
   availableAgentTools?: Record<string, any> | null;
@@ -36,6 +36,10 @@ interface ApiIntegrationsPanelProps {
   showDetails?: boolean;
   labelPrefix?: string;
   compactDisplay?: boolean;
+  height?: string;
+  
+  // Configuration props
+  allowConfiguration?: boolean;
 }
 
 
@@ -44,7 +48,8 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
   availableAgentTools, builtInAgentTools=[], setBuiltInAgentTools,
   pythonFunctionOnSave = (fn: { name: string; code: string; schema: string; testJson: string }) => {}, 
   allowCreatePythonFunction = true, onClickApiItem, onClickAgentTool, hideApisPanel=[], disabled=false, 
-  labelPrefix="Manage", showDetails, compactDisplay=false
+  labelPrefix="Manage", showDetails, compactDisplay=false, height,
+  allowConfiguration = false
 }) => {
   const { state: {featureFlags, lightMode} } = useContext(HomeContext);
   const [shownAPIComponent, setShownAPIComponent] = useState<string>(compactDisplay ? "internal": "");
@@ -128,6 +133,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
             onClickApiItem={onClickApiItem}
             disableSelection={setSelectedApis === undefined || disabled}
             showDetails={showDetails}
+            allowConfiguration={allowConfiguration}
           />
         );
       case "external":
@@ -144,7 +150,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
             {allowCreatePythonFunction && featureFlags.createPythonFunctionApis &&
               <div className="relative">
               {!disabled && <button 
-                className={`${buttonClassName(false)} absolute -top-2 mt-0 z-10`}
+                className={`${buttonClassName(false)} absolute -top-6 mt-0 z-10 shadow-xl`}
                 onClick={() => setAddFunctionOpen(!addFunctionOpen)}
               >
                 <IconPlus size={18} />
@@ -159,6 +165,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
               onClickApiItem={onClickApiItem}
               disableSelection={setSelectedApis === undefined || disabled}
               showDetails={showDetails}
+              allowConfiguration={allowConfiguration}
             />
             
             {addFunctionOpen && createPortal(
@@ -303,7 +310,12 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
         </div>
       )}
       
-      {renderApiComponent()}
+      <div 
+        className={height ? "overflow-y-auto" : ""}
+        style={height ? { maxHeight: height } : {}}
+      >
+        {renderApiComponent()}
+      </div>
     </div>
   );
 };

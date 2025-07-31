@@ -19,7 +19,7 @@ import LegacyWorkspaces from '../Workspace/LegacyWorkspace';
 import { capitalize } from '@/utils/app/data';
 import { IconCurrencyDollar, IconMoonStars, IconSun } from '@tabler/icons-react';
 import ExpansionComponent from '../Chat/ExpansionComponent';
-import { IntegrationsTab } from '../Integrations/IntegrationsTab';
+import { IntegrationTabs } from '../Integrations/IntegrationsTab';
 import { ApiKeys } from './AccountComponents/ApiKeys';
 import { Accounts } from './AccountComponents/Account';
 import { Account, noCoaAccount } from '@/types/accounts';
@@ -508,7 +508,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
               // Integrations Tab
               ...(featureFlags.integrations ? [{label: `Integrations`, 
                 title: "Manage your integration connections",
-                content: <IntegrationsTab open={open} depth={1}/>
+                content: <IntegrationTabs open={open} depth={1}/>
               }] : []),
 
               ///////////////////////////////////////////////////////////////////////////////

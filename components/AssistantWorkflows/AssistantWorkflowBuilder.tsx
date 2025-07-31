@@ -11,7 +11,6 @@ import ExpansionComponent from '../Chat/ExpansionComponent';
 import { InfoBox } from '../ReusableComponents/InfoBox';
 import { InputsMap } from '../ReusableComponents/InputMap';
 import ApiIntegrationsPanel from '../AssistantApi/ApiIntegrationsPanel';
-import { API } from '../AssistantApi/CustomAPIEditor';
 import HomeContext from '@/pages/api/home/home.context';
 import { getOpsForUser } from '@/services/opsService';
 import { getAgentTools } from '@/services/agentService';
@@ -19,6 +18,9 @@ import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import toast from 'react-hot-toast';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { AssistantWorkflow } from './AssistantWorkflow';
+import { OpDef, Schema } from '@/types/op';
+import { AgentTool } from '@/types/agentTools';
+import { emptySchema } from '@/utils/app/tools';
 
 interface WorkflowTemplateBuilderProps {
   isOpen: boolean;
@@ -119,7 +121,6 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
 
 
-      // we need to detect name changes if there is a tag predefined because then the existing sender list is empty
       const filterOps = async (data: any[]) => {
         const filteredOps = await filterSupportedIntegrationOps(data);
         if (filteredOps) setAvailableApis(filteredOps);
@@ -426,7 +427,13 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
     setLoadingSelectedWorkflow(false);
   };
 
-  const handleSelectTool = (toolName: string, index: number, args: Record<string, string>) => {
+  const handleSelectTool = (toolName: string, index: number, parameters: Schema) => {
+    const args: Record<string, string> = {};
+    if (parameters.properties) {
+      Object.entries(parameters.properties).forEach(([paramName, paramInfo]: [string, any]) => {
+        args[paramName] = paramInfo.description ?? "No description provided";
+      });
+    }
     const updatedTemplate = cloneDeep(selectedWorkflow);
     if (updatedTemplate.template?.steps) {
       updatedTemplate.template.steps[index].tool = toolName;  
@@ -566,23 +573,13 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
             <ApiIntegrationsPanel
                 // API-related props
                 availableApis={availableApis}
-                onClickApiItem={(api: API) => {
-                  const args: Record<string, string> = {};
-                  api.params.forEach((param: any) => {
-                    args[param.name] = `<${param.description || param.name}>`;
-                  });
-                  handleSelectTool(api.name, index, args);
+                onClickApiItem={(api: OpDef) => {
+                  handleSelectTool(api.name, index, api.parameters);
                 }}
                 // Agent tools props
                 availableAgentTools={availableAgentTools}
-                onClickAgentTool={ (tool: any) => {
-                  const args: Record<string, string> = {};
-                  if (tool.parameters?.properties) {
-                    Object.entries(tool.parameters.properties).forEach(([paramName, paramInfo]: [string, any]) => {
-                      args[paramName] = paramInfo.description ?? "No description provided";
-                    });
-                  }
-                  handleSelectTool(tool.tool_name, index, args);
+                onClickAgentTool={ (tool: AgentTool) => {
+                  handleSelectTool(tool.tool_name, index, tool.parameters || emptySchema);
                 }}
                 // python function 
                 allowCreatePythonFunction={false}

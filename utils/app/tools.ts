@@ -1,4 +1,5 @@
 import {CustomFunction} from "@/types/chat";
+import { Schema } from "@/types/op";
 
 export interface Prompt {
     rootPrompt?: string;
@@ -301,4 +302,21 @@ export const parameterizeTools = ({stopper, context, requestedParameters, reques
         },
 
     };
+}
+
+export const emptySchema: Schema = {type: "object", properties: {}};
+
+// for backward compatibiity 
+export const parametersToParms = (parameters: Schema | undefined): Record<string, string>[] => {
+    if (!parameters || !parameters.properties) return [];
+    
+    const params: Record<string, string>[] = [];
+    Object.entries(parameters.properties).forEach(([paramName, paramInfo]: [string, any]) => {
+        params.push({
+            name: paramName,
+            description: paramInfo.description ?? "No description provided"
+        });
+    });
+    
+    return params;
 }

@@ -21,7 +21,7 @@ export interface Parameter {
   description: string;
 }
 
-export interface API {
+export interface ExternalAPI {
   id: string;
   name: string;
   requestType: string;
@@ -44,8 +44,8 @@ export interface API {
 }
 
 export interface APIState {
-  apiInfo: API[];
-  setApiInfo: React.Dispatch<React.SetStateAction<API[]>>;
+  apiInfo: ExternalAPI[];
+  setApiInfo: React.Dispatch<React.SetStateAction<ExternalAPI[]>>;
   disabled?: boolean;
 }
 

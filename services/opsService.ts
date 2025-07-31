@@ -53,3 +53,18 @@ export const deleteOp = async (removeOp: any) => {
     };
     return await doRequestOp(op);
 }
+
+export const getOpByName = async (tag: string, op_name: string, system_op?: boolean) => {
+    const op = {
+        data: { 
+            tag: tag, 
+            op_name: op_name,
+            ...(system_op !== undefined && { system_op: system_op })
+        },
+        method: 'POST',
+        path: URL_PATH,
+        op: '/get_op',
+        service: SERVICE_NAME
+    };
+    return await doRequestOp(op);
+}

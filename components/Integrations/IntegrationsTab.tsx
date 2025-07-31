@@ -13,9 +13,14 @@ import { translateIntegrationIcon } from './IntegrationsDialog';
 interface Props {
   open: boolean;
   depth?: number;
+  allowedIntegrations?: string[]; // ex. google_drive, microsoft_drive etc.
+  onSupportedIntegrations?: (integrations: IntegrationsMap) => void;
+  onConnectedIntegrations?: (integrations: string[]) => void;
+  onTabChange?: (tab: string) => void;
 }
 
-export const IntegrationsTab: FC<Props> = ({ open, depth=0 }) => {
+export const IntegrationTabs: FC<Props> = ({ open, depth=0, allowedIntegrations=[], onTabChange: integrationTabChange = () => {},
+                                             onSupportedIntegrations = () => {}, onConnectedIntegrations = () => {}}) => {
   const { t } = useTranslation('settings');
   const { dispatch: homeDispatch, state: { statsService} } = useContext(HomeContext);
   const lastActiveTab = useRef<number | undefined>(undefined);
@@ -33,7 +38,9 @@ export const IntegrationsTab: FC<Props> = ({ open, depth=0 }) => {
     if (integrationSupport && integrationSupport.success) {
       const supportedIntegrations = integrationSupport.data;
       setIntegrations(supportedIntegrations);
+      onSupportedIntegrations(supportedIntegrations);
     }  else {
+      onSupportedIntegrations({});
       alert("Unable to retrieve available integrations at this time. Please try again later.");
     }
   }
@@ -42,6 +49,7 @@ export const IntegrationsTab: FC<Props> = ({ open, depth=0 }) => {
     const userIntegrations = await getConnectedIntegrations();
     if (userIntegrations && userIntegrations.success && userIntegrations.data) {
       setConnectedIntegrations(userIntegrations.data);
+      onConnectedIntegrations(userIntegrations.data);
     } else {
       alert("Unable to verify connected integrations at this time. Please try again later.");
     }
@@ -63,14 +71,16 @@ export const IntegrationsTab: FC<Props> = ({ open, depth=0 }) => {
       refreshUserIntegrations();
     }
   }, [open]);
-
+  
 
   const handleDisconnect = async (id: string) => {
     try {
       setLoadingStates(prev => ({ ...prev, [id]: true }));
       const result = await deleteUserIntegration(id);
       if (result) {
-        setConnectedIntegrations(connectedIntegrations.filter((i: string) => i !== id));
+        const connected = connectedIntegrations.filter((i: string) => i !== id);
+        setConnectedIntegrations(connected);
+        onConnectedIntegrations(connected);
       } 
     } catch (e) {
       alert("An error occurred. Please try again.");
@@ -141,6 +151,7 @@ export const IntegrationsTab: FC<Props> = ({ open, depth=0 }) => {
     return ( !integrationsList ? null : 
             <>
              {integrationsList.map((integration) => (
+              allowedIntegrations?.length > 0 && !allowedIntegrations.includes(integration.id) ? null :
             <div key={integration.id} className="integration-card" >
                <div className="integration-card-content">
                  <div className="integration-info">
@@ -202,6 +213,7 @@ export const IntegrationsTab: FC<Props> = ({ open, depth=0 }) => {
         id="SettingsIntegrationsTab"
         depth={depth}
         initialActiveTab={lastActiveTab.current}
+        onTabChange={(i: number, label: string) => integrationTabChange(label)}
         tabs={[
             ...(Object.keys(integrations).sort().map((name: string, i: number) =>
                         ({label: capitalize(name), 

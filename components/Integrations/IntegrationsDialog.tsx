@@ -1,12 +1,12 @@
 import { FC } from 'react';
 import { Modal } from '../ReusableComponents/Modal';
 import { integrationIconComponents } from '@/types/integrations';
-import { IntegrationsTab } from './IntegrationsTab';
+import { IntegrationTabs } from './IntegrationsTab';
 
 export const translateIntegrationIcon = (icon: string) => {
   if (icon in integrationIconComponents) {
       const IconComponent = integrationIconComponents[icon as keyof typeof integrationIconComponents];
-      return <IconComponent className="w-6 h-6 mr-2" />;
+      return <IconComponent className="w-6 h-6" />;
     }
   return null;
 }
@@ -31,7 +31,7 @@ export const IntegrationsDialog: FC<Props> = ({ open, onClose }) => {
       onCancel={onClose}
       onSubmit={onClose}
       submitLabel={"OK"}
-      content={ <IntegrationsTab open={open} /> }
+      content={ <IntegrationTabs open={open} /> }
     />
   );
 };

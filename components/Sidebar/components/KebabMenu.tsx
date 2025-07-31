@@ -26,12 +26,17 @@ import { savePrompts } from "@/utils/app/prompts";
 import { fetchAllRemoteConversations, fetchEmptyRemoteConversations, fetchMultipleRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import { conversationWithUncompressedMessages, deleteConversationCleanUp, isRemoteConversation, saveConversations } from "@/utils/app/conversation";
 import { getDateName } from "@/utils/app/date";
-import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import React from "react";
 import toast from "react-hot-toast";
 import { getArchiveNumOfDays, getHiddenGroupFolders, saveArchiveNumOfDays, saveFolders } from "@/utils/app/folders";
 import { updateWithRemoteConversations } from "@/utils/app/conversationStorage";
 import { IconArchive } from '@tabler/icons-react';
+
+// Kebab menu navigation structure
+interface KebabMenuNavigation {
+  section?: 'Folders';
+  subsection?: 'Sort' | 'Archive';
+}
 
 
 interface Props {
@@ -68,6 +73,41 @@ interface Props {
     useEffect(() => {
         setIsSyncing(((isConvSide && syncingConversations) || (!isConvSide && syncingPrompts)));
     }, [syncingConversations, syncingPrompts]);
+
+    // Event listener for programmatic kebab menu navigation
+    useEffect(() => {
+        const handleOpenKebabMenu = (event: CustomEvent<KebabMenuNavigation>) => {
+            const { section, subsection } = event.detail;
+            // Open the main kebab menu
+            setIsMenuOpen(true);
+            
+            // Navigate to the specified section/subsection with delays
+            setTimeout(() => {
+                if (section === 'Folders') {
+                    const foldersButton = document.getElementById('folders-menu');
+                    if (foldersButton) {
+                        console.log('Clicking Folders button');
+                        foldersButton.click();
+                        
+                        // 3. If there's a subsection, navigate to it
+                        if (subsection) {
+                            setTimeout(() => {
+                                const subsectionId = `${subsection.toLowerCase()}-menu`;
+                                const button = document.getElementById(subsectionId);
+                                if (button) {
+                                    console.log(`Clicking ${subsection} button`);
+                                    button.click();
+                                }
+                            }, 100);
+                        }
+                    }
+                }
+            }, 100);
+        };
+
+        window.addEventListener('openKebabMenu', handleOpenKebabMenu as EventListener);
+        return () => window.removeEventListener('openKebabMenu', handleOpenKebabMenu as EventListener);
+    }, []);
 
     const conversationsRef = useRef(conversations);
 
@@ -111,23 +151,6 @@ interface Props {
         return getHiddenGroupFolders().length > 0;
     }
     
-    // Get older folders based on age threshold
-    const getOlderFolders = () => {
-        if (!isConvSide) return [];
-        
-        const now = new Date();
-        const thresholdDate = new Date(now);
-        thresholdDate.setDate(now.getDate() - archiveConversationPastNumOfDays);
-        
-        return folders.filter(folder => { 
-            if (folder.type !== 'chat') return false;
-            if (folder.pinned || folder.id === 'agents') return false;
-            
-            // Check if folder has a date
-            const folderDate = folder.date ? new Date(folder.date) : now;
-            return folderDate < thresholdDate;
-        });
-    }
 
     const unHideHiddenGroupFolders = () => {
         const hiddenFolders = getHiddenGroupFolders();
@@ -388,22 +411,35 @@ interface Props {
     }
 
     const handleArchiveFolderNum = (numOfDays: number) => {
+        // Get the current archive setting before changing it
+        const previousArchiveDays = getArchiveNumOfDays();
+        
         setArchiveConversationPastNumOfDays(numOfDays);
         saveArchiveNumOfDays(numOfDays);
         // Dispatch event to update archive threshold
         window.dispatchEvent(new CustomEvent('updateArchiveThreshold', { 
             detail: { threshold: numOfDays } 
         }));
+
+        // If the new archive days is larger than the previous setting,
+        // we need to re-sync to get more historical conversations
+        // Special case: 0 means "show all" so we need to sync everything
+        // But if we were already at 0 (show all), no need to re-sync
+        if (previousArchiveDays !== 0 && (numOfDays > previousArchiveDays || numOfDays === 0)) {
+            const syncDays = numOfDays === 0 ? undefined : numOfDays;
+            console.log(`Archive days changed from ${previousArchiveDays} to ${numOfDays}. Re-syncing conversations${syncDays ? ` with ${syncDays} days limit` : ' with no time limit'}...`);
+            reSyncConversations(syncDays);
+        }
     }
 
     const isShowingAllFolders = () => {
         return archiveConversationPastNumOfDays === 0;
     }
 
-    const reSyncConversations = async () => {
+    const reSyncConversations = async (days?: number) => {
         homeDispatch({ field: 'syncingConversations', value: true });
         try {
-            const allRemoteConvs = await fetchAllRemoteConversations();
+            const allRemoteConvs = await fetchAllRemoteConversations(days);
             if (allRemoteConvs) {
                 const newCloudFolders = await updateWithRemoteConversations(allRemoteConvs, conversations, folders, homeDispatch, getDefaultModel(DefaultModels.DEFAULT));
                 const updatedFolders = [...folders, ...newCloudFolders.newfolders];
@@ -510,9 +546,9 @@ interface Props {
                                          setIsMenuOpen={setIsMenuOpen} setActiveItem={setActionItem} dropFolders={openCloseFolders} icon={<IconTags size={14} />} />}
                         
                         {isConvSide  &&  <KebabItem label="Clean" handleAction={() => { cleanEmptyConversations() }} icon={<IconTrashFilled size={14} />} title="Remove Empty Conversations" />}
-                        <KebabMenuItems label="Folders">
+                        <KebabMenuItems label="Folders" id="folders-menu">
 
-                            <KebabMenuItems label="Sort">
+                            <KebabMenuItems label="Sort" id="sort-menu">
                                 <KebabItem label="Name" handleAction={() => {setFolderSort('name')}} icon={<IconAbc size={18}/>}  title="Sort Folders By Name"/>
                                 <KebabItem label="Date" handleAction={() => { setFolderSort('date') } } icon={<IconCalendar size={14}/>} title="Sort Folders By Date" />
                             </KebabMenuItems>
@@ -528,7 +564,7 @@ interface Props {
                             {!isConvSide && hasHiddenGroupFolders()  &&  <KebabItem label="Unhide" handleAction={() => { unHideHiddenGroupFolders() }} icon={<IconEye size={14} />} title="Unhide Hidden Group Folders" /> }
                             
                             {isConvSide && (
-                              <KebabMenuItems label="Archive">
+                              <KebabMenuItems label="Archive" id="archive-menu">
                                 <KebabItem 
                                   label={isShowingAllFolders() ? "Archive Folders ": "Show All Folders"} 
                                   handleAction={() => handleArchiveFolderNum(isShowingAllFolders() ? 7 : 0)} 

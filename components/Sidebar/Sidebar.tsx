@@ -111,6 +111,7 @@ const Sidebar = <T,>({
       <div
         className={`enhanced-sidebar fixed top-0 ${side}-0 z-40 flex h-full w-[270px] flex-none flex-col space-y-3 
                    p-3 text-[14px] transition-all sm:relative sm:top-0 ${isAnimated ? 'slide-in' : ''}`}
+        style={{ height: footerComponent ? 'calc(100% - 50px)' : '100%' }}
       >
         <div className="flex items-center justify-between w-full gap-1">
           <div className="flex items-center gap-1 flex-1 min-w-0">
@@ -167,6 +168,14 @@ const Sidebar = <T,>({
         </div>
         {footerComponent}
       </div>
+      {footerComponent && (
+        <div 
+          className={`fixed bottom-0 ${side}-0 z-40 w-[270px] bg-white dark:bg-[#202123] border-t border-neutral-300 dark:border-neutral-600`}
+          style={{ left: side === 'left' ? '0' : 'auto', right: side === 'right' ? '0' : 'auto' }}
+        >
+          {footerComponent}
+        </div>
+      )}
     </div>
   );
 };

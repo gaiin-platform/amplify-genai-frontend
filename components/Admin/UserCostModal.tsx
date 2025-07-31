@@ -60,21 +60,12 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     
     try {
       const result = await getAllUserMtdCosts(limit, nextKey);
-      // console.log('MTD Costs API Result:', result); // Debug log
-      
-      // The result should already be decoded by doRequestOp
-      let data = result;
-      
-      // If result has a success property, it means there was an API wrapper
-      if (result && typeof result === 'object' && 'success' in result) {
-        if (!result.success) {
-          setError(result.message || 'Failed to fetch MTD costs');
-          return;
-        }
-        data = result.data || result;
+      if (!result.success || !result.data) {
+        setError(result.message || 'Failed to fetch MTD costs');
+        return;
       }
-      
-      console.log('Processed data:', data); // Debug log
+      // The result should already be decoded by doRequestOp
+      let data = result.data;
       
       // Handle the response structure from your API
       if (data && data.users && Array.isArray(data.users)) {
@@ -85,19 +76,6 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
         }
         setResponseData(data);
         setLastEvaluatedKey(data.lastEvaluatedKey);
-      } else if (data && Array.isArray(data)) {
-        // Fallback if the response is directly an array
-        const responseData = { users: data, count: data.length, lastEvaluatedKey: null, hasMore: false };
-        if (appendData) {
-          setUserCosts(prev => [...prev, ...data]);
-        } else {
-          setUserCosts(data);
-        }
-        setResponseData(responseData);
-        setLastEvaluatedKey(null);
-      } else {
-        console.error('Unexpected response format:', data);
-        setError(`Unexpected response format. Got: ${typeof data}`);
       }
     } catch (err) {
       setError('An error occurred while fetching MTD costs');
@@ -292,7 +270,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                       <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                         {userCosts.map((user, index) => (
                           <>
-                            <tr key={user.email || index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <tr key={`${user.email}_${index}`} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                                 <button
                                   onClick={() => toggleUserExpansion(user.email)}

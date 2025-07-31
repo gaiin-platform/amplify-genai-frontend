@@ -115,7 +115,7 @@ interface Props {
                             </div> }  
                         </div>
 
-                        <div id="modalScroll" className="overflow-y-auto" style={{ maxHeight: `${innderWindow.height * 0.8}px` }}>
+                        <div id="modalScroll" className="overflow-y-auto text-black dark:text-white" style={{ maxHeight: `${innderWindow.height * 0.8}px` }}>
                             <div className={disableContentAnimation ? "no-modal-animation" : "modal-content-inner"}>
                                 {content}
                             </div>

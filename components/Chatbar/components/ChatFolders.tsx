@@ -9,8 +9,8 @@ import Folder from '@/components/Folder';
 import { ConversationComponent } from './Conversation';
 import ChatbarContext from "@/components/Chatbar/Chatbar.context";
 import {Conversation} from "@/types/chat";
-import { getArchiveNumOfDays, saveArchiveNumOfDays, sortFoldersByDate, sortFoldersByName } from '@/utils/app/folders';
-import { IconCirclePlus, IconDotsVertical } from '@tabler/icons-react';
+import { getArchiveNumOfDays, sortFoldersByDate, sortFoldersByName } from '@/utils/app/folders';
+import { IconCirclePlus } from '@tabler/icons-react';
 import { baseAgentFolder } from '@/utils/app/basePrompts';
 
 interface Props {

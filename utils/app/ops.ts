@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import { Integration, integrationProvidersList, IntegrationsMap } from "@/types/integrations";
 import { getAvailableIntegrations } from "@/services/oauthIntegrationsService";
 import { Account } from "@/types/accounts";
+import { parametersToParms } from "./tools";
 
 // Reference types
 export const DATASOURCE_TYPE = "#$"
@@ -49,9 +50,12 @@ export const remoteOpHandler = (opDef:OpDef, chatEndpoint: string, model: Model,
 
             const payload:Record<string,any> = {};
 
+            // Convert parameters Schema to params array for processing
+            const paramsArray = parametersToParms(opDef.parameters);
+
             // params = params.slice(1); // The first param is the operation name
-            for (let i = 0; i < opDef.params.length; i++) {
-                const paramDef = opDef.params[i];
+            for (let i = 0; i < paramsArray.length; i++) {
+                const paramDef = paramsArray[i];
                 console.log(`paramDef ${i}:`, paramDef);
                 try {
                     payload[paramDef.name] = JSON5.parse(params[i]);
