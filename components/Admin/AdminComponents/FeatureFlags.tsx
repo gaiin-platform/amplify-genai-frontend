@@ -27,6 +27,8 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
     const [isAddingFeature, setIsAddingFeature] = useState<{name: string, featureData: FeatureFlag} | null>(null); 
     const [featureSearchTerm, setFeatureSearchTerm] = useState<string>(''); 
     const [showFeatureSearch, setShowFeatureSearch] = useState<boolean>(true); 
+    const [hoveredfeature, setHoveredfeature] = useState<number>(-1); 
+
 
     const handleUpdateFeatureFlags = (featureName:string, updatedData: {enabled: boolean,
                                                                         userExceptions?: string[],
@@ -35,6 +37,13 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
             ...features,
             [featureName]: updatedData,
         });
+        updateUnsavedConfigs(AdminConfigTypes.FEATURE_FLAGS);
+    }
+
+    const handleDeleteFeatureFlag = (featureName:string) => {
+        const updatedFeatures = {...features};
+        delete updatedFeatures[featureName];
+        setFeatures(updatedFeatures);
         updateUnsavedConfigs(AdminConfigTypes.FEATURE_FLAGS);
     }
 
@@ -182,9 +191,9 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                         </span>
                     }
                     />
-                    <table id="featureFlagsTable" className="modern-table mt-4 w-full mr-10" style={{boxShadow: 'none', tableLayout: 'fixed'}}>
+                    <table id="featureFlagsTable" className="modern-table hide-last-column mt-4 w-full mr-10" style={{boxShadow: 'none', tableLayout: 'fixed'}}>
                         <thead>
-                        <tr className="gradient-header">
+                        <tr className="gradient-header hide-last-column">
                             {['Feature', 'Status', 'User Exceptions', 'User Exceptions by Amplify Group Membership']
                                 .map((title, index) => (
                             <th key={index}
@@ -193,7 +202,7 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                                 style={{
                                 width: index === 0  ? '22%' // Feature column takes as much space as needed
                                         : index === 1 ? '150px' // Fixed width for the Status button column
-                                        : 'auto', // User Exceptions column takes remaining space
+                                        : '32%', // User Exceptions column takes remaining space
                                 }}
                             >
                                 {title}
@@ -205,8 +214,8 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                         {Object.entries(features)
                                 .filter(([featureName, featureData]) => featureSearchTerm ? featureName.toLowerCase().includes(featureSearchTerm) : true)
                                 .sort(([nameA], [nameB]) => nameA.localeCompare(nameB))
-                                .map(([featureName, featureData]) => (
-                            <tr key={featureName}>
+                                .map(([featureName, featureData], i: number) => (
+                            <tr key={featureName} onMouseEnter={() => setHoveredfeature(i)} onMouseLeave={() => setHoveredfeature(-1)}>
                                 {/* Feature Name Column */}
                                 <td className="border border-neutral-500 px-4 py-2" id="featureTitle" title={featureName}>
                                     <span id="featureTitleName" className="text-[0.95rem]">{camelToTitleCase(featureName)}</span>
@@ -320,6 +329,20 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                                             });
                                         }}
                                         />
+                                </td>
+                                <td>
+                                    <div className="w-[30px] flex-shrink-0">
+                                    {hoveredfeature === i ?
+                                    <button
+                                        title={"Remove Feature Flag"}
+                                        type="button"
+                                        className="ml-1 p-1 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none"
+                                        onClick={() => {handleDeleteFeatureFlag(featureName)}}
+                                        >
+                                        <IconTrash size={20} />
+                                    </button>
+                                    : null}
+                                    </div>
                                 </td>
                             </tr>
                         ))}
