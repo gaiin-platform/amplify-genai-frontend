@@ -148,3 +148,19 @@ export const handleUpdateAssistantPrompt = async (assistantPrompt: Prompt, promp
     dispatch({ field: 'prompts', value: updatedPrompts });
     savePrompts(updatedPrompts);
 }
+
+export const filterAstsByFeatureFlags = (prompts: Prompt[], featureFlags: { [key: string]: boolean }) => {
+    let filteredPrompts: Prompt[] = [...prompts];
+    if (!featureFlags.apiKeys) {
+        filteredPrompts = filteredPrompts.filter(prompt =>{
+            const tags = prompt.data?.tags;
+            return !(
+                tags && 
+                (tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER) || 
+                tags.includes(ReservedTags.ASSISTANT_API_HELPER))
+            );
+        });
+    }
+    return filteredPrompts;
+
+}
