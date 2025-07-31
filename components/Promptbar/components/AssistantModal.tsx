@@ -38,7 +38,7 @@ import { isWebsiteDs, WebsiteScanScheduler, WebsiteURLInput } from '@/components
 import { Modal } from '@/components/ReusableComponents/Modal';
 import { ScheduledTaskButton } from '@/components/Agent/ScheduledTasks';
 import { deleteFile } from '@/services/fileService';
-import AssistantDriveDataSources, { cleanupRemovedDatasources, DriveRescanSchedule } from './AssistantModalComponents/AssistantDriveDataSources';
+import AssistantDriveDataSources, { cleanupRemovedDatasources, DriveRescanSchedule, hasDriveData } from './AssistantModalComponents/AssistantDriveDataSources';
 import { DriveFilesDataSources } from '@/types/integrations';
 import { determineWebsiteScanCron, manageScheduledTasks, updateScheduledTasks, determineDriveScanCron, AssistantScheduledTaskUses } from '@/utils/app/scheduledTasks';
 
@@ -598,8 +598,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 try {
                     // Handle website scheduled tasks
                     const websiteCron = determineWebsiteScanCron(dataSources);
-                    const needsWebsiteTask = websiteCron !== null;
-
+                    const needsWebsiteTask = websiteCron !== null && websiteUrls.length > 0;
                     const assistantInfo = {
                         name: newAssistant.name,
                         assistantId: definition.assistantId ?? ''
@@ -618,7 +617,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
                     // Handle drive data sources similarly when that feature is ready
                     const driveCron = driveRescanSchedule ? determineDriveScanCron(driveRescanSchedule) : null;
-                    const needsDriveTask = driveCron !== null;
+                    const needsDriveTask = driveCron !== null && hasDriveData(integrationDataSources ?? {});
                     const driveTaskId = await manageScheduledTasks({
                         currentTaskId: existingScheduledTasks?.driveFiles,
                         needsScheduledTask: needsDriveTask,

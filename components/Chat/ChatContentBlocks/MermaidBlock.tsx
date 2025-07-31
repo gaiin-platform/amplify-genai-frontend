@@ -1,8 +1,9 @@
 import mermaid from "mermaid";
-import { useContext, useEffect, useState, useCallback } from "react";
+import { useContext, useEffect, useState, useCallback, useMemo } from "react";
 import HomeContext from "@/pages/api/home/home.context";
-import { IconZoomIn, IconDownload, IconRefresh } from "@tabler/icons-react";
+import { IconZoomIn, IconDownload, IconRefresh, IconCode, IconFlipVertical } from "@tabler/icons-react";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
+import { CodeBlock } from "@/components/Markdown/CodeBlock";
 
 
 const mermaidConfig = {
@@ -264,12 +265,111 @@ const Mermaid: React.FC<MermaidProps> = ({ chart, currentMessage }) => {
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [diagramType, setDiagramType] = useState<string>('');
     const [retryCount, setRetryCount] = useState<number>(0);
+    const [showCode, setShowCode] = useState<boolean>(false);
+    const [isFlipped, setIsFlipped] = useState<boolean>(true);
     const maxRetries = 3;
 
 
     const {
-        state: { messageIsStreaming },
+        state: { messageIsStreaming, artifactIsStreaming},
     } = useContext(HomeContext);
+
+    // Function to flip diagram orientation
+    const flipOrientation = useCallback(() => {
+        console.log("Flipping orientation from", isFlipped, "to", !isFlipped);
+        setIsFlipped(!isFlipped);
+    }, [isFlipped]);
+
+    // Function to get the modified chart with flipped orientation
+    const getModifiedChart = useCallback(() => {
+        console.log("getModifiedChart called, isFlipped:", isFlipped);
+        
+        let modifiedChart = chart;
+
+        // Handle flowchart/graph diagrams
+        if (chart.includes('flowchart') || chart.includes('graph')) {
+            console.log("Processing flowchart/graph");
+            
+            if (isFlipped) {
+                // When flipped, change vertical orientations to horizontal
+                modifiedChart = modifiedChart
+                    .replace(/flowchart\s+(TD|TB|BT)/gi, 'flowchart LR')
+                    .replace(/graph\s+(TD|TB|BT)/gi, 'graph LR');
+            } else {
+                // When not flipped, change horizontal orientations back to vertical
+                modifiedChart = modifiedChart
+                    .replace(/flowchart\s+(LR|RL)/gi, 'flowchart TD')
+                    .replace(/graph\s+(LR|RL)/gi, 'graph TD');
+            }
+        }
+        
+        // Handle sequence diagrams
+        else if (chart.includes('sequenceDiagram')) {
+            console.log("Processing sequence diagram");
+            // Add or modify participant order for horizontal layout
+            if (isFlipped) {
+                modifiedChart = modifiedChart.replace(
+                    'sequenceDiagram',
+                    'sequenceDiagram\n    %%{wrap}%%'
+                );
+            }
+        }
+        
+        // Handle state diagrams
+        else if (chart.includes('stateDiagram')) {
+            console.log("Processing state diagram");
+            
+            if (isFlipped) {
+                // Add direction LR when flipped
+                if (!modifiedChart.includes('direction')) {
+                    modifiedChart = modifiedChart.replace(
+                        'stateDiagram-v2',
+                        'stateDiagram-v2\n    direction LR'
+                    ).replace(
+                        'stateDiagram',
+                        'stateDiagram\n    direction LR'
+                    );
+                } else {
+                    modifiedChart = modifiedChart.replace(/direction\s+TB/gi, 'direction LR');
+                }
+            } else {
+                // Remove direction or change back to TB when not flipped
+                if (modifiedChart.includes('direction LR')) {
+                    modifiedChart = modifiedChart.replace(/direction\s+LR/gi, 'direction TB');
+                }
+            }
+        }
+        
+        // Handle class diagrams
+        else if (chart.includes('classDiagram')) {
+            console.log("Processing class diagram");
+            
+            if (isFlipped) {
+                // Add direction LR when flipped
+                if (!modifiedChart.includes('direction')) {
+                    modifiedChart = modifiedChart.replace(
+                        'classDiagram',
+                        'classDiagram\n    direction LR'
+                    );
+                } else {
+                    modifiedChart = modifiedChart.replace(/direction\s+TB/gi, 'direction LR');
+                }
+            } else {
+                // Remove direction or change back to TB when not flipped
+                if (modifiedChart.includes('direction LR')) {
+                    modifiedChart = modifiedChart.replace(/direction\s+LR/gi, 'direction TB');
+                }
+            }
+        }
+
+        console.log("Modified chart:", modifiedChart);
+        return modifiedChart;
+    }, [chart, isFlipped]);
+
+    // Only include messageIsStreaming in dependencies for current message
+    const effectDependencies = useMemo(() => {
+        return currentMessage ? [chart, messageIsStreaming, retryCount, isFlipped] : [chart, retryCount, isFlipped];
+    }, [chart, currentMessage, messageIsStreaming, retryCount, isFlipped]);
     
     // Function to download the current diagram as SVG with proper background
     const downloadDiagram = useCallback(() => {
@@ -349,12 +449,17 @@ const Mermaid: React.FC<MermaidProps> = ({ chart, currentMessage }) => {
 
     useEffect(() => {
         if (typeof window !== 'undefined' && chart) {
+            // If this is not the current message, render immediately regardless of streaming state
+            // If this is the current message and streaming, don't render yet
+            // console.log("useEffect triggered - currentMessage:", currentMessage, "isFlipped:", isFlipped);
+            if (currentMessage && messageIsStreaming) {
+                return;
+            }
+
             setIsLoading(true);
             setError(null);
 
             const renderChart = async () => {
-                if (messageIsStreaming) return;
-                
                 try {
                     // Reset mermaid config to ensure clean state
                     mermaid.initialize(mermaidConfig);
@@ -362,12 +467,16 @@ const Mermaid: React.FC<MermaidProps> = ({ chart, currentMessage }) => {
                     // Add small delay to ensure DOM is ready
                     await new Promise(resolve => setTimeout(resolve, 100));
                     
+                    // Use the modified chart with orientation changes
+                    const chartToRender = getModifiedChart();
+                    console.log("About to render chart:", chartToRender);
+                    
                     // Validate chart syntax
-                    await mermaid.parse(chart);
+                    await mermaid.parse(chartToRender);
                     
                     // Render the chart with a unique ID to avoid conflicts
                     const uniqueId = `mermaid-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-                    const { svg } = await mermaid.render(uniqueId, chart);
+                    const { svg } = await mermaid.render(uniqueId, chartToRender);
                     
                     if (svg) {
                         const svgDataUrl = `data:image/svg+xml,${encodeURIComponent(svg)}`;
@@ -399,10 +508,10 @@ const Mermaid: React.FC<MermaidProps> = ({ chart, currentMessage }) => {
 
             renderChart();
         }
-    }, [chart, messageIsStreaming, retryCount]);
+    }, effectDependencies);
 
     return (
-        <div className="mermaid-diagram-container" style={{ maxHeight: "450px" }}>
+        <div className="mermaid-diagram-container" style={{ maxHeight: "450px",  paddingTop: showCode ? "12px" : undefined, paddingLeft: showCode ? "16px" : undefined}}>
             {diagramType && (
                 <div className="text-xs text-gray-400 mb-1">Diagram type: {diagramType}</div>
             )}
@@ -446,18 +555,14 @@ const Mermaid: React.FC<MermaidProps> = ({ chart, currentMessage }) => {
                             >
                                 <IconZoomIn size={18} />
                             </div>
-                            <input
-                                type="range"
-                                min="250"
-                                max="4000"
-                                step="50"
-                                value={height}
-                                onChange={(e) => {
-                                    setHeight(parseInt(e.target.value, 10));
-                                }}
-                                className="w-full"
-                                aria-label="Adjust diagram size"
-                            />
+                            <button
+                                onClick={flipOrientation}
+                                className="p-1 rounded hover:bg-gray-700 text-gray-400 transition-colors"
+                                title="Flip orientation"
+                                aria-label="Flip diagram orientation"
+                            >
+                                <IconFlipVertical size={18} />
+                            </button>
                             <div className="flex space-x-2">
                                 <button 
                                     onClick={() => setHeight(500)} 
@@ -465,6 +570,7 @@ const Mermaid: React.FC<MermaidProps> = ({ chart, currentMessage }) => {
                                 >
                                     Reset
                                 </button>
+                               
                                 {!isLoading && svgDataUrl && (
                                     <button
                                         onClick={downloadDiagram}
@@ -474,10 +580,25 @@ const Mermaid: React.FC<MermaidProps> = ({ chart, currentMessage }) => {
                                         <IconDownload size={14} className="mr-1" /> Save
                                     </button>
                                 )}
+                                <button 
+                                    onClick={() => setShowCode(!showCode)} 
+                                    className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors flex items-center"
+                                    title={showCode ? "View diagram" : "View as code"}
+                                >
+                                    <IconCode size={14} className="mr-1" /> 
+                                    {showCode ? "Diagram" : "Code"}
+                                </button>
                                 <span className="text-xs text-gray-400 flex items-center">{height}px</span>
+
                             </div>
                         </div>
                     </div>
+                    
+                    {showCode ? (
+                        <div className="mt-3 pb-4 pr-4">
+                            <CodeBlock language="mermaid" value={getModifiedChart()} />
+                        </div>
+                    ) : (
                     <div 
                         className="mermaid-container relative border border-gray-700 rounded-md overflow-hidden"
                         style={{ 
@@ -493,7 +614,8 @@ const Mermaid: React.FC<MermaidProps> = ({ chart, currentMessage }) => {
                                 maxWidth: `${2 * height}px`
                             }}
                         >
-                        {(messageIsStreaming && currentMessage) || isLoading ? (
+                        {/* Only show loading for current message when streaming, or when actually loading */}
+                        {(messageIsStreaming && currentMessage) || (isLoading && (!messageIsStreaming || currentMessage)) ? (
                             <div className="flex items-center justify-center h-full">
                                 <LoadingIcon />
                                 <span className="ml-2">Rendering diagram...</span>
@@ -522,6 +644,7 @@ const Mermaid: React.FC<MermaidProps> = ({ chart, currentMessage }) => {
                         )}
                         </div>
                     </div>
+                    )}
                 </>
             )}
         </div>

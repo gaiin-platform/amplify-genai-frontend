@@ -41,7 +41,7 @@ export const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
       if (!scheduledTaskId) return;
       const taskResult = await getScheduledTask(scheduledTaskId);
       if (taskResult.success && taskResult.data?.task) {
-        console.log("taskResult", taskResult.data.task);
+        // console.log("taskResult", taskResult.data.task);
         const task = taskResult.data.task;
         setScheduledTask(task);
         return;
