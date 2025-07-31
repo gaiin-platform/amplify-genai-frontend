@@ -217,15 +217,10 @@ export const PromptComponent = ({ prompt }: Props) => {
                     onClick={(e) => {
                         e.stopPropagation();
 
-                        if(isAssistant(prompt)){
-                            // console.log("Assistant selected", prompt);
-                        }
-
-                        if(isAssistant(prompt) && prompt.data && prompt.data.assistant){
+                        if (isAssistant(prompt) && prompt.data && prompt.data.assistant){
                             console.log("Updating assistant...")
                             handleStartConversation(prompt);
-                        }
-                        else {
+                        } else {
                             //setShowModal(true);
                             handleStartConversation(prompt);
                         }

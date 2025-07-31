@@ -1,6 +1,5 @@
 import HomeContext from "@/pages/api/home/home.context";
 import { CodeBlockDetails } from "@/utils/app/codeblock";
-import { getSettings } from "@/utils/app/settings";
 import {
   SandpackCodeEditor,
   SandpackProvider,
@@ -26,7 +25,7 @@ export const ArtifactEditor: React.FC<Props> = ({
   blocks,
   height,
 }) => {
-  const { dispatch: homeDispatch, state:{statsService, featureFlags, lightMode} } = useContext(HomeContext);
+  const { dispatch: homeDispatch, state:{lightMode} } = useContext(HomeContext);
   const sandpackRef = useRef<any>(null);
   const [isCodeView, setIsCodeView] = useState(true);
   const [editContent, setEditContent] = useState<string>(artifactContent); // for text only
