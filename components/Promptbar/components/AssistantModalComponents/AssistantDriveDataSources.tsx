@@ -16,6 +16,31 @@ import { cronToDriveRescanSchedule } from '@/utils/app/scheduledTasks';
 import { AssistantDefinition } from '@/types/assistant';
 
 
+ // Add helper function to check if there are any files selected
+ export const hasDriveData = (driveData: DriveFilesDataSources): boolean => {
+  if (!driveData || typeof driveData !== 'object' || Object.keys(driveData).length === 0) {
+    return false;
+  }
+  
+  for (const [providerName, providerData] of Object.entries(driveData)) {
+    if (providerData && typeof providerData === 'object') {
+      // Check if folders has any data
+      const folders = (providerData as IntegrationDriveData).folders || {};
+      if (typeof folders === 'object' && Object.keys(folders).length > 0) {
+        return true;
+      }
+      
+      // Check if files has any data
+      const files = (providerData as IntegrationDriveData).files || {};
+      if (typeof files === 'object' && Object.keys(files).length > 0) {
+        return true;
+      }
+    }
+  }
+  console.log('No drive files found');
+  return false;
+};
+
 export interface DriveRescanSchedule {
   enabled: boolean;
   frequency: 'none' | 'daily' | 'weekly' | 'monthly';
@@ -65,6 +90,7 @@ export const AssistantDriveDataSources: FC<Props> = ({
     dayOfWeek: 1, // Monday
     dayOfMonth: 1
   });
+
 
   // Add helper functions after the existing helper functions
   const getCurrentFolderPath = (): string[] => {
@@ -455,7 +481,7 @@ export const AssistantDriveDataSources: FC<Props> = ({
         </p> :
         <div className="transform scale-y-90 origin-top-left relative">
             {/* Layered alarm button - positioned absolutely without affecting layout */}
-            {featureFlags.scheduledTasks &&<div className="relative">
+            {featureFlags.scheduledTasks && hasDriveData(selectedDataSources) && <div className="relative">
               <SchedulerAlarmButton
                 onClick={() => setShowRescanScheduler(!showRescanScheduler)}
                 isActive={rescanSchedule.enabled && rescanSchedule.frequency !== 'none'}
