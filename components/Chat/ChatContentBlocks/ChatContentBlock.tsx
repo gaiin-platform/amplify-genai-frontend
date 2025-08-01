@@ -16,10 +16,13 @@ import OpBlock from "@/components/Chat/ChatContentBlocks/OpBlock";
 import ApiKeyBlock from "./ApiKeyBlock";
 import { ApiDocBlock } from "./APIDocBlock";
 import AutoArtifactsBlock from "./AutoArtifactBlock";
+import AgentTableBlock from "./AgentTableBlock";
+import AgentImageBlock from "./AgentImageBlock";
+import AgentFileBlock from "./AgentFileBlock";
 import DOMPurify from  "dompurify";
 import React from "react";
 import InvokeBlock from '@/components/Chat/ChatContentBlocks/InvokeBlock';
-
+import { DateToggle } from "@/components/ReusableComponents/DateToggle";
 
 
 
@@ -44,6 +47,7 @@ const ChatContentBlock: React.FC<Props> = (
             featureFlags,
             showPromptbar,
             showChatbar,
+            selectedArtifacts
         },
     } = useContext(HomeContext);
 
@@ -81,7 +85,7 @@ const ChatContentBlock: React.FC<Props> = (
     }, [showChatbar]);
 
 
-    const calcWidth = () => window.innerWidth - ((+promptbarRef.current + +chatbarRef.current) * 450);
+    const calcWidth = () => window.innerWidth - ((+promptbarRef.current + +chatbarRef.current) * 300);
     
 
     const [windowInnerWidth, setWindowInnerWidth] = useState<number>(calcWidth());
@@ -110,9 +114,9 @@ const ChatContentBlock: React.FC<Props> = (
 //   console.log(transformedMessageContent)
   
     return (
-    <div className="chatContentBlock w-full overflow-x-auto" 
+    <div className="chatContentBlock overflow-x-auto" 
          id="chatContentBlock"
-         style={{maxWidth: windowInnerWidth}}
+         style={{maxWidth: windowInnerWidth, marginRight: (selectedArtifacts?.length ?? 0) > 0 ? '14%' : '0%'}}
          data-message-index={messageIndex}
          data-original-content={transformedMessageContent}>
     <MemoizedReactMarkdown
@@ -180,6 +184,16 @@ const ChatContentBlock: React.FC<Props> = (
                 children[0] = (children[0] as string).replace("`▍`", "▍")
             }
 
+            // Handle inline clickable dates
+            if (inline) {
+                const content = String(children);
+                if (content.startsWith('clickableDate:')) {
+                    const dateString = content.replace('clickableDate:', '');
+                    console.log('DateToggle rendering for:', dateString); // Debug log
+                    return <DateToggle dateString={dateString} />;
+                }
+            }
+
             let match = /language-(\w+)/.exec(className || '');
 
             if (!inline && match && match[1]) {
@@ -243,6 +257,15 @@ const ChatContentBlock: React.FC<Props> = (
 
                     case 'APIdoc':
                         return (<ApiDocBlock content={String(children)}/>);
+                        
+                    case 'agent_table':
+                        return (<AgentTableBlock filePath={String(children).trim()} message={message} />);
+                        
+                    case 'agent_image':
+                        return (<AgentImageBlock filePath={String(children).trim()} message={message} />);
+                        
+                    case 'agent':
+                        return (<AgentFileBlock filePath={String(children).trim()} message={message} />);
 
                     case 'integrationsDialog':
                         if (featureFlags.integrations) {

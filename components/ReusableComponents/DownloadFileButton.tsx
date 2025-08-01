@@ -25,6 +25,7 @@ export const DownloadFileButton: React.FC<Props> = ({fileName="", presigned_url,
                         document.body.removeChild(link);
                     }}
                     title={`Download ${fileName}`}
+                    id={`downloadButtons`}
                     aria-label={`Download ${fileName}`}
                     style={{ border: 'none', background: 'none', cursor: 'pointer' }}>
                     {children}

@@ -20,6 +20,7 @@ interface AssistantContentBlockProps {
   messageIsStreaming: boolean;
   totalMessages: number;
   messageEndRef?: React.RefObject<HTMLDivElement>;
+  id?: string;
 }
 
 const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
@@ -53,6 +54,7 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
   return (
     <div 
       className={`assistantContentBlock overflow-x-auto px-4 max-w-full`}
+      id={`assistantMessage${messageIndex}`}
       data-message-index={messageIndex}
       data-original-content={message.content}
     >

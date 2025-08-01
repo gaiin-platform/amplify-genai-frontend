@@ -18,24 +18,50 @@ export const LoadingDialog: FC<Props> = ({ open, message}) => {
 
   // Render the dialog.
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50">
-      <div className="fixed inset-0 z-10 overflow-hidden">
-        <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-          <div
-            className="hidden sm:inline-block sm:h-screen sm:align-middle"
-            aria-hidden="true"
-          />
-
-          <div
-            ref={modalRef}
-            className="shadow-[0_5px_12px_rgba(0,0,0,0.5)] inline-block max-h-[200px] transform overflow-y-auto rounded-lg border border-gray-300 dark:border-neutral-900 bg-white px-4 pt-5 pb-4 text-left align-bottom shadow-xl transition-all dark:bg-[#202123] sm:my-8 h-[300px] sm:w-full sm:max-w-lg sm:p-6 sm:align-middle"
-            role="dialog"
-          >
-            <div className="h-full flex flex-col gap-2 items-center justify-center text-gray-600 dark:text-neutral-100">
-              <Loader size="70"/>
-              <div className={`${message.length > 50 ? "text-sm" : "text-[1.4rem]"}`}>{message}</div>
+    <div className="no-modal-animation fixed inset-0 flex items-center justify-center z-50 animate-in fade-in duration-300">
+      {/* Enhanced backdrop with blur effect */}
+      <div className="absolute inset-0 bg-gradient-to-br from-black/60 via-black/70 to-black/80 backdrop-blur-sm" />
+      
+      <div className="relative z-10 w-full max-w-md mx-4">
+        <div
+          ref={modalRef}
+          className="no-modal-animation relative bg-gray-400 dark:bg-gray-900/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 dark:border-gray-700/30 p-8 animate-in slide-in-from-bottom-4 zoom-in-95 duration-300"
+          role="dialog"
+        >
+          {/* Subtle gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 via-transparent to-purple-50/30 dark:from-blue-950/30 dark:via-transparent dark:to-purple-950/20 rounded-3xl pointer-events-none" />
+          
+          <div className="relative flex flex-col items-center justify-center text-center space-y-6">
+            {/* Enhanced loader container */}
+            <div className="relative">
+              {/* Main loader */}
+              <div className="relative z-10 p-4">
+                <Loader size="70"/>
+              </div>
+            </div>
+            
+            {/* Enhanced message styling */}
+            <div className="space-y-3">
+              <div className={`font-medium text-gray-800 dark:text-gray-100 leading-relaxed ${
+                message.length > 50 
+                  ? "text-sm" 
+                  : "text-lg"
+              }`}>
+                {message}
+              </div>
+              
+              {/* Classic bouncing dots animation */}
+              <div className="flex items-center justify-center space-x-1">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <div className="w-2 h-2 bg-pink-500 rounded-full animate-bounce" />
+              </div>
             </div>
           </div>
+          
+          {/* Decorative elements */}
+          <div className="absolute top-4 right-4 w-12 h-12 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full blur-xl" />
+          <div className="absolute bottom-4 left-4 w-8 h-8 bg-gradient-to-br from-purple-400/20 to-pink-400/20 rounded-full blur-lg" />
         </div>
       </div>
     </div>

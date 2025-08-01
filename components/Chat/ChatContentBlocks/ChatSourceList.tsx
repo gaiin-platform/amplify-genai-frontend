@@ -17,6 +17,8 @@ const ChatSourceBlock: React.FC<Props> = (
             return "Document Search Results (RAG)";
         } else if(name === "documentContext") {
             return "Attached Documents";
+        } else if(name === "documentCacheContext") {
+            return "Document Search Results (Advanced RAG)";
         } else if (name === "images") {
             return "Images"
         } else {
@@ -28,11 +30,12 @@ const ChatSourceBlock: React.FC<Props> = (
     }
 
     return <div>
-        <ExpansionComponent title={getDisplayName(name)}
+        <ExpansionComponent 
+            title={getDisplayName(name)}
             content={ sources && sources.length > 0 ?
             sources.map((source, index) => (
             <div key={index}>
-                <ChatSource source={source} index={index + 1}/>
+                <ChatSource source={source} index={index + 1} name={name}/>
             </div> )) :
             <div className="text-gray-400 text-sm ml-1">No Sources to Display</div>
         }/>

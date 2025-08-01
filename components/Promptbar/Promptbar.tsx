@@ -18,7 +18,7 @@ import {PromptModal} from "@/components/Promptbar/components/PromptModal";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {FolderInterface, SortType} from "@/types/folder";
 import { AssistantModal } from '../Promptbar/components/AssistantModal';
-import { getAssistants, handleUpdateAssistantPrompt} from '@/utils/app/assistants';
+import { getAssistants, handleUpdateAssistantPrompt, isAssistant} from '@/utils/app/assistants';
 import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
 import { useSession } from 'next-auth/react';
 import Sidebar from '../Sidebar/Sidebar';
@@ -126,7 +126,7 @@ const Promptbar = () => {
 
   
   useEffect(() => {
-    if (assistantPrompt) setAssistantShowModal(true);
+    if (assistantPrompt && isAssistant(assistantPrompt)) setAssistantShowModal(true);
   }, [assistantPrompt]);
 
 
@@ -299,7 +299,6 @@ const Promptbar = () => {
         handleSearchTerm={(searchTerm: string) =>
           promptDispatch({ field: 'searchTerm', value: searchTerm })
         }
-        toggleOpen={handleTogglePromptbar}
         handleCreateItem={handleCreatePrompt}
         handleCreateFolder={() => {
           const name = window.prompt("Folder name:");

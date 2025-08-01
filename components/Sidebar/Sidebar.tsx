@@ -1,11 +1,10 @@
-import { IconFolderPlus, IconMistOff, IconPlus } from '@tabler/icons-react';
-import { ReactNode, useContext, useState } from 'react';
+import { IconFolderPlus, IconMistOff, IconPlus, IconSparkles, IconX } from '@tabler/icons-react';
+import { ReactNode, useContext, useState, useEffect, FC } from 'react';
 import { useTranslation } from 'react-i18next';
 import Search from '../Search';
-import { KebabMenu } from './components/KebabMenu';
+import { KebabMenu } from '@/components/Sidebar/components/KebabMenu';
 import { SortType } from '@/types/folder';
 import HomeContext from '@/pages/api/home/home.context';
-import { getSettings } from '@/utils/app/settings';
 
 
 interface Props<T> {
@@ -18,7 +17,6 @@ interface Props<T> {
   footerComponent?: ReactNode;
   searchTerm: string;
   handleSearchTerm: (searchTerm: string) => void;
-  toggleOpen: () => void;
   handleCreateItem: () => void;
   handleCreateFolder: () => void;
   handleDrop: (e: any) => void;
@@ -36,7 +34,6 @@ const Sidebar = <T,>({
   footerComponent,
   searchTerm,
   handleSearchTerm,
-  toggleOpen,
   handleCreateItem,
   handleCreateFolder,
   handleDrop,
@@ -44,71 +41,91 @@ const Sidebar = <T,>({
   setFolderSort,
 }: Props<T>) => {
 
-  const { state: { messageIsStreaming, featureFlags}} = useContext(HomeContext);
+  const { state: { messageIsStreaming }} = useContext(HomeContext);
   const { t } = useTranslation('promptbar');
-  const theme = getSettings(featureFlags).theme;
+  const [isAnimated, setIsAnimated] = useState(false);
+
+  // Trigger animation when sidebar is opened
+  useEffect(() => {
+    if (isOpen) resetAnimation();
+  }, [isOpen]);
+
+  const resetAnimation = () => {
+    setIsAnimated(true);
+    const timer = setTimeout(() => setIsAnimated(false), 300);
+    return () => clearTimeout(timer);
+  }
+
   const allowDrop = (e: any) => {
     e.preventDefault();
   };
 
   const highlightDrop = (e: any) => {
-    e.target.style.background = theme === 'dark' ? '#343541' : '#e7e8e9';
+    e.target.classList.add('bg-neutral-200', 'dark:bg-[#343541]/90');
+    e.target.style.transition = 'background-color 0.15s ease-in-out';
   };
 
   const removeHighlight = (e: any) => {
-    e.target.style.background = 'none';
+    e.target.classList.remove('bg-neutral-200', 'dark:bg-[#343541]/90');
   };
 
-  const addItemButton = (width: string) => ( <button id="promptButton" className={`text-sidebar flex ${width} flex-shrink-0 select-none items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-3 dark:text-white transition-colors duration-200 
-                              ${side === 'left' && messageIsStreaming ? "cursor-not-allowed" : "hover:bg-gray-500/10 cursor-pointer "}`}
-                              disabled={side === 'left' && messageIsStreaming}
-                              onClick={() => {
-                                handleCreateItem();
-                                handleSearchTerm('');
-                              }}
-                              >
-                                <IconPlus size={16} />
-                                {addItemButtonTitle}
-                              </button>);
+  const addItemButton = (width: string) => ( 
+    <button 
+      id="promptButton" 
+      className={`enhanced-add-button text-sidebar flex ${width} flex-shrink-0 select-none items-center gap-3
+      ${side === 'left' && messageIsStreaming ? "opacity-60 cursor-not-allowed" : ""}`}
+      disabled={side === 'left' && messageIsStreaming}
+      onClick={() => {
+        handleCreateItem();
+        handleSearchTerm('');
+      }}
+    >
+      <IconPlus size={18} className="enhanced-icon" />
+      <span className="sidebar-text font-medium">{addItemButtonTitle}</span>
+    </button>
+  );
 
 
   const addButtonForSide = (side: string) => {
-    if (side === 'left') return addItemButton("w-[205px]")
+    if (side === 'left') return addItemButton("flex-1 min-w-0")
 
     const addAssistantButton = (
       <button
         id="addAssistantButton"
-        className="text-sidebar flex w-[205px] flex-shrink-0 cursor-pointer select-none items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-3 dark:text-white transition-colors duration-200 hover:bg-gray-500/10"
+        className="enhanced-add-button flex flex-1 min-w-0 flex-shrink-0 select-none items-center gap-2"
         onClick={() => {
           handleCreateAssistantItem();
           handleSearchTerm('');
         }}
       >
-        <IconPlus size={16} />
-        {"Assistant"}
+        <IconSparkles size={18} className="enhanced-icon text-purple-500 flex-shrink-0" />
+        <span className="sidebar-text font-medium truncate">Assistant</span>
       </button>
     );
 
     return addAssistantButton
-    
   }
 
   return (
-
-    <div className={`border-t dark:border-white/20 overflow-x-hidden h-full `}>
+    <div className={`overflow-x-hidden h-full`}>
       <div
-        className={`fixed top-0 ${side}-0 z-40 flex h-full w-[270px] flex-none flex-col space-y-2 bg-[#f3f3f3] dark:bg-[#202123] p-2 text-[14px] transition-all sm:relative sm:top-0 `}
+        className={`enhanced-sidebar fixed top-0 ${side}-0 z-40 flex h-full w-[270px] flex-none flex-col space-y-3 
+                   p-3 text-[14px] transition-all sm:relative sm:top-0 ${isAnimated ? 'slide-in' : ''}`}
+        style={{ height: footerComponent ? 'calc(100% - 50px)' : '100%' }}
       >
-        <div className="flex items-center">
-          {addButtonForSide(side)}
-          <button
-            className="ml-2 flex flex-shrink-0 cursor-pointer items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 p-3 text-sm dark:text-white transition-colors duration-200 hover:bg-gray-500/10"
-            onClick={handleCreateFolder}
-            id="createFolderButton"
-            title="Create Folder"
-          >
-            <IconFolderPlus size={16} />
-          </button>
+        <div className="flex items-center justify-between w-full gap-1">
+          <div className="flex items-center gap-1 flex-1 min-w-0">
+            {addButtonForSide(side)}
+            <button
+              className="enhanced-folder-button flex-shrink-0"
+              onClick={handleCreateFolder}
+              id="createFolderButton"
+              title="Create Folder"
+              style={{ minWidth: '32px', width: '32px', height: '38px' }}
+            >
+              <IconFolderPlus size={16} className="enhanced-icon" />
+            </button>
+          </div>
         </div>
         {side === 'right' && addItemButton('')}
         <Search
@@ -118,20 +135,21 @@ const Sidebar = <T,>({
         />
 
         <KebabMenu
-        label={side === 'left' ? "Conversations": "Prompts"} 
-        items={items}
-        handleSearchTerm={handleSearchTerm}
-        setFolderSort={setFolderSort}
+          label={side === 'left' ? "Conversations": "Prompts"} 
+          items={items}
+          handleSearchTerm={handleSearchTerm}
+          setFolderSort={setFolderSort}
         />
-        <div className="relative flex-grow overflow-y-auto w-[268px]">
+        
+        <div className="relative flex-grow w-[268px] enhanced-sidebar overflow-y-auto" style={{ height: 'calc(100vh - 170px)', display: 'flex', flexDirection: 'column' }}>
           {items?.length > 0 && (
-            <div className="flex border-b dark:border-white/20 pb-2">
+            <div className="flex border-b dark:border-white/20 pb-3 mb-2">
               {folderComponent}
             </div>
           )}
 
           {items?.length > 0 ? (
-            <div
+              <div
               onDrop={handleDrop}
               onDragOver={allowDrop}
               onDragEnter={highlightDrop}
@@ -140,9 +158,9 @@ const Sidebar = <T,>({
               {itemComponent}
             </div>
           ) : (
-            <div className="mt-8 select-none text-center dark:text-white opacity-50">
-              <IconMistOff className="mx-auto mb-3" />
-              <span className="text-[14px] leading-normal">
+            <div className="empty-state mt-8">
+              <IconMistOff className="empty-state-icon mx-auto mb-3" size={24} />
+              <span className="empty-state-text">
                 {t('No data.')}
               </span>
             </div>
@@ -150,9 +168,16 @@ const Sidebar = <T,>({
         </div>
         {footerComponent}
       </div>
+      {footerComponent && (
+        <div 
+          className={`fixed bottom-0 ${side}-0 z-40 w-[270px] bg-white dark:bg-[#202123] border-t border-neutral-300 dark:border-neutral-600`}
+          style={{ left: side === 'left' ? '0' : 'auto', right: side === 'right' ? '0' : 'auto' }}
+        >
+          {footerComponent}
+        </div>
+      )}
     </div>
   );
 };
 
 export default Sidebar;
-

@@ -127,7 +127,7 @@ const getAgentLogItem = (msg: any) => {
               },
             }}
           >
-            {`\`\`\`python\n${msg.content.args.code}\n\`\`\``}
+            {`\`\`\`python\n${(msg && msg.content && msg.content.args && msg.content.args.code) ? msg.content.args.code : ""}\n\`\`\``}
           </MemoizedReactMarkdown>
         </div>
       </div>
@@ -195,7 +195,7 @@ const getAgentLogItem = (msg: any) => {
         </div>
         <div className="ml-9">
           <div className="flex items-center gap-2 mb-1">
-            {!msg.content.skipped && <IconBrackets className="min-w-[16px] text-amber-500 dark:text-amber-400" />}
+            {!msg.content?.skipped && <IconBrackets className="min-w-[16px] text-amber-500 dark:text-amber-400" />}
             <span className="font-medium text-amber-600 dark:text-amber-300">
               {msg.content?.skipped ? "Reasoning: " : "Arguments: "}
             </span>
@@ -215,7 +215,7 @@ const getAgentLogItem = (msg: any) => {
               },
             }}
           >
-            {msg.content && msg.content.args ? `\`\`\`json\n${JSON.stringify(msg.content.args, null, 2)}\n\`\`\`` : msg.content.skipped ?? ""}
+            {msg.content && msg.content.args ? `\`\`\`json\n${JSON.stringify(msg.content.args, null, 2)}\n\`\`\`` : msg.content?.skipped ?? ""}
           </MemoizedReactMarkdown>
         </div> 
       </div>
@@ -307,10 +307,13 @@ interface Props {
   messageIsStreaming: boolean;
   message: Message;
   conversationId: string;
+  width?: () => number;
 }
 
-const AgentLogBlock: React.FC<Props> = ({conversationId, message, messageIsStreaming }) => {
+const AgentLogBlock: React.FC<Props> = ({conversationId, message, messageIsStreaming, width }) => {
+
   const getChatContainerWidth = () => {
+    if (width) return width();
     const container = document.querySelector(".chatcontainer");
     if (container) {
       return `${container.getBoundingClientRect().width * 0.68}px`;
@@ -381,14 +384,18 @@ const AgentLogBlock: React.FC<Props> = ({conversationId, message, messageIsStrea
   agentLog = agentLog.data.result;
 
   return (
-    <div className="mt-3" style={{width: (chatContainerWidth)}} key={message.id}>
-      <AgentFileList files={files} />
-      <ExpansionComponent
-        title="Reasoning / Actions"
-        content={agentLog.map((msg: any, idx: number) => (
-          <div key={idx}>{getAgentLogItem(msg)}</div>
-        ))}
-      />
+    <div className="mt-3 pointer-events-none" key={message.id} style={{width: (chatContainerWidth)}}>
+      <div className="pointer-events-auto">
+        <AgentFileList files={files} />
+      </div>
+      <div className="pointer-events-auto max-w-full overflow-hidden">
+        <ExpansionComponent
+          title="Reasoning / Actions"
+          content={agentLog.map((msg: any, idx: number) => (
+            <div key={idx} className="max-w-full overflow-hidden">{getAgentLogItem(msg)}</div>
+          ))}
+        />
+      </div>
     </div>
   );
 };

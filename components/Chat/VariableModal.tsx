@@ -463,7 +463,8 @@ export const VariableModal: FC<Props> = ({
     return (
             <Modal 
                 title={prompt ? prompt.name : ""}
-                height={() => window.innerHeight * 0.7}
+                height={() => window.innerHeight * 0.75}
+                width={() => window.innerWidth * 0.55}
                 onCancel={()=>onClose(false)} 
                 onSubmit={() => {
                     handleSubmit();
@@ -635,7 +636,7 @@ export const VariableModal: FC<Props> = ({
                 ))}
 
                 {showModelSelector && models && (
-                    <div className="relative h-[100px]">
+                    <div className="relative" style={{overflow: 'visible', zIndex: 1}}>
                     <ModelSelect
                         isTitled={true}
                         modelId={selectedModel.id}

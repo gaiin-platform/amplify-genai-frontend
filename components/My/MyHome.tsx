@@ -17,14 +17,10 @@ export const MyHome: FC<MyHomeProps> = ({
     } = useContext(HomeContext);
 
 
-    const [responseTokenRatio, setResponseTokenRatio] = useState(
-        3
-    );
-
     const {dispatch: homeDispatch, state:{statsService, featureFlags}} = useContext(HomeContext);
 
     return (
-        <div className="relative flex-1 overflow-hidden bg-neutral-100 dark:bg-[#343541]">
+        <div className="pt-6 relative flex-1 overflow-hidden bg-neutral-100 dark:bg-[#343541]">
 
                 <div className="mx-auto flex flex-col p-2 text-gray-600 dark:text-gray-400">
                     <div className="pt-3 px-2 items-center mt-6 text-left text-3xl font-bold  text-gray-600  dark:text-gray-400 flex flex-row items-center">

@@ -14,12 +14,13 @@ import {  Message } from "@/types/chat";
 import { Model } from "@/types/model";
 import {getSession } from "next-auth/react"
 import { sendChatRequestWithDocuments } from "@/services/chatService";
-import cloneDeep from 'lodash/cloneDeep';
+import { Account } from "@/types/accounts";
+import { scrubMessages } from "./messages";
 
 
 
 export const promptForData = async (chatEndpoint:string, messages: Message[], model: Model, 
-                                     prompt: string, statsService: any = null, maxTokens: number = 4000) => {
+                                    prompt: string, account?: Account, statsService: any = null, maxTokens: number = 4000) => {
     const controller = new AbortController();
     
      const accessToken = await getSession().then((session) => { 
@@ -28,24 +29,17 @@ export const promptForData = async (chatEndpoint:string, messages: Message[], mo
                             })
 
     try {
-        const updatedMessages = cloneDeep(messages);
-        // remove ds 
-        updatedMessages.forEach(m => {
-            if (m.data) {
-                if (m.data.dataSources) m.data.dataSources = null;
-                if (m.data.state && m.data.state.sources) m.data.state.sources = null;
-            }
-        })
-        
         const chatBody = {
             model: model,
-            messages: updatedMessages,
+            messages: scrubMessages(messages),
             key: accessToken,
             prompt: prompt,
             temperature: 0.5,
             maxTokens: maxTokens,
             skipRag: true,
-            skipCodeInterpreter: true
+            skipCodeInterpreter: true,
+            accountId: account?.id,
+            rateLimit: account?.rateLimit
         };
 
         if (statsService) statsService.sendChatEvent(chatBody);

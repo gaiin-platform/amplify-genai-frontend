@@ -45,13 +45,14 @@ export function usePromptFinderService() {
         const {content, label, prompt} = getApplicablePromptsByTagAndType(conversation, message, MessageType.OUTPUT_TRANSFORMER);
 
         let transformer = (conversation:Conversation, message:Message, properties:{}): any => {
-            const formatDatesInContent = (content: string) => {
-                const isoDateRegex = /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\b/g;
+            const contentWithClickableDates = (content: string) => {
+                const isoDateRegex = /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z\b/g;
+                
                 return content.replace(isoDateRegex, (match) => {
-                    return userFriendlyDate(match);
+                    return `\`clickableDate:${match}\``;
                 });
             };
-            return formatDatesInContent(message.content);
+            return contentWithClickableDates(message.content);
         };
 
         if(content) {

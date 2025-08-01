@@ -16,7 +16,7 @@ interface PromptOptimzierProps {
 
 const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, onOptimized}) => {
 
-    const { state: { prompts, chatEndpoint}, setLoadingMessage, getDefaultModel} = useContext(HomeContext);
+    const { state: { prompts, chatEndpoint, defaultAccount}, setLoadingMessage, getDefaultModel} = useContext(HomeContext);
 
     const promptInstructions = `
     You will be provide with a users prompt labeled as "Original Prompt".
@@ -76,7 +76,7 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, onOptimi
         const messages: Message[] = [newMessage({role: 'user', content : `${promptInstructions}:\n\n\nOriginal Prompt: ${promptValue}`, type: MessageType.PROMPT})];
         const model = getDefaultModel(DefaultModels.ADVANCED);
         try {
-            const result = await promptForData(chatEndpoint ?? '', messages, model, "Improve the users prompt, NO COMMENTS, PLEASANTRIES, PREAMBLES ALLOWED", null, 1000);
+            const result = await promptForData(chatEndpoint ?? '', messages, model, "Improve the users prompt, NO COMMENTS, PLEASANTRIES, PREAMBLES ALLOWED", defaultAccount, null, 1000);
             // console.log("Optimization result: ", result);
             const extractedPrompt = result?.match(/\/OPTIMIZE_PROMPT_START\s*([\s\S]*?)\s*\/OPTIMIZE_PROMPT_END/);
             if (extractedPrompt && extractedPrompt[1]) {
@@ -98,7 +98,7 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, onOptimi
     // @ts-ignore
     return (<div>
                 <button
-                    className=" left-1 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                    className="chat-input-button rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-black dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-white"
                     onMouseDown={ (e) => {
                         e.preventDefault();
                         e.stopPropagation();

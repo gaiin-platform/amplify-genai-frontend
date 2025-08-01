@@ -14,6 +14,7 @@ import { Prompt } from '@/types/prompt';
 import { isAssistant } from '@/utils/app/assistants';
 import { baseAssistantFolder, isBaseFolder, isBasePrompt } from '@/utils/app/basePrompts';
 import { FolderInterface } from '@/types/folder';
+import { InfoBox } from '../ReusableComponents/InfoBox';
 
 type Props = {};
 
@@ -72,7 +73,7 @@ const LegacyWorkspaces: FC<Props> = () => {
     }
 
     return (
-        <div className={`dark:border-white/20`}>
+        <div className="legacy-workspaces-container">
 
             {importModalOpen && (
                 <ImportAnythingModal
@@ -90,34 +91,96 @@ const LegacyWorkspaces: FC<Props> = () => {
                     title={"Choose Workspace Items to Import"}
                     />
             )}
-
-            <div className="mb-2 text-lg pb-2 font-bold text-black dark:text-neutral-200 flex items-center border-b">
-              Workspaces 
-              <div title='Click on a Workspace to selectively import saved items'>
-                 <IconInfoCircle className='mt-0.5 ml-2 flex-shrink-0 text-gray-600 dark:text-gray-400' size={18}/>
+            
+            <div className="settings-card">
+                <div className="settings-card-header flex flex-row items-center gap-4">
+                    <h3 className="settings-card-title">{"Workspaces"}</h3>
+                    <p className="settings-card-description">Restore items from your legacy workspaces</p>
+                </div>
+        
+            {/* Information Banner */}
+            <InfoBox
+                rounded={true}
+                color="#9333ea"
+                content={
+              <div className="legacy-workspaces-info-content">
+                <p className="legacy-workspaces-info-text">
+                  Workspaces contain your previously saved conversations, prompts, and folders.
+                </p>
+                <p className="legacy-workspaces-info-subtitle">
+                  Click on any workspace to selectively import items into your current session.
+                </p>
               </div>
-            </div>
+            }
+            />
 
-            {workspaces && workspaces.map((item: ShareItem, index: number) => 
-                 <button
-                    key={index}
-                    className="flex w-full cursor-pointer items-center gap-3 rounded-lg pb-2 pt-3 pr-2 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-[#343541]/90"
-                    onClick={() => {
-                        handleFetchShare(item);
-                    }}
-                >
-                    <IconRocket className='ml-2 mb-1' size={22}/>
-                    <div className="flex flex-row gap-1 break-all text-left leading-3 pr-1">
-                        <div className="flex-1 break-all text-left text-[15px] leading-3 pr-1"
-                            style={{wordWrap: "break-word"}} // Added word wrap style
-                        >
-                            {item.note}
+            {/* Workspaces Grid */}
+            {workspaces && workspaces.length > 0 ? (
+              <div className="legacy-workspaces-grid">
+                {workspaces.map((item: ShareItem, index: number) => {
+                  const formattedDate = new Date(item.sharedAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  });
+
+                  return (
+                    <div
+                      key={index}
+                      className="legacy-workspace-card"
+                      onClick={() => handleFetchShare(item)}
+                    >
+                      <div className="legacy-workspace-card-content">
+                        <div className="legacy-workspace-card-header flex">
+                          <div className="legacy-workspace-icon-wrapper">
+                            <IconRocket size={24} className="legacy-workspace-icon" />
+                          </div>
+                          <h3 className="legacy-workspace-title">
+                            {item.note || `Workspace ${index + 1}`}
+                          </h3>
+                          
                         </div>
-                        <div className="mb-1 text-gray-500">{new Date(item.sharedAt).toLocaleString()}</div>
+                        
+                        <div className="legacy-workspace-info">
+                          
+                          <p className="legacy-workspace-date">
+                            Created {formattedDate}
+                          </p>
+                        </div>
+
+                        <div className="legacy-workspace-actions">
+                          <div className="legacy-workspace-action-hint mt-[-50px]">
+                            Click to import items →
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="legacy-workspace-overlay">
+                        <div className="legacy-workspace-overlay-content">
+                          <IconRocket size={28} className="legacy-workspace-overlay-icon" />
+                          <span className="legacy-workspace-overlay-text">Import Items</span>
+                        </div>
+                      </div>
                     </div>
-                </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="legacy-workspaces-empty">
+                <div className="legacy-workspaces-empty-icon">
+                  <IconRocket size={48} />
+                </div>
+                <h3 className="legacy-workspaces-empty-title">No Legacy Workspaces</h3>
+                <p className="legacy-workspaces-empty-description">
+                  You don&apos;t have any legacy workspaces to import. Legacy workspaces appear here when you have previously saved workspace data.
+                </p>
+              </div>
             )}
         </div>
+        </div>
+       
     );
 };
 

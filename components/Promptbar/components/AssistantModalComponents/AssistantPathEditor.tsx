@@ -12,6 +12,11 @@ import { AddEmailWithAutoComplete } from '@/components/Emails/AddEmailsAutoCompl
 import { useSession } from 'next-auth/react';
 import { AmplifyGroupSelect } from '@/components/Admin/AdminUI';
 import { getUserAmplifyGroups } from '@/services/adminService';
+import { AttachFile } from '@/components/Chat/AttachFile';
+import { FileList } from "@/components/Chat/FileList";
+import { IMAGE_FILE_EXTENSIONS } from '@/utils/app/const';
+import { AttachedDocument } from '@/types/attacheddocument';
+import { deleteFile } from '@/services/fileService';
 
 export interface AstPathData {
     isPublic: boolean;
@@ -25,6 +30,9 @@ interface AssistantPathEditorProps {
     astPath: string | null;
     setAstPath: (path: string | null) => void;
 
+    astIcon: AttachedDocument | undefined;
+    setAstIcon: (icon: AttachedDocument | undefined) => void;
+
     isPathAvailable: boolean;
     setIsPathAvailable: (isAvailable: boolean) => void;
 
@@ -35,16 +43,16 @@ interface AssistantPathEditorProps {
     setAstPathData: (astPathData: AstPathData) => void;
 
     disableEdit?: boolean;
+    groupId?: string;
     
 }
 
 export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
-    assistantId, savedAstPath, astPath, setAstPath,
+    assistantId, savedAstPath, astPath, setAstPath, astIcon, setAstIcon,
     isPathAvailable, setIsPathAvailable, isCheckingPath, setIsCheckingPath,
-    astPathData, setAstPathData,
-    disableEdit = false,
+    astPathData, setAstPathData, disableEdit = false, groupId
 }) => {
-    const { state: { featureFlags, chatEndpoint, statsService, amplifyUsers }, getDefaultModel} = useContext(HomeContext);
+    const { state: { featureFlags, chatEndpoint, statsService, amplifyUsers, defaultAccount }, getDefaultModel} = useContext(HomeContext);
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
     
@@ -52,6 +60,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
     const featureEnabled = !!featureFlags?.assistantPathPublishing;
     const validatedPathCacheRef = useRef<any | undefined>(undefined);
     const [amplifyGroups, setAmplifyGroups] = useState<string[] | null>(null);
+    const [astImageData, setAstImageData] = useState<{ ds: AttachedDocument, state: number } | null>(astIcon ? { ds: astIcon, state: 100} :  null);
     
     if (!validatedPathCacheRef.current) {
         validatedPathCacheRef.current = { valid: savedAstPath ? {[savedAstPath.toLowerCase()] : "Current Path"} : {}, 
@@ -71,7 +80,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
     const checkPathIsAppropriate = async (path: string) => {
         const prompt = "Analyze if the provided url path contains any inappropriate words, phrases, or characters. The standard of appropriateness is the same as the content of a PG-13 movie. Your response should be only YES or NO in all caps.";
         const messages = [newMessage({role: 'user', content : `Is the following path appropriate for a public assistant path: ${path} \n Respond with either YES or NO in all caps`, type: MessageType.PROMPT})];
-        const updatedResponse = await promptForData(chatEndpoint ?? '', messages, getDefaultModel(DefaultModels.CHEAPEST), prompt, statsService, 20);
+        const updatedResponse = await promptForData(chatEndpoint ?? '', messages, getDefaultModel(DefaultModels.CHEAPEST), prompt, defaultAccount, statsService, 20);
         console.log("updatedResponse", updatedResponse);
         if (!updatedResponse) {
             console.log("Fallback to built in filter");
@@ -87,6 +96,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
         if (!featureEnabled) return {valid: null};
         // start he async call
         const isAppropriateResult = checkPathIsAppropriate(path);
+        // const isAppropriateResult = true;
         
         // If path is empty, it's not valid
         if (!path || path.trim() === '') return {valid: false, error: 'Path cannot be empty'};
@@ -98,7 +108,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
         // Check path length
         if (path.length < 3) return {valid: false, error: 'Path must be at least 3 characters long'};
         
-        if (path.length > 12) return {valid: false, error: 'Path is too long (maximum 12 characters)'};
+        if (path.length > 20) return {valid: false, error: 'Path is too long (maximum 20 characters)'};
         
         // Check for leading/trailing slashes
         if (path.startsWith('/') || path.endsWith('/')) return {valid: false, error: 'Path cannot start or end with a slash'};
@@ -191,6 +201,28 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
         }
     };
 
+    // handle file upload functions //
+    const onAttach = (doc: AttachedDocument) => {
+        cleanUpImageFile();
+        setAstImageData({ds: doc, state: 0});
+    }
+
+    const onUploadProgress = (doc: AttachedDocument, progress: number) => {
+        setAstImageData({ds: doc, state: progress});
+        if (progress === 100) setAstIcon(doc);
+    }
+
+    const cleanUpImageFile = async () => {
+        const key = astImageData?.ds.key;
+        if (key) await deleteFile(key);
+    }
+
+    const cleanUpAstImageData = () => {
+        cleanUpImageFile();
+        setAstImageData(null);
+        setAstIcon(undefined);
+    }
+
     if (!featureEnabled) {
         return null;
     }
@@ -202,17 +234,39 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                     Publish Assistant Path
                 </div>
                 {!isCheckingPath && astPathData &&
-                <div className="ml-auto mr-4 ">
+                <div className="ml-auto h-0 -mt-1">
                     { !disableEdit ?
-                        (astPath ? <Checkbox
+                        (astPath ? 
+                        <div>
+                        <Checkbox
                             id="publish-to-all-users"
                             label="Publish to all users"
                             checked={astPathData.isPublic ?? true}
                             onChange={(checked) => {
                                 const newAstPathData = {...astPathData, isPublic: checked};
                                 setAstPathData(newAstPathData);
-                            }}
-                    /> : null)  
+                            }}/> 
+                        <div title={`Upload an image to use as the assistant's icon. Supported formats: ${IMAGE_FILE_EXTENSIONS.map(ext => ext.toUpperCase()).join(', ')}`}
+                             className="text-xs flex flex-row -mt-2 -ml-1.5">
+                            <AttachFile id={"__attachFile_assistant_path"}
+                                    allowedFileExtensions={IMAGE_FILE_EXTENSIONS}
+                                    onAttach={onAttach}
+                                    onSetMetadata={(doc: AttachedDocument, metadata: any) => {}}
+                                    onSetKey={(doc: AttachedDocument, key: string) => {}}
+                                    onUploadProgress={onUploadProgress}
+                                    disableRag={false}
+                                    props={{'type': 'assistant-icon'}}
+                                    groupId={groupId}
+                            />
+                            {astImageData ?
+                                <FileList 
+                                documents={[astImageData?.ds]} 
+                                documentStates={{[astImageData.ds.id] : astImageData.state}}
+                                setDocuments={(docs:AttachedDocument[]) => cleanUpAstImageData()}  // only happens on removal of file    
+                                onCancelUpload={(ds:AttachedDocument) => cleanUpAstImageData()}
+                            /> : <span className="py-1.5 text-xs text-gray-500">Add Assistant Icon</span>}
+                        </div>
+                        </div> : null)  
                        : <label className={"mt-5 text-xs text-blue-500"}>
                         {astPathData.isPublic ? "Public Access" : "Restricted Access"}
                         </label>
@@ -229,6 +283,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                 <input
                     className={`mt-2 w-full rounded-lg border ${pathError ? 'border-red-500' : isPathAvailable ? 'border-green-500' : 'border-neutral-500'} px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100`}
                     placeholder="Enter a name for the path where you want to publish your assistant"
+                    id="pathNameInput"
                     value={astPath || ''}
                     onChange={(e) => {
                         setAstPath(e.target.value);
@@ -246,12 +301,12 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                             {pathError ? (
                                 <div className="flex items-center text-red-500">
                                     <IconAlertTriangle className="h-5 w-5 mr-1" />
-                                    <span className="text-xs">Error</span>
+                                    <span id="pathError" className="text-xs">Error</span>
                                 </div>
                             ) : isPathAvailable ? (
                                 <div className="flex items-center text-green-500">
                                     <IconCheck className="h-5 w-5 mr-1" />
-                                    <span className="text-xs">{(validatedPathCacheRef?.current?.valid ?? {})[astPath?.toLowerCase() ?? ''] || "Available"}</span>
+                                    <span id="pathAvailable" className="text-xs">{(validatedPathCacheRef?.current?.valid ?? {})[astPath?.toLowerCase() ?? ''] || "Available"}</span>
                                 </div>
                             ) : null}
                             </>)}

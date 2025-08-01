@@ -9,18 +9,21 @@ import toast from "react-hot-toast";
 import Search from "@/components/Search";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import { InfoBox } from "@/components/ReusableComponents/InfoBox";
+import { emptySchema } from "@/utils/app/tools";
+import { Checkbox } from "@/components/ReusableComponents/CheckBox";
 
 
 export const opsSearchToggleButtons = (opSearchBy: string, setOpSearchBy: Dispatch<SetStateAction<"name" | "tag">>, 
                                        opSearchTerm: string, setOpSearchTerm: (s: string) => void, 
-                                       shift:string, translate: string) => {
+                                       shift:string, translate: string, showLabel=true) => {
     return <div className={`h-[0px] items-center ${shift} flex flex-row gap-4`}
                 style={{transform: translate}}>
-            <div className="ml-auto"> Search by</div>
+            {showLabel && <div className="ml-auto text-neutral-400"> Search by</div>}
             <div className="w-[140px] flex items-center rounded-md border border-neutral-600 bg-neutral-200 dark:bg-[#39394a] p-1">
             {["name", "tag"].map((search: string) => 
             <button onMouseDown={(e) =>  e.preventDefault()}
                 key={search}
+                id="nameTagToggle"
                 className={`flex flex-row gap-2 py-1 px-2 text-[12px] rounded-md focus:outline-none 
                             ${ opSearchBy === search ? 'bg-white dark:bg-[#1f1f29] text-neutral-900 dark:text-neutral-100 font-bold transform scale-105' 
                                                      : 'bg-transparent text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-[#31313f]'
@@ -65,6 +68,100 @@ export const OpsTab: FC<Props> = ({ops, setOps, admin_text}) => {
     const [showOpSearch, setShowOpSearch] = useState<boolean>(true);  
     const [opSearchBy, setOpSearchBy] = useState<"name" | 'tag'>('name'); 
 
+    // Schema parameter types
+    const parameterTypes = ["string", "number", "integer", "boolean", "array", "object"];
+
+    // Helper function to add a parameter to Schema
+    const addParameterToSchema = (schema: any, paramName: string, description: string = "", type: string = "string") => {
+        const newProperties = {
+            ...schema.properties,
+            [paramName]: {
+                type: type,
+                description: description
+            }
+        };
+        
+        return {
+            ...schema,
+            properties: newProperties
+        };
+    };
+
+    // Helper function to remove a parameter from Schema
+    const removeParameterFromSchema = (schema: any, paramName: string) => {
+        const newProperties = {...schema.properties};
+        delete newProperties[paramName];
+        
+        // Also remove from required array if it exists
+        const newRequired = schema.required ? schema.required.filter((req: string) => req !== paramName) : [];
+        
+        return {
+            ...schema,
+            properties: newProperties,
+            required: newRequired.length > 0 ? newRequired : undefined
+        };
+    };
+
+    // Helper function to update parameter in Schema
+    const updateParameterInSchema = (schema: any, oldParamName: string, newParamName: string, description: string, type: string = "string") => {
+        const newProperties = {...schema.properties};
+        delete newProperties[oldParamName];
+        newProperties[newParamName] = {
+            type: type,
+            description: description
+        };
+
+        // Update required array if it exists
+        let newRequired = schema.required ? [...schema.required] : [];
+        const oldIndex = newRequired.indexOf(oldParamName);
+        if (oldIndex !== -1) {
+            newRequired[oldIndex] = newParamName;
+        }
+
+        return {
+            ...schema,
+            properties: newProperties,
+            required: newRequired.length > 0 ? newRequired : undefined
+        };
+    };
+
+    // Helper function to toggle required status
+    const toggleParameterRequired = (schema: any, paramName: string, isRequired: boolean) => {
+        let newRequired = schema.required ? [...schema.required] : [];
+        
+        if (isRequired && !newRequired.includes(paramName)) {
+            newRequired.push(paramName);
+        } else if (!isRequired && newRequired.includes(paramName)) {
+            newRequired = newRequired.filter(req => req !== paramName);
+        }
+        
+        return {
+            ...schema,
+            required: newRequired.length > 0 ? newRequired : undefined
+        };
+    };
+
+    // Helper function to get parameter info from Schema
+    const getParameterInfo = (schema: any, paramName: string) => {
+        if (!schema || !schema.properties) {
+            return {
+                name: paramName,
+                description: "",
+                type: "string",
+                required: false
+            };
+        }
+        
+        const paramDef = schema.properties[paramName] || {};
+        const isRequired = schema.required?.includes(paramName) || false;
+        
+        return {
+            name: paramName,
+            description: paramDef.description || "",
+            type: paramDef.type || "string",
+            required: isRequired
+        };
+    };
 
     const handleRegisterOps = async () => {
         setIsRegisteringOps(true);
@@ -77,7 +174,7 @@ export const OpsTab: FC<Props> = ({ops, setOps, admin_text}) => {
                 return;
             } else if (op.method && ["GET", "DELETE"].includes(op.method)) {
                 // ensure get and delete do not have params 
-                updatedNewOps[i] = {...op, params: []}
+                updatedNewOps[i] = {...op, parameters: emptySchema}
             }
         }
         const result = await registerOps(updatedNewOps);
@@ -115,28 +212,35 @@ export const OpsTab: FC<Props> = ({ops, setOps, admin_text}) => {
 
 
 return <>
-        <div className="flex flex-row gap-3 mb-2 ">
-                {titleLabel('OPs')}
-                <button
-                    title={'Add Op'} disabled={isRegisteringOps}
-                    className={`ml-1 mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 ${isRegisteringOps ? "" : "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10"}`}
-                    onClick={() => setNewOps([...newOps, emptyOps()])}>
-                    <IconPlus size={16}/>
-                </button>
+        <div className="admin-style-settings-card">
+            <div className="admin-style-settings-card-header">
+                <div className="flex flex-row items-center gap-3 mb-2">
+                    <h3 className="admin-style-settings-card-title">OPs</h3>
+                    <div className="flex-shrink-0 flex flex-row gap-3">
+                        <button
+                            title={'Add Op'} disabled={isRegisteringOps}
+                            id="addOp"
+                            className={`flex-shrink-0 items-center py-1.5 gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 ${isRegisteringOps ? "" : "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10"}`}
+                            onClick={() => setNewOps([...newOps, emptyOps()])}>
+                            <IconPlus size={16}/>
+                        </button>
 
-                {newOps.length > 0 && 
-                    <button
-                        title={'Register Ops'} disabled={isRegisteringOps}
-                        className={`mt-3 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 ${isRegisteringOps ? "" : "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10"}`}
-                        onClick={handleRegisterOps}
-                    >
-                        {isRegisteringOps ? "Registering..." : "Register Ops" }
-                    </button>
-                }
+                        {newOps.length > 0 && 
+                            <button
+                                title={'Register Ops'} disabled={isRegisteringOps}
+                                id="registerOps"
+                                className={`flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 ${isRegisteringOps ? "" : "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10"}`}
+                                onClick={handleRegisterOps}
+                            >
+                                {isRegisteringOps ? "Registering..." : "Register Ops" }
+                            </button>
+                        }
+                    </div>
+                </div>
+                <p className="admin-style-settings-card-description">Manage and register custom operations for assistants to interact with Amplify API functions</p>
+            </div>
 
-        </div>
-
-        <div className="mx-6 mr-4">
+            <div className="mx-6 mr-4">
             
             { newOps.length > 0 && 
             <div className="mb-4 flex flex-col gap-4">
@@ -144,7 +248,7 @@ return <>
                         <div key={i} onMouseEnter={() => setHoveredNewOp(i)}
                                         onMouseLeave={() => setHoveredNewOp(-1)}
                         >
-                            <div className="flex flex-col gap-2">
+                            <div className="flex flex-col gap-2" id="opsInfo">
                                 {i > 0 && <hr></hr>}
                                 <div className="flex flex-row items-center"> 
                                 <div className="flex-grow"> <InputsMap
@@ -203,40 +307,48 @@ return <>
                                         <label className="text-md text-black dark:text-neutral-200">Parameters</label>
                                         <button 
                                             title={'Add OP Parameter'} disabled={isRegisteringOps}
+                                            id="addOpParameter"
                                             className={`h-[28px] mt-[-1] ml-1 flex-shrink-0 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200 ${isRegisteringOps ? "" : "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10"}`}
                                             onClick={() => {
                                                 const updateOps = [...newOps];
-                                                updateOps[i].params.push({ name: "", description: "" });
+                                                const newParamName = `param_${Date.now()}`;
+                                                updateOps[i].parameters = addParameterToSchema(updateOps[i].parameters, newParamName, "", "string");
                                                 setNewOps(updateOps);
-                                            }
-                                            }
+                                            }}
                                         >
                                             <IconPlus size={14}/>
                                         </button>
 
                                     </div>
                                     <div className="flex flex-row gap-2 flex-grow flex-wrap">
-                                        {newOps[i].params.map((p: Record<string, string>, pIndex:number) => 
+                                        {Object.keys(newOps[i].parameters.properties || {}).map((paramName: string, pIndex:number) => {
+                                            const paramInfo = getParameterInfo(newOps[i].parameters, paramName);
                                             
-                                            <div className="flex flex-col" key={pIndex}
+                                            return (
+                                            <div className="flex flex-col gap-2 border border-neutral-300 dark:border-neutral-600 p-3 rounded-md" key={pIndex}
                                             onMouseEnter={() => setHoveredParam({opIdx: i, paramIdx: pIndex})}
                                             onMouseLeave={() => setHoveredParam(null)}>
+                                                
+                                                
+                                                {/* Parameter Name */}
                                                 <div className="relative flex flex-row flex-shrink-0">
-                                                    <label className="border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
+                                                    <label className="border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center bg-neutral-200 dark:bg-neutral-700"
                                                     >{"Name"} </label>
                                                     <input
-                                                    className={`w-full ${admin_text}`}
+                                                    className={`w-full rounded-r ${admin_text}`}
                                                     placeholder={"Parameter Name"}
-                                                    value={p.name}
+                                                    value={paramInfo.name}
                                                     onChange={(e) => {
-                                                        const newParams = [...newOps[i].params];
-                                                        newParams[pIndex].name = e.target.value;
-                                                        setNewOps((prevOps) =>
-                                                            prevOps.map((op, opIndex) =>
-                                                                opIndex === i ? {...op, params: newParams }
-                                                                            : op
-                                                            )
-                                                            )
+                                                        const updateOps = [...newOps];
+                                                        const newParamName = e.target.value;
+                                                        updateOps[i].parameters = updateParameterInSchema(
+                                                            updateOps[i].parameters, 
+                                                            paramName, 
+                                                            newParamName, 
+                                                            paramInfo.description,
+                                                            paramInfo.type
+                                                        );
+                                                        setNewOps(updateOps);
                                                     }}
                                                     />
                                                     { hoveredParam?.opIdx === i && 
@@ -244,40 +356,89 @@ return <>
                                                     <button
                                                         title={"Remove Parameter"}
                                                         type="button"
-                                                        className={`absolute right-2 top-1/2 transform -translate-y-1/2 z-20 p-1 text-sm bg:transparent rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none`}
+                                                        className={`absolute right-2 top-1/2 transform -translate-y-1/2 z-20 p-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none`}
                                                         onClick={() => {
-                                                            const newParams = newOps[i].params.filter((_, index) => index !== pIndex);
-                                                            setNewOps((prevOps) =>
-                                                                prevOps.map((op, opIndex) =>
-                                                                    opIndex === i ? { ...op, params: newParams } : op
-                                                                )
-                                                            );
+                                                            const updateOps = [...newOps];
+                                                            updateOps[i].parameters = removeParameterFromSchema(updateOps[i].parameters, paramName);
+                                                            setNewOps(updateOps);
                                                         }}
                                                         >
                                                         <IconTrash size={16} />
                                                     </button>}
-                                                
                                                 </div>
-                                                <textarea title="Parameter Description"
-                                                    className={`w-full ${admin_text}`}
-                                                    placeholder={"Parameter Description"}
-                                                    value={p.description}
-                                                    onChange={(e) => {
-                                                        const newParams = [...newOps[i].params];
-                                                        newParams[pIndex].description = e.target.value;
-                                                        setNewOps((prevOps) =>
-                                                            prevOps.map((op, opIndex) =>
-                                                                opIndex === i ? {...op, params: newParams }
-                                                                            : op
-                                                            )
-                                                            )
-                                                    }}
-                                                    rows={2} disabled={isRegisteringOps}
-                                                />
+                                               
+                                                 {/* Parameter Type */}
+                                                <div className="flex flex-row flex-shrink-0">
+                                                    <label className="border border-neutral-400 dark:border-[#40414F] py-2 px-3 rounded-l text-[0.9rem] whitespace-nowrap text-center bg-neutral-200 dark:bg-neutral-700"
+                                                    >{"Type"} </label>
+                                                    <select
+                                                        className={`w-full rounded-r ${admin_text}`}
+                                                        value={paramInfo.type}
+                                                        onChange={(e) => {
+                                                            const updateOps = [...newOps];
+                                                            updateOps[i].parameters = updateParameterInSchema(
+                                                                updateOps[i].parameters, 
+                                                                paramName, 
+                                                                paramName, 
+                                                                paramInfo.description,
+                                                                e.target.value
+                                                            );
+                                                            setNewOps(updateOps);
+                                                        }}
+                                                        disabled={isRegisteringOps}
+                                                    >
+                                                        {parameterTypes.map(type => (
+                                                            <option key={type} value={type}>{type}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                {/* Parameter Description */}
+                                                <div className="flex flex-col">
+                                                    <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Description</label>
+                                                    <textarea 
+                                                        title="Parameter Description"
+                                                        className={`w-full ${admin_text}`}
+                                                        placeholder={"Parameter Description"}
+                                                        value={paramInfo.description}
+                                                        onChange={(e) => {
+                                                            const updateOps = [...newOps];
+                                                            updateOps[i].parameters = updateParameterInSchema(
+                                                                updateOps[i].parameters, 
+                                                                paramName, 
+                                                                paramName, 
+                                                                e.target.value,
+                                                                paramInfo.type
+                                                            );
+                                                            setNewOps(updateOps);
+                                                        }}
+                                                        rows={2} 
+                                                        disabled={isRegisteringOps}
+                                                    />
+                                                </div>
+
+                                                {/* Required Checkbox */}
+                                                <div className="flex flex-row items-center gap-2">
+                                                    <Checkbox
+                                                        id={`required-${i}-${pIndex}`}
+                                                        label="Required Parameter"
+                                                        checked={paramInfo.required}
+                                                        onChange={(checked) => {
+                                                            const updateOps = [...newOps];
+                                                            updateOps[i].parameters = toggleParameterRequired(
+                                                                updateOps[i].parameters, 
+                                                                paramName, 
+                                                                checked
+                                                            );
+                                                            setNewOps(updateOps);
+                                                        }}
+                                                        disabled={isRegisteringOps}
+                                                    />
+                                                </div>
         
                                             </div>
-
-                                        )}
+                                            );
+                                        })}
                                     </div>
                                     </>
                                     }
@@ -342,7 +503,7 @@ return <>
 
             { ops.length > 0 && 
             <div className="mt-8">
-            { showOpSearch && opsSearchToggleButtons(opSearchBy, setOpSearchBy, opSearchTerm, setOpSearchTerm, " ml-[200px] mr-14", 'translateY(5px)') }
+            { showOpSearch && opsSearchToggleButtons(opSearchBy, setOpSearchBy, opSearchTerm, setOpSearchTerm, " ml-[200px] mr-16 ", 'translateY(5px)') }
             <ExpansionComponent
                 onOpen={() => setShowOpSearch(true)}
                 onClose={() => {
@@ -352,13 +513,14 @@ return <>
                 title={"Manage Ops"}
                 content={
                 <div style={{ maxHeight: '500px', overflowY: 'auto', overflowX: 'hidden'}}>
-                <table className="mt-4 border-collapse w-full" >
+                <table id="manageOpsTable" className="modern-table hide-last-column mt-4 w-full mr-10" style={{boxShadow: 'none'}}>
                     <thead className="sticky top-0">
-                    <tr className="bg-gray-200 dark:bg-[#373844]">
+                    <tr className="gradient-header hide-last-column">
                         {['Function Name', 'Tags', 'Path', 'Method', 'Parameters', 'Description']
                             .map((title, i) => (
                         <th key={i}
-                            className=" text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
+                            id="groupName"
+                            className="px-4 py-2 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
                         > {title}
                         </th>
                         ))}
@@ -372,7 +534,7 @@ return <>
                         <tr key={op.id} 
                             onMouseEnter={() => setHoveredOp(opIdx)}
                             onMouseLeave={() => setHoveredOp(-1)}>
-                            <td className="text-center border border-neutral-500 p-2 break-words">
+                            <td id="functionName" className="text-center border border-neutral-500 p-2 break-words">
                                 {op.name}
                             </td>
                             
@@ -395,23 +557,28 @@ return <>
                             </td>
                         
                             <td className="flex-grow text-center border border-neutral-500 p-2 max-w-[300px]">
-                                {op.params.length > 0 ? 
+                                {(op.parameters && Object.keys(op.parameters.properties || {}).length > 0) ? 
                                 <div className="flex flex-col gap-1 items-start w-full"> 
-                                    {op.params.map((p: Record<string, string>, i: number) => 
-                                    <div className="flex flex-row gap-1 items-start w-full" key={i}> 
-                                        <div
-                                        key={p.name + p.url}
-                                        className="my-0.5 px-1 py-0.5 bg-white dark:bg-neutral-300 rounded-md h-[24px] shadow-lg text-gray-800 font-medium text-sm flex-shrink-0"> 
-                                        {p.name} 
+                                    {Object.keys(op.parameters.properties || {}).map((paramName: string, i: number) => {
+                                        const paramInfo = getParameterInfo(op.parameters, paramName);
+                                        return (
+                                        <div className="flex flex-row gap-1 items-start w-full" key={i}> 
+                                            <div
+                                            key={paramName + op.url}
+                                            className={`my-0.5 px-1 py-0.5 bg-white dark:bg-neutral-300 rounded-md h-[24px] shadow-lg text-gray-800 font-medium text-sm flex-shrink-0 ${paramInfo.required ? 'border-2 border-red-400' : ''}`}
+                                            title={paramInfo.required ? 'Required Parameter' : 'Optional Parameter'}
+                                            > 
+                                            {paramName} ({paramInfo.type})
+                                            </div>
+                                            <textarea
+                                            className="flex-grow w-full rounded-r border border-neutral-500 px-1 bg-transparent dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
+                                            value={paramInfo.description || 'N/A'}
+                                            disabled={true}
+                                            rows={1} 
+                                            />
                                         </div>
-                                        <textarea
-                                        className="flex-grow w-full rounded-r border border-neutral-500 px-1 bg-transparent dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
-                                        value={p.description ?? 'N/A'}
-                                        disabled={true}
-                                        rows={1} 
-                                        />
-                                    </div>
-                                    )}
+                                        );
+                                    })}
                                 </div> : 'No Parameters'}
                             </td>
 
@@ -450,6 +617,7 @@ return <>
                 isOpened={true}
             /> </div>}
         </div>
+        </div>
         </>
 
 }
@@ -462,7 +630,7 @@ const emptyOps = () => {
         method: 'POST',
         description: '',
         type: 'custom',
-        params: [],
+        parameters: emptySchema,
         tag: '',
     } as OpDef;
 }

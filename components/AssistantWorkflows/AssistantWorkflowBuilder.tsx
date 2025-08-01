@@ -4,14 +4,13 @@ import React, { useState, useEffect, useContext } from 'react';
 import { AstWorkflow, Step } from '@/types/assistantWorkflows';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import { registerAstWorkflowTemplate, listAstWorkflowTemplates, getAstWorkflowTemplate, updateAstWorkflowTemplate, deleteAstWorkflowTemplate } from '@/services/assistantWorkflowService';
-import { IconPlus, IconTrash, IconChevronDown, IconChevronUp, IconCaretDown, IconCaretRight, IconArrowUp, IconArrowDown, IconLoader2, IconInfoCircle, IconPresentation, IconPuzzle, IconPuzzleFilled, IconEdit, IconEditOff } from '@tabler/icons-react';
+import { IconPlus, IconTrash, IconChevronDown, IconChevronUp, IconCaretDown, IconCaretRight, IconArrowUp, IconArrowDown, IconLoader2, IconInfoCircle, IconPresentation, IconPuzzle, IconPuzzleFilled, IconEdit, IconEditOff, IconRobot } from '@tabler/icons-react';
 import cloneDeep from 'lodash/cloneDeep';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
 import ExpansionComponent from '../Chat/ExpansionComponent';
 import { InfoBox } from '../ReusableComponents/InfoBox';
 import { InputsMap } from '../ReusableComponents/InputMap';
 import ApiIntegrationsPanel from '../AssistantApi/ApiIntegrationsPanel';
-import { API } from '../AssistantApi/CustomAPIEditor';
 import HomeContext from '@/pages/api/home/home.context';
 import { getOpsForUser } from '@/services/opsService';
 import { getAgentTools } from '@/services/agentService';
@@ -19,6 +18,9 @@ import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import toast from 'react-hot-toast';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { AssistantWorkflow } from './AssistantWorkflow';
+import { OpDef, Schema } from '@/types/op';
+import { AgentTool } from '@/types/agentTools';
+import { emptySchema } from '@/utils/app/tools';
 
 interface WorkflowTemplateBuilderProps {
   isOpen: boolean;
@@ -26,8 +28,6 @@ interface WorkflowTemplateBuilderProps {
   initialTemplate?: AstWorkflow;
   onRegister?: (template: AstWorkflow) => void;
   isBaseTemplate?: boolean;
-  width?: () => number;
-  height?: () => number;
 }
 
 const defaultStep: Step = {
@@ -90,7 +90,7 @@ const getSegmentColor = (segment: string): string => {
 };
 
 export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = ({
-  isOpen, onClose, initialTemplate, onRegister, isBaseTemplate = true, width, height }) => {
+  isOpen, onClose, initialTemplate, onRegister, isBaseTemplate = true }) => {
 
   const { state: {featureFlags} } = useContext(HomeContext);
   const [selectedWorkflow, setSelectedWorkflow] = useState<AstWorkflow>(emptyTemplate(isBaseTemplate));
@@ -118,8 +118,9 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [detailedPreview, setDetailedPreview] = useState(false);
 
+  const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
 
-      // we need to detect name changes if there is a tag predefined because then the existing sender list is empty
+
       const filterOps = async (data: any[]) => {
         const filteredOps = await filterSupportedIntegrationOps(data);
         if (filteredOps) setAvailableApis(filteredOps);
@@ -426,7 +427,13 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
     setLoadingSelectedWorkflow(false);
   };
 
-  const handleSelectTool = (toolName: string, index: number, args: Record<string, string>) => {
+  const handleSelectTool = (toolName: string, index: number, parameters: Schema) => {
+    const args: Record<string, string> = {};
+    if (parameters.properties) {
+      Object.entries(parameters.properties).forEach(([paramName, paramInfo]: [string, any]) => {
+        args[paramName] = paramInfo.description ?? "No description provided";
+      });
+    }
     const updatedTemplate = cloneDeep(selectedWorkflow);
     if (updatedTemplate.template?.steps) {
       updatedTemplate.template.steps[index].tool = toolName;  
@@ -566,23 +573,13 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
             <ApiIntegrationsPanel
                 // API-related props
                 availableApis={availableApis}
-                onClickApiItem={(api: API) => {
-                  const args: Record<string, string> = {};
-                  api.params.forEach((param: any) => {
-                    args[param.name] = `<${param.description || param.name}>`;
-                  });
-                  handleSelectTool(api.name, index, args);
+                onClickApiItem={(api: OpDef) => {
+                  handleSelectTool(api.name, index, api.parameters);
                 }}
                 // Agent tools props
                 availableAgentTools={availableAgentTools}
-                onClickAgentTool={ (tool: any) => {
-                  const args: Record<string, string> = {};
-                  if (tool.parameters?.properties) {
-                    Object.entries(tool.parameters.properties).forEach(([paramName, paramInfo]: [string, any]) => {
-                      args[paramName] = paramInfo.description ?? "No description provided";
-                    });
-                  }
-                  handleSelectTool(tool.tool_name, index, args);
+                onClickAgentTool={ (tool: AgentTool) => {
+                  handleSelectTool(tool.tool_name, index, tool.parameters || emptySchema);
                 }}
                 // python function 
                 allowCreatePythonFunction={false}
@@ -1104,7 +1101,13 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
             }
           /></div> }
           /> 
-          <div className="absolute right-1 top-[-6px]">
+          <div className="absolute right-1 top-[-6px] flex flex-row gap-3">
+             {/* <button
+              className={`px-2  ${buttonStyle}`}
+              onClick={() => {}}>
+              {isGeneratingWorkflow ? <IconLoader2 size={18} className='animate-spin' /> : <IconRobot size={18} />}
+              AI Generate Workflow
+            </button> */}
             <button
               className={`px-3  ${buttonStyle}`}
               onClick={() => setIsPreviewing(true)}>
@@ -1189,7 +1192,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
     <Modal
       title={initialTemplate?.templateId ? 'Edit Assistant Workflow Template' : 'Create Assistant Workflow Template'}
       content={
-        <div className="flex flex-row" style={{height: (height ?height() : window.innerHeight * 0.9) * 0.8}}>
+        <div className="flex flex-row" style={{height: (window.innerHeight * 0.9) * 0.8}}>
                 {renderSidebar()}
                 { isPreviewing ? renderPreviewContent() : renderMainContent()}
         </div>
@@ -1202,11 +1205,9 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
         onClose();
       }}
       disableSubmit={isSubmitting}
-      width={() => width ? width() : Math.min(1000, window.innerWidth * 0.9)}
-      height={() => height ? height() : window.innerHeight * 0.9}
     />
   );
 };
 
-const buttonStyle = "py-2 border rounded text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center gap-2";
+const buttonStyle = "py-2 border rounded text-sm hover:bg-neutral-200 dark:hover:bg-neutral-700 flex items-center gap-2";
 

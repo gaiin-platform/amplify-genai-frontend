@@ -1,85 +1,38 @@
 import { useSession } from "next-auth/react";
 
-
-
 export const User: React.FC = () => {
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
     const userInitial = userEmail ? userEmail.charAt(0).toUpperCase() : "A";
 
     return (
-        <div className="relative left-[-12px] flex items-center justify-center" style={{ width: '50px', height: '50px' }}>
-            
-            <svg width="100" height="100" viewBox="0 0 100 100">
-                <defs>
-                    <linearGradient id="circleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#fbff35" /> {/* Bright yellow */}
-                        <stop offset="24%" stopColor="#FF6F00" /> {/* Bright orange */}
-                        <stop offset="76%" stopColor="#7200bd" /> {/* Purple */}
-                        <stop offset="92%" stopColor="#780000" /> {/* Dark red */}
-                        <stop offset="100%" stopColor="#37005b" /> {/* Dark purple */}
-                    </linearGradient>
-                </defs>
-                <circle cx="50" cy="50" r="50" fill="none" stroke="url(#circleGradient)" strokeWidth="4" strokeDasharray="120 40" />
-                <circle cx="50" cy="50" r="40" fill="none" stroke="url(#circleGradient)" strokeWidth="2" strokeDasharray="110 40" />
-            </svg>
-
-            {/* Initials Label in the bottom-left corner */}
-            <span
-                className="text-gray-800 dark:text-[#B0BEC5] absolute text-[20px] pr-1 bg-transparent"
-                style={{
-                    bottom: '12px',
-                    left: userInitial === "I" ? "23px" : '19px',
-                    fontFamily: 'Open Sans, sans-serif',
-                    fontWeight: 300
-                }}
-            >
-                {userInitial}
-            </span>
+        <div className="enhanced-avatar enhanced-avatar-user">
+            <div className="avatar-background">
+                <div className="avatar-gradient-ring"></div>
+                <div className="avatar-inner-circle">
+                    <span className="avatar-initial" 
+                          style={{fontFamily: 'Open Sans, sans-serif'}}>{userInitial}</span>
+                </div>
+            </div>
         </div>
     );
 };
-
-
-
-
-
 
 export const Amplify: React.FC = () => {
-
     return (
-        <div className="relative left-[-12px] flex items-center justify-center" style={{ width: '50px', height: '50px' }}>
-            
-            <svg width="100" height="100" viewBox="0 0 100 100">
-                <defs>
-                    <linearGradient id="circleGradientAmp" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#F9E900" /> {/* Bright yellow */}
-                        <stop offset="30%" stopColor="#20C997" /> {/* Teal */}
-                        <stop offset="50%" stopColor="#4D9DE0" /> {/* Lighter blue */}
-                        <stop offset="76%" stopColor="#00346f" /> {/* Dark blue */}
-                        <stop offset="100%" stopColor="#ae34ff" /> {/* Purple */}
-
-
-                    </linearGradient>
-                </defs>
-                <circle cx="50" cy="50" r="50" fill="none" stroke="url(#circleGradientAmp)" strokeWidth="4" strokeDasharray="120 40" />
-                <circle cx="50" cy="50" r="40" fill="none" stroke="url(#circleGradientAmp)" strokeWidth="2" strokeDasharray="110 40" />
-            </svg>
-
-            {/* Initials Label in the bottom-left corner */}
-            <span
-                className="bg-gray-50 dark:bg-[#444654] text-gray-800 dark:text-[#B0BEC5] absolute text-[16px] w-[60px] pr-1 "
-                style={{
-                    bottom: '12px',
-                    fontFamily: 'Open Sans, sans-serif',
-                    fontWeight: 300
-                }}
-            >
-                Amplify
-            </span>
+        <div className="enhanced-avatar enhanced-avatar-assistant">
+            <div className="avatar-background">
+                <div className="avatar-gradient-ring avatar-gradient-assistant"></div>
+                <div className="avatar-inner-circle avatar-inner-assistant">
+                    <div className="amplify-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M7 4L5 10L1 11L5 12L7 18L9 12L13 11L9 10L7 4Z" fill="currentColor"/>
+                            <path d="M18 3L17 6L14 7L17 8L18 11L19 8L22 7L19 6L18 3Z" fill="currentColor"/>
+                            <path d="M16 15L15 18L12 19L15 20L16 23L17 20L20 19L17 18L16 15Z" fill="currentColor"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
-
-
-

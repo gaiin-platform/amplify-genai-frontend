@@ -1,9 +1,9 @@
 import { Plugin, PluginID, PluginList } from "@/types/plugin";
 import { Settings } from "@/types/settings";
 
-const getPluginDefaults = (settings: Settings) => {
+const getPluginDefaults = (settings: Settings, featureFlags: any) => {
     return PluginList.reduce<{ [key in PluginID]: boolean }>((acc, plugin) => {
-      let defaultVal = plugin.default;
+      let defaultVal: boolean = plugin.default ?? false;
       if (!defaultVal) {
         switch (plugin.id) {
           case (PluginID.ARTIFACTS):
@@ -15,8 +15,9 @@ const getPluginDefaults = (settings: Settings) => {
           case (PluginID.MEMORY):
             defaultVal = settings.featureOptions.includeMemory;
             break;
-          default:
-            defaultVal = false;
+          case (PluginID.RAG): // Rag is off by default if cached documents is on
+            defaultVal = !(featureFlags?.cachedDocuments ?? false);
+            break;
         }
       }
       acc[plugin.id] = defaultVal;
@@ -26,13 +27,13 @@ const getPluginDefaults = (settings: Settings) => {
 
 
 
-export const getActivePlugins = (settings: Settings, validPlugins: Plugin[] = PluginList) => {
+export const getActivePlugins = (settings: Settings, featureFlags: any, validPlugins: Plugin[] = PluginList) => {
         //local storage for on/off 
         const enabledPlugins = localStorage.getItem('enabledPlugins');
         let savedSelections: { [key in PluginID]: boolean } = enabledPlugins ? 
                                                   JSON.parse(enabledPlugins) : null;
         // in case we add new ones, we refer to both saved and defaults
-        const defaults = getPluginDefaults(settings);
+        const defaults = getPluginDefaults(settings, featureFlags);
     
         // we will base it off of the defaults in none have been saved yet
         if (!savedSelections) savedSelections = defaults; 

@@ -1,18 +1,12 @@
+import { OpBindings, Schema } from "./op";
+
 export interface AgentTool {
     tool_name: string;
     description: string;
     tags: string[];
-    parameters?: {
-      type: string;
-      properties: {
-        [key: string]: {
-          type: string;
-          [key: string]: any;
-        };
-      };
-      required?: string[];
-    };
+    parameters?: Schema;
     terminal?: boolean;
+    bindings? : OpBindings;
     [key: string]: any; // Allow additional properties
   }
 

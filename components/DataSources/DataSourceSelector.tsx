@@ -80,12 +80,11 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                     <a href="#"
                        id="fileSection"
                        className={pageClasses("files")}
+                       onClick={swapPage("files")}
                        aria-current="page">
-                        <div className="flex flex-row items-center pointer"
-                             onClick={swapPage("files")}
-                        >
+                        <div className="group flex flex-row items-center pointer">
                             <div>
-                                <IconFiles/>
+                                <IconFiles className="icon-pop-group"/>
                             </div>
                             <div className="ml-1">
                                 Files
@@ -99,11 +98,13 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                        className={pageClasses("tags")}
                        onClick={swapPage("tags")}
                     >
-                        <div>
-                            <IconTags/>
-                        </div>
-                        <div className="ml-1">
-                            Tags
+                        <div className="group flex flex-row items-center pointer">
+                            <div>
+                                <IconTags className="icon-pop-group"/>
+                            </div>
+                            <div className="ml-1">
+                                Tags
+                            </div>
                         </div>
                     </a>
                 </li>
@@ -113,11 +114,13 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                        className={pageClasses("docs")}
                        onClick={swapPage("docs")}
                     >
-                        <div>
-                            <IconFileDescription/>
-                        </div>
-                        <div className="ml-1">
-                            Docs
+                        <div className="group flex flex-row items-center pointer">
+                            <div>
+                                <IconFileDescription className="icon-pop-group"/>
+                            </div>
+                            <div className="ml-1">
+                                Docs
+                            </div>
                         </div>
                     </a>
                 </li>
@@ -127,11 +130,13 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                        className={pageClasses("slides")}
                        onClick={swapPage("slides")}
                     >
-                        <div>
-                            <IconSlideshow/>
-                        </div>
-                        <div className="ml-1">
-                            Slides
+                        <div className="group flex flex-row items-center pointer">
+                            <div>
+                                <IconSlideshow className="icon-pop-group"/>
+                            </div>
+                            <div className="ml-1">
+                                Slides
+                            </div>
                         </div>
                     </a>
                 </li>
@@ -148,9 +153,9 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                         <a href="#"
                             className={pageClasses(key)}
                             onClick={swapPage(key)}>
-                            <div className="flex flex-row items-center pointer">
+                            <div className="group flex flex-row items-center pointer">
                                 <div>
-                                    <IconBrandGoogleDrive/>
+                                    <IconBrandGoogleDrive className="icon-pop-group"/>
                                 </div>
                                 <div className="ml-1">
                                     {capitalize(key.split('_')[0])}

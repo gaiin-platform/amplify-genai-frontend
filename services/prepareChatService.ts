@@ -7,6 +7,8 @@ import { lzwUncompress } from "@/utils/app/lzwCompression";
 import cloneDeep from 'lodash/cloneDeep';
 import { Model } from "@/types/model";
 import { ARTIFACT_TRIGGER_CONDITIONS } from "@/utils/app/const";
+import { Account } from "@/types/accounts";
+import { scrubMessages } from "@/utils/app/messages";
 
 
 const DIVIDER_CUSTOM_INSTRUCTIONS = `
@@ -241,7 +243,7 @@ const SMART_INCLUDE_ARTIFACT_INSTRUCTIONS = (prompt: string) => `
 
 export const getFocusedMessages = async (chatEndpoint:string, conversation:Conversation, statsService: any, 
                                          isArtifactsOn: boolean, isSmartMessagesOn: boolean, 
-                                         homeDispatch:any, advancedModel: Model, cheapestModel: Model) => {
+                                         homeDispatch:any, advancedModel: Model, cheapestModel: Model, account: Account | undefined) => {
     const defaultResponse = () => ({focusedMessages: conversation.messages, includeArtifactInstr: isArtifactsOn});
     if (!isArtifactsOn && !isSmartMessagesOn)  return defaultResponse();
     
@@ -254,7 +256,7 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
     let customInstructions = isSmartMessagesOn ? DIVIDER_CUSTOM_INSTRUCTIONS : "";
 
     const topicData = gatherDataForPrompt(cloneDeep(conversation), isSmartMessagesOn, isArtifactsOn);
-    const messageTopicDataOnly = topicData.messages;
+    const messageTopicDataOnly = scrubMessages(topicData.messages)
     // only if we artifacts defined will we include the instructions 
     if (topicData.artifactLen > 0) customInstructions +=  ARTIFACT_CUSTOM_INSTRUCTIONS;
 
@@ -276,7 +278,9 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
             temperature: 0.8,
             maxTokens: 2000,
             skipRag: true,
-            skipCodeInterpreter: true
+            skipCodeInterpreter: true,
+            accountId: account?.id,
+            rateLimit: account?.rateLimit
         };
 
         
@@ -534,7 +538,7 @@ function relevantArtifactContent(response: string, artifactMap: { [key: string]:
     if (artifactIds.length > 0 ) {
         artifactContent = "\n\n You may or may not find the following artifacts useful to answer the users prompt:\n";
         artifactIds.forEach((id: string) => {
-            artifactContent += `\n\n ArtifactId: ${id} \n${lzwUncompress(artifactMap[id])}`;
+            if (artifactMap[id]) artifactContent += `\n\n ArtifactId: ${id} \n${lzwUncompress(artifactMap[id])}`;
         });
     } 
     return artifactContent;

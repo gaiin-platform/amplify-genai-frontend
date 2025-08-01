@@ -3,10 +3,11 @@ import { DataSource } from '@/types/chat';
 import { downloadDataSourceFile } from '@/utils/app/files';
 import { useSession } from 'next-auth/react';
 import React, { useContext,  } from "react";
-
+import DOMPurify from 'dompurify';
 interface Props {
     source: any;
     index: number;
+    name: string;
 }
 
 
@@ -19,9 +20,39 @@ function formatPropertyName(propertyName: string): string {
 }
 
 function groupArrayValuesByKeys(array: Array<any>) {
-    // Assuming each element is an object with the same set of keys
-    const allKeys = Object.keys(array[0] || {});
-    return allKeys
+    
+    // Define precedence order for location types (higher priority first)
+    const keyPrecedence: { [key: string]: number } = {
+        // Document structure (highest priority)
+        'slide_number': 1,
+        'page_number': 2,
+        'section_number': 3,
+        'section_title': 4,
+        
+        // Content structure
+        'paragraph_number': 5,
+        'line_number': 6,
+        
+        // Spreadsheet structure
+        'sheet_number': 7,
+        'sheet_name': 8,
+        'row_number': 9,
+        'cell_range': 10,
+        
+        // Other/unknown (lowest priority)
+    };
+    
+    // Get all unique keys from all objects in the array
+    const allKeys = Array.from(new Set(array.flatMap(obj => Object.keys(obj))));
+    
+    // Sort keys by precedence (lower number = higher priority)
+    const sortedKeys = allKeys.sort((a, b) => {
+        const aPrecedence = keyPrecedence[a] || 999; // Unknown keys get low priority
+        const bPrecedence = keyPrecedence[b] || 999;
+        return aPrecedence - bPrecedence;
+    });
+    
+    return sortedKeys
         .map((propertyKey, index) => {
             // Create a label for the key based on formatting rules
             let label = formatPropertyName(propertyKey);
@@ -56,7 +87,7 @@ function groupArrayValuesByKeys(array: Array<any>) {
                 </div>;
             }
 
-            if (array.every(item => item[propertyKey] === '' || item[propertyKey] === null)) {
+            if (array.every(item => item[propertyKey] === '' || item[propertyKey] === null || item[propertyKey] === undefined)) {
                 return <></>
             }
 
@@ -66,6 +97,7 @@ function groupArrayValuesByKeys(array: Array<any>) {
 
                 return (v !== null &&
                         v !== '' &&
+                        v !== undefined &&
                         !unique.includes(v)) ?
                     [...unique, v] : unique;
             }, []);
@@ -99,9 +131,25 @@ function capitalizeFirstLetter(string: string): string {
     return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
 }
 
+const sanitizedUrl = (source: any) => {
+    const sanitizedUrl = DOMPurify.sanitize(source.url);
+    return (
+         <a 
+            id={`sourceUrl-${source.id}`} 
+            className="mr-auto text-start text-[#5495ff] cursor-pointer hover:underline no-underline" 
+            href={sanitizedUrl} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            title="Open URL"
+        >
+            {sanitizedUrl}
+        </a>
+    )
+}
+
 
 const ChatSourceBlock: React.FC<Props> = (
-    {source, index}) => {
+    {source, index, name}) => {
     const { data: session } = useSession();
     const user = session?.user?.email;
 
@@ -141,6 +189,9 @@ const ChatSourceBlock: React.FC<Props> = (
                         </blockquote>
                     </div>
                 )}
+
+                { source.url ? sanitizedUrl(source) :
+                <>
                 {source.name && (
                     (source.contentKey && !source.contentKey.includes("global/") &&  (source.contentKey.includes(user) ||  source.groupId))  ? 
                         <button id="sourceName" className="mr-auto text-start text-[#5495ff] cursor-pointer hover:underline" title='Download File'
@@ -153,8 +204,8 @@ const ChatSourceBlock: React.FC<Props> = (
                         </div>
 
                 )}
-                {source.locations && Array.isArray(source.locations) && (
-                    <div>
+                {name !== "documentContext" && source.locations && Array.isArray(source.locations) && (
+                    <div className="flex flex-wrap items-center gap-2">
                         {groupArrayValuesByKeys(source.locations).map((element, elementIndex) => (
                             <React.Fragment key={`location-${index}-${elementIndex}`}>
                                 {element}
@@ -162,6 +213,8 @@ const ChatSourceBlock: React.FC<Props> = (
                         ))}
                     </div>
                 )}
+                </>}
+                
             </div>
         </div>
     </div> 

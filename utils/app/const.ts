@@ -5,12 +5,12 @@ export const DEFAULT_SYSTEM_PROMPT =
 export const MIXPANEL_TOKEN = process.env.NEXT_PUBLIC_MIXPANEL_TOKEN || '';
 
 export const COMMON_DISALLOWED_FILE_EXTENSIONS = [
-    // "jpg","png","gif", "jpeg", "webp", These are supported by claude and openai 
     "mp3","wav","mp4","mov","avi","mkv",
     "rar","7z","tar","gz","tgz","bz2","xz",
     "mkv","tif","tiff","bmp","eps","ps","ai",
     "psd","heic","heif","ico","ps",
 ];
+export const IMAGE_FILE_EXTENSIONS = ["jpg","png", "gif", "jpeg", "webp"];
 
 export const IMAGE_FILE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 

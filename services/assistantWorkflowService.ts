@@ -51,12 +51,12 @@ export const getAstWorkflowTemplate = async (templateId: string) => {
 /**
  * List all workflow templates for the current user
  */
-export const listAstWorkflowTemplates = async (filterBaseTemplates: boolean = false) => {
+export const listAstWorkflowTemplates = async (filterBaseTemplates: boolean = false, includePublicTemplates: boolean = false) => {
   const op = {
     method: 'POST',
     path: URL_PATH,
     op: "/list-workflow-templates",
-    data: { filterBaseTemplates },
+    data: { filterBaseTemplates, includePublicTemplates },
     service: SERVICE_NAME
   };
   return await doRequestOp(op);

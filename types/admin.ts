@@ -9,7 +9,7 @@ export enum AdminConfigTypes {
     FEATURE_FLAGS = 'featureFlags', 
     APP_VARS = 'applicationVariables',
     APP_SECRETS = 'applicationSecrets',
-    OPENAI_ENDPONTS = 'openaiEndpoints',
+    OPENAI_ENDPOINTS = 'openaiEndpoints',
     AVAILABLE_MODELS = 'supportedModels',
     AST_ADMIN_GROUPS = 'assistantAdminGroups',
     PPTX_TEMPLATES = 'powerPointTemplates',
@@ -68,7 +68,7 @@ export const adminDataTabMap: Record<AdminTab, string[]> = {
       AdminConfigTypes.APP_SECRETS,
     ],
     'OpenAi Endpoints' : [
-      AdminConfigTypes.OPENAI_ENDPONTS,
+      AdminConfigTypes.OPENAI_ENDPOINTS,
     ],
     
     'Ops' : [
@@ -160,7 +160,7 @@ export interface DefaultModelsConfig {
   'cheapest': string,
   'agent': string,
   'embeddings': string,
-  'qa': string,
+  'documentCaching': string,
 }
 
 

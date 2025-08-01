@@ -1,14 +1,15 @@
-import React, { FC, useContext, useEffect, useRef, useState } from 'react';
+import React, { FC, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'next-i18next';
-import { IconTrashX, IconPlus, IconCheck, IconX, IconEdit} from "@tabler/icons-react";
+import { IconTrashX, IconPlus, IconCheck, IconX, IconEdit, IconLoader2} from "@tabler/icons-react";
 import HomeContext from '@/pages/api/home/home.context';
-import { saveAccounts } from "@/services/accountService";
+import { getAccounts, saveAccounts } from "@/services/accountService";
 import { Account, noCoaAccount } from "@/types/accounts";
 import { RateLimiter } from './RateLimit';
-import { formatRateLimit, PeriodType, RateLimit, rateLimitObj, UNLIMITED } from '@/types/rateLimit';
+import { formatRateLimit, noRateLimit, PeriodType, RateLimit, rateLimitObj, UNLIMITED } from '@/types/rateLimit';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
 import toast from 'react-hot-toast';
-
+import { getUserMtdCosts } from '@/services/mtdCostService';
+import { useSession } from 'next-auth/react';
 
 interface Props {
     accounts: Account[];
@@ -16,15 +17,33 @@ interface Props {
     defaultAccount: Account; 
     setDefaultAccount: (s:Account) => void;
     setUnsavedChanged: (b: boolean) => void;
-    onClose: () => void;
+    isLoading: boolean;
 }
+
+interface AccountCostData {
+    accountInfo: string;
+    dailyCost: number;
+    monthlyCost: number;
+    totalCost: number;
+}
+
+interface UserMtdData {
+    email: string;
+    dailyCost: number;
+    monthlyCost: number;
+    totalCost: number;
+    accounts: AccountCostData[];
+}
+
 
 export const isValidCOA = (coa: any) => {
     return coa !== null && coa !== undefined;
 }
 
-export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, setDefaultAccount, setUnsavedChanged, onClose}) => {
-    const {  dispatch: homeDispatch } = useContext(HomeContext);
+export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, setDefaultAccount, setUnsavedChanged, isLoading}) => {
+    const { state: {}, dispatch: homeDispatch } = useContext(HomeContext);
+    const { data: session } = useSession();
+    const user = session?.user;
 
     const { t } = useTranslation('settings');
 
@@ -33,12 +52,80 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
 
     const [accountRateLimitPeriod, setAccountRateLimitPeriod] = useState<PeriodType>(UNLIMITED);
     const [accountRateLimitRate, setAccountRateLimitRate] = useState<string>('');
-
-    const [isSaving, setIsSaving ] = useState(false);
     
     // helps keep track of cases like added act (unsavechanges) -> delete newly addded act (no unsavedchanges)
     const [addedAccounts, setAddedAccounts ] = useState<string[]>([]);
     const [hasEdits, setHasEdits ] = useState(false);
+
+    const [hoverAccount, setHoverAccount] = useState<number | null>(null);
+    // MTD Cost state
+    const [mtdCostData, setMtdCostData] = useState<UserMtdData | null>(null);
+    const [mtdCostLoading, setMtdCostLoading] = useState(false);
+
+    // Fetch MTD costs for current user
+    const fetchMTDCosts = async () => {
+        if (!user?.email) return;
+        
+        setMtdCostLoading(true);
+        try {
+            const result = await getUserMtdCosts();
+            // console.log('MTD Costs API Result:', result);
+            if (result.success && result.data) setMtdCostData(result.data);
+            
+        } catch (err) {
+            console.error('Error fetching MTD costs:', err);
+        } finally {
+            setMtdCostLoading(false);
+        }
+    };
+
+    // Format currency helper
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(amount);
+    };
+
+    // Get MTD cost for specific account
+    const getAccountMtdCost = (accountId: string) => {
+        if (!mtdCostData?.accounts) return null;
+        
+        // Find all accounts that match the accountId (before the #)
+        const matchingAccounts = mtdCostData.accounts.filter(acc => {
+            const accIdPart = acc.accountInfo.split('#')[0];
+            return accIdPart === accountId;
+        });
+        
+        if (matchingAccounts.length === 0) return null;
+        
+        // Count unique API keys (amp- entries, excluding NA)
+        const uniqueApiKeys = new Set(
+            matchingAccounts
+                .map(acc => acc.accountInfo.split('#')[1])
+                .filter(apiKey => apiKey && apiKey.startsWith('amp-'))
+        ).size;
+        
+        // Accumulate costs
+        const totalDailyCost = matchingAccounts.reduce((sum, acc) => sum + acc.dailyCost, 0);
+        const totalMonthlyCost = matchingAccounts.reduce((sum, acc) => sum + acc.monthlyCost, 0);
+        const totalCost = matchingAccounts.reduce((sum, acc) => sum + acc.totalCost, 0);
+        
+        return {
+            accountInfo: accountId,
+            dailyCost: totalDailyCost,
+            monthlyCost: totalMonthlyCost,
+            totalCost: totalCost,
+            uniqueApiKeyCount: uniqueApiKeys
+        };
+    };
+
+    // Fetch MTD costs on component mount
+    useEffect(() => {
+        fetchMTDCosts();
+    }, [user?.email]);
 
 
     const handleAddAccount = () => {
@@ -104,13 +191,11 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
     }
 
     const handleSave = async () => {
-        // console.log("accts saved: ", accounts)
-
         if (accounts.length === 0) {
             alert("You must have at least one account.");
             return;
         }
-        setIsSaving(true);
+        toast("Saving Account changes..."); 
 
         let updatedAccounts = accounts.map(account => {
             return { ...account, isDefault: account.name === defaultAccount.name };
@@ -129,79 +214,113 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
             setAddedAccounts([]);
             toast("Account changes saved.");
         }
-        setIsSaving(false);
         
-    };
+    }
 
+    useEffect(() => {
+        window.addEventListener('settingsSave', handleSave);
+        return () => window.removeEventListener('settingsSave', handleSave);
+    }, []);
 
-    return <div className='flex flex-col h-full'> 
-            <div className="mb-4 text-l text-black dark:text-neutral-200 px-2">
-                    You can add a COA string for billing charges back to a specific account. 
-                    Certain features require at least one COA string to be provided. You can always edit the Rate Limit set for an account. Always remember to confirm and save your changes. 
+    return <div className='accounts-settings-container'> 
+            <div className="accounts-info-banner">
+                <div className="accounts-info-content">
+                    <h3 className="accounts-info-title flex flex-row items-center gap-3">Account Management 
+                        <div className="accounts-info-icon">💳</div>
+                    </h3>
+                    <p className="accounts-info-description">
+                        Add COA strings for billing charges back to specific accounts. 
+                        Certain features require at least one COA string. You can edit rate limits and must save your changes to apply them.
+                    </p>
+                </div>
             </div>
 
-                <ul className="divide-y divide-gray-200 max-h-40 overflow-y-auto overflow-x-hidden mb-2">
-                    <li key={"header"} className="flex flex-row items-center">
-                        <div className="text-left text-lg  text-black dark:text-neutral-200 ">Add Account</div>
-                    </li>
-                    <li key={"header2"} className="flex flex-row py-3">
-                        <div className="flex-shrink-0 ml-[-6px] mr-2">
-                            <button
-                                type="button"
-                                title='Add Account'
-                                className="ml-2 mt-2.5 px-3 py-1.5 text-white rounded bg-neutral-500 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500"
-                                onClick={handleAddAccount}
-                            >
-                                <IconPlus size={18} />
-                            </button>
-                        </div>
-                        <div className="text-left flex-grow py-2 mt-1"
-                            style={{width: '120px'}}>
+            <div className="settings-card">
+                <div className="settings-card-header flex flex-row items-center gap-4">
+                    <h3 className="settings-card-title">Add New Account</h3>
+                    <p className="settings-card-description">Create a new account with COA string and rate limits</p>
+                </div>
+                <div className="settings-card-content">
+                <div className="accounts-add-form">
+                    <div className="accounts-form-row">
+                        <div className="accounts-input-group">
+                            <label htmlFor="accountNameInput" className="accounts-input-label">Account Name</label>
                             <input
-                            ref={accountNameRef}
-                            type="text"
-                            placeholder={'Account name'}
-                            className="rounded border-gray-300 p-1 text-neutral-900 shadow-sm focus:border-neutral-500 w-full"
-
-                        /></div>
-                        <div className="text-left ml-2 flex-grow min-w-0 py-2 mt-1">
-                            <input
-                                ref={accountIdRef}
+                                ref={accountNameRef}
                                 type="text"
-                                placeholder={'COA String'}
-                                className="rounded border-gray-300 p-1 text-neutral-900 shadow-sm focus:border-neutral-500 focus:ring focus:ring-neutral-500 focus:ring-opacity-50 w-full"
-
+                                id="accountNameInput"
+                                placeholder="Enter account name"
+                                className="accounts-input"
                             />
                         </div>
                         
-                        <div className='relative ml-2 flex flex-col gap-1 mt-[-14px]' style={{ height: '68px', whiteSpace: 'nowrap', overflowWrap: 'break-word'}}>
-                            <label className="text-sm mt-1" htmlFor="rateLimitType">Rate Limit</label>
-                                <RateLimiter
-                                period={accountRateLimitPeriod}
-                                setPeriod= {setAccountRateLimitPeriod}
-                                rate={accountRateLimitRate}
-                                setRate={setAccountRateLimitRate}
-                                />  
+                        <div className="accounts-input-group">
+                            <label htmlFor="coaStringInput" className="accounts-input-label">COA String</label>
+                            <input
+                                ref={accountIdRef}
+                                type="text"
+                                id="coaStringInput"
+                                placeholder="Enter COA string"
+                                className="accounts-input"
+                            />
                         </div>
                         
-                    </li>
-                </ul>
-
-                <div className="mb-2 text-lg text-black dark:text-neutral-200 border-b">
-                    Default Account
+                        <div className="accounts-input-group">
+                            <label className="accounts-input-label">Rate Limit</label>
+                            <div className="accounts-rate-limit-wrapper">
+                                <RateLimiter
+                                    period={accountRateLimitPeriod}
+                                    setPeriod={setAccountRateLimitPeriod}
+                                    rate={accountRateLimitRate}
+                                    setRate={setAccountRateLimitRate}
+                                />  
+                            </div>
+                        </div>
+                        
+                        <div className="accounts-add-button-wrapper">
+                            <button
+                                type="button"
+                                title="Add Account"
+                                id="addAccountButton"
+                                className="accounts-add-button"
+                                onClick={handleAddAccount}
+                            >
+                                <IconPlus size={20} />
+                                <span>Add Account</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <AccountSelect
-                    accounts={accounts}
-                    defaultAccount={defaultAccount}
-                    setDefaultAccount={(a:Account) => {
-                        setHasEdits(true);
-                        setDefaultAccount(a);
-                    }}
-                />
+                </div>
+            </div>
+
+            {isLoading ? <div className="flex items-center justify-center py-8">
+                            <IconLoader2 size={24} className="animate-spin text-gray-500 mr-2" />
+                            <span>{"Loading Accounts..."}</span>
+                        </div> :
+            <>
+            <div className="settings-card">
+                <div className="settings-card-header flex flex-row items-center gap-4">
+                    <h3 className="settings-card-title">Default Account</h3>
+                    <p className="settings-card-description">Select which account to use by default for new conversations</p>
+                </div>
+                <div className="settings-card-content mt-[-10px]">
+                    <AccountSelect
+                        accounts={accounts}
+                        defaultAccount={defaultAccount}
+                        setDefaultAccount={(a:Account) => {
+                            setHasEdits(true);
+                            setDefaultAccount(a);
+                        }}
+                    />
+                </div>
+            </div>
 
 
-                <div className="mt-6 text-lg text-black dark:text-neutral-200 border-b-2">
-                    Your Accounts
+            <div className="accounts-list-section">
+                <div className="settings-card-header">
+                    <h3 className="settings-card-title">Your Accounts</h3>
+                    <p className="settings-card-description">Manage your existing accounts and their settings</p>
                 </div>
 
                 {accounts.length === 0 ? (
@@ -209,69 +328,86 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                         You do not have any accounts set up. Add one above.
                     </div>
                 ) : 
-                (
-                    <table className='mt-[-1px] w-full text-md text-black dark:text-neutral-200'>
-                                    <thead>
-                                        <tr className="bg-gray-200 dark:bg-[#333]">
-                                        { ["Name", "Account", "Rate Limit"]
-                                        .map((i) => (
-                                            <th key={i} className="p-0.5 border border-gray-400 text-neutral-600 dark:text-neutral-300">
-                                                {i}
-                                            </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                <tbody>
-                                    {[...accounts].map((account, index) => (
-                                        <tr key={index} >
-                                            <td className='w-full'> {account.name}</td>
-                                            <td className='w-full pr-20'> 
-                                                {account.id}
+                (<>
+                    <div className="mb-8">
+                        <table className="modern-table hide-last-column w-full mt-4 " style={{boxShadow: 'none'}}>
+                            <thead>
+                                <tr className="gradient-header hide-last-column">
+                                    <th className="px-6 py-1 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">Account Name</th>
+                                    <th className="px-6 py-1 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">Account ID</th>
+                                    <th className="px-6 py-1 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">MTD Cost</th>
+                                    <th className="px-6 py-1 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">Rate Limit</th>
+                                </tr>
+                            </thead>
+                            <tbody >
+                                {[...accounts].map((account, index) => {
+                                    const accountCost = getAccountMtdCost(account.id);
+                                    return (
+                                        <tr 
+                                            key={index} 
+                                            onMouseEnter={() => setHoverAccount(index)} 
+                                            onMouseLeave={() => setHoverAccount(null)}
+                                        >
+                                            <td className="px-6 bg-gray-100 dark:bg-gray-900">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="font-medium text-gray-900 dark:text-gray-100">{account.name}</span>
+                                                    {account.isDefault && <span className="ml-4 accounts-default-badge">Default</span>}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 bg-gray-100 dark:bg-gray-900">
+                                                <span className="text-sm text-gray-600 dark:text-gray-400 font-mono">{account.id}</span>
+                                            </td>
+                                            <td className="px-6 bg-gray-100 dark:bg-gray-900">
+                                                {mtdCostLoading ? (
+                                                    <span className="text-gray-500">Loading...</span>
+                                                ) : accountCost ? (
+                                                    <span 
+                                                        className={`font-semibold ${accountCost.monthlyCost > 10 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}
+                                                        title={account.id !== 'general_account' ? `Used by ${accountCost.uniqueApiKeyCount} API key${accountCost.uniqueApiKeyCount !== 1 ? 's' : ''}` : undefined}
+                                                    >
+                                                        {formatCurrency(accountCost.monthlyCost)}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-gray-500">$0.00</span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 bg-gray-100 dark:bg-gray-900">
+                                                <div className="flex items-center mt-3">
+                                                    <EditableRateLimit 
+                                                        account={account}
+                                                        handleAccountEdit={handleEdit}
+                                                        showEdit={hoverAccount === index}
+                                                    />
+                                                </div>
                                             </td>
                                             <td>
-                                                <div className='flex justify-between items-center p-3 w-[320px]'>
-                                                    <EditableRateLimit 
-                                                    account={account}
-                                                    handleAccountEdit={handleEdit}
-                                                    />
-                                                        <button
-                                                            type="button"
-                                                            className={`ml-auto mt-[-4px] px-2 py-1.5 text-sm bg-neutral-500 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${account.id === noCoaAccount.id ? 'invisible' : 'visible'}`}
-                                                            onClick={() => handleDeleteAccount(account.name)}
-                                                        >
-                                                            <IconTrashX size={18} />
-                                                        </button>
-                                                </div>
-                                              
+                                            <div className="accounts-row-actions">
+                                                {account.id !== noCoaAccount.id  && hoverAccount === index ? 
+                                                <button
+                                                    type="button"
+                                                    id="deleteAccount"
+                                                    disabled={account.id === noCoaAccount.id}
+                                                    className={`ml-6 mt-4 accounts-delete-button ${account.id === noCoaAccount.id ? 'invisible' : 'visible'}`}
+                                                    onClick={() => handleDeleteAccount(account.name)}
+                                                    title="Delete Account"
+                                                    style={{ transform: 'translateX(-8px)' }}
+                                                >
+                                                    <IconTrashX size={18} />
+                                                </button> : <div className="w-[60px]"></div>}
+                                            </div>
                                             </td>
-                                            
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>)
-                    }
-                
-                <br className='mb-20'></br>
-                
-                <div className="flex flex-row my-2 w-full fixed bottom-0 left-0 px-4 py-2">
-                    {/* Save Button */}
-                    <button
-                        type="button"
-                        className="mr-2 w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 bg-neutral-100 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                        onClick={onClose}
-                    >
-                        {t('Cancel')}
-                    </button>
-                    <button
-                        type="button"
-                        className="w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 bg-neutral-100 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300"
-                        onClick={handleSave}
-                    >
-                        {isSaving ? 'Saving Changes...' :'Save Changes'}
-                    </button>
-                </div>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
 
+                </>
+                )}
             </div>
+            </>}
+        </div>
                         
 };
 
@@ -291,6 +427,7 @@ export const AccountSelect: FC<SelectProps> = ({accounts, defaultAccount, setDef
         <> 
         {accounts.length > 0 ? 
         <select className={cn}
+            id="accountSelect"
             value={defaultAccount.name}
             onChange={(event) => {
                 const selectedAccount = accounts.find(acc => acc.name === event.target.value);
@@ -320,13 +457,13 @@ export const AccountSelect: FC<SelectProps> = ({accounts, defaultAccount, setDef
 interface LabelProps {
     account: Account;
     handleAccountEdit: (name: string, rateLimit: RateLimit) => void;
+    showEdit: boolean;
 }
 
 //rateLimit, expiration, accessTypes, account
-const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit}) => {
+const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit, showEdit}) => {
     const [displayLabel, setDisplayLabel] = useState<string | null>(formatRateLimit(account.rateLimit));
     const [isEditing, setIsEditing] = useState<boolean>(false);
-    const [isHovered, setIsHovered,] = useState(false);
     const labelRef = useRef<HTMLDivElement>(null);
 
     const [rateLimitPeriod, setRateLimitPeriod] = useState<PeriodType>(account.rateLimit.period);
@@ -342,8 +479,6 @@ const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit}) => {
 
     return (
         <div
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
             ref={labelRef}
             style={{
                 whiteSpace:'nowrap',
@@ -352,6 +487,7 @@ const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit}) => {
                 flex: 'shrink-0',
             }}
             className={`overflow-auto mb-2 p-2 flex-1 text-sm rounded flex flex-row `}
+            id="accountRateLimitHover"
         >
         {!isEditing && <> {displayLabel}</>}
 
@@ -364,9 +500,11 @@ const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit}) => {
                     rate={rateLimitRate}
                     setRate={setRateLimitRate}
                 />
-                <div className='bg-neutral-200 dark:bg-[#343541]/90 rounded'>
+                <div>
                     <ActionButton
                         title='Confirm Change'
+                        id="confirmChange"
+                        className='text-green-500 p-1'
                         handleClick={(e) => {
                             e.stopPropagation();
                             handleEdit();
@@ -377,6 +515,8 @@ const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit}) => {
                     </ActionButton>
                     <ActionButton
                         title='Discard Change'
+                        id="discardChange"
+                        className='text-red-500 p-1'
                         handleClick={(e) => {
                         e.stopPropagation();
                         setIsEditing(false);
@@ -390,18 +530,20 @@ const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit}) => {
 
         )}
 
-        { isHovered  && !isEditing && (
-            <div
-            className="absolute top-1 right-0 mr-6 z-10 flex-shrink-0 bg-neutral-200 dark:bg-[#343541]/90 rounded"> 
-                <ActionButton
-                    handleClick={() => {setIsEditing(true)}}
-                    title="Edit">
-                    <IconEdit size={18} />
-                </ActionButton>
-            </div>
-        )}
+        {!isEditing && <button
+            type="button"
+            id="editRate"
+            disabled={!showEdit}
+            className={`accounts-rate-edit-button ${!showEdit ? 'invisible' : 'visible'}`}
+            onClick={() => setIsEditing(true)}
+            title="Edit Rate Limit"
+            style={{ transform: 'translate(8px, -8px)' }}
+        >
+            <IconEdit size={18} />
+        </button>}
         
         </div>
        
     );
 }
+

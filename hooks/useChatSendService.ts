@@ -26,7 +26,6 @@ import { doReadMemoryOp } from '@/services/memoryService';
 import {
     ExtractedFact,
     Memory,
-    MemoryOperationResponse
 } from '@/types/memory';
 import { getSettings } from '@/utils/app/settings';
 import { promptForData } from '@/utils/app/llm';
@@ -35,6 +34,7 @@ import {
     getRelevantMemories,
     buildMemoryContextPrompt
 } from '@/utils/app/memory';
+import { handleAgentRun, handleAgentRunResult, isWaitingForAgentResponse } from '@/utils/app/agent';
 
 export type ChatRequest = {
     message: Message;
@@ -53,16 +53,19 @@ export type ChatRequest = {
 
 export function useSendService() {
     const {
-        state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts, memoryExtractionEnabled },
-        getDefaultModel,
+        state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts, memoryExtractionEnabled, defaultAccount },
+        getDefaultModel, handleUpdateSelectedConversation,
         postProcessingCallbacks,
         dispatch: homeDispatch,
     } = useContext(HomeContext);
 
     const { data: session } = useSession();
-    const user = session?.user;
 
     const conversationsRef = useRef(conversations);
+    const messageTimestampRef = useRef<string | undefined>(undefined);
+    
+    // Add ref to track running agent sessions
+    const runningAgentSessions = useRef<Set<string>>(new Set());
 
     useEffect(() => {
         conversationsRef.current = conversations;
@@ -73,6 +76,12 @@ export function useSendService() {
     useEffect(() => {
         foldersRef.current = folders;
     }, [folders]);
+
+    const cleanupHomeState = () => {
+        homeDispatch({ field: 'messageIsStreaming', value: false });
+        homeDispatch({ field: 'loading', value: false });
+        homeDispatch({ field: 'status', value: [] });
+    }
 
     const {
         sendChatRequest,
@@ -125,6 +134,49 @@ export function useSendService() {
     //     };
     // }
 
+    useEffect(() => {
+        const awaitAgentRun = async (sessionId: string) => {
+            // Check if this session is already running
+            if (runningAgentSessions.current.has(sessionId)) {
+                console.log(`Agent run for session ${sessionId} is already in progress`);
+                return;
+            }
+            
+            // Mark this session as running
+            runningAgentSessions.current.add(sessionId);
+            
+            try {
+                homeDispatch({field: 'messageIsStreaming', value: true}); 
+                const agentResult = await handleAgentRun(sessionId, (status: any) => homeDispatch({ field: "status", value: [newStatus(status)] }), messageTimestampRef.current);
+                if (agentResult && selectedConversation) {
+                    const lastIndex = selectedConversation.messages.length - 1;
+                    selectedConversation.messages[lastIndex].data.state.agentLog = agentResult;
+                    const updatedConversation = await handleAgentRunResult(agentResult, selectedConversation, getDefaultModel(DefaultModels.CHEAPEST), defaultAccount, homeDispatch, statsService, chatEndpoint || '');
+                    handleUpdateSelectedConversation(updatedConversation);
+                } else {
+                    console.error("Agent run failed");
+                    const updatedMessages = selectedConversation?.messages;
+                    if (updatedMessages) {
+                        const lastMsgIndex = updatedMessages.length - 1;
+                        updatedMessages[lastMsgIndex].content = "No response from the agent. Please try again later.";
+                        updatedMessages[lastMsgIndex].data.state.agentRun.endTime = new Date();
+                        handleUpdateSelectedConversation({...selectedConversation, messages: updatedMessages});
+                    }
+                }
+            } finally {
+                // Always remove the session from running set when done
+                runningAgentSessions.current.delete(sessionId);
+                cleanupHomeState();
+            }
+        }
+
+        if (selectedConversation) {
+            const agentRunData =  isWaitingForAgentResponse(selectedConversation);
+            if (agentRunData?.sessionId) awaitAgentRun(agentRunData.sessionId);
+        }
+    }, [selectedConversation?.messages]);
+    
+
     const handleSend = useCallback(
         async (request: ChatRequest, shouldAbort: () => boolean) => {
             return new Promise(async (resolve, reject) => {
@@ -141,6 +193,7 @@ export function useSendService() {
                         options,
                         conversationId
                     } = request;
+                    messageTimestampRef.current = new Date().toISOString();
 
                     const featureOptions = getSettings(featureFlags).featureOptions;
                     const pluginActive = featureOptions.includePluginSelector;
@@ -217,8 +270,7 @@ export function useSendService() {
 
                     // if both artifact and smart messages is off then it returnes with the messages right away 
                     const {focusedMessages, includeArtifactInstr} = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService,
-                        isArtifactsOn, isSmartMessagesOn, homeDispatch,
-                        getDefaultModel(DefaultModels.ADVANCED), getDefaultModel(DefaultModels.CHEAPEST));
+                        isArtifactsOn, isSmartMessagesOn, homeDispatch, getDefaultModel(DefaultModels.ADVANCED), getDefaultModel(DefaultModels.CHEAPEST), defaultAccount);
 
                     if (isArtifactsOn && !includeArtifactInstr) {
                         isArtifactsOn = false;
@@ -307,9 +359,14 @@ export function useSendService() {
                     //PLUGINS before options is assigned
                     //in case no plugins are defined, we want to keep the default behavior
                     if (!featureFlags.ragEnabled || (plugins && pluginActive && !pluginIds?.includes(PluginID.RAG))) {
-                        options = { ...(options || {}), skipRag: true, ragEvaluation: false };
+                        options = { ...(options || {}), skipRag: true, ragOnly: false, ragEvaluation: false };
+                        console.log('skipping rag');
                     } else if (featureFlags.ragEnabled && featureFlags.ragEvaluation && (pluginIds?.includes(PluginID.RAG) && pluginIds?.includes(PluginID.RAG_EVAL))) {
                         options = { ...(options || {}), ragEvaluation: true };
+                    }
+                                                      // Advanced Rag is default off for assistant use 
+                    if (!featureFlags.cachedDocuments || options?.assistantId || options?.groupId) {
+                        options = { ...(options || {}), skipDocumentCache : true};
                     }
 
 
@@ -454,8 +511,7 @@ export function useSendService() {
 
 
                         if (!response || !response.ok) {
-                            homeDispatch({ field: 'loading', value: false });
-                            homeDispatch({ field: 'messageIsStreaming', value: false });
+                            cleanupHomeState();
                             toast.error(response.statusText);
                             try {
                                 // Clone the response to read the body (streams can only be read once)
@@ -470,8 +526,7 @@ export function useSendService() {
                         }
                         const data = response.body;
                         if (!data) {
-                            homeDispatch({ field: 'loading', value: false });
-                            homeDispatch({ field: 'messageIsStreaming', value: false });
+                            cleanupHomeState();
                             return;
                         }
                         homeDispatch({ field: 'loading', value: false });
@@ -589,9 +644,7 @@ export function useSendService() {
                                         saveConversations(updatedConversations);
                                     }
                                 }
-                                homeDispatch({ field: 'messageIsStreaming', value: false });
-                                homeDispatch({ field: 'loading', value: false });
-                                homeDispatch({ field: 'status', value: [] });
+                                cleanupHomeState();
                                 return;
                             }
                         }
@@ -657,8 +710,8 @@ export function useSendService() {
                                 saveConversations(updatedConversations);
                             }
                         }
-
-                        homeDispatch({ field: 'messageIsStreaming', value: false });
+            
+                        if (!isWaitingForAgentResponse(updatedConversation)) homeDispatch({ field: 'messageIsStreaming', value: false });
 
                         // Run memory extraction after main response is processed
                         if (isMemoryOn && memoryExtractionEnabled) {
@@ -668,7 +721,7 @@ export function useSendService() {
                                     // get the last user message
                                     const userInput = updatedConversation.messages[updatedConversation.messages.length - 2]?.content || '';
 
-                                    console.log("User input: ", userInput);
+                                    // console.log("User input: ", userInput);
 
                                     // Fetch existing memories for fact extraction
                                     const memoriesResponse = await doReadMemoryOp({});
@@ -691,6 +744,7 @@ export function useSendService() {
                                         [], // Send empty array instead of conversation messages
                                         getDefaultModel(DefaultModels.CHEAPEST),
                                         extractFactsPrompt,
+                                        defaultAccount,
                                         statsService
                                     );
 
@@ -747,24 +801,22 @@ export function useSendService() {
                         resolve(text);
 
                     } catch (error: any) {
-                        homeDispatch({ field: 'loading', value: false });
-                        homeDispatch({ field: 'messageIsStreaming', value: false });
-                        homeDispatch({
-                            field: 'status',
-                            value: [],
-                        });
+                        cleanupHomeState();
                         return;
                         //reject(error);
                         // Handle any other errors, as required.
                     } finally {
                         window.removeEventListener('killChatRequest', handleStopGenerationEvent);
                     }
-
-                    //Reset the status display
-                    homeDispatch({
-                        field: 'status',
-                        value: [],
-                    });
+                    
+                    if (!isWaitingForAgentResponse(updatedConversation))  {
+                        //Reset the status display
+                        homeDispatch({
+                            field: 'status',
+                            value: [],
+                        });   
+                    }
+                   
                 }
             });
         },

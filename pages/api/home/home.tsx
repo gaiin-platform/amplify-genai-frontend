@@ -27,7 +27,7 @@ import {
     isRemoteConversation,
     deleteConversationCleanUp,
 } from '@/utils/app/conversation';
-import { getHiddenGroupFolders, saveFolders } from '@/utils/app/folders';
+import { getArchiveNumOfDays, getHiddenGroupFolders, saveFolders } from '@/utils/app/folders';
 import { savePrompts } from '@/utils/app/prompts';
 import { getSettings, saveSettings } from '@/utils/app/settings';
 import { getAccounts } from "@/services/accountService";
@@ -50,6 +50,8 @@ import {
     IconSettings,
     IconDeviceSdCard,
     IconLogout,
+    IconSparkles,
+    IconHammer,
 } from "@tabler/icons-react";
 
 import { initialState } from './home.state';
@@ -67,11 +69,11 @@ import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { deleteAssistant, listAssistants } from '@/services/assistantService';
-import { getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
+import { filterAstsByFeatureFlags, getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
 import { fetchAllRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import {killRequest as killReq} from "@/services/chatService";
 import { DefaultUser } from 'next-auth';
-import { addDateAttribute, getDate, getDateName } from '@/utils/app/date';
+import { addDateAttribute, getFullTimestamp, getDateName } from '@/utils/app/date';
 import HomeContext, {  ClickContext, Processor } from './home.context';
 import { ReservedTags } from '@/types/tags';
 import { noCoaAccount } from '@/types/accounts';
@@ -86,14 +88,12 @@ import { getAvailableModels, getFeatureFlags, getPowerPoints, getUserAppConfigs 
 import { DefaultModels, Model } from '@/types/model';
 import { ErrorMessage } from '@/types/error';
 import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
-
-import { WorkspaceLegacyMessage } from '@/components/Workspace/WorkspaceLegacyMessage';
 import { getSharedItems } from '@/services/shareService';
 import { lowestCostModel } from '@/utils/app/models';
-import { SidebarButton } from '@/components/Sidebar/SidebarButton';
 import { useRouter } from 'next/router';
 import { AdminConfigTypes } from '@/types/admin';
 import { ConversationStorage } from '@/types/conversationStorage';
+import UserMenu from '@/components/Layout/UserMenu';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -128,8 +128,6 @@ const Home = ({
 
     const [dataDisclosure, setDataDisclosure] = useState<{url: string, html: string | null}|null>(null);
     const [hasAcceptedDataDisclosure, sethasAcceptedDataDisclosure] = useState<boolean | null> (null);
-
-    const [isMemoryDialogOpen, setIsMemoryDialogOpen] = useState(false);
 
     const { data: session, status } = useSession();
     const [user, setUser] = useState<DefaultUser | null>(null);
@@ -340,7 +338,7 @@ const Home = ({
 
         const newFolder: FolderInterface = {
             id: uuidv4(),
-            date: getDate(),
+            date: getFullTimestamp(),
             name,
             type,
         };
@@ -488,6 +486,7 @@ const Home = ({
             folderId: folder.id,
             promptTemplate: null,
             isLocal: getIsLocalStorageSelection(storageSelection),
+            date: getFullTimestamp(),
             ...params
         };
         if (isRemoteConversation(newConversation)) uploadConversation(newConversation, foldersRef.current);
@@ -508,7 +507,11 @@ const Home = ({
             statsService.forkConversationEvent();
             if (selectedConversation) {
                 setLoadingMessage("Forking Conversation...");
-                const newConversation = cloneDeep({...selectedConversation,  id: uuidv4(), codeInterpreterAssistantId: undefined,
+                const newConversation = cloneDeep({
+                                                   ...selectedConversation,  
+                                                   id: uuidv4(), 
+                                                   codeInterpreterAssistantId: undefined,
+                                                   date: getFullTimestamp(),
                                                    messages: selectedConversation?.messages.slice(0, messageIndex + 1)
                                                              .map((m:Message) => {
                                                                 if ( m.data?.state?.codeInterpreter ) {
@@ -664,6 +667,12 @@ const Home = ({
             dispatch({ field: 'showChatbar', value: false });
             dispatch({ field: 'showPromptbar', value: false });
         }
+        // check if the conversation has messages 
+        if (selectedConversation && !selectedConversation.messages) {
+            console.warn("Warning: Selected Conversation has no messages!");
+            //will fetch the remote conversation data and uncompress local messages 
+            handleSelectConversation(selectedConversation);
+        } 
     }, [selectedConversation]);
 
 
@@ -732,12 +741,12 @@ const Home = ({
                     sethasAcceptedDataDisclosure(decisionValue);
                     if (!decisionValue) { // Fetch the latest data disclosure only if the user has not accepted it
                         const latestDisclosure = await getLatestDataDisclosure();
-                        // console.log(latestDisclosure);
                         const latestDisclosureBodyObject = JSON.parse(latestDisclosure.body);
+                        // console.log(latestDisclosure);
                         const latestDisclosureUrlPDF = latestDisclosureBodyObject.pdf_pre_signed_url;
                         const latestDisclosureHTML = latestDisclosureBodyObject.html_content;
                         setDataDisclosure({url: latestDisclosureUrlPDF, html: latestDisclosureHTML});
-
+                        // console.log("Data Disclosure: ", {url: latestDisclosureUrlPDF, html: latestDisclosureHTML});
                         checkScrollableContent();
                     }
                 } catch (error) {
@@ -860,10 +869,10 @@ const Home = ({
             try {
                 // returns the groups you are inquiring about in a object with the group as the key and is they are on the group as the value
                 const result = await getFeatureFlags();
-                if (result.success) {
+                if (result.success && result.data) {
                     const flags: { [key:string] : boolean } = result.data;
                     // console.log("feature flags:", flags)
-                    if (flags && Object.keys(flags).length > 0) dispatch({ field: 'featureFlags', value: flags});
+                    if (Object.keys(flags).length > 0) dispatch({ field: 'featureFlags', value: flags});
                     localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
                     return flags;
                 } else {
@@ -895,7 +904,8 @@ const Home = ({
 
         const syncConversations = async (conversations: Conversation[], folders: FolderInterface[]) => {
             try {
-                const allRemoteConvs = await fetchAllRemoteConversations();
+                const days = getArchiveNumOfDays();
+                const allRemoteConvs = await fetchAllRemoteConversations(days === 0 ? undefined : days);
                 if (allRemoteConvs) return updateWithRemoteConversations(allRemoteConvs, conversations, folders, dispatch, getDefaultModel(DefaultModels.DEFAULT));
             } catch (e) {
                 console.log("Failed to sync cloud conversations: ", e);
@@ -1033,15 +1043,7 @@ const Home = ({
                     dispatch({field: 'folders', value: updatedFolders});
                     saveFolders(updatedFolders);
 
-                    let groupPrompts = groupsResult.groupPrompts;
-                    if (!flags.apiKeys) groupPrompts = groupPrompts.filter(prompt =>{
-                                                    const tags = prompt.data?.tags;
-                                                    return !(
-                                                        tags && 
-                                                        (tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER) || 
-                                                         tags.includes(ReservedTags.ASSISTANT_API_HELPER))
-                                                    );
-                                                });
+                    const groupPrompts = filterAstsByFeatureFlags(groupsResult.groupPrompts, flags);
                     updatedPrompts = [...updatedPrompts.filter((p : Prompt) => !p.groupId ), 
                                         ...groupPrompts];
                     
@@ -1118,12 +1120,12 @@ const Home = ({
             dispatch({ field: 'showPromptbar', value: false });
         } else {
             const showChatbar = localStorage.getItem('showChatbar');
-            if (showChatbar) {
+            if (!!showChatbar) {
                 dispatch({ field: 'showChatbar', value: showChatbar === 'true' });
             }
 
             const showPromptbar = localStorage.getItem('showPromptbar');
-            if (showPromptbar) {
+            if (!!showPromptbar) {
                 dispatch({ field: 'showPromptbar', value: showPromptbar === 'true' });
             }
         }
@@ -1195,7 +1197,7 @@ const Home = ({
             if (!folder) {
                 const newFolder: FolderInterface = {
                     id: uuidv4(),
-                    date: getDate(),
+                    date: getFullTimestamp(),
                     name: dateName,
                     type: "chat"
                 };
@@ -1250,21 +1252,6 @@ const Home = ({
     const [preProcessingCallbacks, setPreProcessingCallbacks] = useState([]);
     const [postProcessingCallbacks, setPostProcessingCallbacks] = useState([]);
 
-    const federatedSignOut = async () => {
-
-        await signOut();
-        // signOut only signs out of Auth.js's session
-        // We need to log out of Cognito as well
-        // Federated signout is currently not supported.
-        // Therefore, we use a workaround: https://github.com/nextauthjs/next-auth/issues/836#issuecomment-1007630849
-        const signoutRedirectUrl = `${window.location.protocol}//${window.location.hostname}${window.location.port ? `:${window.location.port}` : ''}`;
-
-        window.location.replace(
-
-            `${cognitoDomain}/logout?client_id=${cognitoClientId}&logout_uri=${encodeURIComponent(signoutRedirectUrl)}`
-
-        );
-    };
 
     const getName = (email?: string | null) => {
         if (!email) return "Anonymous";
@@ -1337,12 +1324,7 @@ const Home = ({
                                     }}
                                     onScroll={handleScroll}
                                     dangerouslySetInnerHTML={{ __html: dataDisclosure.html }}
-                                > 
-                                {/*  for when we try out markitdown in pdf to md conversion in the backend
-                                <DataDisclosure
-                                content='dataDisclosure.html'
-                                /> */}
-                                    
+                                >   
                                 </div>
 
                             ) : (
@@ -1471,33 +1453,19 @@ const Home = ({
                         </div>
 
                         <div className="flex h-full w-full pt-[48px] sm:pt-0">
+                            <UserMenu
+                                email={user?.email}
+                                name={session?.user?.name}
+                            />
+
 
                             <TabSidebar
                                 side={"left"}
-                                footerComponent={
-                                    <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
-                                        <button id="logout" className="dark:text-white" title="Sign Out" onClick={() => {
-                                            const goLogout = async () => {
-                                                await federatedSignOut();
-                                            };
-                                            goLogout();
-                                        }}>
-
-                                            <div className="flex items-center">
-                                                <IconLogout className="m-2" />
-                                                <span>{isLoading ? 'Loading...' : getName(user?.email) ?? 'Unnamed user'}</span>
-                                            </div>
-
-                                        </button>
-
-                                    </div>
-                                }
+                                footerComponent={null}
                             >
                                 <Tab icon={<IconMessage />} title="Chats"><Chatbar /></Tab>
-                                <Tab icon={<IconShare />} title="Share"><SharedItemsList /></Tab>
-                                { workspaces && workspaces.length > 0 ? 
-                                <Tab icon={<IconTournament />} title="Workspaces"><WorkspaceLegacyMessage /></Tab> : null}
-                                <Tab icon={<IconSettings />} title="Settings"><SettingsBar /></Tab>
+                                <Tab icon={<IconSparkles />} title="Assistants"><Promptbar /></Tab>
+                                <Tab icon={<IconHammer />} title="Settings"><SettingsBar /></Tab>
                             </TabSidebar>
 
                             <div className="flex flex-1">
@@ -1513,35 +1481,13 @@ const Home = ({
                                     <MyHome />
                                 )}
                             </div>
-
-
-                            <TabSidebar
-                                side={"right"}
-                                footerComponent={
-                                    <>
-                                    {featureFlags.memory && settings?.featureOptions.includeMemory && (
-                                        <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
-                                            <SidebarButton
-                                                text={t('Memory')}
-                                                icon={<IconDeviceSdCard size={20} />}
-                                                onClick={() => setIsMemoryDialogOpen(true)}
-                                            />
-                                            <MemoryDialog
-                                                open={isMemoryDialogOpen}
-                                                onClose={() => setIsMemoryDialogOpen(false)}
-                                            />
-                                        </div>
-                                    )}
-                                    </>
-                                }
-                            >
-                                <Tab icon={<Icon3dCubeSphere />}><Promptbar /></Tab>
-                                {/*<Tab icon={<IconBook2/>}><WorkflowDefinitionBar/></Tab>*/}
-                            </TabSidebar>
+                            
 
                         </div>
                         <LoadingDialog open={!!loadingMessage} message={loadingMessage}/>
                         <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/>
+
+                        
 
                     </main>
                 )}

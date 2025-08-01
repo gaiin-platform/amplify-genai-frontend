@@ -34,8 +34,8 @@ export const Plugins: Record<PluginID, Plugin> = {
     id: PluginID.RAG,
     name: "Rag",
     title: "Perform Retrieval-Augmented Generation (RAG) on documents by analyzing only the most relevant portions of the document to provide more accurate responses. If turned off, the entire document contents will be provided to the model.",
-    default: true,
-    iconComponent: IconFileSearch
+    iconComponent: IconFileSearch,
+    default: false
   },
   [PluginID.RAG_EVAL]: {
     id: PluginID.RAG_EVAL,

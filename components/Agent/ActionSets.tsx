@@ -1,19 +1,14 @@
 import { FC, useEffect, useState } from 'react';
 import { IconDeviceFloppy, IconLoader2, IconSearch, IconTag, IconTrash } from '@tabler/icons-react';
 import { ActionSet, deleteActionSet, listActionSets } from '@/services/actionSetsService';
+import Search from '../Search';
 
 interface LoadActionSetModalProps {
   onLoad: (actionSet: ActionSet) => void;
-  onCancel: () => void;
-  title?: string;
-  width?: string;
 }
 
-export const LoadActionSetModal: FC<LoadActionSetModalProps> = ({
-  onLoad,
-  onCancel,
-  title = 'Load Action Set',
-  width = '550px',
+export const ActionSetList: FC<LoadActionSetModalProps> = ({
+  onLoad
 }) => {
   const [actionSets, setActionSets] = useState<ActionSet[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,36 +86,21 @@ export const LoadActionSetModal: FC<LoadActionSetModalProps> = ({
     return nameMatch || tagMatch;
   });
 
-  return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-      <div className="bg-white dark:bg-[#22232b] text-black dark:text-neutral-200 rounded-lg border border-gray-300 dark:border-neutral-600 shadow-xl" style={{ width }}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-300 dark:border-neutral-600">
-          <div className="text-xl font-semibold">{title}</div>
-          <button
-            onClick={onCancel}
-            className="text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white"
-            title="Close"
-          >
-            <span className="text-2xl leading-none">&times;</span>
-          </button>
-        </div>
-        
-        <div className="p-6">
+  return (        
+        <div>
           {/* Search input */}
-          <div className="mb-4 relative">
-            <IconSearch className="absolute left-3 top-3 text-gray-400" size={18} />
-            <input
-              type="text"
+          <div className="mb-4">
+          <Search
               placeholder="Search action sets by name or tag..."
-              className="w-full rounded-lg border border-neutral-500 pl-10 pr-4 py-2 shadow dark:bg-[#40414F] dark:text-neutral-100"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              searchTerm={searchTerm}
+              onSearch={setSearchTerm}
+              disabled={loading}
             />
           </div>
           
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <IconLoader2 size={24} className="animate-spin text-blue-500 mr-2" />
+              <IconLoader2 size={24} className="animate-spin text-gray-500 mr-2" />
               <span>Loading action sets...</span>
             </div>
           ) : error ? (
@@ -166,8 +146,11 @@ export const LoadActionSetModal: FC<LoadActionSetModalProps> = ({
                     <tr 
                       key={set.id} 
                       className={`hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer ${selectedSetId === set.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
-                      onClick={() => setSelectedSetId(set.id || null)}
-                      onDoubleClick={() => handleLoadSet(set)}
+                      onClick={() => {
+                        setSelectedSetId(set.id || null);
+                        handleLoadSet(set);
+                        console.log('set', set);
+                      }}
                     >
                       <td className="px-4 py-3 text-sm w-1/4">
                         {set.name || 'Unnamed Set'}
@@ -229,30 +212,7 @@ export const LoadActionSetModal: FC<LoadActionSetModalProps> = ({
           )}
         </div>
         
-        <div className="flex justify-between p-4 border-t border-gray-300 dark:border-neutral-600">
-          <button
-            className="px-4 py-2 border rounded text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700"
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
-            onClick={() => {
-              const selectedSet = actionSets.find(set => set.id === selectedSetId);
-              if (selectedSet) {
-                handleLoadSet(selectedSet);
-              }
-            }}
-            disabled={!selectedSetId}
-          >
-            <IconDeviceFloppy size={16} />
-            Load
-          </button>
-        </div>
-      </div>
-    </div>
   );
 };
 
-export default LoadActionSetModal;
+export default ActionSetList;
