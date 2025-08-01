@@ -6,6 +6,7 @@ import { useTranslation } from 'next-i18next';
 import { generateRandomString } from '@/utils/app/codeblock';
 import { programmingLanguages } from '@/utils/app/fileTypeTranslations';
 
+
 interface Props {
   language: string;
   value: string;
@@ -31,7 +32,8 @@ export const CodeBlock: FC<Props> = memo(({ language, value }) => {
     });
   };
   const downloadAsFile = () => {
-    const fileExtension = programmingLanguages[language] || '.file';
+    const fileExtension = 
+          [language] || '.file';
     const suggestedFileName = `file-${generateRandomString(
       3,
       true,
