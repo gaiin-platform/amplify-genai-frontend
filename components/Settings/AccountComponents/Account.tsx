@@ -380,19 +380,22 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                                                     />
                                                 </div>
                                             </td>
+                                            <td>
                                             <div className="accounts-row-actions">
+                                                {account.id !== noCoaAccount.id  && hoverAccount === index ? 
                                                 <button
                                                     type="button"
                                                     id="deleteAccount"
                                                     disabled={account.id === noCoaAccount.id}
-                                                    className={`ml-6 mt-4 accounts-delete-button ${account.id === noCoaAccount.id ? 'invisible' : 'visible'} ${hoverAccount === index ? 'visible' : 'invisible'}`}
+                                                    className={`ml-6 mt-4 accounts-delete-button ${account.id === noCoaAccount.id ? 'invisible' : 'visible'}`}
                                                     onClick={() => handleDeleteAccount(account.name)}
                                                     title="Delete Account"
                                                     style={{ transform: 'translateX(-8px)' }}
                                                 >
                                                     <IconTrashX size={18} />
-                                                </button>
+                                                </button> : <div className="w-[60px]"></div>}
                                             </div>
+                                            </td>
                                         </tr>
                                     );
                                 })}

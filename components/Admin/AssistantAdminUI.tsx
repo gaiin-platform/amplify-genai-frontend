@@ -72,7 +72,12 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
     }
 
     const filteredForAdminAccess = (allGroups: Group[]) => {
-        return allGroups.filter((g: Group) => [GroupAccessType.ADMIN, GroupAccessType.WRITE].includes(g.members[user]));
+        const hasAccessTo = allGroups.filter((g: Group) => [GroupAccessType.ADMIN, GroupAccessType.WRITE].includes(g.members[user]));
+        if (!featureFlags.createAstAdminGroups && hasAccessTo.length === 0) {
+            alert("You do not have access to any assistant admin groups.");
+            onClose();
+        }
+        return hasAccessTo;
     }
 
     const [innderWindow, setInnerWindow] = useState({ height: window.innerHeight, width: window.innerWidth });

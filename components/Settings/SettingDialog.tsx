@@ -478,7 +478,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
               ///////////////////////////////////////////////////////////////////////////////
               // Accounts Tab
             
-                {label: `Accounts${accountsUnsavedChanges ? " *" : ""}`, 
+                ...(featureFlags.accounts ? [{label: `Accounts${accountsUnsavedChanges ? " *" : ""}`, 
                   title: "Manage your accounts",
                   content:
                   <Accounts
@@ -489,7 +489,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                       setUnsavedChanged={setAccountsUnsavedChanges}
                       isLoading={isLoadingAccounts}
                   />
-                  },
+                  }] : [] ),
               ///////////////////////////////////////////////////////////////////////////////
               // API Access Tab
               ...(featureFlags.apiKeys ? [{label: `API Access${apiUnsavedChanges ? " *" : ""}`, 
