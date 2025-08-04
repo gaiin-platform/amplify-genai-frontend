@@ -165,10 +165,10 @@ const ApiItem: React.FC<ApiItemProps> = ({
       )}
 
       {showDetails && <>
-        {api.description && <p>{api.description}</p>}
+        {api.description && <p className="break-words">{api.description}</p>}
         <details className="mt-2" onClick={(e) => e.stopPropagation()}>
           <summary className="cursor-pointer text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200">Specification</summary>
-          <pre>{JSON.stringify(api, null, 2)}</pre>
+          <pre className="whitespace-pre-wrap break-words overflow-x-auto max-w-full text-sm">{JSON.stringify(api, null, 2)}</pre>
         </details>
       </>}
     </div>
