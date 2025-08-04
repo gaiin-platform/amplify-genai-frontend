@@ -48,7 +48,7 @@ const AgentToolsSelector: React.FC<AgentToolsSelectorProps> = ({
 
   return (
     <div className="agent-tools-selector">
-      {availableTools && opsSearchToggleButtons(opSearchBy, setOpSearchBy, searchTerm, setSearchTerm, " mt-4 ml-auto mb-6", '', showDetails)}
+      {availableTools && opsSearchToggleButtons(opSearchBy, setOpSearchBy, searchTerm, setSearchTerm, " mt-6 ml-auto mb-6", '', showDetails)}
 
       <div className="tool-list max-h-[500px] overflow-y-auto">
         {filteredTools.length > 0 ? (
