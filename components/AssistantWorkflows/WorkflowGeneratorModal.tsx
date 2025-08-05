@@ -104,7 +104,8 @@ const WorkflowGeneratorModal: React.FC<WorkflowGeneratorModalProps> = ({
       if (step.values) {
         Object.keys(step.values).forEach(paramName => {
           if (validParams.includes(paramName)) {
-            filteredValues[paramName] = step.values[paramName];
+            // Ensure all values are strings to match schema requirements
+            filteredValues[paramName] = String(step.values[paramName]);
           }
         });
       }
