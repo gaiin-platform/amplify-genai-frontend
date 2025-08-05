@@ -65,7 +65,7 @@ const AssistantPage = ({
   const [inputMessage, setInputMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [assistantId, setAssistantId] = useState('');
-  const [assistantName, setAssistantName] = useState('Assistant');
+  const [assistantName, setAssistantName] = useState('Loading Assistant...');
   const [assistantDefinition, setAssistantDefinition] = useState<AssistantDefinition | undefined>(undefined);
   const [lightMode, setLightMode] = useState<Theme>('dark');
   const [defaultModel, setDefaultModel] = useState<any>(null);
@@ -259,20 +259,32 @@ const AssistantPage = ({
             const defaultAccount = accountResponse.data.find((account: any) => account.isDefault);
             if (defaultAccount && !defaultAccount.rateLimit) defaultAccount.rateLimit = noRateLimit; 
             setDefaultAccount(defaultAccount || noCoaAccount);
-            return;
         } else {
             console.log("Failed to fetch accounts.");
         }
 
         
-        // Look up the assistant by path
         setLoadingMessage('Finding assistant...');
+        
+        if (!assistantSlug || assistantSlug.trim() === '') {
+          throw new Error('No assistant slug provided');
+        }
         
         // lookupAssistant takes only the path as argument
         const assistantResult = await lookupAssistant(assistantSlug);
+        console.log("assistantResult", assistantResult);
+        
+        if (!assistantResult) {
+          throw new Error('No response from assistant lookup service');
+        }
         
         if (assistantResult.success) {
           const { assistantId, definition } = assistantResult;
+          
+          if (!assistantId) {
+            throw new Error('Assistant lookup succeeded but no assistant ID was returned');
+          }
+          
           // console.log("definition", definition); 
           handleGetAstIcon(definition?.data?.astIcon);
           setAssistantDefinition(definition as AssistantDefinition);
@@ -283,33 +295,29 @@ const AssistantPage = ({
 
           setLoadingMessage('Finalizing assistant...');
 
-          if (assistantId) {
-            setAssistantId(assistantId);
-            const astName = assistantResult.name || assistantResult.data?.name || definition?.name
-            if (astName) {
-              setAssistantName(astName);
-            } else { // FALLBACK: derive name from the slug
-              // Convert dash/slash separated slug to space-separated title case
-              const derivedName = assistantSlug
-                .split(/[-_/]/)  // Split on dashes, underscores, or slashes
-                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())  // Title case each word
-                .join(' ');
-              
-              setAssistantName(derivedName);
-            }
-            setLoading(false);
-          } else {
-            console.error('Assistant ID not found in lookup result');
-            setError('Could not find the assistant');
+          setAssistantId(assistantId);
+          const astName = assistantResult.name || assistantResult.data?.name || definition?.name
+          if (astName) {
+            setAssistantName(astName);
+          } else { // FALLBACK: derive name from the slug
+            // Convert dash/slash separated slug to space-separated title case
+            const derivedName = assistantSlug
+              .split(/[-_/]/)  // Split on dashes, underscores, or slashes
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())  // Title case each word
+              .join(' ');
+            
+            setAssistantName(derivedName);
           }
+          setLoading(false);
         } else {
-          console.error('Assistant lookup failed:', assistantResult.message);
-          setError(`Assistant not available at path "${assistantSlug}"`);
+          const errorMsg = assistantResult.message || `Assistant not found at path "${assistantSlug}"`;
+          console.error('Assistant lookup failed:', errorMsg);
+          throw new Error(errorMsg);
         }
       } catch (error) {
         console.error('Failed to initialize page:', error);
-        setError('Failed to load assistant: ' + (error instanceof Error ? error.message : 'Unknown error'));
-      } finally {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        setError(`Failed to load assistant: ${errorMessage}`);
         setLoading(false);
       }
     };
@@ -511,10 +519,17 @@ const AssistantPage = ({
     }
   };
 
+  const isSendDisabled = () => {
+    return !inputMessage.trim() || isProcessing || (requiredGroupType && !groupType) || !assistantDefinition?.assistantId;
+  }
+
   // Handle key press (submit on Enter, new line on Shift+Enter)
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      
+      if (isSendDisabled()) return; // Don't send if validation fails
+      
       handleSendMessage(inputMessage);
     }
   };
@@ -699,10 +714,10 @@ const AssistantPage = ({
   }
 
   // Error state
-  if (error || !session) {
+  if (!session) {
     return (
       <MainLayout
-        title="Error"
+        title="Login Required"
         description={`Chat with ${assistantName}`}
         theme={lightMode}
         showLeftSidebar={false}
@@ -738,9 +753,55 @@ const AssistantPage = ({
     );
   }
 
+  // Error state (separate from authentication)
+  if (error) {
+    return (
+      <MainLayout
+        title="Error"
+        description={`Chat with ${assistantName}`}
+        theme={lightMode}
+        showLeftSidebar={false}
+        showRightSidebar={false}
+      >
+        <div className="flex h-screen w-screen flex-col items-center justify-center text-center bg-white dark:bg-[#343541]">
+          <div className="max-w-md mx-auto p-6">
+            <div className="mb-6 flex justify-center">
+              <LoadingIcon />
+            </div>
+            <h1 className="mb-4 text-2xl font-bold text-red-600 dark:text-red-400">
+              Assistant Error
+            </h1>
+            <p className="mb-6 text-gray-700 dark:text-gray-300 break-words">
+              {error}
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => window.location.reload()}
+                className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={() => {
+                  const currentUrl = window.location.href;
+                  const baseUrl = currentUrl.split('/assistants')[0];
+                  window.location.href = baseUrl;
+                }}
+                className="w-full px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+              >
+                Go to Amplify
+              </button>
+            </div>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
   // Empty sidebars - just for structure
   const leftSidebarContent = null; //<SimpleSidebar side="left" />;
   const rightSidebarContent = null; // <SimpleSidebar side="right" />;
+
 
   return (
     <MainLayout
@@ -807,10 +868,10 @@ const AssistantPage = ({
                 
             </div> }
  
-              <div className="mt-20 text-center text-neutral-500 dark:text-neutral-400">
-              <p className="mb-2">{t('Start a conversation with the assistant')}</p>
-              <p className="text-sm">{assistantName} can help answer your questions</p>
-            </div>
+              {assistantName !== 'Loading Assistant...' && <div className="mt-20 text-center text-neutral-500 dark:text-neutral-400">
+                <p className="mb-2">{t('Start a conversation with the assistant')}</p>
+                <p className="text-sm">{assistantName} can help answer your questions</p>
+              </div>}
             
           </div>
         ) : (
@@ -983,12 +1044,11 @@ const AssistantPage = ({
             <div className="absolute inset-y-0 right-0 flex items-center pr-3">
               <button
                 className={`text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-100 ${
-                  !inputMessage.trim() || isProcessing || (requiredGroupType && !groupType)
-                    ? 'opacity-40 cursor-not-allowed'
-                    : 'hover:bg-neutral-200 dark:hover:bg-neutral-600'
+                  isSendDisabled() ? 'opacity-40 cursor-not-allowed' : 'hover:bg-neutral-200 dark:hover:bg-neutral-600'
                 } p-1.5 rounded-md`}
                 onClick={() => handleSendMessage(inputMessage)}
-                disabled={!inputMessage.trim() || isProcessing || (requiredGroupType && !groupType)}
+                disabled={isSendDisabled()}
+                title={!assistantDefinition?.assistantId ? "No Assistant Found - Chat is disabled" : ""}
                 id="sendMessageButton"
                 aria-label="Send message"
               >
