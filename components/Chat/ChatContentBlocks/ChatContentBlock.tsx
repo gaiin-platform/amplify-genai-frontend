@@ -22,7 +22,7 @@ import AgentFileBlock from "./AgentFileBlock";
 import DOMPurify from  "dompurify";
 import React from "react";
 import InvokeBlock from '@/components/Chat/ChatContentBlocks/InvokeBlock';
-
+import { DateToggle } from "@/components/ReusableComponents/DateToggle";
 
 
 
@@ -47,6 +47,7 @@ const ChatContentBlock: React.FC<Props> = (
             featureFlags,
             showPromptbar,
             showChatbar,
+            selectedArtifacts
         },
     } = useContext(HomeContext);
 
@@ -115,7 +116,7 @@ const ChatContentBlock: React.FC<Props> = (
     return (
     <div className="chatContentBlock overflow-x-auto" 
          id="chatContentBlock"
-         style={{maxWidth: windowInnerWidth}}
+         style={{maxWidth: windowInnerWidth, marginRight: (selectedArtifacts?.length ?? 0) > 0 ? '14%' : '0%'}}
          data-message-index={messageIndex}
          data-original-content={transformedMessageContent}>
     <MemoizedReactMarkdown
@@ -181,6 +182,16 @@ const ChatContentBlock: React.FC<Props> = (
                 }
 
                 children[0] = (children[0] as string).replace("`▍`", "▍")
+            }
+
+            // Handle inline clickable dates
+            if (inline) {
+                const content = String(children);
+                if (content.startsWith('clickableDate:')) {
+                    const dateString = content.replace('clickableDate:', '');
+                    console.log('DateToggle rendering for:', dateString); // Debug log
+                    return <DateToggle dateString={dateString} />;
+                }
             }
 
             let match = /language-(\w+)/.exec(className || '');

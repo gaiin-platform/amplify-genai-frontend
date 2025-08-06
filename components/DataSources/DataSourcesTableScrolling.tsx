@@ -282,7 +282,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
 
 
     function formatIsoString(isoString: string) {
-        const options = {
+        const options: Intl.DateTimeFormatOptions = {
             month: 'numeric',
             day: 'numeric',
             year: 'numeric',
@@ -290,9 +290,12 @@ const DataSourcesTableScrolling: FC<Props> = ({
             minute: 'numeric',
             hour12: true
         };
-        const date = new Date(isoString);
-
-        // @ts-ignore
+        
+        // Backend sends UTC time without 'Z' suffix, so add it
+        const utcTimestamp = isoString.endsWith('Z') ? isoString : isoString + 'Z';
+        const date = new Date(utcTimestamp);
+        
+        // toLocaleString automatically converts UTC to user's local timezone
         return date.toLocaleString('en-US', options).toLowerCase();
     }
 
@@ -308,6 +311,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
     }
 
     const deleteFile = async (key: string) => {
+        // console.log("Deleting File", key);
         setLoadingMessage("Deleting File...");
         try {
             await deleteDatasourceFile({id: key}); // TODO: check response

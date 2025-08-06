@@ -636,7 +636,7 @@ export const VariableModal: FC<Props> = ({
                 ))}
 
                 {showModelSelector && models && (
-                    <div className="relative h-[100px]">
+                    <div className="relative" style={{overflow: 'visible', zIndex: 1}}>
                     <ModelSelect
                         isTitled={true}
                         modelId={selectedModel.id}

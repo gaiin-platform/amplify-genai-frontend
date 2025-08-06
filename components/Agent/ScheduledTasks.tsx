@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useContext } from 'react';
 import { Modal } from '@/components/ReusableComponents/Modal';
-import { IconPlus, IconTrash, IconLoader2, IconEdit, IconInfoCircle, IconNotes, IconBulb, IconExclamationCircle, IconSettingsAutomation, IconAlarm, IconChevronDown, IconPlayerPlay, IconRefresh } from '@tabler/icons-react';
+import { IconPlus, IconTrash, IconLoader2, IconInfoCircle, IconNotes, IconBulb, IconExclamationCircle, IconSettingsAutomation, IconAlarm, IconChevronDown, IconPlayerPlay, IconRefresh } from '@tabler/icons-react';
 import cloneDeep from 'lodash/cloneDeep';
 import toast from 'react-hot-toast';
 import { ScheduleDateRange, ScheduledTask, ScheduledTaskType, TASK_TYPE_MAP, TaskExecutionRecord } from '@/types/scheduledTasks';
@@ -17,6 +17,12 @@ import { Prompt } from '@/types/prompt';
 import { ActionSetList } from './ActionSets';
 import AgentLogBlock from '../Chat/ChatContentBlocks/AgentLogBlock';
 import { userFriendlyDate } from '@/utils/app/date';
+import { filterSupportedIntegrationOps } from '@/utils/app/ops';
+import { getOpsForUser } from '@/services/opsService';
+import { getAgentTools } from '@/services/agentService';
+import ApiIntegrationsPanel from '../AssistantApi/ApiIntegrationsPanel';
+import { AgentTool } from '@/types/agentTools';
+import { OpDef } from '@/types/op';
 
 const emptyTask = (): ScheduledTask => {
   return {
@@ -61,6 +67,10 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   const [selectedLogDetails, setSelectedLogDetails] = useState<any>(null);
   const [isLoadingLogDetails, setIsLoadingLogDetails] = useState(false);
   const [showActionSetList, setShowActionSetList] = useState(false);
+  const [showApiToolList, setShowApiToolList] = useState(false);
+  const [availableApis, setAvailableApis] = useState<any[] | null>(null);
+  const [availableAgentTools, setAvailableAgentTools] = useState<Record<string, any> | null>(null);
+
   const [isTestingTask, setIsTestingTask] = useState(false);
 
   // State for all tasks for the sidebar
@@ -68,6 +78,33 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>("All");
   const [isLoadingTask, setIsLoadingTask] = useState(false);
+
+  const filterOps = async (data: any[]) => {
+      const filteredOps = await filterSupportedIntegrationOps(data);
+      if (filteredOps) setAvailableApis(filteredOps);
+  }
+
+  useEffect(() => {
+      if (featureFlags.integrations && 
+          availableApis === null) getOpsForUser()
+                                  .then((ops) => {
+                                      if (ops.success) {
+                                          // console.log("ops: ", ops.data);
+                                          filterOps(ops.data); 
+                                          return;
+                                      } 
+                                      setAvailableApis([]);
+                                  });
+  }, [availableApis]);
+
+  useEffect(() => {
+      if (featureFlags.agentTools && availableAgentTools === null ) {
+          getAgentTools().then((tools) => {
+              // console.log("tools", tools.data);
+              setAvailableAgentTools(tools.success ? tools.data : {});
+          });
+      }
+  }, [availableAgentTools]);
 
   // Fetch tasks (mock for now)
   const fetchTasks = async () => {
@@ -122,7 +159,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
       
       if (selectedTask.taskId) {
         // Update existing task
-        console.log("updating task", selectedTask);
+        // console.log("updating task", selectedTask);
         const taskResult = await updateScheduledTask(
                            selectedTask.taskId, selectedTask)
 
@@ -130,7 +167,6 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           toast("Successfully updated task");
         } else {
           alert('Failed to update task');
-          
         }
       } else {
         console.log("creating new task", selectedTask);
@@ -147,13 +183,14 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           
         }
       }
-      setIsSubmitting(false);
       fetchTasks();
       
       
     } catch (err) {
       setError('An error occurred while saving the task');
       console.error(err);
+      setIsSubmitting(false);
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -177,7 +214,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
     setIsLoadingTask(true);
     const taskResult = await getScheduledTask(taskId);
     if (taskResult.success && taskResult.data?.task) {
-      console.log("taskResult", taskResult.data.task);
+      // console.log("taskResult", taskResult.data.task);
       const task = taskResult.data.task;
       setSelectedTask(task);
       setSelectedLogId(null);
@@ -393,8 +430,28 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
     setShowActionSetList(false);
   };
 
+  const handleApiToolSelect = (name: string, opSpecs: any) => {
+    setSelectedTask({...selectedTask, objectInfo: {objectId: name, objectName: name, data: {op: opSpecs}}});
+    setShowApiToolList(false);
+  }
+  
+  // useEffect(() => {
+  //   console.log("selectedTask", selectedTask);
+  // }, [selectedTask]);
+
+  const isDisabled = () => {
+    if (!selectedTask.taskType) return false;
+    const isEnforced = selectedTask.objectInfo.data?.enforced || false;
+    return isEnforced;
+  }
+
+  const getTitleComment = () => `${isDisabled() ? "This Task has been preconfigured and cannot to be changed." : ""}`
+
   const getObjectSelector = (taskType: ScheduledTaskType | undefined) => {
     if (!taskType) return <></>;
+    
+    const isEnforced = isDisabled();
+    
     switch (taskType) {
       case 'assistant':
         const asts = prompts.filter((p:Prompt) => isAssistant(p));
@@ -409,9 +466,11 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           <div className="flex flex-row gap-2 mb-4">
               <select
                   className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow 
-                  ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}`}
+                  ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}
+                  ${isEnforced ? 'opacity-50 cursor-not-allowed' : ''}`}
                   id="autoPopulateSelect"
                   value={selectedTask.objectInfo?.objectId ?? ''}
+                  disabled={isEnforced}
                   onChange={(e) => setSelectedTask({...selectedTask, objectInfo: {objectId: e.target.value, objectName: prompts.find(p => p.data?.assistant?.definition.assistantId === e.target.value)?.name || ''}})}
                   >
                     <option value="">Select Assistant</option>
@@ -428,18 +487,19 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         return (
           <div className="flex flex-col mb-4 relative">
             <div 
-              onClick={() => setShowActionSetList(!showActionSetList)}
-              className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow cursor-pointer flex justify-between items-center
-              ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}`}
+              onClick={() => !isEnforced && setShowActionSetList(!showActionSetList)}
+              className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow flex justify-between items-center
+              ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}
+              ${isEnforced ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
               <span>{selectedTask.objectInfo?.objectName || 'Select Action Set'}</span>
               <IconChevronDown 
                 size={18} 
-                className={`transition-transform ${showActionSetList ? 'rotate-180' : ''}`}
+                className={`transition-transform ${showActionSetList && !isEnforced ? 'rotate-180' : ''}`}
               />
             </div>
             
-            {featureFlags.actionSets && showActionSetList && (
+            {featureFlags.actionSets && showActionSetList && !isEnforced && (
               <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-[#343541] border border-neutral-300 dark:border-neutral-700 rounded-lg shadow-lg">
                 <div className="p-3" style={{ maxHeight: '350px', overflowY: 'auto' }}>
                   <ActionSetList onLoad={handleActionSetSelect} />
@@ -448,6 +508,73 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             )}
           </div>
         );
+      case "apiTool":
+
+      return (
+        <div className="flex flex-col mb-4 relative">
+          <div 
+            onClick={() => !isEnforced && setShowApiToolList(!showApiToolList)}
+            className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow flex justify-between items-center
+            ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}
+            ${isEnforced ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+          >
+            <span>{selectedTask.objectInfo?.objectName || 'Select API Tool'}</span>
+            <IconChevronDown 
+              size={18} 
+              className={`transition-transform ${showApiToolList && !isEnforced ? 'rotate-180' : ''}`}
+            />
+          </div>
+          
+          {featureFlags.integrations && showApiToolList && !isEnforced && (
+            <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-[#343541] border border-neutral-300 dark:border-neutral-700 rounded-lg shadow-lg">
+              <div className="p-3" >
+                <div className='border-b flex flex-col border-neutral-500'>
+                  <ApiIntegrationsPanel
+                      // API-related props
+                      availableApis={availableApis}
+                      onClickApiItem={(api: OpDef) => {
+                        const op = {
+                              "tool_name": api.name,
+                              "name": api.name,
+                              "description": api.description,
+                              "id": api.name,
+                              "type": api.type || '',
+                              "parameters": api.parameters,
+                              "tags": api.tags ?? [],
+                              "bindings": api.bindings,
+                              "method": api.method
+                            }
+                        handleApiToolSelect(api.name, op);
+                      }}
+                      // Agent tools props
+                      availableAgentTools={availableAgentTools}
+                      onClickAgentTool={ (tool: AgentTool) => {
+                        const op = {
+                          "tool_name": tool.tool_name,
+                          "name": tool.tool_name,
+                          "description": tool.description,
+                          "id": tool.tool_name,
+                          "type": "builtIn",
+                          "parameters": tool.parameters,
+                          "tags": tool.tags ?? [],
+                          "bindings": tool.bindings
+                        }
+                        handleApiToolSelect(tool.tool_name, op);
+                      }}
+                      // Configuration
+                      allowConfiguration={true}
+                      // python function 
+                      allowCreatePythonFunction={false}
+                      hideApisPanel={['external']}
+                      height="300px"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+        
       default:
         return <></>
     }
@@ -526,6 +653,8 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               Task Name
             </label>
             <input
+              disabled={isDisabled()}
+              title={getTitleComment()}
               type="text"
               value={selectedTask.taskName}
               onChange={(e) => setSelectedTask({...selectedTask, taskName: e.target.value})}
@@ -560,6 +689,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             />
           </div>
           
+          {!isDisabled() && 
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
               Task Schedule
@@ -570,7 +700,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               dateRange={selectedTask.dateRange}
               onRangeChange={(range: ScheduleDateRange) => setSelectedTask(prevTask => ({...prevTask, dateRange: range ? { ...range } : undefined})) }
             />
-          </div>
+          </div>}
           
           <div className="mb-4">
             <label className="flex items-center">
@@ -584,15 +714,17 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             </label>
           </div>
           
-          <div className="mb-4">
+          <div className="mb-4" 
+               title={`${isDisabled() ? "This Task has been preconfigured and cannot to be changed." : ""}`}>
             <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
               Task Type
-            </label>
+            </label> 
             <select
+              disabled={isDisabled() }
               value={selectedTask.taskType ?? ''}
               onChange={(e) => {
                 const updatedSelectedTask = {...selectedTask, 
-                                             object: {objectId: '', objectName: ''},
+                                             objectInfo: {objectId: '', objectName: ''},
                                              taskType: e.target.value as ScheduledTaskType}
                 setSelectedTask(updatedSelectedTask);
               }}
@@ -601,10 +733,13 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               <option value="">Select Task Type</option>
               <option value="assistant">Assistant</option>
               {featureFlags.actionSets && <option value="actionSet">Action Set</option>}
+              {featureFlags.integrations &&  <option value="apiTool">API Action</option>}
             </select>
           </div>
 
-          {getObjectSelector(selectedTask.taskType)}
+          <div title={`${isDisabled() ? "This Task has been preconfigured and cannot to be changed." : ""}`}>
+            {getObjectSelector(selectedTask.taskType)}
+          </div>
           
 
           
@@ -765,7 +900,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
     return (
       <div className="flex-1 pl-4">
         <div className="relative mt-2">
-          <h2 className="text-lg font-semibold mb-4">Run Logs: {selectedTask.taskName}</h2>
+          <h2 className="text-lg font-semibold mb-4 truncate max-w-[48%]">Run Logs: {selectedTask.taskName}</h2>
           <div className="absolute right-1 top-[-6px] flex flex-row gap-3">
             <>
             <button
@@ -942,7 +1077,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
 
   const renderAgentResult = () => {
     try {
-      console.log(selectedLogDetails.details.result);
+      // console.log(selectedLogDetails.details.result);
       const agentLog = (<AgentLogBlock 
         messageIsStreaming={false} 
         message={{ 
@@ -984,7 +1119,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
       submitLabel={isSubmitting ? 'Saving Task...' : 'Save Task'}
       onSubmit={handleSaveTask}
       onCancel={onClose}
-      disableSubmit={isSubmitting}
+      // disableSubmit={isSubmitting}
     />
   );
 };

@@ -58,14 +58,19 @@ export const fetchRemoteConversation = async (conversationId: string, conversati
 };
 
 // only used for the initial sync conversations 
-export const fetchAllRemoteConversations = async (abortSignal = null) => {
+export const fetchAllRemoteConversations = async (days?: number) => {
     try {
         const op = {
             method: 'GET',
             path: URL_PATH,
             op: "/get/all",
-            service: SERVICE_NAME
+            service: SERVICE_NAME,
+            queryParams: {},
         };
+        if (days) {
+            console.log(`Fetching all remote conversations within ${days} days`);
+            op.queryParams = { "days": days.toString() };
+        }
 
         const result = await doRequestOp(op);
 

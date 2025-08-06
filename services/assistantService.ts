@@ -43,12 +43,14 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
 
         try {
             const result = await doRequestOp(op);
+            // console.log("result", result);
 
             return {
                 id: result.data.id,
                 assistantId: result.data.assistantId,
                 provider: AssistantProviderID.AMPLIFY,
-                dataSources: assistantDefinition.fileKeys || [],
+                data_sources: result.data.data_sources,
+                ast_data: result.data.ast_data,
                 name: assistantDefinition.name || "Unnamed Assistant",
                 description: assistantDefinition.description || "No description provided",
                 instructions: assistantDefinition.instructions || assistantDefinition.description,
@@ -68,7 +70,8 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
     return {
         assistantId: uuidv4(),
         provider: AssistantProviderID.AMPLIFY,
-        dataSources: assistantDefinition.fileKeys || [],
+        dataSources: assistantDefinition.dataSources || [],
+        ast_data: assistantDefinition.data,
         name: assistantDefinition.name || "Unnamed Assistant",
         description: assistantDefinition.description || "No description provided",
         instructions: assistantDefinition.instructions || assistantDefinition.description,

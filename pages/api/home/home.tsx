@@ -27,7 +27,7 @@ import {
     isRemoteConversation,
     deleteConversationCleanUp,
 } from '@/utils/app/conversation';
-import { getHiddenGroupFolders, saveFolders } from '@/utils/app/folders';
+import { getArchiveNumOfDays, getHiddenGroupFolders, saveFolders } from '@/utils/app/folders';
 import { savePrompts } from '@/utils/app/prompts';
 import { getSettings, saveSettings } from '@/utils/app/settings';
 import { getAccounts } from "@/services/accountService";
@@ -69,7 +69,7 @@ import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { deleteAssistant, listAssistants } from '@/services/assistantService';
-import { getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
+import { filterAstsByFeatureFlags, getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
 import { fetchAllRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import {killRequest as killReq} from "@/services/chatService";
 import { DefaultUser } from 'next-auth';
@@ -667,6 +667,12 @@ const Home = ({
             dispatch({ field: 'showChatbar', value: false });
             dispatch({ field: 'showPromptbar', value: false });
         }
+        // check if the conversation has messages 
+        if (selectedConversation && !selectedConversation.messages) {
+            console.warn("Warning: Selected Conversation has no messages!");
+            //will fetch the remote conversation data and uncompress local messages 
+            handleSelectConversation(selectedConversation);
+        } 
     }, [selectedConversation]);
 
 
@@ -898,7 +904,8 @@ const Home = ({
 
         const syncConversations = async (conversations: Conversation[], folders: FolderInterface[]) => {
             try {
-                const allRemoteConvs = await fetchAllRemoteConversations();
+                const days = getArchiveNumOfDays();
+                const allRemoteConvs = await fetchAllRemoteConversations(days === 0 ? undefined : days);
                 if (allRemoteConvs) return updateWithRemoteConversations(allRemoteConvs, conversations, folders, dispatch, getDefaultModel(DefaultModels.DEFAULT));
             } catch (e) {
                 console.log("Failed to sync cloud conversations: ", e);
@@ -1036,15 +1043,7 @@ const Home = ({
                     dispatch({field: 'folders', value: updatedFolders});
                     saveFolders(updatedFolders);
 
-                    let groupPrompts = groupsResult.groupPrompts;
-                    if (!flags.apiKeys) groupPrompts = groupPrompts.filter(prompt =>{
-                                                    const tags = prompt.data?.tags;
-                                                    return !(
-                                                        tags && 
-                                                        (tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER) || 
-                                                         tags.includes(ReservedTags.ASSISTANT_API_HELPER))
-                                                    );
-                                                });
+                    const groupPrompts = filterAstsByFeatureFlags(groupsResult.groupPrompts, flags);
                     updatedPrompts = [...updatedPrompts.filter((p : Prompt) => !p.groupId ), 
                                         ...groupPrompts];
                     

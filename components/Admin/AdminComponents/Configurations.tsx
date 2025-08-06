@@ -482,7 +482,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                 <>
                                 <table className="modern-table hide-last-column mt-4 w-full mr-10 " style={{boxShadow: 'none'}} id="groupTable">
                                     <thead>
-                                    <tr className="gradient-header">
+                                    <tr className="gradient-header hide-last-column">
                                         {['Group Name', 'Members', 'Membership by Amplify Groups', 'Created By'].map((title, i) => (
                                         <th key={i}
                                             id={title}

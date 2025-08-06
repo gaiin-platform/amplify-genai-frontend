@@ -408,8 +408,8 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
 }
 
    return ( 
-   <div id="artifactsTab" className={`flex-0 text-base overflow-hidden min-h-screen bg-gray-200 dark:bg-[#343541] text-black dark:text-white border-l border-black px-4`}>
-        <div className="flex flex-col" > 
+   <div id="artifactsTab" className={`text-base overflow-hidden h-full bg-gray-200 dark:bg-[#343541] text-black dark:text-white border-l border-black px-2`}>
+        <div className="flex flex-col h-full" > 
             {/* Modals */}
            
                 {isLoading && 
@@ -502,10 +502,10 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
 
             </div>
             
-            <div className="flex justify-center items-center ">
-                <div className="w-full flex flex-row justify-between mr-2">
+            <div className="flex justify-center items-center flex-1">
+                <div className="w-full flex flex-row justify-between">
                     
-                    <div className="flex flex-col w-full px-2" id="artifactsTextDisplay">
+                    <div className="flex flex-col flex-1 px-2 min-w-0" id="artifactsTextDisplay">
                         
                         {!isEditing && !isPreviewing &&  selectArtifactList && (
                             <div className="mt-8 flex flex-grow overflow-y-auto overflow-x-hidden justify-center" style={{height: innerHeight - 140}} 
@@ -567,7 +567,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                     </div>
                     
 
-                    <div className="enhanced-chat-icons-vertical h-min mt-8 flex flex-col gap-3 items-center p-2 border border-gray-500 dark:border-gray-500 shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
+                    <div className="enhanced-chat-icons-vertical h-min mt-8 flex flex-col gap-3 items-center p-2 border border-gray-500 dark:border-gray-500 shadow-[0_2px_4px_rgba(0,0,0,0.3)] flex-shrink-0 ml-2">
                         {isPreviewing ?
                             <button
                             className="enhanced-chat-icon-button"

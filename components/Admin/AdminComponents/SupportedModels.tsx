@@ -2,7 +2,7 @@ import { FC, useEffect, useRef, useState } from "react";
 import {  Amplify_Groups, AmplifyGroupSelect, camelToTitleCase, titleLabel, UserAction } from "../AdminUI";
 import { AdminConfigTypes, DefaultModelsConfig, FeatureFlagConfig, ModelProviders, SupportedModel, SupportedModelsConfig} from "@/types/admin";
 import { InfoBox } from "@/components/ReusableComponents/InfoBox";
-import { IconCheck, IconPlus, IconX, IconEdit, IconTrash } from "@tabler/icons-react";
+import { IconCheck, IconPlus, IconX, IconEdit, IconTrash, IconEye, IconEyeOff } from "@tabler/icons-react";
 import Search from "@/components/Search";
 import InputsMap from "@/components/ReusableComponents/InputMap";
 import ActionButton from "@/components/ReusableComponents/ActionButton";
@@ -38,6 +38,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
     const [hoveredModelIcons, setHoveredModelIcons] = useState<string>(''); 
     const [modelsSearchTerm, setModelsSearchTerm] = useState<string>(''); 
     const [showModelsSearch, setShowModelsSearch] = useState<boolean>(true); 
+    const [hideUncheckedModels, setHideUncheckedModels] = useState<boolean>(false);
 
 
     const handleUpdateSupportedModels = (updatedModels: SupportedModelsConfig) => {
@@ -164,7 +165,24 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
             
             }
             { showModelsSearch && Object.keys(availableModels).length > 0 && !isAddingAvailModel &&
-            <div className="ml-auto mr-16">
+            <div className="ml-auto mr-16 flex items-center gap-3">
+                <button
+                    title={hideUncheckedModels ? 'Show all models' : 'Hide unavailable models'}
+                    className="flex items-center justify-center gap-2 px-3 py-2 rounded-md border border-neutral-300 dark:border-white/20 hover:bg-neutral-200 dark:hover:bg-gray-500/10 transition-colors duration-200"
+                    onClick={() => setHideUncheckedModels(!hideUncheckedModels)}
+                >
+                    {hideUncheckedModels ? (
+                        <>
+                            <IconEye size={16} className="text-neutral-600 dark:text-neutral-400" />
+                            <span className="text-sm text-neutral-600 dark:text-neutral-400">Show All Models</span>
+                        </>
+                    ) : (
+                        <>
+                            <IconEyeOff size={16} className="text-neutral-600 dark:text-neutral-400" />
+                            <span className="text-sm text-neutral-600 dark:text-neutral-400">Hide Unavailable Models</span>
+                        </>
+                    )}
+                </button>
                 <Search
                 placeholder={'Search Models...'}
                 searchTerm={modelsSearchTerm}
@@ -365,6 +383,8 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                 (isAddingAvailModel?.model.id !== availModel.id) && 
                                 (modelsSearchTerm ? availModel.name.toLowerCase()
                                                     .includes(modelsSearchTerm) : true))
+                                .filter((availModel: SupportedModel) => 
+                                    hideUncheckedModels ? availModel.isAvailable : true)
                                 .sort((a, b) => a.name.localeCompare(b.name))
                                 .map((availModel: SupportedModel) => 
                             <tr key={availModel.id}  className={`text-xs ${hoveredModelIcons === availModel.id ? 'hover:bg-gray-200 dark:hover:bg-[#40414f]' : ''}`}
@@ -378,8 +398,25 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                     {availModel.id}
                                 </td>
 
-                                <td className="border border-neutral-500 p-2 break-words ">
-                                    <div className="flex justify-center">  {availModel.provider ?? 'Unknown Provider'} </div>
+                                <td className="border border-neutral-500 break-words ">
+                                    <div className="flex justify-center p-2 dark:bg-[#40414F]">
+                                        <select 
+                                            value={availModel.provider ?? 'Unknown Provider'}
+                                            onChange={(e) => {
+                                                const updatedModel = {...availableModels[availModel.id], provider: e.target.value};
+                                                const updatedModels = {...availableModels, [availModel.id]: updatedModel};
+                                                handleUpdateSupportedModels(updatedModels);
+                                            }}
+                                            className="bg-transparent text-center border-none focus:outline-none cursor-pointer text-xs hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded px-1"
+                                            title="Click to change provider"
+                                        >
+                                            {ModelProviders.map((provider: string) => (
+                                                <option key={provider} value={provider} className="bg-white dark:bg-[#40414F] text-neutral-900 dark:text-neutral-100">
+                                                    {provider}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </td>
 
                                 <td className="border border-neutral-500 p-2 w-[60px]"
@@ -403,8 +440,8 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                     {availModel.id.includes('embed') ? 
                                     <div className="text-center">N/A</div> :
                                         <div className="flex justify-center">
-                                        {availModel.supportsImages ? <IconCheck className= 'text-green-600' size={18} /> 
-                                                                : <IconX  className='text-red-600' size={18} />}
+                                        {availModel.supportsImages ? <IconCheck className= 'text-green-600 opacity-60' size={18} /> 
+                                                                : <IconX  className='text-red-600 opacity-60' size={18} />}
                                     </div> }                          
                                 </td>
 
@@ -412,8 +449,8 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                     <td className="border border-neutral-500 px-4 py-2 w-[74px]" key={s}
                                         title={`Model ${camelToTitleCase(s)}`}>
                                         <div className="flex justify-center">
-                                            {availModel[s as keyof SupportedModel] ? <IconCheck className= 'text-green-600' size={18} /> : 
-                                            <IconX  className='text-red-600' size={18} />}
+                                            {availModel[s as keyof SupportedModel] ? <IconCheck className= 'text-green-600 opacity-60' size={18} /> : 
+                                            <IconX  className='text-red-600 opacity-60' size={18} />}
                                         </div>                           
                                     </td>
                                 )}
@@ -447,14 +484,18 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                 )}
 
                                 <td className="border border-neutral-500 text-center">
-                                    {availModel.exclusiveGroupAvailability && availModel.exclusiveGroupAvailability.length > 0 ?
+                                    {availModel.id.includes('embed') ? 
+                                    <div className="text-center">N/A</div> :
                                     <AmplifyGroupSelect 
-                                        isDisabled={true}
+                                        label={"Amp Gorup"}
                                         groups={Object.keys(ampGroups)}
                                         selected={availModel.exclusiveGroupAvailability ?? []}
-                                        setSelected={(selectedGroups: string[]) => {}}
-                                    /> : <>N/A</>
-                                }
+                                        setSelected={(selectedGroups: string[]) => {
+                                            const updatedModel = {...availableModels[availModel.id], exclusiveGroupAvailability: selectedGroups};
+                                            const updatedModels = {...availableModels, [availModel.id]: updatedModel};
+                                            handleUpdateSupportedModels(updatedModels);
+                                        }}
+                                    />}
                                 </td>
                                 <td className="bg-gray-100 dark:bg-[#2b2c36]">
                                         <div className="w-[30px]">

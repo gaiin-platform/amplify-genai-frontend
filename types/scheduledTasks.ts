@@ -1,9 +1,10 @@
-import {IconRobot, IconSettingsAutomation} from '@tabler/icons-react';
+import {IconRobot, IconSettingsAutomation, IconTool} from '@tabler/icons-react';
 
 // Type of task that can be scheduled
 export const TASK_TYPE_MAP = {
   'assistant': IconRobot,
   'actionSet':  IconSettingsAutomation,
+  'apiTool' : IconTool
 } as const;
 
 // Then derive the type from the keys
@@ -33,9 +34,9 @@ export interface ScheduledTask {
   description: string;
   
   // Task configuration
-  taskInstructions: string; // todo 
+  taskInstructions: string; 
   taskType: ScheduledTaskType;
-  objectInfo: {objectId: string, objectName: string}; 
+  objectInfo: {objectId: string, objectName: string, data?: any}; 
   
   // Scheduling
   cronExpression: string;

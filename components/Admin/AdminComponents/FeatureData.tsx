@@ -492,7 +492,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
                             <>
                                 <table id="assistantAdminGroupsTable" className="modern-table hide-last-column mt-4 w-full mr-10" style={{boxShadow: 'none'}}>
                                     <thead>
-                                    <tr className="gradient-header">
+                                    <tr className="gradient-header hide-last-column">
                                         {['Group Name', 'Created By', 'Support Conversation Analysis', 'Public', 'Membership by Amplify Groups', 'Number of Assistants',
                                         ].map((title, i) => (
                                         <th id="assistantAdminGroupsTitle" key={i}
@@ -715,7 +715,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
                             <>
                                 <table id="powerpointTemplateTable" className="modern-table hide-last-column mt-4 w-full mr-10" style={{boxShadow: 'none'}}>
                                     <thead>
-                                    <tr className="gradient-header">
+                                    <tr className="gradient-header hide-last-column">
                                         {['Template Name', 'Public', 'Available to User via Amplify Group Membership'
                                         ].map((title, i) => (
                                         <th key={i}

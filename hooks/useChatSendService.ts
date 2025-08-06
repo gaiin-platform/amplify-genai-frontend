@@ -60,9 +60,9 @@ export function useSendService() {
     } = useContext(HomeContext);
 
     const { data: session } = useSession();
-    const user = session?.user;
 
     const conversationsRef = useRef(conversations);
+    const messageTimestampRef = useRef<string | undefined>(undefined);
     
     // Add ref to track running agent sessions
     const runningAgentSessions = useRef<Set<string>>(new Set());
@@ -147,7 +147,7 @@ export function useSendService() {
             
             try {
                 homeDispatch({field: 'messageIsStreaming', value: true}); 
-                const agentResult = await handleAgentRun(sessionId, (status: any) => homeDispatch({ field: "status", value: [newStatus(status)] }) );
+                const agentResult = await handleAgentRun(sessionId, (status: any) => homeDispatch({ field: "status", value: [newStatus(status)] }), messageTimestampRef.current);
                 if (agentResult && selectedConversation) {
                     const lastIndex = selectedConversation.messages.length - 1;
                     selectedConversation.messages[lastIndex].data.state.agentLog = agentResult;
@@ -193,6 +193,7 @@ export function useSendService() {
                         options,
                         conversationId
                     } = request;
+                    messageTimestampRef.current = new Date().toISOString();
 
                     const featureOptions = getSettings(featureFlags).featureOptions;
                     const pluginActive = featureOptions.includePluginSelector;

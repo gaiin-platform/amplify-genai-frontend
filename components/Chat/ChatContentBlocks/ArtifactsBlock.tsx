@@ -19,7 +19,7 @@ import React from "react";
 // supports coming from assitant (coming from autoArtifacts block) and from message data (when saved artifact gets introduced to conversation)
 export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
 
-    const {state:{statsService, conversations, folders, messageIsStreaming, artifactIsStreaming, selectedConversation},  
+    const {state:{statsService, conversations, folders, messageIsStreaming, artifactIsStreaming, selectedConversation, selectedArtifacts},  
            dispatch:homeDispatch, handleUpdateSelectedConversation} = useContext(HomeContext);
 
     const [artifacts, setArtifacts] = useState <ArtifactBlockDetail[] | undefined > ((message?.data?.artifacts));
@@ -99,7 +99,7 @@ export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
     }
 
    return (
-     <div className="flex flex-col gap-3 w-[96%]">
+     <div className="mt-1 flex flex-col gap-3 " style={{width: (selectedArtifacts?.length ?? 0) > 0 ? '86%' : '95%'}}>
         {selectedConversation &&  artifacts.map((artifact: ArtifactBlockDetail, i:number) => (
             (Object.keys(selectedConversation.artifacts ?? {}).includes(artifact.artifactId) && 
             <button onMouseEnter={() => setIsHovered(i)} onMouseLeave={() => setIsHovered(-1)}

@@ -9,7 +9,7 @@ import { Account } from "@/types/accounts";
 import cloneDeep from "lodash/cloneDeep";
 
  
-export const listenForAgentUpdates = async function(sessionId: string, onAgentStateUpdate: (state: any) => boolean) {
+export const listenForAgentUpdates = async function(sessionId: string, onAgentStateUpdate: (state: any) => boolean, requestTimestamp?: string) {
   let errorsRemaining = 15;
   let shouldContinue = true;
   let wasAborted = false;
@@ -20,7 +20,7 @@ export const listenForAgentUpdates = async function(sessionId: string, onAgentSt
   window.addEventListener('killChatRequest', handleStopGenerationEvent);
   while (shouldContinue && errorsRemaining > 0) {
       try {
-        const state = await getLatestAgentState(sessionId);
+        const state = await getLatestAgentState(sessionId, requestTimestamp);
         if (wasAborted) break;
         if (!state.success) errorsRemaining--;
         shouldContinue = onAgentStateUpdate(state);
@@ -204,7 +204,7 @@ export const handleAgentRunResult = async (agentResult: any, selectedConversatio
 }
 
 
-export const handleAgentRun = async ( sessionId: string, onStatusUpdate: (status: any) => void ) => {
+export const handleAgentRun = async ( sessionId: string, onStatusUpdate: (status: any) => void, requestTimestamp?: string ) => {
     let agentResult = null;
     let wasAborted = false;
     
@@ -267,7 +267,7 @@ export const handleAgentRun = async ( sessionId: string, onStatusUpdate: (status
 
             onStatusUpdate(statusInfo);
             return state.inProgress ?? true;
-        })
+        }, requestTimestamp);
 
         // If aborted during the process, return null
         if (wasAborted) return null;

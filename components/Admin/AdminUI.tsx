@@ -191,6 +191,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 } 
             } 
             alert("Unable to fetch admin configurations at this time. Please try again.");
+            console.log("Error: ", lazyResult);
+
             setLoadingMessage("");
             onClose();
             

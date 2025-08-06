@@ -37,7 +37,7 @@ const MINUTES = Array.from({ length: 60 }, (_, i) => ({
   label: i.toString().padStart(2, '0')
 }));
 
-const DAYS_OF_WEEK = [
+export const DAYS_OF_WEEK = [
   { value: '0', label: 'Sunday' },
   { value: '1', label: 'Monday' },
   { value: '2', label: 'Tuesday' },

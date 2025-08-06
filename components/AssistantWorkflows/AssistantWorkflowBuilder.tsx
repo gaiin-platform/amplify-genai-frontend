@@ -11,7 +11,6 @@ import ExpansionComponent from '../Chat/ExpansionComponent';
 import { InfoBox } from '../ReusableComponents/InfoBox';
 import { InputsMap } from '../ReusableComponents/InputMap';
 import ApiIntegrationsPanel from '../AssistantApi/ApiIntegrationsPanel';
-import { API } from '../AssistantApi/CustomAPIEditor';
 import HomeContext from '@/pages/api/home/home.context';
 import { getOpsForUser } from '@/services/opsService';
 import { getAgentTools } from '@/services/agentService';
@@ -19,6 +18,10 @@ import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import toast from 'react-hot-toast';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { AssistantWorkflow } from './AssistantWorkflow';
+import { OpDef, Schema } from '@/types/op';
+import { AgentTool } from '@/types/agentTools';
+import { emptySchema } from '@/utils/app/tools';
+import WorkflowGeneratorModal from './WorkflowGeneratorModal';
 
 interface WorkflowTemplateBuilderProps {
   isOpen: boolean;
@@ -117,9 +120,9 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   const [detailedPreview, setDetailedPreview] = useState(false);
 
   const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
+  const [showWorkflowGenerator, setShowWorkflowGenerator] = useState(false);
 
 
-      // we need to detect name changes if there is a tag predefined because then the existing sender list is empty
       const filterOps = async (data: any[]) => {
         const filteredOps = await filterSupportedIntegrationOps(data);
         if (filteredOps) setAvailableApis(filteredOps);
@@ -426,7 +429,13 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
     setLoadingSelectedWorkflow(false);
   };
 
-  const handleSelectTool = (toolName: string, index: number, args: Record<string, string>) => {
+  const handleSelectTool = (toolName: string, index: number, parameters: Schema) => {
+    const args: Record<string, string> = {};
+    if (parameters.properties) {
+      Object.entries(parameters.properties).forEach(([paramName, paramInfo]: [string, any]) => {
+        args[paramName] = paramInfo.description ?? "No description provided";
+      });
+    }
     const updatedTemplate = cloneDeep(selectedWorkflow);
     if (updatedTemplate.template?.steps) {
       updatedTemplate.template.steps[index].tool = toolName;  
@@ -566,23 +575,13 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
             <ApiIntegrationsPanel
                 // API-related props
                 availableApis={availableApis}
-                onClickApiItem={(api: API) => {
-                  const args: Record<string, string> = {};
-                  api.params.forEach((param: any) => {
-                    args[param.name] = `<${param.description || param.name}>`;
-                  });
-                  handleSelectTool(api.name, index, args);
+                onClickApiItem={(api: OpDef) => {
+                  handleSelectTool(api.name, index, api.parameters);
                 }}
                 // Agent tools props
                 availableAgentTools={availableAgentTools}
-                onClickAgentTool={ (tool: any) => {
-                  const args: Record<string, string> = {};
-                  if (tool.parameters?.properties) {
-                    Object.entries(tool.parameters.properties).forEach(([paramName, paramInfo]: [string, any]) => {
-                      args[paramName] = paramInfo.description ?? "No description provided";
-                    });
-                  }
-                  handleSelectTool(tool.tool_name, index, args);
+                onClickAgentTool={ (tool: AgentTool) => {
+                  handleSelectTool(tool.tool_name, index, tool.parameters || emptySchema);
                 }}
                 // python function 
                 allowCreatePythonFunction={false}
@@ -747,21 +746,31 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
       <div className="mb-4">
         <div className="flex justify-between items-center mb-2">
           <label className="block text-sm font-medium dark:text-neutral-200">
-            Argument Values
+            Argument Values - Set fixed values for specific parameters (overrides AI decision-making)
           </label>
           
           <button
             onClick={() => {
               const newTemplate = cloneDeep(selectedWorkflow);
               if (newTemplate.template?.steps) {
-                newTemplate.template.steps[index].values = {
-                  ...newTemplate.template.steps[index].values,
-                  '': ''
-                };
-                setSelectedWorkflow(newTemplate);
+                // Find the first available argument that isn't already used
+                const availableArgs = Object.keys(step.args || {});
+                const usedArgs = Object.keys(step.values || {});
+                const firstAvailableArg = availableArgs.find(arg => !usedArgs.includes(arg));
+                
+                if (firstAvailableArg) {
+                  newTemplate.template.steps[index].values = {
+                    ...newTemplate.template.steps[index].values,
+                    [firstAvailableArg]: ''
+                  };
+                  setSelectedWorkflow(newTemplate);
+                }
               }
             }}
             className="flex items-center px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+            disabled={Object.keys(step.args || {}).filter(argKey => 
+              !Object.keys(step.values || {}).includes(argKey)
+            ).length === 0}
           >
             <IconPlus size={14} className="mr-1" />
             Add Value
@@ -782,33 +791,68 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
             onMouseLeave={() => setHoveredValueIndex(null)}
           >
             <div className="flex-grow">
-              <InputsMap
-                id={`value-${index}-${valueIndex}`}
-                inputs={[
-                  {label: 'Argument', key: 'key', placeholder: 'Argument name (from Arguments section)'},
-                  {label: 'Value', key: 'value', placeholder: 'Value content'}
-                ]}
-                state={{key, value}}
-                inputChanged={(changedKey, changedValue) => {
-                  const newTemplate = cloneDeep(selectedWorkflow);
-                  if (newTemplate.template?.steps) {
-                    const newValues = { ...newTemplate.template.steps[index].values };
-                    
-                    if (changedKey === 'key') {
-                      const newKey = changedValue.trim();
-                      if (newKey === '') return;
-                      const sanitizedKey = sanitizeKey(newKey);
-                      delete newValues[key];
-                      newValues[sanitizedKey] = value;
-                    } else if (changedKey === 'value') {
-                      newValues[key] = changedValue;
-                    }
-                    
-                    newTemplate.template.steps[index].values = newValues;
-                    setSelectedWorkflow(newTemplate);
-                  }
-                }}
-              />
+              {/* Custom layout matching InputsMap styling */}
+              <div className="mt-2 grid grid-cols-1">
+                <div className="grid grid-cols-[auto_1fr] mr-2">
+                  {/* Argument Dropdown */}
+                  <label
+                    className="border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
+                    title="Select argument from available parameters"
+                  >
+                    Argument
+                  </label>
+                  <div className="w-full rounded-r border border-neutral-500 flex items-center dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50">
+                    <select
+                      className="w-full border-0 px-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 focus:outline-none"
+                      value={key}
+                      onChange={(e) => {
+                        const newTemplate = cloneDeep(selectedWorkflow);
+                        if (newTemplate.template?.steps) {
+                          const newValues = { ...newTemplate.template.steps[index].values };
+                          const newKey = e.target.value;
+                          if (newKey && newKey !== key) {
+                            delete newValues[key];
+                            newValues[newKey] = value;
+                            newTemplate.template.steps[index].values = newValues;
+                            setSelectedWorkflow(newTemplate);
+                          }
+                        }
+                      }}
+                    >
+                      <option value={key}>{key}</option>
+                      {/* Show available arguments that aren't already used */}
+                      {Object.keys(step.args || {}).filter(argKey => 
+                        argKey !== key && !Object.keys(step.values || {}).includes(argKey)
+                      ).map(argKey => (
+                        <option key={argKey} value={argKey}>{argKey}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* Value Input */}
+                  <label
+                    className="border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
+                  >
+                    Value
+                  </label>
+                  <div className="w-full rounded-r border border-neutral-500 flex items-center dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50">
+                    <input
+                      className="w-full border-0 px-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 focus:outline-none"
+                      placeholder="Value content"
+                      value={value}
+                      onChange={(e) => {
+                        const newTemplate = cloneDeep(selectedWorkflow);
+                        if (newTemplate.template?.steps) {
+                          const newValues = { ...newTemplate.template.steps[index].values };
+                          newValues[key] = e.target.value;
+                          newTemplate.template.steps[index].values = newValues;
+                          setSelectedWorkflow(newTemplate);
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
             
             <div className="w-[28px] flex items-center">
@@ -1105,12 +1149,16 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           /></div> }
           /> 
           <div className="absolute right-1 top-[-6px] flex flex-row gap-3">
-             {/* <button
+             <button
               className={`px-2  ${buttonStyle}`}
-              onClick={() => {}}>
+              onClick={() => {
+                setShowWorkflowGenerator(true);
+                setIsPreviewing(false);
+                setDetailedPreview(false);
+              }}>
               {isGeneratingWorkflow ? <IconLoader2 size={18} className='animate-spin' /> : <IconRobot size={18} />}
               AI Generate Workflow
-            </button> */}
+            </button>
             <button
               className={`px-3  ${buttonStyle}`}
               onClick={() => setIsPreviewing(true)}>
@@ -1192,23 +1240,42 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   if (!isOpen) return null;
   
   return (
-    <Modal
-      title={initialTemplate?.templateId ? 'Edit Assistant Workflow Template' : 'Create Assistant Workflow Template'}
-      content={
-        <div className="flex flex-row" style={{height: (window.innerHeight * 0.9) * 0.8}}>
-                {renderSidebar()}
-                { isPreviewing ? renderPreviewContent() : renderMainContent()}
-        </div>
-      }
-      showCancel={false}
-      submitLabel={isSubmitting ? 'Saving Template...' : 'Save Template'}
-      onSubmit={handleSaveTemplate}
-      onCancel={ () => {
-        setSelectedWorkflow(emptyTemplate(isBaseTemplate));
-        onClose();
-      }}
-      disableSubmit={isSubmitting}
-    />
+    <>
+      <Modal
+        title={initialTemplate?.templateId ? 'Edit Assistant Workflow Template' : 'Create Assistant Workflow Template'}
+        content={
+          <div className="flex flex-row" style={{height: (window.innerHeight * 0.9) * 0.8}}>
+                  {renderSidebar()}
+                  { isPreviewing ? renderPreviewContent() : renderMainContent()}
+          </div>
+        }
+        showCancel={false}
+        submitLabel={isSubmitting ? 'Saving Template...' : 'Save Template'}
+        onSubmit={handleSaveTemplate}
+        onCancel={ () => {
+          setSelectedWorkflow(emptyTemplate(isBaseTemplate));
+          onClose();
+        }}
+        disableSubmit={isSubmitting}
+        disableClickOutside={true}
+      />
+      
+      <WorkflowGeneratorModal
+        isOpen={showWorkflowGenerator}
+        onClose={() => {
+          setShowWorkflowGenerator(false);
+          setIsGeneratingWorkflow(false);
+        }}
+        onGenerate={(workflow) => {
+          setSelectedWorkflow(workflow);
+          setShowWorkflowGenerator(false);
+          setIsGeneratingWorkflow(false);
+          setIsPreviewing(false);
+        }}
+        availableApis={availableApis}
+        availableAgentTools={availableAgentTools}
+      />
+    </>
   );
 };
 

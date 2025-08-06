@@ -1,7 +1,7 @@
 import { doRequestOp } from "./doRequestOp";
 
 const URL_PATH = "/assistant";
-const SERVICE_NAME = "groupAssistant";
+const SERVICE_NAME = "assistant";
 
 export const getGroupConversationData = async (assistantId: string, conversationId: string) => {
     const op = {
