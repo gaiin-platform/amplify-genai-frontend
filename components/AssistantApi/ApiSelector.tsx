@@ -64,7 +64,7 @@ export const ApiItemSelector: React.FC<ApiItemSelectorProps> = ({
 
     return (
         <>
-        {displayedApis.length > 0  && opsSearchToggleButtons(opSearchBy, setOpSearchBy, apiSearchTerm, setApiSearchTerm, " mt-4 ml-auto mb-6", '', showDetails)}
+        {displayedApis.length > 0  && opsSearchToggleButtons(opSearchBy, setOpSearchBy, apiSearchTerm, setApiSearchTerm, " mt-6 ml-auto mb-6", '', showDetails)}
         {filteredApis.length > 0 ? (
                 <div className="max-h-[500px] overflow-y-auto">
                     {filteredApis.sort((a, b) => a.name[0].localeCompare(b.name[0]))
