@@ -41,6 +41,7 @@ import { deleteFile } from '@/services/fileService';
 import AssistantDriveDataSources, { cleanupRemovedDatasources, DriveRescanSchedule, hasDriveData } from './AssistantModalComponents/AssistantDriveDataSources';
 import { DriveFilesDataSources } from '@/types/integrations';
 import { determineWebsiteScanCron, manageScheduledTasks, updateScheduledTasks, determineDriveScanCron, AssistantScheduledTaskUses } from '@/utils/app/scheduledTasks';
+import { validateUrl } from '@/utils/app/data';
 
 
 interface Props {
@@ -170,10 +171,15 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         }
     });
     const websiteUrlHasDs = (ds:AttachedDocument[], url: string) => ds.find((ds:any) => ds.metadata?.sourceUrl === url || ds.metadata?.fromSitemap === url);
+    
+    const initialWebsiteUrls = (websiteUrls: any) => {
+        if (!websiteUrls || !Array.isArray(websiteUrls)) return [];
+        return definition.data?.websiteUrls.filter((urlItem: any) => validateUrl(urlItem.sourceUrl, urlItem.isSitemap).isValid);
 
-    const [websiteUrls, setWebsiteUrls] = useState<any[]>(definition.data?.websiteUrls || []);
+    }
+    const [websiteUrls, setWebsiteUrls] = useState<any[]>(initialWebsiteUrls(definition.data?.websiteUrls));
     // console.log("websiteUrls", websiteUrls);
-    (websiteUrls || []).forEach((urlItem: any) => {
+    websiteUrls.forEach((urlItem: any) => {
         if (!websiteUrlHasDs(initialDs, urlItem.url)) {
             // console.log("No existing ds found for", urlItem);
             // detect if a url or sitemap failed to scrape and turn into a ds 
@@ -860,6 +866,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             // ensure we have the data synced up with the backend
             
             if (newAssistant.data) {
+                // console.log("ast_data", ast_data);
                 newAssistant.data.websiteUrls = ast_data.websiteUrls;
                 newAssistant.data.integrationDriveData = ast_data.integrationDriveData;
             }
