@@ -65,6 +65,10 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
     
     const [codeBlocks, setCodeBlocks] = useState<CodeBlockDetails[]>([]);
 
+    // Add state for dynamic width adjustment
+    const [dynamicWidth, setDynamicWidth] = useState<string>('auto');
+    const artifactsRef = useRef<HTMLDivElement>(null);
+
 
     useEffect(() => {
         setIsPreviewing(false);
@@ -74,6 +78,78 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
         if (!artifactIsStreaming)  setCodeBlocks(extractCodeBlocksAndText(getArtifactContents()));
         console.log(codeBlocks);
     }, [artifactIsStreaming, versionIndex, selectArtifactList]);
+
+    // Add ResizeObserver to detect space usage
+    useEffect(() => {
+        const detectSpaceUsage = () => {
+            const mainContainer = document.querySelector('.flex.h-full');
+            const chatScrollWindow = document.querySelector('#chatScrollWindow');
+            
+            if (mainContainer && chatScrollWindow) {
+                const containerRect = mainContainer.getBoundingClientRect();
+                const chatRect = chatScrollWindow.getBoundingClientRect();
+                
+                // Calculate how much of the chat area is actually being used
+                const chatContentElements = chatScrollWindow.querySelectorAll('.enhanced-chat-message');
+                let maxContentWidth = 0;
+                
+                chatContentElements.forEach(element => {
+                    const elementRect = element.getBoundingClientRect();
+                    if (elementRect.width > maxContentWidth) {
+                        maxContentWidth = elementRect.width;
+                    }
+                });
+                
+                // If chat content is narrow, signal the grid to be more flexible
+                const chatAreaWidth = chatRect.width;
+                const utilizationRatio = maxContentWidth / chatAreaWidth;
+                
+                if (utilizationRatio < 0.6) {
+                    // Chat is using less than 60% of its space, expand artifacts
+                    setDynamicWidth('calc(100vw - 400px)'); // Reduced from 300px to 400px to give more space to chat
+                } else {
+                    setDynamicWidth('40vw'); // Reduced from 50vw to 40vw for default size
+                }
+                
+                // Apply the change to the parent grid container
+                const gridContainer = mainContainer.querySelector('.grid.grid-cols-2');
+                if (gridContainer) {
+                    if (utilizationRatio < 0.6) {
+                        (gridContainer as HTMLElement).style.gridTemplateColumns = '3fr 2fr'; // Changed from 1fr 2fr to 3fr 2fr (60/40 split favoring chat)
+                    } else {
+                        (gridContainer as HTMLElement).style.gridTemplateColumns = '3fr 2fr'; // Changed from 1fr 1fr to 3fr 2fr (60/40 split favoring chat)
+                    }
+                }
+            }
+        };
+
+        // Immediate detection on mount
+        detectSpaceUsage();
+        
+        const handleResize = throttle(detectSpaceUsage, 250);
+        window.addEventListener('resize', handleResize);
+
+        const handleArtifactEvent = (event: any) => {
+            // Immediate detection when artifacts open/close
+            setTimeout(detectSpaceUsage, 0);
+            // Also check after DOM settles
+            setTimeout(detectSpaceUsage, 50);
+        };
+        
+        window.addEventListener('openArtifactsTrigger', handleArtifactEvent);
+
+        // Check when chat content changes (messages added/edited)
+        const handleChatReRender = () => {
+            setTimeout(detectSpaceUsage, 100);
+        };
+        window.addEventListener('triggerChatReRender', handleChatReRender);
+
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            window.removeEventListener('openArtifactsTrigger', handleArtifactEvent);
+            window.removeEventListener('triggerChatReRender', handleChatReRender);
+        };
+    }, []);
 
 
     const conversationsRef = useRef(conversations);
@@ -315,6 +391,20 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
     const handleShareArtifact = async () => {
 // add users email model 
         setIsLoading('Sharing Artifact...');
+        
+        // If no emails in shareWith but there are emails in input, add them first
+        if (shareWith.length === 0 && input.trim()) {
+            handleAddEmails();
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+        // After adding emails, check if we still have no emails to share with
+        if (shareWith.length === 0) {
+            setIsLoading('');
+            alert('Please add at least one email address to share with.');
+            return;
+        }
+        
         statsService.shareArtifactEvent(selectArtifactList[versionIndex], shareWith);
         const result = await shareArtifact(selectArtifactList[versionIndex], shareWith);
         if (result.success) {
@@ -408,8 +498,13 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
 }
 
    return ( 
-   <div id="artifactsTab" className={`text-base overflow-hidden h-full bg-gray-200 dark:bg-[#343541] text-black dark:text-white border-l border-black px-2`}>
-        <div className="flex flex-col h-full" > 
+   <div 
+        ref={artifactsRef}
+        id="artifactsTab" 
+        className={`text-base overflow-hidden h-full bg-gray-200 dark:bg-[#343541] text-black dark:text-white border-l border-black px-2`}
+        style={{ width: dynamicWidth, minWidth: '400px', transition: 'width 0.3s ease-in-out' }}
+   >
+        <div className="flex flex-col h-full " > 
             {/* Modals */}
            
                 {isLoading && 
