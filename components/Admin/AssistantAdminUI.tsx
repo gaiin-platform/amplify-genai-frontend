@@ -529,7 +529,9 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                     return curPrompt;
                                 });
                                 homeDispatch({ field: 'prompts', value: updatedPrompts });
-                                setActiveSubTab('edit_assistant');
+                                setTimeout(() => {
+                                    setActiveSubTab('edit_assistant');
+                                }, 800);
                             } else {
                                 alert("Something went wrong, please close and reopen the admin interface before trying again.")
                             }
