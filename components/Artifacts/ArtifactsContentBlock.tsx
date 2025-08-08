@@ -58,7 +58,7 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
     }, []);
     
     return (
-    <div className="artifactContentBlock w-full p-2 "
+    <div className="artifactContentBlock w-full p-2"
         id="artifactsContentBlock"
         data-artifact-id={artifactId}
         data-version-index={versionIndex}
@@ -66,7 +66,7 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
         >
     <MemoizedReactMarkdown
         key={renderKey}
-        className=" prose dark:prose-invert flex-1"
+        className="prose dark:prose-invert flex-1 max-w-none w-full"
         remarkPlugins={[remarkGfm, remarkMath]}
         //onMouseUp={handleTextHighlight}
         // @ts-ignore
