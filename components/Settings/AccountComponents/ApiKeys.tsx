@@ -690,7 +690,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    {!apiKey.delegate &&apiKey.active && apiKey.needs_rotation && rotationWarningLabel()}
+                                                    {!apiKey.delegate && apiKey.active && apiKey.needs_rotation && !apiKey.purpose && rotationWarningLabel()}
                                                     {activeLabel(apiKey.active, apiKey.api_owner_id, apiKey.applicationName)}
                                                     
 
@@ -748,7 +748,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                         </div>
                                                     </div>
                                                     
-                                                    {!apiKey.delegate && apiKey.active && (
+                                                    {!apiKey.delegate && apiKey.active && !apiKey.purpose && (
                                                     <RotateApiKey id={apiKey.api_owner_id} 
                                                         onRotate={(rotatedKeyId: string) => {
                                                                 // Update owner keys
