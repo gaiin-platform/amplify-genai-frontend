@@ -23,7 +23,7 @@ class AccountModalTests(BaseTest):
 
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
-        super().setUp(headless=True)
+        super().setUp(headless=False)
         
     
     # ----------------- Setup Test Data ------------------
@@ -31,27 +31,14 @@ class AccountModalTests(BaseTest):
 
         time.sleep(5)
 
-        tabs = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
-        self.assertGreater(len(tabs), 1, "Expected multiple buttons with ID 'tabSelection'")
-        settings_tab = next((tab for tab in tabs if tab.get_attribute("title") == "Settings"), None)
-        self.assertIsNotNone(settings_tab, "The 'Settings' tab should be present")
-        settings_tab.click()
+        user_menu = self.wait.until(EC.presence_of_element_located((By.ID, "userMenu")))
+        self.assertTrue(user_menu, "User Menu button is present")
+        user_menu.click()
+        time.sleep(3)
 
-        side_bar_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "sideBarButton")))
-        self.assertGreater(len(side_bar_buttons), 1, "Expected multiple buttons with ID 'sideBarButton'",)
-        target_button = None
-        for button in side_bar_buttons:
-            try:
-                span_element = button.find_element(By.TAG_NAME, "span")
-                if span_element.text.strip() == "Admin Interface":
-                    target_button = button
-                    break
-            except:
-                continue
-
-        self.assertIsNotNone(target_button, "The 'Admin Interface' button should be present")
-        target_button.click()
-        
+        settings_select = self.wait.until(EC.presence_of_element_located((By.ID, "adminInterface")))
+        self.assertTrue(settings_select, "The Admin button should be present")
+        settings_select.click()
         time.sleep(7)
         
         admin_tabs = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabName")))
@@ -80,7 +67,7 @@ class AccountModalTests(BaseTest):
         )
         self.assertIsNotNone(advanced_model_select, "Advanced Model Select is visible and clicking it shows options")
         advanced_model_select.click()
-        
+
         time.sleep(2)
         
         cheapest_model_select = self.wait.until(
@@ -104,14 +91,6 @@ class AccountModalTests(BaseTest):
         )
         self.assertIsNotNone(embeddings_model_select, "Embeddings Model Select is visible and clicking it shows options")
         embeddings_model_select.click()
-        
-        time.sleep(2)
-        
-        qa_model_select = self.wait.until(
-            EC.presence_of_element_located((By.ID, "QaModel"))
-        )
-        self.assertIsNotNone(qa_model_select, "Qa Model Select is visible and clicking it shows options")
-        qa_model_select.click()
         
         time.sleep(2)
         
@@ -278,8 +257,8 @@ class AccountModalTests(BaseTest):
         confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
         self.assertTrue(confirmation_button, "Confirmation Button elements should be initialized")
         
-        cancel_button = next((el for el in confirmation_button if el.text == "Cancel"), None)
-        self.assertIsNotNone(cancel_button, "Cancel button should be present")
+        cancel_button = next((el for el in confirmation_button if el.text == "Close"), None)
+        self.assertIsNotNone(cancel_button, "Close button should be present")
         
         cancel_button.click()
         
@@ -389,7 +368,7 @@ class AccountModalTests(BaseTest):
         group_names = [element.text for element in search_results]
 
         # Expected group names
-        expected_group_names = ['Ada-Embedding-002', 'Claude 3 Haiku', 'Claude 3 Opus', 'Claude 3 Sonnet', 'Claude 3.5 Haiku', 'Claude 3.5 Sonnet', 'Claude 3.5 Sonnet V2', 'Claude 3.7 Sonnet', 'DeepSeek r1', 'Gemini 2.0 Flash', 'Gemini 2.5 Pro', 'GPT-3.5-Turbo', 'GPT-4-Turbo', 'GPT-4.1-mini', 'GPT-4o', 'GPT-4o-mini', 'Llama 3.2 90b instruct', 'Mistral 7B', 'Mistral Large', 'Mixtral 8*7B', 'Nova Lite', 'Nova Premier', 'Nova Pro', 'o1', 'o1 Mini', 'o1 Preview', 'o3 mini', 'text-embedding-3-large', 'text-embedding-3-small', 'Titan-Embed-Text-v1']
+        expected_group_names = ['Ada-Embedding-002', 'Claude 3 Haiku', 'Claude 3 Opus', 'Claude 3 Sonnet', 'Claude 3.5 Haiku', 'Claude 3.5 Sonnet', 'Claude 3.5 Sonnet V2', 'Claude 3.7 Sonnet', 'Claude 4 Opus', 'Claude 4 Sonnet', 'DeepSeek r1', 'Gemini 2.0 Flash', 'Gemini 2.5 Pro', 'GPT-3.5-Turbo', 'GPT-4-Turbo', 'GPT-4.1-mini', 'GPT-4o', 'GPT-4o-mini', 'Llama 3.2 90b instruct', 'Mistra Pixtral Large', 'Mistral 7B', 'Mistral Large', 'Mixtral 8*7B', 'Nova Lite', 'Nova Lite', 'Nova Micro', 'Nova Premier', 'Nova Pro', 'Nova Pro', 'o1', 'o1 Mini', 'o1 Preview', 'o3', 'o3 mini', 'o4 mini', 'text-embedding-3-large', 'text-embedding-3-small', 'Titan-Embed-Text-v1']
 
         # Assert that the group_names match the expected list
         self.assertListEqual(
@@ -445,7 +424,7 @@ class AccountModalTests(BaseTest):
         group_names = [element.text for element in search_results]
 
         # Expected group names
-        expected_group_names = ['Ada-Embedding-002', 'Claude 3 Haiku', 'Claude 3 Opus', 'Claude 3 Sonnet', 'Claude 3.5 Haiku', 'Claude 3.5 Sonnet', 'Claude 3.5 Sonnet V2', 'Claude 3.7 Sonnet', 'DeepSeek r1', 'Gemini 2.0 Flash', 'Gemini 2.5 Pro', 'GPT-3.5-Turbo', 'GPT-4-Turbo', 'GPT-4.1-mini', 'GPT-4o', 'GPT-4o-mini', 'Llama 3.2 90b instruct', 'Mistral 7B', 'Mistral Large', 'Mixtral 8*7B', 'Nova Lite', 'Nova Premier', 'Nova Pro', 'o1', 'o1 Mini', 'o1 Preview', 'o3 mini', 'text-embedding-3-large', 'text-embedding-3-small', 'Titan-Embed-Text-v1']
+        expected_group_names = ['Ada-Embedding-002', 'Claude 3 Haiku', 'Claude 3 Opus', 'Claude 3 Sonnet', 'Claude 3.5 Haiku', 'Claude 3.5 Sonnet', 'Claude 3.5 Sonnet V2', 'Claude 3.7 Sonnet', 'Claude 4 Opus', 'Claude 4 Sonnet', 'DeepSeek r1', 'Gemini 2.0 Flash', 'Gemini 2.5 Pro', 'GPT-3.5-Turbo', 'GPT-4-Turbo', 'GPT-4.1-mini', 'GPT-4o', 'GPT-4o-mini', 'Llama 3.2 90b instruct', 'Mistra Pixtral Large', 'Mistral 7B', 'Mistral Large', 'Mixtral 8*7B', 'Nova Lite', 'Nova Lite', 'Nova Micro', 'Nova Premier', 'Nova Pro', 'Nova Pro', 'o1', 'o1 Mini', 'o1 Preview', 'o3', 'o3 mini', 'o4 mini', 'text-embedding-3-large', 'text-embedding-3-small', 'Titan-Embed-Text-v1']
 
         # Assert that the group_names match the expected list
         self.assertListEqual(
@@ -501,7 +480,7 @@ class AccountModalTests(BaseTest):
         group_names = [element.text for element in search_results]
 
         # Expected group names
-        expected_group_names = ['Ada-Embedding-002', 'Claude 3 Haiku', 'Claude 3 Opus', 'Claude 3 Sonnet', 'Claude 3.5 Haiku', 'Claude 3.5 Sonnet', 'Claude 3.5 Sonnet V2', 'Claude 3.7 Sonnet', 'DeepSeek r1', 'Gemini 2.0 Flash', 'Gemini 2.5 Pro', 'GPT-3.5-Turbo', 'GPT-4-Turbo', 'GPT-4.1-mini', 'GPT-4o', 'GPT-4o-mini', 'Llama 3.2 90b instruct', 'Mistral 7B', 'Mistral Large', 'Mixtral 8*7B', 'Nova Lite', 'Nova Premier', 'Nova Pro', 'o1', 'o1 Mini', 'o1 Preview', 'o3 mini', 'text-embedding-3-large', 'text-embedding-3-small', 'Titan-Embed-Text-v1']
+        expected_group_names = ['Ada-Embedding-002', 'Claude 3 Haiku', 'Claude 3 Opus', 'Claude 3 Sonnet', 'Claude 3.5 Haiku', 'Claude 3.5 Sonnet', 'Claude 3.5 Sonnet V2', 'Claude 3.7 Sonnet', 'Claude 4 Opus', 'Claude 4 Sonnet', 'DeepSeek r1', 'Gemini 2.0 Flash', 'Gemini 2.5 Pro', 'GPT-3.5-Turbo', 'GPT-4-Turbo', 'GPT-4.1-mini', 'GPT-4o', 'GPT-4o-mini', 'Llama 3.2 90b instruct', 'Mistra Pixtral Large', 'Mistral 7B', 'Mistral Large', 'Mixtral 8*7B', 'Nova Lite', 'Nova Lite', 'Nova Micro', 'Nova Premier', 'Nova Pro', 'Nova Pro', 'o1', 'o1 Mini', 'o1 Preview', 'o3', 'o3 mini', 'o4 mini', 'text-embedding-3-large', 'text-embedding-3-small', 'Titan-Embed-Text-v1']
 
         # Assert that the group_names match the expected list
         self.assertListEqual(

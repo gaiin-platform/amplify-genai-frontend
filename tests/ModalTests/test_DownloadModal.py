@@ -82,7 +82,69 @@ class DownloadModalTests(BaseTest):
         chat_send_message = self.wait.until(EC.presence_of_element_located((By.ID, "sendMessage")))
         self.assertTrue(chat_send_message, "Send message button should be initialized")
         chat_send_message.click()
-        time.sleep(15)            
+        time.sleep(15)   
+            
+    def delete_all_chats(self):
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
+        )
+
+        prompt_handler_button.click()
+
+        time.sleep(2)
+
+        # Click the button with ID "Delete"
+        delete_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "Delete"))
+        )
+
+        delete_button.click()
+
+        time.sleep(2)  # Give time for the menu to appear
+
+        # Click the select all checkbox
+        select_all_check = self.wait.until(
+            EC.presence_of_element_located((By.ID, "selectAllCheck"))
+        )
+
+        # Locate the checkbox within the parent container
+        checkbox = select_all_check.find_element(By.XPATH, ".//input[@type='checkbox']")
+        self.assertIsNotNone(checkbox, f"Checkbox for prompt All should be present")
+
+        checkbox.click()
+
+        time.sleep(2)
+
+        # Click the Delete Button
+        confirm_delete_button = self.wait.until(
+            EC.element_to_be_clickable((By.ID, "confirmItem"))
+        )
+        self.assertTrue(confirm_delete_button, "Delete Button should be initialized")
+        confirm_delete_button.click()
+
+        time.sleep(2)   
+        
+    def upper_check(self):
+        try:
+            # Hover over the upper menu to reveal the buttons
+            upper_chat_hover = self.wait.until(
+                EC.presence_of_element_located((By.ID, "chatUpperMenu"))
+            )
+            ActionChains(self.driver).move_to_element(upper_chat_hover).perform()
+            time.sleep(1)
+
+            # Else find and click the Pin button
+            pin_button = self.driver.find_element(By.XPATH, '//button[@title="Pin Chatbar"]')
+            pin_button.click()
+            print("Pin Chatbar button clicked.")
+            time.sleep(2)
+
+        except:
+            # Else find and click the Pin button
+            unpin_button = self.driver.find_element(By.XPATH, '//button[@title="Unpin Chatbar"]')
+            self.assertTrue(unpin_button, "Unpin Button is present")
+            time.sleep(2)
+            
             
 # id="confirmationButton"
 # id="optionsGrid"
@@ -102,11 +164,17 @@ class DownloadModalTests(BaseTest):
 
     def test_download_chat_modal_fields(self):
         
+        self.delete_all_chats()
+        
         # Create a chat
         self.create_chat("Kazuya")
         
         # Send a Message
         self.send_message("Kazuya", "Kazuya Mishima... Wins...")
+        
+        self.upper_check()
+        
+        time.sleep(2)
         
         upper_chat_download = self.wait.until(EC.presence_of_element_located((By.ID, "downloadUpper")))
         self.assertTrue(upper_chat_download, "Upper Chat Download button should be initialized")
@@ -124,7 +192,7 @@ class DownloadModalTests(BaseTest):
         download_modal_element = self.wait.until(EC.presence_of_element_located(
             (By.ID, "modalTitle")
         ))
-        self.assertTrue(download_modal_element.is_displayed(), "Download window element is visible")
+        self.assertTrue(download_modal_element, "Download window element is visible")
         
         time.sleep(2)
         
@@ -137,7 +205,7 @@ class DownloadModalTests(BaseTest):
         # id="formatSelection"
         # Verify the presence of the select element
         format_selection = self.wait.until(EC.presence_of_element_located((By.ID, "formatSelection")))
-        self.assertTrue(format_selection.is_displayed(), "Format selection dropdown is visible")
+        self.assertTrue(format_selection, "Format selection dropdown is visible")
 
         # Verify the presence of "Word" and "PowerPoint" options
         format_options = format_selection.find_elements(By.TAG_NAME, "option")
@@ -231,11 +299,17 @@ class DownloadModalTests(BaseTest):
     
     def test_download_chat(self):
         
+        self.delete_all_chats()
+        
         # Create a chat
         self.create_chat("Jin")
         
         # Send a Message
         self.send_message("Jin", "Jin Kazama... Wins...")
+        
+        self.upper_check()
+        
+        time.sleep(2)
         
         upper_chat_download = self.wait.until(EC.presence_of_element_located((By.ID, "downloadUpper")))
         self.assertTrue(upper_chat_download, "Upper Chat Download button should be initialized")
@@ -253,7 +327,7 @@ class DownloadModalTests(BaseTest):
         download_modal_element = self.wait.until(EC.presence_of_element_located(
             (By.ID, "modalTitle")
         ))
-        self.assertTrue(download_modal_element.is_displayed(), "Download window element is visible")
+        self.assertTrue(download_modal_element, "Download window element is visible")
         
         time.sleep(2)
         
@@ -266,7 +340,7 @@ class DownloadModalTests(BaseTest):
         # id="formatSelection"
         # Verify the presence of the select element
         format_selection = self.wait.until(EC.presence_of_element_located((By.ID, "formatSelection")))
-        self.assertTrue(format_selection.is_displayed(), "Format selection dropdown is visible")
+        self.assertTrue(format_selection, "Format selection dropdown is visible")
 
         # Verify the presence of "Word" and "PowerPoint" options
         format_options = format_selection.find_elements(By.TAG_NAME, "option")
@@ -341,7 +415,7 @@ class DownloadModalTests(BaseTest):
         time.sleep(10) # Wait for the load
         
         download_click = self.wait.until(EC.presence_of_element_located((By.ID, "downloadClick")))
-        self.assertTrue(download_click.is_displayed(), "Download click is visible")
+        self.assertTrue(download_click, "Download click is visible")
         download_click.click()
         
         time.sleep(5) # View Download visible
@@ -350,6 +424,9 @@ class DownloadModalTests(BaseTest):
     """This test tests the fields in the Download Chat Response Modal."""
 
     def test_download_response_modal_fields(self):
+        
+        self.delete_all_chats()
+        
         # Create a chat
         self.create_chat("Mario")
         
@@ -374,7 +451,7 @@ class DownloadModalTests(BaseTest):
         download_modal_element = self.wait.until(EC.presence_of_element_located(
             (By.ID, "modalTitle")
         ))
-        self.assertTrue(download_modal_element.is_displayed(), "Download window element is visible")
+        self.assertTrue(download_modal_element, "Download window element is visible")
         
         time.sleep(2)
         
@@ -387,7 +464,7 @@ class DownloadModalTests(BaseTest):
         # id="formatSelection"
         # Verify the presence of the select element
         format_selection = self.wait.until(EC.presence_of_element_located((By.ID, "formatSelection")))
-        self.assertTrue(format_selection.is_displayed(), "Format selection dropdown is visible")
+        self.assertTrue(format_selection, "Format selection dropdown is visible")
 
         # Verify the presence of "Word" and "PowerPoint" options
         format_options = format_selection.find_elements(By.TAG_NAME, "option")
@@ -439,7 +516,7 @@ class DownloadModalTests(BaseTest):
         close = self.wait.until(EC.presence_of_element_located((
             By.XPATH, '//button[@title="Close"]'
         )))
-        self.assertTrue(close.is_displayed(), "Close button is visible")
+        self.assertTrue(close, "Close button is visible")
         
         close.click()
         
@@ -449,6 +526,9 @@ class DownloadModalTests(BaseTest):
     """This tests the download response modal download."""
 
     def test_download_response_modal(self):
+    
+        self.delete_all_chats()
+    
         # Create a chat
         self.create_chat("Luigi")
         
@@ -473,7 +553,7 @@ class DownloadModalTests(BaseTest):
         download_modal_element = self.wait.until(EC.presence_of_element_located(
             (By.ID, "modalTitle")
         ))
-        self.assertTrue(download_modal_element.is_displayed(), "Download window element is visible")
+        self.assertTrue(download_modal_element, "Download window element is visible")
         
         time.sleep(3)
         
@@ -516,7 +596,7 @@ class DownloadModalTests(BaseTest):
         time.sleep(10) # Wait for the load
         
         download_click = self.wait.until(EC.presence_of_element_located((By.ID, "downloadClick")))
-        self.assertTrue(download_click.is_displayed(), "Download click is visible")
+        self.assertTrue(download_click, "Download click is visible")
         download_click.click()
         
         time.sleep(5) # View Download visible

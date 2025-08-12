@@ -23,7 +23,7 @@ class AccountModalTests(BaseTest):
 
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
-        super().setUp(headless=False)
+        super().setUp(headless=True)
         
     
     # ----------------- Setup Test Data ------------------
@@ -31,27 +31,14 @@ class AccountModalTests(BaseTest):
 
         time.sleep(5)
 
-        tabs = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
-        self.assertGreater(len(tabs), 1, "Expected multiple buttons with ID 'tabSelection'")
-        settings_tab = next((tab for tab in tabs if tab.get_attribute("title") == "Settings"), None)
-        self.assertIsNotNone(settings_tab, "The 'Settings' tab should be present")
-        settings_tab.click()
+        user_menu = self.wait.until(EC.presence_of_element_located((By.ID, "userMenu")))
+        self.assertTrue(user_menu, "User Menu button is present")
+        user_menu.click()
+        time.sleep(3)
 
-        side_bar_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "sideBarButton")))
-        self.assertGreater(len(side_bar_buttons), 1, "Expected multiple buttons with ID 'sideBarButton'",)
-        target_button = None
-        for button in side_bar_buttons:
-            try:
-                span_element = button.find_element(By.TAG_NAME, "span")
-                if span_element.text.strip() == "Admin Interface":
-                    target_button = button
-                    break
-            except:
-                continue
-
-        self.assertIsNotNone(target_button, "The 'Admin Interface' button should be present")
-        target_button.click()
-        
+        settings_select = self.wait.until(EC.presence_of_element_located((By.ID, "adminInterface")))
+        self.assertTrue(settings_select, "The Admin button should be present")
+        settings_select.click()
         time.sleep(7)
         
         admin_tabs = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabName")))

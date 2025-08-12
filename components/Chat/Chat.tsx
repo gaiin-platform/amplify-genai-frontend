@@ -1148,7 +1148,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     {featureFlags.integrations && <IntegrationsDialog open={isIntegrationsOpen} onClose={()=>{setIsIntegrationsOpen(false)}}/>}
 
                                     <div
-                                       id="chatUpperMenu"
                                        className={isBarSticky ? 
                                            "items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100 text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200 text-gray-800 dark:text-gray-200" :
                                            "sticky top-4 mt-4 flex justify-center items-center z-10"
@@ -1256,12 +1255,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     border border-gray-200 dark:border-gray-600 h-10 text-gray-800 dark:text-gray-200
                                                     ${isPillExpanded ? 'px-6' : 'px-3'}
                                                 `}
+                                                id="chatUpperMenu"
                                                 onMouseEnter={() => setIsPillExpanded(true)}
                                                 onMouseLeave={() => setIsPillExpanded(false)}
                                             >
                                                 {/* Always visible - Model name and expand indicator */}
                                                 <button
                                                     className="font-medium cursor-pointer hover:opacity-50 flex flex-row items-center"
+                                                    id="modelChatSettings"
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();

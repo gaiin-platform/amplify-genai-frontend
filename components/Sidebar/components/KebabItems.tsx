@@ -102,6 +102,7 @@ export const KebabMenuItems: FC<MenuItemsProps> = ({ label, children}) => {
     <div>
       <div className="border-b dark:border-white/20">
         <button
+          id="folderSort"
           className="w-full flex items-center justify-between pr-2 pl-2 py-1.5 cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#343541]/90 transition-all duration-200"
           onClick={() => setIsExpanded(!isExpanded)}
         >

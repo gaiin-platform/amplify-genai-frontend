@@ -23,7 +23,7 @@ class AccountModalTests(BaseTest):
 
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
-        super().setUp(headless=True)
+        super().setUp(headless=False)
         
     
     # ----------------- Setup Test Data ------------------
@@ -31,26 +31,22 @@ class AccountModalTests(BaseTest):
 
         time.sleep(5)
 
-        tabs = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
-        self.assertGreater(len(tabs), 1, "Expected multiple buttons with ID 'tabSelection'")
-        settings_tab = next((tab for tab in tabs if tab.get_attribute("title") == "Settings"), None)
-        self.assertIsNotNone(settings_tab, "The 'Settings' tab should be present")
-        settings_tab.click()
+        user_menu = self.wait.until(EC.presence_of_element_located((By.ID, "userMenu")))
+        self.assertTrue(user_menu, "User Menu button is present")
+        user_menu.click()
+        time.sleep(3)
 
-        side_bar_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "sideBarButton")))
-        self.assertGreater(len(side_bar_buttons), 1, "Expected multiple buttons with ID 'sideBarButton'",)
-        target_button = None
-        for button in side_bar_buttons:
-            try:
-                span_element = button.find_element(By.TAG_NAME, "span")
-                if span_element.text.strip() == "Manage Accounts":
-                    target_button = button
-                    break
-            except:
-                continue
-
-        self.assertIsNotNone(target_button, "The 'Manage Accounts' button should be present")
-        target_button.click()
+        settings_select = self.wait.until(EC.presence_of_element_located((By.ID, "settingsInterface")))
+        self.assertTrue(settings_select, "The Settings button should be present")
+        settings_select.click()
+        time.sleep(7)
+        
+        tabs = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabName")))
+        self.assertGreater(len(tabs), 1, "Expected multiple buttons with ID 'tabName'")
+        admin_supported_models_tab = next((tab for tab in tabs if tab.text == "Accounts"), None)
+        self.assertIsNotNone(admin_supported_models_tab, "The 'Accounts' tab should be present")
+        admin_supported_models_tab.click()
+        time.sleep(5)
 
     
     # ----------------- Test Manage Account Features in Accounts Tab -----------------
@@ -58,12 +54,11 @@ class AccountModalTests(BaseTest):
         
         self.settings_manage_accounts()
         
-        time.sleep(10) # Manage Accounts maximum load time
-        
         account_name_field = self.wait.until(
             EC.presence_of_element_located((By.ID, "accountNameInput"))
         )
         account_name_field.clear()
+        time.sleep(1)
         account_name_field.send_keys("Hollow Knight")
         
         time.sleep(2)
@@ -72,6 +67,7 @@ class AccountModalTests(BaseTest):
             EC.presence_of_element_located((By.ID, "coaStringInput"))
         )
         coa_string_field.clear()
+        time.sleep(1)
         coa_string_field.send_keys("Chick-Fil-A Sauce")
         
         time.sleep(2)
@@ -115,13 +111,13 @@ class AccountModalTests(BaseTest):
         # Hover over the Account Rate Limit Hover
         account_rate_limit_hover = self.wait.until(EC.presence_of_all_elements_located((By.ID, "accountRateLimitHover")))
         ActionChains(self.driver).move_to_element(account_rate_limit_hover[-1]).perform()
-        time.sleep(1)  # Give time for the edit button
+        time.sleep(2)  # Give time for the edit button
 
         # Click the edit button
         edit_button = self.wait.until(
-            EC.element_to_be_clickable((By.ID, "editRate"))
+            EC.presence_of_all_elements_located((By.ID, "editRate"))
         )
-        edit_button.click()
+        edit_button[-1].click()
         
         time.sleep(2)
         
@@ -157,9 +153,9 @@ class AccountModalTests(BaseTest):
 
         # Click the edit button
         edit_button = self.wait.until(
-            EC.element_to_be_clickable((By.ID, "editRate"))
+            EC.presence_of_all_elements_located((By.ID, "editRate"))
         )
-        edit_button.click()
+        edit_button[-1].click()
         
         time.sleep(2)
         
@@ -202,10 +198,10 @@ class AccountModalTests(BaseTest):
         
         # Test the Confirm Changes
         cancel_button = self.wait.until(
-            EC.element_to_be_clickable((By.ID, "cancel"))
+            EC.presence_of_all_elements_located((By.ID, "confirmationButton"))
         )
-        self.assertIsNotNone(cancel_button, "Cancel button can be clicked")
-        cancel_button.click()
+        self.assertTrue(cancel_button, "Cancel button can be clicked")
+        cancel_button[0].click()
         
         try:
             # Switch to the JavaScript alert
@@ -314,10 +310,10 @@ class AccountModalTests(BaseTest):
     
         # Test the Confirm Changes
         cancel_button = self.wait.until(
-            EC.element_to_be_clickable((By.ID, "cancel"))
+            EC.presence_of_all_elements_located((By.ID, "confirmationButton"))
         )
-        self.assertIsNotNone(cancel_button, "Cancel button can be clicked")
-        cancel_button.click()
+        self.assertTrue(cancel_button, "Cancel button can be clicked")
+        cancel_button[0].click()
         
         try:
             # Switch to the JavaScript alert
@@ -527,13 +523,12 @@ class AccountModalTests(BaseTest):
         
         self.settings_manage_accounts()
         
-        time.sleep(10) # Manage Accounts maximum load time
-        
-        api_tab_button = self.wait.until(
-            EC.element_to_be_clickable((By.ID, "apiTab"))
-        )
-        self.assertIsNotNone(api_tab_button, "API Tab button can be clicked")
-        api_tab_button.click()
+        tabs = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabName")))
+        self.assertGreater(len(tabs), 1, "Expected multiple buttons with ID 'tabName'")
+        admin_supported_models_tab = next((tab for tab in tabs if tab.text == "API Access"), None)
+        self.assertIsNotNone(admin_supported_models_tab, "The 'API Access' tab should be present")
+        admin_supported_models_tab.click()
+        time.sleep(5)
         
         time.sleep(2)
         

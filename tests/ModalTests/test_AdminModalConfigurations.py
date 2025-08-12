@@ -33,26 +33,23 @@ class AdminConfigurationsModalTests(BaseTest):
 
         time.sleep(5)
 
-        tabs = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
-        self.assertGreater(len(tabs), 1, "Expected multiple buttons with ID 'tabSelection'")
-        settings_tab = next((tab for tab in tabs if tab.get_attribute("title") == "Settings"), None)
-        self.assertIsNotNone(settings_tab, "The 'Settings' tab should be present")
-        settings_tab.click()
+        user_menu = self.wait.until(EC.presence_of_element_located((By.ID, "userMenu")))
+        self.assertTrue(user_menu, "User Menu button is present")
+        user_menu.click()
+        time.sleep(3)
 
-        side_bar_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "sideBarButton")))
-        self.assertGreater(len(side_bar_buttons), 1, "Expected multiple buttons with ID 'sideBarButton'",)
-        target_button = None
-        for button in side_bar_buttons:
-            try:
-                span_element = button.find_element(By.TAG_NAME, "span")
-                if span_element.text.strip() == "Admin Interface":
-                    target_button = button
-                    break
-            except:
-                continue
-
-        self.assertIsNotNone(target_button, "The 'Admin Interface' button should be present")
-        target_button.click()
+        settings_select = self.wait.until(EC.presence_of_element_located((By.ID, "adminInterface")))
+        self.assertTrue(settings_select, "The Admin button should be present")
+        settings_select.click()
+        time.sleep(7)
+        
+        admin_tabs = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabName")))
+        self.assertGreater(len(admin_tabs), 1, "Expected multiple buttons with ID 'tabName'")
+        admin_supported_models_tab = next((tab for tab in admin_tabs if tab.text == "Configurations"), None)
+        self.assertIsNotNone(admin_supported_models_tab, "The 'Configurations' tab should be present")
+        admin_supported_models_tab.click()
+        
+        time.sleep(5)
 
     # ----------------- Test Configurations Fields----------------- 
     def test_manage_account_features(self):
@@ -277,7 +274,7 @@ class AdminConfigurationsModalTests(BaseTest):
         group_names = [element.text for element in search_results]
 
         # Expected group names
-        expected_group_names = ["api_test", "Admins"]  # Update with your actual expected names
+        expected_group_names = ['Admins', 'Amplify_Dev_SoN', 'Amplify_Dev_Students', 'Amplify_Dev', 'api_test']  # Update with your actual expected names
 
         # Assert that the group_names match the expected list
         self.assertListEqual(
@@ -393,7 +390,7 @@ class AdminConfigurationsModalTests(BaseTest):
         group_names = [element.text for element in search_results]
 
         # Expected group names
-        expected_group_names = ["api_test", "Admins"]  # Update with your actual expected names
+        expected_group_names = ['Admins', 'Amplify_Dev_SoN', 'Amplify_Dev_Students', 'Amplify_Dev', 'api_test']  # Update with your actual expected names
 
         # Assert that the group_names match the expected list
         self.assertListEqual(
@@ -457,8 +454,8 @@ class AdminConfigurationsModalTests(BaseTest):
         confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
         self.assertTrue(confirmation_button, "Confirmation Button elements should be initialized")
         
-        cancel_button = next((el for el in confirmation_button if el.text == "Cancel"), None)
-        self.assertIsNotNone(cancel_button, "Cancel button should be present")
+        cancel_button = next((el for el in confirmation_button if el.text == "Close"), None)
+        self.assertIsNotNone(cancel_button, "Close button should be present")
         
         cancel_button.click()
         

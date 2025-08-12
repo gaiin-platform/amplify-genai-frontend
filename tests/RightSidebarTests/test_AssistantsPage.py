@@ -16,7 +16,7 @@ class ActiveAssistantsListTests(BaseTest):
 
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
-        super().setUp(headless=False)
+        super().setUp(headless=True)
 
     # ----------------- Setup Test Data ------------------ 
     """The following tests already ensure that a path is created and the path used in these
@@ -45,7 +45,7 @@ class ActiveAssistantsListTests(BaseTest):
         
         time.sleep(2)
         
-        assistant_name_input = self.wait.until(EC.presence_of_element_located((By.ID, "assistantName")))
+        assistant_name_input = self.wait.until(EC.presence_of_element_located((By.ID, "assistantNameInput")))
         self.assertIsNotNone(assistant_name_input, "Assistant Name input should be present")
         assistant_name_input.clear()
         assistant_name_input.send_keys("Donkey Kong 2")

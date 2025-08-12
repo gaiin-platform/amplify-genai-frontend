@@ -140,7 +140,7 @@ const Sidebar = <T,>({
           setFolderSort={setFolderSort}
         />
         
-        <div className="relative flex-grow w-[268px] enhanced-sidebar overflow-y-auto" style={{ height: 'calc(100vh - 170px)', display: 'flex', flexDirection: 'column' }}>
+        <div className="relative flex-grow w-[268px] enhanced-sidebar overflow-y-auto" id="sidebarScroll" style={{ height: 'calc(100vh - 170px)', display: 'flex', flexDirection: 'column' }}>
           {items?.length > 0 && (
             <div className="flex border-b dark:border-white/20 pb-3 mb-2">
               {folderComponent}

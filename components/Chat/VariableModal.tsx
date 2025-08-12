@@ -565,6 +565,7 @@ export const VariableModal: FC<Props> = ({
                             <div className="flex items-center">
                                 <select
                                     className="rounded border-gray-300 text-neutral-900 shadow-sm focus:border-neutral-500 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
+                                    id="selectTool"
                                     value={variable.value}
                                     onChange={(e) => handleChange(index, e.target.value)}
                                 >

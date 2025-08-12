@@ -23,7 +23,7 @@ class AccountModalTests(BaseTest):
 
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
-        super().setUp(headless=False)
+        super().setUp(headless=True)
         
     
     # ----------------- Setup Test Data ------------------
@@ -31,26 +31,15 @@ class AccountModalTests(BaseTest):
 
         time.sleep(5)
 
-        tabs = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
-        self.assertGreater(len(tabs), 1, "Expected multiple buttons with ID 'tabSelection'")
-        settings_tab = next((tab for tab in tabs if tab.get_attribute("title") == "Settings"), None)
-        self.assertIsNotNone(settings_tab, "The 'Settings' tab should be present")
-        settings_tab.click()
+        user_menu = self.wait.until(EC.presence_of_element_located((By.ID, "userMenu")))
+        self.assertTrue(user_menu, "User Menu button is present")
+        user_menu.click()
+        time.sleep(3)
 
-        side_bar_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "sideBarButton")))
-        self.assertGreater(len(side_bar_buttons), 1, "Expected multiple buttons with ID 'sideBarButton'",)
-        target_button = None
-        for button in side_bar_buttons:
-            try:
-                span_element = button.find_element(By.TAG_NAME, "span")
-                if span_element.text.strip() == "Admin Interface":
-                    target_button = button
-                    break
-            except:
-                continue
-
-        self.assertIsNotNone(target_button, "The 'Admin Interface' button should be present")
-        target_button.click()
+        settings_select = self.wait.until(EC.presence_of_element_located((By.ID, "adminInterface")))
+        self.assertTrue(settings_select, "The Admin button should be present")
+        settings_select.click()
+        time.sleep(7)
         
         time.sleep(7)
         
@@ -83,7 +72,7 @@ class AccountModalTests(BaseTest):
                 
         print(model_names)
         
-        expected_list = ['gpt-4-turbo', 'o1-preview', 'o1', 'o1-mini', 'o3-mini', 'gpt-4o-mini', 'gpt-4.1-mini', 'gpt-4o', 'gpt-35-turbo', 'text-embedding-ada-002', 'code-interpreter']
+        expected_list = ['gpt-4-turbo', 'o1-preview', 'o1', 'o1-mini', 'o3', 'o3-mini', 'o4-mini', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-35-turbo', 'text-embedding-ada-002', 'code-interpreter']
         
         self.assertEqual(model_names, expected_list, "The expected list of models equals the extracted models")
         
@@ -148,14 +137,14 @@ class AccountModalTests(BaseTest):
         
         time.sleep(3)
         
-        # Locate and click the Cancel button
+        # Locate and click the Close button
         confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
         self.assertTrue(confirmation_button, "Confirmation Button elements should be initialized")
         
-        cancel_button = next((el for el in confirmation_button if el.text == "Cancel"), None)
-        self.assertIsNotNone(cancel_button, "Cancel button should be present")
+        close_button = next((el for el in confirmation_button if el.text == "Close"), None)
+        self.assertIsNotNone(close_button, "Close button should be present")
         
-        cancel_button.click()
+        close_button.click()
         
     # ----------------- Test OpenAI Endpoints Create Multiple Endpoints in One Model -----------------
     def test_created_multiple_endpoints_one_model(self):
@@ -262,14 +251,14 @@ class AccountModalTests(BaseTest):
         
         time.sleep(3)
         
-        # Locate and click the Cancel button
+        # Locate and click the Close button
         confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
         self.assertTrue(confirmation_button, "Confirmation Button elements should be initialized")
         
-        cancel_button = next((el for el in confirmation_button if el.text == "Cancel"), None)
-        self.assertIsNotNone(cancel_button, "Cancel button should be present")
+        close_button = next((el for el in confirmation_button if el.text == "Close"), None)
+        self.assertIsNotNone(close_button, "Close button should be present")
         
-        cancel_button.click()
+        close_button.click()
     
 
 if __name__ == "__main__":

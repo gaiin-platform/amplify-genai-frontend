@@ -28,6 +28,14 @@ class LogoutTests(BaseTest):
 
     def test_logout(self):
         time.sleep(3)  # Time to load
+        
+        # id="userMenu"
+        user_menu_button = self.wait.until(EC.element_to_be_clickable((By.ID, "userMenu")))
+        self.assertTrue(user_menu_button, "Logout Button should be initialized")
+
+        user_menu_button.click()
+        
+        time.sleep(2)
 
         # Click the Logout Button
         logout_button = self.wait.until(EC.element_to_be_clickable((By.ID, "logout")))
@@ -35,7 +43,7 @@ class LogoutTests(BaseTest):
 
         logout_button.click()
 
-        time.sleep(5)  # Time to load Logout area
+        time.sleep(10)  # Time to load Logout area
 
         # Ensure login button is visible
         login_button = self.wait.until(

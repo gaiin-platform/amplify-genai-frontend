@@ -232,7 +232,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                     }}
                     onDragStart={(e) => handleDragStart(e, prompt)}
                     title="Use Template"
-                    id="promptClick"
+                    id={isAssistant(prompt) ? "assistantClick" : "promptClick"}
                 >
                     {/*<IconEdit size={18} />*/}
 
@@ -241,7 +241,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                             {getIcon(prompt)}
                         </div>
                         <div
-                            id="promptName"
+                            id={isAssistant(prompt) ? "assistantName" : "promptName"}
                             className="overflow-hidden flex-1 text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-4">
                             {prompt.name}
                         </div>

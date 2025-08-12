@@ -292,6 +292,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
         onClick={handleToggleMenu}
         className="fixed top-4 right-4 z-50 "
         title="User Menu"
+        id="userMenu"
       >
         <div 
           className="cursor-pointer animate-pop"
@@ -388,6 +389,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
           <div 
             ref={menuRef}
             className="relative mt-12 py-2 w-52 bg-white dark:bg-[#202123] rounded-lg border border-neutral-200 dark:border-neutral-600 shadow-xl max-h-[calc(100vh-4rem)] overflow-y-auto"
+            id="userScroll"
             style={{
               boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
             }}
@@ -429,6 +431,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   <button
                     onClick={handleThemeToggle}
                     className="relative flex items-center w-16 h-8 bg-neutral-200 dark:bg-neutral-600 rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                    id={`switchTo${lightMode === 'dark' ? 'light' : 'dark'}Mode`}
                     title={`Switch to ${lightMode === 'dark' ? 'light' : 'dark'} mode`}
                   >
                     {/* Toggle slider */}
@@ -463,6 +466,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                     setShowSharingDialog(true);
                     handleClose();
                   }}
+                  id="sharingCenter"
                   className={commonClassname}
                 >
                   <IconShare size={16} className="icon-pop-group enhanced-icon text-green-500" />
@@ -477,6 +481,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                     homeDispatch({field: 'page', value: 'home'});
                     handleClose();
                   }}
+                  id="myDataFiles"
                   className={commonClassname}
                 >
                   <IconRocket size={16} className="icon-pop-group enhanced-icon text-blue-500" />
@@ -491,6 +496,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                     setShowAdminInterface(true);
                     handleClose();
                   }}
+                  id="adminInterface"
                   className={commonClassname}
                 >
                   <IconShield size={16} className="icon-pop-group enhanced-icon text-red-500" />
@@ -502,6 +508,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                     setShowUserCosts(true);
                     handleClose();
                   }}
+                  id="userCostInterface"
                   className={commonClassname}
                 >
                   <IconCurrencyDollar size={16} className="icon-pop-group enhanced-icon text-green-500" />
@@ -514,6 +521,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   setShowSettings(true);
                   handleClose();
                 }}
+                id="settingsInterface"
                 className={commonClassname}
               >
          <IconSettings size={16} className="icon-pop-group enhanced-icon text-purple-500" />
@@ -523,6 +531,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
               <button
                 onClick={() => { window.location.href = `mailto:${supportEmail}`}}
                 className={commonClassname}
+                id="sendFeedbackInterface"
               >
                 <IconHelp size={16} className="icon-pop-group enhanced-icon text-red-500" />
                 <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">Send Feedback</span>
@@ -531,6 +540,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
               <button
                 onClick={federatedSignOut}
                 className={commonClassname}
+                id="logout"
               >  
                 <IconLogout size={16} className="icon-pop-group enhanced-icon text-neutral-700 dark:text-neutral-200" />
                 <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">Sign Out</span>
