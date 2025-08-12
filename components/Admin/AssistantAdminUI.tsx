@@ -553,7 +553,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                             groupTypes={selectedGroup?.groupTypes}
                             additionalGroupData={additionalGroupData}
                             setAdditionalGroupData={setAdditionalGroupData}
-                            groupConvAnalysisSupport={!!selectedGroup?.supportConvAnalysis
+                            groupConvAnalysisSupport={!!selectedGroup?.supportConvAnalysis}
                         />
                     </AssistantModal>
                 </div>
