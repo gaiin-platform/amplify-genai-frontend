@@ -749,10 +749,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                     </div>
                                 </>
                             }
+                 </div>}
 
-                        
-                    
-                    </div>}
             />
 
         );
