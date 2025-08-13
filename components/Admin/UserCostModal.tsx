@@ -1,4 +1,4 @@
-import { FC, useEffect, useState } from "react";
+import { FC, useEffect, useState, useCallback } from "react";
 import { Modal } from "../ReusableComponents/Modal";
 import { ActiveTabs, Tabs } from "../ReusableComponents/ActiveTabs";
 import { getAllUserMtdCosts, getBillingGroupsCosts } from "@/services/mtdCostService";
@@ -111,7 +111,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
   const [expandedGroupMembers, setExpandedGroupMembers] = useState<string | null>(null);
 
   // Fetch All Users MTD costs
-  const fetchMTDCosts = async (appendData = false, nextKey: any = null) => {
+  const fetchMTDCosts = useCallback(async (appendData = false, nextKey: any = null) => {
     if (appendData) {
       setLoadingMore(true);
     } else {
@@ -148,7 +148,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
       setUserLoading(false);
       setLoadingMore(false);
     }
-  };
+  }, [limit]);
 
   // Fetch Billing Groups costs
   const fetchBillingGroupsCosts = async () => {
@@ -181,7 +181,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
       fetchMTDCosts();
       fetchBillingGroupsCosts();
     }
-  }, [open, limit]);
+  }, [open, fetchMTDCosts]);
 
   const handleLimitChange = (newLimit: number) => {
     setLimit(newLimit);
@@ -742,7 +742,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
               </div>
             ) : filteredUsers.length === 0 ? (
               <div className="px-6 py-12 text-center">
-                <p className="text-gray-500 dark:text-gray-400">No users found matching "{userSearchTerm}"</p>
+                <p className="text-gray-500 dark:text-gray-400">No users found matching &quot;{userSearchTerm}&quot;</p>
               </div>
             ) : (
               <div className="flex-1 overflow-auto">
@@ -753,7 +753,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                         User Email
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        Today's Cost
+                        Today&apos;s Cost
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         Monthly Cost
@@ -956,7 +956,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
           Cost Allocation Method
         </h4>
         <p className="text-sm text-blue-800 dark:text-blue-300">
-          User costs are allocated to each billing group they belong to. Members in multiple groups will show highlighted with <span className="font-medium">duplicate indicators</span> since their total spending is counted toward each group's cost.
+          User costs are allocated to each billing group they belong to. Members in multiple groups will show highlighted with <span className="font-medium">duplicate indicators</span> since their total spending is counted toward each group&apos;s cost.
         </p></div>
       } />
 
@@ -1040,7 +1040,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
             </div>
           ) : filteredBillingGroups.length === 0 ? (
             <div className="flex items-center justify-center py-12">
-              <p className="text-gray-500 dark:text-gray-400">No billing groups found matching "{groupSearchTerm}"</p>
+              <p className="text-gray-500 dark:text-gray-400">No billing groups found matching &quot;{groupSearchTerm}&quot;</p>
             </div>
           ) : (
             <div className="space-y-4">
