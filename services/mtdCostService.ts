@@ -60,3 +60,23 @@ export const getUserMtdCosts = async () => {
     return { success: false, message: 'Failed to fetch user MTD costs' };
 }
 
+export const getBillingGroupsCosts = async () => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/billing-groups-costs",
+        data: {},
+        service: SERVICE_NAME
+    };
+
+    try {
+        const result = await doRequestOp(op);
+        if (result && result.billingGroups) return { success: true, data: result };
+
+    } catch (error) {
+        console.error('Error in getBillingGroupsCosts:', error);
+    }
+
+    return { success: false, message: 'Failed to fetch billing groups costs' };
+}
+
