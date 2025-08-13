@@ -297,6 +297,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return integrations;
             case AdminConfigTypes.OPENAI_ENDPOINTS:
                 const toTest:{key: string, url: string, model:string}[] = [];
+                
+                // Track removed models for toast notifications
+                const originalModelNames = new Set<string>();
+                openAiEndpoints.models.forEach(model => {
+                    Object.keys(model).forEach(modelName => originalModelNames.add(modelName));
+                });
+                
                 const cleanedOpenAiEndpoints: OpenAIModelsConfig = {
                     models: openAiEndpoints.models.map(model => {
                         const newModel: Record<string, { endpoints: Endpoint[] }>= {};
@@ -309,11 +316,31 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                 if (isNew) toTest.push({...rest, model: modelName});
                                 return rest; 
                             });
-                            newModel[modelName] = { endpoints };
+                            // Only include models that have at least one endpoint
+                            if (endpoints.length > 0) {
+                                newModel[modelName] = { endpoints };
+                            }
                         });
                         return newModel;
-                    })
+                    }).filter(model => Object.keys(model).length > 0) // Remove empty model objects
                 };
+                
+                // Track cleaned model names and show toast for removed models
+                const cleanedModelNames = new Set<string>();
+                cleanedOpenAiEndpoints.models.forEach(model => {
+                    Object.keys(model).forEach(modelName => cleanedModelNames.add(modelName));
+                });
+                
+                // Show toast for each removed model
+                originalModelNames.forEach(modelName => {
+                    if (!cleanedModelNames.has(modelName)) {
+                        toast(`Removed ${modelName} (no endpoints configured)`);
+                    }
+                });
+                
+                // Update UI state to match cleaned data
+                setOpenAiEndpoints(cleanedOpenAiEndpoints);
+                
                 if (toTest.length > 0) testEndpointsRef.current = toTest;
                 return cleanedOpenAiEndpoints;
         }   
@@ -513,7 +540,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     }
     cancelLabel={"Close"}
     submitLabel={"Save Changes"}
-    disableSubmit={unsavedConfigs.size === 0}
+    disableSubmit={unsavedConfigs.size === 0 || stillLoadingData}
     content={
       <div className="text-black dark:text-white overflow-x-hidden">
          <button

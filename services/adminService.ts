@@ -119,20 +119,40 @@ const endpointRequest = async (url: string, key: string, data: any) => {
 }
 
 export const testEndpoint = async (url: string, key: string, model: string) => {
-    return endpointRequest(url, key, {
-        max_tokens: 50,
-        temperature: 1,
-        top_p: 1,
-        n: 1,
-        stream: false,
-        model: model,
-        messages: [
-            {
-                role: "user",
-                content: "This is a test. Say Hi!",
-            },
-        ],
-    });
+    const isOmodel = /^o\d/.test(model) || /^gpt-5/.test(model);
+    
+    const baseMessages = [
+        {
+            role: "user",
+            content: "This is a test. Say Hi!",
+        },
+    ];
+
+    let requestBody;
+    if (isOmodel) {
+        // O models use max_completion_tokens and simplified body
+        requestBody = {
+            max_completion_tokens: 50,
+            messages: baseMessages,
+            model: model,
+            stream: false
+        };
+    } else {
+        // Regular models use the standard format
+        requestBody = {
+            max_tokens: 50,
+            temperature: 1,
+            top_p: 1,
+            n: 1,
+            stream: false,
+            model: model,
+            messages: baseMessages,
+        };
+    }
+
+    const result = await endpointRequest(url, key, requestBody);
+    console.log("result", result);
+    return result;
 };
 
 
