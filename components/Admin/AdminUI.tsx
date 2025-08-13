@@ -11,7 +11,7 @@ import React from "react";
 import { ActiveTabs } from "../ReusableComponents/ActiveTabs";
 import { OpDef } from "@/types/op";
 import { AMPLIFY_ASSISTANTS_GROUP_NAME } from "@/utils/app/amplifyAssistants";
-import { noRateLimit, PeriodType, rateLimitObj } from "@/types/rateLimit";
+import { noRateLimit, PeriodType, RateLimit, rateLimitObj } from "@/types/rateLimit";
 import { adminTabHasChanges} from "@/utils/app/admin";
 import { OpenAIEndpointsTab } from "./AdminComponents/OpenAIEndpoints";
 import { FeatureFlagsTab } from "./AdminComponents/FeatureFlags";
@@ -286,6 +286,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                               supportConvAnalysis: g.supportConvAnalysis
                                                             }));
             case AdminConfigTypes.AMPLIFY_GROUPS:
+                Object.keys(ampGroups).forEach((key: string) => {
+                    if (!ampGroups[key].isBillingGroup) ampGroups[key].isBillingGroup = false;
+                    if (!ampGroups[key].rateLimit) ampGroups[key].rateLimit = noRateLimit;
+                });
                 return ampGroups;
             case AdminConfigTypes.PPTX_TEMPLATES:
                 return templates.filter((pptx:Pptx_TEMPLATES) => changedTemplates.includes(pptx.name));
@@ -906,6 +910,8 @@ export interface Amplify_Group { // can be a cognito group
     members : string[];
     createdBy : string;
     includeFromOtherGroups? : string[]; // if is a cognito group, this will always be Absent
+    rateLimit? : RateLimit;
+    isBillingGroup? : boolean;
 }
 
 export interface Amplify_Groups {

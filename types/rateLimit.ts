@@ -11,7 +11,7 @@ export const UNLIMITED: PeriodType = 'Unlimited';
 
 export const formatRateLimit = (limits: RateLimit) =>  {
     if (limits.rate === null || limits.rate === undefined) return noRateLimit.period;
-    return `${limits.rate.toFixed(2)}/${limits.period}`;
+    return `$${limits.rate.toFixed(2)}/${limits.period}`;
 }
 
 export const noRateLimit: RateLimit = {'period' : UNLIMITED, 'rate': null};
