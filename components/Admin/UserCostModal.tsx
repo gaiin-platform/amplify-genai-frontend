@@ -53,7 +53,6 @@ interface GroupCosts {
   daily: number;
   monthly: number;
   avgPerMember: number;
-  percentOfPlatform: number;
 }
 
 interface GroupMembers {
@@ -911,7 +910,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                 <span className="text-green-600 dark:text-green-400 text-lg font-bold">$</span>
               </div>
               <div className="ml-3">
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Platform Cost</p>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Token Cost</p>
                 <p className="text-2xl font-semibold text-gray-900 dark:text-white">{formatCurrency(groupsSummary.totalCost)}</p>
               </div>
             </div>
@@ -1234,12 +1233,11 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
       showSubmit={false}
       content={
         <div className="flex flex-col h-full">
-          {/* Platform Summary */}
           <div className="mb-4 px-6 py-3 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Platform Total: {groupsSummary ? formatCurrency(groupsSummary.totalCost) : formatCurrency(usersSummary.totalCost)} MTD
+                  Token Total: {groupsSummary ? formatCurrency(groupsSummary.totalCost) : formatCurrency(usersSummary.totalCost)} MTD
                 </h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   Last Updated: {groupsSummary?.timestamp ? new Date(groupsSummary.timestamp).toLocaleTimeString() : 'Now'}
