@@ -711,7 +711,7 @@ const Home = ({
                         }
 
                         if (defaultModel) {
-                            console.log("DefaultModel dispatch: ", defaultModel);
+                            // console.log("DefaultModel dispatch: ", defaultModel);
                             dispatch({ field: 'defaultModelId', value: defaultModel.id });
                         }
                         if (response.data.cheapest) dispatch({ field: 'cheapestModelId', value: response.data.cheapest.id });
