@@ -40,6 +40,7 @@ import { getDateName } from '@/utils/app/date';
 import AgentLogBlock from '@/components/Chat/ChatContentBlocks/AgentLogBlock';
 import { Settings } from '@/types/settings';
 import RagEvaluationBlock from './ChatContentBlocks/RagEvaluationBlock';
+import { AssistantReasoningMessage } from './ChatContentBlocks/AssistantReasoningMessage';
 
 export interface Props {
     message: Message;
@@ -581,6 +582,14 @@ export const ChatMessage: FC<Props> = memo(({
                                     {(selectedConversation?.messages?.length === messageIndex + 1) && (
                                         <PromptingStatusDisplay statusHistory={status}/>
                                     )}
+
+                                     {!messageIsStreaming && 
+                                     <AssistantReasoningMessage 
+                                        message={message}
+                                        messageIndex={messageIndex}
+                                        selectedConversation={selectedConversation}
+                                     />}
+
                                      {featureFlags.highlighter && settingRef.current.featureOptions.includeHighlighter && 
                                       isHighlightDisplay && !isEditing && 
 
