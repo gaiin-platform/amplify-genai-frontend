@@ -14,6 +14,7 @@ import HomeContext from '@/pages/api/home/home.context';
 
 import { Alert, Button, Center, Group, Loader, MantineProvider, Text, useMantineTheme } from '@mantine/core';
 import Papa from 'papaparse';
+import { getAgentLog } from '@/utils/app/agent';
 
 
 interface Props {
@@ -23,7 +24,6 @@ interface Props {
 
 const AgentTableBlock: React.FC<Props> = ({ filePath, message }) => {
   const { state: { lightMode } } = useContext(HomeContext);
-  const theme = useMantineTheme();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +49,8 @@ const AgentTableBlock: React.FC<Props> = ({ filePath, message }) => {
     setError(null);
     setData([]);
     const fetchTableData = async () => {
-      if (!message?.data?.state?.agentLog?.data?.files) {
+      let agentLog = getAgentLog(message);
+      if (!agentLog?.data?.files) {
         setError('No agent files found in message');
         setLoading(false);
         return;
@@ -59,7 +60,7 @@ const AgentTableBlock: React.FC<Props> = ({ filePath, message }) => {
         const fileName = filePath.split('/').pop() || '';
         setOriginalFileName(fileName);
 
-        const { data: agentLogData } = message.data.state.agentLog;
+        const { data: agentLogData } = agentLog;
 
         let fileId: string | null = null;
         for (const [id, fileData] of Object.entries(agentLogData.files)) {

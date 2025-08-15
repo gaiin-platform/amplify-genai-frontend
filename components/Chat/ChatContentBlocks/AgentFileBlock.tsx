@@ -10,6 +10,7 @@ import {
 } from '@tabler/icons-react';
 import { getFileDownloadUrls } from '@/services/agentService';
 import { guessMimeType } from '../ChatContentBlocks/AgentLogBlock';
+import { getAgentLog } from '@/utils/app/agent';
 
 interface Props {
   filePath: string;
@@ -29,7 +30,9 @@ const AgentFileBlock: React.FC<Props> = ({ filePath, message }) => {
 
   useEffect(() => {
     const fetchFileData = async () => {
-      if (!message?.data?.state?.agentLog?.data?.files) {
+      let agentLog = getAgentLog(message);
+      
+      if (!agentLog?.data?.files) {
         setError('No agent files found in message');
         setLoading(false);
         return;
@@ -38,9 +41,6 @@ const AgentFileBlock: React.FC<Props> = ({ filePath, message }) => {
       try {
         // Extract filename from the file path
         const fileName = filePath.split('/').pop() || '';
-        
-        // Find the file ID for the referenced file
-        const agentLog = message.data.state.agentLog;
         const files = agentLog.data.files;
         let fileId = null;
         let fileData = null;

@@ -35,6 +35,7 @@ import {
     buildMemoryContextPrompt
 } from '@/utils/app/memory';
 import { handleAgentRun, handleAgentRunResult, isWaitingForAgentResponse } from '@/utils/app/agent';
+import { lzwCompress } from '@/utils/app/lzwCompression';
 
 export type ChatRequest = {
     message: Message;
@@ -150,7 +151,7 @@ export function useSendService() {
                 const agentResult = await handleAgentRun(sessionId, (status: any) => homeDispatch({ field: "status", value: [newStatus(status)] }), messageTimestampRef.current);
                 if (agentResult && selectedConversation) {
                     const lastIndex = selectedConversation.messages.length - 1;
-                    selectedConversation.messages[lastIndex].data.state.agentLog = agentResult;
+                    selectedConversation.messages[lastIndex].data.state.agentLog = lzwCompress(JSON.stringify(agentResult));
                     const updatedConversation = await handleAgentRunResult(agentResult, selectedConversation, getDefaultModel(DefaultModels.CHEAPEST), defaultAccount, homeDispatch, statsService, chatEndpoint || '');
                     handleUpdateSelectedConversation(updatedConversation);
                 } else {
@@ -474,11 +475,13 @@ export function useSendService() {
                         }
 
                         let outOfOrder = false;
-                        let currentState = {};
+                        let currentState: any = {};
+                        let reasoningText = "";
 
                         const metaHandler: MetaHandler = {
                             status: (meta: any) => {
-                                //console.log("Chat-Status: ", meta);
+                                //capture reasoning to compress and save in state at the end of the astresponse
+                                if (meta.id === "reasoning") reasoningText += meta.message;
                                 homeDispatch({ type: "append", field: "status", value: newStatus(meta) })
                             },
                             mode: (modeName: string) => {
@@ -533,7 +536,6 @@ export function useSendService() {
                         const reader = data.getReader();
                         const decoder = new TextDecoder();
                         let done = false;
-                        let isFirst = true;
                         let text = '';
 
                         // Reset the status display
@@ -648,7 +650,7 @@ export function useSendService() {
                                 return;
                             }
                         }
-                        // }
+                      
 
                         //console.log("Dispatching post procs: " + postProcessingCallbacks.length);
                         postProcessingCallbacks.forEach(callback => callback({
@@ -668,7 +670,8 @@ export function useSendService() {
                                     if (index === updatedConversation.messages.length - 1) {
                                         const disclaimer = message.data.state.currentAssistantDisclaimer;
                                         let astMsg = updatedText;
-                                        if (disclaimer) astMsg += "\n\n" + disclaimer
+                                        if (disclaimer) astMsg += "\n\n" + disclaimer;
+                                        if (reasoningText) message.data.state.reasoning = lzwCompress(reasoningText);
 
                                         return {
                                             ...message,
@@ -737,7 +740,7 @@ export function useSendService() {
                                     // Build and send fact extraction prompt
                                     const extractFactsPrompt = buildExtractFactsPrompt(userInput, existingMemories);
 
-                                    console.log("Extract facts prompt: ", extractFactsPrompt);
+                                    // console.log("Extract facts prompt: ", extractFactsPrompt);
 
                                     const extractFactsResult = await promptForData(
                                         chatEndpoint || '',

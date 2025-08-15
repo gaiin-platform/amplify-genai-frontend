@@ -189,7 +189,7 @@ const ChatContentBlock: React.FC<Props> = (
                 const content = String(children);
                 if (content.startsWith('clickableDate:')) {
                     const dateString = content.replace('clickableDate:', '');
-                    console.log('DateToggle rendering for:', dateString); // Debug log
+                    // console.log('DateToggle rendering for:', dateString); // Debug log
                     return <DateToggle dateString={dateString} />;
                 }
             }
