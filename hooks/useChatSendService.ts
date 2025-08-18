@@ -477,6 +477,7 @@ export function useSendService() {
                         let outOfOrder = false;
                         let currentState: any = {};
                         let reasoningText = "";
+                        let reasoningMode = false; // support gemini reasoning
 
                         const metaHandler: MetaHandler = {
                             status: (meta: any) => {
@@ -589,8 +590,27 @@ export function useSendService() {
                                         //move onto the next iteration
                                         continue;
                                     }
+                                    if (text.includes("<thought>")) reasoningMode = true;
+                        
+                                    // Split by reasoning tags and process alternately
+                                    const parts = chunkValue.split(/(<\/?thought>)/);
+                                    
+                                    for (const part of parts) {
+                                        if (part === '<thought>') {
+                                            reasoningMode = true;
+                                        } else if (part === '</thought>') {
+                                            reasoningMode = false;
+                                        } else if (part) {
+                                            if (reasoningMode) {
+                                                reasoningText += part;
+                                                homeDispatch({ type: "append", field: "status", value: newStatus({id: "reasoning", summary: "Thinking Details:", message: part, icon: "bolt", inProgress: true, animated: true}) });
+                                            } else {
+                                                text += part;
+                                            }
+                                        }
+                                    }
 
-                                    text += chunkValue;
+                                    if (text.includes("</thought>")) reasoningMode = false;
                                 } else {
                                     let event = { s: "0", d: chunkValue };
                                     try {
