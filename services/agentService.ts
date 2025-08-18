@@ -34,15 +34,13 @@ export const getAgentTools = async () => {
   return await doRequestOp(op);
 }
 
-export const getLatestAgentState = async (sessionId: string, timestamp?: string) => {
-  const data: {sessionId: string, timestamp?: string} = { sessionId };
-  if (timestamp) data.timestamp = timestamp;
+export const getLatestAgentState = async (sessionId: string) => {
   const op = {
     method: 'POST',
     path: URL_PATH,
     op: "/get-latest-agent-state",
     service: SERVICE_NAME,
-    data: data
+    data: { sessionId }
   };
   return await doRequestOp(op);
 }

@@ -148,7 +148,7 @@ export function useSendService() {
             
             try {
                 homeDispatch({field: 'messageIsStreaming', value: true}); 
-                const agentResult = await handleAgentRun(sessionId, (status: any) => homeDispatch({ field: "status", value: [newStatus(status)] }), messageTimestampRef.current);
+                const agentResult = await handleAgentRun(sessionId, (status: any) => homeDispatch({ field: "status", value: [newStatus(status)] }));
                 if (agentResult && selectedConversation) {
                     const lastIndex = selectedConversation.messages.length - 1;
                     selectedConversation.messages[lastIndex].data.state.agentLog = lzwCompress(JSON.stringify(agentResult));
