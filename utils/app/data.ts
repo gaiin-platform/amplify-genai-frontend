@@ -506,6 +506,7 @@ export const validateUrl = (inputUrl: string, isSitemap: boolean): { isValid: bo
     } catch (error) {
         return { isValid: false, error: 'Please enter a valid URL (e.g., https://example.com)' };
     }
+
 };
 
 export const formatCurrency = (amount: number) => {
@@ -516,3 +517,4 @@ export const formatCurrency = (amount: number) => {
         maximumFractionDigits: 2
     }).format(amount);
 };
+

@@ -209,6 +209,7 @@ const SharedItemsList: FC<{}> = () => {
                                 <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 to-emerald-50/50 dark:from-blue-900/10 dark:to-emerald-900/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                                 
                                 <button
+
                                     onMouseEnter={() => {
                                         setHoveredItem(item)
                                         setIsButtonHover(true)
