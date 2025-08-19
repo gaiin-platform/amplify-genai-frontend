@@ -7,9 +7,10 @@ import { getSession } from "next-auth/react";
 import { Model } from "@/types/model";
 import { Account } from "@/types/accounts";
 import cloneDeep from "lodash/cloneDeep";
+import { lzwCompress, lzwUncompress } from "./lzwCompression";
 
  
-export const listenForAgentUpdates = async function(sessionId: string, onAgentStateUpdate: (state: any) => boolean, requestTimestamp?: string) {
+export const listenForAgentUpdates = async function(sessionId: string, onAgentStateUpdate: (state: any) => boolean) {
   let errorsRemaining = 15;
   let shouldContinue = true;
   let wasAborted = false;
@@ -20,7 +21,7 @@ export const listenForAgentUpdates = async function(sessionId: string, onAgentSt
   window.addEventListener('killChatRequest', handleStopGenerationEvent);
   while (shouldContinue && errorsRemaining > 0) {
       try {
-        const state = await getLatestAgentState(sessionId, requestTimestamp);
+        const state = await getLatestAgentState(sessionId);
         if (wasAborted) break;
         if (!state.success) errorsRemaining--;
         shouldContinue = onAgentStateUpdate(state);
@@ -199,12 +200,12 @@ export const handleAgentRunResult = async (agentResult: any, selectedConversatio
     } 
 
     updatedConversation.messages[lastIndex].data.state.agentRun.endTime = new Date();
-    updatedConversation.messages[lastIndex].data.state.agentLog = agentResult;
+    updatedConversation.messages[lastIndex].data.state.agentLog = lzwCompress(JSON.stringify(agentResult));
     return updatedConversation;
 }
 
 
-export const handleAgentRun = async ( sessionId: string, onStatusUpdate: (status: any) => void, requestTimestamp?: string ) => {
+export const handleAgentRun = async ( sessionId: string, onStatusUpdate: (status: any) => void ) => {
     let agentResult = null;
     let wasAborted = false;
     
@@ -267,7 +268,7 @@ export const handleAgentRun = async ( sessionId: string, onStatusUpdate: (status
 
             onStatusUpdate(statusInfo);
             return state.inProgress ?? true;
-        }, requestTimestamp);
+        });
 
         // If aborted during the process, return null
         if (wasAborted) return null;
@@ -300,4 +301,18 @@ export function getThinkingMessage() {
     ];
     
     return messages[Math.floor(Math.random() * messages.length)];
+}
+
+export const getAgentLog = (message: Message) => {
+    let agentLog = message.data?.state?.agentLog;
+    if (agentLog && Array.isArray(agentLog)) {
+        // need to uncompress
+        try {
+            agentLog = JSON.parse(lzwUncompress(agentLog));
+        } catch (e) {
+            console.error("Error uncompressing agent log", e);
+            return undefined;
+        }
+    }
+    return agentLog;
 }

@@ -10,6 +10,7 @@ import ActionButton from '@/components/ReusableComponents/ActionButton';
 import toast from 'react-hot-toast';
 import { getUserMtdCosts } from '@/services/mtdCostService';
 import { useSession } from 'next-auth/react';
+import { formatCurrency } from "@/utils/app/data";
 
 interface Props {
     accounts: Account[];
@@ -79,15 +80,6 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
         }
     };
 
-    // Format currency helper
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }).format(amount);
-    };
 
     // Get MTD cost for specific account
     const getAccountMtdCost = (accountId: string) => {
@@ -359,13 +351,13 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                                             </td>
                                             <td className="px-6 bg-gray-100 dark:bg-gray-900">
                                                 {mtdCostLoading ? (
-                                                    <span className="text-gray-500">Loading...</span>
+                                                    <span className="ml-2 text-gray-500"><IconLoader2 size={18} className="animate-spin" /></span>
                                                 ) : accountCost ? (
                                                     <span 
-                                                        className={`font-semibold ${accountCost.monthlyCost > 10 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}
+                                                        className={`font-semibold ${accountCost.totalCost > 10 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}
                                                         title={account.id !== 'general_account' ? `Used by ${accountCost.uniqueApiKeyCount} API key${accountCost.uniqueApiKeyCount !== 1 ? 's' : ''}` : undefined}
                                                     >
-                                                        {formatCurrency(accountCost.monthlyCost)}
+                                                        {formatCurrency(accountCost.totalCost)}
                                                     </span>
                                                 ) : (
                                                     <span className="text-gray-500">$0.00</span>

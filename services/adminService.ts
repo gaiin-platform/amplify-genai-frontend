@@ -100,6 +100,24 @@ export const getInFlightEmbeddings = async () => {
     }
 }
 
+const isCompletionsEndpoint = (url: string) => {
+    return url.includes("/completions");
+}
+
+const translateDataToResponseBody = (data: any) => {
+    const messages = [...data.messages];
+    data.input = messages;
+    data.max_output_tokens = data.max_tokens || data.max_completion_tokens || 1000;
+    if (data.max_output_tokens < 16) data.max_output_tokens = 16;
+    delete data.messages;
+    delete data.max_tokens;
+    delete data.max_completion_tokens;
+    delete data.stream_options;
+    delete data.temperature;
+    delete data.n;
+    return data;
+}
+
 const endpointRequest = async (url: string, key: string, data: any) => {
     try {
         const response = await fetch('/api/admin/testEndpoint', {
@@ -119,20 +137,46 @@ const endpointRequest = async (url: string, key: string, data: any) => {
 }
 
 export const testEndpoint = async (url: string, key: string, model: string) => {
-    return endpointRequest(url, key, {
-        max_tokens: 50,
-        temperature: 1,
-        top_p: 1,
-        n: 1,
-        stream: false,
-        model: model,
-        messages: [
-            {
-                role: "user",
-                content: "This is a test. Say Hi!",
-            },
-        ],
-    });
+    const isOmodel = /^o\d/.test(model) || /^gpt-5/.test(model);
+    const isCompletionEndpoint = isCompletionsEndpoint(url);
+    
+    const baseMessages = [
+        {
+            role: "user",
+            content: "This is a test. Say Hi!",
+        },
+    ];
+
+    let requestBody;
+    if (isOmodel) {
+        // O models use max_completion_tokens and simplified body
+        requestBody = {
+            max_completion_tokens: 50,
+            messages: baseMessages,
+            model: model,
+            stream: false
+        };
+    } else {
+        // Regular models use the standard format
+        requestBody = {
+            max_tokens: 50,
+            temperature: 1,
+            top_p: 1,
+            n: 1,
+            stream: false,
+            model: model,
+            messages: baseMessages,
+        };
+    }
+
+    // Transform data for non-completions endpoints
+    if (!isCompletionEndpoint) {
+        requestBody = translateDataToResponseBody(requestBody);
+    }
+
+    const result = await endpointRequest(url, key, requestBody);
+    console.log("result", result);
+    return result;
 };
 
 

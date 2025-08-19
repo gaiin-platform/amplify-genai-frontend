@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { IconLoader2, IconZoomIn, IconDownload, IconExternalLink } from '@tabler/icons-react';
 import { getFileDownloadUrls } from '@/services/agentService';
+import { getAgentLog } from '@/utils/app/agent';
 
 interface Props {
   filePath: string;
@@ -14,8 +15,10 @@ const AgentImageBlock: React.FC<Props> = ({ filePath, message }) => {
   const [fullscreen, setFullscreen] = useState<boolean>(false);
 
   useEffect(() => {
+    let agentLog = getAgentLog(message);
+      
     const fetchImage = async () => {
-      if (!message?.data?.state?.agentLog?.data?.files) {
+      if (!agentLog?.data?.files) {
         setError('No agent files found in message');
         setLoading(false);
         return;
@@ -25,8 +28,6 @@ const AgentImageBlock: React.FC<Props> = ({ filePath, message }) => {
         // Extract filename from the file path
         const fileName = filePath.split('/').pop() || '';
         
-        // Find the file ID for the referenced file
-        const agentLog = message.data.state.agentLog;
         const files = agentLog.data.files;
         let fileId = null;
         

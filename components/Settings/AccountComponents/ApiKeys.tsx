@@ -27,6 +27,8 @@ import { fetchFile } from '@/utils/app/files';
 import { ActiveTabs } from '@/components/ReusableComponents/ActiveTabs';
 import { IconRotateClockwise2 } from '@tabler/icons-react';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
+import { getUserMtdCosts } from '@/services/mtdCostService';
+import { formatCurrency } from "@/utils/app/data";
 
 interface Props {
     setUnsavedChanges: (b: boolean) => void;
@@ -96,6 +98,9 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
     const [selectedPurposeFilter, setSelectedPurposeFilter] = useState<string>("All");
     const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
+    // MTD Cost state
+    const [mtdCostData, setMtdCostData] = useState<any>(null);
+
     const [fullAccess, setFullAccess] = useState<boolean>(true);
     const [options, setOptions] = useState<Record<string, boolean>>(cloneDeep(optionChoices));
 
@@ -134,7 +139,6 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
 
     const fetchApiKeys = async () => {
        const result = await fetchAllApiKeys();
-
         if (!result.success) {
             alert("Unable to fetch your API keys. Please try again.");
             setIsLoading(false);
@@ -143,9 +147,57 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
         }
     }
 
+    // Fetch MTD costs for current user
+    const fetchMTDCosts = async () => {
+        if (!user) return;
+        try {
+            const result = await getUserMtdCosts();
+            if (result.success && result.data) setMtdCostData(result.data);
+        } catch (err) {
+            console.error('Error fetching MTD costs:', err);
+        } 
+    };
+
+
+    // Get MTD cost for specific API key by matching api_owner_id to keyId after #
+    const getApiKeyMtdCost = (apiKey: ApiKey) => {
+        if (!mtdCostData?.accounts) return null;
+        
+        // Find matching account entry by matching api_owner_id to the part after #
+        const matchingAccount = mtdCostData.accounts.find((acc: any) => {
+            const accountInfoParts = acc.accountInfo.split('#');
+            const [, keyId] = accountInfoParts; // Ignore account part, just get keyId
+            
+            // Match api_owner_id to keyId (portion after #)
+            return keyId === apiKey.api_owner_id;
+        });
+        
+        return matchingAccount ? matchingAccount.totalCost : null;
+    };
+
+
+    const mtdDisplay = (apiKey: ApiKey) => {
+        const mtdCost = getApiKeyMtdCost(apiKey);
+        if (mtdCost !== null) {
+            return (
+                <div className="apikeys-item-status ml-3">
+                    <div className="apikeys-status-badge">
+                        <span className="text-green-700 dark:text-green-400 text-[14px] font-semibold">
+                            MTD: {formatCurrency(mtdCost)}
+                        </span>
+                    </div>
+                </div>
+            );
+        }
+        return null;
+    }
+
     useEffect(() => {
-        if (open) fetchApiKeys();
-    }, [open]);
+        if (open) {
+            fetchApiKeys();
+            fetchMTDCosts();
+        }
+    }, [open, user]);
 
     useEffect(() => {
             if (accounts && apiKeys) {
@@ -218,6 +270,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
     }, [apiKeys]);
 
 
+
     const handleCreateApiKey = async () => {
         setIsCreating(true);
         
@@ -238,8 +291,8 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
         // empty out all the create key fields
         if (result.success && (result.data?.apiKey || result.data?.delegate)) {
             // Show the new API key in a confirmation modal for non delegate keys
-            console.log("result.data api key ", result.data?.apiKey);
-            console.log("result.data delegate ", result.data?.delegate);
+            // console.log("result.data api key ", result.data?.apiKey);
+            // console.log("result.data delegate ", result.data?.delegate);
             if (result.data?.apiKey && !result.data?.delegate) {
                 setNewApiKeyValue(result.data.apiKey);
                 setShowNewKeyModal(true);
@@ -681,6 +734,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                                 {apiKey.applicationName}
                                                                 {apiKey.systemId && <label className={`ml-4 text-green-700 text-xs`}> System ID: {apiKey.systemId}</label>}
                                                                 {apiKey.delegate && <label className={`ml-4 text-amber-500 text-xs`}> Delegate: {apiKey.delegate}</label>}
+                                                                {mtdDisplay(apiKey)}
                                                             </div>
                                                             <div className='apikeys-item-summary'>
                                                                 <span>{apiKey.account ? `• ${apiKey.account.name}` : '• No Account'}</span>
@@ -692,7 +746,6 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                     </div>
                                                     {!apiKey.delegate && apiKey.active && apiKey.needs_rotation && !apiKey.purpose && rotationWarningLabel()}
                                                     {activeLabel(apiKey.active, apiKey.api_owner_id, apiKey.applicationName)}
-                                                    
 
                                                 </div>
                                                 
@@ -807,7 +860,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                         <div className="apikeys-item-name">
                                             {apiKey.applicationName}
                                             <label className={`ml-4 text-gray-400 text-xs`}> Owner: {apiKey.owner}</label>
-
+                                            {mtdDisplay(apiKey)}
                                         </div>
                                         <div className='apikeys-item-summary'>
                                             {apiKey.expirationDate && <>•<span className={isExpired(apiKey.expirationDate) ? "text-red-600": ""}>Expires: {formatDateYMDToMDY(apiKey.expirationDate)}</span></>}
@@ -818,7 +871,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                 </div>
                                 {apiKey.active && apiKey.needs_rotation && rotationWarningLabel()}
                                 {activeLabel(apiKey.active, apiKey.api_owner_id, apiKey.applicationName)}
-                    
+                                
                             </div>
                             
                             <div className={`apikeys-item-expanded-view ${isExpanded ? 'open' : ''}`}>
@@ -1127,15 +1180,16 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
             onMouseLeave={() => setIsHovered(false)}
             ref={labelRef}
             style={{
-                whiteSpace: isDate ? 'pre-wrap' : 'nowrap', // 'pre-wrap' to allow line breaks
-                overflowY: isDate ? 'auto' : 'hidden', // enable vertical scrolling for dates
+                whiteSpace: editableField === 'accessTypes' && isEditing ? 'normal' : (isDate ? 'pre-wrap' : 'nowrap'),
+                overflow: editableField === 'accessTypes' && isEditing ? 'visible' : (isDate ? 'auto' : 'hidden'),
                 overflowWrap: 'break-word',
-                width: widthPx,
+                width: isEditing && editableField === 'accessTypes' ? '500px' : (isEditing && editableField === 'account' ? '300px' : widthPx),
                 position: 'relative',
-                height: '36px', 
+                height: isEditing && editableField === 'accessTypes' ? 'auto' : '36px',
+                minHeight: '36px',
                 flex: 'shrink-0',
             }}
-            className={`overflow-auto mb-2 p-2 flex-1 text-sm rounded flex flex-row ${textColor || 'text-black dark:text-neutral-200'} ${isOverflowing || isDate ? 'bg-neutral-200 dark:bg-[#40414F]' : 'transparent'}`}
+            className={`mb-2 p-2 flex-1 text-sm rounded flex flex-row ${textColor || 'text-black dark:text-neutral-200'} ${isOverflowing || isDate ? 'bg-neutral-200 dark:bg-[#40414F]' : 'transparent'}`}
         >
         {!isEditing && 
             <> {displayLabel ? formattedLabel :  <div className='ml-8'><NALabel/></div>}</>
@@ -1163,28 +1217,30 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
                 />
                 </div>
             )}
-            {editableField && editableField === 'rateLimit' && (<>
+            {editableField && editableField === 'rateLimit' && (
+            <div className='flex flex-row gap-3 items-center'>
                 <RateLimiter
                     period={rateLimitPeriod as PeriodType}
                     setPeriod={setRateLimitPeriod}
                     rate={rateLimitRate}
                     setRate={setRateLimitRate}
                 />
-            </>)}
-            {editableField && editableField === 'accessTypes' && (<>
+            </div>)}
+            {editableField && editableField === 'accessTypes' && (
+                <div className='w-[220px]'>
                 <AccessTypesCheck
                     fullAccess={fullAccess}
                     setFullAccess={setFullAccess}
                     options={options}
                     setOptions={setOptions}
-                />
-            </>)}
+                /></div>
+            )}
             </>
         )}
 
         {isEditing && (
             (
-                <div className="ml-2 relative z-5 flex bg-neutral-200 dark:bg-[#343541]/90 rounded"  
+                <div className="max-h-[34px] ml-2 relative z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded"  
                >
                   <ActionButton
                   title='Confirm Change'
@@ -1194,7 +1250,7 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
                         setIsEditing(false);
                     }}
                   >
-                    <IconCheck size={18} />
+                    <IconCheck className='text-green-500' size={18} />
                   </ActionButton>
                   <ActionButton
                     title='Discard Change'
@@ -1203,17 +1259,18 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
                       setIsEditing(false);
                     }}
                   >
-                    <IconX size={18} />
+                    <IconX className='text-red-500' size={18} />
                   </ActionButton>
                 </div>
               )
 
         )}
 
-        {editableField && isHovered  && !isEditing && !isScrolling && (
+        {editableField && isHovered && !isEditing && !isScrolling && (
             <div
-            className="absolute top-1 right-0 ml-auto z-5 flex-shrink-0 bg-neutral-200 dark:bg-[#343541]/90 rounded"
-           style={{ transform: `translateX(${translateX}px)` }}> 
+                className="absolute top-1 right-0 ml-auto z-10 flex-shrink-0 bg-neutral-200 dark:bg-[#343541]/90 rounded"
+                style={{ transform: `translateX(${translateX}px)` }}
+            > 
                 <ActionButton
                     handleClick={() => {setIsEditing(true)}}
                     title="Edit">
@@ -1252,30 +1309,30 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
     }, [options]);
 
     return (
-         <div className='flex flex-row gap-2 text-xs' >
-            <input type="checkbox" id="fullAccessCheckbox" checked={fullAccess} onChange={(e) => {
-                    const checked = e.target.checked;
-                    setFullAccess(checked);
-                    setOptions((prevOptions: any)=> 
-                        Object.keys(prevOptions).reduce((acc, key) => {
-                            acc[key] = checked;
-                            return acc;
-                        }, {} as Record<string, boolean>)
-                    );
-                }} />
-            <label className="mr-3 whitespace-nowrap" htmlFor="FullAccess">Full Access</label>
+         <div className='flex flex-wrap gap-x-3 gap-y-1 text-xs items-center' >
+            <div className='flex items-center gap-1 whitespace-nowrap'>
+                <input type="checkbox" id="fullAccessCheckbox" checked={fullAccess} onChange={(e) => {
+                        const checked = e.target.checked;
+                        setFullAccess(checked);
+                        setOptions((prevOptions: any)=> 
+                            Object.keys(prevOptions).reduce((acc, key) => {
+                                acc[key] = checked;
+                                return acc;
+                            }, {} as Record<string, boolean>)
+                        );
+                    }} />
+                <label className="font-medium" htmlFor="fullAccessCheckbox">Full Access</label>
+            </div>
             {Object.keys(options).map((key: string) => (
-                <div key={key} className='whitespace-nowrap'>
-                <input type="checkbox" id="accessCheckboxes" checked={options[key]} onChange={() => {
+                <div key={key} className='flex items-center gap-1 whitespace-nowrap'>
+                <input type="checkbox" id={`access-${key}`} checked={options[key]} onChange={() => {
                     setOptions((prevOptions:any) => {
                         const newOptions = { ...prevOptions, [key]: !prevOptions[key] };
                         if (!newOptions[key]) setFullAccess(false);
                         return newOptions;
                     })
                 }}/>
-
-                <label className="ml-2 mr-3 " htmlFor={key}>{formatAccessType(key)}</label>
-
+                <label className="" htmlFor={`access-${key}`}>{formatAccessType(key)}</label>
                 </div>
             ))}
         </div>
