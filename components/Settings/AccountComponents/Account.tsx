@@ -8,8 +8,9 @@ import { RateLimiter } from './RateLimit';
 import { formatRateLimit, noRateLimit, PeriodType, RateLimit, rateLimitObj, UNLIMITED } from '@/types/rateLimit';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
 import toast from 'react-hot-toast';
-import { doMtdCostOp } from '@/services/mtdCostService';
+import { getUserMtdCosts } from '@/services/mtdCostService';
 import { useSession } from 'next-auth/react';
+import { formatCurrency } from "@/utils/app/data";
 
 interface Props {
     accounts: Account[];
@@ -68,22 +69,10 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
         
         setMtdCostLoading(true);
         try {
-            const result = await doMtdCostOp(user.email);
-            console.log('MTD Costs API Result:', result);
+            const result = await getUserMtdCosts();
+            // console.log('MTD Costs API Result:', result);
+            if (result.success && result.data) setMtdCostData(result.data);
             
-            // Handle the response structure similar to UserCostsModal
-            let data = result;
-            if (result && typeof result === 'object' && 'success' in result) {
-                if (!result.success) {
-                    console.error('Failed to fetch MTD costs:', result.message);
-                    return;
-                }
-                data = result.data || result;
-            }
-            
-            if (data && (data.accounts || data.email)) {
-                setMtdCostData(data);
-            }
         } catch (err) {
             console.error('Error fetching MTD costs:', err);
         } finally {
@@ -91,20 +80,38 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
         }
     };
 
-    // Format currency helper
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }).format(amount);
-    };
 
     // Get MTD cost for specific account
     const getAccountMtdCost = (accountId: string) => {
         if (!mtdCostData?.accounts) return null;
-        return mtdCostData.accounts.find(acc => acc.accountInfo === accountId);
+        
+        // Find all accounts that match the accountId (before the #)
+        const matchingAccounts = mtdCostData.accounts.filter(acc => {
+            const accIdPart = acc.accountInfo.split('#')[0];
+            return accIdPart === accountId;
+        });
+        
+        if (matchingAccounts.length === 0) return null;
+        
+        // Count unique API keys (amp- entries, excluding NA)
+        const uniqueApiKeys = new Set(
+            matchingAccounts
+                .map(acc => acc.accountInfo.split('#')[1])
+                .filter(apiKey => apiKey && apiKey.startsWith('amp-'))
+        ).size;
+        
+        // Accumulate costs
+        const totalDailyCost = matchingAccounts.reduce((sum, acc) => sum + acc.dailyCost, 0);
+        const totalMonthlyCost = matchingAccounts.reduce((sum, acc) => sum + acc.monthlyCost, 0);
+        const totalCost = matchingAccounts.reduce((sum, acc) => sum + acc.totalCost, 0);
+        
+        return {
+            accountInfo: accountId,
+            dailyCost: totalDailyCost,
+            monthlyCost: totalMonthlyCost,
+            totalCost: totalCost,
+            uniqueApiKeyCount: uniqueApiKeys
+        };
     };
 
     // Fetch MTD costs on component mount
@@ -313,66 +320,82 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                         You do not have any accounts set up. Add one above.
                     </div>
                 ) : 
-                (<div className="accounts-table-wrapper">
-                    <div className="accounts-table-container">
-                        {[...accounts].map((account, index) => {
-                           const accountCost = getAccountMtdCost(account.id);
-                           return (<div key={index} className="accounts-table-row" onMouseEnter={() => setHoverAccount(index)} onMouseLeave={() => setHoverAccount(null)}>
-                                <div className="accounts-row-content">
-                                    <div className="accounts-row-info">
-                                        <div className="accounts-row-main">
-                                            <div className="accounts-row-name">
-                                                <span className="accounts-name-label">Name:</span>
-                                                <span className="accounts-name-value">{account.name}</span>
-                                                {account.isDefault && <span className="ml-4 accounts-default-badge">Default</span>}
-                                            </div>
-                                            <div className="accounts-row-id">
-                                                <span className="accounts-id-label">Account:</span>
-                                                <span className="accounts-id-value">{account.id}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Month to Date Cost */}
-                                    <div className="">
-                                        {mtdCostLoading ? (
-                                            <span className="text-gray-500">Loading...</span>
-                                        ) : accountCost ? (
-                                            <span className={`font-semibold ${accountCost.monthlyCost > 10 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
-                                                {formatCurrency(accountCost.monthlyCost)}
-                                            </span>
-                                        ) : (
-                                            <span className="text-gray-500">$0.00</span>
-                                        )}
-                                    </div>
-                                    
-                                    <div className="accounts-row-actions">
-                                        <div className="accounts-rate-limit-section">
-                                            <span className="accounts-rate-limit-label">Rate Limit:</span>
-                                            <EditableRateLimit 
-                                                account={account}
-                                                handleAccountEdit={handleEdit}
-                                                showEdit={hoverAccount === index}
-                                            />
-                                        </div>
-                                        
-                                        <button
-                                            type="button"
-                                            id="deleteAccount"
-                                            disabled={account.id === noCoaAccount.id}
-                                            className={`accounts-delete-button ${account.id === noCoaAccount.id ? 'invisible' : 'visible'} ${hoverAccount === index ? 'visible' : 'invisible'}`}
-                                            onClick={() => handleDeleteAccount(account.name)}
-                                            title="Delete Account"
-                                            style={{ transform: 'translateX(-8px)' }}
+                (<>
+                    <div className="mb-8">
+                        <table className="modern-table hide-last-column w-full mt-4 " style={{boxShadow: 'none'}}>
+                            <thead>
+                                <tr className="gradient-header hide-last-column">
+                                    <th className="px-6 py-1 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">Account Name</th>
+                                    <th className="px-6 py-1 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">Account ID</th>
+                                    <th className="px-6 py-1 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">MTD Cost</th>
+                                    <th className="px-6 py-1 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">Rate Limit</th>
+                                </tr>
+                            </thead>
+                            <tbody >
+                                {[...accounts].map((account, index) => {
+                                    const accountCost = getAccountMtdCost(account.id);
+                                    return (
+                                        <tr 
+                                            key={index} 
+                                            onMouseEnter={() => setHoverAccount(index)} 
+                                            onMouseLeave={() => setHoverAccount(null)}
                                         >
-                                            <IconTrashX size={18} />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>)
-                        })}
+                                            <td className="px-6 bg-gray-100 dark:bg-gray-900">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="font-medium text-gray-900 dark:text-gray-100">{account.name}</span>
+                                                    {account.isDefault && <span className="ml-4 accounts-default-badge">Default</span>}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 bg-gray-100 dark:bg-gray-900">
+                                                <span className="text-sm text-gray-600 dark:text-gray-400 font-mono">{account.id}</span>
+                                            </td>
+                                            <td className="px-6 bg-gray-100 dark:bg-gray-900">
+                                                {mtdCostLoading ? (
+                                                    <span className="ml-2 text-gray-500"><IconLoader2 size={18} className="animate-spin" /></span>
+                                                ) : accountCost ? (
+                                                    <span 
+                                                        className={`font-semibold ${accountCost.totalCost > 10 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}
+                                                        title={account.id !== 'general_account' ? `Used by ${accountCost.uniqueApiKeyCount} API key${accountCost.uniqueApiKeyCount !== 1 ? 's' : ''}` : undefined}
+                                                    >
+                                                        {formatCurrency(accountCost.totalCost)}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-gray-500">$0.00</span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 bg-gray-100 dark:bg-gray-900">
+                                                <div className="flex items-center mt-3">
+                                                    <EditableRateLimit 
+                                                        account={account}
+                                                        handleAccountEdit={handleEdit}
+                                                        showEdit={hoverAccount === index}
+                                                    />
+                                                </div>
+                                            </td>
+                                            <td>
+                                            <div className="accounts-row-actions">
+                                                {account.id !== noCoaAccount.id  && hoverAccount === index ? 
+                                                <button
+                                                    type="button"
+                                                    id="deleteAccount"
+                                                    disabled={account.id === noCoaAccount.id}
+                                                    className={`ml-6 mt-4 accounts-delete-button ${account.id === noCoaAccount.id ? 'invisible' : 'visible'}`}
+                                                    onClick={() => handleDeleteAccount(account.name)}
+                                                    title="Delete Account"
+                                                    style={{ transform: 'translateX(-8px)' }}
+                                                >
+                                                    <IconTrashX size={18} />
+                                                </button> : <div className="w-[60px]"></div>}
+                                            </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
                     </div>
-                </div>
+
+                </>
                 )}
             </div>
             </>}

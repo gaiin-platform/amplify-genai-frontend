@@ -299,7 +299,7 @@ const Folder = ({
             </div>
           )}
 
-          { checkFolders && (
+          { checkFolders && !isTodaysFolder &&  (
             <div className="relative flex items-center">
               <div key={currentFolder.id} className="absolute right-4 z-10">
                 <input

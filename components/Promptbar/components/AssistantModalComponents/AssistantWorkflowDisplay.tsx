@@ -74,7 +74,7 @@ export const AssistantWorkflowDisplay: React.FC<WorkflowProps> = ({
 
    const isLoading = loadingState.baseTemplate || loadingState.astTemplate;
 
-    return <div className={`w-full mb-4 ${baseWorkflowTemplate ? "border-b pb-3 border-neutral-500" : ""} `}>
+    return <div className={`mt-2 w-full mb-4 ${baseWorkflowTemplate ? "border-b pb-3 border-neutral-500" : ""} `}>
     {isLoading || !baseWorkflowTemplate ? <> Loading Workflow Template...</>:
       <>
       {/* Initial Setup  */}

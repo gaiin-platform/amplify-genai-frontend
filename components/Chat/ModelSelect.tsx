@@ -169,8 +169,8 @@ const getIcons = (model: Model) => {
           
         </button>
         {isOpen && (
-          <ul id="modelList" className="absolute z-10 mt-1 w-full overflow-auto rounded-lg border border-neutral-200 bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-[#343541] sm:text-sm"
-              style={{maxHeight: window.innerHeight * 0.55}}>
+          <ul id="modelList" className="absolute mt-1 w-full overflow-auto rounded-lg border border-neutral-200 bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-[#343541] sm:text-sm"
+              style={{maxHeight: window.innerHeight * 0.55, zIndex: 20}}>
             {models.sort((a, b) => a.name.localeCompare(b.name))
                     .map((model: Model) => (
               <li

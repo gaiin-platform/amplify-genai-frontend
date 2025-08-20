@@ -11,7 +11,7 @@ import React from "react";
 import { ActiveTabs } from "../ReusableComponents/ActiveTabs";
 import { OpDef } from "@/types/op";
 import { AMPLIFY_ASSISTANTS_GROUP_NAME } from "@/utils/app/amplifyAssistants";
-import { noRateLimit, PeriodType, rateLimitObj } from "@/types/rateLimit";
+import { noRateLimit, PeriodType, RateLimit, rateLimitObj } from "@/types/rateLimit";
 import { adminTabHasChanges} from "@/utils/app/admin";
 import { OpenAIEndpointsTab } from "./AdminComponents/OpenAIEndpoints";
 import { FeatureFlagsTab } from "./AdminComponents/FeatureFlags";
@@ -191,6 +191,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 } 
             } 
             alert("Unable to fetch admin configurations at this time. Please try again.");
+            console.log("Error: ", lazyResult);
+
             setLoadingMessage("");
             onClose();
             
@@ -284,6 +286,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                               supportConvAnalysis: g.supportConvAnalysis
                                                             }));
             case AdminConfigTypes.AMPLIFY_GROUPS:
+                Object.keys(ampGroups).forEach((key: string) => {
+                    if (!ampGroups[key].isBillingGroup) ampGroups[key].isBillingGroup = false;
+                    if (!ampGroups[key].rateLimit) ampGroups[key].rateLimit = noRateLimit;
+                });
                 return ampGroups;
             case AdminConfigTypes.PPTX_TEMPLATES:
                 return templates.filter((pptx:Pptx_TEMPLATES) => changedTemplates.includes(pptx.name));
@@ -291,6 +297,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return integrations;
             case AdminConfigTypes.OPENAI_ENDPOINTS:
                 const toTest:{key: string, url: string, model:string}[] = [];
+                
+                // Track removed models for toast notifications
+                const originalModelNames = new Set<string>();
+                openAiEndpoints.models.forEach(model => {
+                    Object.keys(model).forEach(modelName => originalModelNames.add(modelName));
+                });
+                
                 const cleanedOpenAiEndpoints: OpenAIModelsConfig = {
                     models: openAiEndpoints.models.map(model => {
                         const newModel: Record<string, { endpoints: Endpoint[] }>= {};
@@ -303,11 +316,31 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                 if (isNew) toTest.push({...rest, model: modelName});
                                 return rest; 
                             });
-                            newModel[modelName] = { endpoints };
+                            // Only include models that have at least one endpoint
+                            if (endpoints.length > 0) {
+                                newModel[modelName] = { endpoints };
+                            }
                         });
                         return newModel;
-                    })
+                    }).filter(model => Object.keys(model).length > 0) // Remove empty model objects
                 };
+                
+                // Track cleaned model names and show toast for removed models
+                const cleanedModelNames = new Set<string>();
+                cleanedOpenAiEndpoints.models.forEach(model => {
+                    Object.keys(model).forEach(modelName => cleanedModelNames.add(modelName));
+                });
+                
+                // Show toast for each removed model
+                originalModelNames.forEach(modelName => {
+                    if (!cleanedModelNames.has(modelName)) {
+                        toast(`Removed ${modelName} (no endpoints configured)`);
+                    }
+                });
+                
+                // Update UI state to match cleaned data
+                setOpenAiEndpoints(cleanedOpenAiEndpoints);
+                
                 if (toTest.length > 0) testEndpointsRef.current = toTest;
                 return cleanedOpenAiEndpoints;
         }   
@@ -507,7 +540,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     }
     cancelLabel={"Close"}
     submitLabel={"Save Changes"}
-    disableSubmit={unsavedConfigs.size === 0}
+    disableSubmit={unsavedConfigs.size === 0 || stillLoadingData}
     content={
       <div className="text-black dark:text-white overflow-x-hidden">
          <button
@@ -904,6 +937,8 @@ export interface Amplify_Group { // can be a cognito group
     members : string[];
     createdBy : string;
     includeFromOtherGroups? : string[]; // if is a cognito group, this will always be Absent
+    rateLimit? : RateLimit;
+    isBillingGroup? : boolean;
 }
 
 export interface Amplify_Groups {

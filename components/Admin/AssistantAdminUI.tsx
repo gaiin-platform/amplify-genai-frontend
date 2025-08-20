@@ -4,9 +4,9 @@ import { IconCheck, IconFiles, IconPlus, IconSettings, IconX } from '@tabler/ico
 import { AssistantModal } from '../Promptbar/components/AssistantModal';
 import { Prompt } from '@/types/prompt';
 import { Group, GroupAccessType, AstGroupTypeData, GroupUpdateType, Members } from '@/types/groups';
-import { createEmptyPrompt } from '@/utils/app/prompts';
+import { createEmptyPrompt, savePrompts } from '@/utils/app/prompts';
 import { useSession } from 'next-auth/react';
-import { createAstAdminGroup, updateGroupAssistants } from '@/services/groupsService';
+import { createAstAdminGroup, fetchAstAdminGroups, updateGroupAssistants } from '@/services/groupsService';
 import { TagsList } from '../Chat/TagsList';
 import ExpansionComponent from '../Chat/ExpansionComponent';
 import { AttachFile, handleFile } from '../Chat/AttachFile';
@@ -35,6 +35,9 @@ import { Dashboard, DashboardMetrics } from './AssistantAdminComponents/Dashboar
 import { GroupManagement } from './AssistantAdminComponents/GroupManagement';
 import { CreateAdminDialog } from './AssistantAdminComponents/CreateAdminGroupDialog';
 import ActionButton from '../ReusableComponents/ActionButton';
+import { contructGroupData } from '@/utils/app/groups';
+import { getHiddenGroupFolders, saveFolders } from '@/utils/app/folders';
+import { filterAstsByFeatureFlags } from '@/utils/app/assistants';
 
 
 const subTabs = ['dashboard', 'conversations', 'edit_assistant', 'group'] as const;
@@ -51,19 +54,71 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
     const { data: session } = useSession();
     const user = session?.user?.email ?? "";
 
+    const foldersRef = useRef(folders);
+
+    useEffect(() => {
+        foldersRef.current = folders;
+    }, [folders]);
+
+    const promptsRef = useRef(prompts);
+
+    useEffect(() => {
+        promptsRef.current = prompts;
+      }, [prompts]);
+
     const onClose = () => {
+        syncGroups();
         window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', { detail: { isOpen: false } }));
     }
 
     const filteredForAdminAccess = (allGroups: Group[]) => {
-        return allGroups.filter((g: Group) => [GroupAccessType.ADMIN, GroupAccessType.WRITE].includes(g.members[user]));
+        const hasAccessTo = allGroups.filter((g: Group) => [GroupAccessType.ADMIN, GroupAccessType.WRITE].includes(g.members[user]));
+        if (!featureFlags.createAstAdminGroups && hasAccessTo.length === 0) {
+            alert("You do not have access to any assistant admin groups.");
+            onClose();
+        }
+        return hasAccessTo;
     }
 
     const [innderWindow, setInnerWindow] = useState({ height: window.innerHeight, width: window.innerWidth });
 
     const [loadingMessage, setLoadingMessage] = useState<string>('Loading Assistant Admin Interface...');
     const [loadingActionMessage, setLoadingActionMessage] = useState<string>('');
+ 
 
+    const syncGroups = async () => {
+        let groupResult:any = null;
+        try {
+            console.log("Fetching group data...");
+            const userGroups = await fetchAstAdminGroups();
+            if (userGroups.success) {
+                groupResult = contructGroupData(userGroups.data);
+                homeDispatch({ field: 'groups', value: groupResult.groups});
+            } else {
+                console.log("Failed to import group data: ", userGroups.message);
+                return;
+            }
+        } catch (e) {
+            console.log("Failed to import group data: ", e);
+            return;
+        }
+        // filter out group folders that are hidden
+        const hiddenFolderIds: string[] = getHiddenGroupFolders().map((f:FolderInterface) => f.id);
+        const filteredGroupFolders:FolderInterface[] = groupResult.groupFolders 
+                                                                  .filter((f:FolderInterface) => !hiddenFolderIds.includes(f.id));
+        const updatedFolders = [...foldersRef.current.filter((f:FolderInterface) => !f.isGroupFolder), 
+                                ...filteredGroupFolders]
+        homeDispatch({field: 'folders', value: updatedFolders});
+        saveFolders(updatedFolders);
+
+        const groupPrompts: Prompt[] = filterAstsByFeatureFlags(groupResult.groupPrompts, featureFlags);
+
+        const updatedPrompts = [...promptsRef.current.filter((p : Prompt) => !p.groupId ), 
+                                ...groupPrompts];
+        homeDispatch({field: 'prompts', value: updatedPrompts});
+        savePrompts(updatedPrompts);
+        console.log("Group data synced successfully");
+    }
 
     const [adminGroups, setAdminGroups] = useState<Group[]>(groups.length > 0 ? filteredForAdminAccess(groups) : []);
 
@@ -301,12 +356,15 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         const updateAstData = { "group_id": selectedGroup?.id, "update_type": updateType, "assistants": [astDef] };
         statsService.updateGroupAssistantsEvent(updateAstData);
         const result = await updateGroupAssistants(updateAstData);
-        return (result.success) ? result.assistantData[0]
+        const response = (result.success) ? result.assistantData[0]
             : {
                 id: null,
                 assistantId: null,
                 provider: AssistantProviderID.AMPLIFY
             };
+        response.data_sources = astDef.dataSources;
+        response.ast_data = astDef.data;
+        return response; 
     }
 
     const handleDeleteAssistant = async (astpId: string) => {
@@ -355,7 +413,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                 {subTabs.filter((t: SubTabType) => t !== 'conversations' || selectedGroup?.supportConvAnalysis)
                     .map((label: SubTabType) =>
                         label === 'group' ? (
-                            <>
+                            <React.Fragment key={label}>
                                 {selectedAssistant && selectedAssistant?.data?.assistant?.definition &&
                                     <>
                                         <button
@@ -390,7 +448,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                         Group Management
                                     </div>
                                 </button>}
-                            </>
+                            </React.Fragment>
                         ) :
                             (selectedAssistant ? (
                                 <button key={label} className={`${activeSubTab === label ? 'text-white flex flex-row gap-1 px-2 bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-200 ' : ' text-neutral-500 bg-gray-300 text-black dark:bg-gray-600 dark:text-white'} 
@@ -398,7 +456,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                     onClick={() => setActiveSubTab(label)}>
                                     {formatLabel(label)}
                                 </button>
-                            ) : <></>)
+                            ) : <React.Fragment key={label}></React.Fragment>)
                     )}
             </div>
         </div>
@@ -471,7 +529,9 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                     return curPrompt;
                                 });
                                 homeDispatch({ field: 'prompts', value: updatedPrompts });
-                                setActiveSubTab('edit_assistant');
+                                setTimeout(() => {
+                                    setActiveSubTab('edit_assistant');
+                                }, 800);
                             } else {
                                 alert("Something went wrong, please close and reopen the admin interface before trying again.")
                             }
@@ -494,7 +554,6 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                             additionalGroupData={additionalGroupData}
                             setAdditionalGroupData={setAdditionalGroupData}
                             groupConvAnalysisSupport={!!selectedGroup?.supportConvAnalysis}
-
                         />
                     </AssistantModal>
                 </div>
@@ -630,9 +689,9 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
                                             <div className="overflow-hidden">
                                                 <div className="flex flex-row gap-1 flex-nowrap ml-2 pr-2">
-                                                    {selectedGroup.assistants.length > 0 && selectedGroup.assistants.map((ast: Prompt) => (
+                                                    {selectedGroup.assistants.length > 0 && selectedGroup.assistants.map((ast: Prompt, index: number) => (
                                                         <button
-                                                            key={ast.name}
+                                                            key={`${ast.name}_${index}`}
                                                             onClick={() => {
                                                                 setSelectedAssistant(ast)
                                                                 setActiveSubTab(DEFAULT_SUB_TAB);
@@ -690,10 +749,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                     </div>
                                 </>
                             }
+                 </div>}
 
-                        
-                    
-                    </div>}
             />
 
         );

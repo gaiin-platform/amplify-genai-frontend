@@ -1,5 +1,5 @@
 import React, {FC, useEffect, useState} from 'react';
-import { IconTrashX, IconCircleX, IconCheck, IconWorld, IconSitemap } from '@tabler/icons-react';
+import { IconCircleX, IconCheck, IconWorld, IconSitemap } from '@tabler/icons-react';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
@@ -146,16 +146,201 @@ interface ExistingProps {
     boldTitle?: boolean;
 }
 
+interface GroupedDataSources {
+    directUrls: AttachedDocument[];
+    sitemapGroups: { [sitemapUrl: string]: AttachedDocument[] };
+    other: AttachedDocument[];
+}
+
+const groupDataSourcesBySitemap = (documents: AttachedDocument[]): GroupedDataSources => {
+    const grouped: GroupedDataSources = {
+        directUrls: [],
+        sitemapGroups: {},
+        other: []
+    };
+
+    documents.forEach(doc => {
+        if (doc.type === 'website/url' && doc.metadata?.fromSitemap) {
+            const sitemapUrl = doc.metadata.fromSitemap;
+            if (!grouped.sitemapGroups[sitemapUrl]) {
+                grouped.sitemapGroups[sitemapUrl] = [];
+            }
+            grouped.sitemapGroups[sitemapUrl].push(doc);
+        } else if (doc.type === 'website/url') {
+            grouped.directUrls.push(doc);
+        } else {
+            grouped.other.push(doc);
+        }
+    });
+
+    return grouped;
+};
+
 export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocuments, allowRemoval = true, boldTitle=true, onRemoval}) => {
 
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [dataSources, setDataSources] = useState<AttachedDocument[]>(documents ?? []);
     const [hovered, setHovered] = useState<string>('');
-
+    const [expandedSitemaps, setExpandedSitemaps] = useState<Set<string>>(new Set());
 
     useEffect(() => {
-        if (!searchTerm && documents) setDataSources(documents);
-    }, [searchTerm]);
+        if (documents) setDataSources(documents);
+    }, [documents, searchTerm]);
+
+    const toggleSitemap = (sitemapUrl: string) => {
+        const newExpanded = new Set(expandedSitemaps);
+        if (newExpanded.has(sitemapUrl)) {
+            newExpanded.delete(sitemapUrl);
+        } else {
+            newExpanded.add(sitemapUrl);
+        }
+        setExpandedSitemaps(newExpanded);
+    };
+
+    const removeDocument = (document: AttachedDocument) => {
+        const newDataSources = dataSources.filter(x => x.id !== document.id);
+        setDataSources(newDataSources);
+        // Update parent component state
+        setDocuments(newDataSources);
+        if (onRemoval) onRemoval(document);
+    };
+
+    const removeSitemapGroup = (sitemapUrl: string, sitemapDocs: AttachedDocument[]) => {
+        const newDataSources = dataSources.filter(doc => !sitemapDocs.includes(doc));
+        setDataSources(newDataSources);
+        // Update parent component state
+        setDocuments(newDataSources);
+        if (onRemoval) {
+            sitemapDocs.forEach(doc => onRemoval(doc));
+        }
+    };
+
+    // Shared component for rendering document items
+    const DocumentItem: FC<{
+        id: string;
+        itemNumber: number;
+        displayText: string;
+        icon?: React.ReactNode;
+        onRemove?: () => void;
+        onClick?: () => void;
+        className?: string;
+        textSize?: 'sm' | 'xs';
+        removeTitle?: string;
+        removeIconSize?: number;
+        isClickable?: boolean;
+    }> = ({ 
+        id, 
+        itemNumber, 
+        displayText, 
+        icon, 
+        onRemove, 
+        onClick, 
+        className = '', 
+        textSize = 'sm',
+        removeTitle = 'Remove',
+        removeIconSize = 20,
+        isClickable = false
+    }) => {
+        const [hoveredButton, setHoveredButton] = useState(false);
+        
+        // Determine background color based on hover state
+        let hoverBgClass = 'bg-white dark:bg-[#40414F]'; // default
+        
+        if (hoveredButton) {
+            // When hovering remove button, show gray for all items
+            hoverBgClass = 'bg-gray-200 dark:bg-gray-500';
+        } else if (isClickable && hovered === id) {
+            // When hovering clickable item (not button), show blue
+            hoverBgClass = 'bg-blue-100 dark:bg-blue-900/40';
+        }
+        
+        const baseClasses = `flex flex-row items-center border dark:border-neutral-500 dark:text-white rounded-sm px-1 py-1.5 ml-1 mr-1 mb-1`;
+        const clickableClasses = isClickable ? 'cursor-pointer transition-colors' : '';
+        
+        return (
+            <div
+                className={`${hoverBgClass} ${baseClasses} ${clickableClasses} ${className}`}
+                onMouseEnter={() => setHovered(id)}
+                onMouseLeave={() => setHovered('')}
+                onClick={onClick}
+            >
+                <div className="ml-1 flex-1" style={{ overflow: 'hidden' }}>
+                    <p className={`truncate font-medium text-${textSize} text-black-800 dark:text-white flex flex-row items-center gap-1`} style={{
+                        overflow: 'hidden',
+                        whiteSpace: 'nowrap', 
+                        textOverflow: 'ellipsis',
+                    }}>
+                        {itemNumber}. {displayText} {icon}
+                    </p>
+                </div>
+           
+                {allowRemoval && onRemove && 
+                    <button
+                        title={removeTitle}
+                        className="ml-auto mr-2 text-gray-400 hover:text-red-600 transition-all"
+                        style={{ flexShrink: 0 }}
+                        onMouseEnter={() => setHoveredButton(true)}
+                        onMouseLeave={() => setHoveredButton(false)}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onRemove();
+                        }}
+                    >
+                        <IconCircleX size={removeIconSize}/>
+                    </button>
+                }
+            </div>
+        );
+    };
+
+    // Child document item (for sitemap pages)
+    const ChildDocumentItem: FC<{
+        document: AttachedDocument;
+        onRemove: () => void;
+    }> = ({ document, onRemove }) => (
+        <div
+            key={`sitemap-doc-${document.id}`}
+            className={`${hovered === document.id ? 'hover:bg-gray-200 dark:hover:bg-gray-500' : ''} bg-gray-50 dark:bg-[#35363f] flex flex-row items-center border dark:border-neutral-600 dark:text-white rounded-sm px-1 py-1 ml-1 mr-1 mb-1`}
+        >
+            <div className="ml-4 flex-1" style={{ overflow: 'hidden' }}>
+                <p className={`truncate font-medium text-xs text-gray-700 dark:text-gray-300 flex flex-row items-center gap-1`} style={{
+                    overflow: 'hidden',
+                    whiteSpace: 'nowrap', 
+                    textOverflow: 'ellipsis',
+                }}>
+                    ↳ {document.metadata?.sourceUrl || document.name}
+                </p>
+            </div>
+       
+            {allowRemoval && 
+                <button
+                    onMouseEnter={() => setHovered(document.id)}
+                    onMouseLeave={() => setHovered('')}
+                    title={"Remove this page"}
+                    className="ml-auto mr-2 text-gray-400 hover:text-red-500 transition-all"
+                    style={{ flexShrink: 0 }}
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onRemove();
+                    }}
+                >
+                    <IconCircleX size={20}/>
+                </button>
+            }
+        </div>
+    );
+  
+    const filteredDataSources = searchTerm 
+        ? dataSources.filter((ds: AttachedDocument) => 
+            ds.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            ds.metadata?.sourceUrl?.toLowerCase().includes(searchTerm.toLowerCase())
+          )
+        : dataSources;
+
+    const grouped = groupDataSourcesBySitemap(filteredDataSources);
+    let itemCounter = 0;
     
     return (
         <div className='mb-4'>
@@ -168,55 +353,72 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                     paddingY='py-1.5'
                     onSearch={(searchTerm: string) => {
                         setSearchTerm(searchTerm);
-                        if (documents) setDataSources(documents.filter((ds: AttachedDocument) => ds.name.toLowerCase().includes(searchTerm.toLowerCase())));
-                    }
-                    }
+                    }}
                 />
                 </div>
             </div>
             
             <div className="flex flex-col overflow-y-auto pb-2 mt-2 w-full max-h-[200px]">
-                {dataSources?.map((document, i) => (
-                    <div
-                        key={i}
-                        className={`${hovered === document.id ? 'hover:bg-gray-200 dark:hover:bg-gray-500' : ''} bg-white dark:bg-[#40414F] flex flex-row items-center border dark:border-neutral-500 dark:text-white rounded-sm px-1 py-1.5 ml-1 mr-1`}
-                    >
-                            <div className="ml-1 flex-1" style={{ overflow: 'hidden' }}>
-                                <p className={`truncate font-medium text-sm text-black-800 flex flex-row items-center gap-1`} style={{
-                                    overflow: 'hidden',
-                                    whiteSpace: 'nowrap', 
-                                    textOverflow: 'ellipsis',
-                                }}>
-                                    {i+1}. {document.metadata?.sourceUrl || document.name} {getIcon(document)}
-                                    
-                                </p>
-                            </div>
-                       
-                        { allowRemoval && 
+                {/* Direct URLs */}
+                {grouped.directUrls.map((document) => {
+                    itemCounter++;
+                    return (
+                        <DocumentItem
+                            key={`direct-${document.id}`}
+                            id={document.id}
+                            itemNumber={itemCounter}
+                            displayText={document.metadata?.sourceUrl || document.name}
+                            icon={getIcon(document)}
+                            onRemove={() => removeDocument(document)}
+                        />
+                    );
+                })}
 
-                                <button
-                                key={i}
-                                onMouseEnter={() => setHovered(document.id)}
-                                onMouseLeave={() =>setHovered('')}
-                                title={"Remove"}
-                                className="ml-auto mr-2 text-gray-400 transition-all"
-                                style={{ flexShrink: 0 }}
-                                onClick={(e) =>{
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    if (documents) {
-                                        setDocuments(documents.filter(x => x != document));
-                                        setDataSources(dataSources.filter(x => x != document));
-                                        if (onRemoval) onRemoval(document);
-                                    }
-                                }}
-                            >
-                                <IconCircleX/>
-                    </button>}
-                    </div>
-                ))}
+                {/* Sitemap Groups */}
+                {Object.entries(grouped.sitemapGroups).map(([sitemapUrl, sitemapDocs]) => {
+                    itemCounter++;
+                    const isExpanded = expandedSitemaps.has(sitemapUrl);
+                    
+                    return (
+                        <div key={`sitemap-${sitemapUrl}`}>
+                            <DocumentItem
+                                id={`sitemap-${sitemapUrl}`}
+                                itemNumber={itemCounter}
+                                displayText={`${sitemapUrl} (${sitemapDocs.length} pages)`}
+                                icon={<IconSitemap size={18} className="text-blue-500" />}
+                                onRemove={() => removeSitemapGroup(sitemapUrl, sitemapDocs)}
+                                onClick={() => toggleSitemap(sitemapUrl)}
+                                isClickable={true}
+                                removeTitle={`Remove all ${sitemapDocs.length} pages from this sitemap`}
+                            />
+
+                            {/* Sitemap Content - only show when expanded */}
+                            {isExpanded && sitemapDocs.map((document) => (
+                                <ChildDocumentItem
+                                    key={`sitemap-doc-${document.id}`}
+                                    document={document}
+                                    onRemove={() => removeDocument(document)}
+                                />
+                            ))}
+                        </div>
+                    );
+                })}
+
+                {/* Other documents */}
+                {grouped.other.map((document) => {
+                    itemCounter++;
+                    return (
+                        <DocumentItem
+                            key={`other-${document.id}`}
+                            id={document.id}
+                            itemNumber={itemCounter}
+                            displayText={document.metadata?.sourceUrl || document.name}
+                            icon={getIcon(document)}
+                            onRemove={() => removeDocument(document)}
+                        />
+                    );
+                })}
             </div>
-
         </div>
     );
 };

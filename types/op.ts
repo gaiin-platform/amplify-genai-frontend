@@ -1,4 +1,20 @@
-import {Conversation} from "@/types/chat";
+
+export interface Schema {
+    type: string;
+    properties: {
+      [key: string]: {
+        type: string;
+        [key: string]: any;
+      };
+    };
+    required?: string[];
+}
+
+export type OpBindingMode = "ai" | "manual";
+
+export interface OpBindings {
+    [key: string] : {"value": string, "mode": OpBindingMode}
+}
 
 export interface OpContext {
     [key: string]: any;
@@ -36,10 +52,12 @@ export interface OpDef {
     method?: string;
     description: string;
     type: string;
-    params: Record<string, string>[];
     data?: OpData;
     tag?: string;
     tags?: string[];
+    parameters: Schema;
+    output?: Schema;
+    bindings?: OpBindings
 
 }
 
@@ -47,8 +65,6 @@ export interface Op extends OpDef {
     paramChecker: (params: any) => boolean;
     execute: (context: OpContext, params: any) => Promise<OpResult>;
 }
-
-
 
 
 

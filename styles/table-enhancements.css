@@ -466,6 +466,11 @@
   animation: pulse 12s infinite;
 }
 
+/* Move top-right corner rounding to second-to-last column header */
+.gradient-header.hide-last-column th:nth-last-child(1) {
+  border-top-right-radius: 12px;
+}
+
 .dark .gradient-header {
   background: linear-gradient(to right, rgb(51, 65, 85), rgb(71, 85, 105), rgb(51, 65, 85));
 }
@@ -572,10 +577,7 @@
   padding: 12px;
 }
 
-/* Remove right border from last header cell */
-.modern-table thead th:last-child {
-  border-right: none;
-}
+
 
 /* Body cells */
 .modern-table tbody td {
@@ -618,6 +620,7 @@
   padding: 0;
 }
 
+
 .modern-table.hide-last-column tbody td:last-child * {
   visibility: visible !important; /* Keep the content visible (like trash icons) */
   color: initial !important;
@@ -636,10 +639,43 @@
   border-right: 1px solid #4b5563;
 }
 
+.dark .modern-table.hide-last-column thead th:last-child {
+  border-right: 1px solid #6b7280;
+}
+
+.modern-table.hide-last-column thead th {
+  border-top: 1px solid #4b5563;
+}
+
+.dark .modern-table.hide-last-column thead th {
+  border-top: 1px solid #6b7280;
+}
+
+.dark .modern-table.hide-last-column thead th {
+  border-left: 1px solid #6b7280;
+}
+
+.modern-table.hide-last-column thead th:first-child {
+  border-left: 1px solid #4b5563;
+}
+
+.dark .modern-table.hide-last-column thead th:first-child {
+  border-left: 1px solid #6b7280;
+}
+
 /* Make second-to-last column act like the visual end */
 .modern-table.hide-last-column tbody td:nth-last-child(1) {
   border-right: none;
 }
+
+.modern-table.hide-last-column tbody td:first-child {
+  border-left: 1px solid #4b5563;
+}
+
+.dark .modern-table.hide-last-column tbody td:first-child {
+  border-left: 1px solid #6b7280;
+}
+
 
 /* Move top-right corner rounding to second-to-last column header */
 .modern-table.hide-last-column thead tr:first-child th:nth-last-child(1) {
@@ -647,6 +683,6 @@
 }
 
 /* Move bottom-right corner rounding to second-to-last column */
-.modern-table.hide-last-column tbody tr:last-child td:nth-last-child(1) {
+.modern-table.hide-last-column tbody tr:last-child td:nth-last-child(2) {
   border-bottom-right-radius: 12px;
 }

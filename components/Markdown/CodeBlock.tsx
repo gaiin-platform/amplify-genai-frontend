@@ -6,6 +6,7 @@ import { useTranslation } from 'next-i18next';
 import { generateRandomString } from '@/utils/app/codeblock';
 import { programmingLanguages } from '@/utils/app/fileTypeTranslations';
 
+
 interface Props {
   language: string;
   value: string;
@@ -31,7 +32,8 @@ export const CodeBlock: FC<Props> = memo(({ language, value }) => {
     });
   };
   const downloadAsFile = () => {
-    const fileExtension = programmingLanguages[language] || '.file';
+    const fileExtension = 
+          [language] || '.file';
     const suggestedFileName = `file-${generateRandomString(
       3,
       true,
@@ -61,7 +63,7 @@ export const CodeBlock: FC<Props> = memo(({ language, value }) => {
 
 
   return (
-    <div className="codeblock relative font-sans text-[16px]">
+    <div className="codeblock relative font-sans text-[16px]" style={{ width: '100%', minWidth: 0 }}>
       <div className="flex items-center justify-between py-1.5 px-4">
         <span className="text-xs lowercase text-white">{language}</span>
 
@@ -83,13 +85,20 @@ export const CodeBlock: FC<Props> = memo(({ language, value }) => {
         </div>
       </div>
 
-      <SyntaxHighlighter
-        language={language}
-        style={oneDark}
-        customStyle={{ margin: 0 }}
-      >
-        {value}
-      </SyntaxHighlighter>
+      <div style={{ overflow: 'hidden' }}>
+        <SyntaxHighlighter
+          language={language}
+          style={oneDark}
+          customStyle={{ 
+            margin: 0,
+            overflow: 'auto',
+            boxSizing: 'border-box'
+          }}
+          PreTag="div"
+        >
+          {value}
+        </SyntaxHighlighter>
+      </div>
     </div>
   );
 });

@@ -983,18 +983,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 }} 
                 />
             }
-            <div className="relative flex-1 overflow-hidden bg-neutral-100 dark:bg-[#343541]">
-                { modelError ? (
-                    <ErrorMessageDiv error={modelError}/>  
-                ) : (
-                    <> 
-                        <div
-                            id="chatScrollWindow"
-                            className="chatcontainer max-h-full overflow-x-hidden" style={{height: windowInnerDims.height * 0.94}}
-                            ref={chatContainerRef}
-                            onScroll={handleScroll}
-                        >
-                            {selectedConversation && selectedConversation.messages?.length === 0 && filteredModels ? (
+            
+            {/* Main container with CSS Grid for strict 50/50 split when artifacts are open */}
+            <div className={`flex h-full ${featureFlags.artifacts && isArtifactOpen ? 'grid grid-cols-2 gap-0' : ' w-full'}`}>
+                
+                {/* Chat Area */}
+                <div className={`relative ${featureFlags.artifacts && isArtifactOpen ? 'overflow-hidden' : 'flex-1'} bg-neutral-100 dark:bg-[#343541]`}>
+                    { modelError ? (
+                        <ErrorMessageDiv error={modelError}/>  
+                    ) : (
+                        <> 
+                            <div
+                                id="chatScrollWindow"
+                                className="chatcontainer max-h-full overflow-x-hidden" style={{height: windowInnerDims.height * 0.94}}
+                                ref={chatContainerRef}
+                                onScroll={handleScroll}
+                            >
+                            {selectedConversation &&(!selectedConversation.messages || selectedConversation.messages?.length === 0) && filteredModels ? (
                                 <div id="overflowScroll" className='overflow-y-auto' style={{height: windowInnerDims.height - 200}}>
                                     <div
                                         className="mx-auto flex flex-col space-y-1 md:space-y-8 px-3 pt-5 md:pt-10" 
@@ -1481,12 +1486,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 )}
             </div>
 
-            {/* Artifacts */}
+            {/* Artifacts Panel - only show when artifacts are open */}
             {(featureFlags.artifacts && isArtifactOpen) &&  (
                 <Artifacts 
                     artifactIndex={artifactIndex}    
                 />
             )}
+
+            </div>
 
             </>
         );

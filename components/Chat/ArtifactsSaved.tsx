@@ -3,7 +3,7 @@ import { IconLibrary,  IconTrash } from '@tabler/icons-react';
 import { FC, useContext, useEffect, useRef, useState } from 'react';
 
 import HomeContext from '@/pages/api/home/home.context';
-import { Conversation } from '@/types/chat';
+import { Conversation, Message, MessageType, newMessage } from '@/types/chat';
 import { Artifact, ArtifactBlockDetail } from '@/types/artifacts';
 import { deleteArtifact, getArtifact } from '@/services/artifactsService';
 import toast from 'react-hot-toast';
@@ -83,7 +83,12 @@ const handleUpdateConversation = (updatedConversation: Conversation, artifact: A
     }
 
     updatedConversation.artifacts = {...conversationArtifacts, [artifact.artifactId]: artifactList };
-    
+    if (updatedConversation.messages.length === 0 || 
+               updatedConversation.messages.slice(-1)[0].role !== 'assistant') {
+      console.log("Adding assistant message for artifact display");
+      let msg:Message = newMessage({role: "assistant", content: `Artifact Attached`, data: {artifacts: []}});
+      updatedConversation.messages.push(msg);
+    }
     const lastMessageData = updatedConversation.messages.slice(-1)[0].data;
     updatedConversation.messages.slice(-1)[0].data.artifacts = [...(lastMessageData.artifacts ?? []), {artifactId: artifact.artifactId, name: artifact.name, createdAt:  artifact.createdAt, description: artifact.description, version: artifact.version === 1 ? undefined : artifact.version} as ArtifactBlockDetail];
 
@@ -96,6 +101,7 @@ const handleAddArtifactToConversation = async (key: string, index:number) => {
     setLoadingItem(index);
     statsService.bringArtifactToAnotherConversationEvent(key);
     const result = await getArtifact(key);
+
     if (result.success) {
       const artifact:Artifact = result.data;
       if (selectedConversation)  handleUpdateConversation({...selectedConversation}, artifact);

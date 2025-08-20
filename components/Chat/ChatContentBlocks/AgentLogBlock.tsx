@@ -16,6 +16,7 @@ import { MemoizedReactMarkdown } from '@/components/Markdown/MemoizedReactMarkdo
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import { AgentFileList, AgentFile } from '@/components/Chat/ChatContentBlocks/AgentFilesBlock';
+import { getAgentLog } from '@/utils/app/agent';
 // Response type from the server
 interface AgentLogData {
   session: string;
@@ -341,11 +342,8 @@ const AgentLogBlock: React.FC<Props> = ({conversationId, message, messageIsStrea
     return <></>;
   }
 
-  let agentLog =
-    message.data?.state && message.data?.state.agentLog
-      ? message.data.state.agentLog
-      : {};
- 
+  let agentLog = getAgentLog(message) ?? {};
+
   // console.log('Reasoning Log', agentLog);
 
   if (!agentLog || !agentLog.data || !agentLog.data.result) {
