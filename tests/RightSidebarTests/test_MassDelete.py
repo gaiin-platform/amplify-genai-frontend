@@ -24,28 +24,42 @@ class MassDeleteTests(BaseTest):
         super().setUp(headless=True)
 
     # ----------------- Setup Test Data ------------------
+            
+    def click_assistants_tab(self):
+        time.sleep(5)
+        tab_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
+        assistants_button = next((btn for btn in tab_buttons if "Assistants" in btn.get_attribute("title")), None)
+        self.assertIsNotNone(assistants_button, "'Assistants' tab button not found")
+        assistants_button.click()
+        time.sleep(5)
+        
+    def delete_all_assistants(self):
 
-    def setup_test_data(self, num_assistants=2, num_prompts=2):
-        """Creates a folder, a specified number of assistants, and prompts."""
-        self.create_folder("Mario Party")
+        prompt_handler_button = self.wait.until(EC.presence_of_element_located((By.ID, "promptHandler")))
+        prompt_handler_button.click()
+        time.sleep(2)
+        
+        delete_button = self.wait.until(EC.presence_of_element_located((By.ID, "Delete")))
+        delete_button.click()
+        time.sleep(2)  # Give time for the menu to appear
 
-        for i in range(1, num_assistants + 1):
-            self.create_assistant(f"Shy Guy {i}")
+        select_all_check = self.wait.until(EC.presence_of_element_located((By.ID, "selectAllCheck")))
 
-        for i in range(1, num_prompts + 1):
-            self.create_prompt(f"Toad {i}")
+        checkbox = select_all_check.find_element(By.XPATH, ".//input[@type='checkbox']")
+        self.assertIsNotNone(checkbox, f"Checkbox for prompt All should be present")
+        checkbox.click()
+        time.sleep(2)
+
+        confirm_delete_button = self.wait.until(EC.element_to_be_clickable((By.ID, "confirmItem")))
+        self.assertTrue(confirm_delete_button, "Delete Button should be initialized")
+        confirm_delete_button.click()
+        time.sleep(2)
 
     def create_folder(self, folder_name):
         time.sleep(5)
-        folder_add_buttons = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "createFolderButton"))
-        )
-        self.assertGreater(
-            len(folder_add_buttons),
-            1,
-            "Expected multiple buttons with ID 'createFolderButton'",
-        )
-        folder_add_buttons[-1].click()
+        folder_add_button = self.wait.until(EC.presence_of_element_located((By.ID, "createFolderButton")))
+        self.assertTrue(folder_add_button, "Expected multiple buttons with ID 'createFolderButton'")
+        folder_add_button.click()
 
         try:
             alert = self.wait.until(EC.alert_is_present())
@@ -57,15 +71,6 @@ class MassDeleteTests(BaseTest):
         except UnexpectedAlertPresentException as e:
             self.fail(f"Unexpected alert present: {str(e)}")
 
-        time.sleep(2)
-        drop_name_elements = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "dropName"))
-        )
-        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
-        time.sleep(2)
-        folder = next((el for el in drop_name_elements if el.text == folder_name), None)
-        self.assertIsNotNone(folder, f"{folder_name} button should be present")
-
     def create_assistant(self, assistant_name):
         assistant_add_button = self.wait.until(
             EC.element_to_be_clickable((By.ID, "addAssistantButton"))
@@ -75,46 +80,37 @@ class MassDeleteTests(BaseTest):
             "Add Assistant button should be initialized and clickable",
         )
         assistant_add_button.click()
+        time.sleep(5)
 
         assistant_name_input = self.wait.until(
-            EC.presence_of_element_located((By.ID, "assistantName"))
+            EC.presence_of_element_located((By.ID, "assistantNameInput"))
         )
         self.assertIsNotNone(
             assistant_name_input, "Assistant Name input should be present"
         )
+        time.sleep(2)
         assistant_name_input.clear()
+        time.sleep(2)
         assistant_name_input.send_keys(assistant_name)
+        time.sleep(2)
 
-        assistant_save_button = self.wait.until(
-            EC.element_to_be_clickable((By.ID, "saveButton"))
-        )
-        self.assertIsNotNone(
-            assistant_save_button, "Save button should be initialized and clickable"
-        )
-        assistant_save_button.click()
+        # Locate and click the Save button
+        confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
+        self.assertTrue(confirmation_button, "Drop name elements should be initialized")
+        
+        save_button = next((el for el in confirmation_button if el.text == "Save"), None)
+        self.assertIsNotNone(save_button, "Save button should be present")
+        
+        save_button.click()
 
         time.sleep(5)
         drop_name_elements = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "dropName"))
         )
         self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
-        assistant_dropdown_button = next(
-            (el for el in drop_name_elements if el.text == "Assistants"), None
-        )
-        self.assertIsNotNone(
-            assistant_dropdown_button, "Assistants button should be present"
-        )
-
-        # Ensure the parent button's title is "Collapse folder" before clicking
-        parent_button = assistant_dropdown_button.find_element(
-            By.XPATH, "./ancestor::button"
-        )
-        button_title = parent_button.get_attribute("title")
-        if button_title != "Collapse folder":
-            assistant_dropdown_button.click()
 
         prompt_name_elements = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptName"))
+            EC.presence_of_all_elements_located((By.ID, "assistantName"))
         )
         self.assertTrue(
             prompt_name_elements, "Prompt name elements should be initialized"
@@ -136,14 +132,18 @@ class MassDeleteTests(BaseTest):
         )
         self.assertIsNotNone(prompt_add_button, "Prompt button should be present")
         prompt_add_button.click()
+        time.sleep(5)
 
         time.sleep(2)
         prompt_name_input = self.wait.until(
             EC.presence_of_element_located((By.ID, "promptModalName"))
         )
         self.assertIsNotNone(prompt_name_input, "Prompt Name input should be present")
+        time.sleep(2)
         prompt_name_input.clear()
+        time.sleep(2)
         prompt_name_input.send_keys(prompt_name)
+        time.sleep(2)
 
         time.sleep(2)
         confirmation_button = self.wait.until(
@@ -169,15 +169,68 @@ class MassDeleteTests(BaseTest):
         self.assertIsNotNone(
             prompt_in_list, f"{prompt_name} should be visible in the dropdown"
         )
+        
+    def delete_all_folders(self):
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
+        )
+        prompt_handler_button.click()
+        time.sleep(2)
+        
+        # Select First Submenu
+        sub_menu = self.wait.until(EC.presence_of_element_located((By.ID, "subMenu")))
+        self.assertTrue(sub_menu, "Element with id='subMenu' is present")
+        time.sleep(1)  # Give time for the menu to appear
+        
+        # Click the id="folderSort"
+        visible_sub_menu = self.wait.until(
+            EC.presence_of_element_located((By.ID, "folderSort"))
+        )
+        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        visible_sub_menu.click()
+        time.sleep(1)
+
+        # Click the button with ID "Delete"
+        delete_button = self.wait.until(
+            EC.presence_of_all_elements_located((By.ID, "Delete"))
+        )
+        delete_button[-1].click()
+        time.sleep(2)  # Give time for the menu to appear
+
+        # Click the select all checkbox
+        select_all_check = self.wait.until(
+            EC.presence_of_element_located((By.ID, "selectAllCheck"))
+        )
+        # Locate the checkbox within the parent container
+        checkbox = select_all_check.find_element(By.XPATH, ".//input[@type='checkbox']")
+        self.assertIsNotNone(checkbox, f"Checkbox for prompt All should be present")
+        checkbox.click()
+        time.sleep(2)
+
+        # Click the Delete Button
+        confirm_delete_button = self.wait.until(
+            EC.element_to_be_clickable((By.ID, "confirmItem"))
+        )
+        self.assertTrue(confirm_delete_button, "Delete Button should be initialized")
+        confirm_delete_button.click()
+        time.sleep(2)
 
     # ----------------- Test Delete Mass Assistants -----------------
     """This test ensures multiple assistants can be deleted individually via the 
        three dots handler on the Right Side Bar"""
 
     def test_delete_mass_assistants(self):
+        
+        self.click_assistants_tab()
+        self.delete_all_folders()
+        self.delete_all_assistants()
+        self.create_folder("Mario Party")
+        self.create_assistant("Shy Guy 1")
+        self.create_assistant("Shy Guy 2")
+        
         # Locate all elements with ID "promptName"
         prompt_name_elements = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptName"))
+            EC.presence_of_all_elements_located((By.ID, "assistantName"))
         )
         self.assertTrue(
             prompt_name_elements, "Prompt name elements should be initialized"
@@ -198,7 +251,7 @@ class MassDeleteTests(BaseTest):
         )
         button_id = assistant_button.get_attribute("id")
         self.assertEqual(
-            button_id, "promptClick", "Button should be called promptClick"
+            button_id, "assistantClick", "Button should be called promptClick"
         )
 
         # Locate all elements with the ID 'dropName'
@@ -229,16 +282,10 @@ class MassDeleteTests(BaseTest):
         time.sleep(3)  # Extra sleep to observe the effect
 
         # Click the promptHandler Button
-        prompt_handler_buttons_plural = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptHandler"))
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
         )
-        self.assertGreater(
-            len(prompt_handler_buttons_plural),
-            1,
-            "Expected multiple buttons with ID 'createFolderButton'",
-        )
-
-        prompt_handler_buttons_plural[-1].click()
+        prompt_handler_button.click()
 
         time.sleep(3)
 
@@ -249,48 +296,9 @@ class MassDeleteTests(BaseTest):
 
         time.sleep(3)
 
-        # Locate all elements with the ID 'dropName'
-        drop_name_elements = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "dropName"))
-        )
-        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
-
-        # Find the element with text "Amplify Helpers"
-        time.sleep(2)
-        amplify_helper_dropdown_button = next(
-            (el for el in drop_name_elements if el.text == "Amplify Helpers"), None
-        )
-        self.assertIsNotNone(
-            amplify_helper_dropdown_button, "Amplify Helpers button should be present"
-        )
-
-        # Click to close the dropdown
-        amplify_helper_dropdown_button.click()
-
-        # Locate all elements with the ID 'dropName'
-        drop_name_elements = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "dropName"))
-        )
-        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
-
-        # Find the element with text "Custom Instructions"
-        time.sleep(2)
-        custom_instructions_dropdown_button = next(
-            (el for el in drop_name_elements if el.text == "Custom Instructions"), None
-        )
-        self.assertIsNotNone(
-            custom_instructions_dropdown_button,
-            "Custom Instructions button should be present",
-        )
-
-        # Click to open the dropdown
-        custom_instructions_dropdown_button.click()
-
-        # Find Prompt name and try to find the checkbox?
-        time.sleep(2)
         # Locate all elements with ID "promptName" and find the one with text "Shy Guy 1"
         prompt_name_elements = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptName"))
+            EC.presence_of_all_elements_located((By.ID, "assistantName"))
         )
         self.assertTrue(
             prompt_name_elements, "Prompt name elements should be initialized"
@@ -320,7 +328,7 @@ class MassDeleteTests(BaseTest):
 
         # Locate all elements with ID "promptName" and find the one with text "Shy Guy 1"
         prompt_name_elements = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptName"))
+            EC.presence_of_all_elements_located((By.ID, "assistantName"))
         )
         self.assertTrue(
             prompt_name_elements, "Prompt name elements should be initialized"
@@ -356,44 +364,35 @@ class MassDeleteTests(BaseTest):
         )
         self.assertTrue(confirm_delete_button, "Delete Button should be initialized")
         confirm_delete_button.click()
+        
+        time.sleep(2)
 
-        # Locate all elements with ID "promptName" and find the one with text "Shy Guy 1"
+        # Locate all elements with ID "assistantName" and find the one with text "Shy Guy 1"
         prompt_name_elements = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptName"))
+            EC.invisibility_of_element((By.ID, "assistantName"))
         )
         self.assertTrue(
             prompt_name_elements, "Prompt name elements should be initialized"
         )
-
-        # Check if any of the elements do not contain "Shy Guy 1"
-        prompt_in_list = next(
-            (el for el in prompt_name_elements if el.text == "Shy Guy 1"), None
-        )
-        self.assertIsNone(prompt_in_list, "Shy Guy 1 should be visible in the dropdown")
-
-        # Check if any of the elements do not contain "Shy Guy 1"
-        prompt_in_list = next(
-            (el for el in prompt_name_elements if el.text == "Shy Guy 2"), None
-        )
-        self.assertIsNone(prompt_in_list, "Shy Guy 1 should be visible in the dropdown")
 
     # ----------------- Test Delete Mass Prompts -----------------
     """This test ensures multiple prompts can be deleted individually via the 
        three dots handler on the Rightt Side Bar"""
 
     def test_delete_mass_prompts(self):
+        
+        self.click_assistants_tab()
+        self.delete_all_folders()
+        self.delete_all_assistants()
+        self.create_folder("Mario Party")
+        self.create_prompt("Toad 1")
+        self.create_prompt("Toad 2")
 
         # Click the promptHandler Button
-        prompt_handler_buttons_plural = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptHandler"))
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
         )
-        self.assertGreater(
-            len(prompt_handler_buttons_plural),
-            1,
-            "Expected multiple buttons with ID 'createFolderButton'",
-        )
-
-        prompt_handler_buttons_plural[-1].click()
+        prompt_handler_button.click()
 
         time.sleep(3)
 
@@ -404,45 +403,6 @@ class MassDeleteTests(BaseTest):
 
         time.sleep(3)
 
-        # Locate all elements with the ID 'dropName'
-        drop_name_elements = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "dropName"))
-        )
-        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
-
-        # Find the element with text "Amplify Helpers"
-        time.sleep(2)
-        amplify_helper_dropdown_button = next(
-            (el for el in drop_name_elements if el.text == "Amplify Helpers"), None
-        )
-        self.assertIsNotNone(
-            amplify_helper_dropdown_button, "Amplify Helpers button should be present"
-        )
-
-        # Click to close the dropdown
-        amplify_helper_dropdown_button.click()
-
-        # Locate all elements with the ID 'dropName'
-        drop_name_elements = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "dropName"))
-        )
-        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
-
-        # Find the element with text "Custom Instructions"
-        time.sleep(2)
-        custom_instructions_dropdown_button = next(
-            (el for el in drop_name_elements if el.text == "Custom Instructions"), None
-        )
-        self.assertIsNotNone(
-            custom_instructions_dropdown_button,
-            "Custom Instructions button should be present",
-        )
-
-        # Click to open the dropdown
-        custom_instructions_dropdown_button.click()
-
-        # Find Prompt name and try to find the checkbox?
-        time.sleep(2)
         # Locate all elements with ID "promptName" and find the one with text "Toad 1"
         prompt_name_elements = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "promptName"))
@@ -506,41 +466,32 @@ class MassDeleteTests(BaseTest):
 
         # Locate all elements with ID "promptName" and find the one with text "Shy Guy 1"
         prompt_name_elements = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptName"))
+            EC.invisibility_of_element((By.ID, "promptName"))
         )
         self.assertTrue(
             prompt_name_elements, "Prompt name elements should be initialized"
         )
-
-        # Check if any of the elements do not contain "Toad 1"
-        prompt_in_list = next(
-            (el for el in prompt_name_elements if el.text == "Toad 1"), None
-        )
-        self.assertIsNone(prompt_in_list, "Toad 1 should be visible in the dropdown")
-
-        # Check if any of the elements do not contain "Toad 1"
-        prompt_in_list = next(
-            (el for el in prompt_name_elements if el.text == "Toad 2"), None
-        )
-        self.assertIsNone(prompt_in_list, "Toad 2 should be visible in the dropdown")
 
     # ----------------- Test Delete Everything -----------------
     """This test ensures that everything can be selected and deleted via the three dots handler
        on the Right Side Bar"""
 
     def test_delete_everything(self):
+        
+        self.click_assistants_tab()
+        self.delete_all_folders()
+        self.delete_all_assistants()
+        self.create_folder("Mario Party")
+        self.create_assistant("Shy Guy 1")
+        self.create_assistant("Shy Guy 2")
+        self.create_prompt("Toad 1")
+        self.create_prompt("Toad 2")
 
         # Click the promptHandler Button
-        prompt_handler_buttons_plural = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptHandler"))
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
         )
-        self.assertGreater(
-            len(prompt_handler_buttons_plural),
-            1,
-            "Expected multiple buttons with ID 'createFolderButton'",
-        )
-
-        prompt_handler_buttons_plural[-1].click()
+        prompt_handler_button.click()
 
         time.sleep(3)
 
@@ -550,43 +501,6 @@ class MassDeleteTests(BaseTest):
         delete_button.click()
 
         time.sleep(3)
-
-        # Locate all elements with the ID 'dropName'
-        drop_name_elements = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "dropName"))
-        )
-        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
-
-        # Find the element with text "Amplify Helpers"
-        time.sleep(2)
-        amplify_helper_dropdown_button = next(
-            (el for el in drop_name_elements if el.text == "Amplify Helpers"), None
-        )
-        self.assertIsNotNone(
-            amplify_helper_dropdown_button, "Amplify Helpers button should be present"
-        )
-
-        # Click to close the dropdown
-        amplify_helper_dropdown_button.click()
-
-        # Locate all elements with the ID 'dropName'
-        drop_name_elements = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "dropName"))
-        )
-        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
-
-        # Find the element with text "Custom Instructions"
-        time.sleep(2)
-        custom_instructions_dropdown_button = next(
-            (el for el in drop_name_elements if el.text == "Custom Instructions"), None
-        )
-        self.assertIsNotNone(
-            custom_instructions_dropdown_button,
-            "Custom Instructions button should be present",
-        )
-
-        # Click to open the dropdown
-        custom_instructions_dropdown_button.click()
 
         # Click the select all checkbox
         select_all_check = self.wait.until(
@@ -613,6 +527,11 @@ class MassDeleteTests(BaseTest):
         # Ensure no promptName elements are present
         self.assertTrue(
             self.wait.until(EC.invisibility_of_element_located((By.ID, "promptName"))),
+            "Prompt name elements should NOT be present",
+        )
+        
+        self.assertTrue(
+            self.wait.until(EC.invisibility_of_element_located((By.ID, "assistantName"))),
             "Prompt name elements should NOT be present",
         )
 

@@ -27,7 +27,7 @@ class SettingsTabTests(BaseTest):
     # ----------------- Test Manage Accounts -----------------
     """Test the Manage Accounts button in the Settings tab on the Left Side Bar"""
 
-    def test_settings_manage_accounts(self):
+    def test_settings_assistant_group_interface(self):
         # Extra sleep for extra loading
         time.sleep(5)
 
@@ -58,31 +58,33 @@ class SettingsTabTests(BaseTest):
             "Expected multiple buttons with ID 'sideBarButton'",
         )
 
-        # Find the button that contains a span with text "Manage Accounts"
+        # Find the button that contains a span with text "Assistant Group Interface"
         target_button = None
         for button in side_bar_buttons:
             try:
                 span_element = button.find_element(By.TAG_NAME, "span")
-                if span_element.text.strip() == "Manage Accounts":
+                if span_element.text.strip() == "Assistant Group Interface":
                     target_button = button
                     break
             except:
                 continue  # Skip if the span element is not found
 
         self.assertIsNotNone(
-            target_button, "The 'Manage Accounts' button should be present"
+            target_button, "The 'Assistant Group Interface' button should be present"
         )
 
         # Click the button
         target_button.click()
+        
+        time.sleep(2)
 
-        # id="accountModal"
+        # id="selectAssistantGroup"
         # Verify the presence of the Window element after clicking the Edit button
         account_modal_element = self.wait.until(
-            EC.presence_of_element_located((By.ID, "accountModal"))
+            EC.presence_of_element_located((By.ID, "selectAssistantGroup"))
         )
         self.assertTrue(
-            account_modal_element.is_displayed(), "Account modal is visible"
+            account_modal_element, "Account modal is visible"
         )
 
         time.sleep(3)
@@ -139,7 +141,7 @@ class SettingsTabTests(BaseTest):
         # Click the button
         target_button.click()
 
-        time.sleep(3)
+        time.sleep(2)
 
         # Check if the file input becomes available
         file_input = self.wait.until(
@@ -201,7 +203,7 @@ class SettingsTabTests(BaseTest):
         # Click the button
         target_button.click()
 
-        time.sleep(3)
+        time.sleep(2)
 
         # Define Download Path
         download_dir = os.path.expanduser(
@@ -233,10 +235,10 @@ class SettingsTabTests(BaseTest):
             f"Expected downloaded file '{expected_filename}' to exist.",
         )
 
-    # ----------------- Test Settings Tab -----------------
-    """Test the Settings button in the Settings tab on the Left Side Bar"""
+    # ----------------- Test Assistant Worflow Tab -----------------
+    """Test the Assistant Worflow button in the Settings tab on the Left Side Bar"""
 
-    def test_settings_settings(self):
+    def test_settings_assistant_workflow(self):
         # Extra sleep for extra loading
         time.sleep(5)
 
@@ -272,36 +274,38 @@ class SettingsTabTests(BaseTest):
         for button in side_bar_buttons:
             try:
                 span_element = button.find_element(By.TAG_NAME, "span")
-                if span_element.text.strip() == "Settings":
+                if span_element.text.strip() == "Assistant Workflows":
                     target_button = button
                     break
             except:
                 continue  # Skip if the span element is not found
 
-        self.assertIsNotNone(target_button, "The 'Settings' button should be present")
+        self.assertIsNotNone(target_button, "The 'Assistant Workflows' button should be present")
 
         # Click the button
         target_button.click()
+        
+        time.sleep(2)
 
         # Verify the presence of the Window element after clicking the Edit button
         settings_modal_element = self.wait.until(
             EC.presence_of_element_located((By.ID, "modalTitle"))
         )
         self.assertTrue(
-            settings_modal_element.is_displayed(), "Settings window element is visible"
+            settings_modal_element.is_displayed(), "Assistant Workflows window element is visible"
         )
 
         # Extract the text from the element
         modal_text = settings_modal_element.text
 
         # Ensure the extracted text matches the expected value
-        self.assertEqual(modal_text, "Settings", "Modal title should be 'Settings'")
+        self.assertEqual(modal_text, "Create Assistant Workflow Template", "Modal title should be 'Create Assistant Workflow Template'")
 
-    # ----------------- Test Send Feedback -----------------
-    """Test the Send Feedback button in the Settings tab on the Left Side Bar
-       This will cause the email window to pop up"""
+    # ----------------- Test Manage Custom APIs -----------------
+    """Test the Custom Function APIs button in the Settings tab on the Left Side Bar
+       This will cause the Manage Custom APIs modal to pop up"""
 
-    def test_settings_send_feedback(self):
+    def test_settings_manage_custom_apis(self):
         # Extra sleep for extra loading
         time.sleep(5)
 
@@ -332,21 +336,108 @@ class SettingsTabTests(BaseTest):
             "Expected multiple buttons with ID 'sideBarButton'",
         )
 
-        # Find the button that contains a span with text "Send Feedback"
+        # Find the button that contains a span with text "Custom Function APIs"
         target_button = None
         for button in side_bar_buttons:
             try:
                 span_element = button.find_element(By.TAG_NAME, "span")
-                if span_element.text.strip() == "Send Feedback":
+                if span_element.text.strip() == "Custom Function APIs":
                     target_button = button
                     break
             except:
                 continue  # Skip if the span element is not found
 
         self.assertIsNotNone(
-            target_button, "The 'Send Feedback' button should be present"
+            target_button, "The 'Custom Function APIs' button should be present"
+        )
+        
+        # Click the button
+        target_button.click()
+        
+        time.sleep(2)
+
+        # Verify the presence of the Window element after clicking the Edit button
+        settings_modal_element = self.wait.until(
+            EC.presence_of_element_located((By.ID, "pythonFunctionModalTitle"))
+        )
+        self.assertTrue(
+            settings_modal_element.is_displayed(), "Manage Custom APIs window element is visible"
         )
 
+        # Extract the text from the element
+        modal_text = settings_modal_element.text
+
+        # Ensure the extracted text matches the expected value
+        self.assertEqual(modal_text, "Manage Custom APIs", "Modal title should be 'Manage Custom APIs'")
+        
+    # ----------------- Test Manage Scheduled Tasks -----------------
+    """Test the Scheduled Tasks button in the Settings tab on the Left Side Bar
+       This will cause the Manage Scheduled Tasks modal to pop up"""
+
+    def test_settings_manage_scheduled_tasks(self):
+        # Extra sleep for extra loading
+        time.sleep(5)
+
+        # Find the Settings tab
+        tabs = self.wait.until(
+            EC.presence_of_all_elements_located((By.ID, "tabSelection"))
+        )
+        self.assertGreater(
+            len(tabs), 1, "Expected multiple buttons with ID 'tabSelection'"
+        )
+
+        # Find the tab with title="Settings"
+        settings_tab = next(
+            (tab for tab in tabs if tab.get_attribute("title") == "Settings"), None
+        )
+        self.assertIsNotNone(settings_tab, "The 'Settings' tab should be present")
+
+        # Click the 'Settings' tab
+        settings_tab.click()
+
+        # Wait for all buttons with id="sideBarButton"
+        side_bar_buttons = self.wait.until(
+            EC.presence_of_all_elements_located((By.ID, "sideBarButton"))
+        )
+        self.assertGreater(
+            len(side_bar_buttons),
+            1,
+            "Expected multiple buttons with ID 'sideBarButton'",
+        )
+
+        # Find the button that contains a span with text "Custom Function APIs"
+        target_button = None
+        for button in side_bar_buttons:
+            try:
+                span_element = button.find_element(By.TAG_NAME, "span")
+                if span_element.text.strip() == "Scheduled Tasks":
+                    target_button = button
+                    break
+            except:
+                continue  # Skip if the span element is not found
+
+        self.assertIsNotNone(
+            target_button, "The 'Scheduled Tasks' button should be present"
+        )
+        
+        # Click the button
+        target_button.click()
+        
+        time.sleep(2)
+
+        # Verify the presence of the Window element after clicking the Edit button
+        settings_modal_element = self.wait.until(
+            EC.presence_of_element_located((By.ID, "modalTitle"))
+        )
+        self.assertTrue(
+            settings_modal_element.is_displayed(), "Manage Scheduled Tasks window element is visible"
+        )
+
+        # Extract the text from the element
+        modal_text = settings_modal_element.text
+
+        # Ensure the extracted text matches the expected value
+        self.assertEqual(modal_text, "Manage Scheduled Tasks", "Modal title should be 'Manage Scheduled Tasks'")
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

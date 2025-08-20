@@ -647,7 +647,7 @@ if __name__ == "__main__":
                         style={{ transform: translateY ? `translateY(${translateY})` : '0', width }}
                     >
                         <div className="flex items-center justify-between px-6 pb-2">
-                          <div className="text-xl font-semibold">{title}</div>
+                          <div id="pythonFunctionModalTitle" className="text-xl font-semibold">{title}</div>
                           <button
                             onClick={onCancel}
                             className="text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white"

@@ -26,16 +26,10 @@ class ArtifactsTests(BaseTest):
     # ----------------- Setup Test Data ------------------
     def create_folder(self, folder_name):
         time.sleep(5)
-        folder_add_buttons = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "createFolderButton"))
-        )
-        self.assertGreater(
-            len(folder_add_buttons),
-            1,
-            "Expected multiple buttons with ID 'createFolderButton'",
-        )
+        folder_add_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "createFolderButton")))
+        self.assertGreater(len(folder_add_buttons), 1, "Expected multiple buttons with ID 'createFolderButton'")
         folder_add_buttons[0].click()
-
+        
         try:
             alert = self.wait.until(EC.alert_is_present())
             self.assertIsNotNone(alert, "Alert prompt should be present")
@@ -102,8 +96,47 @@ class ArtifactsTests(BaseTest):
 
         folder = next((el for el in drop_name_elements if el.text == chat_name), None)
         self.assertIsNotNone(folder, "New Conversation button should be present")
+        
+    def delete_all_chats(self):
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
+        )
 
-    # ----------------- Setup Test Data ------------------
+        prompt_handler_button.click()
+
+        time.sleep(2)
+
+        # Click the button with ID "Delete"
+        delete_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "Delete"))
+        )
+
+        delete_button.click()
+
+        time.sleep(2)  # Give time for the menu to appear
+
+        # Click the select all checkbox
+        select_all_check = self.wait.until(
+            EC.presence_of_element_located((By.ID, "selectAllCheck"))
+        )
+
+        # Locate the checkbox within the parent container
+        checkbox = select_all_check.find_element(By.XPATH, ".//input[@type='checkbox']")
+        self.assertIsNotNone(checkbox, f"Checkbox for prompt All should be present")
+
+        checkbox.click()
+
+        time.sleep(2)
+
+        # Click the Delete Button
+        confirm_delete_button = self.wait.until(
+            EC.element_to_be_clickable((By.ID, "confirmItem"))
+        )
+        self.assertTrue(confirm_delete_button, "Delete Button should be initialized")
+        confirm_delete_button.click()
+
+        time.sleep(2)
+
     def send_message(self, chat_name, message):
         # Locate all elements with the ID 'chatName'
         chat_name_elements = self.wait.until(
@@ -137,10 +170,10 @@ class ArtifactsTests(BaseTest):
         chat_send_message.click()
         time.sleep(15)
 
-    def create_artifact(self):
+    def create_artifact(self, chat_name, message):
         # Create a chat
-        self.create_chat("Mario")
-        self.send_message("Mario", "WAAAA HOOOOOOO!!!")
+        self.create_chat(chat_name)
+        self.send_message(chat_name, message)
         chat_hover = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "chatHover"))
         )
@@ -154,6 +187,7 @@ class ArtifactsTests(BaseTest):
         # Click the copy button
         artifact_button = self.driver.find_element("id", "turnIntoArtifact")
         artifact_button.click()
+        time.sleep(3)
         artifact_element = self.wait.until(
             EC.presence_of_element_located((By.ID, "artifactsLabel"))
         )
@@ -163,26 +197,13 @@ class ArtifactsTests(BaseTest):
 
         time.sleep(3)
 
-    # id="deleteVersion"
-    # id="editArtifact"
-    # id="shareArtifact"
-    # id="emailArtifact"
-    # id="downlaodArtifact"
-    # id="copyArtifact"
-    # id="addVersionCopy"
-    # id="uploadArtifactAFM"
-    # id="saveArtifact"
-    # id="previewArtifact"
-    # id="viewCode"
-    # id="closeArtifactWindow"
-    # id="versionNumber"
-    # id="indexButton"
-    # id="artifactsLabel"
-
     # ----------------- Artifact Preview and View Code -----------------
     """This tests the Artifact preview and shows the tab has the viewable code"""
     
     def test_preview_and_view_code(self):
+        
+        # Delete all chats
+        self.delete_all_chats()
         
         # Create an Artifact
         self.create_artifact("Wario", "WAAAAAARRIOOOO TIIIIIMME")
@@ -216,6 +237,9 @@ class ArtifactsTests(BaseTest):
     
     def test_save_artifact(self):
         
+        # Delete all chats
+        self.delete_all_chats()
+        
         # Create an Artifact
         self.create_artifact("Mario", "WAAAHHOOOOOO")
         
@@ -235,6 +259,9 @@ class ArtifactsTests(BaseTest):
     
     def test_upload_artifact(self):
         
+        # Delete all chats
+        self.delete_all_chats()
+        
         # Create an Artifact
         self.create_artifact("Cheep Cheep", "Glub glub")
         
@@ -251,6 +278,9 @@ class ArtifactsTests(BaseTest):
     """This test ensures that when a new artifact version is created that it appears in the chat"""
     
     def test_add_copy_to_artifact_list(self):
+        
+        # Delete all chats
+        self.delete_all_chats()
         
         # Create an Artifact
         self.create_artifact("Cheep Cheep", "Glub glub")
@@ -273,6 +303,9 @@ class ArtifactsTests(BaseTest):
     """This test ensures that you can copy the text displayed in an artifact by pressing the copy button"""
     
     def test_copy(self):
+        
+        # Delete all chats
+        self.delete_all_chats()
         
         # Create an Artifact
         self.create_artifact("King of Skill", "Howdy")
@@ -312,6 +345,9 @@ class ArtifactsTests(BaseTest):
     
     def test_download(self):
         
+        # Delete all chats
+        self.delete_all_chats()
+        
         # Create an Artifact
         self.create_artifact("King of Skill", "Who is the King of Skill?")
         
@@ -350,6 +386,9 @@ class ArtifactsTests(BaseTest):
     
     def test_email(self):
         
+        # Delete all chats
+        self.delete_all_chats()
+        
         # Create an Artifact
         self.create_artifact("TCNick3", "Who am I?")
         
@@ -367,6 +406,9 @@ class ArtifactsTests(BaseTest):
        It also ensures the share modal will open"""
     
     def test_share(self):
+        
+        # Delete all chats
+        self.delete_all_chats()
         
         # Create an Artifact
         self.create_artifact("Vernias", "BIRDDOOOOOOO!")
@@ -386,17 +428,20 @@ class ArtifactsTests(BaseTest):
     # ----------------- Share Artifact Modal Test-----------------
     """This test ensures that the share modal works as intended in correlation with the aritifacts"""
     
-    def test_share(self):
+    def test_share_modal(self):
+        
+        # Delete all chats
+        self.delete_all_chats()
         
         # Create an Artifact
         self.create_artifact("Vernias", "BIRDDOOOOOOO!")
-        
+
         # Find the Share Artifact Button
         share_artifact_button = self.wait.until(EC.presence_of_element_located((By.ID, "shareArtifact")))
         self.assertTrue(share_artifact_button.is_displayed(), "Share Artifact button element is visible")
         
         share_artifact_button.click()
-        
+
         time.sleep(3)
         
         # Find the Share Artifact Modal
@@ -408,7 +453,7 @@ class ArtifactsTests(BaseTest):
         self.assertTrue(cancel_button.is_displayed(), "Share Artifact modal element is visible")
         
         cancel_button.click()
-        
+
         time.sleep(1)
         
         # Find the Share Artifact Button
@@ -416,7 +461,7 @@ class ArtifactsTests(BaseTest):
         self.assertTrue(share_artifact_button.is_displayed(), "Share Artifact button element is visible")
         
         share_artifact_button.click()
-        
+
         time.sleep(1)
         
        # Locate the chatbar to input in "emailInput"
@@ -438,6 +483,14 @@ class ArtifactsTests(BaseTest):
         
         submit_button.click()
         
+        try:
+            alert = self.wait.until(EC.alert_is_present())
+            self.assertIsNotNone(alert, "Alert prompt should be present")
+            time.sleep(3)
+            alert.accept()
+        except UnexpectedAlertPresentException as e:
+            self.fail(f"Unexpected alert present: {str(e)}")
+        
         time.sleep(2)
         
         # The Share Artifact Modal is not visible
@@ -448,6 +501,10 @@ class ArtifactsTests(BaseTest):
     """This test ensures that you can edit the text displayed in an artifact by pressing the edit button"""
     
     def test_edit(self):
+        
+        # Delete all chats
+        self.delete_all_chats()
+        
         # Create an Artifact
         self.create_artifact("Sophist", "Yeah")
         
@@ -499,6 +556,10 @@ class ArtifactsTests(BaseTest):
     """This test ensures that you can delete the versions of the artifacts in the artifact modal"""
     
     def test_delete(self):
+        
+        # Delete all chats
+        self.delete_all_chats()
+        
         # Create an Artifact
         self.create_artifact("Bryce", "Chill")
         
@@ -546,6 +607,10 @@ class ArtifactsTests(BaseTest):
     """This test esnures that you can switch between any of the different versions of the artifact created"""
     
     def test_version_switch(self):
+        
+        # Delete all chats
+        self.delete_all_chats()
+        
         # Create an Artifact
         self.create_artifact("Wendigoon", "Spooky spooky")
         
@@ -605,6 +670,10 @@ class ArtifactsTests(BaseTest):
        This test specifically creates multiple versions and deletes a few of them"""
     
     def test_version_switch_delete(self):
+        
+        # Delete all chats
+        self.delete_all_chats()
+        
         # Create an Artifact
         self.create_artifact("Wendigoon", "Spooky spooky")
         
@@ -724,6 +793,10 @@ class ArtifactsTests(BaseTest):
     """This test ensures that you can close the artifiact version modal by selecting the close modal button"""
     
     def test_close_artifact_version(self):
+        
+        # Delete all chats
+        self.delete_all_chats()
+        
         # Create an Artifact
         self.create_artifact("Wendigoon", "Spooky spooky")
         
@@ -745,6 +818,10 @@ class ArtifactsTests(BaseTest):
     """This test ensures that you can delete an artificat from the chat by using the delete buttton"""
     
     def test_delete_from_chat(self):
+        
+        # Delete all chats
+        self.delete_all_chats()
+        
         # Create an Artifact
         self.create_artifact("Wendigoon", "Spooky spooky")
         

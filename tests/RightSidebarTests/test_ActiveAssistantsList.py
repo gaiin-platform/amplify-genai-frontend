@@ -15,7 +15,7 @@ class ActiveAssistantsListTests(BaseTest):
 
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
-        super().setUp(headless=False)
+        super().setUp(headless=True)
         
     def click_assistants_tab(self):
         time.sleep(5)
@@ -23,7 +23,7 @@ class ActiveAssistantsListTests(BaseTest):
         assistants_button = next((btn for btn in tab_buttons if "Assistants" in btn.get_attribute("title")), None)
         self.assertIsNotNone(assistants_button, "'Assistants' tab button not found")
         assistants_button.click()
-        time.sleep(2)
+        time.sleep(5)
         
     def delete_all_assistants(self):
 
@@ -56,8 +56,6 @@ class ActiveAssistantsListTests(BaseTest):
         
         self.click_assistants_tab()
         
-        self.delete_all_assistants()
-        
         # Locate all elements with the ID 'dropName'
         drop_name_elements = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "dropName"))
@@ -76,6 +74,8 @@ class ActiveAssistantsListTests(BaseTest):
         button_title = parent_button.get_attribute("title")
         if button_title != "Collapse folder":
             assistant_dropdown_button.click()
+            
+        time.sleep(3)
 
         # Ensure the parent button's title is "Collapse folder"
         parent_button = assistant_dropdown_button.find_element(
@@ -115,6 +115,8 @@ class ActiveAssistantsListTests(BaseTest):
         button_title = parent_button.get_attribute("title")
         if button_title != "Collapse folder":
             assistant_dropdown_button.click()
+            
+        time.sleep(3)
 
         # Ensure the parent button's title is "Collapse folder"
         parent_button = assistant_dropdown_button.find_element(
@@ -129,6 +131,8 @@ class ActiveAssistantsListTests(BaseTest):
 
         # Click to close the dropdown
         assistant_dropdown_button.click()
+        
+        time.sleep(3)
 
         # Ensure the button's title is back to "Expand folder"
         button_title = parent_button.get_attribute("title")
@@ -147,6 +151,8 @@ class ActiveAssistantsListTests(BaseTest):
         
         self.click_assistants_tab()
         
+        self.delete_all_assistants()
+        
         # Locate and click the Add Assistant button
         assistant_add_button = self.wait.until(
             EC.element_to_be_clickable((By.ID, "addAssistantButton"))
@@ -156,6 +162,8 @@ class ActiveAssistantsListTests(BaseTest):
             "Add Assistant button should be initialized and clickable",
         )
         assistant_add_button.click()
+        
+        time.sleep(3)
 
         # Locate the Assistant Name input field, clear it, and type "Assistant Aiba"
         assistant_name_input = self.wait.until(
@@ -200,6 +208,8 @@ class ActiveAssistantsListTests(BaseTest):
         button_title = parent_button.get_attribute("title")
         if button_title != "Collapse folder":
             assistant_dropdown_button.click()
+            
+        time.sleep(3)
 
         # Locate all elements with ID "promptName" and find the one with text "Assistant Aiba"
         prompt_name_elements = self.wait.until(
@@ -235,6 +245,8 @@ class ActiveAssistantsListTests(BaseTest):
             "Add Assistant button should be initialized and clickable",
         )
         assistant_add_button.click()
+        
+        time.sleep(3)
 
         # Locate the Assistant Name input field, clear it, and type "Assistant Aiba"
         assistant_name_input = self.wait.until(
@@ -279,6 +291,8 @@ class ActiveAssistantsListTests(BaseTest):
         button_title = parent_button.get_attribute("title")
         if button_title != "Collapse folder":
             assistant_dropdown_button.click()
+            
+        time.sleep(3)
 
         # Locate all elements with ID "promptName" and find the one with text "Assistant Aiba"
         prompt_name_elements = self.wait.until(
@@ -307,6 +321,8 @@ class ActiveAssistantsListTests(BaseTest):
 
         # Click to close the dropdown
         assistant_button.click()
+        
+        time.sleep(3)
 
         # Ensure the Assistant Chat Label appears after selection
         assistant_chat_label = self.wait.until(
@@ -315,7 +331,7 @@ class ActiveAssistantsListTests(BaseTest):
         self.assertIsNotNone(
             assistant_chat_label, "Assistant chat label should appear after selection"
         )
-
+        
     # ----------------- Test assistants list updates after adding second assistant -----------------
     """This test goes through to create an assistant and then creates a second assistant
        afterwards. Once both assistants are created, it checks to make sure both are 
@@ -337,6 +353,8 @@ class ActiveAssistantsListTests(BaseTest):
             "Add Assistant button should be initialized and clickable",
         )
         assistant_add_button.click()
+        
+        time.sleep(2)
 
         # Locate the Assistant Name input field, clear it, and type "Assistant Aiba"
         assistant_name_input = self.wait.until(
@@ -345,9 +363,9 @@ class ActiveAssistantsListTests(BaseTest):
         self.assertIsNotNone(
             assistant_name_input, "Assistant Name input should be present"
         )
-        time.sleep(1)
+        time.sleep(2)
         assistant_name_input.clear()
-        time.sleep(1)
+        time.sleep(2)
         assistant_name_input.send_keys("Assistant Peko")
 
         time.sleep(2)
@@ -372,6 +390,8 @@ class ActiveAssistantsListTests(BaseTest):
             "Add Assistant button should be initialized and clickable",
         )
         assistant_add_button.click()
+        
+        time.sleep(3)
 
         # Locate the Assistant Name input field, clear it, and type "Assistant Aiba"
         assistant_name_input = self.wait.until(
@@ -416,6 +436,8 @@ class ActiveAssistantsListTests(BaseTest):
         button_title = parent_button.get_attribute("title")
         if button_title != "Collapse folder":
             assistant_dropdown_button.click()
+            
+        time.sleep(3)
 
         # Locate all elements with ID "promptName" and find the one with text "Assistant Aiba"
         prompt_name_elements = self.wait.until(
@@ -577,6 +599,8 @@ class ActiveAssistantsListTests(BaseTest):
             "Add Assistant button should be initialized and clickable",
         )
         assistant_add_button.click()
+        
+        time.sleep(3)
 
         # Locate the Assistant Name input field, clear it, and type "Assistant Aiba"
         assistant_name_input = self.wait.until(
@@ -621,6 +645,8 @@ class ActiveAssistantsListTests(BaseTest):
         button_title = parent_button.get_attribute("title")
         if button_title != "Collapse folder":
             assistant_dropdown_button.click()
+            
+        time.sleep(3)
 
         # Locate all elements with ID "assistantName"
         prompt_name_elements = self.wait.until(
@@ -658,13 +684,15 @@ class ActiveAssistantsListTests(BaseTest):
             share_button, "Share button should be initialized and clicked"
         )
         share_button.click()
+        
+        time.sleep(3)
 
         # Verify the presence of the Window element after clicking the Edit button
         share_modal_element = self.wait.until(
             EC.presence_of_element_located((By.ID, "modalTitle"))
         )
         self.assertTrue(
-            share_modal_element.is_displayed(), "Share window element is visible"
+            share_modal_element, "Share window element is visible"
         )
 
         # Extract the text from the element

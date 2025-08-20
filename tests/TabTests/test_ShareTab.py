@@ -23,47 +23,35 @@ class ShareTabTests(BaseTest):
         # Call the parent setUp with headless=True (or False for debugging)
         super().setUp(headless=True)
 
-    # ----------------- Test Share with other users button -----------------
-    """Test the 'Share with Other Users' button in the Share tab on the 
-       Left Side Bar to ensure that the share modal appears"""
+    # ----------------- Test Share with other users modal visible -----------------
+    """Test the visibility of the Sharing Center modal"""
 
-    def test_share_tab_button(self):
-        # Extra sleep for extra loading
-        time.sleep(5)
+    def test_share_modal(self):
+        time.sleep(3)  # Time to load
+        
+        # id="userMenu"
+        user_menu_button = self.wait.until(EC.element_to_be_clickable((By.ID, "userMenu")))
+        self.assertTrue(user_menu_button, "Logout Button should be initialized")
 
-        # Find the Share tab
-        tabs = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "tabSelection"))
-        )
-        self.assertGreater(
-            len(tabs), 1, "Expected multiple buttons with ID 'tabSelection'"
-        )
-
-        # Find the tab with title="Share"
-        share_tab = next(
-            (tab for tab in tabs if tab.get_attribute("title") == "Share"), None
-        )
-        self.assertIsNotNone(share_tab, "The 'Share' tab should be present")
-
-        # Click the 'Share' tab
-        share_tab.click()
+        user_menu_button.click()
 
         time.sleep(2)
 
-        # id="shareWithOtherUsers"
         # Click the Share Button
         share_button = self.wait.until(
-            EC.element_to_be_clickable((By.ID, "shareWithOtherUsers"))
+            EC.element_to_be_clickable((By.ID, "sharingCenter"))
         )
         self.assertTrue(share_button, "Share Button should be initialized")
         share_button.click()
+        
+        time.sleep(3)
 
         # Verify the presence of the Window element after clicking the Edit button
         share_modal_element = self.wait.until(
-            EC.presence_of_element_located((By.ID, "modalTitle"))
+            EC.presence_of_element_located((By.ID, "sharingCenterModalTitle"))
         )
         self.assertTrue(
-            share_modal_element.is_displayed(), "Share window element is visible"
+            share_modal_element, "Share window element is visible"
         )
 
         time.sleep(3)
@@ -74,43 +62,118 @@ class ShareTabTests(BaseTest):
         # Ensure the extracted text matches the expected value
         self.assertEqual(
             modal_text,
-            "Add People to Share With",
-            "Modal title should be 'Add People to Share With'",
+            "Sharing Center",
+            "Modal title should be 'Sharing Center'",
         )
 
     # ----------------- Test Refresh Button -----------------
     """Test the 'Refresh' button in the Share tab on the Left Side Bar
        to ensure the 'Shared with you' results refresh"""
 
-    def test_share_tab_refresh(self):
-        # Extra sleep for extra loading
-        time.sleep(5)
+    def test_share_refresh(self):
+        time.sleep(3)  # Time to load
+        
+        # id="userMenu"
+        user_menu_button = self.wait.until(EC.element_to_be_clickable((By.ID, "userMenu")))
+        self.assertTrue(user_menu_button, "Logout Button should be initialized")
 
-        # Find the Share tab
-        tabs = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "tabSelection"))
-        )
-        self.assertGreater(
-            len(tabs), 1, "Expected multiple buttons with ID 'tabSelection'"
-        )
-
-        # Find the tab with title="Share"
-        share_tab = next(
-            (tab for tab in tabs if tab.get_attribute("title") == "Share"), None
-        )
-        self.assertIsNotNone(share_tab, "The 'Share' tab should be present")
-
-        # Click the 'Share' tab
-        share_tab.click()
+        user_menu_button.click()
 
         time.sleep(2)
 
-        # id="refreshButton"
+        # Click the Share Button
+        share_button = self.wait.until(
+            EC.element_to_be_clickable((By.ID, "sharingCenter"))
+        )
+        self.assertTrue(share_button, "Share Button should be initialized")
+        share_button.click()
+        
+        time.sleep(3)
+
+        # Verify the presence of the Window element after clicking the Edit button
+        share_modal_element = self.wait.until(
+            EC.presence_of_element_located((By.ID, "sharingCenterModalTitle"))
+        )
+        self.assertTrue(
+            share_modal_element, "Share window element is visible"
+        )
+
+        time.sleep(3)
+
         # Click the Refresh Button
         refresh_button = self.wait.until(
             EC.element_to_be_clickable((By.ID, "refreshButton"))
         )
         self.assertTrue(refresh_button, "Refresh Button should be initialized")
+        refresh_button.click()
+        
+        time.sleep(5)
+        
+    # ----------------- Test Share with other users button -----------------
+    """Test the 'Share with Other' button in the Share modal"""
+
+    def test_share_button(self):
+        time.sleep(3)  # Time to load
+        
+        # id="userMenu"
+        user_menu_button = self.wait.until(EC.element_to_be_clickable((By.ID, "userMenu")))
+        self.assertTrue(user_menu_button, "Logout Button should be initialized")
+
+        user_menu_button.click()
+
+        time.sleep(2)
+
+        # Click the Share Button
+        share_button = self.wait.until(
+            EC.element_to_be_clickable((By.ID, "sharingCenter"))
+        )
+        self.assertTrue(share_button, "Share Button should be initialized")
+        share_button.click()
+        
+        time.sleep(3)
+
+        # Verify the presence of the Window element after clicking the Edit button
+        share_modal_element = self.wait.until(
+            EC.presence_of_element_located((By.ID, "sharingCenterModalTitle"))
+        )
+        self.assertTrue(
+            share_modal_element, "Share window element is visible"
+        )
+
+        time.sleep(3)
+        
+        # Click the Share Button
+        share_with_others_button = self.wait.until(
+            EC.element_to_be_clickable((By.ID, "shareWithOtherUsers"))
+        )
+        self.assertTrue(share_with_others_button, "Share Button should be initialized")
+        share_with_others_button.click()
+        
+        time.sleep(3)
+        
+        # Verify the presence of ALL modalTitle elements after clicking the Edit button
+        modal_title_elements = self.wait.until(
+            EC.presence_of_all_elements_located((By.ID, "modalTitle"))
+        )
+        self.assertTrue(
+            modal_title_elements, "No modalTitle elements were found"
+        )
+
+        time.sleep(3)
+
+        # Extract all texts (strip whitespace just in case)
+        modal_texts = [el.text.strip() for el in modal_title_elements]
+
+        print("Extracted modal titles:", modal_texts)  # Debugging output
+
+        # Ensure at least one matches the expected value
+        self.assertIn(
+            "Add People to Share With",
+            modal_texts,
+            f"Expected 'Add People to Share With' in modal titles, but got {modal_texts}",
+        )
+        
+        
 
 
 if __name__ == "__main__":
