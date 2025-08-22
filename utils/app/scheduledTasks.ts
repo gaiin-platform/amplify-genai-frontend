@@ -422,9 +422,11 @@ export const updateScheduledTasks = async (currentTaskId: string, cronExpression
           // Check if cron expression or assistant info changed
           const needsUpdate = 
             currentTask.cronExpression !== cronExpression || currentTask.taskName !== taskName || 
-            currentTask.objectInfo.data.assistant.assistantId !==assistantInfo.assistantId;
+            currentTask.objectInfo.data.assistant.assistantId !== assistantInfo.assistantId;
           
           if (needsUpdate) {
+            // always enforce the assistantId
+            currentTask.objectInfo.data.op.bindings.assistantId.value = assistantInfo.assistantId;
             const updatedTask = {
               ...currentTask,
               cronExpression: cronExpression,
@@ -438,7 +440,7 @@ export const updateScheduledTasks = async (currentTaskId: string, cronExpression
                   assistant: {
                     name: assistantInfo.name,
                     assistantId: assistantInfo.assistantId
-                  }
+                  },
                 }
               }
             };
@@ -448,6 +450,7 @@ export const updateScheduledTasks = async (currentTaskId: string, cronExpression
               console.log(`Updated scheduled task ${currentTaskId} for ${scheduledUse}`);
             } else {
               console.error(`Failed to update scheduled task ${currentTaskId}:`, updateResult);
+              alert(`Failed to update scheduled task ${currentTaskId}: ${updateResult.message}`);
             }
           }
           

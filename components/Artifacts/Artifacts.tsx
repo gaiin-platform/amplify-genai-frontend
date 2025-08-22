@@ -508,13 +508,12 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
             {/* Modals */}
            
                 {isLoading && 
-                <div className="flex justify-center w-full"> 
-                    <div className="z-50 absolute" style={{ transform: `translateY(100%)`}}>
-                        <div className="p-3 flex flex-row items-center border border-gray-500 bg-[#202123]">
-                            <LoadingIcon style={{ width: "24px", height: "24px" }}/>
-                            <span className="text-lg font-bold ml-2 text-white">{isLoading}</span> 
-                        </div>
-                    </div> </div>}
+                <div className="fixed top-14 ml-20 left-3/4 transform translate-x-3/4 z-[9999] pointer-events-none animate-float">
+                    <div className="p-3 flex flex-row items-center border border-gray-500 bg-[#202123] rounded-lg shadow-xl pointer-events-auto">
+                        <LoadingIcon style={{ width: "24px", height: "24px" }}/>
+                        <span className="text-lg font-bold ml-2 text-white">{isLoading}</span>
+                    </div>
+                </div>}
 
                 {(isModalOpen) &&  
                     <div className="shadow-xl flex justify-center w-full">

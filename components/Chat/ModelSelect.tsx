@@ -142,7 +142,7 @@ const getIcons = (model: Model) => {
           </label>
           <div id="legendHover" className='ml-auto' onMouseEnter={() => setShowLegend(true) } onMouseLeave={() => setShowLegend(false)}>
             <IconInfoCircle size={19} className='mr-1 mt-[-4px] flex-shrink-0 text-gray-600 dark:text-gray-300' />
-            {showLegend && legend(showPricingBreakdown)}
+            {showLegend && legend(showPricingBreakdown, featureFlags)}
           </div>
         </div>
       )}
@@ -202,7 +202,7 @@ const legendItem = (icon: JSX.Element, message: string) => {
   );
 };
 
-const legend = (showPricingBreakdown: boolean) => {
+const legend = (showPricingBreakdown: boolean, featureFlags: any) => {
   return (
     <div className='text-black dark:text-white absolute mt-1 w-[260px] rounded-lg border border-neutral-200 bg-white p-4 text-sm shadow-lg z-20 dark:border-neutral-600 dark:bg-[#343541]'
          style={{transform: 'translateX(-85%)'}}>
@@ -217,7 +217,7 @@ const legend = (showPricingBreakdown: boolean) => {
       {legendItem( <IconBaselineDensitySmall size={16} />, 'Large Output Token Limit : ≥ 100,000 tokens')}
       {legendItem( <IconBaselineDensityMedium size={16} />, 'Average Output Token Limit : 4,096 - 100,000 tokens' )}
       {legendItem(<IconBaselineDensityLarge size={16} />, 'Less than Average Output Token Limit : < 4,096 tokens' )}
-      {showPricingBreakdown &&
+      {showPricingBreakdown && featureFlags.modelPricing && 
       <div className='mt-2 text-sm text-gray-500 dark:text-gray-400'>
        View the full pricing breakdown: Click on the gear icon on the left sidebar, go to <strong>Settings</strong>, and scroll down to  
        <strong className='text-blue-500 dark:text-blue-400 cursor-pointer hover:underline'
