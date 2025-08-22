@@ -34,6 +34,9 @@ interface Props {
     emailSupport: EmailSupport;
     setEmailSupport: (e :EmailSupport) => void;
 
+    aiEmailDomain: string;
+    setAiEmailDomain?: (d: string) => void;
+
     allEmails: Array<string> | null;
 
     admin_text: string;
@@ -43,7 +46,8 @@ interface Props {
 export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setAmpGroups, allEmails,
                                               rateLimit, setRateLimit, promptCostAlert, setPromptCostAlert,
                                               defaultConversationStorage, setDefaultConversationStorage,
-                                              emailSupport, setEmailSupport, admin_text, updateUnsavedConfigs}) => {
+                                              emailSupport, setEmailSupport, aiEmailDomain, setAiEmailDomain,
+                                              admin_text, updateUnsavedConfigs}) => {
 
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
@@ -86,6 +90,12 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     const handleUpdateEmailSupport = (updatedEmailSupport: EmailSupport) => {
         setEmailSupport(updatedEmailSupport);
         updateUnsavedConfigs(AdminConfigTypes.EMAIL_SUPPORT);
+    }
+
+    const handleUpdateAiEmailDomain = (updatedAiEmailDomain: string) => {
+        if (!setAiEmailDomain) return;
+        setAiEmailDomain(updatedAiEmailDomain);
+        updateUnsavedConfigs(AdminConfigTypes.AI_EMAIL_DOMAIN);
     }
 
 
@@ -251,6 +261,25 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                     />
                 </div>
             </div>
+       
+            {setAiEmailDomain && 
+            <div className="admin-style-settings-card">
+                <div className="admin-style-settings-card-header">
+                    <h3 className="admin-style-settings-card-title">AI Email Domain</h3>
+                    <p className="admin-style-settings-card-description">Set the email domain that allows users to email AI assistants directly (e.g., user+tag@domain.com)</p>
+                </div>
+                
+                <div className="mx-12">
+                    <InputsMap
+                        id = {`${AdminConfigTypes.AI_EMAIL_DOMAIN}`}
+                        inputs={[ {label: 'Domain', key: 'domain', placeholder: 'AI Email Domain', disabled: false} ]}
+                        state ={{domain : aiEmailDomain ?? ''}}
+                        inputChanged = {(key:string, value:string) => {
+                            handleUpdateAiEmailDomain(value);
+                        }}
+                    />
+                </div>
+            </div>}
        
             <div className="admin-style-settings-card">
                 <div className="admin-style-settings-card-header">
