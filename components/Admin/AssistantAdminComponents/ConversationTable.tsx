@@ -128,21 +128,16 @@ export const ConversationTable: FC<{ conversations: AstUserConversation[], suppo
 
     // Render star rating
     const renderStarRating = (rating: number) => {
-        if (!rating) return <span className="text-gray-400">No rating</span>;
+        if (typeof rating === 'string') {
+            try {
+                rating = Number(rating);
+            } catch (error) {
+                console.error('Error converting rating to number:', error);
+            }
+        }
+        if (!rating || typeof (rating) !== 'number') return <span className="text-gray-400">No rating</span>;
 
-        return (
-            <div className="flex items-center">
-                {[1, 2, 3, 4, 5].map((star) => (
-                    <span
-                        key={star}
-                        className={`${star <= rating ? 'text-yellow-500' : 'text-gray-300 dark:text-gray-600'}`}
-                    >
-                        ★
-                    </span>
-                ))}
-                <span className="ml-1 text-xs text-gray-600 dark:text-gray-400">{rating.toFixed(1)}</span>
-            </div>
-        );
+        return displayRating(rating);
     };
 
     const sortedConversations = [...filteredConversations].sort((a, b) => {
@@ -379,6 +374,20 @@ export const ConversationTable: FC<{ conversations: AstUserConversation[], suppo
     );
 };
 
+const displayRating = (rating: number, textSize: string = 'text-xs') => {
+    return <div className="flex items-center">
+            {[1, 2, 3, 4, 5].map((star) => (
+                <span
+                    key={star}
+                    className={`${star <= rating ? 'text-yellow-500' : 'text-gray-300 dark:text-gray-600'}`}
+                >
+                    ★
+                </span>
+            ))}
+            <span className={`ml-1 ${textSize} text-gray-600 dark:text-gray-400`}>{rating.toFixed(1)}</span>
+           </div>
+}
+
 const ConversationPopup: FC<{ conversation: AstUserConversation; onClose: () => void; supportConvAnalysis: boolean }> = ({ conversation, onClose, supportConvAnalysis }) => {
     const [content, setContent] = useState<string>('Loading...');
     const { state: { statsService } } = useContext(HomeContext);
@@ -465,21 +474,16 @@ const ConversationPopup: FC<{ conversation: AstUserConversation; onClose: () => 
 
     // Render star rating
     const renderStarRating = (rating: number | null) => {
-        if (rating === null || rating === undefined) return 'No rating';
+        if (typeof rating === 'string') {
+            try {
+                rating = Number(rating);
+            } catch (error) {
+                console.error('Error converting rating to number:', error);
+            }
+        }
+        if (rating === null || rating === undefined || typeof (rating) !== 'number') return 'No rating';
 
-        return (
-            <div className="flex items-center">
-                {[1, 2, 3, 4, 5].map((star) => (
-                    <span
-                        key={star}
-                        className={`${star <= rating ? 'text-yellow-500' : 'text-gray-300 dark:text-gray-600'}`}
-                    >
-                        ★
-                    </span>
-                ))}
-                <span className="ml-1 text-sm text-gray-600 dark:text-gray-400">{rating.toFixed(1)}</span>
-            </div>
-        );
+        return displayRating(rating, 'text-sm');
     };
 
     // Format the field value for display
