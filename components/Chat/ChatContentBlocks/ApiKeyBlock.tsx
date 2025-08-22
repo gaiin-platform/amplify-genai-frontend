@@ -13,6 +13,7 @@ import React from "react";
 import { fixJsonString } from "@/utils/app/errorHandling";
 import { ApiKeyOps } from "@/types/apikeys";
 import { DefaultModels } from "@/types/model";
+import { createPortal } from "react-dom";
 
 
 interface KeyData {
@@ -188,7 +189,15 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
         <div>{error}</div> :
         <div style={{maxHeight: "450px"}}>
             {loadingMessage ? (
-                <div className="flex flex-row justify-center items-center"><LoadingIcon/> <div className="ml-2">{loadingMessage}</div></div>
+                createPortal(
+                    <div className="fixed top-14 left-1/2 transform -translate-x-1/2 z-[9999] pointer-events-none animate-float">
+                        <div className="p-3 flex flex-row items-center border border-gray-500 bg-[#202123] rounded-lg shadow-xl pointer-events-auto">
+                            <LoadingIcon style={{ width: "24px", height: "24px" }}/>
+                            <span className="text-lg font-bold ml-2 text-white">{loadingMessage}</span>
+                        </div>
+                    </div>,
+                    document.body
+                )
             ) : ( !data ? ("We are making progress on your request...") : (
                 <>
                     <div className="flex flex-col w-full mb-4 overflow-x-hidden gap-0.5">
