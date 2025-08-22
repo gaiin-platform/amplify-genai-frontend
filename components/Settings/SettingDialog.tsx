@@ -444,6 +444,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                           </div>
       
                     </div>
+                    { featureFlags.modelPricing &&
                     <div className='mt-4 ml-3 pb-6'>
                         <ExpansionComponent
                           title={'View Model Pricing'}
@@ -451,7 +452,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                           closedWidget= { <IconCurrencyDollar className='text-green-500' size={22} />} 
                           isOpened={false}
                         />
-                    </div>
+                    </div>}
                      </>}
                     </div>
                     
