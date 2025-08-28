@@ -19,9 +19,7 @@ import {
     IconDeviceFloppy,
     IconPresentation,
     IconInfoCircle,
-    IconPlus,
     IconFileUpload,
-    IconCircleX,
     IconCode,
     IconCopyPlus,
 } from '@tabler/icons-react';
@@ -33,7 +31,7 @@ import toast from "react-hot-toast";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import { getAllArtifacts, saveArtifact, shareArtifact } from "@/services/artifactsService";
 import { downloadArtifacts, uploadArtifact } from "@/utils/app/artifacts";
-import { EmailsAutoComplete } from "../Emails/EmailsAutoComplete";
+import { AddEmailWithAutoComplete } from "../Emails/AddEmailsAutoComplete";
 import { Group } from "@/types/groups";
 import { includeGroupInfoBox } from "../Emails/EmailsList";
 import { Conversation } from "@/types/chat";
@@ -42,7 +40,6 @@ import { ArtifactPreview } from "./ArtifactPreview";
 import { CodeBlockDetails, extractCodeBlocksAndText } from "@/utils/app/codeblock";
 import ActionButton from "../ReusableComponents/ActionButton";
 import { getDateName } from "@/utils/app/date";
-import { stringToColor } from "@/utils/app/data";
 import { resolveRagEnabled } from "@/types/features";
 
   interface Props {
@@ -185,7 +182,6 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
     const [isSharing, setIsSharing] = useState<boolean>(false);
     // const [isSharing, setIsSharing] = useState<boolean>(false);
     const [tags, setTags] = useState<string[]>([]);
-    const [input, setInput] = useState<string>('');
     const [allEmails, setAllEmails] = useState<Array<string> | null>(null);
     const [shareWith, setShareWith] = useState<string[]>([]);
     const { data: session } = useSession();
@@ -225,25 +221,48 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
     }, [isSaving, isSharing, isUploading]);
 
     
-    const handleAddEmails = () => {
-        const entries = input.split(',').map(email => email.trim()).filter(email => email);
-        let entriesWithGroupMembers:string[] = [];
+    // Process emails and handle group expansion
+    const processEmailEntries = (entries: string[]) => {
+        let entriesWithGroupMembers: string[] = [];
 
-        if (groups && groups.length > 0) {
-            entries.forEach((e: any) => { 
-                if ( e.startsWith('#')) {
-                    const group = groups.find((g:Group) => g.name === e.slice(1));
-                    if (group) entriesWithGroupMembers = [...entriesWithGroupMembers, 
-                                                        ...Object.keys(group.members)];  //.filter((e: string) => e !== user)
-                } else {
-                    entriesWithGroupMembers.push(e);
+        entries.forEach((e: string) => {
+            if (e.startsWith('#')) {
+                const group = groups.find((g: Group) => g.name === e.slice(1));
+                if (group) {
+                    entriesWithGroupMembers = [...entriesWithGroupMembers,
+                    ...Object.keys(group.members).filter((member: string) => member !== user)];
                 }
-            });
-        }
+            } else {
+                entriesWithGroupMembers.push(e);
+            }
+        });
 
-        const newEmails = entriesWithGroupMembers.filter(email => /^\S+@\S+\.\S+$/.test(email) && !shareWith.includes(email));
-        setShareWith([...shareWith, ...newEmails]);
-        setInput('');
+        // Filter valid emails and avoid duplicates
+        const newEmails = entriesWithGroupMembers.filter(email => 
+            /^\S+@\S+\.\S+$/.test(email) && !shareWith.includes(email)
+        );
+        
+        if (newEmails.length > 0) {
+            setShareWith([...shareWith, ...newEmails]);
+        }
+    };
+
+    // Handle both adding and removing emails
+    const handleUpdateEmails = (updatedEmails: string[]) => {
+        // Check if we're adding or removing emails
+        if (updatedEmails.length > shareWith.length) {
+            // Adding emails - find newly added ones
+            const addedEmails = updatedEmails.filter(email => !shareWith.includes(email));
+            if (addedEmails.length > 0) {
+                processEmailEntries(addedEmails);
+            }
+        } else if (updatedEmails.length < shareWith.length) {
+            // Removing emails - directly update shareWith
+            setShareWith(updatedEmails);
+        } else if (updatedEmails.length === shareWith.length) {
+            // Same length - might be a replacement, update directly
+            setShareWith(updatedEmails);
+        }
     };
 
 
@@ -392,13 +411,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
 // add users email model 
         setIsLoading('Sharing Artifact...');
         
-        // If no emails in shareWith but there are emails in input, add them first
-        if (shareWith.length === 0 && input.trim()) {
-            handleAddEmails();
-            await new Promise(resolve => setTimeout(resolve, 500));
-        }
-        
-        // After adding emails, check if we still have no emails to share with
+        // Check if we have emails to share with
         if (shareWith.length === 0) {
             setIsLoading('');
             alert('Please add at least one email address to share with.');
@@ -524,52 +537,14 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
 
                         {"Send Amplify Artifact"}
                         {featureFlags.assistantAdminInterface && groups && groups.length > 0  &&  <>{includeGroupInfoBox}</>}
-                        <div className='flex flex-row gap-2'>
-                            <div className="flex-shrink-0 ml-[-6px] mr-2">
-                                <button
-                                    type="button"
-                                    title='Add Account'
-                                    id="addAccount"
-                                    className="ml-2 mt-1 px-3 py-1.5 text-white rounded bg-neutral-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500"
-                                    onClick={handleAddEmails}
-                                >
-                                    <IconPlus size={18} />
-                                </button>
-                            </div>
-                            <div className='w-full relative mb-4'>
-                                <EmailsAutoComplete
-                                    input = {input}
-                                    setInput =  {setInput}
-                                    allEmails = {allEmails}
-                            alreadyAddedEmails = {Object.keys(shareWith)}
-                            /> 
-                            </div>  
-                        </div>   
-                        <div className="h-[62px] overflow-y-auto "> 
-                            {shareWith.map((email, index) => (
-                                <div 
-                                    key={index}
-                                    className="flex items-center justify-between bg-white dark:bg-neutral-200 rounded-md px-2 py-0 mr-2 mb-2 shadow-lg"
-                                    style={{ backgroundColor: stringToColor(email) }}
-                                >
-                                    <button
-                                        className="text-gray-800 transition-all"
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            setShareWith(shareWith.filter(x => x !== email));
-                                        }}
-                                        title="Remove Email"
-                                    >
-                                        <IconCircleX size={17} />
-                                        
-                                    </button>
-                                    <div className="ml-1">
-                                        <label className="text-gray-800 font-medium text-sm">{email}</label>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                        
+                        <AddEmailWithAutoComplete
+                            id="artifactShare"
+                            emails={shareWith}
+                            allEmails={allEmails || []}
+                            handleUpdateEmails={handleUpdateEmails}
+                            displayEmails={true}
+                        />
 
                         <CancelSubmitButtons
                         submitText="Share"

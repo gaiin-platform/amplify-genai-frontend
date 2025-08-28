@@ -59,7 +59,6 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
     const [deleteUsersList, setDeleteUsersList] = useState<string[]>([]);
 
 
-    const [input, setInput] = useState<string>('');
     const [isAddingUsers, setIsAddingUsers] = useState<boolean>(false);
     const [newGroupMembers, setNewGroupMembers] = useState<Members>({});
 
@@ -238,25 +237,54 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
         }
     }
 
-    const handleAddEmails = () => {
-        const entries = input.split(',').map(email => email.trim()).filter(email => email);
+    // Flexible validation for usernames/systemIds/emails
+    const isValidEntry = (entry: string): boolean => {
+        const trimmed = entry.trim();
+        return trimmed.length > 0 && 
+               !trimmed.includes(' ') && // No spaces
+               trimmed.length >= 2;      // Minimum length
+    };
+
+    // Process emails and handle group expansion
+    const processEmailEntries = (entries: string[]) => {
         let entriesWithGroupMembers: string[] = [];
 
-        entries.forEach((e: any) => {
+        entries.forEach((e: string) => {
             if (e.startsWith('#')) {
                 const group = groups.find((g: Group) => g.name === e.slice(1));
-                if (group) entriesWithGroupMembers = [...entriesWithGroupMembers,
-                ...Object.keys(group.members).filter((e: string) => e !== userEmail)];
+                if (group) {
+                    entriesWithGroupMembers = [...entriesWithGroupMembers,
+                    ...Object.keys(group.members).filter((member: string) => member !== userEmail)];
+                }
             } else {
                 entriesWithGroupMembers.push(e);
             }
         });
 
-        const newEmails = entriesWithGroupMembers.filter(email => /^\S+@\S+\.\S+$/.test(email) && !Object.keys(newGroupMembers).includes(email)
-            && !Object.keys(selectedGroup.members).includes(email)
+        // Filter valid entries (usernames/systemIds/emails) and avoid duplicates
+        const newEntries = entriesWithGroupMembers.filter(entry => 
+            isValidEntry(entry) && 
+            !Object.keys(newGroupMembers).includes(entry) &&
+            !Object.keys(selectedGroup.members).includes(entry)
         );
-        setNewGroupMembers({ ...newGroupMembers, ...Object.fromEntries(newEmails.map(email => [email, GroupAccessType.READ])) } as Members);
-        setInput('');
+        
+        if (newEntries.length > 0) {
+            setNewGroupMembers({ 
+                ...newGroupMembers, 
+                ...Object.fromEntries(newEntries.map(entry => [entry, GroupAccessType.READ])) 
+            } as Members);
+        }
+    };
+
+    // Convert processEmailEntries to work with the new interface
+    const handleUpdateEmails = (newEmails: string[]) => {
+        // Find newly added emails by comparing with current members
+        const currentEmails = Object.keys(newGroupMembers);
+        const addedEmails = newEmails.filter(email => !currentEmails.includes(email));
+        
+        if (addedEmails.length > 0) {
+            processEmailEntries(addedEmails);
+        }
     };
 
     const addUsers = async () => {
@@ -290,7 +318,6 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
             });
             setAdminGroups(updatedAdminGroups);
             setNewGroupMembers({});
-            setInput('');
         }
         if (result) {
             toast(`Successfully added users to the group.`);
@@ -476,12 +503,9 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
                     <AddMemberAccess
                         groupMembers={newGroupMembers}
                         setGroupMembers={setNewGroupMembers}
-                        input={input}
-                        setInput={setInput}
                         allEmails={allGroupEmails}
-                        handleAddEmails={handleAddEmails}
+                        processEmailEntries={handleUpdateEmails}
                         width='840px'
-
                     />
                 }
                 <label className="font-bold">Group Members</label>
@@ -513,7 +537,6 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
                                         addUsers();
                                     } else {
                                         setIsAddingUsers(false);
-                                        setInput('');
                                     }
                                 }}
                                 title={"Add Users"}
@@ -527,7 +550,6 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
                                     e.stopPropagation();
                                     setIsAddingUsers(false);
                                     setNewGroupMembers({});
-                                    setInput('');
 
                                 }}
                                 title={"Cancel"}
