@@ -1,4 +1,5 @@
 import {WorkflowDefinition} from "@/types/workflow";
+import { storageSet } from "./storage";
 
 export const updateWorkflowDefinition = (updatedWorkflowDefinition: WorkflowDefinition, allWorkflowDefinitions: WorkflowDefinition[]) => {
   const updatedWorkflowDefinitions = allWorkflowDefinitions.map((c) => {
@@ -18,6 +19,6 @@ export const updateWorkflowDefinition = (updatedWorkflowDefinition: WorkflowDefi
 };
 
 export const saveWorkflowDefinitions = (workflows: WorkflowDefinition[]) => {
-  localStorage.setItem('workflows', JSON.stringify(workflows));
+  storageSet('workflows', JSON.stringify(workflows));
 };
 

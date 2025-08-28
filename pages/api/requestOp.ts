@@ -2,12 +2,16 @@ import { NextApiRequest, NextApiResponse } from "next";
 import {getServerSession} from "next-auth/next";
 import {authOptions} from "@/pages/api/auth/[...nextauth]";
 import { transformPayload } from "@/utils/app/data";
+import { lzwCompress } from "@/utils/app/lzwCompression";
 
 interface reqPayload {
     method: any, 
     headers: any,
     body?: any,
 }
+
+// Paths that should not be compressed
+const NO_COMPRESSION_PATHS = ['/billing'];
 
 const requestOp =
     async (req: NextApiRequest, res: NextApiResponse) => {
@@ -23,7 +27,7 @@ const requestOp =
         const reqData = req.body.data || {};
 
         const method = reqData.method || null;
-        const payload = reqData.data ? transformPayload.decode(reqData.data) : null;
+        let payload = reqData.data ? transformPayload.decode(reqData.data) : null;
 
         const apiUrl = constructUrl(reqData);
         // @ts-ignore
@@ -37,7 +41,29 @@ const requestOp =
             },
         }
 
-        if (payload) reqPayload.body = JSON.stringify( { data: payload });
+        if (payload) {
+            const shouldCompress = !NO_COMPRESSION_PATHS.includes(reqData.path) && false;
+            
+            if (shouldCompress) {
+                try {
+                    if (typeof payload === 'object') {
+                        payload = lzwCompress(JSON.stringify(payload));   
+                        console.log("Compressed payload");
+                    } else if (typeof payload === 'string' && payload.length > 1000) {
+                        // Compress large strings
+                        payload = lzwCompress(payload);
+                        console.log("Compressed payload");
+                    }
+                } catch (e) {
+                    console.error("Error in requestOp: ", e);
+                    console.log("Sending uncompressed payload");
+                }
+            } else {
+                console.log(`Skipping compression for path: ${reqData.path}`);
+            }
+            reqPayload.body = JSON.stringify( { data: payload });
+
+        }
 
         try {
 

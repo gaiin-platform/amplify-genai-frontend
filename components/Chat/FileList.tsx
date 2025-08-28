@@ -6,6 +6,8 @@ import 'react-circular-progressbar/dist/styles.css';
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import Search from '../Search';
+import { embeddingDocumentStaus } from '@/services/adminService';
+import { extractKey, getDocumentStatusConfig } from '@/utils/app/files';
 
 interface Props {
     documents:AttachedDocument[]|undefined;
@@ -182,10 +184,34 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
     const [dataSources, setDataSources] = useState<AttachedDocument[]>(documents ?? []);
     const [hovered, setHovered] = useState<string>('');
     const [expandedSitemaps, setExpandedSitemaps] = useState<Set<string>>(new Set());
+    const [embeddingStatus, setEmbeddingStatus] = useState<{[key: string]: string} | null >(null);
 
     useEffect(() => {
         if (documents) setDataSources(documents);
     }, [documents, searchTerm]);
+
+
+    // Fetch embedding status on first render
+    useEffect(() => {
+        if (dataSources.length > 0 && embeddingStatus === null) {
+            const keys = dataSources.map(ds => {
+                const key = extractKey(ds);
+                return key ? {key: extractKey(ds), type: ds.type} : null;
+            }).filter(ds => ds) as {key: string, type: string}[];
+            
+            if (keys.length > 0) {
+                embeddingDocumentStaus(keys)
+                    .then(response => {
+                        if (response?.success && response?.data) {
+                            setEmbeddingStatus(response.data);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Failed to fetch embedding status:', error);
+                    });
+            }
+        }
+    }, [dataSources]);
 
     const toggleSitemap = (sitemapUrl: string) => {
         const newExpanded = new Set(expandedSitemaps);
@@ -228,6 +254,7 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
         removeTitle?: string;
         removeIconSize?: number;
         isClickable?: boolean;
+        document?: AttachedDocument;
     }> = ({ 
         id, 
         itemNumber, 
@@ -239,7 +266,8 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
         textSize = 'sm',
         removeTitle = 'Remove',
         removeIconSize = 20,
-        isClickable = false
+        isClickable = false,
+        document
     }) => {
         const [hoveredButton, setHoveredButton] = useState(false);
         
@@ -264,14 +292,32 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                 onMouseLeave={() => setHovered('')}
                 onClick={onClick}
             >
-                <div className="ml-1 flex-1" style={{ overflow: 'hidden' }}>
-                    <p className={`truncate font-medium text-${textSize} text-black-800 dark:text-white flex flex-row items-center gap-1`} style={{
+                <div className="ml-1 flex-1 flex items-center justify-between" style={{ overflow: 'hidden' }}>
+                    <p className={`truncate font-medium text-${textSize} text-black-800 dark:text-white flex flex-row items-center gap-1 flex-1 min-w-0`} style={{
                         overflow: 'hidden',
                         whiteSpace: 'nowrap', 
                         textOverflow: 'ellipsis',
                     }}>
                         {itemNumber}. {displayText} {icon}
+                        {document && embeddingStatus && (() => {
+                            const status = embeddingStatus[extractKey(document)];
+                            if (!status) return null;
+                            const config = getDocumentStatusConfig(status);
+                            return config?.showIndicatorWhenNotHovered ? (
+                                <span className={`${config.indicatorColor} text-sm ml-1 ${config.animate ? 'animate-pulse' : ''}`}>
+                                    {config.indicator}
+                                </span>
+                            ) : null;
+                        })()}
                     </p>
+                    <div className="flex-shrink-0 px-4">
+                        {document && embeddingStatus && (
+                            <StatusBadge 
+                                status={embeddingStatus[extractKey(document)]} 
+                                isRowHovered={hovered === id}
+                            />
+                        )}
+                    </div>
                 </div>
            
                 {allowRemoval && onRemove && 
@@ -302,21 +348,37 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
         <div
             key={`sitemap-doc-${document.id}`}
             className={`${hovered === document.id ? 'hover:bg-gray-200 dark:hover:bg-gray-500' : ''} bg-gray-50 dark:bg-[#35363f] flex flex-row items-center border dark:border-neutral-600 dark:text-white rounded-sm px-1 py-1 ml-1 mr-1 mb-1`}
+            onMouseEnter={() => setHovered(document.id)}
+            onMouseLeave={() => setHovered('')}
         >
-            <div className="ml-4 flex-1" style={{ overflow: 'hidden' }}>
-                <p className={`truncate font-medium text-xs text-gray-700 dark:text-gray-300 flex flex-row items-center gap-1`} style={{
+            <div className="ml-4 flex-1 flex items-center justify-between" style={{ overflow: 'hidden' }}>
+                <p className={`truncate font-medium text-xs text-gray-700 dark:text-gray-300 flex flex-row items-center gap-1 flex-1 min-w-0`} style={{
                     overflow: 'hidden',
                     whiteSpace: 'nowrap', 
                     textOverflow: 'ellipsis',
                 }}>
                     ↳ {document.metadata?.sourceUrl || document.name}
+                    {embeddingStatus && (() => {
+                        const status = embeddingStatus[extractKey(document)];
+                        if (!status) return null;
+                        const config = getDocumentStatusConfig(status);
+                        return config?.showIndicatorWhenNotHovered ? (
+                            <span className={`${config.indicatorColor} text-sm ml-1 ${config.animate ? 'animate-pulse' : ''}`}>
+                                {config.indicator}
+                            </span>
+                        ) : null;
+                    })()}
                 </p>
+                <div className="flex-shrink-0 px-4">
+                    {embeddingStatus && <StatusBadge 
+                        status={embeddingStatus[extractKey(document)]} 
+                        isRowHovered={hovered === document.id}
+                    />}
+                </div>
             </div>
        
             {allowRemoval && 
                 <button
-                    onMouseEnter={() => setHovered(document.id)}
-                    onMouseLeave={() => setHovered('')}
                     title={"Remove this page"}
                     className="ml-auto mr-2 text-gray-400 hover:text-red-500 transition-all"
                     style={{ flexShrink: 0 }}
@@ -370,6 +432,7 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                             displayText={document.metadata?.sourceUrl || document.name}
                             icon={getIcon(document)}
                             onRemove={() => removeDocument(document)}
+                            document={document}
                         />
                     );
                 })}
@@ -415,10 +478,32 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                             displayText={document.metadata?.sourceUrl || document.name}
                             icon={getIcon(document)}
                             onRemove={() => removeDocument(document)}
+                            document={document}
                         />
                     );
                 })}
             </div>
+        </div>
+    );
+};
+
+
+
+
+    // Status badge component  
+export const StatusBadge: FC<{ status: string | null | undefined; isRowHovered: boolean }> = ({ status, isRowHovered }) => {
+    if (!status) return null;
+    
+    const config = getDocumentStatusConfig(status);
+    if (!config) return null;
+    
+    return (
+        <div className="inline-block min-w-[60px] text-right">
+            {isRowHovered ? (
+                <span className={`${config.color} text-xs px-1.5 py-0.5 rounded font-normal whitespace-nowrap`}>
+                    {config.text}
+                </span>
+            ) : null}
         </div>
     );
 };

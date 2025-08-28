@@ -153,6 +153,9 @@ const Promptbar = () => {
       savePrompts(updatedPrompts);
 
       setPrompt(newPrompt);
+      // This will prevent the conversation-based VariableModal from showing
+      homeDispatch({ field: 'isStandalonePromptCreation', value: true });
+      
       setShowModal(true);
     }
   };
@@ -195,6 +198,9 @@ const Promptbar = () => {
 
     handleDeletePrompt(prompt);
     setShowModal(false);
+    
+    // Reset standalone flag when canceling prompt creation
+    homeDispatch({ field: 'isStandalonePromptCreation', value: false });
   }
 
   const handleUpdatePrompt = (prompt: Prompt) => {
@@ -326,7 +332,11 @@ const Promptbar = () => {
           <PromptModal
               prompt={prompt}
               onCancel={() => handleCancelNewPrompt()}
-              onSave={() => setShowModal(false)}
+              onSave={() => {
+                setShowModal(false);
+                // Reset standalone flag when saving prompt creation
+                homeDispatch({ field: 'isStandalonePromptCreation', value: false });
+              }}
               onUpdatePrompt={handleUpdatePrompt}
           />
       )}
