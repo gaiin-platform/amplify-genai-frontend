@@ -343,15 +343,17 @@ export const rescanWebsites = async (assistantId: string, forceRescan: boolean =
 };
 
 
-export const getSiteMapUrls = async (sitemap: string, maxPages: number = 10) => {
+export const getSiteMapUrls = async (sitemap: string, maxPages?: number) => {
+  const data: { sitemap: string, maxPages?: number } = { sitemap }
+  if (maxPages) {
+    data.maxPages = maxPages;
+  }
+  console.log("data", data);
   const op = {
       method: 'POST',
       path: URL_PATH,
       op: "/extract_sitemap_urls",
-      data: { 
-          sitemap,
-          maxPages
-      },
+      data: data,
       service: SERVICE_NAME
   };
   

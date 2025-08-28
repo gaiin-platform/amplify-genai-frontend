@@ -117,9 +117,9 @@ export const PromptComponent = ({ prompt }: Props) => {
 
         if (selectedAssistant && prompt?.data?.assistant?.definition.assistantId === selectedAssistant.definition.assistantId) homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT }); 
         
-        if(isAssistant(prompt) && canDelete ){
+        if (isAssistant(prompt) && canDelete ){
            const assistant = getAssistant(prompt);
-           if(assistant && assistant.assistantId){
+           if (assistant && assistant.assistantId){
                setLoadingMessage("Deleting assistant...");
                try {
                    const result = await deleteAssistant(assistant.assistantId);
