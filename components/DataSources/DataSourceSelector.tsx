@@ -196,8 +196,8 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                 {selectedPage === "files" && (
                     <DataSourcesTableScrolling
                         height={height}
-                        visibleColumns={ showActionButtons ? ["name", "id", "createdAt", "commonType", "delete", "re-embed"] 
-                                                           : ["name", "createdAt", "commonType"]}
+                        visibleColumns={ showActionButtons ? ["name", "id", "createdAt", "commonType", "embeddingStatus", "delete", "re-embed"] 
+                                                           : ["name", "createdAt", "commonType", "embeddingStatus"]}
                         onDataSourceSelected={onDataSourceSelected}
                         tableParams={{
                             enableGlobalFilter: false,

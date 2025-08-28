@@ -1,6 +1,7 @@
 import { doRequestOp } from "./doRequestOp";
 
 const URL_PATH = "/amplifymin";
+const EMBEDDINGS_URL_PATH = "/embedding";
 const SERVICE_NAME = "admin";
 const EMBEDDINGS_SERVICE_NAME = "embeddings";
 
@@ -67,11 +68,23 @@ export const getAvailableModels = async () => {
     return await doRequestOp(op);
 }
 
+export const embeddingDocumentStaus = async (dataSources: {key: string, type: string}[]) => {
+    const op = {
+        data: { dataSources },
+        method: 'POST',
+        path: EMBEDDINGS_URL_PATH,
+        op: '/status',
+        SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
+    };
+    return await doRequestOp(op);
+}
+
+
 export const terminateEmbedding = async (key: any) => {
     const op = {
         data: { object_key: key },
         method: 'POST',
-        path: "/embedding",
+        path: EMBEDDINGS_URL_PATH,
         op: '/terminate',
         SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
     };
@@ -81,7 +94,7 @@ export const terminateEmbedding = async (key: any) => {
 export const getInFlightEmbeddings = async () => {
     const op = {
         method: 'GET',
-        path: "/embedding",
+        path: EMBEDDINGS_URL_PATH,
         op: '/sqs/get',
         SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
     };
