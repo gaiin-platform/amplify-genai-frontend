@@ -30,6 +30,7 @@ import {
 import { getArchiveNumOfDays, getHiddenGroupFolders, saveFolders } from '@/utils/app/folders';
 import { savePrompts } from '@/utils/app/prompts';
 import { getSettings, saveSettings } from '@/utils/app/settings';
+import { storageGet, storageSet } from '@/utils/app/storage';
 import { getAccounts } from "@/services/accountService";
 
 import { Conversation, Message, newMessage } from '@/types/chat';
@@ -304,6 +305,9 @@ const Home = ({
             dispatch({  field: 'selectedConversation',
                         value: newSelectedConv
                     });
+                    
+            // Reset standalone flag when selecting a conversation
+            dispatch({ field: 'isStandalonePromptCreation', value: false });
 
         }
     };
@@ -893,7 +897,7 @@ const Home = ({
                 if (response.success) {
                     const workspaces = response.items.filter((item: { sharedBy: string; }) =>  item.sharedBy === user);
                     dispatch({ field: 'workspaces', value: workspaces});  
-                    localStorage.setItem('workspaces', JSON.stringify(workspaces));
+                    storageSet('workspaces', JSON.stringify(workspaces));
                     return;
                 } else {
                     console.log("Failed to fetch user workspaces.");
@@ -1094,160 +1098,159 @@ const Home = ({
 
     useEffect(() => {
         if (!initialRender) return;
-        console.log("Initial On Load");
-        const settings = getSettings(featureFlags);
-        setSettings(settings);
+        
+        const initializeData = async () => {
+            console.log("Initial On Load");
+            const settings = getSettings(featureFlags);
+            setSettings(settings);
 
-        if (settings.theme) {
-            dispatch({
-                field: 'lightMode',
-                value: settings.theme,
-            });
-        }
-
-        // will save us the call if a user does not have workspaces 
-        const savedWorkspaces = localStorage.getItem('workspaces');
-        if (savedWorkspaces) {
-            dispatch({ field: 'workspaces', value: JSON.parse(savedWorkspaces) });
-        }
-
-        // const workspaceMetadataStr = localStorage.getItem('workspaceMetadata');
-        // if (workspaceMetadataStr) {
-        //     dispatch({ field: 'workspaceMetadata', value: JSON.parse(workspaceMetadataStr) });
-        // }
-
-        if (window.innerWidth < 640) {
-            dispatch({ field: 'showChatbar', value: false });
-            dispatch({ field: 'showPromptbar', value: false });
-        } else {
-            const showChatbar = localStorage.getItem('showChatbar');
-            if (!!showChatbar) {
-                dispatch({ field: 'showChatbar', value: showChatbar === 'true' });
+            if (settings.theme) {
+                dispatch({
+                    field: 'lightMode',
+                    value: settings.theme,
+                });
             }
 
-            const showPromptbar = localStorage.getItem('showPromptbar');
-            if (!!showPromptbar) {
-                dispatch({ field: 'showPromptbar', value: showPromptbar === 'true' });
+            // will save us the call if a user does not have workspaces 
+            const savedWorkspaces = await storageGet('workspaces');
+            if (savedWorkspaces) {
+                dispatch({ field: 'workspaces', value: JSON.parse(savedWorkspaces) });
             }
-        }
 
-        const pluginLoc = localStorage.getItem('pluginLocation');
-        if (pluginLoc) {
-            dispatch({ field: 'pluginLocation', value: JSON.parse(pluginLoc) });
-        }
+            if (window.innerWidth < 640) {
+                dispatch({ field: 'showChatbar', value: false });
+                dispatch({ field: 'showPromptbar', value: false });
+            } else {
+                const showChatbar = localStorage.getItem('showChatbar');
+                if (!!showChatbar) {
+                    dispatch({ field: 'showChatbar', value: showChatbar === 'true' });
+                }
 
-       
-        const storageSelection = localStorage.getItem('storageSelection');
-        if (storageSelection) {
-            dispatch({field: 'storageSelection', value: storageSelection});
-        }
+                const showPromptbar = localStorage.getItem('showPromptbar');
+                if (!!showPromptbar) {
+                    dispatch({ field: 'showPromptbar', value: showPromptbar === 'true' });
+                }
+            }
 
-        const hiddenGroups = localStorage.getItem('hiddenGroupFolders');
-        if (hiddenGroups) {
-            dispatch({field: 'hiddenGroupFolders', value: JSON.parse(hiddenGroups) });
-        }
+            const pluginLoc = localStorage.getItem('pluginLocation');
+            if (pluginLoc) {
+                dispatch({ field: 'pluginLocation', value: JSON.parse(pluginLoc) });
+            }
 
-        const prompts = localStorage.getItem('prompts');
-        const promptsParsed = JSON.parse(prompts ? prompts : '[]')
-        if (prompts) {
-            dispatch({ field: 'prompts', value: promptsParsed });
-        }
+           
+            const storageSelection = localStorage.getItem('storageSelection');
+            if (storageSelection) {
+                dispatch({field: 'storageSelection', value: storageSelection});
+            }
 
-        const workflows = localStorage.getItem('workflows');
-        if (workflows) {
-            dispatch({ field: 'workflows', value: JSON.parse(workflows) });
-        }
+            const hiddenGroups = localStorage.getItem('hiddenGroupFolders');
+            if (hiddenGroups) {
+                dispatch({field: 'hiddenGroupFolders', value: JSON.parse(hiddenGroups) });
+            }
 
-        let folderIds: string[] = [];
+            const prompts = await storageGet('prompts');
+            const promptsParsed = JSON.parse(prompts ? prompts : '[]')
+            if (prompts) {
+                dispatch({ field: 'prompts', value: promptsParsed });
+            }
 
-        const folders = localStorage.getItem('folders');
-        const foldersParsed = JSON.parse(folders ? folders : '[]')
-        if (folders) {
-            // for older folders with no date, if it can be transform to the correct format then we add the date attribte
-            let updatedFolders:FolderInterface[] = foldersParsed.map((folder:FolderInterface) => {
-                                        return "date" in folder ? folder : addDateAttribute(folder);
-                                    })
-            // Make sure the "assistants" folder exists and create it if necessary
-            const assistantsFolder = updatedFolders.find((f:FolderInterface) => f.id === "assistants");
-            if (!assistantsFolder) updatedFolders.push( baseAssistantFolder );
-            
-            dispatch({ field: 'folders', value: updatedFolders});
-            folderIds = updatedFolders.map((f: FolderInterface) => f.id)
-        }
+            const workflows = await storageGet('workflows');
+            if (workflows) {
+                dispatch({ field: 'workflows', value: JSON.parse(workflows) });
+            }
 
-        // Create a string for the current date like Oct-18-2021
-        const dateName = getDateName();
+            let folderIds: string[] = [];
 
-        const conversationHistory = localStorage.getItem('conversationHistory');
-        let conversations: Conversation[] = JSON.parse(conversationHistory ? conversationHistory : '[]');
-        //ensure all conversation messagea are compressed and folder exists
-        conversations = compressAllConversationMessages(conversations).map((c: Conversation) => 
-                                            !c.folderId || folderIds.includes(c.folderId) ? c : {...c, folderId: null});
+            const folders = await storageGet('folders');
+            const foldersParsed = JSON.parse(folders ? folders : '[]')
+            if (folders) {
+                // for older folders with no date, if it can be transform to the correct format then we add the date attribte
+                let updatedFolders:FolderInterface[] = foldersParsed.map((folder:FolderInterface) => {
+                                            return "date" in folder ? folder : addDateAttribute(folder);
+                                        })
+                // Make sure the "assistants" folder exists and create it if necessary
+                const assistantsFolder = updatedFolders.find((f:FolderInterface) => f.id === "assistants");
+                if (!assistantsFolder) updatedFolders.push( baseAssistantFolder );
+                
+                dispatch({ field: 'folders', value: updatedFolders});
+                folderIds = updatedFolders.map((f: FolderInterface) => f.id)
+            }
 
-        // call fetach all conversations 
-        const lastConversation: Conversation | null = (conversations.length > 0) ? conversations[conversations.length - 1] : null;
-        const lastConversationFolder: FolderInterface | null = lastConversation && foldersParsed ? foldersParsed.find((f: FolderInterface) => f.id === lastConversation.folderId) : null;
+            // Create a string for the current date like Oct-18-2021
+            const dateName = getDateName();
 
-        let selectedConversation: Conversation | null = lastConversation ? { ...lastConversation } : null;
+            const conversationHistory = await storageGet('conversationHistory');
+            let conversations: Conversation[] = JSON.parse(conversationHistory ? conversationHistory : '[]');
+            //ensure all conversation messagea are compressed and folder exists
+            conversations = compressAllConversationMessages(conversations).map((c: Conversation) => 
+                                                !c.folderId || folderIds.includes(c.folderId) ? c : {...c, folderId: null});
 
-        if (!lastConversation || lastConversation.name !== 'New Conversation' ||
-            (lastConversationFolder && lastConversationFolder.name !== dateName)) {
+            // call fetach all conversations 
+            const lastConversation: Conversation | null = (conversations.length > 0) ? conversations[conversations.length - 1] : null;
+            const lastConversationFolder: FolderInterface | null = lastConversation && foldersParsed ? foldersParsed.find((f: FolderInterface) => f.id === lastConversation.folderId) : null;
 
-            // See if there is a folder with the same name as the date
-            let folder = foldersParsed.find((f: FolderInterface) => f.name === dateName);
-            if (!folder) {
-                const newFolder: FolderInterface = {
+            let selectedConversation: Conversation | null = lastConversation ? { ...lastConversation } : null;
+
+            if (!lastConversation || lastConversation.name !== 'New Conversation' ||
+                (lastConversationFolder && lastConversationFolder.name !== dateName)) {
+
+                // See if there is a folder with the same name as the date
+                let folder = foldersParsed.find((f: FolderInterface) => f.name === dateName);
+                if (!folder) {
+                    const newFolder: FolderInterface = {
+                        id: uuidv4(),
+                        date: getFullTimestamp(),
+                        name: dateName,
+                        type: "chat"
+                    };
+
+                    folder = newFolder;
+                    const updatedFolders = [...foldersParsed, newFolder];
+
+                    dispatch({ field: 'folders', value: updatedFolders });
+                    saveFolders(updatedFolders);
+                }
+
+                let defaultModel = localStorage.getItem('defaultModel');
+                defaultModel = defaultModel ? JSON.parse(defaultModel) : lastConversation?.model;
+
+                //new conversation on load 
+                const newConversation: Conversation = {
                     id: uuidv4(),
-                    date: getFullTimestamp(),
-                    name: dateName,
-                    type: "chat"
+                    name: t('New Conversation'),
+                    messages: [],
+                    model: (defaultModel ?? {id:'', name: '', description: '', inputContextWindow: 0, supportsImages: false, supportsReasoning: false}) as Model, 
+                    prompt: DEFAULT_SYSTEM_PROMPT,
+                    temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
+                    folderId: folder.id,
+                    promptTemplate: null,
+                    isLocal: getIsLocalStorageSelection(storageSelection)
                 };
 
-                folder = newFolder;
-                const updatedFolders = [...foldersParsed, newFolder];
+                if (isRemoteConversation(newConversation)) uploadConversation(newConversation, foldersRef.current);
+                // Ensure the new conversation is added to the list of conversationHistory
+                conversations.push(newConversation);
 
-                dispatch({ field: 'folders', value: updatedFolders });
-                saveFolders(updatedFolders);
+                selectedConversation = { ...newConversation };
+
             }
 
-            let defaultModel = localStorage.getItem('defaultModel');
-            defaultModel = defaultModel ? JSON.parse(defaultModel) : lastConversation?.model;
-            console.log("local storage default Model: ", defaultModel)
+            dispatch({ field: 'selectedConversation', value: selectedConversation });
 
-            //new conversation on load 
-            const newConversation: Conversation = {
-                id: uuidv4(),
-                name: t('New Conversation'),
-                messages: [],
-                model: (defaultModel ?? {id:'', name: '', description: '', inputContextWindow: 0, supportsImages: false, supportsReasoning: false}) as Model, 
-                prompt: DEFAULT_SYSTEM_PROMPT,
-                temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
-                folderId: folder.id,
-                promptTemplate: null,
-                isLocal: getIsLocalStorageSelection(storageSelection)
-            };
+            if (conversationHistory) {
+                const cleanedConversationHistory = cleanConversationHistory(conversations, getDefaultModel(DefaultModels.DEFAULT));
 
-            if (isRemoteConversation(newConversation)) uploadConversation(newConversation, foldersRef.current);
-            // Ensure the new conversation is added to the list of conversationHistory
-            conversations.push(newConversation);
+                dispatch({ field: 'conversations', value: cleanedConversationHistory });
+                saveConversations(cleanedConversationHistory)
+            }
 
-            selectedConversation = { ...newConversation };
+            dispatch({
+                field: 'conversationStateId',
+                value: 'post-init',
+            });
+        };
 
-        }
-
-        dispatch({ field: 'selectedConversation', value: selectedConversation });
-
-        if (conversationHistory) {
-            const cleanedConversationHistory = cleanConversationHistory(conversations, getDefaultModel(DefaultModels.DEFAULT));
-
-            dispatch({ field: 'conversations', value: cleanedConversationHistory });
-            saveConversations(cleanedConversationHistory)
-        }
-
-        dispatch({
-            field: 'conversationStateId',
-            value: 'post-init',
-        });
+        initializeData();
     }, [initialRender]);
 
     const [preProcessingCallbacks, setPreProcessingCallbacks] = useState([]);
