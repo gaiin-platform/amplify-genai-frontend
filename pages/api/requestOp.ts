@@ -42,7 +42,7 @@ const requestOp =
         }
 
         if (payload) {
-            const shouldCompress = !NO_COMPRESSION_PATHS.includes(reqData.path) && false;
+            const shouldCompress = !NO_COMPRESSION_PATHS.includes(reqData.path);
             
             if (shouldCompress) {
                 try {
