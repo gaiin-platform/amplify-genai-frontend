@@ -22,7 +22,7 @@ export const authOptions = {
         // newUser: '/auth/new-user' // New users will be directed here on first sign in (leave the property out if not of interest)
     },
     callbacks: {
-        async jwt({ token, account }) {
+        async jwt({ token, profile, account }) {
             // Persist the OAuth access_token to the token right after signin
 
             if (account) {
@@ -42,6 +42,34 @@ export const authOptions = {
                 token.refreshToken = newToken.refreshToken;
                 token.error = newToken.error;
             }
+
+            console.log("--- token ---", token);
+            try {
+            const response = await fetch((process.env.API_BASE_URL || "") + '/user/upgrade', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token.accessToken}`
+                },
+                body: JSON.stringify({
+                    data: {
+                       token,
+                       profile
+                    }
+                }),
+                signal: null,
+            });
+        
+            if (!response.ok) {
+                throw new Error(`Failed to call: ${response.status}`);
+            }
+        
+            const result = await response.json();
+
+            console.log("--- result ---", result);
+        } catch (error) {
+            
+        }
 
             return token
         },
