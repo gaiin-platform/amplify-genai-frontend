@@ -645,7 +645,8 @@ const AssistantPage = ({
     
       updatedMessages[editing] = {
         ...updatedMessages[editing],
-        content: editedContent
+        content: editedContent,
+        role: 'user'
       };
       setMessages(updatedMessages);
       setEditing(null);
