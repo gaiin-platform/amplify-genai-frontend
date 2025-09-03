@@ -1550,7 +1550,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
                                     {featureFlags.assistantPathPublishing && (
                                                 <AssistantPathEditor
-                                                    savedAstPath={definition.astPath}
+                                                    savedAstPath={definition.data?.astPath}
                                                     astPath={astPath}
                                                     setAstPath={setAstPath}
                                                     astIcon={astIcon}
