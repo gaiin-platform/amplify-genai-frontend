@@ -1,6 +1,7 @@
 import {MemoizedReactMarkdown} from "@/components/Markdown/MemoizedReactMarkdown";
 import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
+import rehypeRaw from "rehype-raw";
+import LatexBlock from "./LatexBlock";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {CodeBlock} from "@/components/Markdown/CodeBlock";
 import {Conversation, Message} from "@/types/chat";
@@ -67,6 +68,23 @@ const ChatContentBlock: React.FC<Props> = (
     const transformedMessageContent = selectedConversation ?
         transformMessageContent(selectedConversation, message) :
         message.content;
+
+    // Process LaTeX in the content
+    const processLatex = (content: string) => {
+        // Replace display math $$...$$ with placeholder
+        let processed = content.replace(/\$\$(.*?)\$\$/g, (match, latex) => {
+            return `<math-display>${latex}</math-display>`;
+        });
+        
+        // Replace inline math $...$ with placeholder  
+        processed = processed.replace(/\$([^$\n]+?)\$/g, (match, latex) => {
+            return `<math-inline>${latex}</math-inline>`;
+        });
+        
+        return processed;
+    };
+
+    const finalContent = processLatex(transformedMessageContent);
     const isLast = messageIndex == (selectedConversation?.messages?.length ?? 0) - 1;
 
 
@@ -122,13 +140,19 @@ const ChatContentBlock: React.FC<Props> = (
     <MemoizedReactMarkdown
     key={renderKey}
     className="prose dark:prose-invert flex-1 max-w-none w-full" 
-    remarkPlugins={[remarkGfm, remarkMath]}
+    remarkPlugins={[remarkGfm]}
+    rehypePlugins={[rehypeRaw]}
     //onMouseUp={handleTextHighlight}
-    //rehypePlugins={[rehypeRaw]}
-    //rehypePlugins={[rehypeMathjax]}
     components={{
         // @ts-ignore
         Mermaid,
+        // Math components for LaTeX rendering
+        'math-display': ({children}: {children: React.ReactNode}) => (
+            <LatexBlock math={String(children)} displayMode={true} />
+        ),
+        'math-inline': ({children}: {children: React.ReactNode}) => (
+            <LatexBlock math={String(children)} displayMode={false} />
+        ),
         a({href, title, children, ...props}) {
             if (href && !href.startsWith("javascript:")) {
 
@@ -329,7 +353,7 @@ const ChatContentBlock: React.FC<Props> = (
         },
     }}
 >
-    {`${transformedMessageContent}${
+    {`${finalContent}${
         messageIsStreaming && !document.querySelector('.highlight-pulse') && 
         messageIndex == (selectedConversation?.messages?.length ?? 0) - 1 ? '`▍`' : ''
     }`}
