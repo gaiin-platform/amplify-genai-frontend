@@ -198,6 +198,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [responseSliderState, setResponseSliderState] = useState<number>(calculateInitSliderValue(selectedConversation?.maxTokens));
         const [currentMessage, setCurrentMessage] = useState<Message>();
         const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
+        const [isUserScrolling, setIsUserScrolling] = useState<boolean>(false);
+        const [lastScrollTop, setLastScrollTop] = useState<number>(0);
+        const userScrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
         const [showAdvancedConvSettings, setShowAdvancedConvSettings] = useState<boolean>(false);
         const [showSettings, setShowSettings] = useState<boolean>(false);
         const [isPromptTemplateDialogVisible, setIsPromptTemplateDialogVisible] = useState<boolean>(false);
@@ -758,11 +761,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
 
         const scrollToBottom = useCallback(() => {
-            if (autoScrollEnabled) {
+            if (autoScrollEnabled && !isUserScrolling) {
                 messagesEndRef.current?.scrollIntoView({behavior: 'smooth'});
                 textareaRef.current?.focus();
             }
-        }, [autoScrollEnabled]);
+        }, [autoScrollEnabled, isUserScrolling]);
 
 
         const handleScroll = () => {
@@ -770,18 +773,44 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 const {scrollTop, scrollHeight, clientHeight} =
                     chatContainerRef.current;
                 const bottomTolerance = 30;
+                const scrollDelta = scrollTop - lastScrollTop;
+                const isAtBottom = scrollTop + clientHeight >= scrollHeight - bottomTolerance;
 
-                if (scrollTop + clientHeight < scrollHeight - bottomTolerance) {
-                    setAutoScrollEnabled(false);
-                    setShowScrollDownButton(true);
-                } else {
-                    setAutoScrollEnabled(true);
-                    setShowScrollDownButton(false);
+                // Detect if user is actively scrolling (not auto-scroll)
+                if (Math.abs(scrollDelta) > 0) {
+                    setIsUserScrolling(true);
+                    setLastScrollTop(scrollTop);
+                    
+                    // Clear existing timeout
+                    if (userScrollTimeoutRef.current) {
+                        clearTimeout(userScrollTimeoutRef.current);
+                    }
+                    
+                    // Set timeout to reset user scrolling state after 500ms of no scroll
+                    userScrollTimeoutRef.current = setTimeout(() => {
+                        setIsUserScrolling(false);
+                    }, 500);
                 }
+
+                // Update auto-scroll and button visibility
+                setAutoScrollEnabled(isAtBottom);
+                
+                // Show scroll down button if not at bottom, OR if streaming (so user can jump to follow)
+                setShowScrollDownButton(!isAtBottom || messageIsStreaming);
             }
         };
 
         const handleScrollDown = () => {
+            // Reset user scrolling state and enable auto-scroll when button is clicked
+            setIsUserScrolling(false);
+            setAutoScrollEnabled(true);
+            setShowScrollDownButton(false);
+            
+            // Clear any existing scroll timeouts
+            if (userScrollTimeoutRef.current) {
+                clearTimeout(userScrollTimeoutRef.current);
+            }
+            
             chatContainerRef.current?.scrollTo({
                 top: chatContainerRef.current.scrollHeight,
                 behavior: 'smooth',
@@ -820,21 +849,76 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         };
 
         const scrollDown = () => {
-            if (autoScrollEnabled) {
+            if (autoScrollEnabled && !isUserScrolling) {
                 messagesEndRef.current?.scrollIntoView(true);
             }
         };
         const throttledScrollDown = throttle(scrollDown, 250);
 
+        // Track previous message count to only scroll when messages actually change
+        const prevMessageCountRef = useRef<number>(0);
+        const scrollDelayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
         useEffect(() => {
-            throttledScrollDown();
             if (selectedConversation && selectedConversation.messages) {
-                 setCurrentMessage(
+                const currentMessageCount = selectedConversation.messages.length;
+                
+                // Only scroll if messages were actually added and we should auto scroll
+                if (currentMessageCount > prevMessageCountRef.current && 
+                    autoScrollEnabled && 
+                    !isUserScrolling) {
+                    
+                    const lastMessage = selectedConversation.messages[selectedConversation.messages.length - 1];
+                    
+                    // Only auto-scroll for user messages, not when AI responses start
+                    // This prevents the jump when AI response begins
+                    if (lastMessage && lastMessage.role === 'user') {
+                        // Clear any existing timeout
+                        if (scrollDelayTimeoutRef.current) {
+                            clearTimeout(scrollDelayTimeoutRef.current);
+                        }
+                        
+                        // Simple delay to let DOM update before scrolling
+                        scrollDelayTimeoutRef.current = setTimeout(() => {
+                            if (autoScrollEnabled && !isUserScrolling) {
+                                messagesEndRef.current?.scrollIntoView(true);
+                            }
+                        }, 50);
+                    }
+                }
+                
+                prevMessageCountRef.current = currentMessageCount;
+                
+                // Update current message
+                setCurrentMessage(
                     selectedConversation.messages[selectedConversation.messages.length - 2],
                 );
             }
-             
-        }, [selectedConversation, throttledScrollDown]);
+        }, [selectedConversation, autoScrollEnabled, isUserScrolling]);
+
+        // Handle auto-scroll during streaming when user is at bottom
+        useEffect(() => {
+            if (messageIsStreaming && autoScrollEnabled && !isUserScrolling) {
+                // Use throttled scroll to follow streaming content
+                throttledScrollDown();
+            }
+        }, [selectedConversation?.messages, messageIsStreaming, autoScrollEnabled, isUserScrolling, throttledScrollDown]);
+
+        // Additional effect to handle streaming content updates (not just message array changes)
+        useEffect(() => {
+            if (messageIsStreaming && autoScrollEnabled && !isUserScrolling) {
+                const scrollToBottomImmediate = () => {
+                    if (autoScrollEnabled && !isUserScrolling) {
+                        messagesEndRef.current?.scrollIntoView(false); // false = no smooth scroll for better performance
+                    }
+                };
+                
+                // Set up a more frequent scroll during streaming
+                const streamingScrollInterval = setInterval(scrollToBottomImmediate, 100);
+                
+                return () => clearInterval(streamingScrollInterval);
+            }
+        }, [messageIsStreaming, autoScrollEnabled, isUserScrolling]);
 
         const handleDeleteConversation = (conversation: Conversation) => {
             deleteConversationCleanUp(conversation);
@@ -914,9 +998,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         useEffect(() => {
             const observer = new IntersectionObserver(
                 ([entry]) => {
-                    setAutoScrollEnabled(entry.isIntersecting);
-                    if (entry.isIntersecting) {
-                        textareaRef.current?.focus();
+                    // Only change auto-scroll if user isn't actively scrolling
+                    if (!isUserScrolling) {
+                        setAutoScrollEnabled(entry.isIntersecting);
+                        if (entry.isIntersecting) {
+                            textareaRef.current?.focus();
+                        }
                     }
                 },
                 {
@@ -933,7 +1020,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     observer.unobserve(messagesEndElement);
                 }
             };
-        }, [messagesEndRef]);
+        }, [messagesEndRef, isUserScrolling]);
     
         useEffect(() => {
             if (featureFlags.mtdCost) {
@@ -966,6 +1053,18 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 };
             }
         }, [messageIsStreaming, featureFlags.mtdCost]);
+
+        // Cleanup timeouts on unmount
+        useEffect(() => {
+            return () => {
+                if (userScrollTimeoutRef.current) {
+                    clearTimeout(userScrollTimeoutRef.current);
+                }
+                if (scrollDelayTimeoutRef.current) {
+                    clearTimeout(scrollDelayTimeoutRef.current);
+                }
+            };
+        }, []);
 
 // @ts-ignore
         return (

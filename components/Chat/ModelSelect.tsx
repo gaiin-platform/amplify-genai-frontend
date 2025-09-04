@@ -71,6 +71,7 @@ export const ModelSelect: React.FC<Props> = ({
   const [selectModel, setSelectModel] = useState<string | undefined>(modelId ?? defaultModelId);
   const [isOpen, setIsOpen] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState<{top: number, left: number, width: number} | null>(null);
 
   const selectRef = useRef<HTMLDivElement>(null);
 
@@ -92,13 +93,51 @@ export const ModelSelect: React.FC<Props> = ({
     const handleClickOutside = (event: MouseEvent) => {
       if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        setDropdownPosition(null);
       }
     };
+    
+    const handleResize = () => {
+      if (isOpen) {
+        const position = calculateDropdownPosition();
+        setDropdownPosition(position);
+      }
+    };
+    
     document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('resize', handleResize);
+    
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('resize', handleResize);
     };
-  }, []);
+  }, [isOpen]);
+
+  // Calculate dropdown position to avoid clipping
+  const calculateDropdownPosition = () => {
+    if (!selectRef.current) return null;
+    
+    const rect = selectRef.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const dropdownMaxHeight = viewportHeight * 0.55;
+    
+    // Calculate available space below and above
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    
+    let top = rect.bottom;
+    
+    // If not enough space below, show above if there's more space there
+    if (spaceBelow < dropdownMaxHeight && spaceAbove > spaceBelow) {
+      top = rect.top - Math.min(dropdownMaxHeight, spaceAbove);
+    }
+    
+    return {
+      top: Math.max(0, top),
+      left: rect.left,
+      width: rect.width
+    };
+  };
 
   const handleOptionClick = (modelId: string) => {
     if (handleModelChange) {
@@ -112,6 +151,7 @@ export const ModelSelect: React.FC<Props> = ({
     }
     setSelectModel(modelId);
     setIsOpen(false);
+    setDropdownPosition(null);
   };
 
   const selectedModel:Model | undefined = models.find((model) => model.id === selectModel);
@@ -149,7 +189,15 @@ const getIcons = (model: Model) => {
       <div ref={selectRef} className="relative w-full">
         <button
           disabled={isDisabled}
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => {
+            if (!isOpen) {
+              const position = calculateDropdownPosition();
+              setDropdownPosition(position);
+            } else {
+              setDropdownPosition(null);
+            }
+            setIsOpen(!isOpen);
+          }}
           title={isDisabled ? disableMessage : 'Select Model'}
           id="modelSelect"
           className={`w-full flex items-center justify-between rounded-lg bg-transparent p-2 pr-2 text-neutral-900 dark:border-neutral-600 dark:text-white custom-shadow ${
@@ -168,9 +216,15 @@ const getIcons = (model: Model) => {
           }
           
         </button>
-        {isOpen && (
-          <ul id="modelList" className="absolute mt-1 w-full overflow-auto rounded-lg border border-neutral-200 bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-[#343541] sm:text-sm"
-              style={{maxHeight: window.innerHeight * 0.55, zIndex: 20}}>
+        {isOpen && dropdownPosition && (
+          <ul id="modelList" className="fixed mt-1 overflow-auto rounded-lg border border-neutral-200 bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-[#343541] sm:text-sm"
+              style={{
+                top: dropdownPosition.top,
+                left: dropdownPosition.left,
+                width: dropdownPosition.width,
+                maxHeight: window.innerHeight * 0.55,
+                zIndex: 9999
+              }}>
             {models.sort((a, b) => a.name.localeCompare(b.name))
                     .map((model: Model) => (
               <li
