@@ -149,52 +149,21 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
       }}
     >
       <MemoizedReactMarkdown
-        key={`${renderKey}-${isContentStable}`} // Include stability state in key
-        className="prose dark:prose-invert flex-1 max-w-full"
+        key={renderKey}
+        className="prose dark:prose-invert flex-1 max-w-none w-full"
         remarkPlugins={[remarkGfm, remarkMath]}
         // @ts-ignore
         rehypePlugins={[rehypeRaw]}
         components={{
           // @ts-ignore
           Mermaid,
-          // Enhanced LaTeX components with aggressive layout stability
-          'math-display': ({children, ...props}: {children: React.ReactNode, [key: string]: any}) => {
-            const estimatedHeight = props['data-height'] || '1.5em';
-            return (
-              <div style={{ 
-                minHeight: estimatedHeight,
-                display: 'block', 
-                margin: '0.5em 0',
-                // Critical: prevent layout shift during render
-                overflow: 'hidden',
-                transition: 'none' // Disable transitions during streaming
-              }}>
-                <LatexBlock 
-                  math={String(children)} 
-                  displayMode={true} 
-                />
-              </div>
-            );
-          },
-          'math-inline': ({children, ...props}: {children: React.ReactNode, [key: string]: any}) => {
-            const estimatedHeight = props['data-height'] || '1em';
-            return (
-              <span style={{ 
-                minHeight: estimatedHeight,
-                minWidth: '1em', // Prevent horizontal collapse
-                display: 'inline-block',
-                verticalAlign: 'baseline',
-                // Critical: prevent layout shift during render
-                overflow: 'hidden',
-                transition: 'none' // Disable transitions during streaming
-              }}>
-                <LatexBlock 
-                  math={String(children)} 
-                  displayMode={false} 
-                />
-              </span>
-            );
-          },
+          // Use the same lightweight math renderers as ChatContentBlock to avoid layout issues
+          'math-display': ({children}: {children: React.ReactNode, [key: string]: any}) => (
+            <LatexBlock math={String(children)} displayMode={true} />
+          ),
+          'math-inline': ({children}: {children: React.ReactNode, [key: string]: any}) => (
+            <LatexBlock math={String(children)} displayMode={false} />
+          ),
           img({ src, alt, children, ...props }) {
             console.log("Rendering an image with src: ", src, "and alt: ", alt);
     
@@ -311,7 +280,7 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
         }}
       >
         {`${processedContent}${
-          messageIsStreaming && isLastMessage ? '`▍`' : ''
+          messageIsStreaming && !document.querySelector('.highlight-pulse') && isLastMessage ? '`▍`' : ''
         }`}
       </MemoizedReactMarkdown>
       {messageEndRef && <div ref={messageEndRef}></div>}
