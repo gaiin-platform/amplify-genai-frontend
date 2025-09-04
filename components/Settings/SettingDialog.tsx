@@ -182,7 +182,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
 
   const handleSave = async () => {
     window.dispatchEvent(new Event('settingsSave'));
-    if (!hasUnsavedChanges && !otherChanges()) return;
+    if (!hasUnsavedChanges) return;
     if (Object.values(allAvailableModels).every((model: Model) => hiddenModelIds.includes(model.id) || model.id === defaultModelId)) {
         alert("All models are currently set to be hidden. At least one model needs to remain visible, please adjust your selection.");
         return;
@@ -206,7 +206,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
     if (!result) {
       alert("Settings failed to update in the cloud at the time. However, your changes have been saved and applied locally within this browser. ");
     } else {
-      toast("Settings saved succsessully");
+      toast("Settings saved successfully");
     }
 
   };
