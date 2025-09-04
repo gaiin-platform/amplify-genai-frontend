@@ -116,6 +116,9 @@ const dataSourceFlags = [
     },
 ];
 
+// Only show the includeDownloadLinks flag to users, but keep all flags for default value processing
+const visibleDataSourceFlags = dataSourceFlags.filter(flag => flag.key === 'includeDownloadLinks');
+
 const messageOptionFlags = [
     {
         "label": "Include Message IDs in Messages",
@@ -1577,15 +1580,12 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         /> 
                                     </div>
 
-                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-4"
-                                         style={{transform: 'translateX(-25px)'}}>
-                                        <ExpansionComponent
-                                            closedWidget= { <IconCaretRight style={{transform: 'translateX(8px)'}} size={18} />}
-                                            openWidget= { <IconCaretDown style={{transform: 'translateX(8px)'}} size={18} />}
-                                            title='Data Source Options'
-                                            content= {
-                                                <FlagsMap id={'dataSourceFlags'}
-                                                flags={dataSourceFlags}
+                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-4">
+                                        {t('Data Source Options')}
+                                    </div>
+
+                                    <FlagsMap id={'dataSourceFlags'}
+                                                flags={visibleDataSourceFlags}
                                                 state={dataSourceOptions}
                                                 flagChanged={
                                                     (key, value) => {
@@ -1595,8 +1595,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                         });
                                                     }
                                                 } />
-                                        }/>
-                                    </div>
                                     <div className="text-sm font-bold text-black dark:text-neutral-200 mt-4">
                                         {t('Message Options')}
                                     </div>
