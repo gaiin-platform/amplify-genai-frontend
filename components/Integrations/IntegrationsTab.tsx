@@ -157,7 +157,7 @@ export const IntegrationTabs: FC<Props> = ({ open, depth=0, allowedIntegrations=
                  <div className="integration-info">
                    <div className="integration-header">
                      <div className="integration-icon-wrapper">
-                       {integration.icon && translateIntegrationIcon(integration.icon)}
+                       {translateIntegrationIcon(integration.id)}
                      </div>
                      <div className="integration-details">
                        <div className="integration-name-row">
