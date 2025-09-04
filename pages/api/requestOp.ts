@@ -11,7 +11,7 @@ interface reqPayload {
 }
 
 // Paths that should not be compressed
-const NO_COMPRESSION_PATHS = ['/billing', '/se', '/vu-agent'];
+const NO_COMPRESSION_PATHS = ['/billing', '/se', '/vu-agent', "/user-data"];
 
 const requestOp =
     async (req: NextApiRequest, res: NextApiResponse) => {
