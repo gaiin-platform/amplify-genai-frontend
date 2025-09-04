@@ -182,7 +182,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
 
   const handleSave = async () => {
     window.dispatchEvent(new Event('settingsSave'));
-    if (!hasUnsavedChanges) return;
+    if (!hasUnsavedChanges && !otherChanges()) return;
     if (Object.values(allAvailableModels).every((model: Model) => hiddenModelIds.includes(model.id) || model.id === defaultModelId)) {
         alert("All models are currently set to be hidden. At least one model needs to remain visible, please adjust your selection.");
         return;
