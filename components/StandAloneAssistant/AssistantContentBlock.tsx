@@ -1,11 +1,13 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { MemoizedReactMarkdown } from "@/components/Markdown/MemoizedReactMarkdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
+import rehypeRaw from "rehype-raw";
 import { CodeBlock } from "@/components/Markdown/CodeBlock";
 import Mermaid from "@/components/Chat/ChatContentBlocks/MermaidBlock";
 import VegaVis from "@/components/Chat/ChatContentBlocks/VegaVisBlock";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
+import LatexBlock from "@/components/Chat/ChatContentBlocks/LatexBlock";
 import DOMPurify from "dompurify";
 
 interface AssistantMessage {
@@ -30,22 +32,102 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
   totalMessages,
   messageEndRef
 }) => {
-  // State to trigger re-renders when needed
-  const [renderKey, setRenderKey] = useState(0);
+  // Enhanced LaTeX detection with whitespace prevention
+  const hasLatex = useCallback((content: string) => {
+    return /\$\$.*?\$\$|\$[^$\n]+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)/.test(content);
+  }, []);
+
+  // Advanced content processing for layout-stable LaTeX rendering
+  const processLatexWithLayoutStability = useCallback((content: string) => {
+    if (!hasLatex(content)) return content;
+    
+    // Pre-calculate approximate dimensions to prevent layout shifts
+    let processed = content.replace(/\$\$([\s\S]*?)\$\$/g, (match, latex) => {
+      // Estimate display math height based on content complexity
+      const estimatedHeight = latex.includes('\\frac') || latex.includes('\\sqrt') || 
+                            latex.includes('\\sum') || latex.includes('\\int') ? '3em' : '1.5em';
+      return `<math-display data-height="${estimatedHeight}">${latex}</math-display>`;
+    });
+    
+    processed = processed.replace(/\$([^$\n]+?)\$/g, (match, latex) => {
+      return `<math-inline data-height="1em">${latex}</math-inline>`;
+    });
+    
+    processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (match, latex) => {
+      const estimatedHeight = latex.includes('\\frac') || latex.includes('\\sqrt') || 
+                            latex.includes('\\sum') || latex.includes('\\int') ? '3em' : '1.5em';
+      return `<math-display data-height="${estimatedHeight}">${latex}</math-display>`;
+    });
+    
+    processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (match, latex) => {
+      return `<math-inline data-height="1em">${latex}</math-inline>`;
+    });
+    
+    return processed;
+  }, [hasLatex]);
+
+  // State to manage processed content with layout stability
+  const [processedContent, setProcessedContent] = useState(() => {
+    // Pre-process immediately on mount to avoid any flicker
+    return hasLatex(message.content) ? 
+      processLatexWithLayoutStability(message.content) : 
+      message.content;
+  });
   
-  // Listen for custom re-render events
+  const [isContentStable, setIsContentStable] = useState(false);
+
+  // Ultra-stable content processing with streaming optimization
   useEffect(() => {
-    const handleReRenderEvent = () => {
-      setRenderKey(prev => prev + 1);
+    const updateContent = () => {
+      const newContent = processLatexWithLayoutStability(message.content);
+      
+      // Only update if content actually changed to prevent unnecessary re-renders
+      if (newContent !== processedContent) {
+        setProcessedContent(newContent);
+      }
+      
+      // Mark content as stable after initial processing
+      if (!isContentStable) {
+        setIsContentStable(true);
+      }
     };
 
-    // // Listen for the custom event 'triggerAssistantReRender'
-    // window.addEventListener('', handleReRenderEvent);
-    // return () => {
-    //   window.removeEventListener('', handleReRenderEvent);
-    // };
+    if (!messageIsStreaming) {
+      // Process immediately when not streaming
+      updateContent();
+    } else {
+      // For streaming: only debounce if we have LaTeX, otherwise update immediately
+      if (hasLatex(message.content)) {
+        // Debounce LaTeX processing during streaming to prevent excessive re-renders
+        const timer = setTimeout(updateContent, 100);
+        return () => clearTimeout(timer);
+      } else {
+        updateContent();
+      }
+    }
+  }, [message.content, messageIsStreaming, processLatexWithLayoutStability, processedContent, hasLatex, isContentStable]);
+
+  // State to trigger re-renders when needed
+  const [renderKey, setRenderKey] = useState(0);
+  const lastStableContentRef = useRef<string>('');
+  
+  // Listen for custom re-render events with stability checks
+  useEffect(() => {
+    const handleReRenderEvent = () => {
+      // Only trigger re-render if content is stable and actually changed
+      if (isContentStable && processedContent !== lastStableContentRef.current) {
+        setRenderKey(prev => prev + 1);
+        lastStableContentRef.current = processedContent;
+      }
+    };
+
+    // Listen for the custom event 'triggerAssistantReRender'
+    window.addEventListener('triggerAssistantReRender', handleReRenderEvent);
+    return () => {
+      window.removeEventListener('triggerAssistantReRender', handleReRenderEvent);
+    };
     
-  }, []);
+  }, [isContentStable, processedContent]);
 
   // Check if this is the last message
   const isLastMessage = messageIndex === totalMessages - 1;
@@ -56,15 +138,63 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
       className={`assistantContentBlock overflow-x-auto px-4 max-w-full`}
       id={`assistantMessage${messageIndex}`}
       data-message-index={messageIndex}
-      data-original-content={message.content}
+      data-original-content={processedContent}
+      style={{ 
+        minHeight: '20px', // Prevent layout collapse during loading
+        // Add layout stability during LaTeX processing
+        ...(hasLatex(processedContent) && !isContentStable ? {
+          willChange: 'auto', // Optimize for stability over performance during initial load
+          contain: 'layout style' // Prevent layout thrashing
+        } : {})
+      }}
     >
       <MemoizedReactMarkdown
-        key={renderKey}
+        key={`${renderKey}-${isContentStable}`} // Include stability state in key
         className="prose dark:prose-invert flex-1 max-w-full"
         remarkPlugins={[remarkGfm, remarkMath]}
+        // @ts-ignore
+        rehypePlugins={[rehypeRaw]}
         components={{
           // @ts-ignore
           Mermaid,
+          // Enhanced LaTeX components with aggressive layout stability
+          'math-display': ({children, ...props}: {children: React.ReactNode, [key: string]: any}) => {
+            const estimatedHeight = props['data-height'] || '1.5em';
+            return (
+              <div style={{ 
+                minHeight: estimatedHeight,
+                display: 'block', 
+                margin: '0.5em 0',
+                // Critical: prevent layout shift during render
+                overflow: 'hidden',
+                transition: 'none' // Disable transitions during streaming
+              }}>
+                <LatexBlock 
+                  math={String(children)} 
+                  displayMode={true} 
+                />
+              </div>
+            );
+          },
+          'math-inline': ({children, ...props}: {children: React.ReactNode, [key: string]: any}) => {
+            const estimatedHeight = props['data-height'] || '1em';
+            return (
+              <span style={{ 
+                minHeight: estimatedHeight,
+                minWidth: '1em', // Prevent horizontal collapse
+                display: 'inline-block',
+                verticalAlign: 'baseline',
+                // Critical: prevent layout shift during render
+                overflow: 'hidden',
+                transition: 'none' // Disable transitions during streaming
+              }}>
+                <LatexBlock 
+                  math={String(children)} 
+                  displayMode={false} 
+                />
+              </span>
+            );
+          },
           img({ src, alt, children, ...props }) {
             console.log("Rendering an image with src: ", src, "and alt: ", alt);
     
@@ -180,7 +310,7 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
           },
         }}
       >
-        {`${message.content}${
+        {`${processedContent}${
           messageIsStreaming && isLastMessage ? '`▍`' : ''
         }`}
       </MemoizedReactMarkdown>
