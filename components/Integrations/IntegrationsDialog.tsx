@@ -1,13 +1,24 @@
 import { FC } from 'react';
 import { Modal } from '../ReusableComponents/Modal';
-import { integrationIconComponents } from '@/types/integrations';
 import { IntegrationTabs } from './IntegrationsTab';
+import Image from 'next/image';
 
-export const translateIntegrationIcon = (icon: string) => {
-  if (icon in integrationIconComponents) {
-      const IconComponent = integrationIconComponents[icon as keyof typeof integrationIconComponents];
-      return <IconComponent className="w-6 h-6" />;
-    }
+export const translateIntegrationIcon = (integrationId: string) => {
+  // Convert integration ID to logo filename: replace _ with - and append .svg
+  const logoFile = `${integrationId.replace(/_/g, '-')}.svg`;
+  
+  if (logoFile) {
+    return (
+      <Image
+        src={`/logos/integrations/${logoFile}`}
+        alt={`${integrationId} logo`}
+        width={24}
+        height={24}
+        className="w-6 h-6"
+      />
+    );
+  }
+  
   return null;
 }
 interface Props {
