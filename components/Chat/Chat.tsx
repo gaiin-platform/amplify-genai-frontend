@@ -1090,14 +1090,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         <> 
                             <div
                                 id="chatScrollWindow"
-                                className="chatcontainer max-h-full overflow-x-hidden" style={{height: windowInnerDims.height * 0.94}}
+                                className="chatcontainer max-h-full overflow-x-hidden overflow-y-auto" style={{height: windowInnerDims.height * 0.94}}
                                 ref={chatContainerRef}
                                 onScroll={handleScroll}
                             >
                             {selectedConversation &&(!selectedConversation.messages || selectedConversation.messages?.length === 0) && filteredModels ? (
-                                <div id="overflowScroll" className='overflow-y-auto' style={{height: windowInnerDims.height - 200}}>
+                                <div id="overflowScroll" className='overflow-y-auto' style={{minHeight: windowInnerDims.height - 200, maxHeight: windowInnerDims.height - 100}}>
                                     <div
-                                        className="mx-auto flex flex-col space-y-1 md:space-y-8 px-3 pt-5 md:pt-10" 
+                                        className="mx-auto flex flex-col space-y-1 md:space-y-8 px-3 pt-5 md:pt-10 pb-20" 
                                         style={{width: windowInnerDims.width * 0.45}}>
                                         <div
                                             id="chatTitle"
@@ -1115,7 +1115,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                                         {filteredModels.length > 0 && (
                                             <div
-                                                className="flex h-full flex-col space-y-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-600 shadow-[0_4px_10px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_10px_rgba(0,0,0,0.3)]">
+                                                className="flex flex-col space-y-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-600 shadow-[0_4px_10px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_10px_rgba(0,0,0,0.3)]"
+                                                style={{minHeight: 'fit-content'}}>
                                                 
                                                 <div className="relative flex flex-row w-full items-center"> 
                                                     <div className="flex-grow">

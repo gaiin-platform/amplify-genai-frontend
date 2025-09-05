@@ -180,7 +180,7 @@ const getIcons = (model: Model) => {
           <label className="mb-2 text-left text-neutral-700 dark:text-neutral-400">
             {t('Model')}
           </label>
-          <div id="legendHover" className='ml-auto' onMouseEnter={() => setShowLegend(true) } onMouseLeave={() => setShowLegend(false)}>
+          <div id="legendHover" className='ml-auto relative' onMouseEnter={() => setShowLegend(true) } onMouseLeave={() => setShowLegend(false)}>
             <IconInfoCircle size={19} className='mr-1 mt-[-4px] flex-shrink-0 text-gray-600 dark:text-gray-300' />
             {showLegend && legend(showPricingBreakdown, featureFlags)}
           </div>
@@ -256,10 +256,83 @@ const legendItem = (icon: JSX.Element, message: string) => {
   );
 };
 
-const legend = (showPricingBreakdown: boolean, featureFlags: any) => {
+const Legend = ({ showPricingBreakdown, featureFlags }: { showPricingBreakdown: boolean, featureFlags: any }) => {
+  const legendRef = React.useRef<HTMLDivElement>(null);
+  const [position, setPosition] = React.useState({ top: 0, left: 0, shouldFlipUp: false });
+  const [isPositioned, setIsPositioned] = React.useState(false);
+
+  React.useEffect(() => {
+    const calculatePosition = () => {
+      if (legendRef.current) {
+        const triggerElement = legendRef.current.parentElement;
+        if (triggerElement) {
+          const triggerRect = triggerElement.getBoundingClientRect();
+          const viewportHeight = window.innerHeight;
+          const viewportWidth = window.innerWidth;
+          
+          // Calculate legend dimensions (approximate if not rendered yet)
+          const legendHeight = legendRef.current.offsetHeight || 350;
+          const legendWidth = 260;
+          
+          // Calculate space available
+          const spaceBelow = viewportHeight - triggerRect.bottom;
+          const spaceAbove = triggerRect.top;
+          const bufferSpace = 20;
+          
+          // Determine if should flip up
+          const shouldFlipUp = (spaceBelow < legendHeight + bufferSpace) && (spaceAbove > legendHeight + bufferSpace);
+          
+          // Calculate horizontal position (similar to translateX(-85%))
+          let left = triggerRect.left - (legendWidth * 0.85);
+          
+          // Ensure legend doesn't go off-screen horizontally
+          if (left < 10) left = 10;
+          if (left + legendWidth > viewportWidth - 10) left = viewportWidth - legendWidth - 10;
+          
+          // Calculate vertical position
+          let top;
+          if (shouldFlipUp) {
+            top = triggerRect.top - legendHeight - 2;
+          } else {
+            top = triggerRect.bottom - 2;
+          }
+          
+          // Ensure legend doesn't go off-screen vertically
+          if (top < 10) top = 10;
+          if (top + legendHeight > viewportHeight - 10) top = viewportHeight - legendHeight - 10;
+          
+          setPosition({ top, left, shouldFlipUp });
+          setIsPositioned(true);
+        }
+      }
+    };
+
+    // Multiple attempts to ensure proper positioning
+    const timeouts: NodeJS.Timeout[] = [];
+    timeouts.push(setTimeout(calculatePosition, 0));
+    timeouts.push(setTimeout(calculatePosition, 10));
+    timeouts.push(setTimeout(calculatePosition, 50));
+    
+    window.addEventListener('resize', calculatePosition);
+    window.addEventListener('scroll', calculatePosition);
+    
+    return () => {
+      timeouts.forEach(clearTimeout);
+      window.removeEventListener('resize', calculatePosition);
+      window.removeEventListener('scroll', calculatePosition);
+    };
+  }, []);
+
   return (
-    <div className='text-black dark:text-white absolute mt-1 w-[260px] rounded-lg border border-neutral-200 bg-white p-4 text-sm shadow-lg z-20 dark:border-neutral-600 dark:bg-[#343541]'
-         style={{transform: 'translateX(-85%)'}}>
+    <div 
+      ref={legendRef}
+      className='text-black dark:text-white fixed w-[260px] rounded-lg border border-neutral-200 bg-white p-4 text-sm shadow-lg z-[9999] dark:border-neutral-600 dark:bg-[#343541] max-h-[min(350px,calc(100vh-100px))] overflow-y-auto'
+      style={{
+        top: position.top,
+        left: position.left,
+        opacity: isPositioned ? 1 : 0,
+        transition: 'opacity 0.1s ease-in-out',
+      }}>
       <div id="modelLegend" className='mb-2 font-semibold text-neutral-700 dark:text-neutral-300'>
         Legend
       </div>
@@ -281,6 +354,10 @@ const legend = (showPricingBreakdown: boolean, featureFlags: any) => {
       </div>}
     </div>
   );
+};
+
+const legend = (showPricingBreakdown: boolean, featureFlags: any) => {
+  return <Legend showPricingBreakdown={showPricingBreakdown} featureFlags={featureFlags} />;
 };
 
 
