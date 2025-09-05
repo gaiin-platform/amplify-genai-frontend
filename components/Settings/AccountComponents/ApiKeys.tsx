@@ -29,6 +29,8 @@ import { IconRotateClockwise2 } from '@tabler/icons-react';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import { getUserMtdCosts } from '@/services/mtdCostService';
 import { formatCurrency } from "@/utils/app/data";
+import { createPortal } from 'react-dom';
+
 
 interface Props {
     setUnsavedChanges: (b: boolean) => void;
@@ -492,13 +494,15 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                         <div className='flex flex-col gap-2 '>
                                                  <>
                         {isCreating && (
-                            <div className="absolute inset-0 flex items-center justify-center" 
-                            style={{ transform: `translateY(-25%)`}}>
-                                <div className="p-3 flex flex-row items-center  border border-gray-500 bg-[#202123]">
-                                    <LoadingIcon style={{ width: "24px", height: "24px" }}/>
-                                    <span className="text-lg font-bold ml-2 text-white">Creating API Key...</span>
-                                </div>
-                            </div>
+                            createPortal(
+                                <div className="fixed top-14 left-1/2 transform -translate-x-1/2 z-[9999] pointer-events-none animate-float">
+                                    <div className="p-3 flex flex-row items-center border border-gray-500 bg-[#202123] rounded-lg shadow-xl pointer-events-auto">
+                                        <LoadingIcon style={{ width: "24px", height: "24px" }}/>
+                                        <span className="text-lg font-bold ml-2 text-white">Creating API Key...</span>
+                                    </div>
+                                </div>,
+                                document.body
+                            )
                         )}
                         </>
 

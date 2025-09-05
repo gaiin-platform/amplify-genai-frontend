@@ -22,18 +22,30 @@ class AssistantModalTests(BaseTest):
  
     # ----------------- Setup Test Data ------------------  
     def create_assistant(self, assistant_name):
+        time.sleep(5)
+        tab_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
+        assistants_button = next((btn for btn in tab_buttons if "Assistants" in btn.get_attribute("title")), None)
+        self.assertIsNotNone(assistants_button, "'Assistants' tab button not found")
+        assistants_button.click()
+        time.sleep(2)
+        
         assistant_add_button = self.wait.until(EC.element_to_be_clickable((By.ID, "addAssistantButton")))
         self.assertIsNotNone(assistant_add_button, "Add Assistant button should be initialized and clickable")
         assistant_add_button.click()
+        time.sleep(2)
         
-        assistant_name_input = self.wait.until(EC.presence_of_element_located((By.ID, "assistantName")))
+        assistant_name_input = self.wait.until(EC.presence_of_element_located((By.ID, "assistantNameInput")))
         self.assertIsNotNone(assistant_name_input, "Assistant Name input should be present")
         assistant_name_input.clear()
         assistant_name_input.send_keys(assistant_name)
+        time.sleep(2)
         
-        assistant_save_button = self.wait.until(EC.element_to_be_clickable((By.ID, "saveButton")))
-        self.assertIsNotNone(assistant_save_button, "Save button should be initialized and clickable")
-        assistant_save_button.click()
+        # Locate and click the Save button
+        confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
+        self.assertTrue(confirmation_button, "Drop name elements should be initialized")
+        save_button = next((el for el in confirmation_button if el.text == "Save"), None)
+        self.assertIsNotNone(save_button, "Submit button should be present")
+        save_button.click()
         
         time.sleep(5)
         drop_name_elements = self.wait.until(EC.presence_of_all_elements_located((By.ID, "dropName")))
@@ -47,7 +59,7 @@ class AssistantModalTests(BaseTest):
         if button_title != "Collapse folder":
             assistant_dropdown_button.click()
         
-        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located((By.ID, "promptName")))
+        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located((By.ID, "assistantName")))
         self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
         assistant_in_list = next((el for el in prompt_name_elements if el.text == assistant_name), None)
         self.assertIsNotNone(assistant_in_list, f"{assistant_name} should be visible in the dropdown")
@@ -93,13 +105,44 @@ class AssistantModalTests(BaseTest):
         self.assertTrue(chat_send_message, "Send message button should be initialized")
         chat_send_message.click()
         time.sleep(30)
+        
+    def delete_all_assistants(self):
+
+        prompt_handler_button = self.wait.until(EC.presence_of_element_located((By.ID, "promptHandler")))
+        prompt_handler_button.click()
+        time.sleep(2)
+        
+        delete_button = self.wait.until(EC.presence_of_element_located((By.ID, "Delete")))
+        delete_button.click()
+        time.sleep(2)  # Give time for the menu to appear
+
+        select_all_check = self.wait.until(EC.presence_of_element_located((By.ID, "selectAllCheck")))
+
+        checkbox = select_all_check.find_element(By.XPATH, ".//input[@type='checkbox']")
+        self.assertIsNotNone(checkbox, f"Checkbox for prompt All should be present")
+        checkbox.click()
+        time.sleep(2)
+
+        confirm_delete_button = self.wait.until(EC.element_to_be_clickable((By.ID, "confirmItem")))
+        self.assertTrue(confirm_delete_button, "Delete Button should be initialized")
+        confirm_delete_button.click()
+        time.sleep(2)
 
     # ----------------- Test Assistant Fields -----------------
     """This test goes through to create an Assistant and testing all the fields"""
     
     def test_assistant_fields(self):
         
+        time.sleep(5)
+        
+        tab_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
+        assistants_button = next((btn for btn in tab_buttons if "Assistants" in btn.get_attribute("title")), None)
+        self.assertIsNotNone(assistants_button, "'Assistants' tab button not found")
+        assistants_button.click()
+        
         time.sleep(3)
+        
+        self.delete_all_assistants()
         
         assistant_add_button = self.wait.until(EC.element_to_be_clickable((By.ID, "addAssistantButton")))
         self.assertIsNotNone(assistant_add_button, "Add Assistant button should be initialized and clickable")
@@ -107,7 +150,7 @@ class AssistantModalTests(BaseTest):
         
         time.sleep(2)
         
-        assistant_name_input = self.wait.until(EC.presence_of_element_located((By.ID, "assistantName")))
+        assistant_name_input = self.wait.until(EC.presence_of_element_located((By.ID, "assistantNameInput")))
         self.assertIsNotNone(assistant_name_input, "Assistant Name input should be present")
         assistant_name_input.clear()
         assistant_name_input.send_keys("Link")
@@ -137,9 +180,14 @@ class AssistantModalTests(BaseTest):
         
         time.sleep(2)
         
-        assistant_save_button = self.wait.until(EC.element_to_be_clickable((By.ID, "saveButton")))
-        self.assertIsNotNone(assistant_save_button, "Save button should be initialized and clickable")
-        assistant_save_button.click()
+        # Locate and click the Save button
+        confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
+        self.assertTrue(confirmation_button, "Drop name elements should be initialized")
+        
+        save_button = next((el for el in confirmation_button if el.text == "Save"), None)
+        self.assertIsNotNone(save_button, "Submit button should be present")
+        
+        save_button.click()
         
         time.sleep(10)
         
@@ -153,12 +201,16 @@ class AssistantModalTests(BaseTest):
         assistant_dropdown_button = next((el for el in drop_name_elements if el.text == "Assistants"), None)
         self.assertIsNotNone(assistant_dropdown_button, "Assistants button should be present")
 
-        # Click to open the dropdown
-        assistant_dropdown_button.click()
+        parent_button = assistant_dropdown_button.find_element(By.XPATH, "./ancestor::button")
+        button_title = parent_button.get_attribute("title")
+        if button_title != "Collapse folder":
+            assistant_dropdown_button.click()
+        
+        time.sleep(3)
         
         # Locate all elements with ID "promptName"
         prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
-            (By.ID, "promptName")
+            (By.ID, "assistantName")
         ))
         self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
         
@@ -169,7 +221,7 @@ class AssistantModalTests(BaseTest):
         # Ensure the parent button's is visible
         assistant_button = assistant_in_list.find_element(By.XPATH, "./ancestor::button")
         button_id = assistant_button.get_attribute("id")
-        self.assertEqual(button_id, "promptClick", "Button should be called promptClick")
+        self.assertEqual(button_id, "assistantClick", "Button should be called promptClick")
         
         action = ActionChains(self.driver)
         action.move_to_element(assistant_button).perform()
@@ -181,11 +233,11 @@ class AssistantModalTests(BaseTest):
         self.assertIsNotNone(edit_button, "Edit button should be initialized and clicked")
         edit_button.click()
         
-        time.sleep(2)
+        time.sleep(5)
         
         # Verify the values in the reopened modal
         self.assertEqual(
-            self.wait.until(EC.presence_of_element_located((By.ID, "assistantName"))).get_attribute("value"),
+            self.wait.until(EC.presence_of_element_located((By.ID, "assistantNameInput"))).get_attribute("value"),
             "Link",
             "Assistant Name should match the input value"
         )
@@ -218,8 +270,17 @@ class AssistantModalTests(BaseTest):
        autopopulate functionality"""
     
     def test_assistant_fields_auto(self):
+    
+        time.sleep(5)
+        
+        tab_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
+        assistants_button = next((btn for btn in tab_buttons if "Assistants" in btn.get_attribute("title")), None)
+        self.assertIsNotNone(assistants_button, "'Assistants' tab button not found")
+        assistants_button.click()
         
         time.sleep(3)
+        
+        self.delete_all_assistants()
         
         assistant_add_button = self.wait.until(EC.element_to_be_clickable((By.ID, "addAssistantButton")))
         self.assertIsNotNone(assistant_add_button, "Add Assistant button should be initialized and clickable")
@@ -227,7 +288,7 @@ class AssistantModalTests(BaseTest):
         
         time.sleep(2)
         
-        assistant_name_input = self.wait.until(EC.presence_of_element_located((By.ID, "assistantName")))
+        assistant_name_input = self.wait.until(EC.presence_of_element_located((By.ID, "assistantNameInput")))
         self.assertIsNotNone(assistant_name_input, "Assistant Name input should be present")
         assistant_name_input.clear()
         assistant_name_input.send_keys("Zelda")
@@ -257,9 +318,14 @@ class AssistantModalTests(BaseTest):
         
         time.sleep(2)
         
-        assistant_save_button = self.wait.until(EC.element_to_be_clickable((By.ID, "saveButton")))
-        self.assertIsNotNone(assistant_save_button, "Save button should be initialized and clickable")
-        assistant_save_button.click()
+        # Locate and click the Save button
+        confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
+        self.assertTrue(confirmation_button, "Drop name elements should be initialized")
+        
+        save_button = next((el for el in confirmation_button if el.text == "Save"), None)
+        self.assertIsNotNone(save_button, "Submit button should be present")
+        
+        save_button.click()
         
         time.sleep(10)
         
@@ -297,7 +363,7 @@ class AssistantModalTests(BaseTest):
         
         # Verify the values in the reopened modal
         self.assertEqual(
-            self.wait.until(EC.presence_of_element_located((By.ID, "assistantName"))).get_attribute("value"),
+            self.wait.until(EC.presence_of_element_located((By.ID, "assistantNameInput"))).get_attribute("value"),
             "Zelda (Copy)",
             "Assistant Name should match the input value"
         )
@@ -330,6 +396,17 @@ class AssistantModalTests(BaseTest):
     
     def test_assistant_advanced_fields(self):
         
+        time.sleep(5)
+        
+        tab_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
+        assistants_button = next((btn for btn in tab_buttons if "Assistants" in btn.get_attribute("title")), None)
+        self.assertIsNotNone(assistants_button, "'Assistants' tab button not found")
+        assistants_button.click()
+        
+        time.sleep(3)
+        
+        self.delete_all_assistants()
+        
         time.sleep(3)
         
         assistant_add_button = self.wait.until(EC.element_to_be_clickable((By.ID, "addAssistantButton")))
@@ -338,7 +415,7 @@ class AssistantModalTests(BaseTest):
         
         time.sleep(2)
         
-        assistant_name_input = self.wait.until(EC.presence_of_element_located((By.ID, "assistantName")))
+        assistant_name_input = self.wait.until(EC.presence_of_element_located((By.ID, "assistantNameInput")))
         self.assertIsNotNone(assistant_name_input, "Assistant Name input should be present")
         assistant_name_input.clear()
         assistant_name_input.send_keys("Daruk")
@@ -411,9 +488,23 @@ class AssistantModalTests(BaseTest):
         
         time.sleep(2)
         
-        assistant_save_button = self.wait.until(EC.element_to_be_clickable((By.ID, "saveButton")))
-        self.assertIsNotNone(assistant_save_button, "Save button should be initialized and clickable")
-        assistant_save_button.click()
+        # id="baseAssistantWorkflowTemplateAdd"
+        base_assistant_workflow_template_add = self.wait.until(EC.presence_of_element_located((By.ID, "conversationTagInput")))
+        self.assertIsNotNone(base_assistant_workflow_template_add, "Base assistant Workflow Template Add should be present")
+        
+        email_check = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "label[for='emailEvents']")))
+        self.assertIsNotNone(email_check, "Submit button should be present")
+        
+        time.sleep(2)
+        
+        # Locate and click the Save button
+        confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
+        self.assertTrue(confirmation_button, "Drop name elements should be initialized")
+        
+        save_button = next((el for el in confirmation_button if el.text == "Save"), None)
+        self.assertIsNotNone(save_button, "Submit button should be present")
+        
+        save_button.click()
         
         time.sleep(10)
         
@@ -428,11 +519,16 @@ class AssistantModalTests(BaseTest):
         self.assertIsNotNone(assistant_dropdown_button, "Assistants button should be present")
 
         # Click to open the dropdown
-        assistant_dropdown_button.click()
+        parent_button = assistant_dropdown_button.find_element(By.XPATH, "./ancestor::button")
+        button_title = parent_button.get_attribute("title")
+        if button_title != "Collapse folder":
+            assistant_dropdown_button.click()
+            
+        time.sleep(2)
         
         # Locate all elements with ID "promptName"
         prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
-            (By.ID, "promptName")
+            (By.ID, "assistantName")
         ))
         self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
         
@@ -443,7 +539,7 @@ class AssistantModalTests(BaseTest):
         # Ensure the parent button's is visible
         assistant_button = assistant_in_list.find_element(By.XPATH, "./ancestor::button")
         button_id = assistant_button.get_attribute("id")
-        self.assertEqual(button_id, "promptClick", "Button should be called promptClick")
+        self.assertEqual(button_id, "assistantClick", "Button should be called promptClick")
         
         action = ActionChains(self.driver)
         action.move_to_element(assistant_button).perform()
@@ -459,7 +555,7 @@ class AssistantModalTests(BaseTest):
         
         # Verify the values in the reopened modal
         self.assertEqual(
-            self.wait.until(EC.presence_of_element_located((By.ID, "assistantName"))).get_attribute("value"),
+            self.wait.until(EC.presence_of_element_located((By.ID, "assistantNameInput"))).get_attribute("value"),
             "Daruk",
             "Assistant Name should match the input value"
         )
@@ -522,7 +618,16 @@ class AssistantModalTests(BaseTest):
         
     def test_assistant_data_source_options(self):
         
+        time.sleep(5)
+        
+        tab_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
+        assistants_button = next((btn for btn in tab_buttons if "Assistants" in btn.get_attribute("title")), None)
+        self.assertIsNotNone(assistants_button, "'Assistants' tab button not found")
+        assistants_button.click()
+        
         time.sleep(3)
+        
+        self.delete_all_assistants()
         
         assistant_add_button = self.wait.until(EC.element_to_be_clickable((By.ID, "addAssistantButton")))
         self.assertIsNotNone(assistant_add_button, "Add Assistant button should be initialized and clickable")
@@ -530,7 +635,7 @@ class AssistantModalTests(BaseTest):
         
         time.sleep(2)
         
-        assistant_name_input = self.wait.until(EC.presence_of_element_located((By.ID, "assistantName")))
+        assistant_name_input = self.wait.until(EC.presence_of_element_located((By.ID, "assistantNameInput")))
         self.assertIsNotNone(assistant_name_input, "Assistant Name input should be present")
         assistant_name_input.clear()
         assistant_name_input.send_keys("Urbosa")
@@ -555,7 +660,7 @@ class AssistantModalTests(BaseTest):
         
         manage_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
         self.assertTrue(manage_buttons, "Manage Button elements should be initialized")
-        manage_buttons[-1].click()
+        manage_buttons[1].click()
         
         time.sleep(2)
         
@@ -603,9 +708,14 @@ class AssistantModalTests(BaseTest):
         
         time.sleep(2)
         
-        assistant_save_button = self.wait.until(EC.element_to_be_clickable((By.ID, "saveButton")))
-        self.assertIsNotNone(assistant_save_button, "Save button should be initialized and clickable")
-        assistant_save_button.click()
+        # Locate and click the Save button
+        confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
+        self.assertTrue(confirmation_button, "Drop name elements should be initialized")
+        
+        save_button = next((el for el in confirmation_button if el.text == "Save"), None)
+        self.assertIsNotNone(save_button, "Submit button should be present")
+        
+        save_button.click()
         
         time.sleep(10)
         
@@ -620,11 +730,16 @@ class AssistantModalTests(BaseTest):
         self.assertIsNotNone(assistant_dropdown_button, "Assistants button should be present")
 
         # Click to open the dropdown
-        assistant_dropdown_button.click()
+        parent_button = assistant_dropdown_button.find_element(By.XPATH, "./ancestor::button")
+        button_title = parent_button.get_attribute("title")
+        if button_title != "Collapse folder":
+            assistant_dropdown_button.click()
+            
+        time.sleep(2)
         
         # Locate all elements with ID "promptName"
         prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
-            (By.ID, "promptName")
+            (By.ID, "assistantName")
         ))
         self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
         
@@ -635,7 +750,7 @@ class AssistantModalTests(BaseTest):
         # Ensure the parent button's is visible
         assistant_button = assistant_in_list.find_element(By.XPATH, "./ancestor::button")
         button_id = assistant_button.get_attribute("id")
-        self.assertEqual(button_id, "promptClick", "Button should be called promptClick")
+        self.assertEqual(button_id, "assistantClick", "Button should be called promptClick")
         
         action = ActionChains(self.driver)
         action.move_to_element(assistant_button).perform()
@@ -662,7 +777,7 @@ class AssistantModalTests(BaseTest):
         
         manage_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
         self.assertTrue(manage_buttons, "Manage Button elements should be initialized")
-        manage_buttons[-1].click()
+        manage_buttons[1].click()
         
         time.sleep(2)
         
@@ -692,7 +807,16 @@ class AssistantModalTests(BaseTest):
     
     def test_assistant_document_and_sources(self):
         
+        time.sleep(5)
+        
+        tab_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
+        assistants_button = next((btn for btn in tab_buttons if "Assistants" in btn.get_attribute("title")), None)
+        self.assertIsNotNone(assistants_button, "'Assistants' tab button not found")
+        assistants_button.click()
+        
         time.sleep(3)
+        
+        self.delete_all_assistants()
         
         assistant_add_button = self.wait.until(EC.element_to_be_clickable((By.ID, "addAssistantButton")))
         self.assertIsNotNone(assistant_add_button, "Add Assistant button should be initialized and clickable")
@@ -700,7 +824,7 @@ class AssistantModalTests(BaseTest):
         
         time.sleep(2)
         
-        assistant_name_input = self.wait.until(EC.presence_of_element_located((By.ID, "assistantName")))
+        assistant_name_input = self.wait.until(EC.presence_of_element_located((By.ID, "assistantNameInput")))
         self.assertIsNotNone(assistant_name_input, "Assistant Name input should be present")
         assistant_name_input.clear()
         assistant_name_input.send_keys("Mipha")
@@ -732,9 +856,14 @@ class AssistantModalTests(BaseTest):
         
         self.upload_file("Test_3.txt")
         
-        assistant_save_button = self.wait.until(EC.element_to_be_clickable((By.ID, "saveButton")))
-        self.assertIsNotNone(assistant_save_button, "Save button should be initialized and clickable")
-        assistant_save_button.click()
+        # Locate and click the Save button
+        confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
+        self.assertTrue(confirmation_button, "Drop name elements should be initialized")
+        
+        save_button = next((el for el in confirmation_button if el.text == "Save"), None)
+        self.assertIsNotNone(save_button, "Submit button should be present")
+        
+        save_button.click()
         
         time.sleep(10)
         
@@ -749,11 +878,14 @@ class AssistantModalTests(BaseTest):
         self.assertIsNotNone(assistant_dropdown_button, "Assistants button should be present")
 
         # Click to open the dropdown
-        assistant_dropdown_button.click()
+        parent_button = assistant_dropdown_button.find_element(By.XPATH, "./ancestor::button")
+        button_title = parent_button.get_attribute("title")
+        if button_title != "Collapse folder":
+            assistant_dropdown_button.click()
         
         # Locate all elements with ID "promptName"
         prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
-            (By.ID, "promptName")
+            (By.ID, "assistantName")
         ))
         self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
         
@@ -764,7 +896,7 @@ class AssistantModalTests(BaseTest):
         # Ensure the parent button's is visible
         assistant_button = assistant_in_list.find_element(By.XPATH, "./ancestor::button")
         button_id = assistant_button.get_attribute("id")
-        self.assertEqual(button_id, "promptClick", "Button should be called promptClick")
+        self.assertEqual(button_id, "assistantClick", "Button should be called promptClick")
         assistant_button.click()
         
         time.sleep(2)
@@ -788,7 +920,7 @@ class AssistantModalTests(BaseTest):
         
         manage_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
         self.assertTrue(manage_buttons, "Manage Button elements should be initialized")
-        manage_buttons[-1].click()
+        manage_buttons[1].click()
         
         time.sleep(2)
         
@@ -798,8 +930,8 @@ class AssistantModalTests(BaseTest):
         time.sleep(2)
 
         # id="sourceName"
-        source_name = self.wait.until(EC.presence_of_element_located((By.ID, "sourceName")))
-        source_name_text = source_name.text
+        source_name = self.wait.until(EC.presence_of_all_elements_located((By.ID, "sourceName")))
+        source_name_text = source_name[0].text
         self.assertEqual(source_name_text, "Test_3.txt", "The text extracted should be Test_3.txt")
 
 

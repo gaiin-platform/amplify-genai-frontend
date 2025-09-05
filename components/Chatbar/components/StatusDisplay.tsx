@@ -1,15 +1,7 @@
 import React, { useState } from 'react';
 import {
-    IconArrowDown,
-    IconBolt,
     IconRobot,
-    IconBrandGoogle,
-    IconPlayerStop,
-    IconAlignBoxRightTop,
-    IconAperture,
-    IconRepeat,
-    IconApiApp,
-    IconSend,
+    IconAperture
 } from '@tabler/icons-react';
 import { Status } from "@/types/workflow";
 

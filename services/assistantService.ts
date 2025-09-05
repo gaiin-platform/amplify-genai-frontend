@@ -319,3 +319,44 @@ export const lookupAssistant = async (astPath: string) => {
     };
   }
 };
+
+/**
+ * Rescan websites associated with an assistant
+ * @param assistantId The ID of the assistant to update website content for
+ * @param forceRescan If true, will force a rescan of all websites regardless of scan frequency
+ * @returns Success status and any relevant data from the rescan operation
+ */
+export const rescanWebsites = async (assistantId: string, forceRescan: boolean = false) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/rescan_websites",
+        data: { 
+            assistantId,
+            forceRescan
+        },
+        service: SERVICE_NAME
+    };
+    
+    const result = await doRequestOp(op);
+    return result;
+};
+
+
+export const getSiteMapUrls = async (sitemap: string, maxPages?: number) => {
+  const data: { sitemap: string, maxPages?: number } = { sitemap }
+  if (maxPages) {
+    data.maxPages = maxPages;
+  }
+  console.log("data", data);
+  const op = {
+      method: 'POST',
+      path: URL_PATH,
+      op: "/extract_sitemap_urls",
+      data: data,
+      service: SERVICE_NAME
+  };
+  
+  const result = await doRequestOp(op);
+  return result;
+};

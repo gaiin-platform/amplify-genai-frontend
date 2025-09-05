@@ -31,7 +31,7 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ open, onClose }) =
                 <IconShare size={20} className="text-green-600 dark:text-green-400" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
+                <h2 id="sharingCenterModalTitle" className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
                   Sharing Center
                 </h2>
                 <p className="text-sm text-neutral-500 dark:text-neutral-400">

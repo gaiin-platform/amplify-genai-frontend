@@ -8,7 +8,7 @@ import { Modal } from "@/components/ReusableComponents/Modal";
 import { GroupTypesAst } from "../AssistantAdminUI";
 import { IconCheck, IconPlus, IconTrashX, IconX } from "@tabler/icons-react";
 import { includeGroupInfoBox } from "@/components/Emails/EmailsList";
-import { EmailsAutoComplete } from "@/components/Emails/EmailsAutoComplete";
+import { AddEmailWithAutoComplete } from "@/components/Emails/AddEmailsAutoComplete";
 
 interface CreateProps {
     createGroup: (groupData: any) => void;
@@ -25,7 +25,6 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
     const { data: session } = useSession();
     const user = session?.user?.email;
 
-    const [input, setInput] = useState<string>('');
 
     const [groupName, setGroupName] = useState<string>('');
     const [groupMembers, setGroupMembers] = useState<Members>({});
@@ -34,23 +33,41 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
     const [groupAmpGroups, setGroupAmpGroups] = useState<string[]>([]);
     const [groupSystemUsers, setGroupSystemUsers] = useState<string[]>([]);
 
-    const handleAddEmails = () => {
-        const entries = input.split(',').map(email => email.trim()).filter(email => email);
+    // Flexible validation for usernames/systemIds/emails
+    const isValidEntry = (entry: string): boolean => {
+        const trimmed = entry.trim();
+        return trimmed.length > 0 && 
+               !trimmed.includes(' ') && // No spaces
+               trimmed.length >= 2;      // Minimum length
+    };
+
+    // Process emails and handle group expansion
+    const processEmailEntries = (entries: string[]) => {
         let entriesWithGroupMembers: string[] = [];
 
-        entries.forEach((e: any) => {
+        entries.forEach((e: string) => {
             if (e.startsWith('#')) {
                 const group = groups.find((g: Group) => g.name === e.slice(1));
-                if (group) entriesWithGroupMembers = [...entriesWithGroupMembers,
-                ...Object.keys(group.members).filter((e: string) => e !== user)];
+                if (group) {
+                    entriesWithGroupMembers = [...entriesWithGroupMembers,
+                    ...Object.keys(group.members).filter((member: string) => member !== user)];
+                }
             } else {
                 entriesWithGroupMembers.push(e);
             }
         });
 
-        const newEmails = entriesWithGroupMembers.filter(email => /^\S+@\S+\.\S+$/.test(email) && !Object.keys(groupMembers).includes(email));
-        setGroupMembers({ ...groupMembers, ...Object.fromEntries(newEmails.map(email => [email, GroupAccessType.READ])) } as Members);
-        setInput('');
+        // Filter valid entries (usernames/systemIds/emails) and avoid duplicates
+        const newEntries = entriesWithGroupMembers.filter(entry => 
+            isValidEntry(entry) && !Object.keys(groupMembers).includes(entry)
+        );
+        
+        if (newEntries.length > 0) {
+            setGroupMembers({ 
+                ...groupMembers, 
+                ...Object.fromEntries(newEntries.map(entry => [entry, GroupAccessType.READ])) 
+            } as Members);
+        }
     };
 
 
@@ -99,10 +116,8 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
                             <AddMemberAccess
                                 groupMembers={groupMembers}
                                 setGroupMembers={setGroupMembers}
-                                input={input}
-                                setInput={setInput}
                                 allEmails={allEmails}
-                                handleAddEmails={handleAddEmails}
+                                processEmailEntries={processEmailEntries}
                             />
                         </div>
                         <AmpGroupsSysUsersSelection
@@ -275,13 +290,9 @@ const ListSelection: FC<SelectionProps> = ({ title, infoLabel, selection, select
 interface MemberAccessProps {
     groupMembers: Members;
     setGroupMembers: (m: Members) => void;
-    input: string;
-    setInput: (s: string) => void;
     allEmails: Array<string> | null;
-    handleAddEmails: () => void;
+    processEmailEntries: (entries: string[]) => void;
     width?: string;
-
-
 }
 
 export const accessInfoBox = <InfoBox color='#085bd6' content={
@@ -297,9 +308,8 @@ export const accessInfoBox = <InfoBox color='#085bd6' content={
     </span>}
 />
 
-export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupMembers, input, setInput, allEmails, handleAddEmails, width = '500px' }) => {
+export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupMembers, allEmails, processEmailEntries, width = '500px' }) => {
     const [hoveredUser, setHoveredUser] = useState<string | null>(null);
-
 
     const handleRemoveUser = (email: string) => {
         const updatedMembers = { ...groupMembers };
@@ -307,32 +317,30 @@ export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupM
         setGroupMembers(updatedMembers);
     }
 
+    // Convert processEmailEntries to work with the new interface
+    const handleUpdateEmails = (newEmails: string[]) => {
+        // Find newly added emails by comparing with current members
+        const currentEmails = Object.keys(groupMembers);
+        const addedEmails = newEmails.filter(email => !currentEmails.includes(email));
+        
+        if (addedEmails.length > 0) {
+            processEmailEntries(addedEmails);
+        }
+    };
+
     return <div className='flex flex-col gap-2 mb-6'>
         <label className='font-bold'>Add Members </label>
         {accessInfoBox}
         <label className='text-sm font-normal'>List group members and their permission levels.</label>
         <>{includeGroupInfoBox}</>
-        <div className='flex flex-row gap-2'>
-            <div className="flex-shrink-0 ml-[-6px] mr-2">
-                <button
-                    type="button"
-                    title='Add Members'
-                    className="ml-2 mt-1 px-3 py-1.5 text-white rounded bg-neutral-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500"
-                    onClick={handleAddEmails}
-                >
-                    <IconPlus size={18} />
-                </button>
-            </div>
-            <div className='w-full relative'>
-                <EmailsAutoComplete
-                    input={input}
-                    setInput={setInput}
-                    allEmails={allEmails}
-                    alreadyAddedEmails={Object.keys(groupMembers)}
-                />
-            </div>
-
-        </div>
+        
+        <AddEmailWithAutoComplete
+            id="groupMembers"
+            emails={Object.keys(groupMembers)}
+            allEmails={allEmails || []}
+            handleUpdateEmails={handleUpdateEmails}
+            displayEmails={false}
+        />
 
         {Object.keys(groupMembers).length > 0 &&
             <div>

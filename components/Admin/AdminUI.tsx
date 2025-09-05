@@ -52,7 +52,7 @@ interface Props {
 
 
 export const AdminUI: FC<Props> = ({ open, onClose }) => {
-    const { state: { statsService, storageSelection, amplifyUsers}, dispatch: homeDispatch, setLoadingMessage } = useContext(HomeContext);
+    const { state: { statsService, storageSelection, amplifyUsers, featureFlags}, dispatch: homeDispatch, setLoadingMessage } = useContext(HomeContext);
 
     const [loadData, setLoadData] = useState<boolean>(true);   
     const [stillLoadingData, setStillLoadingData] = useState<boolean>(true);  
@@ -66,6 +66,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [rateLimit, setRateLimit] = useState<{period: PeriodType, rate: string}>({...noRateLimit, rate: '0'});
     const [promptCostAlert, setPromptCostAlert] = useState<PromptCostAlert>({isActive:false, alertMessage: '', cost: 0});
     const [emailSupport, setEmailSupport] = useState<EmailSupport>({isActive:false, email:''});
+    const [aiEmailDomain, setAiEmailDomain] = useState<string>('');
 
     const [defaultConversationStorage, setDefaultConversationStorage] = useState<ConversationStorage>('future-local');
 
@@ -156,6 +157,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 setPromptCostAlert(data[AdminConfigTypes.PROMPT_COST_ALERT || promptCostAlert]);
                 setDefaultConversationStorage(data[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE] || defaultConversationStorage);
                 setEmailSupport(data[AdminConfigTypes.EMAIL_SUPPORT || emailSupport]);
+                setAiEmailDomain(data[AdminConfigTypes.AI_EMAIL_DOMAIN] || aiEmailDomain);
                 setDefaultModels(data[AdminConfigTypes.DEFAULT_MODELS] || {});
                 setLoadingMessage("");
             
@@ -224,6 +226,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return defaultConversationStorage;
             case AdminConfigTypes.EMAIL_SUPPORT:
                 return emailSupport;
+            case AdminConfigTypes.AI_EMAIL_DOMAIN:
+                return aiEmailDomain;
             case AdminConfigTypes.APP_SECRETS:
                 return appSecrets;
             case AdminConfigTypes.APP_VARS:
@@ -444,6 +448,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         saveAction([AdminConfigTypes.AVAILABLE_MODELS, AdminConfigTypes.DEFAULT_MODELS], saveUpdateAvailableModels);
         saveAction([AdminConfigTypes.PPTX_TEMPLATES], saveUpdatePptx); 
         saveAction([AdminConfigTypes.EMAIL_SUPPORT], () => homeDispatch({ field: 'supportEmail', value: emailSupport.email}));
+        saveAction([AdminConfigTypes.AI_EMAIL_DOMAIN], () => homeDispatch({ field: 'aiEmailDomain', value: aiEmailDomain}));
         if (!storageSelection) saveAction([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () => homeDispatch({ field: 'storageSelection', value: defaultConversationStorage})); 
     }
 
@@ -581,6 +586,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     setDefaultConversationStorage={setDefaultConversationStorage}
                     emailSupport={emailSupport}
                     setEmailSupport={setEmailSupport}
+                    aiEmailDomain={aiEmailDomain}
+                    setAiEmailDomain={featureFlags.assistantEmailEvents ? setAiEmailDomain : undefined}
                     allEmails={allEmails}
                     admin_text={admin_text}
                     updateUnsavedConfigs={updateUnsavedConfigs}

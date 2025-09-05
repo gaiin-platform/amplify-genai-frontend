@@ -91,16 +91,12 @@ class MassDeleteTests(BaseTest):
         self.create_chat("Kremy")
 
         # Click the promptHandler Button
-        prompt_handler_buttons_plural = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptHandler"))
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
         )
-        self.assertGreater(
-            len(prompt_handler_buttons_plural),
-            1,
-            "Expected multiple buttons with ID 'createFolderButton'",
-        )
+        self.assertTrue(prompt_handler_button, "Expected multiple buttons with ID 'createFolderButton'")
 
-        prompt_handler_buttons_plural[0].click()
+        prompt_handler_button.click()
 
         time.sleep(3)
 

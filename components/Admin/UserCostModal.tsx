@@ -156,7 +156,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     
     try {
       const result = await getBillingGroupsCosts();
-      console.log("billing groups result", result.data);
+      // console.log("billing groups result", result.data);
       if (!result.success || !result.data) {
         setGroupsError(result.message || 'Failed to fetch billing groups costs');
         return;

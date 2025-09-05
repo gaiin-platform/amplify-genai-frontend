@@ -28,6 +28,7 @@ import {
     Memory,
 } from '@/types/memory';
 import { getSettings } from '@/utils/app/settings';
+import { isBasePrompt } from '@/utils/app/basePrompts';
 import { promptForData } from '@/utils/app/llm';
 import {
     buildExtractFactsPrompt,
@@ -261,8 +262,13 @@ export function useSendService() {
 
                     let isArtifactsOn = featureFlags.artifacts && featureOptions.includeArtifacts &&
                         // we only consider whats in the plugins if we have the feature option for it on.
-                        (!pluginIds || (pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER)));
+                        (!pluginIds || (pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER))) &&
+                        // turn off artifacts for base prompt templates
+                        !(selectedConversation?.promptTemplate && isBasePrompt(selectedConversation.promptTemplate.id));
                     console.log("Artifacts on: ", isArtifactsOn)
+                    if (selectedConversation?.promptTemplate && isBasePrompt(selectedConversation.promptTemplate.id)) {
+                        console.log("Artifacts disabled for base prompt template: ", selectedConversation.promptTemplate.name);
+                    }
                     const isSmartMessagesOn = featureOptions.includeFocusedMessages && (!pluginIds || (pluginIds.includes(PluginID.SMART_MESSAGES)));
                     console.log("Smart Messageson: ", isSmartMessagesOn)
 

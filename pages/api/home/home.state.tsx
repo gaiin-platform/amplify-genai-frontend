@@ -81,6 +81,7 @@ export interface HomeInitialState {
   supportEmail: string;
   aiEmailDomain: string;
   ragOn: boolean;
+  isStandalonePromptCreation: boolean;
 }
 
 export const initialState: HomeInitialState = {
@@ -155,5 +156,6 @@ export const initialState: HomeInitialState = {
   memoryExtractionEnabled: true,
   supportEmail: '',
   aiEmailDomain: '',
-  ragOn: false
+  ragOn: false,
+  isStandalonePromptCreation: false
 };

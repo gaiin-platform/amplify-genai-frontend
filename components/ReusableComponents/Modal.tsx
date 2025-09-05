@@ -41,9 +41,11 @@ interface Props {
   if (!height && !width && fullScreen) {
     return {height: window.innerHeight * 0.99, width: window.innerWidth * 0.985}
   }
-  return {height: height ? height() : window.innerHeight * 0.95,
-    width: width ? width() : window.innerWidth * 0.8}
-
+  // Ensure minimum height for small screens and leave space for buttons
+  const calculatedHeight = height ? height() : Math.max(400, Math.min(window.innerHeight * 0.95, window.innerHeight - 40));
+  const calculatedWidth = width ? width() : window.innerWidth * 0.8;
+  
+  return {height: calculatedHeight, width: calculatedWidth}
  }
  const [innderWindow, setInnerWindow] = useState(getInnerWindowSize());
 
@@ -86,7 +88,7 @@ interface Props {
     return (
      <div className={`modal-overlay fixed inset-0 flex items-center justify-center z-50 ${fullScreen ? 'bg-[#111115] bg-opacity-70' : ' bg-black bg-opacity-50'}`}>
             <div className="fixed inset-0 z-10 overflow-hidden" >
-                <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0" >
+                <div className="flex items-center justify-center min-h-screen px-2 py-4 text-center sm:px-4 sm:py-0" >
                     <div
                         className="hidden sm:inline-block sm:h-screen sm:align-middle "
                         aria-hidden="true" 
@@ -94,8 +96,8 @@ interface Props {
             
                         <div
                         ref={modalRef}
-                        className={`modal-content inline-block transform rounded-lg border border-gray-300 dark:border-neutral-600 bg-neutral-100 text-left align-bottom shadow-xl transition-all dark:bg-[#2b2c36]  px-6 sm:align-middle`}
-                        style={{width: `${innderWindow.width}px`, height: `${innderWindow.height * 0.95}px`, transform: transform || undefined}}
+                        className={`modal-content inline-block transform rounded-lg border border-gray-300 dark:border-neutral-600 bg-neutral-100 text-left align-bottom shadow-xl transition-all dark:bg-[#2b2c36] px-6 sm:align-middle relative flex flex-col`}
+                        style={{width: `${innderWindow.width}px`, height: `${innderWindow.height}px`, transform: transform || undefined}}
                         id="modal"
                         role="dialog"  
                         >
@@ -115,15 +117,14 @@ interface Props {
                             </div> }  
                         </div>
 
-                        <div id="modalScroll" className="overflow-y-auto text-black dark:text-white" style={{ maxHeight: `${innderWindow.height * 0.8}px` }}>
+                        <div id="modalScroll" className="flex-1 overflow-y-auto text-black dark:text-white min-h-0">
                             <div className={disableContentAnimation ? "no-modal-animation" : "modal-content-inner"}>
                                 {content}
                             </div>
-                            <br className='mt-[40px]'></br>
                         </div>
 
                         {
-                         <div className="flex flex-row gap-3 fixed bottom-2 right-2">
+                         <div className="flex flex-row gap-3 justify-end pt-4 pb-2 mt-auto border-t border-gray-200 dark:border-neutral-600">
                           {[...additionalButtonOptions, 
                             ...(showCancel ? [{label: cancelLabel, handleClick: () => onCancel()}] : []),
                             ...(showSubmit ? [{isDisabled: disableSubmit, label: submitLabel, handleClick: () => onSubmit()}] : [])

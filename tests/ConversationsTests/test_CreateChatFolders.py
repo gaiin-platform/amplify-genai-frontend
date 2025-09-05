@@ -95,17 +95,13 @@ class CreateChatFolderTests(BaseTest):
         # Extra sleep for extra loading
         time.sleep(5)
 
-        folder_add_buttons = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "createFolderButton"))
+        folder_add_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "createFolderButton"))
         )
-        self.assertGreater(
-            len(folder_add_buttons),
-            1,
-            "Expected multiple buttons with ID 'createFolderButton'",
-        )
+        self.assertTrue(folder_add_button, "Expected multiple buttons with ID 'createFolderButton'")
 
         # Click the first button (assuming it's on the right)
-        folder_add_buttons[0].click()
+        folder_add_button.click()
 
         try:
             # Switch to the JavaScript alert
@@ -149,17 +145,13 @@ class CreateChatFolderTests(BaseTest):
         # Extra sleep for extra loading
         time.sleep(5)
 
-        folder_add_buttons = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "createFolderButton"))
+        folder_add_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "createFolderButton"))
         )
-        self.assertGreater(
-            len(folder_add_buttons),
-            1,
-            "Expected multiple buttons with ID 'createFolderButton'",
-        )
+        self.assertTrue(folder_add_button, "Expected multiple buttons with ID 'createFolderButton'")
 
-        # Click the last button (assuming it's on the right)
-        folder_add_buttons[0].click()
+        # Click the first button (assuming it's on the right)
+        folder_add_button.click()
 
         try:
             # Switch to the JavaScript alert
@@ -205,12 +197,12 @@ class CreateChatFolderTests(BaseTest):
         pin_button.click()
 
         side_bar_detection = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "sideBar"))
+            EC.presence_of_element_located((By.ID, "sideBar"))
         )
-        self.assertGreater(len(side_bar_detection), 1, "Expected multiple side bars")
+        self.assertTrue(side_bar_detection, "Sidebar is present")
 
         # Use the left sidebar
-        left_panel = side_bar_detection[0]
+        left_panel = side_bar_detection
 
         # Locate all elements with the ID 'dropName'
         drop_name_elements = left_panel.find_elements(By.ID, "dropName")
@@ -234,17 +226,13 @@ class CreateChatFolderTests(BaseTest):
         # Extra sleep for extra loading
         time.sleep(5)
 
-        folder_add_buttons = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "createFolderButton"))
+        folder_add_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "createFolderButton"))
         )
-        self.assertGreater(
-            len(folder_add_buttons),
-            1,
-            "Expected multiple buttons with ID 'createFolderButton'",
-        )
+        self.assertTrue(folder_add_button, "Expected multiple buttons with ID 'createFolderButton'")
 
-        # Click the last button (assuming it's on the right)
-        folder_add_buttons[0].click()
+        # Click the first button (assuming it's on the right)
+        folder_add_button.click()
 
         try:
             # Switch to the JavaScript alert
@@ -376,17 +364,13 @@ class CreateChatFolderTests(BaseTest):
         # Extra sleep for extra loading
         time.sleep(5)
 
-        folder_add_buttons = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "createFolderButton"))
+        folder_add_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "createFolderButton"))
         )
-        self.assertGreater(
-            len(folder_add_buttons),
-            1,
-            "Expected multiple buttons with ID 'createFolderButton'",
-        )
+        self.assertTrue(folder_add_button, "Expected multiple buttons with ID 'createFolderButton'")
 
-        # Click the last button (assuming it's on the right)
-        folder_add_buttons[0].click()
+        # Click the first button (assuming it's on the right)
+        folder_add_button.click()
 
         try:
             # Switch to the JavaScript alert
@@ -467,17 +451,13 @@ class CreateChatFolderTests(BaseTest):
         # Extra sleep for extra loading
         time.sleep(5)
 
-        folder_add_buttons = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "createFolderButton"))
+        folder_add_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "createFolderButton"))
         )
-        self.assertGreater(
-            len(folder_add_buttons),
-            1,
-            "Expected multiple buttons with ID 'createFolderButton'",
-        )
+        self.assertTrue(folder_add_button, "Expected multiple buttons with ID 'createFolderButton'")
 
-        # Click the last button (assuming it's on the right)
-        folder_add_buttons[0].click()
+        # Click the first button (assuming it's on the right)
+        folder_add_button.click()
 
         try:
             # Switch to the JavaScript alert

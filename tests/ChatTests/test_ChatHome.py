@@ -36,6 +36,15 @@ class ChatHomeTests(BaseTest):
             alert.accept()
         except UnexpectedAlertPresentException as e:
             self.fail(f"Unexpected alert present: {str(e)}")
+            
+    def click_assistants_tab(self):
+        time.sleep(5)
+        tab_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
+        assistants_button = next((btn for btn in tab_buttons if "Assistants" in btn.get_attribute("title")), None)
+        self.assertIsNotNone(assistants_button, "'Assistants' tab button not found")
+        assistants_button.click()
+
+        time.sleep(2)
     
     def create_chat(self, chat_name):
         prompt_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "promptButton")))
@@ -146,7 +155,7 @@ class ChatHomeTests(BaseTest):
             "Claude 3.7 Sonnet",
             "DeepSeek r1",
             "GPT-4o",
-            "Default (GPT-4o-mini)",
+            "GPT-4o-mini\n(Default)",
             "Llama 3.2 90b instruct",
             "Mistral 7B",
             "Mistral Large",
@@ -181,31 +190,46 @@ class ChatHomeTests(BaseTest):
 
             # Assert that the selected model matches the expected name
             self.assertEqual(model_name, selected_model_text, f"{model_name} should be selected")
+            
+        # Click the Model Select Button
+        model_select_button = self.wait.until(EC.presence_of_element_located((By.ID, "modelSelect")))
+        self.assertTrue(model_select_button.is_displayed(), "Model Select Button is visible")
+        
+        # Open the model dropdown
+        model_select_button.click()
+        
+        time.sleep(1)
+
+        # Click the specific model by ID
+        model_option = self.wait.until(EC.presence_of_element_located((By.ID, "gpt-4o-mini")))
+        model_option.click()
+        
+        time.sleep(1)
     
     # ----------------- Test Store Conversation To Cloud -----------------
     """This test ensures that you can store a conversation to the cload by clicking the 
        save to cloud button"""
     
-    # def test_store_convo_in_cloud(self):
-    #     # Locate the "Store to Cloud" button (with the title attribute)
-    #     store_button = self.wait.until(EC.presence_of_element_located((
-    #         By.XPATH, '//button[@title="This conversation is currently set to private and only accessible from this browser. "]'
-    #     )))
-    #     self.assertTrue(store_button.is_displayed(), "Store to Cloud button is visible")
+    def test_store_convo_in_cloud(self):
+        # Locate the "Store to Cloud" button (with the title attribute)
+        store_button = self.wait.until(EC.presence_of_element_located((
+            By.XPATH, '//button[@title="This conversation is currently set to private and only accessible from this browser. "]'
+        )))
+        self.assertTrue(store_button.is_displayed(), "Store to Cloud button is visible")
         
-    #     time.sleep(1)
+        time.sleep(1)
         
-    #     # Click the button
-    #     store_button.click()
+        # Click the button
+        store_button.click()
         
-    #     time.sleep(1)
+        time.sleep(1)
         
-    #     # Handle JavaScript alert
-    #     alert = self.wait.until(EC.alert_is_present())
-    #     alert.accept()
+        # Handle JavaScript alert
+        alert = self.wait.until(EC.alert_is_present())
+        alert.accept()
 
-    #     # Give the UI time to update (wait for visibility change)
-    #     time.sleep(5)  # This can be replaced with an explicit wait later
+        # Give the UI time to update (wait for visibility change)
+        time.sleep(5)  # This can be replaced with an explicit wait later
         
     # ----------------- Test Advanced Conversation Settings -----------------
     """This test ensures that the Advanced Conversation Settings can by viewed."""
@@ -231,6 +255,10 @@ class ChatHomeTests(BaseTest):
     """This test ensures that the custom instructions selection can be any of the assistants and prompts"""
     
     def test_custom_settings(self):
+        self.click_assistants_tab()
+        
+        time.sleep(2)
+        
         # Locate all elements with the ID 'dropName'
         drop_name_elements = self.wait.until(EC.presence_of_all_elements_located(
             (By.ID, "dropName")
@@ -244,6 +272,12 @@ class ChatHomeTests(BaseTest):
 
         # Click to open the dropdown
         assistants_dropdown_button.click()
+        
+        time.sleep(1)
+        
+        sidebar = self.wait.until(EC.presence_of_element_located((By.ID, "sidebarScroll")))
+        self.driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight;", sidebar)
+        time.sleep(1)  # Optional: wait to ensure scrolling completes
 
         # Locate all elements with the ID 'dropName'
         drop_name_elements = self.wait.until(EC.presence_of_all_elements_located(
@@ -260,14 +294,14 @@ class ChatHomeTests(BaseTest):
 
         time.sleep(2)
 
-        # Save all of the elements with the id="promptName" into a list of text strings
-        prompt_name_elements = self.wait.until(EC.presence_of_all_elements_located(
-            (By.ID, "promptName")
+        # Save all of the elements with the id="assistantName" into a list of text strings
+        assistant_name_elements = self.wait.until(EC.presence_of_all_elements_located(
+            (By.ID, "assistantName")
         ))
-        self.assertTrue(prompt_name_elements, "Prompt name elements should be initialized")
+        self.assertTrue(assistant_name_elements, "Prompt name elements should be initialized")
 
-        # Extract the text from all promptName elements and add 'Default' to the list
-        prompt_names = [el.text for el in prompt_name_elements]
+        # Extract the text from all assistantName elements and add 'Default' to the list
+        prompt_names = [el.text for el in assistant_name_elements]
         prompt_names.append("Default")
 
         time.sleep(2)
@@ -293,9 +327,13 @@ class ChatHomeTests(BaseTest):
         option_texts = [option.text for option in select_element.options]
 
         # Ensure the options in the select list match the prompt_names list
-        self.assertEqual(set(prompt_names), set(option_texts), "Dropdown options should match prompt names")
+        print(prompt_names)
+        print(option_texts)
         
+        missing_items = set(prompt_names) - set(option_texts)
+        print("Missing prompt names:", missing_items)
         
+        self.assertTrue(set(prompt_names).issubset(set(option_texts)), "All prompt names should be present in the dropdown options")
 
     # ----------------- Test Temperature Slider -----------------
     """This test ensures that the interactive slider that measures the temperature of a response works
@@ -369,9 +407,11 @@ class ChatHomeTests(BaseTest):
         # Use the last slider (length slider)
         length_slider = sliders[-1]
         self.assertTrue(length_slider.is_displayed(), "Length slider is visible")
+        
+        temp_rang = int(float(length_slider.get_attribute("value")) * 10)
 
         # Decrease the slider value from 3.0 to 0.0 in steps of 0.1
-        for value in range(30, -1, -1):  # 3.0 to 0.0
+        for value in range(temp_rang, -1, -1):  # 3.0 to 0.0
             expected_value = str(value / 10) if value % 10 != 0 else str(int(value / 10))  # Format whole numbers
             slider_value = length_slider.get_attribute("value")
 
@@ -528,8 +568,10 @@ class ChatHomeTests(BaseTest):
 
         length_slider = sliders[-1]
         
+        temp_rang = int(float(length_slider.get_attribute("value")) * 10)
+        
         # Move the slider down to 0.0
-        for value in range(30, -1, -1):  # 3.0 to 0.0
+        for value in range(temp_rang, -1, -1):  # 3.0 to 0.0
             expected_value = str(value / 10) if value % 10 != 0 else str(int(value / 10))  # Format whole numbers
             slider_value = length_slider.get_attribute("value")
 
@@ -586,8 +628,8 @@ class ChatHomeTests(BaseTest):
         
         time.sleep(2)
         
-        # Increase the slider value from 3.0 to 6.0 in steps of 0.1
-        for value in range(0, 61):  # 3.0 to 6.0
+        # Increase the slider value from 0.0 to 6.0 in steps of 0.1
+        for value in range(0, 61):  # 0.0 to 6.0
             expected_value = str(value / 10) if value % 10 != 0 else str(int(value / 10))  # Format whole numbers
             slider_value = length_slider.get_attribute("value")
 

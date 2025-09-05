@@ -1,4 +1,5 @@
 import { FolderInterface } from '@/types/folder';
+import { storageSet } from './storage';
 
 export const saveFolders = (folders: FolderInterface[]) => {
   // ensure no duplicate folders 
@@ -11,7 +12,7 @@ export const saveFolders = (folders: FolderInterface[]) => {
 
   // Convert the map values to an array for storage
   const uniqueFolders = Array.from(seenIds.values());
-  localStorage.setItem('folders', JSON.stringify(uniqueFolders));
+  storageSet('folders', JSON.stringify(uniqueFolders));
 };
 
 

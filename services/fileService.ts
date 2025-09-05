@@ -195,6 +195,11 @@ export type FileQuery = {
     pageIndex?: number;
     forwardScan?: boolean;
     tagFilterList?: string[];
+    filters?: {
+        attribute: string;
+        operator: string;
+        value: string;
+    }[];
 }
 
 export type FileRecord = {

@@ -70,6 +70,7 @@ import { Settings } from '@/types/settings';
 import { IntegrationsDialog } from '../Integrations/IntegrationsDialog';
 import { TemperatureSlider } from './Sliders/Temperature';
 import { ResponseTokensSlider } from './Sliders/ResponseTokens';
+import { storageRemove } from '@/utils/app/storage';
 
 
 interface Props {
@@ -98,7 +99,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 chatEndpoint,
                 folders,
                 extractedFacts,
-                defaultAccount
+                defaultAccount,
+                isStandalonePromptCreation
             },
             setLoadingMessage,
             handleUpdateConversation,
@@ -157,11 +159,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             const id =  initSelectedAstModel || selectedConversation?.model?.id || defaultModelId || getDefaultModelIdFromLocalStorage();
             if (id && filteredModels.find((m: Model) => m.id == id)) return id;
 
-            // if (filteredModels.length > 0 && selectedConversation) {
-            //     const updatedModel = filteredModels[0];
-            //     handleUpdateSelectedConversation({...selectedConversation, model: updatedModel});
-            //     // return updatedModel.id;
-            // }
 
             return undefined;
         }
@@ -870,8 +867,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         date: getFullTimestamp()
                     },
                 });
-
-                localStorage.removeItem('selectedConversation');
+                storageRemove('selectedConversation');
             }
         };
 
@@ -885,7 +881,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }
 
         useEffect(() => {
-            if (selectedConversation
+            if (!isStandalonePromptCreation && selectedConversation
                 && selectedConversation.promptTemplate
                 && isAssistant(selectedConversation.promptTemplate)
                 && selectedConversation.messages?.length == 0) {
@@ -896,7 +892,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     if (prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
             }
-            else if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages?.length == 0) {
+            else if (!isStandalonePromptCreation && selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages?.length == 0) {
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
                     // make sure assistant hasnt been deleted 
@@ -905,7 +901,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
                 setIsPromptTemplateDialogVisible(true);
-            } else if (selectedConversation && selectedConversation.workflowDefinition && selectedConversation.messages?.length == 0) {
+            } else if (!isStandalonePromptCreation && selectedConversation && selectedConversation.workflowDefinition && selectedConversation.messages?.length == 0) {
                 //alert("Prompt Template");
                 const workflowVariables = Object.entries(selectedConversation.workflowDefinition.inputs.parameters)
                     .map(([k, v]) => k);
@@ -913,7 +909,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 setVariables(workflowVariables);
                 setIsPromptTemplateDialogVisible(true);
             } 
-        }, [selectedConversation, prompts]);
+        }, [selectedConversation, prompts, isStandalonePromptCreation]);
 
         useEffect(() => {
             const observer = new IntersectionObserver(
@@ -1153,7 +1149,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     {featureFlags.integrations && <IntegrationsDialog open={isIntegrationsOpen} onClose={()=>{setIsIntegrationsOpen(false)}}/>}
 
                                     <div
-                                       id="chatUpperMenu"
                                        className={isBarSticky ? 
                                            "items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100 text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200 text-gray-800 dark:text-gray-200" :
                                            "sticky top-4 mt-4 flex justify-center items-center z-10"
@@ -1261,12 +1256,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     border border-gray-200 dark:border-gray-600 h-10 text-gray-800 dark:text-gray-200
                                                     ${isPillExpanded ? 'px-6' : 'px-3'}
                                                 `}
+                                                id="chatUpperMenu"
                                                 onMouseEnter={() => setIsPillExpanded(true)}
                                                 onMouseLeave={() => setIsPillExpanded(false)}
                                             >
                                                 {/* Always visible - Model name and expand indicator */}
                                                 <button
                                                     className="font-medium cursor-pointer hover:opacity-50 flex flex-row items-center"
+                                                    id="modelChatSettings"
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();

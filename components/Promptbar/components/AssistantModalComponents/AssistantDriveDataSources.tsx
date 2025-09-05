@@ -1,5 +1,5 @@
 import React, { FC, useContext, useState, useEffect } from 'react';
-import { IconBrandGoogleDrive, IconAlertTriangle, IconFolder } from '@tabler/icons-react';
+import { IconBrandGoogleDrive, IconAlertTriangle, IconFolder, IconFolders } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { capitalize } from '@/utils/app/data';
 import DataSourcesTableScrollingIntegrations from '@/components/DataSources/DataSourcesTableScrollingIntegrations';
@@ -473,7 +473,7 @@ export const AssistantDriveDataSources: FC<Props> = ({
   return ( 
     <div className="mt-2">
     <ExpansionComponent title="Attach Drive Data Sources" 
-    closedWidget= { <IconBrandGoogleDrive size={18} />} 
+    closedWidget= { <IconFolders size={18} />} 
     content={ 
         (connectedDriveIntegrations?.length === 0) ? 
         <p className="text-gray-500 dark:text-gray-400">

@@ -7,8 +7,8 @@ import {ExistingFileList, FileList} from "@/components/Chat/FileList";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
 import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
-import {createAssistant, addAssistantPath, lookupAssistant} from "@/services/assistantService";
-import {IconFiles, IconArrowRight, IconMailFast, IconCaretRight, IconCaretDown} from "@tabler/icons-react";
+import {createAssistant, addAssistantPath, lookupAssistant, rescanWebsites} from "@/services/assistantService";
+import {IconFiles, IconArrowRight, IconMailFast, IconCaretRight, IconCaretDown, IconRefresh, IconAlertTriangle} from "@tabler/icons-react";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/ReusableComponents/FlagsMap";
 import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
@@ -115,6 +115,9 @@ const dataSourceFlags = [
 
     },
 ];
+
+// Only show the includeDownloadLinks flag to users, but keep all flags for default value processing
+const visibleDataSourceFlags = dataSourceFlags.filter(flag => flag.key === 'includeDownloadLinks');
 
 const messageOptionFlags = [
     {
@@ -266,7 +269,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const initialApiCapabilities = definition.data?.operations?.filter(
       (api:any) => api.type === "http") || [];
 
-    const preexistingDocumentIds = (definition.dataSources || []).map(ds => ds.id); 
+    const [preexistingDocumentIds, setPreexistingDocumentIds] = useState<string[]>((definition.dataSources || []).map(ds => ds.id)); 
 
     const [isLoading, setIsLoading] = useState(false);
     const [name, setName] = useState(definition.name);
@@ -277,6 +280,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [dataSources, setDataSources] = useState(initialDs);
     // console.log("dataSources", dataSources);
     const [removedWebsiteDs, setRemovedWebsiteDs] = useState<AttachedDocument[]>([]);
+    const [isRescanningWS, setIsRescanningWS] = useState(false);
     const [dataSourceOptions, setDataSourceOptions] = useState<{ [key: string]: boolean }>(initialDataSourceOptionState);
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>(initialStates);
     const [messageOptions, setMessageOptions] = useState<{ [key: string]: boolean }>(initialMessageOptionState);
@@ -852,7 +856,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                         const result = await updateScheduledTasks(taskId as string, '', key as AssistantScheduledTaskUses, {
                             name: newAssistant.name,
                             assistantId: assistantId
-                        })
+                        });
                     });
                 } catch (error) {
                     console.error('Error updating scheduled tasks:', error);
@@ -955,6 +959,153 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 return prev;
         });
     }
+   
+    const handleRescan = async () => {
+        if (!definition.assistantId) {
+            toast.error("Please save the assistant before rescannning website URLs");
+            return;
+        }
+        setIsRescanningWS(true);
+        const result = await rescanWebsites(definition.assistantId, true);
+        if (result.success) {
+            const newDataSources = result.data.dataSources;
+            console.log("newDataSources", newDataSources);
+            console.log('\n🔄 Rescan Results:', { 
+                newDataSources: newDataSources.length, 
+                newDataSourcesDetails: newDataSources.map((ds: any) => ({ 
+                    id: ds.id, 
+                    name: ds.name, 
+                    sourceUrl: ds.metadata?.sourceUrl,
+                    fromSitemap: ds.metadata?.fromSitemap,
+                    maxPages: ds.metadata?.maxPages
+                }))
+            });
+            
+            // Create a map of existing website data sources keyed by (sourceUrl + fromSitemap)
+            const existingWebsiteMap = new Map();
+            const currentDataSources = [...dataSources];
+            const websiteDataSources = currentDataSources.filter(ds => isWebsiteDs(ds));
+            const nonWebsiteDataSources = currentDataSources.filter(ds => !isWebsiteDs(ds));
+            console.log('📊 Current Data Sources:', { 
+                total: currentDataSources.length,
+                website: websiteDataSources.length,
+                nonWebsite: nonWebsiteDataSources.length
+            });
+            console.log('🔒 Non-website data sources (will be preserved):', 
+                nonWebsiteDataSources.map(ds => ({ name: ds.name, type: ds.type, id: ds.id }))
+            );
+            
+            currentDataSources.forEach((ds, index) => {
+                if (isWebsiteDs(ds) && ds.metadata?.sourceUrl) {
+                    const key = `${ds.metadata.sourceUrl}|${ds.metadata.fromSitemap || 'null'}`;
+                    existingWebsiteMap.set(key, { dataSource: ds, index });
+                    console.log('🗺️ Mapped existing website DS:', { 
+                        key, 
+                        index, 
+                        name: ds.name, 
+                        id: ds.id,
+                        maxPages: ds.metadata?.maxPages
+                    });
+                }
+            });
+            console.log('📋 Existing website map size:', existingWebsiteMap.size);
+            
+            // Process new data sources: replace existing or add new
+            const updatedDataSources = [...currentDataSources];
+            const addedDataSources: AttachedDocument[] = [];
+            let replacedCount = 0;
+            let addedCount = 0;
+            
+            // Track changes to preexistingDocumentIds
+            const updatedPreexistingIds = [...preexistingDocumentIds];
+            const idMappings: Array<{oldId: string, newId: string}> = [];
+            const newIds: string[] = [];
+            
+            newDataSources.forEach((newDs: any) => {
+                if (newDs.metadata?.sourceUrl) {
+                    const key = `${newDs.metadata.sourceUrl}|${newDs.metadata.fromSitemap || 'null'}`;
+                    const existing = existingWebsiteMap.get(key);
+                    
+                    if (existing) {
+                        // Replace existing data source
+                        console.log('🔄 REPLACING existing DS:', { 
+                            key, 
+                            oldName: existing.dataSource.name, 
+                            newName: newDs.name,
+                            oldId: existing.dataSource.id,
+                            newId: newDs.id,
+                        });
+                        updatedDataSources[existing.index] = {
+                            ...{...newDs, key: newDs.id},
+                            // Preserve any UI-specific properties if needed
+                        } as AttachedDocument;
+                        
+                        // Track ID mapping for preexistingDocumentIds update
+                        if (existing.dataSource.id !== newDs.id) {
+                            idMappings.push({oldId: existing.dataSource.id, newId: newDs.id});
+                        }
+                        
+                        replacedCount++;
+                    } else {
+                        // Add new data source (handles sitemap expansion case)
+                        console.log('➕ ADDING new DS:', { 
+                            key, 
+                            name: newDs.metadata?.sourceUrl, 
+                            id: newDs.id,
+                        });
+                        addedDataSources.push({...newDs, key: newDs.id} as AttachedDocument);
+                        
+                        // Track new ID for preexistingDocumentIds update
+                        newIds.push(newDs.id);
+                        
+                        addedCount++;
+                    }
+                }
+            });
+            
+            // Update preexistingDocumentIds: replace old IDs with new IDs and add new ones
+            idMappings.forEach(({oldId, newId}) => {
+                const index = updatedPreexistingIds.indexOf(oldId);
+                if (index !== -1) {
+                    updatedPreexistingIds[index] = newId;
+                    console.log('🔄 Updated preexisting ID mapping:', {oldId, newId, index});
+                }
+            });
+            
+            // Add new IDs to preexisting list (they should appear in "existing" section after rescan)
+            newIds.forEach(newId => {
+                if (!updatedPreexistingIds.includes(newId)) {
+                    updatedPreexistingIds.push(newId);
+                    console.log('➕ Added new ID to preexisting:', {newId});
+                }
+            });
+            
+            console.log('📈 Processing Summary:', { 
+                replacedCount, 
+                addedCount, 
+                totalNewDataSources: newDataSources.length,
+                finalDataSourcesCount: updatedDataSources.length + addedDataSources.length,
+                idMappingsCount: idMappings.length,
+                newIdsCount: newIds.length
+            });
+            
+            console.log('🔄 PreexistingDocumentIds Update:', {
+                oldPreexistingIds: preexistingDocumentIds,
+                newPreexistingIds: updatedPreexistingIds,
+                changed: preexistingDocumentIds.length !== updatedPreexistingIds.length || 
+                        !preexistingDocumentIds.every(id => updatedPreexistingIds.includes(id))
+            });
+            
+            // Update state with all changes
+            setDataSources([...updatedDataSources, ...addedDataSources]);
+            setPreexistingDocumentIds(updatedPreexistingIds);
+            
+            toast.success(`Successfully updated website data sources`);
+        } else {
+            toast.error("Unable to rescan website URLs, please try again later...");
+        }
+        setIsRescanningWS(false);
+    }
     
 
     if (isLoading) return <></>;
@@ -1015,7 +1166,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     </div>}
                             </div>
                             <input
-                                id="assistantName"
+                                id="assistantNameInput"
                                 className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                 placeholder={t('A name for your prompt.') || ''}
                                 value={name}
@@ -1076,7 +1227,14 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 />
                             </div>
                            {!disableEdit && <>
-                            <div className="mt-6 font-bold text-black dark:text-neutral-200">
+                           
+                            <div className="mt-6 h-0 text-center flex items-center justify-center gap-2 w-full">
+                                <IconAlertTriangle size={16} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                                <p className="text-xs text-blue-700 dark:text-blue-300">
+                                {"When making changes to the assistant's data sources, please allow a few minutes after saving for the updates to take effect."}
+                                </p>
+                            </div>
+                            <div className="font-bold text-black dark:text-neutral-200">
                                 {t('Upload Data Sources')}
                             </div>
                             <div className="flex flex-row items-center">
@@ -1153,8 +1311,25 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             {featureFlags.websiteUrls && !disableEdit && (
                                 <> 
                                 <div className="mt-2 mb-2 font-bold text-black dark:text-neutral-200">
-                                    {t('Attach Website URLs')}
+                                    {t('Attach Website Data Sources')}
                                 </div>
+                                {definition.assistantId && dataSources.find((ds:AttachedDocument) => isWebsiteDs(ds) && ds.key) &&
+                                <button
+                                    onClick={() => {
+                                        if (definition.assistantId) {
+                                            toast("Please wait a few minutes for the rescan to complete");
+                                            handleRescan();
+                                        }
+                                    }}
+                                    className={"absolute right-10 p-2 hover:bg-gray-100 dark:hover:bg-[#40414F] rounded-md transition-colors group"}
+                                    style={{zIndex: "20", transform: "translateY(-30px)"}}
+                                    title={"Rescan All Website URLs"}
+                                    >
+                                    <IconRefresh 
+                                        size={22} 
+                                        className={`text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300`} 
+                                    />
+                                </button>}
                                 {featureFlags.scheduledTasks &&
                                   <WebsiteScanScheduler
                                     initAssistantDefintion={definition}
@@ -1194,7 +1369,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     }}
                                   />}
                                 <WebsiteURLInput
-                                    onAddURL={(url, isSitemap) => {
+                                    onAddURL={(url, isSitemap, maxPages, exclusions) => {
                                         const webType = isSitemap ? 'website/sitemap' : 'website/url';
                                         // Create a data source object for the URL
                                         const websiteSource = {
@@ -1205,6 +1380,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                 scanFrequency: null, // Default scan frequency in days
                                                 sourceUrl: url,
                                                 isSitemap: isSitemap,
+                                                ...(maxPages !== undefined && { maxPages }),
+                                                ...(exclusions && { exclusions })
                                             },
                                         };
                                         // Add to dataSources
@@ -1222,7 +1399,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         setWebsiteUrls([...websiteUrls, websiteUrl]);
                                     }}
                                 />
-                            
+
                                 <FileList documents={dataSources.filter((ds:AttachedDocument) => 
                                                     !(preexistingDocumentIds.includes(ds.id)) && 
                                                      isWebsiteDs(ds))} documentStates={documentState}
@@ -1268,12 +1445,43 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         // since websites are assistant specific scraped data sources we need to delete upon removal
                                         if (isWebsiteDs(doc) ) {
                                             setRemovedWebsiteDs([...removedWebsiteDs, doc]);
+                                            
                                             if (definition.data && definition.data.websiteUrls) {
                                                 // For regular URLs (not sitemap children), remove them directly
                                                 if (!doc.metadata?.fromSitemap) {
                                                     const updatedWebsiteUrls = definition.data.websiteUrls.filter((urlItem: any) => 
                                                         urlItem.sourceUrl !== doc.metadata?.sourceUrl);
                                                     setWebsiteUrls(updatedWebsiteUrls);
+                                                } else if (doc.metadata?.fromSitemap) {
+                                                    // For sitemap children, add to parent sitemap's exclusions
+                                                    const parentSitemapUrl = doc.metadata.fromSitemap;
+                                                    const updatedWebsiteUrls = websiteUrls.map((urlItem: any) => {
+                                                        if (urlItem.sourceUrl === parentSitemapUrl && urlItem.isSitemap) {
+                                                            // Add to exclusions
+                                                            const currentExclusions = urlItem.exclusions || {};
+                                                            const excludedUrls = currentExclusions.excludedUrls || [];
+                                                            
+                                                            // Add this URL to excluded URLs if not already there
+                                                            if (!excludedUrls.includes(doc.metadata?.sourceUrl)) {
+                                                                return {
+                                                                    ...urlItem,
+                                                                    exclusions: {
+                                                                        ...currentExclusions,
+                                                                        excludedUrls: [...excludedUrls, doc.metadata?.sourceUrl]
+                                                                    }
+                                                                };
+                                                            }
+                                                        }
+                                                        return urlItem;
+                                                    });
+                                                    setWebsiteUrls(updatedWebsiteUrls);
+                                                    
+                                                
+                                                    console.log('🚫 Added URL to sitemap exclusions:', {
+                                                        removedUrl: doc.metadata?.sourceUrl,
+                                                        parentSitemap: parentSitemapUrl,
+                                                        reason: 'User manually removed from assistant'
+                                                    });
                                                 }
                                                 // Sitemap children cleanup is handled by useEffect
                                             }
@@ -1345,7 +1553,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
                                     {featureFlags.assistantPathPublishing && (
                                                 <AssistantPathEditor
-                                                    savedAstPath={definition.astPath}
+                                                    savedAstPath={definition.data?.astPath}
                                                     astPath={astPath}
                                                     setAstPath={setAstPath}
                                                     astIcon={astIcon}
@@ -1372,15 +1580,12 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         /> 
                                     </div>
 
-                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-4"
-                                         style={{transform: 'translateX(-25px)'}}>
-                                        <ExpansionComponent
-                                            closedWidget= { <IconCaretRight style={{transform: 'translateX(8px)'}} size={18} />}
-                                            openWidget= { <IconCaretDown style={{transform: 'translateX(8px)'}} size={18} />}
-                                            title='Data Source Options'
-                                            content= {
-                                                <FlagsMap id={'dataSourceFlags'}
-                                                flags={dataSourceFlags}
+                                    <div className="text-sm font-bold text-black dark:text-neutral-200 mt-4">
+                                        {t('Data Source Options')}
+                                    </div>
+
+                                    <FlagsMap id={'dataSourceFlags'}
+                                                flags={visibleDataSourceFlags}
                                                 state={dataSourceOptions}
                                                 flagChanged={
                                                     (key, value) => {
@@ -1390,8 +1595,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                         });
                                                     }
                                                 } />
-                                        }/>
-                                    </div>
                                     <div className="text-sm font-bold text-black dark:text-neutral-200 mt-4">
                                         {t('Message Options')}
                                     </div>
@@ -1433,6 +1636,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                   disabled={disableEdit}
                                                   className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                                   placeholder={t('Tag names separated by commas.') || ''}
+                                                  id="tagInput"
                                                   value={tags}
                                                   title={'Tags for conversations created with this template.'}
                                                   onChange={(e) => {
@@ -1449,6 +1653,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                   disabled={disableEdit}
                                                   className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                                   placeholder={t('Tag names separated by commas.') || ''}
+                                                  id="conversationTagInput"
                                                   value={conversationTags}
                                                   title={'Tags for conversations created with this template.'}
                                                   onChange={(e) => {
@@ -1560,6 +1765,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             onCancel={onCancel}
             showSubmit={!disableEdit}
             submitLabel={"Save"}
+            disableSubmit={isRescanningWS}
             cancelLabel={disableEdit ? "Close" : 'Cancel'}
             content={<>{assistantModalContainer()}</>}
             disableClickOutside={true}

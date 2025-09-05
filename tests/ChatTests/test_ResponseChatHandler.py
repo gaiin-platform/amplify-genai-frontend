@@ -103,7 +103,6 @@ class ResponseChatHandlerTests(BaseTest):
         folder = next((el for el in drop_name_elements if el.text == chat_name), None)
         self.assertIsNotNone(folder, "New Conversation button should be present")
 
-    # ----------------- Setup Test Data ------------------
     def send_message(self, chat_name, message):
         # Locate all elements with the ID 'chatName'
         chat_name_elements = self.wait.until(
@@ -136,12 +135,55 @@ class ResponseChatHandlerTests(BaseTest):
         self.assertTrue(chat_send_message, "Send message button should be initialized")
         chat_send_message.click()
         time.sleep(15)
+        
+    def delete_all_chats(self):
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
+        )
+
+        prompt_handler_button.click()
+
+        time.sleep(2)
+
+        # Click the button with ID "Delete"
+        delete_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "Delete"))
+        )
+
+        delete_button.click()
+
+        time.sleep(2)  # Give time for the menu to appear
+
+        # Click the select all checkbox
+        select_all_check = self.wait.until(
+            EC.presence_of_element_located((By.ID, "selectAllCheck"))
+        )
+
+        # Locate the checkbox within the parent container
+        checkbox = select_all_check.find_element(By.XPATH, ".//input[@type='checkbox']")
+        self.assertIsNotNone(checkbox, f"Checkbox for prompt All should be present")
+
+        checkbox.click()
+
+        time.sleep(2)
+
+        # Click the Delete Button
+        confirm_delete_button = self.wait.until(
+            EC.element_to_be_clickable((By.ID, "confirmItem"))
+        )
+        self.assertTrue(confirm_delete_button, "Delete Button should be initialized")
+        confirm_delete_button.click()
+
+        time.sleep(2)
 
     # ----------------- Test Copy Response -----------------
     """This test ensures that after sending a message that the Amplify Response
        can be copied via Copy Response Button and that the copied text is correct"""
 
     def test_copy_response(self):
+        # Delete all conversations from previous tests
+        self.delete_all_chats()
+        
         # Create a chat
         self.create_chat("Waluigi")
 
@@ -157,7 +199,7 @@ class ResponseChatHandlerTests(BaseTest):
             EC.presence_of_all_elements_located((By.ID, "chatHover"))
         )
         self.assertGreater(
-            len(chat_hover), 1, "Expected multiple buttons with ID 'chatHover'"
+            len(chat_hover), 1, "Expected multiple buttons with ID 'chatHover', there are two: chat and response"
         )
 
         ActionChains(self.driver).move_to_element(chat_hover[-1]).perform()
@@ -197,6 +239,9 @@ class ResponseChatHandlerTests(BaseTest):
        can be turned into an Artifact via the Turn into Artifact Button"""
 
     def test_turn_into_artifact(self):
+        # Delete all conversations from previous tests
+        self.delete_all_chats()
+        
         # Create a chat
         self.create_chat("Mario")
 
@@ -234,6 +279,9 @@ class ResponseChatHandlerTests(BaseTest):
        can make the Download Modal appear via the Download Response Button"""
 
     def test_download_response(self):
+        # Delete all conversations from previous tests
+        self.delete_all_chats()
+        
         # Create a chat
         self.create_chat("Luigi")
 
@@ -260,6 +308,9 @@ class ResponseChatHandlerTests(BaseTest):
         download_modal_element = self.wait.until(
             EC.presence_of_element_located((By.ID, "modalTitle"))
         )
+        
+        time.sleep(1)
+        
         self.assertTrue(
             download_modal_element.is_displayed(), "Download window element is visible"
         )
@@ -277,6 +328,9 @@ class ResponseChatHandlerTests(BaseTest):
        can be emailed via the Email Response Button"""
 
     def test_email_response(self):
+        # Delete all conversations from previous tests
+        self.delete_all_chats()
+        
         # Create a chat
         self.create_chat("Daisy")
 
@@ -308,6 +362,9 @@ class ResponseChatHandlerTests(BaseTest):
        can be edited via the Edit Response button"""
 
     def test_edit_response(self):
+        # Delete all conversations from previous tests
+        self.delete_all_chats()
+        
         # Create a chat
         self.create_chat("Yoshi")
 
@@ -425,6 +482,9 @@ class ResponseChatHandlerTests(BaseTest):
        can be branched off into a new conversation via the Branch Into New Conversation Button"""
 
     def test_branch_conversation(self):
+        # Delete all conversations from previous tests
+        self.delete_all_chats()
+        
         # Create a chat
         self.create_chat("Luma")
 
@@ -470,6 +530,9 @@ class ResponseChatHandlerTests(BaseTest):
        can be copied and that the copied text is correct"""
 
     def test_copy_prompt(self):
+        # Delete all conversations from previous tests
+        self.delete_all_chats()
+        
         # Create a chat
         self.create_chat("Waluigi")
 
@@ -532,6 +595,9 @@ class ResponseChatHandlerTests(BaseTest):
        can be downloaded via the Download Prompt button"""
 
     def test_download_prompt(self):
+        # Delete all conversations from previous tests
+        self.delete_all_chats()
+        
         # Create a chat
         self.create_chat("Luigi")
 
@@ -564,6 +630,9 @@ class ResponseChatHandlerTests(BaseTest):
         download_modal_element = self.wait.until(
             EC.presence_of_element_located((By.ID, "modalTitle"))
         )
+        
+        time.sleep(1)
+        
         self.assertTrue(
             download_modal_element.is_displayed(), "Download window element is visible"
         )
@@ -581,6 +650,9 @@ class ResponseChatHandlerTests(BaseTest):
        can be edited via the Edit Prompt button"""
 
     def test_edit_prompt(self):
+        # Delete all conversations from previous tests
+        self.delete_all_chats()
+        
         # Create a chat
         self.create_chat("Yoshi")
 
@@ -690,6 +762,9 @@ class ResponseChatHandlerTests(BaseTest):
        can be branched off into a new conversation via the Branch Into New Conversation Button"""
 
     def test_branch_prompt(self):
+        # Delete all conversations from previous tests
+        self.delete_all_chats()
+        
         # Create a chat
         self.create_chat("Luma")
 
@@ -741,6 +816,9 @@ class ResponseChatHandlerTests(BaseTest):
        can be deleted via the Delete Prompt Button"""
 
     def test_delete_prompt(self):
+        # Delete all conversations from previous tests
+        self.delete_all_chats()
+        
         # Create a chat
         self.create_chat("Mario")
 

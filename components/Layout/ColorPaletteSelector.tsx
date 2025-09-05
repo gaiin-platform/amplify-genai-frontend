@@ -111,6 +111,7 @@ export const ColorPaletteSelector: React.FC<ColorPaletteSelectorProps> = ({ onPa
           <button
             key={palette.id}
             className={`color-palette-option ${selectedPalette === palette.id ? 'selected' : ''}`}
+            id={palette.name}
             onClick={() => handlePaletteSelect(palette.id)}
             title={palette.name}
           >
