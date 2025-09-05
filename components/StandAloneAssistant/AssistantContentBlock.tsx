@@ -32,93 +32,69 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
   totalMessages,
   messageEndRef
 }) => {
-  // Enhanced LaTeX detection with whitespace prevention
+  // Check if this is the last message
+  const isLastMessage = messageIndex === totalMessages - 1;
+
+  // Check if content contains LaTeX
   const hasLatex = useCallback((content: string) => {
     return /\$\$.*?\$\$|\$[^$\n]+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)/.test(content);
   }, []);
 
-  // Advanced content processing for layout-stable LaTeX rendering
-  const processLatexWithLayoutStability = useCallback((content: string) => {
-    if (!hasLatex(content)) return content;
-    
-    // Pre-calculate approximate dimensions to prevent layout shifts
-    let processed = content.replace(/\$\$([\s\S]*?)\$\$/g, (match, latex) => {
-      // Estimate display math height based on content complexity
-      const estimatedHeight = latex.includes('\\frac') || latex.includes('\\sqrt') || 
-                            latex.includes('\\sum') || latex.includes('\\int') ? '3em' : '1.5em';
-      return `<math-display data-height="${estimatedHeight}">${latex}</math-display>`;
+  // Memoized LaTeX processing function
+  const processLatex = useCallback((content: string) => {
+    // Replace display math $$...$$ with placeholder
+    let processed = content.replace(/\$\$(.*?)\$\$/g, (match, latex) => {
+      return `<math-display>${latex}</math-display>`;
     });
     
+    // Replace inline math $...$ with placeholder  
     processed = processed.replace(/\$([^$\n]+?)\$/g, (match, latex) => {
-      return `<math-inline data-height="1em">${latex}</math-inline>`;
+      return `<math-inline>${latex}</math-inline>`;
     });
     
+    // Replace LaTeX display math \[ ... \] with placeholder
     processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (match, latex) => {
-      const estimatedHeight = latex.includes('\\frac') || latex.includes('\\sqrt') || 
-                            latex.includes('\\sum') || latex.includes('\\int') ? '3em' : '1.5em';
-      return `<math-display data-height="${estimatedHeight}">${latex}</math-display>`;
+      return `<math-display>${latex}</math-display>`;
     });
     
+    // Replace LaTeX inline math \( ... \) with placeholder
     processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (match, latex) => {
-      return `<math-inline data-height="1em">${latex}</math-inline>`;
+      return `<math-inline>${latex}</math-inline>`;
     });
     
     return processed;
-  }, [hasLatex]);
+  }, []);
 
-  // State to manage processed content with layout stability
-  const [processedContent, setProcessedContent] = useState(() => {
-    // Pre-process immediately on mount to avoid any flicker
-    return hasLatex(message.content) ? 
-      processLatexWithLayoutStability(message.content) : 
-      message.content;
-  });
-  
+  // Smart content processing that completely avoids LaTeX during any streaming
+  const [processedContent, setProcessedContent] = useState(message.content);
   const [isContentStable, setIsContentStable] = useState(false);
-
-  // Ultra-stable content processing with streaming optimization
+  
   useEffect(() => {
-    const updateContent = () => {
-      const newContent = processLatexWithLayoutStability(message.content);
-      
-      // Only update if content actually changed to prevent unnecessary re-renders
-      if (newContent !== processedContent) {
-        setProcessedContent(newContent);
-      }
-      
-      // Mark content as stable after initial processing
-      if (!isContentStable) {
-        setIsContentStable(true);
-      }
-    };
-
-    if (!messageIsStreaming) {
-      // Process immediately when not streaming
-      updateContent();
-    } else {
-      // For streaming: only debounce if we have LaTeX, otherwise update immediately
-      if (hasLatex(message.content)) {
-        // Debounce LaTeX processing during streaming to prevent excessive re-renders
-        const timer = setTimeout(updateContent, 100);
-        return () => clearTimeout(timer);
-      } else {
-        updateContent();
-      }
+    // CRITICAL: During ANY streaming, show raw content immediately
+    if (messageIsStreaming) {
+      setProcessedContent(message.content); // Raw content, no LaTeX processing
+      setIsContentStable(false);
+      return;
     }
-  }, [message.content, messageIsStreaming, processLatexWithLayoutStability, processedContent, hasLatex, isContentStable]);
 
-  // State to trigger re-renders when needed
+    // Only process LaTeX when streaming has completely stopped
+    const timer = setTimeout(() => {
+      setProcessedContent(processLatex(message.content));
+      setIsContentStable(true);
+    }, 100); // Small delay to ensure streaming has fully stopped
+
+    return () => clearTimeout(timer);
+  }, [message.content, messageIsStreaming, processLatex]);
+
+  const finalContent = processedContent;
+
+  // Enhanced re-render mechanism with streaming awareness
   const [renderKey, setRenderKey] = useState(0);
   const lastStableContentRef = useRef<string>('');
-  
-  // Listen for custom re-render events with stability checks
+
   useEffect(() => {
     const handleReRenderEvent = () => {
-      // Only trigger re-render if content is stable and actually changed
-      if (isContentStable && processedContent !== lastStableContentRef.current) {
-        setRenderKey(prev => prev + 1);
-        lastStableContentRef.current = processedContent;
-      }
+      setRenderKey(prev => prev + 1);
     };
 
     // Listen for the custom event 'triggerAssistantReRender'
@@ -126,11 +102,15 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
     return () => {
       window.removeEventListener('triggerAssistantReRender', handleReRenderEvent);
     };
-    
-  }, [isContentStable, processedContent]);
+  }, []);
 
-  // Check if this is the last message
-  const isLastMessage = messageIndex === totalMessages - 1;
+  // Only update render key when content is stable and actually changed
+  useEffect(() => {
+    if (isContentStable && finalContent !== lastStableContentRef.current) {
+      lastStableContentRef.current = finalContent;
+      setRenderKey(prev => prev + 1);
+    }
+  }, [finalContent, isContentStable]);
 
 
   return (
@@ -138,32 +118,63 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
       className={`assistantContentBlock overflow-x-auto px-4 max-w-full`}
       id={`assistantMessage${messageIndex}`}
       data-message-index={messageIndex}
-      data-original-content={processedContent}
+      data-original-content={message.content}
       style={{ 
-        minHeight: '20px', // Prevent layout collapse during loading
-        // Add layout stability during LaTeX processing
-        ...(hasLatex(processedContent) && !isContentStable ? {
-          willChange: 'auto', // Optimize for stability over performance during initial load
-          contain: 'layout style' // Prevent layout thrashing
-        } : {})
+        minHeight: '20px' // Minimal styling to prevent any layout interference
       }}
     >
-      <MemoizedReactMarkdown
-        key={renderKey}
-        className="prose dark:prose-invert flex-1 max-w-none w-full"
-        remarkPlugins={[remarkGfm, remarkMath]}
-        // @ts-ignore
-        rehypePlugins={[rehypeRaw]}
-        components={{
+      {/* Use simple text rendering during ANY streaming to prevent scroll issues */}
+      {messageIsStreaming ? (
+        <div className="prose dark:prose-invert flex-1 max-w-none w-full">
+          <div style={{ 
+            whiteSpace: 'pre-wrap', 
+            fontFamily: 'inherit',
+            fontSize: 'inherit',
+            lineHeight: 'inherit',
+            color: 'inherit',
+            margin: 0,
+            padding: 0,
+            wordBreak: 'break-word', // Match prose behavior
+            overflowWrap: 'break-word' // Additional text wrapping
+          }}>
+            {message.content}
+            {isLastMessage && <span className="animate-pulse cursor-default mt-1">▍</span>}
+          </div>
+        </div>
+      ) : (
+        <MemoizedReactMarkdown
+          key={renderKey}
+          className="prose dark:prose-invert flex-1 max-w-none w-full"
+          remarkPlugins={[remarkGfm, remarkMath]}
           // @ts-ignore
-          Mermaid,
-          // Use the same lightweight math renderers as ChatContentBlock to avoid layout issues
-          'math-display': ({children}: {children: React.ReactNode, [key: string]: any}) => (
-            <LatexBlock math={String(children)} displayMode={true} />
-          ),
-          'math-inline': ({children}: {children: React.ReactNode, [key: string]: any}) => (
-            <LatexBlock math={String(children)} displayMode={false} />
-          ),
+          rehypePlugins={[rehypeRaw]}
+          components={{
+            // @ts-ignore
+            Mermaid,
+            // Math components with conditional layout containment
+            'math-display': ({children}: {children: React.ReactNode}) => (
+              <div style={{ 
+                minHeight: '1.5em',
+                display: 'block', 
+                margin: '0.5em 0',
+                // Only add layout containment when content is stable
+                contain: isContentStable ? 'layout' : 'none'
+              }}>
+                <LatexBlock math={String(children)} displayMode={true} />
+              </div>
+            ),
+            'math-inline': ({children}: {children: React.ReactNode}) => (
+              <span style={{ 
+                minHeight: '1em',
+                minWidth: '1em',
+                display: 'inline-block',
+                verticalAlign: 'baseline',
+                // Only add layout containment when content is stable
+                contain: isContentStable ? 'layout' : 'none'
+              }}>
+                <LatexBlock math={String(children)} displayMode={false} />
+              </span>
+            ),
           img({ src, alt, children, ...props }) {
             console.log("Rendering an image with src: ", src, "and alt: ", alt);
     
@@ -279,10 +290,12 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
           },
         }}
       >
-        {`${processedContent}${
-          messageIsStreaming && !document.querySelector('.highlight-pulse') && isLastMessage ? '`▍`' : ''
+        {`${finalContent}${
+          // Never show cursor in non-streaming mode
+          ''
         }`}
       </MemoizedReactMarkdown>
+      )}
       {messageEndRef && <div ref={messageEndRef}></div>}
     </div>
   );
