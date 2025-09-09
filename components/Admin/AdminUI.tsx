@@ -459,14 +459,11 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             return;
         }
         const collectUpdateData =  Array.from(unsavedConfigs).map((type: AdminConfigTypes) => ({type: type, data: getConfigTypeData(type)}));
-        console.log("Saving configurations...", collectUpdateData);
+        console.log("Saving...", collectUpdateData);
         
         // Enhanced logging for admin data
         const adminData = collectUpdateData.find(item => item.type === AdminConfigTypes.ADMINS);
-        if (adminData) {
-            console.log("📧 Admin emails being saved:", adminData.data);
-            console.log("📊 Total admin count:", adminData.data?.length || 0);
-        }
+
         if (!validateSavedData()) return;
         // console.log(" testing: ", testEndpointsRef.current);
         if (testEndpointsRef.current.length > 0) {
@@ -481,28 +478,16 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         setLoadingMessage('Saving Configurations');
         const result = await updateAdminConfigs(collectUpdateData);
         
-        // Enhanced logging for save result
-        console.log("💾 Save result:", result);
-        console.log("🔍 DEBUG: Look for 'result.data.ADMINS' in the object above for admin-specific validation details");
-        
         if (result.success) {
-            // Enhanced logging for successful saves
-            if (adminData) {
-                console.log("✅ Admins sent to backend:", adminData.data);
-            }
             
             // Check for detailed admin-specific response
             if (result.data && result.data[AdminConfigTypes.ADMINS]) {
                 const adminResult = result.data[AdminConfigTypes.ADMINS];
-                console.log("📋 Admin save details:", adminResult);
                 
                 if (adminResult.success) {
-                    console.log("📝 Backend reports: All admins processed");
                     
                     // VERIFY WHAT ACTUALLY GOT SAVED
                     if (adminData && adminData.data.length > 0) {
-                        console.log("🔍 VERIFICATION: Checking what admins were actually saved...");
-                        
                         // Delay to allow backend processing to complete
                         setTimeout(async () => {
                             try {
@@ -512,10 +497,6 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                 if (response.success && response.data) {
                                     const actualSavedAdmins = response.data[AdminConfigTypes.ADMINS] || [];
                                     
-                                    console.log("🏁 VERIFICATION RESULTS:");
-                                    console.log("📤 Admins we tried to save:", adminData.data);
-                                    console.log("💾 Admins actually saved in DB:", actualSavedAdmins);
-                                    
                                     // Compare what was sent vs what's actually saved
                                     const sentSet = new Set(adminData.data);
                                     const savedSet = new Set(actualSavedAdmins);
@@ -524,24 +505,14 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                     const unexpectedlyAdded = actualSavedAdmins.filter((admin: string) => !sentSet.has(admin));
                                     
                                     if (notSaved.length > 0) {
-                                        console.error("❌ REJECTED BY BACKEND:", notSaved);
                                         toast(`⚠️ ${notSaved.length} admin(s) were rejected: ${notSaved.join(', ')}`, {
                                             icon: '⚠️',
                                             duration: 8000
                                         });
                                     }
                                     
-                                    if (unexpectedlyAdded.length > 0) {
-                                        console.warn("❓ UNEXPECTEDLY ADDED:", unexpectedlyAdded);
-                                    }
-                                    
-                                    if (notSaved.length === 0 && unexpectedlyAdded.length === 0) {
-                                        console.log("✅ VERIFICATION PASSED: All sent admins were saved successfully");
-                                    }
-                                    
                                     // Update local state to match what's actually in the database
                                     if (actualSavedAdmins.length !== adminData.data.length) {
-                                        console.log("🔄 Updating local state to match database");
                                         setAdmins(actualSavedAdmins);
                                     }
                                 } else {

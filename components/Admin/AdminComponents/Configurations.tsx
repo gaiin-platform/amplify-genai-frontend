@@ -83,16 +83,8 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     }, [showCsvUpload, showCsvPreview, onModalStateChange]);
 
     const handleUpdateAdmins = (updatedAdmins: string[]) => {
-        console.log("📝 Updating admin list:", {
-            previous: admins,
-            updated: updatedAdmins,
-            change: updatedAdmins.length - admins.length
-        });
-        
         setAdmins(updatedAdmins);
         updateUnsavedConfigs(AdminConfigTypes.ADMINS);
-        
-        console.log("💾 Marked admins as unsaved. Total pending:", updatedAdmins.length);
     }
 
     const handleUpdateRateLimit = (updatedRateLimit: {period: PeriodType, rate: string }) => {
@@ -125,7 +117,6 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     const handleUpdateAmpGroups = (updatedGroups: Amplify_Groups) => {
         setAmpGroups(updatedGroups);
         updateUnsavedConfigs(AdminConfigTypes.AMPLIFY_GROUPS);
-        console.log(updatedGroups);
     }
 
     const handleCsvUploadSuccess = (result: any) => {
@@ -139,24 +130,8 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
         try {
             const updatedAdmins = [...admins, ...adminsToAdd];
             
-            // Enhanced logging for CSV import
-            console.log("📊 CSV Import - Before:", {
-                existingAdmins: admins,
-                existingCount: admins.length,
-                newAdminsToAdd: adminsToAdd,
-                newAdminsCount: adminsToAdd.length
-            });
-            
-            console.log("📊 CSV Import - After:", {
-                combinedAdmins: updatedAdmins,
-                totalCount: updatedAdmins.length,
-                addedCount: adminsToAdd.length
-            });
-            
             // Update local state and mark as unsaved (same pattern as other admin changes)
             handleUpdateAdmins(updatedAdmins);
-            
-            console.log("✅ CSV Import completed. Admins now pending save:", updatedAdmins);
             
             toast.success(`Successfully imported ${adminsToAdd.length} admin(s)`);
             
@@ -164,22 +139,12 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
             if (csvPreviewResult) {
                 const { duplicates, invalidRows, invalidUsers } = csvPreviewResult;
                 
-                console.log("📋 CSV Processing Summary:", {
-                    imported: adminsToAdd,
-                    duplicates: duplicates,
-                    invalidUsers: invalidUsers,
-                    invalidRows: invalidRows,
-                    totalProcessed: csvPreviewResult.totalRows
-                });
             }
-            
-            console.log("📡 Remember: Click 'Save Changes' to persist these admins to the database");
             
             setShowCsvPreview(false);
             setCsvPreviewResult(null);
             
         } catch (error) {
-            console.error('❌ CSV import error:', error);
             toast.error('Failed to import admins. Please try again.');
         } finally {
             setProcessingCsvImport(false);
