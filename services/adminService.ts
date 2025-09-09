@@ -68,13 +68,24 @@ export const getAvailableModels = async () => {
     return await doRequestOp(op);
 }
 
+export const validateUsers = async (userNames: string[]) => {
+    const op = {
+        method: 'POST',
+        data: { user_names: userNames },
+        path: "/utilities",
+        op: "/validate_users",
+        service: "object-access"
+    };
+    return await doRequestOp(op);
+}
+
 export const embeddingDocumentStaus = async (dataSources: {key: string, type: string}[]) => {
     const op = {
         data: { dataSources },
         method: 'POST',
         path: EMBEDDINGS_URL_PATH,
         op: '/status',
-        SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
+        service: EMBEDDINGS_SERVICE_NAME
     };
     return await doRequestOp(op);
 }
@@ -86,7 +97,7 @@ export const terminateEmbedding = async (key: any) => {
         method: 'POST',
         path: EMBEDDINGS_URL_PATH,
         op: '/terminate',
-        SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
+        service: EMBEDDINGS_SERVICE_NAME
     };
     return await doRequestOp(op);
 }
@@ -96,7 +107,7 @@ export const getInFlightEmbeddings = async () => {
         method: 'GET',
         path: EMBEDDINGS_URL_PATH,
         op: '/sqs/get',
-        SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
+        service: EMBEDDINGS_SERVICE_NAME
     };
 
     const result = await doRequestOp(op);
