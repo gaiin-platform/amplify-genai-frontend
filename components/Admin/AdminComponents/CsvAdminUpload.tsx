@@ -2,7 +2,7 @@ import { FC, useState, useCallback } from "react";
 import { IconUpload, IconFileText, IconAlertTriangle, IconX } from "@tabler/icons-react";
 import ActionButton from "@/components/ReusableComponents/ActionButton";
 import Checkbox from "@/components/ReusableComponents/CheckBox";
-import { validateUsers } from "@/services/adminService";
+import { validateUsers } from "@/services/emailAutocompleteService";
 
 interface CsvUploadResult {
     validAdmins: string[];

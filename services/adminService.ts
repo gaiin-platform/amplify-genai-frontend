@@ -38,7 +38,6 @@ export const getFeatureFlags = async () => {
     return await doRequestOp(op);
 }
 
-
 export const getUserAppConfigs = async () => {
     const op = {
         method: 'GET',
@@ -68,17 +67,6 @@ export const getAvailableModels = async () => {
     return await doRequestOp(op);
 }
 
-export const validateUsers = async (userNames: string[]) => {
-    const op = {
-        method: 'POST',
-        data: { user_names: userNames },
-        path: "/utilities",
-        op: "/validate_users",
-        service: "object-access"
-    };
-    return await doRequestOp(op);
-}
-
 export const embeddingDocumentStaus = async (dataSources: {key: string, type: string}[]) => {
     const op = {
         data: { dataSources },
@@ -89,7 +77,6 @@ export const embeddingDocumentStaus = async (dataSources: {key: string, type: st
     };
     return await doRequestOp(op);
 }
-
 
 export const terminateEmbedding = async (key: any) => {
     const op = {
