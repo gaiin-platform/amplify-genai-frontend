@@ -15,8 +15,10 @@ import InputsMap from "@/components/ReusableComponents/InputMap";
 import { AddEmailWithAutoComplete } from "@/components/Emails/AddEmailsAutoComplete";
 import { ConversationStorage } from "@/types/conversationStorage";
 import { capitalize } from "@/utils/app/data";
-import { CsvAdminUpload } from "./CsvAdminUpload";
-import { CsvPreviewModal } from "./CsvPreviewModal";
+import { CsvUpload } from "@/components/ReusableComponents/CsvUpload";
+import { CsvPreviewModal } from "@/components/ReusableComponents/CsvPreviewModal";
+import { useCsvUpload } from "@/hooks/useCsvUpload";
+import { AdminCsvUploadConfig, AdminCsvPreviewConfig } from "@/config/csvUploadConfigs";
 import toast from "react-hot-toast";
 
 interface Props {
@@ -70,17 +72,29 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     const [tempRateLimitPeriod, setTempRateLimitPeriod] = useState<PeriodType>('Unlimited');
     const [tempRateLimitRate, setTempRateLimitRate] = useState<string>('0');  
     const [hoveredRateLimit, setHoveredRateLimit] = useState<string | null>(null);
-    const [showCsvUpload, setShowCsvUpload] = useState<boolean>(false);
-    const [csvPreviewResult, setCsvPreviewResult] = useState<any>(null);
-    const [showCsvPreview, setShowCsvPreview] = useState<boolean>(false);
-    const [processingCsvImport, setProcessingCsvImport] = useState<boolean>(false);
     const [showAddAdminInput, setShowAddAdminInput] = useState<boolean>(false);
+    
+    // Admin CSV Upload functionality using the new generic hook
+    const adminCsvUpload = useCsvUpload({
+        uploadConfig: AdminCsvUploadConfig,
+        previewConfig: AdminCsvPreviewConfig,
+        existingItems: admins,
+        onImportComplete: async (newAdmins: string[]) => {
+            const updatedAdmins = [...admins, ...newAdmins];
+            handleUpdateAdmins(updatedAdmins);
+        },
+        onImportSuccess: (newAdmins: string[]) => {
+            toast.success(`Successfully imported ${newAdmins.length} admin(s)`);
+        },
+        onImportError: (error: Error) => {
+            toast.error('Failed to import admins. Please try again.');
+        }
+    });
 
     // Notify parent about modal state changes
     useEffect(() => {
-        const hasOpenModal = showCsvUpload || showCsvPreview;
-        onModalStateChange?.(hasOpenModal);
-    }, [showCsvUpload, showCsvPreview, onModalStateChange]);
+        onModalStateChange?.(adminCsvUpload.hasOpenModal);
+    }, [adminCsvUpload.hasOpenModal, onModalStateChange]);
 
     const handleUpdateAdmins = (updatedAdmins: string[]) => {
         setAdmins(updatedAdmins);
@@ -119,49 +133,6 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
         updateUnsavedConfigs(AdminConfigTypes.AMPLIFY_GROUPS);
     }
 
-    const handleCsvUploadSuccess = (result: any) => {
-        setCsvPreviewResult(result);
-        setShowCsvUpload(false);
-        setShowCsvPreview(true);
-    };
-
-    const handleCsvImportConfirm = (adminsToAdd: string[]) => {
-        setProcessingCsvImport(true);
-        try {
-            const updatedAdmins = [...admins, ...adminsToAdd];
-            
-            // Update local state and mark as unsaved (same pattern as other admin changes)
-            handleUpdateAdmins(updatedAdmins);
-            
-            toast.success(`Successfully imported ${adminsToAdd.length} admin(s)`);
-            
-            // Log summary for debugging (but don't show user-facing notifications)
-            if (csvPreviewResult) {
-                const { duplicates, invalidRows, invalidUsers } = csvPreviewResult;
-                
-            }
-            
-            setShowCsvPreview(false);
-            setCsvPreviewResult(null);
-            
-        } catch (error) {
-            toast.error('Failed to import admins. Please try again.');
-        } finally {
-            setProcessingCsvImport(false);
-        }
-    };
-
-    const handleCsvCancel = () => {
-        setShowCsvUpload(false);
-        setShowCsvPreview(false);
-        setCsvPreviewResult(null);
-        setProcessingCsvImport(false);
-        onModalStateChange?.(false);
-    };
-
-    const handleBackdropClick = (e: React.MouseEvent) => {
-        handleCsvCancel();
-    };
 
     return <> 
     <div className="admin-style-settings-card overflow-x-hidden">
@@ -173,10 +144,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                     </div>
                     <button
                         title="Import Admins from CSV"
-                        onClick={() => {
-                            setShowCsvUpload(true);
-                            onModalStateChange?.(true);
-                        }}
+                        onClick={adminCsvUpload.openUpload}
                         className="flex items-center cursor-pointer group px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
                         id="csvUploadButton"
                     >
@@ -848,17 +816,18 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
             </div>
 
             {/* CSV Upload Modal */}
-            {showCsvUpload && createPortal(
+            {adminCsvUpload.showUpload && createPortal(
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     {/* Backdrop */}
-                    <div className="absolute inset-0 bg-black bg-opacity-50" onClick={handleBackdropClick} />
+                    <div className="absolute inset-0 bg-black bg-opacity-50" onClick={adminCsvUpload.handleCancel} />
                     
                     {/* Modal Content */}
                     <div className="relative max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                        <CsvAdminUpload
-                            existingAdmins={admins}
-                            onUploadSuccess={handleCsvUploadSuccess}
-                            onClose={handleCsvCancel}
+                        <CsvUpload
+                            config={AdminCsvUploadConfig}
+                            existingItems={admins}
+                            onUploadSuccess={adminCsvUpload.handleUploadSuccess}
+                            onClose={adminCsvUpload.handleCancel}
                         />
                     </div>
                 </div>,
@@ -868,11 +837,12 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
             {/* CSV Preview Modal */}
             {createPortal(
                 <CsvPreviewModal
-                    open={showCsvPreview}
-                    result={csvPreviewResult}
-                    onConfirm={handleCsvImportConfirm}
-                    onCancel={handleCsvCancel}
-                    isProcessing={processingCsvImport}
+                    open={adminCsvUpload.showPreview}
+                    result={adminCsvUpload.uploadResult}
+                    config={AdminCsvPreviewConfig}
+                    onConfirm={adminCsvUpload.handleImportConfirm}
+                    onCancel={adminCsvUpload.handleCancel}
+                    isProcessing={adminCsvUpload.isProcessing}
                 />,
                 document.body
             )}
