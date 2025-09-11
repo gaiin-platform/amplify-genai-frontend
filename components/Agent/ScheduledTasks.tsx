@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useContext } from 'react';
 import { Modal } from '@/components/ReusableComponents/Modal';
-import { IconPlus, IconTrash, IconLoader2, IconInfoCircle, IconNotes, IconBulb, IconExclamationCircle, IconSettingsAutomation, IconAlarm, IconChevronDown, IconPlayerPlay, IconRefresh } from '@tabler/icons-react';
+import { IconPlus, IconTrash, IconLoader2, IconInfoCircle, IconNotes, IconBulb, IconExclamationCircle, IconSettingsAutomation, IconAlarm, IconChevronDown, IconChevronUp, IconPlayerPlay, IconRefresh } from '@tabler/icons-react';
 import cloneDeep from 'lodash/cloneDeep';
 import toast from 'react-hot-toast';
 import { ScheduleDateRange, ScheduledTask, ScheduledTaskType, TASK_TYPE_MAP, TaskExecutionRecord } from '@/types/scheduledTasks';
@@ -66,6 +66,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
   const [selectedLogDetails, setSelectedLogDetails] = useState<any>(null);
   const [isLoadingLogDetails, setIsLoadingLogDetails] = useState(false);
+  const [isLogsExpanded, setIsLogsExpanded] = useState(false);
   const [showActionSetList, setShowActionSetList] = useState(false);
   const [showApiToolList, setShowApiToolList] = useState(false);
   const [availableApis, setAvailableApis] = useState<any[] | null>(null);
@@ -229,8 +230,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   const handleRunTask = async (taskId: string) => {
     setIsViewingLogs(true);
     setIsTestingTask(true);
-    // Capture the timestamp when we start polling for logs
-    const pollStartTime = new Date().toISOString();
+    const startTime = new Date().toISOString();
 
     try {
       const taskResult = await executeTask(taskId);
@@ -239,36 +239,66 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
 
         let attempts = 0;
         const maxAttempts = 200; 
+        let trackedExecutionId: string | null = null;
         
         const pollForLogs = async () => {
           attempts++;
           const fetchedLogs = await fetchTaskLogs(taskId, false);
           
-          // Filter to only execution logs that occurred after we started polling
-          const finalNewLog = fetchedLogs.find((log: TaskExecutionRecord) => 
-            log.executionId.startsWith('execution-') && 
-            log.executedAt > pollStartTime && ['success', 'failure', 'timeout'].includes(log.status)
-          );
+          // Get all execution logs (both old 'execution-' and new 'scheduled-task-' formats)
+          const executionLogs = fetchedLogs
+            .filter((log: TaskExecutionRecord) => 
+              log.executionId.startsWith('execution-') || 
+              log.executionId.startsWith('scheduled-task-')
+            )
+            .sort((a: TaskExecutionRecord, b: TaskExecutionRecord) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime());
 
-          // Check if any new logs have appeared
-          if (finalNewLog) {
-            console.log("latestExecution", finalNewLog);
-            console.log("latestExecution", finalNewLog?.status);
-
-            toast(`Task completed with status: ${finalNewLog.status}`);
-            // give time for react updates 
-            setTimeout(() => {
-              setSelectedLogId(finalNewLog.executionId); 
-              setIsTestingTask(false);
-            }, 1000);
-
-            return; // Stop polling
-
-          } else if (attempts <= maxAttempts) {
-              setTimeout(pollForLogs, 2500);
+          // If we haven't tracked an execution yet, find one to track
+          if (!trackedExecutionId && executionLogs.length > 0) {
+            // First, look for running logs (old format)
+            let logToTrack = executionLogs.find((log: TaskExecutionRecord) => log.status === 'running');
+            
+            // If no running log, look for NEW logs created after task start (new format)
+            if (!logToTrack) {
+              logToTrack = executionLogs.find((log: TaskExecutionRecord) => log.executedAt > startTime);
+            }
+            
+            if (logToTrack) {
+              trackedExecutionId = logToTrack.executionId;
+              
+              // If this log is already completed (new format), handle immediately
+              if (['success', 'failure', 'timeout'].includes(logToTrack.status) && logToTrack.executedAt > startTime) {
+                toast(`Task completed with status: ${logToTrack.status}`);
+                setTimeout(() => {
+                  setSelectedLogId(logToTrack.executionId); 
+                  setIsTestingTask(false);
+                }, 1000);
+                return; // Stop polling
+              }
+            }
           }
 
-          if (attempts > maxAttempts) {
+          // If we're tracking an execution, check if it completed
+          if (trackedExecutionId) {
+            const completedLog = fetchedLogs.find((log: TaskExecutionRecord) => 
+              log.executionId === trackedExecutionId && 
+              ['success', 'failure', 'timeout'].includes(log.status)
+            );
+
+            if (completedLog) {
+              toast(`Task completed with status: ${completedLog.status}`);
+              setTimeout(() => {
+                setSelectedLogId(completedLog.executionId); 
+                setIsTestingTask(false);
+              }, 1000);
+
+              return; // Stop polling
+            }
+          }
+
+          if (attempts <= maxAttempts) {
+            setTimeout(pollForLogs, 2500);
+          } else {
             toast.error("Timeout waiting for task completion logs. Please check logs manually.");
             setIsTestingTask(false);
             return; // Stop polling
@@ -852,7 +882,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   };
 
   useEffect(() => {
-    if (isViewingLogs ) { //&& selectedTask.taskId
+    if (isViewingLogs ) {
       fetchTaskLogs(selectedTask.taskId);
     }
   }, [isViewingLogs, selectedTask.taskId]);
@@ -955,14 +985,12 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                     {/* <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-1/3">
                       ID
                     </th> */}
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-1/3">
-                      Source
-                    </th>
+              
                   </tr>
                 </thead>
               </table>
             </div>
-            <div className="overflow-y-auto" style={{ maxHeight: '250px' }}>
+            <div className="overflow-y-auto" style={{ maxHeight: isLogsExpanded ? '600px' : '250px' }}>
               <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-600">
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
                   {taskLogs.map((log) => (
@@ -990,6 +1018,15 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                 </tbody>
               </table>
             </div>
+            <div className="flex justify-center text-center">
+               <button
+                onClick={() => setIsLogsExpanded(!isLogsExpanded)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                title={isLogsExpanded ? "Collapse logs" : "Expand logs"}
+              >
+                {isLogsExpanded ? <IconChevronUp size={24} /> : <IconChevronDown size={24} />}
+              </button>
+              </div>
           </div>
         )}
 

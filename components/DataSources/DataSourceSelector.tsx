@@ -1,16 +1,15 @@
 import { FC, useContext, useEffect, useRef, useState } from 'react';
 
-import { useTranslation } from 'next-i18next';
-import { IconFiles, IconTags, IconFileDescription, IconDatabase, IconSlideshow, IconLoader2, IconBrandGoogleDrive } from "@tabler/icons-react";
-import { DataSource } from "@/types/chat";
+import {useTranslation} from 'next-i18next';
+import {IconFiles, IconTags, IconFileDescription, IconSlideshow, IconLoader2} from "@tabler/icons-react";
+import {DataSource} from "@/types/chat";
 import DataSourcesTableScrolling from "@/components/DataSources/DataSourcesTableScrolling";
 import { UserTagsList } from "@/components/UserTags/UserTagsList";
 import { getConnectedIntegrations } from '@/services/oauthIntegrationsService';
 import HomeContext from '@/pages/api/home/home.context';
 import { capitalize } from '@/utils/app/data';
 import DataSourcesTableScrollingIntegrations from './DataSourcesTableScrollingIntegrations';
-import { DatabaseConnectionModal, DatabaseConnection } from './DatabaseConnectionModal';
-import { saveDatabaseConnection, getDatabaseConnections, testDatabaseConnection } from '@/services/databaseService';
+import { translateIntegrationIcon } from '../Integrations/IntegrationsDialog';
 
 interface Props {
     onDataSourceSelected: (dataSource: DataSource) => void;
@@ -108,7 +107,7 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
 
     const pageClasses = (page: string) => {
         return `inline-flex items-center px-4 py-3 rounded-lg hover:text-gray-900 hover:bg-blue-100 w-full dark:hover:bg-gray-700 dark:hover:text-white
-                        ${selectedPage === page ? "text-white bg-blue-500 dark:bg-blue-600" : "bg-gray-100 dark:bg-gray-800"}`;
+                        ${selectedPage === page ? "text-white bg-blue-400 dark:bg-blue-700" : "bg-gray-100 dark:bg-gray-800"}`;
     }
 
     const handleDatabaseSave = async (connection: DatabaseConnection) => {
@@ -265,26 +264,26 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
 
 
                 {loading ?
-                    <div className='bottom-10'>
-                        <IconLoader2 className="animate-spin w-5 h-5 inline-block flex justify-center w-full" />
-                    </div> :
-                    (userIntegrations &&
-                        userIntegrations.map((key) => (
-                            <li key={key}>
-                                <a href="#"
-                                    className={pageClasses(key)}
-                                    onClick={swapPage(key)}>
-                                    <div className="group flex flex-row items-center pointer">
-                                        <div>
-                                            <IconBrandGoogleDrive className="icon-pop-group" />
-                                        </div>
-                                        <div className="ml-1">
-                                            {capitalize(key.split('_')[0])}
-                                        </div>
-                                    </div>
-                                </a>
-                            </li>
-                        )))
+                <div className='bottom-10'>
+                    <IconLoader2 className="animate-spin w-5 h-5 inline-block flex justify-center w-full" />
+                </div> :
+                (userIntegrations && 
+                    userIntegrations.map((key) => (
+                    <li key={key}>
+                        <a href="#"
+                            className={pageClasses(key)}
+                            onClick={swapPage(key)}>
+                            <div className="group flex flex-row items-center pointer">
+                                <div>
+                                    {translateIntegrationIcon(key)}
+                                </div>
+                                <div className="ml-2">
+                                    {capitalize(key.split('_')[0])}
+                                </div>
+                            </div>
+                        </a>
+                    </li>
+                )))
                 }
 
                 {onClose && <button
@@ -317,8 +316,8 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                 {selectedPage === "files" && (
                     <DataSourcesTableScrolling
                         height={height}
-                        visibleColumns={showActionButtons ? ["name", "id", "createdAt", "commonType", "delete", "re-embed"]
-                            : ["name", "createdAt", "commonType"]}
+                        visibleColumns={ showActionButtons ? ["name", "id", "createdAt", "commonType", "embeddingStatus", "delete", "re-embed"] 
+                                                           : ["name", "createdAt", "commonType", "embeddingStatus"]}
                         onDataSourceSelected={onDataSourceSelected}
                         tableParams={{
                             enableGlobalFilter: false,

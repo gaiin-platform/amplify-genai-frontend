@@ -75,6 +75,7 @@ export const AssistantWorkflowSelector: React.FC<Props> = ({
                     <button type="button" title='Add Workflow Template' style={{transform: "translateY(-3px)"}}
                         className="px-2 my-1 rounded-md border border-neutral-300 dark:border-white/20 transition-colors duration-200 cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10 "
                         onClick={() => setIsModalOpen(true)}
+                        id="baseAssistantWorkflowTemplateAdd"
                         disabled={disabled}
                     > <IconPlus size={18} />
                     </button>}

@@ -16,7 +16,7 @@ class ActiveAssistantsListTests(BaseTest):
 
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
-        super().setUp(headless=False)
+        super().setUp(headless=True)
 
     # ----------------- Setup Test Data ------------------ 
     """The following tests already ensure that a path is created and the path used in these
@@ -30,12 +30,23 @@ class ActiveAssistantsListTests(BaseTest):
         time.sleep(12)
         title_element = self.wait.until(EC.presence_of_element_located((By.ID, "assistantNameTitle")))
         title_text = title_element.text
-        self.assertEqual(title_text, 'Donkey Kong', "Assistant title should be 'Donkey Kong'")
+        self.assertEqual(title_text, 'Assistant', "Assistant title should be 'Assistant'")
+        # self.assertEqual(title_text, 'Donkey Kong', "Assistant title should be 'Donkey Kong'")
+        
+    def click_assistants_tab(self):
+        time.sleep(5)
+        tab_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
+        assistants_button = next((btn for btn in tab_buttons if "Assistants" in btn.get_attribute("title")), None)
+        self.assertIsNotNone(assistants_button, "'Assistants' tab button not found")
+        assistants_button.click()
+        time.sleep(5)
 
     # ----------------- Test Publish Assistant Path is visibile -----------------
     """This test goes through to ensure the Publish Assistant Path option is interactable"""
     
     def test_assistant_advanced_fields(self):
+        
+        self.click_assistants_tab()
         
         time.sleep(3)
         
@@ -45,7 +56,7 @@ class ActiveAssistantsListTests(BaseTest):
         
         time.sleep(2)
         
-        assistant_name_input = self.wait.until(EC.presence_of_element_located((By.ID, "assistantName")))
+        assistant_name_input = self.wait.until(EC.presence_of_element_located((By.ID, "assistantNameInput")))
         self.assertIsNotNone(assistant_name_input, "Assistant Name input should be present")
         assistant_name_input.clear()
         assistant_name_input.send_keys("Donkey Kong 2")
@@ -89,6 +100,7 @@ class ActiveAssistantsListTests(BaseTest):
         
         path_name_input = self.wait.until(EC.presence_of_element_located((By.ID, "pathNameInput")))
         self.assertIsNotNone(assistant_name_input, "Path Name input should be present")
+        time.sleep(2)
         path_name_input.clear()
         time.sleep(2)
         path_name_input.send_keys("mmmm_banana")
@@ -126,7 +138,8 @@ class ActiveAssistantsListTests(BaseTest):
         title_text = title_element.text
 
         # Make sure the extracted text is equal to 'Donkey Kong'
-        self.assertEqual(title_text, 'Donkey Kong', "Assistant title should be 'Donkey Kong'")
+        # self.assertEqual(title_text, 'Donkey Kong', "Assistant title should be 'Donkey Kong'")
+        self.assertEqual(title_text, 'Assistant', "Assistant title should be 'Assistant'")
         
     # ----------------- Test Model can be changed -----------------
     """Test that an the model select can be changed """

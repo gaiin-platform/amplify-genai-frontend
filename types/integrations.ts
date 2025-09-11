@@ -1,14 +1,4 @@
 import {
-    IconBrandGoogleDrive,
-    IconFileSpreadsheet,
-    IconFileText,
-    IconForms,
-    IconBrandGmail,
-    IconBrandOffice,
-    IconMailOpened,
-    IconNotebook,
-    IconBrandTeams,
-    IconUsers,
     IconFile,
     IconTool,
     IconBulb,
@@ -49,46 +39,6 @@ import {
     IconFileImport,
   } from '@tabler/icons-react';
 import { AttachedDocument } from './attacheddocument';
-import React from 'react';
-
-// Custom OneDrive icon with Microsoft's brand colors
-const IconOneDrive = ({ size = 24, className = '' }: { size?: number; className?: string }) => {
-  return React.createElement('svg', {
-    width: size,
-    height: size,
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    className: className,
-    xmlns: 'http://www.w3.org/2000/svg'
-  }, 
-  React.createElement('defs', {},
-    React.createElement('linearGradient', {
-      id: 'onedrive-gradient',
-      x1: '0%',
-      y1: '0%',
-      x2: '100%',
-      y2: '100%'
-    },
-    React.createElement('stop', { offset: '0%', stopColor: '#0078d4' }),
-    React.createElement('stop', { offset: '50%', stopColor: '#106ebe' }),
-    React.createElement('stop', { offset: '100%', stopColor: '#1ba1e2' })
-    )
-  ),
-  React.createElement('path', {
-    d: 'M5 10c0-3.8 3.2-7 7-7s7 3.2 7 7c2.3 0 3.8 1.5 3.8 3.8s-1.5 3.8-3.8 3.8H5.5c-2.3 0-3.8-1.5-3.8-3.8s1.5-3.8 3.8-3.8z',
-    fill: 'url(#onedrive-gradient)',
-    stroke: 'none'
-  }),
-  React.createElement('path', {
-    d: 'M12 3c3.8 0 7 3.2 7 7',
-    stroke: 'url(#onedrive-gradient)',
-    strokeWidth: '0.5',
-    fill: 'none',
-    opacity: '0.7'
-  })
-  );
-};
-  
   
 
 export const integrationProviders = {
@@ -159,23 +109,6 @@ export interface IntegrationDriveData {
 }
 
 export interface DriveFilesDataSources extends Partial<Record<IntegrationProviders, IntegrationDriveData>> {}
-  
-  // Define the icon mapping
-export const integrationIconComponents = {
-    "BrandGoogleDrive": IconBrandGoogleDrive,
-    "FileSpreadsheet": IconFileSpreadsheet,
-    "FileText": IconFileText,
-    "File": IconFile,
-    "Forms": IconForms,
-    "BrandGmail": IconBrandGmail,
-    "BrandOffice": IconBrandOffice,
-    "MailOpened": IconMailOpened,
-    "Notebook": IconNotebook,
-    "BrandTeams": IconBrandTeams,
-    "Users": IconUsers,
-    "Calendar": IconCalendar,
-    "BrandMicrosoftOneDrive": IconOneDrive
-  };
 
 
 

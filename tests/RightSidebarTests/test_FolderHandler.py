@@ -26,15 +26,9 @@ class FolderHandlerTests(BaseTest):
     # ----------------- Setup Test Data ------------------
     def create_folder(self, folder_name):
         time.sleep(5)
-        folder_add_buttons = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "createFolderButton"))
-        )
-        self.assertGreater(
-            len(folder_add_buttons),
-            1,
-            "Expected multiple buttons with ID 'createFolderButton'",
-        )
-        folder_add_buttons[-1].click()
+        folder_add_button = self.wait.until(EC.presence_of_element_located((By.ID, "createFolderButton")))
+        self.assertTrue(folder_add_button, "Expected multiple buttons with ID 'createFolderButton'")
+        folder_add_button.click()
 
         try:
             alert = self.wait.until(EC.alert_is_present())
@@ -45,6 +39,59 @@ class FolderHandlerTests(BaseTest):
             alert.accept()
         except UnexpectedAlertPresentException as e:
             self.fail(f"Unexpected alert present: {str(e)}")
+            
+    def click_assistants_tab(self):
+        time.sleep(5)
+        tab_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
+        assistants_button = next((btn for btn in tab_buttons if "Assistants" in btn.get_attribute("title")), None)
+        self.assertIsNotNone(assistants_button, "'Assistants' tab button not found")
+        assistants_button.click()
+        time.sleep(5)
+            
+    def delete_all_folders(self):
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
+        )
+        prompt_handler_button.click()
+        time.sleep(2)
+        
+        # Select First Submenu
+        sub_menu = self.wait.until(EC.presence_of_element_located((By.ID, "subMenu")))
+        self.assertTrue(sub_menu, "Element with id='subMenu' is present")
+        time.sleep(1)  # Give time for the menu to appear
+        
+        # Click the id="folderSort"
+        visible_sub_menu = self.wait.until(
+            EC.presence_of_element_located((By.ID, "folderSort"))
+        )
+        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        visible_sub_menu.click()
+        time.sleep(1)
+
+        # Click the button with ID "Delete"
+        delete_button = self.wait.until(
+            EC.presence_of_all_elements_located((By.ID, "Delete"))
+        )
+        delete_button[-1].click()
+        time.sleep(2)  # Give time for the menu to appear
+
+        # Click the select all checkbox
+        select_all_check = self.wait.until(
+            EC.presence_of_element_located((By.ID, "selectAllCheck"))
+        )
+        # Locate the checkbox within the parent container
+        checkbox = select_all_check.find_element(By.XPATH, ".//input[@type='checkbox']")
+        self.assertIsNotNone(checkbox, f"Checkbox for prompt All should be present")
+        checkbox.click()
+        time.sleep(2)
+
+        # Click the Delete Button
+        confirm_delete_button = self.wait.until(
+            EC.element_to_be_clickable((By.ID, "confirmItem"))
+        )
+        self.assertTrue(confirm_delete_button, "Delete Button should be initialized")
+        confirm_delete_button.click()
+        time.sleep(2)
 
     def create_assistant(self, assistant_name):
         assistant_add_button = self.wait.until(
@@ -57,44 +104,34 @@ class FolderHandlerTests(BaseTest):
         assistant_add_button.click()
 
         assistant_name_input = self.wait.until(
-            EC.presence_of_element_located((By.ID, "assistantName"))
+            EC.presence_of_element_located((By.ID, "assistantNameInput"))
         )
         self.assertIsNotNone(
             assistant_name_input, "Assistant Name input should be present"
         )
+        time.sleep(2)
         assistant_name_input.clear()
+        time.sleep(2)
         assistant_name_input.send_keys(assistant_name)
+        time.sleep(2)
 
-        assistant_save_button = self.wait.until(
-            EC.element_to_be_clickable((By.ID, "saveButton"))
-        )
-        self.assertIsNotNone(
-            assistant_save_button, "Save button should be initialized and clickable"
-        )
-        assistant_save_button.click()
+        # Locate and click the Save button
+        confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
+        self.assertTrue(confirmation_button, "Drop name elements should be initialized")
+        
+        save_button = next((el for el in confirmation_button if el.text == "Save"), None)
+        self.assertIsNotNone(save_button, "Save button should be present")
+        
+        save_button.click()
 
         time.sleep(5)
         drop_name_elements = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "dropName"))
         )
         self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
-        assistant_dropdown_button = next(
-            (el for el in drop_name_elements if el.text == "Assistants"), None
-        )
-        self.assertIsNotNone(
-            assistant_dropdown_button, "Assistants button should be present"
-        )
-
-        # Ensure the parent button's title is "Collapse folder" before clicking
-        parent_button = assistant_dropdown_button.find_element(
-            By.XPATH, "./ancestor::button"
-        )
-        button_title = parent_button.get_attribute("title")
-        if button_title != "Collapse folder":
-            assistant_dropdown_button.click()
 
         prompt_name_elements = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptName"))
+            EC.presence_of_all_elements_located((By.ID, "assistantName"))
         )
         self.assertTrue(
             prompt_name_elements, "Prompt name elements should be initialized"
@@ -110,46 +147,42 @@ class FolderHandlerTests(BaseTest):
     """Test the three button handler can sort the created folders by name"""
 
     def test_folder_sort_name(self):
+        self.click_assistants_tab()
+        self.delete_all_folders()
         self.create_folder("Luigi's Mansion")
         self.create_folder("Baby Park")
         self.create_folder("Admiral Bobbery's Ship")
 
-        # Click the promptHandler Button
-        prompt_handler_buttons_plural = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptHandler"))
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
         )
-        self.assertGreater(
-            len(prompt_handler_buttons_plural),
-            1,
-            "Expected multiple buttons with ID 'promptHandler'",
-        )
-
-        prompt_handler_buttons_plural[-1].click()
+        prompt_handler_button.click()
 
         time.sleep(3)
 
-        # Hover over the first subMenu
+        # Select First Submenu
         sub_menu = self.wait.until(EC.presence_of_element_located((By.ID, "subMenu")))
-        ActionChains(self.driver).move_to_element(sub_menu).perform()
+        self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
 
-        # Hover over the first visibleSubMenu
+        # Click the id="folderSort"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "visibleSubMenu"))
+            EC.presence_of_element_located((By.ID, "folderSort"))
         )
-        ActionChains(self.driver).move_to_element(visible_sub_menu).perform()
+        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        visible_sub_menu.click()
         time.sleep(1)
 
-        # Hover over the second subMenu (nested one)
+        # Hover over the second folderSort (nested one)
         nested_sub_menu = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "subMenu"))
+            EC.presence_of_all_elements_located((By.ID, "folderSort"))
         )
         self.assertGreater(
-            len(prompt_handler_buttons_plural),
+            len(nested_sub_menu),
             1,
-            "Expected multiple buttons with ID 'promptHandler'",
+            "Expected multiple buttons with ID 'folderSort'",
         )
-        ActionChains(self.driver).move_to_element(nested_sub_menu[-1]).perform()
+        nested_sub_menu[1].click()
         time.sleep(1)
 
         # Click the button with ID "Name"
@@ -159,12 +192,12 @@ class FolderHandlerTests(BaseTest):
         time.sleep(3)
 
         side_bar_detection = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "sideBar"))
+            EC.presence_of_element_located((By.ID, "sideBar"))
         )
-        self.assertGreater(len(side_bar_detection), 1, "Expected multiple side bars")
+        self.assertTrue(side_bar_detection, "Expected multiple side bars")
 
         # Use the right sidebar
-        right_panel = side_bar_detection[-1]
+        right_panel = side_bar_detection
 
         # Locate all elements with the ID 'dropName'
         drop_name_elements = right_panel.find_elements(By.ID, "dropName")
@@ -187,28 +220,31 @@ class FolderHandlerTests(BaseTest):
     """Test the three button handler can delete a folder"""
 
     def test_folder_delete(self):
+        self.click_assistants_tab()
+        self.delete_all_folders()
         self.create_folder("Luigi's Mansion")
         self.create_folder("Baby Park")
         self.create_folder("Admiral Bobbery's Ship")
 
-        # Click the promptHandler Button
-        prompt_handler_buttons_plural = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptHandler"))
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
         )
-        self.assertGreater(
-            len(prompt_handler_buttons_plural),
-            1,
-            "Expected multiple buttons with ID 'promptHandler'",
-        )
-
-        prompt_handler_buttons_plural[-1].click()
+        prompt_handler_button.click()
 
         time.sleep(3)
 
-        # Hover over the first subMenu
+        # Select First Submenu
         sub_menu = self.wait.until(EC.presence_of_element_located((By.ID, "subMenu")))
-        ActionChains(self.driver).move_to_element(sub_menu).perform()
+        self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
+
+        # Click the id="folderSort"
+        visible_sub_menu = self.wait.until(
+            EC.presence_of_element_located((By.ID, "folderSort"))
+        )
+        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        visible_sub_menu.click()
+        time.sleep(1)
 
         # Click the button with ID "Delete"
         button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "Delete")))
@@ -217,12 +253,12 @@ class FolderHandlerTests(BaseTest):
         time.sleep(1)  # Give time for the menu to appear
 
         side_bar_detection = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "sideBar"))
+            EC.presence_of_element_located((By.ID, "sideBar"))
         )
-        self.assertGreater(len(side_bar_detection), 1, "Expected multiple side bars")
+        self.assertTrue(side_bar_detection, "Expected multiple side bars")
 
         # Use the right sidebar
-        right_panel = side_bar_detection[-1]
+        right_panel = side_bar_detection
 
         # Locate all elements with the ID 'dropName'
         drop_name_elements = right_panel.find_elements(By.ID, "dropName")
@@ -230,7 +266,7 @@ class FolderHandlerTests(BaseTest):
 
         time.sleep(1)  # Give time for the menu to appear
 
-        # Check if any of the elements contain "Goomba 1"
+        # Check if any of the elements contain Folder
         folder_in_list = next(
             (el for el in drop_name_elements if el.text == "Baby Park"), None
         )
@@ -283,28 +319,31 @@ class FolderHandlerTests(BaseTest):
     """Test the three button handler can delete all created folders"""
 
     def test_folder_all_delete(self):
+        self.click_assistants_tab()
+        self.delete_all_folders()
         self.create_folder("Luigi's Mansion")
         self.create_folder("Baby Park")
         self.create_folder("Admiral Bobbery's Ship")
 
-        # Click the promptHandler Button
-        prompt_handler_buttons_plural = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptHandler"))
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
         )
-        self.assertGreater(
-            len(prompt_handler_buttons_plural),
-            1,
-            "Expected multiple buttons with ID 'promptHandler'",
-        )
-
-        prompt_handler_buttons_plural[-1].click()
+        prompt_handler_button.click()
 
         time.sleep(3)
 
-        # Hover over the first subMenu
+        # Select First Submenu
         sub_menu = self.wait.until(EC.presence_of_element_located((By.ID, "subMenu")))
-        ActionChains(self.driver).move_to_element(sub_menu).perform()
+        self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
+
+        # Click the id="folderSort"
+        visible_sub_menu = self.wait.until(
+            EC.presence_of_element_located((By.ID, "folderSort"))
+        )
+        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        visible_sub_menu.click()
+        time.sleep(1)
 
         # Click the button with ID "Delete"
         button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "Delete")))
@@ -335,45 +374,45 @@ class FolderHandlerTests(BaseTest):
         time.sleep(3)
 
         side_bar_detection = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "sideBar"))
+            EC.presence_of_element_located((By.ID, "sideBar"))
         )
-        self.assertGreater(len(side_bar_detection), 1, "Expected multiple side bars")
-
-        # Use the right sidebar
-        right_panel = side_bar_detection[-1]
+        self.assertTrue(side_bar_detection, "Expected multiple side bars")
 
         # Locate all elements with the ID 'dropName'
-        drop_name_elements = right_panel.find_elements(By.ID, "dropName")
-        self.assertEqual(
-            len(drop_name_elements), 0, "No dropDown elements should be visible"
+        drop_name_elements = self.wait.until(
+            EC.invisibility_of_element((By.ID, "dropName"))
         )
+        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
 
     # ----------------- Test Folder Share -----------------
     """Test the three button handler can share the specified folder"""
 
     def test_folder_share(self):
+        self.click_assistants_tab()
+        self.delete_all_folders()
         self.create_folder("Luigi's Mansion")
         self.create_folder("Baby Park")
         self.create_folder("Admiral Bobbery's Ship")
 
-        # Click the promptHandler Button
-        prompt_handler_buttons_plural = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptHandler"))
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
         )
-        self.assertGreater(
-            len(prompt_handler_buttons_plural),
-            1,
-            "Expected multiple buttons with ID 'promptHandler'",
-        )
-
-        prompt_handler_buttons_plural[-1].click()
+        prompt_handler_button.click()
 
         time.sleep(3)
 
-        # Hover over the first subMenu
+        # Select First Submenu
         sub_menu = self.wait.until(EC.presence_of_element_located((By.ID, "subMenu")))
-        ActionChains(self.driver).move_to_element(sub_menu).perform()
+        self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
+
+        # Click the id="folderSort"
+        visible_sub_menu = self.wait.until(
+            EC.presence_of_element_located((By.ID, "folderSort"))
+        )
+        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        visible_sub_menu.click()
+        time.sleep(1)
 
         # Click the button with ID "Share"
         button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "Share")))
@@ -382,12 +421,12 @@ class FolderHandlerTests(BaseTest):
         time.sleep(1)  # Give time for the menu to appear
 
         side_bar_detection = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "sideBar"))
+            EC.presence_of_element_located((By.ID, "sideBar"))
         )
-        self.assertGreater(len(side_bar_detection), 1, "Expected multiple side bars")
+        self.assertTrue(side_bar_detection, "Expected side bar")
 
         # Use the right sidebar
-        right_panel = side_bar_detection[-1]
+        right_panel = side_bar_detection
 
         # Locate all elements with the ID 'dropName'
         drop_name_elements = right_panel.find_elements(By.ID, "dropName")
@@ -489,28 +528,31 @@ class FolderHandlerTests(BaseTest):
     """Test the three button handler can share all folders"""
 
     def test_folder_all_share(self):
+        self.click_assistants_tab()
+        self.delete_all_folders()
         self.create_folder("Luigi's Mansion")
         self.create_folder("Baby Park")
         self.create_folder("Admiral Bobbery's Ship")
 
-        # Click the promptHandler Button
-        prompt_handler_buttons_plural = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptHandler"))
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
         )
-        self.assertGreater(
-            len(prompt_handler_buttons_plural),
-            1,
-            "Expected multiple buttons with ID 'promptHandler'",
-        )
+        prompt_handler_button.click()
 
-        prompt_handler_buttons_plural[-1].click()
+        time.sleep(3)
 
-        time.sleep(1)
-
-        # Hover over the first subMenu
+        # Select First Submenu
         sub_menu = self.wait.until(EC.presence_of_element_located((By.ID, "subMenu")))
-        ActionChains(self.driver).move_to_element(sub_menu).perform()
+        self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
+
+        # Click the id="folderSort"
+        visible_sub_menu = self.wait.until(
+            EC.presence_of_element_located((By.ID, "folderSort"))
+        )
+        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        visible_sub_menu.click()
+        time.sleep(1)
 
         # Click the button with ID "Share"
         button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "Share")))
@@ -679,14 +721,15 @@ class FolderHandlerTests(BaseTest):
     """Test the three button handler can delete all the empty folders"""
 
     def test_folder_clean(self):
+        self.click_assistants_tab()
+        self.delete_all_folders()
         self.create_folder("Luigi's Mansion")
         self.create_folder("Admiral Bobbery's Ship")
-        self.create_assistant("King Boo")
         self.create_assistant("Paper Mario")
 
         # Locate all elements with ID "promptName"
         prompt_name_elements = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptName"))
+            EC.presence_of_all_elements_located((By.ID, "assistantName"))
         )
         self.assertTrue(
             prompt_name_elements, "Prompt name elements should be initialized"
@@ -707,7 +750,7 @@ class FolderHandlerTests(BaseTest):
         )
         button_id = assistant_button.get_attribute("id")
         self.assertEqual(
-            button_id, "promptClick", "Button should be called promptClick"
+            button_id, "assistantClick", "Button should be called assistantClick"
         )
 
         # Locate all elements with the ID 'dropName'
@@ -738,24 +781,25 @@ class FolderHandlerTests(BaseTest):
 
         time.sleep(3)  # Extra sleep to observe the effect
 
-        # Click the promptHandler Button
-        prompt_handler_buttons_plural = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptHandler"))
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
         )
-        self.assertGreater(
-            len(prompt_handler_buttons_plural),
-            1,
-            "Expected multiple buttons with ID 'promptHandler'",
-        )
+        prompt_handler_button.click()
 
-        prompt_handler_buttons_plural[-1].click()
+        time.sleep(3)
 
-        time.sleep(1)
-
-        # Hover over the first subMenu
+        # Select First Submenu
         sub_menu = self.wait.until(EC.presence_of_element_located((By.ID, "subMenu")))
-        ActionChains(self.driver).move_to_element(sub_menu).perform()
+        self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
+
+        # Click the id="folderSort"
+        visible_sub_menu = self.wait.until(
+            EC.presence_of_element_located((By.ID, "folderSort"))
+        )
+        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        visible_sub_menu.click()
+        time.sleep(1)
 
         # Click the button with ID "Clean"
         button = self.wait.until(EC.element_to_be_clickable((By.ID, "Clean")))
@@ -769,40 +813,47 @@ class FolderHandlerTests(BaseTest):
         )
         self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
 
-        # Element with "Luigi's Mansion" is gone
-        assistant_dropdown_button = next(
-            (el for el in drop_name_elements if el.text == "Luigi's Mansion"), None
-        )
-        self.assertIsNone(
-            assistant_dropdown_button, "Luigi's Mansion button should be present"
+        # Extract the text of each element into a list
+        actual_names = [el.text for el in drop_name_elements]
+        
+        expected_names = ["Admiral Bobbery's Ship"]
+        
+        # Assert they are exactly equal
+        self.assertEqual(
+            actual_names,
+            expected_names,
+            f"Dropdown names do not match.\nExpected: {expected_names}\nActual: {actual_names}"
         )
 
     # ----------------- Test Folder Open All -----------------
     """Test the three button handler can open all folders to see contents inside"""
 
     def test_folder_open_all(self):
+        self.click_assistants_tab()
+        self.delete_all_folders()
         self.create_folder("Luigi's Mansion")
         self.create_folder("Baby Park")
         self.create_folder("Admiral Bobbery's Ship")
 
-        # Click the promptHandler Button
-        prompt_handler_buttons_plural = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptHandler"))
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
         )
-        self.assertGreater(
-            len(prompt_handler_buttons_plural),
-            1,
-            "Expected multiple buttons with ID 'promptHandler'",
-        )
+        prompt_handler_button.click()
 
-        prompt_handler_buttons_plural[-1].click()
+        time.sleep(3)
 
-        time.sleep(1)
-
-        # Hover over the first subMenu
+        # Select First Submenu
         sub_menu = self.wait.until(EC.presence_of_element_located((By.ID, "subMenu")))
-        ActionChains(self.driver).move_to_element(sub_menu).perform()
+        self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
+
+        # Click the id="folderSort"
+        visible_sub_menu = self.wait.until(
+            EC.presence_of_element_located((By.ID, "folderSort"))
+        )
+        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        visible_sub_menu.click()
+        time.sleep(1)
 
         # Click the button with ID "Share"
         button = self.wait.until(
@@ -813,12 +864,12 @@ class FolderHandlerTests(BaseTest):
         time.sleep(1)  # Give time for the menu to appear
 
         side_bar_detection = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "sideBar"))
+            EC.presence_of_element_located((By.ID, "sideBar"))
         )
-        self.assertGreater(len(side_bar_detection), 1, "Expected multiple side bars")
+        self.assertTrue(side_bar_detection, "Expected side bar")
 
         # Use the right sidebar
-        right_panel = side_bar_detection[-1]
+        right_panel = side_bar_detection
 
         # Locate all elements with the ID 'dropDown'
         drop_name_elements = right_panel.find_elements(By.ID, "dropDown")
@@ -844,30 +895,33 @@ class FolderHandlerTests(BaseTest):
     """Test the three button handler can close all folders"""
 
     def test_folder_close_all(self):
+        self.click_assistants_tab()
+        self.delete_all_folders()
         self.create_folder("Luigi's Mansion")
         self.create_folder("Baby Park")
         self.create_folder("Admiral Bobbery's Ship")
 
-        # Click the promptHandler Button
-        prompt_handler_buttons_plural = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptHandler"))
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
         )
-        self.assertGreater(
-            len(prompt_handler_buttons_plural),
-            1,
-            "Expected multiple buttons with ID 'promptHandler'",
-        )
+        prompt_handler_button.click()
 
-        prompt_handler_buttons_plural[-1].click()
+        time.sleep(3)
 
-        time.sleep(1)
-
-        # Hover over the first subMenu
+        # Select First Submenu
         sub_menu = self.wait.until(EC.presence_of_element_located((By.ID, "subMenu")))
-        ActionChains(self.driver).move_to_element(sub_menu).perform()
+        self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
 
-        # Click the button with ID "Share"
+        # Click the id="folderSort"
+        visible_sub_menu = self.wait.until(
+            EC.presence_of_element_located((By.ID, "folderSort"))
+        )
+        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        visible_sub_menu.click()
+        time.sleep(1)
+
+        # Click the button with ID "Open All"
         button = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "Open All"))
         )
@@ -875,7 +929,7 @@ class FolderHandlerTests(BaseTest):
 
         time.sleep(1)  # Give time for the menu to appear
 
-        # Click the button with ID "Share"
+        # Click the button with ID "Close All"
         button = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "Close All"))
         )
@@ -884,12 +938,12 @@ class FolderHandlerTests(BaseTest):
         time.sleep(1)  # Give time for the menu to appear
 
         side_bar_detection = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "sideBar"))
+            EC.presence_of_element_located((By.ID, "sideBar"))
         )
-        self.assertGreater(len(side_bar_detection), 1, "Expected multiple side bars")
+        self.assertTrue(side_bar_detection, "Expected side bar")
 
         # Use the right sidebar
-        right_panel = side_bar_detection[-1]
+        right_panel = side_bar_detection
 
         # Locate all elements with the ID 'dropDown'
         drop_name_elements = right_panel.find_elements(By.ID, "dropDown")

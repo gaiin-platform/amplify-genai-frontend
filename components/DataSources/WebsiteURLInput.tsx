@@ -1,10 +1,14 @@
 // components/DataSources/WebsiteURLInput.tsx
 import React, { useState } from 'react';
-import { IconSitemap, IconClock, IconWorld, IconAlertTriangle} from '@tabler/icons-react';
+import { IconSitemap, IconClock, IconWorld, IconAlertTriangle, IconLoader} from '@tabler/icons-react';
 import Checkbox from '../ReusableComponents/CheckBox';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { SchedulerPanel, SchedulerAlarmButton } from '@/components/ReusableComponents/SchedulerPanel';
 import { AssistantDefinition } from '@/types/assistant';
+import { validateUrl } from '@/utils/app/data';
+import { SitemapUrlSelectionModal, SitemapExclusions } from './SitemapUrlSelectionModal';
+import { getSiteMapUrls } from '@/services/assistantService';
+import toast from 'react-hot-toast';
 
 
 export const isWebsiteDs = (document: AttachedDocument) => {
@@ -12,142 +16,24 @@ export const isWebsiteDs = (document: AttachedDocument) => {
 }
 
 interface WebsiteURLInputProps {
-    onAddURL: (url: string, isSitemap: boolean) => void;
+    onAddURL: (url: string, isSitemap: boolean, maxPages?: number | undefined, exclusions?: SitemapExclusions) => void;
 }
 
 export const WebsiteURLInput: React.FC<WebsiteURLInputProps> = ({ onAddURL }) => {
     const [url, setUrl] = useState('');
     const [isSitemap, setIsSitemap] = useState(false);
+    const [maxPages, setMaxPages] = useState(50);
+    const [unlimitedPages, setUnlimitedPages] = useState(false);
     const [urlError, setUrlError] = useState<string | null>(null);
     const [urlWarning, setUrlWarning] = useState<string | null>(null);
+    
+    // Modal state
+    const [showSitemapModal, setShowSitemapModal] = useState(false);
+    const [sitemapUrls, setSitemapUrls] = useState<string[]>([]);
+    const [sitemapData, setSitemapData] = useState<{totalUrls: number, maxPages: number} | null>(null);
+    const [loadingSitemap, setLoadingSitemap] = useState(false);
+    const [pendingSitemapUrl, setPendingSitemapUrl] = useState<string>('');
 
-    // URL validation and sanitization
-    const sanitizeUrl = (inputUrl: string): string => {
-        let cleanUrl = inputUrl.trim();
-        
-        // Remove common prefixes people might accidentally include
-        cleanUrl = cleanUrl.replace(/^(url:|link:|website:)/i, '');
-        cleanUrl = cleanUrl.trim();
-        
-        // If no protocol is specified, assume https://
-        if (!/^https?:\/\//i.test(cleanUrl)) {
-            cleanUrl = 'https://' + cleanUrl;
-        }
-        
-        return cleanUrl;
-    };
-
-    const validateUrl = (inputUrl: string): { isValid: boolean; error?: string; sanitizedUrl?: string; warning?: string } => {
-        if (!inputUrl.trim()) {
-            return { isValid: false, error: 'URL is required' };
-        }
-
-        const sanitizedUrl = sanitizeUrl(inputUrl);
-        
-        try {
-            const urlObj = new URL(sanitizedUrl);
-            
-            // Check for valid protocols
-            if (!['http:', 'https:'].includes(urlObj.protocol)) {
-                return { isValid: false, error: 'URL must use http:// or https://' };
-            }
-            
-            // Check for valid hostname
-            if (!urlObj.hostname || urlObj.hostname.length === 0) {
-                return { isValid: false, error: 'URL must have a valid domain name' };
-            }
-            
-            // Check for spaces in hostname (invalid)
-            if (urlObj.hostname.includes(' ')) {
-                return { isValid: false, error: 'Domain name cannot contain spaces' };
-            }
-            
-            const hostname = urlObj.hostname.toLowerCase();
-            
-            // Allow localhost
-            if (hostname === 'localhost') {
-                return { isValid: true, sanitizedUrl };
-            }
-            
-            // Allow IP addresses (IPv4)
-            const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
-            if (ipv4Regex.test(hostname)) {
-                // Validate IP address ranges (0-255)
-                const parts = hostname.split('.');
-                for (const part of parts) {
-                    const num = parseInt(part);
-                    if (num < 0 || num > 255) {
-                        return { isValid: false, error: 'Invalid IP address' };
-                    }
-                }
-                return { isValid: true, sanitizedUrl };
-            }
-            
-            // For regular domains, require proper structure
-            if (!hostname.includes('.')) {
-                return { isValid: false, error: 'Domain must have a top-level domain (e.g., .com, .org)' };
-            }
-            
-            const domainParts = hostname.split('.');
-            
-            // Check that no part is empty (handles cases like example..com)
-            if (domainParts.some(part => part.length === 0)) {
-                return { isValid: false, error: 'Invalid domain format' };
-            }
-            
-            // Check TLD (last part) is valid
-            const tld = domainParts[domainParts.length - 1];
-            if (tld.length < 2 || !/^[a-z]+$/i.test(tld)) {
-                return { isValid: false, error: 'Invalid top-level domain (must be at least 2 letters)' };
-            }
-            
-            // Check domain name parts contain only valid characters
-            const domainRegex = /^[a-z0-9-]+$/i;
-            for (let i = 0; i < domainParts.length - 1; i++) {
-                const part = domainParts[i];
-                if (!domainRegex.test(part) || part.startsWith('-') || part.endsWith('-')) {
-                    return { isValid: false, error: 'Domain contains invalid characters' };
-                }
-            }
-            
-            // Sitemap-specific validation
-            if (isSitemap) {
-                const path = urlObj.pathname.toLowerCase();
-                const urlLower = sanitizedUrl.toLowerCase();
-                
-                // Common sitemap patterns
-                const sitemapPatterns = [
-                    /\/sitemap\.xml$/,
-                    /\/sitemap_index\.xml$/,
-                    /\/sitemap-index\.xml$/,
-                    /\/sitemaps\/.*\.xml$/,
-                    /\/sitemap\/.*\.xml$/,
-                    /\/sitemap.*\.xml$/,
-                    /\/.*sitemap.*\.xml$/,
-                    /robots\.txt$/
-                ];
-                
-                const hasValidPattern = sitemapPatterns.some(pattern => pattern.test(path));
-                const isXmlFile = path.endsWith('.xml');
-                const containsSitemap = urlLower.includes('sitemap');
-                const isRobotsTxt = path.includes('robots.txt');
-                
-                // If none of the common patterns match, show warning
-                if (!hasValidPattern && !isXmlFile && !containsSitemap && !isRobotsTxt) {
-                    return { 
-                        isValid: true, 
-                        sanitizedUrl,
-                        warning: 'This URL doesn\'t look like a typical sitemap. Sitemaps usually end with .xml or contain "sitemap" in the path.'
-                    };
-                }
-            }
-            
-            return { isValid: true, sanitizedUrl };
-            
-        } catch (error) {
-            return { isValid: false, error: 'Please enter a valid URL (e.g., https://example.com)' };
-        }
-    };
 
     const handleUrlChange = (value: string) => {
         setUrl(value);
@@ -156,10 +42,18 @@ export const WebsiteURLInput: React.FC<WebsiteURLInputProps> = ({ onAddURL }) =>
         if (urlWarning) setUrlWarning(null);
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSitemapChange = (checked: boolean) => {
+        setIsSitemap(checked);
+        // Reset maxPages to default when toggling sitemap
+        if (!checked) {
+            setMaxPages(50);
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
-        const validation = validateUrl(url);
+        const validation = validateUrl(url, isSitemap);
         
         if (!validation.isValid) {
             setUrlError(validation.error || 'Invalid URL');
@@ -172,10 +66,62 @@ export const WebsiteURLInput: React.FC<WebsiteURLInputProps> = ({ onAddURL }) =>
             setUrlWarning(validation.warning || null);
             setUrlError(null);
             
-            onAddURL(validation.sanitizedUrl, isSitemap);
-            setUrl('');
-            setIsSitemap(false);
+            if (isSitemap) {
+                // For sitemaps, fetch URLs and show selection modal
+                setLoadingSitemap(true);
+                setPendingSitemapUrl(validation.sanitizedUrl);
+                
+                try {
+                    const result = await getSiteMapUrls(validation.sanitizedUrl, unlimitedPages ? undefined : maxPages);
+                    
+                    if (result.success && result.data?.urls) {
+                        setSitemapUrls(result.data.urls);
+                        setSitemapData({
+                            totalUrls: result.data.totalUrls || result.data.urls.length,
+                            maxPages: result.data.maxPages || maxPages
+                        });
+                        setShowSitemapModal(true);
+                    } else {
+                        toast.error(result.message || 'Failed to fetch sitemap URLs');
+                        setUrlError('Unable to fetch URLs from sitemap');
+                    }
+                } catch (error) {
+                    console.error('Error fetching sitemap URLs:', error);
+                    // toast.error('Error fetching sitemap URLs');
+                    setUrlError('Error fetching sitemap URLs');
+                } finally {
+                    setLoadingSitemap(false);
+                }
+            } else {
+                // For regular URLs, add immediately
+                onAddURL(validation.sanitizedUrl, isSitemap, undefined);
+                setUrl('');
+                setIsSitemap(false);
+                setMaxPages(50); // Reset maxPages to default
+            }
         }
+    };
+
+    const handleSitemapConfirm = (selectedUrls: string[], exclusions: SitemapExclusions, adjustedMaxPages: number) => {
+        // If unlimited pages was selected, pass undefined instead of adjustedMaxPages
+        const finalMaxPages = unlimitedPages ? undefined : adjustedMaxPages;
+        onAddURL(pendingSitemapUrl, true, finalMaxPages, exclusions);
+        setShowSitemapModal(false);
+        setSitemapUrls([]);
+        setSitemapData(null);
+        setPendingSitemapUrl('');
+        setUrl('');
+        setIsSitemap(false);
+        setMaxPages(50);
+        setUnlimitedPages(false);
+        toast.success(`Added ${selectedUrls.length} URLs from sitemap`);
+    };
+
+    const handleSitemapCancel = () => {
+        setShowSitemapModal(false);
+        setSitemapUrls([]);
+        setSitemapData(null);
+        setPendingSitemapUrl('');
     };
 
     return (
@@ -190,25 +136,67 @@ export const WebsiteURLInput: React.FC<WebsiteURLInputProps> = ({ onAddURL }) =>
                 />
                 <button
                     type="submit"
-                    className="rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100 dark:hover:bg-[#343541]"
+                    disabled={loadingSitemap}
+                    className="rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100 dark:hover:bg-[#343541] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                    Add URL
+                    {loadingSitemap && <IconLoader size={16} className="animate-spin" />}
+                    {loadingSitemap ? 'Loading Sitemap...' : 'Add URL'}
                 </button>
             </div>
-            <div className="flex items-center gap-3">
-                <Checkbox
-                    id="sitemap-checkbox"
-                    label="This is a sitemap URL"
-                    checked={isSitemap}
-                    onChange={setIsSitemap}
-                />
-               <IconSitemap className="-mt-1 -ml-1" size={16} />
-               {isSitemap && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                        💡 Common formats: webitsite.com/sitemap.xml, domain.org/sitemap_index.txt
+            <div className="flex flex-col">
+                <div className="flex items-center gap-3">
+                    <Checkbox
+                        id="sitemap-checkbox"
+                        label="This is a sitemap URL"
+                        checked={isSitemap}
+                        onChange={handleSitemapChange}
+                    />
+                    <IconSitemap className="-mt-1 -ml-1" size={16} />
+                    {isSitemap && (
+                        <div className="ml-3">
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Max Pages:
+                                </label>
+                                <select
+                                    value={unlimitedPages ? "unlimited" : "limited"}
+                                    onChange={(e) => setUnlimitedPages(e.target.value === "unlimited")}
+                                    className="rounded-lg border border-neutral-500 px-2 py-1 text-neutral-900 text-sm focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                >
+                                    <option value="limited">Limit to specific number</option>
+                                    <option value="unlimited">⚠️ Get ALL URLs</option>
+                                </select>
+                                {!unlimitedPages && (
+                                    <>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="1000"
+                                            value={maxPages}
+                                            onChange={(e) => setMaxPages(parseInt(e.target.value) || 50)}
+                                            className="w-20 rounded-lg border border-neutral-500 px-2 py-1 text-neutral-900 text-sm focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                        />
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        Maximum URLs to extract from sitemap
+                                        </span>
+                                    </>
+                                )}
+                                {unlimitedPages && (
+                                    <span className="text-sm text-red-500">
+                                       Not recommended for large sitemaps
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+                {isSitemap && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 ml-5">
+                        💡 Common formats: website.com/sitemap.xml, domain.org/sitemap_index.txt
                     </div>
                 )}
             </div>
+        
             {(urlError || urlWarning) && 
             <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-md">
               {urlError &&
@@ -222,6 +210,18 @@ export const WebsiteURLInput: React.FC<WebsiteURLInputProps> = ({ onAddURL }) =>
                           <span className='mt-1'>{urlWarning}</span>
                 </p>}
             </div>}
+        
+            {/* Sitemap URL Selection Modal */}
+            {showSitemapModal && sitemapData && (
+                <SitemapUrlSelectionModal
+                    sitemapUrl={pendingSitemapUrl}
+                    urls={sitemapUrls}
+                    totalUrls={sitemapData.totalUrls}
+                    maxPages={sitemapData.maxPages}
+                    onConfirm={handleSitemapConfirm}
+                    onCancel={handleSitemapCancel}
+                />
+            )}
         </form>
     );
 };
@@ -388,7 +388,7 @@ export const WebsiteScanScheduler: React.FC<WebsiteScanSchedulerProps> = ({ init
                           </select>
                         </div>
 
-                        {urlItem.isSitemap && (
+                        {/* {urlItem.isSitemap && (
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                               Max Pages
@@ -410,7 +410,7 @@ export const WebsiteScanScheduler: React.FC<WebsiteScanSchedulerProps> = ({ init
                               Maximum URLs to extract from sitemap
                             </div>
                           </div>
-                        )}
+                        )} */}
                       </>
                     )}
 

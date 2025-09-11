@@ -1,11 +1,13 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { MemoizedReactMarkdown } from "@/components/Markdown/MemoizedReactMarkdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
+import rehypeRaw from "rehype-raw";
 import { CodeBlock } from "@/components/Markdown/CodeBlock";
 import Mermaid from "@/components/Chat/ChatContentBlocks/MermaidBlock";
 import VegaVis from "@/components/Chat/ChatContentBlocks/VegaVisBlock";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
+import LatexBlock from "@/components/Chat/ChatContentBlocks/LatexBlock";
 import DOMPurify from "dompurify";
 
 interface AssistantMessage {
@@ -30,25 +32,85 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
   totalMessages,
   messageEndRef
 }) => {
-  // State to trigger re-renders when needed
-  const [renderKey, setRenderKey] = useState(0);
+  // Check if this is the last message
+  const isLastMessage = messageIndex === totalMessages - 1;
+
+  // Check if content contains LaTeX
+  const hasLatex = useCallback((content: string) => {
+    return /\$\$.*?\$\$|\$[^$\n]+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)/.test(content);
+  }, []);
+
+  // Memoized LaTeX processing function
+  const processLatex = useCallback((content: string) => {
+    // Replace display math $$...$$ with placeholder
+    let processed = content.replace(/\$\$(.*?)\$\$/g, (match, latex) => {
+      return `<math-display>${latex}</math-display>`;
+    });
+    
+    // Replace inline math $...$ with placeholder  
+    processed = processed.replace(/\$([^$\n]+?)\$/g, (match, latex) => {
+      return `<math-inline>${latex}</math-inline>`;
+    });
+    
+    // Replace LaTeX display math \[ ... \] with placeholder
+    processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (match, latex) => {
+      return `<math-display>${latex}</math-display>`;
+    });
+    
+    // Replace LaTeX inline math \( ... \) with placeholder
+    processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (match, latex) => {
+      return `<math-inline>${latex}</math-inline>`;
+    });
+    
+    return processed;
+  }, []);
+
+  // Smart content processing that completely avoids LaTeX during any streaming
+  const [processedContent, setProcessedContent] = useState(message.content);
+  const [isContentStable, setIsContentStable] = useState(false);
   
-  // Listen for custom re-render events
+  useEffect(() => {
+    // CRITICAL: During ANY streaming, show raw content immediately
+    if (messageIsStreaming) {
+      setProcessedContent(message.content); // Raw content, no LaTeX processing
+      setIsContentStable(false);
+      return;
+    }
+
+    // Only process LaTeX when streaming has completely stopped
+    const timer = setTimeout(() => {
+      setProcessedContent(processLatex(message.content));
+      setIsContentStable(true);
+    }, 100); // Small delay to ensure streaming has fully stopped
+
+    return () => clearTimeout(timer);
+  }, [message.content, messageIsStreaming, processLatex]);
+
+  const finalContent = processedContent;
+
+  // Enhanced re-render mechanism with streaming awareness
+  const [renderKey, setRenderKey] = useState(0);
+  const lastStableContentRef = useRef<string>('');
+
   useEffect(() => {
     const handleReRenderEvent = () => {
       setRenderKey(prev => prev + 1);
     };
 
-    // // Listen for the custom event 'triggerAssistantReRender'
-    // window.addEventListener('', handleReRenderEvent);
-    // return () => {
-    //   window.removeEventListener('', handleReRenderEvent);
-    // };
-    
+    // Listen for the custom event 'triggerAssistantReRender'
+    window.addEventListener('triggerAssistantReRender', handleReRenderEvent);
+    return () => {
+      window.removeEventListener('triggerAssistantReRender', handleReRenderEvent);
+    };
   }, []);
 
-  // Check if this is the last message
-  const isLastMessage = messageIndex === totalMessages - 1;
+  // Only update render key when content is stable and actually changed
+  useEffect(() => {
+    if (isContentStable && finalContent !== lastStableContentRef.current) {
+      lastStableContentRef.current = finalContent;
+      setRenderKey(prev => prev + 1);
+    }
+  }, [finalContent, isContentStable]);
 
 
   return (
@@ -57,14 +119,62 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
       id={`assistantMessage${messageIndex}`}
       data-message-index={messageIndex}
       data-original-content={message.content}
+      style={{ 
+        minHeight: '20px' // Minimal styling to prevent any layout interference
+      }}
     >
-      <MemoizedReactMarkdown
-        key={renderKey}
-        className="prose dark:prose-invert flex-1 max-w-full"
-        remarkPlugins={[remarkGfm, remarkMath]}
-        components={{
+      {/* Use simple text rendering during ANY streaming to prevent scroll issues */}
+      {messageIsStreaming ? (
+        <div className="prose dark:prose-invert flex-1 max-w-none w-full">
+          <div style={{ 
+            whiteSpace: 'pre-wrap', 
+            fontFamily: 'inherit',
+            fontSize: 'inherit',
+            lineHeight: 'inherit',
+            color: 'inherit',
+            margin: 0,
+            padding: 0,
+            wordBreak: 'break-word', // Match prose behavior
+            overflowWrap: 'break-word' // Additional text wrapping
+          }}>
+            {message.content}
+            {isLastMessage && <span className="animate-pulse cursor-default mt-1">▍</span>}
+          </div>
+        </div>
+      ) : (
+        <MemoizedReactMarkdown
+          key={renderKey}
+          className="prose dark:prose-invert flex-1 max-w-none w-full"
+          remarkPlugins={[remarkGfm, remarkMath]}
           // @ts-ignore
-          Mermaid,
+          rehypePlugins={[rehypeRaw]}
+          components={{
+            // @ts-ignore
+            Mermaid,
+            // Math components with conditional layout containment
+            'math-display': ({children}: {children: React.ReactNode}) => (
+              <div style={{ 
+                minHeight: '1.5em',
+                display: 'block', 
+                margin: '0.5em 0',
+                // Only add layout containment when content is stable
+                contain: isContentStable ? 'layout' : 'none'
+              }}>
+                <LatexBlock math={String(children)} displayMode={true} />
+              </div>
+            ),
+            'math-inline': ({children}: {children: React.ReactNode}) => (
+              <span style={{ 
+                minHeight: '1em',
+                minWidth: '1em',
+                display: 'inline-block',
+                verticalAlign: 'baseline',
+                // Only add layout containment when content is stable
+                contain: isContentStable ? 'layout' : 'none'
+              }}>
+                <LatexBlock math={String(children)} displayMode={false} />
+              </span>
+            ),
           img({ src, alt, children, ...props }) {
             console.log("Rendering an image with src: ", src, "and alt: ", alt);
     
@@ -180,10 +290,12 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
           },
         }}
       >
-        {`${message.content}${
-          messageIsStreaming && isLastMessage ? '`▍`' : ''
+        {`${finalContent}${
+          // Never show cursor in non-streaming mode
+          ''
         }`}
       </MemoizedReactMarkdown>
+      )}
       {messageEndRef && <div ref={messageEndRef}></div>}
     </div>
   );

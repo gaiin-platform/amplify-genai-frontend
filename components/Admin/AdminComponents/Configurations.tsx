@@ -1,11 +1,12 @@
-import { FC, useState } from "react";
+import { FC, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Amplify_Group, Amplify_Groups, AmplifyGroupSelect, EmailSupport, PromptCostAlert, titleLabel, UserAction } from "../AdminUI";
 import { AdminConfigTypes} from "@/types/admin";
-import { IconPlus, IconTrash, IconX, IconCloudFilled, IconMessage } from "@tabler/icons-react";
+import { IconPlus, IconTrash, IconX, IconCloudFilled, IconMessage, IconCheck, IconEdit, IconFileImport } from "@tabler/icons-react";
 import Checkbox from "@/components/ReusableComponents/CheckBox";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import { RateLimiter } from "@/components/Settings/AccountComponents/RateLimit";
-import { PeriodType } from "@/types/rateLimit";
+import { PeriodType, formatRateLimit, rateLimitObj, noRateLimit } from "@/types/rateLimit";
 import { InfoBox } from "@/components/ReusableComponents/InfoBox";
 import Search from "@/components/Search";
 import ActionButton from "@/components/ReusableComponents/ActionButton";
@@ -14,6 +15,11 @@ import InputsMap from "@/components/ReusableComponents/InputMap";
 import { AddEmailWithAutoComplete } from "@/components/Emails/AddEmailsAutoComplete";
 import { ConversationStorage } from "@/types/conversationStorage";
 import { capitalize } from "@/utils/app/data";
+import { CsvUpload } from "@/components/ReusableComponents/CsvUpload";
+import { CsvPreviewModal } from "@/components/ReusableComponents/CsvPreviewModal";
+import { useCsvUpload } from "@/hooks/useCsvUpload";
+import { AdminCsvUploadConfig, AdminCsvPreviewConfig } from "@/config/csvUploadConfigs";
+import toast from "react-hot-toast";
 
 interface Props {
     admins: string[];
@@ -34,16 +40,21 @@ interface Props {
     emailSupport: EmailSupport;
     setEmailSupport: (e :EmailSupport) => void;
 
+    aiEmailDomain: string;
+    setAiEmailDomain?: (d: string) => void;
+
     allEmails: Array<string> | null;
 
     admin_text: string;
-    updateUnsavedConfigs: (t: AdminConfigTypes) => void;   
+    updateUnsavedConfigs: (t: AdminConfigTypes) => void;
+    onModalStateChange?: (hasOpenModal: boolean) => void;   
 }
 
 export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setAmpGroups, allEmails,
                                               rateLimit, setRateLimit, promptCostAlert, setPromptCostAlert,
                                               defaultConversationStorage, setDefaultConversationStorage,
-                                              emailSupport, setEmailSupport, admin_text, updateUnsavedConfigs}) => {
+                                              emailSupport, setEmailSupport, aiEmailDomain, setAiEmailDomain,
+                                              admin_text, updateUnsavedConfigs, onModalStateChange}) => {
 
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
@@ -56,8 +67,34 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     const [hoveredAmpMember, setHoveredAmpMember] = useState<{ ampGroup: string; username: string } | null>(null);
     const [isAddingAmpGroups, setIsAddingAmpGroups] = useState<Amplify_Group | null>(null);
     const [ampGroupSearchTerm, setAmpGroupSearchTerm] = useState<string>(''); 
-    const [showAmpGroupSearch, setShowAmpGroupsSearch] = useState<boolean>(true);  
+    const [showAmpGroupSearch, setShowAmpGroupsSearch] = useState<boolean>(true);
+    const [editingRateLimit, setEditingRateLimit] = useState<string | null>(null);
+    const [tempRateLimitPeriod, setTempRateLimitPeriod] = useState<PeriodType>('Unlimited');
+    const [tempRateLimitRate, setTempRateLimitRate] = useState<string>('0');  
+    const [hoveredRateLimit, setHoveredRateLimit] = useState<string | null>(null);
+    const [showAddAdminInput, setShowAddAdminInput] = useState<boolean>(false);
+    
+    // Admin CSV Upload functionality using the new generic hook
+    const adminCsvUpload = useCsvUpload({
+        uploadConfig: AdminCsvUploadConfig,
+        previewConfig: AdminCsvPreviewConfig,
+        existingItems: admins,
+        onImportComplete: async (newAdmins: string[]) => {
+            const updatedAdmins = [...admins, ...newAdmins];
+            handleUpdateAdmins(updatedAdmins);
+        },
+        onImportSuccess: (newAdmins: string[]) => {
+            toast.success(`Successfully imported ${newAdmins.length} admin(s)`);
+        },
+        onImportError: (error: Error) => {
+            toast.error('Failed to import admins. Please try again.');
+        }
+    });
 
+    // Notify parent about modal state changes
+    useEffect(() => {
+        onModalStateChange?.(adminCsvUpload.hasOpenModal);
+    }, [adminCsvUpload.hasOpenModal, onModalStateChange]);
 
     const handleUpdateAdmins = (updatedAdmins: string[]) => {
         setAdmins(updatedAdmins);
@@ -84,84 +121,119 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
         updateUnsavedConfigs(AdminConfigTypes.EMAIL_SUPPORT);
     }
 
+    const handleUpdateAiEmailDomain = (updatedAiEmailDomain: string) => {
+        if (!setAiEmailDomain) return;
+        setAiEmailDomain(updatedAiEmailDomain);
+        updateUnsavedConfigs(AdminConfigTypes.AI_EMAIL_DOMAIN);
+    }
+
 
     const handleUpdateAmpGroups = (updatedGroups: Amplify_Groups) => {
         setAmpGroups(updatedGroups);
         updateUnsavedConfigs(AdminConfigTypes.AMPLIFY_GROUPS);
     }
-        
+
 
     return <> 
-    <div className="admin-style-settings-card">
+    <div className="admin-style-settings-card overflow-x-hidden">
         <div className="admin-style-settings-card-header">
-                <h3 className="admin-style-settings-card-title">Admins</h3>
-                <p className="admin-style-settings-card-description">Manage the admins of the admin panel</p>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="admin-style-settings-card-title">Admins</h3>
+                        <p className="admin-style-settings-card-description">Manage the admins of the admin panel</p>
+                    </div>
+                    <button
+                        title="Import Admins from CSV"
+                        onClick={adminCsvUpload.openUpload}
+                        className="flex items-center cursor-pointer group px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                        id="csvUploadButton"
+                    >
+                        <div className="icon-pop-group">
+                            <IconFileImport size={18} />
+                        </div>
+                        <span style={{marginLeft: '10px'}}>Upload Admins</span>
+                    </button>
+                </div>
             </div>
                 
                 <div className="settings-card-content px-6">
-                    <div className="relative z-10 flex flex-row gap-2.5 h-0" style={{ transform: `translateX(160px) translateY(-22px)` }}>
-                        {admins.length > 0 &&
-                        <button onClick={ () => setIsDeleting(true)} style={{ display: 'flex', cursor: 'pointer' }}
-                            className="flex flex-shrink-0 items-center justify-center p-2"
-                            id="removeAdminButton"
-                            title={"Remove Admins"}
+                    <div className='w-full pr-20 relative'>
+                        {/* Buttons on same line */}
+                        <div className="flex items-start gap-4 mb-4">
+                            {/* Add Admins button */}
+                            <button 
+                                className="flex items-center cursor-pointer group"
+                                onClick={() => setShowAddAdminInput(!showAddAdminInput)}
+                                title="Add Admins"
                             >
-                            <IconTrash className="mt-0.5" size={15}/>
-                            <span style={{marginLeft: '10px'}}>{"Remove Admins"}</span>
-                        </button>}
+                                <div className="icon-pop-group">
+                                    <IconPlus size={18} />
+                                </div>
+                                <span style={{marginLeft: '10px'}}>Add Admins</span>
+                            </button>
 
-                        {isDeleting && 
-                        <>
-                            <UserAction
-                                label={"Remove Admins"}
-                                onConfirm={() => {
-                                    if (deleteUsersList.length > 0) {
-                                        const updatedAdmins = admins.filter(admin => !deleteUsersList.includes(admin));
-                                        handleUpdateAdmins(updatedAdmins);
-                                    }
-                                }}
-                                onCancel={() => {
-                                    setIsDeleting(false);
-                                    setDeleteUsersList([]);
-                                }}
-                                top="mt-[0px]"
-                            />
-                            <div className="mt-[-2px] ml-4">
-                                <Checkbox
-                                    id={`selectAll${AdminConfigTypes.ADMINS}`}
-                                    label="Select All"
-                                    checked={deleteUsersList.length === admins.length}
-                                    onChange={(isChecked: boolean) => {
-                                        if (isChecked) {
-                                            // If checked, add all user names to the list
-                                            setDeleteUsersList(admins.map((a:string) => a));
-                                        } else {
+                            {/* Remove Admins button */}
+                            {admins.length > 0 && (
+                                <button 
+                                    onClick={() => setIsDeleting(true)} 
+                                    className="flex items-center cursor-pointer group"
+                                    id="removeAdminButton"
+                                    title="Remove Admins"
+                                >
+                                    <div className="icon-pop-group">
+                                        <IconTrash size={15}/>
+                                    </div>
+                                    <span style={{marginLeft: '10px'}}>Remove Admins</span>
+                                </button>
+                            )}
+
+                            {/* Delete confirmation controls - simple, no red box */}
+                            {isDeleting && (
+                                <div className="flex items-center gap-3 ml-4">
+                                    <UserAction
+                                        label="Confirm Removal"
+                                        onConfirm={() => {
+                                            if (deleteUsersList.length > 0) {
+                                                const updatedAdmins = admins.filter(admin => !deleteUsersList.includes(admin));
+                                                handleUpdateAdmins(updatedAdmins);
+                                            }
+                                            setIsDeleting(false);
                                             setDeleteUsersList([]);
-                                        }
-                                    }}
+                                        }}
+                                        onCancel={() => {
+                                            setIsDeleting(false);
+                                            setDeleteUsersList([]);
+                                        }}
+                                        top="mt-0"
+                                    />
+                                    <Checkbox
+                                        id={`selectAll${AdminConfigTypes.ADMINS}`}
+                                        label="Select All"
+                                        checked={deleteUsersList.length === admins.length}
+                                        onChange={(isChecked: boolean) => {
+                                            if (isChecked) {
+                                                setDeleteUsersList(admins.map((a:string) => a));
+                                            } else {
+                                                setDeleteUsersList([]);
+                                            }
+                                        }}
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Add Admin input - full width on new line - only show when button clicked */}
+                        {showAddAdminInput && (
+                            <div className="w-full mb-4">
+                                <AddEmailWithAutoComplete
+                                    id={String(AdminConfigTypes.ADMINS)}
+                                    emails={admins}
+                                    allEmails={allEmails ?? []}
+                                    handleUpdateEmails={(updatedAdmins: Array<string>) => handleUpdateAdmins(updatedAdmins)}
                                 />
                             </div>
-                        </>
-                        }
+                        )}
                     </div>
-                    <div className='w-full pr-20 relative min-w-[300px]'
-                        style={{ transform: `translateY(-24px)` }}>
-
-                        <ExpansionComponent 
-                            title={'Add Admins'} 
-                            content={ 
-                                <AddEmailWithAutoComplete
-                                id={String(AdminConfigTypes.ADMINS)}
-                                emails={admins}
-                                allEmails={allEmails ?? []}
-                                handleUpdateEmails={(updatedAdmins: Array<string>) => handleUpdateAdmins(updatedAdmins)}
-                                />
-                            }
-                            closedWidget= { <IconPlus size={18} />}
-                        />
-
-                    </div>
-
             </div>
                 
             <div className="ml-10 pr-5 ">
@@ -246,6 +318,25 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                     />
                 </div>
             </div>
+       
+            {setAiEmailDomain && 
+            <div className="admin-style-settings-card">
+                <div className="admin-style-settings-card-header">
+                    <h3 className="admin-style-settings-card-title">AI Email Domain</h3>
+                    <p className="admin-style-settings-card-description">Set the email domain that allows users to email AI assistants directly (e.g., user+tag@domain.com)</p>
+                </div>
+                
+                <div className="mx-12">
+                    <InputsMap
+                        id = {`${AdminConfigTypes.AI_EMAIL_DOMAIN}`}
+                        inputs={[ {label: 'Domain', key: 'domain', placeholder: 'AI Email Domain', disabled: false} ]}
+                        state ={{domain : aiEmailDomain ?? ''}}
+                        inputChanged = {(key:string, value:string) => {
+                            handleUpdateAiEmailDomain(value);
+                        }}
+                    />
+                </div>
+            </div>}
        
             <div className="admin-style-settings-card">
                 <div className="admin-style-settings-card-header">
@@ -483,12 +574,13 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                 <table className="modern-table hide-last-column mt-4 w-full mr-10 " style={{boxShadow: 'none'}} id="groupTable">
                                     <thead>
                                     <tr className="gradient-header hide-last-column">
-                                        {['Group Name', 'Members', 'Membership by Amplify Groups', 'Created By'].map((title, i) => (
+                                        {['Group Name', 'Members', 'Membership by Amplify Groups', 'Billing Group', 'Rate Limit', 'Created By'].map((title, i) => (
                                         <th key={i}
                                             id={title}
                                             className="px-4 py-2 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
-                                            style={{width: i === 0 || i === 3 ? "15%" 
-                                                    : "35%", 
+                                            style={{width: [0, 4, 5].includes(i) ? "15%" 
+                                                    : i === 3 ? "10%"
+                                                    : "25%", 
                                             }}> 
                                             {title}
                                         </th>
@@ -589,6 +681,103 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                                 }
                                             </td>
 
+                                            <td className="text-center border border-neutral-500 px-4 py-2">
+                                                <button 
+                                                    title={group.isBillingGroup ? "Disable as Billing Group" : "Enable as Billing Group"}
+                                                    className="cursor-pointer flex items-center justify-center w-full"
+                                                    onClick={() => {
+                                                        const updatedGroup = {...group, isBillingGroup: !group.isBillingGroup};
+                                                        handleUpdateAmpGroups({...ampGroups, [group.groupName]: updatedGroup});
+                                                    }}>
+                                                    {group.isBillingGroup ? 
+                                                        <IconCheck className="text-green-600 hover:opacity-60" size={18} /> 
+                                                        : <IconX className="text-red-600 hover:opacity-60" size={18} />}
+                                                </button>
+                                            </td>
+
+                                            <td className="text-center border border-neutral-500 px-1 py-2"
+                                                onMouseEnter={() => setHoveredRateLimit(group.groupName)}
+                                                onMouseLeave={() => setHoveredRateLimit(null)}>
+                                                <div className="flex items-center justify-center">
+                                                    {editingRateLimit === group.groupName ? (
+                                                        <div className="flex flex-row gap-2">
+                                                            <RateLimiter
+                                                                period={tempRateLimitPeriod}
+                                                                setPeriod={setTempRateLimitPeriod}
+                                                                rate={tempRateLimitRate}
+                                                                setRate={setTempRateLimitRate}
+                                                            />
+                                                            <ActionButton
+                                                                title='Confirm Change'
+                                                                id="confirmRateLimitChange"
+                                                                className='text-green-500'
+                                                                handleClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    const updatedRateLimit = rateLimitObj(tempRateLimitPeriod, tempRateLimitRate);
+                                                                    const updatedGroup = {...group, rateLimit: updatedRateLimit};
+                                                                    handleUpdateAmpGroups({...ampGroups, [group.groupName]: updatedGroup});
+                                                                    setEditingRateLimit(null);
+                                                                }}
+                                                            >
+                                                                <IconCheck size={18} />
+                                                            </ActionButton>
+                                                            <ActionButton
+                                                                title='Discard Change'
+                                                                id="discardRateLimitChange"
+                                                                className='text-red-500'
+                                                                handleClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setEditingRateLimit(null);
+                                                                }}
+                                                            >
+                                                                <IconX size={18} />
+                                                            </ActionButton>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center justify-center gap-2">
+                                                            <span>{(() => {
+                                                                const rateLimit = group.rateLimit;
+                                                                if (!rateLimit) {
+                                                                    return formatRateLimit(noRateLimit);
+                                                                } else if (typeof rateLimit === 'number') {
+                                                                    // Handle legacy number format
+                                                                    return formatRateLimit(rateLimitObj('Daily', String(rateLimit)));
+                                                                } else {
+                                                                    // Proper RateLimit object
+                                                                    return formatRateLimit(rateLimit);
+                                                                }
+                                                            })()}</span>
+                                                            {hoveredRateLimit === group.groupName && (
+                                                                <button
+                                                                    type="button"
+                                                                    id="editRateLimit"
+                                                                    className="text-neutral-400 hover:text-neutral-200"
+                                                                    onClick={() => {
+                                                                        setEditingRateLimit(group.groupName);
+                                                                        const rateLimit = group.rateLimit;
+                                                                        if (!rateLimit) {
+                                                                            setTempRateLimitPeriod('Unlimited');
+                                                                            setTempRateLimitRate('0');
+                                                                        } else if (typeof rateLimit === 'number') {
+                                                                            // Handle legacy number format
+                                                                            setTempRateLimitPeriod('Daily');
+                                                                            setTempRateLimitRate(String(rateLimit));
+                                                                        } else {
+                                                                            // Proper RateLimit object
+                                                                            setTempRateLimitPeriod(rateLimit.period);
+                                                                            setTempRateLimitRate(rateLimit.rate ? String(rateLimit.rate) : '0');
+                                                                        }
+                                                                    }}
+                                                                    title="Edit Rate Limit"
+                                                                >
+                                                                    <IconEdit size={18} />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+
                                             <td className="text-center border border-neutral-500 px-4 py-2 break-words max-w-[300px]">
                                                 {group.createdBy}
                                             </td>
@@ -625,6 +814,38 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                         }
                 </div>
             </div>
+
+            {/* CSV Upload Modal */}
+            {adminCsvUpload.showUpload && createPortal(
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    {/* Backdrop */}
+                    <div className="absolute inset-0 bg-black bg-opacity-50" onClick={adminCsvUpload.handleCancel} />
+                    
+                    {/* Modal Content */}
+                    <div className="relative max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                        <CsvUpload
+                            config={AdminCsvUploadConfig}
+                            existingItems={admins}
+                            onUploadSuccess={adminCsvUpload.handleUploadSuccess}
+                            onClose={adminCsvUpload.handleCancel}
+                        />
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* CSV Preview Modal */}
+            {createPortal(
+                <CsvPreviewModal
+                    open={adminCsvUpload.showPreview}
+                    result={adminCsvUpload.uploadResult}
+                    config={AdminCsvPreviewConfig}
+                    onConfirm={adminCsvUpload.handleImportConfirm}
+                    onCancel={adminCsvUpload.handleCancel}
+                    isProcessing={adminCsvUpload.isProcessing}
+                />,
+                document.body
+            )}
                     
     </>
 

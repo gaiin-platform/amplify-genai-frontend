@@ -61,7 +61,8 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
     const validatedPathCacheRef = useRef<any | undefined>(undefined);
     const [amplifyGroups, setAmplifyGroups] = useState<string[] | null>(null);
     const [astImageData, setAstImageData] = useState<{ ds: AttachedDocument, state: number } | null>(astIcon ? { ds: astIcon, state: 100} :  null);
-    
+    const [isOpenAccessDropDown, setIsOpenAccessDropDown] = useState(!savedAstPath);
+
     if (!validatedPathCacheRef.current) {
         validatedPathCacheRef.current = { valid: savedAstPath ? {[savedAstPath.toLowerCase()] : "Current Path"} : {}, 
                                           invalid: {} }    
@@ -238,14 +239,16 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                     { !disableEdit ?
                         (astPath ? 
                         <div>
+                        { !groupId && 
                         <Checkbox
                             id="publish-to-all-users"
                             label="Publish to all users"
                             checked={astPathData.isPublic ?? true}
                             onChange={(checked) => {
+                                if (!checked) setIsOpenAccessDropDown(true);
                                 const newAstPathData = {...astPathData, isPublic: checked};
                                 setAstPathData(newAstPathData);
-                            }}/> 
+                            }}/> }
                         <div title={`Upload an image to use as the assistant's icon. Supported formats: ${IMAGE_FILE_EXTENSIONS.map(ext => ext.toUpperCase()).join(', ')}`}
                              className="text-xs flex flex-row -mt-2 -ml-1.5">
                             <AttachFile id={"__attachFile_assistant_path"}
@@ -344,6 +347,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
             {!isCheckingPath && astPathData && !astPathData.isPublic && 
              <div className="mt-4">
                 <ExpansionComponent
+                    isOpened={isOpenAccessDropDown}
                     closedWidget={<IconLock size={16} />}
                     title="Manage user access to published assistant"
                     content={

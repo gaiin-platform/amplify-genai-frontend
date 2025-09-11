@@ -1,4 +1,4 @@
-import React, { useState, FC, useCallback, useRef, useEffect } from 'react';
+import React, { useState, FC, useRef, useEffect } from 'react';
 
 
 interface EmailModalProps {
@@ -7,14 +7,30 @@ interface EmailModalProps {
     allEmails: string[] | null;
     alreadyAddedEmails?: string[];
     addMultipleUsers?: boolean;
+    onEnterPressed?: () => void;
+    onBlur?: () => void;
+    onPaste?: (pastedText: string) => boolean;
+    onSuggestionSelected?: (suggestion: string) => void;
+    validationState?: 'valid' | 'invalid' | 'neutral';
 }
 
 
-export const EmailsAutoComplete: FC<EmailModalProps> = ({ input, setInput, allEmails, alreadyAddedEmails=[], addMultipleUsers=true}) => {
+export const EmailsAutoComplete: FC<EmailModalProps> = ({ 
+    input, 
+    setInput, 
+    allEmails, 
+    alreadyAddedEmails=[], 
+    addMultipleUsers=true,
+    onEnterPressed,
+    onBlur,
+    onPaste,
+    onSuggestionSelected,
+    validationState = 'neutral'
+}) => {
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const suggestionRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
-    const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
+    const justSelectedSuggestion = useRef(false);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -32,23 +48,40 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({ input, setInput, allEm
 
 
     const handleSuggestionClick = (suggestion: string) => {
-        setSuggestions(suggestions.filter((email) => email !== suggestion))
+        setSuggestions([]);
+        justSelectedSuggestion.current = true;
 
-
-        if (addMultipleUsers) {
-            const parts = input.split(',');
-            parts.pop(); 
-            const newInput = parts.join(',') + (parts.length ? ', ' : '') + suggestion + ', '; 
-             if (inputRef.current) {
-                inputRef.current.focus(); 
-                const length = newInput.length;
-                inputRef.current.setSelectionRange(length, length); 
+        // Use the new direct suggestion callback if available
+        if (onSuggestionSelected && addMultipleUsers) {
+            // Call parent callback and clear input immediately
+            onSuggestionSelected(suggestion);
+            setInput('');
+            
+            // Focus back on input
+            if (inputRef.current) {
+                inputRef.current.focus();
             }
-            setInput(newInput);
         } else {
-            setInput(suggestion);
+            // Fallback to original behavior for backward compatibility
+            if (addMultipleUsers) {
+                const parts = input.split(',');
+                parts.pop(); 
+                const newInput = parts.join(',') + (parts.length ? ', ' : '') + suggestion + ', '; 
+                if (inputRef.current) {
+                    inputRef.current.focus(); 
+                    const length = newInput.length;
+                    inputRef.current.setSelectionRange(length, length); 
+                }
+                setInput(newInput);
+            } else {
+                setInput(suggestion);
+            }
         }
-        setSuggestions([]); 
+        
+        // Reset flag after a short delay
+        setTimeout(() => {
+            justSelectedSuggestion.current = false;
+        }, 100);
     };
 
 
@@ -58,36 +91,43 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({ input, setInput, allEm
         setSuggestions(suggestions);  
     }
 
-    useEffect(() => {
-        const calculatePosition = () => {
-            if (inputRef.current) {
-                const rect = inputRef.current.getBoundingClientRect();
-                setPosition({ top: rect.bottom, left: rect.left, width: rect.width });
-            }
-        };
-
-        calculatePosition();
-        window.addEventListener('resize', calculatePosition);
-        return () => window.removeEventListener('resize', calculatePosition);
-    }, [inputRef]);
-
-
     const calculateHeight = (rows: number) => rows <= 2 ? rows * 30 : 60;
 
 
+        // Get border color based on validation state
+        const getBorderColor = () => {
+            switch (validationState) {
+                case 'valid': return 'border-green-500 dark:border-green-400';
+                case 'invalid': return 'border-red-500 dark:border-red-400';
+                default: return 'border-[#0dcfda] dark:border-[#0dcfda]';
+            }
+        };
+
         return ( <>
             <input ref={inputRef}
-                className="w-full rounded-lg border-2 border-[#0dcfda] px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-2 border-[#0dcfda] dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                className={`w-full rounded-lg border-2 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:bg-[#40414F] dark:text-neutral-100 transition-colors duration-200 ${getBorderColor()}`}
                 id="emailInput"
                 type="text"
                 value={input}
                 onChange={async (e) => {
-                        setInput(e.target.value.toLowerCase())
-                    }}
+                    const newValue = e.target.value.toLowerCase();
+                    setInput(newValue);
+                    
+                    // Reset the suggestion selection flag when user types
+                    justSelectedSuggestion.current = false;
+                    
+                    // Let commas stay in input - we'll process on blur
+                }}
+
+                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                    if (e.key === 'Enter' && onEnterPressed) {
+                        e.preventDefault();
+                        onEnterPressed();
+                    }
+                }}
 
                 onKeyUp={async (e: React.KeyboardEvent<HTMLInputElement>) => {
                     const value = e.currentTarget.value;
-                    setInput(value);
                     const lastQuery = value.split(',').pop();
                     
                     if (lastQuery && lastQuery.length > 0 && lastQuery.trim().length > 0) {
@@ -96,7 +136,29 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({ input, setInput, allEm
                         setSuggestions([]);
                     }
                 }}
-                placeholder={`Enter email address${addMultipleUsers ? 'es separated by commas' : ""}`}
+
+                onBlur={() => {
+                    // Don't process blur if we just selected a suggestion
+                    if (justSelectedSuggestion.current) {
+                        return;
+                    }
+                    
+                    if (onBlur) {
+                        onBlur();
+                    }
+                }}
+
+                onPaste={(e) => {
+                    if (onPaste) {
+                        const pastedText = e.clipboardData.getData('text');
+                        const shouldPreventDefault = onPaste(pastedText);
+                        if (shouldPreventDefault) {
+                            e.preventDefault();
+                        }
+                    }
+                }}
+
+                placeholder={`Enter usernames/emails${addMultipleUsers ? ' (separate with commas, Enter/blur to add)' : ""}`}
                 autoFocus
             />
             {suggestions.length > 0 && (

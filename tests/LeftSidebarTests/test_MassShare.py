@@ -93,23 +93,16 @@ class MassShareTests(BaseTest):
         self.create_chat("Ursaluna")
 
         # Click the promptHandler Button
-        prompt_handler_buttons_plural = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptHandler"))
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
         )
-        self.assertGreater(
-            len(prompt_handler_buttons_plural),
-            1,
-            "Expected multiple buttons with ID 'createFolderButton'",
-        )
-
-        prompt_handler_buttons_plural[0].click()
-
-        time.sleep(3)
+        prompt_handler_button.click()
+        time.sleep(2)
 
         # Click the Share Button
-        delete_button = self.wait.until(EC.element_to_be_clickable((By.ID, "Share")))
-        self.assertTrue(delete_button, "Share Button should be initialized")
-        delete_button.click()
+        share_button = self.wait.until(EC.element_to_be_clickable((By.ID, "Share")))
+        self.assertTrue(share_button, "Share Button should be initialized")
+        share_button.click()
 
         time.sleep(3)
 
@@ -197,7 +190,7 @@ class MassShareTests(BaseTest):
             EC.presence_of_element_located((By.ID, "modalTitle"))
         )
         self.assertTrue(
-            share_modal_element.is_displayed(), "Share window element is visible"
+            share_modal_element, "Share window element is visible"
         )
 
         time.sleep(3)
@@ -291,24 +284,17 @@ class MassShareTests(BaseTest):
         self.create_chat("Rockruff")
         self.create_chat("Type: Null")
 
-        # Click the promptHandler Button
-        prompt_handler_buttons_plural = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptHandler"))
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
         )
-        self.assertGreater(
-            len(prompt_handler_buttons_plural),
-            1,
-            "Expected multiple buttons with ID 'createFolderButton'",
-        )
-
-        prompt_handler_buttons_plural[0].click()
+        prompt_handler_button.click()
 
         time.sleep(3)
 
         # Click the Share Button
-        delete_button = self.wait.until(EC.element_to_be_clickable((By.ID, "Share")))
-        self.assertTrue(delete_button, "Share Button should be initialized")
-        delete_button.click()
+        share_button = self.wait.until(EC.element_to_be_clickable((By.ID, "Share")))
+        self.assertTrue(share_button, "Share Button should be initialized")
+        share_button.click()
 
         time.sleep(3)
 

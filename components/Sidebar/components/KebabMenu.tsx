@@ -536,6 +536,7 @@ interface Props {
                 <div
                     ref={menuRef}
                     className="absolute bg-neutral-100 dark:bg-[#202123] text-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-600 dark:text-white z-50 shadow-md"
+                    id="subMenu"
                     style={{ top: '95%', right: '0', pointerEvents: 'auto', width: '180px' }}>
                     <div className="overflow-y-auto" style={{maxHeight: window.innerHeight * 0.7}}>
                         <KebabActionItem label="Delete" type={label as CheckItemType} handleAction={()=>{isConvSide ? handleDeleteConversations() : handleDeletePrompts()}} 

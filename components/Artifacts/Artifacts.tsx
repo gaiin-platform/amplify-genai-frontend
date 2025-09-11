@@ -19,9 +19,7 @@ import {
     IconDeviceFloppy,
     IconPresentation,
     IconInfoCircle,
-    IconPlus,
     IconFileUpload,
-    IconCircleX,
     IconCode,
     IconCopyPlus,
 } from '@tabler/icons-react';
@@ -33,7 +31,7 @@ import toast from "react-hot-toast";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import { getAllArtifacts, saveArtifact, shareArtifact } from "@/services/artifactsService";
 import { downloadArtifacts, uploadArtifact } from "@/utils/app/artifacts";
-import { EmailsAutoComplete } from "../Emails/EmailsAutoComplete";
+import { AddEmailWithAutoComplete } from "../Emails/AddEmailsAutoComplete";
 import { Group } from "@/types/groups";
 import { includeGroupInfoBox } from "../Emails/EmailsList";
 import { Conversation } from "@/types/chat";
@@ -42,7 +40,6 @@ import { ArtifactPreview } from "./ArtifactPreview";
 import { CodeBlockDetails, extractCodeBlocksAndText } from "@/utils/app/codeblock";
 import ActionButton from "../ReusableComponents/ActionButton";
 import { getDateName } from "@/utils/app/date";
-import { stringToColor } from "@/utils/app/data";
 import { resolveRagEnabled } from "@/types/features";
 
   interface Props {
@@ -65,6 +62,10 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
     
     const [codeBlocks, setCodeBlocks] = useState<CodeBlockDetails[]>([]);
 
+    // Add state for dynamic width adjustment
+    const [dynamicWidth, setDynamicWidth] = useState<string>('auto');
+    const artifactsRef = useRef<HTMLDivElement>(null);
+
 
     useEffect(() => {
         setIsPreviewing(false);
@@ -74,6 +75,78 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
         if (!artifactIsStreaming)  setCodeBlocks(extractCodeBlocksAndText(getArtifactContents()));
         console.log(codeBlocks);
     }, [artifactIsStreaming, versionIndex, selectArtifactList]);
+
+    // Add ResizeObserver to detect space usage
+    useEffect(() => {
+        const detectSpaceUsage = () => {
+            const mainContainer = document.querySelector('.flex.h-full');
+            const chatScrollWindow = document.querySelector('#chatScrollWindow');
+            
+            if (mainContainer && chatScrollWindow) {
+                const containerRect = mainContainer.getBoundingClientRect();
+                const chatRect = chatScrollWindow.getBoundingClientRect();
+                
+                // Calculate how much of the chat area is actually being used
+                const chatContentElements = chatScrollWindow.querySelectorAll('.enhanced-chat-message');
+                let maxContentWidth = 0;
+                
+                chatContentElements.forEach(element => {
+                    const elementRect = element.getBoundingClientRect();
+                    if (elementRect.width > maxContentWidth) {
+                        maxContentWidth = elementRect.width;
+                    }
+                });
+                
+                // If chat content is narrow, signal the grid to be more flexible
+                const chatAreaWidth = chatRect.width;
+                const utilizationRatio = maxContentWidth / chatAreaWidth;
+                
+                if (utilizationRatio < 0.6) {
+                    // Chat is using less than 60% of its space, expand artifacts
+                    setDynamicWidth('calc(100vw - 400px)'); // Reduced from 300px to 400px to give more space to chat
+                } else {
+                    setDynamicWidth('40vw'); // Reduced from 50vw to 40vw for default size
+                }
+                
+                // Apply the change to the parent grid container
+                const gridContainer = mainContainer.querySelector('.grid.grid-cols-2');
+                if (gridContainer) {
+                    if (utilizationRatio < 0.6) {
+                        (gridContainer as HTMLElement).style.gridTemplateColumns = '3fr 2fr'; // Changed from 1fr 2fr to 3fr 2fr (60/40 split favoring chat)
+                    } else {
+                        (gridContainer as HTMLElement).style.gridTemplateColumns = '3fr 2fr'; // Changed from 1fr 1fr to 3fr 2fr (60/40 split favoring chat)
+                    }
+                }
+            }
+        };
+
+        // Immediate detection on mount
+        detectSpaceUsage();
+        
+        const handleResize = throttle(detectSpaceUsage, 250);
+        window.addEventListener('resize', handleResize);
+
+        const handleArtifactEvent = (event: any) => {
+            // Immediate detection when artifacts open/close
+            setTimeout(detectSpaceUsage, 0);
+            // Also check after DOM settles
+            setTimeout(detectSpaceUsage, 50);
+        };
+        
+        window.addEventListener('openArtifactsTrigger', handleArtifactEvent);
+
+        // Check when chat content changes (messages added/edited)
+        const handleChatReRender = () => {
+            setTimeout(detectSpaceUsage, 100);
+        };
+        window.addEventListener('triggerChatReRender', handleChatReRender);
+
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            window.removeEventListener('openArtifactsTrigger', handleArtifactEvent);
+            window.removeEventListener('triggerChatReRender', handleChatReRender);
+        };
+    }, []);
 
 
     const conversationsRef = useRef(conversations);
@@ -109,7 +182,6 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
     const [isSharing, setIsSharing] = useState<boolean>(false);
     // const [isSharing, setIsSharing] = useState<boolean>(false);
     const [tags, setTags] = useState<string[]>([]);
-    const [input, setInput] = useState<string>('');
     const [allEmails, setAllEmails] = useState<Array<string> | null>(null);
     const [shareWith, setShareWith] = useState<string[]>([]);
     const { data: session } = useSession();
@@ -149,25 +221,48 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
     }, [isSaving, isSharing, isUploading]);
 
     
-    const handleAddEmails = () => {
-        const entries = input.split(',').map(email => email.trim()).filter(email => email);
-        let entriesWithGroupMembers:string[] = [];
+    // Process emails and handle group expansion
+    const processEmailEntries = (entries: string[]) => {
+        let entriesWithGroupMembers: string[] = [];
 
-        if (groups && groups.length > 0) {
-            entries.forEach((e: any) => { 
-                if ( e.startsWith('#')) {
-                    const group = groups.find((g:Group) => g.name === e.slice(1));
-                    if (group) entriesWithGroupMembers = [...entriesWithGroupMembers, 
-                                                        ...Object.keys(group.members)];  //.filter((e: string) => e !== user)
-                } else {
-                    entriesWithGroupMembers.push(e);
+        entries.forEach((e: string) => {
+            if (e.startsWith('#')) {
+                const group = groups.find((g: Group) => g.name === e.slice(1));
+                if (group) {
+                    entriesWithGroupMembers = [...entriesWithGroupMembers,
+                    ...Object.keys(group.members).filter((member: string) => member !== user)];
                 }
-            });
-        }
+            } else {
+                entriesWithGroupMembers.push(e);
+            }
+        });
 
-        const newEmails = entriesWithGroupMembers.filter(email => /^\S+@\S+\.\S+$/.test(email) && !shareWith.includes(email));
-        setShareWith([...shareWith, ...newEmails]);
-        setInput('');
+        // Filter valid emails and avoid duplicates
+        const newEmails = entriesWithGroupMembers.filter(email => 
+            /^\S+@\S+\.\S+$/.test(email) && !shareWith.includes(email)
+        );
+        
+        if (newEmails.length > 0) {
+            setShareWith([...shareWith, ...newEmails]);
+        }
+    };
+
+    // Handle both adding and removing emails
+    const handleUpdateEmails = (updatedEmails: string[]) => {
+        // Check if we're adding or removing emails
+        if (updatedEmails.length > shareWith.length) {
+            // Adding emails - find newly added ones
+            const addedEmails = updatedEmails.filter(email => !shareWith.includes(email));
+            if (addedEmails.length > 0) {
+                processEmailEntries(addedEmails);
+            }
+        } else if (updatedEmails.length < shareWith.length) {
+            // Removing emails - directly update shareWith
+            setShareWith(updatedEmails);
+        } else if (updatedEmails.length === shareWith.length) {
+            // Same length - might be a replacement, update directly
+            setShareWith(updatedEmails);
+        }
     };
 
 
@@ -315,6 +410,14 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
     const handleShareArtifact = async () => {
 // add users email model 
         setIsLoading('Sharing Artifact...');
+        
+        // Check if we have emails to share with
+        if (shareWith.length === 0) {
+            setIsLoading('');
+            alert('Please add at least one email address to share with.');
+            return;
+        }
+        
         statsService.shareArtifactEvent(selectArtifactList[versionIndex], shareWith);
         const result = await shareArtifact(selectArtifactList[versionIndex], shareWith);
         if (result.success) {
@@ -408,18 +511,22 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
 }
 
    return ( 
-   <div id="artifactsTab" className={`text-base overflow-hidden h-full bg-gray-200 dark:bg-[#343541] text-black dark:text-white border-l border-black px-2`}>
-        <div className="flex flex-col h-full" > 
+   <div 
+        ref={artifactsRef}
+        id="artifactsTab" 
+        className={`text-base overflow-hidden h-full bg-gray-200 dark:bg-[#343541] text-black dark:text-white border-l border-black px-2`}
+        style={{ width: dynamicWidth, minWidth: '400px', transition: 'width 0.3s ease-in-out' }}
+   >
+        <div className="flex flex-col h-full " > 
             {/* Modals */}
            
                 {isLoading && 
-                <div className="flex justify-center w-full"> 
-                    <div className="z-50 absolute" style={{ transform: `translateY(100%)`}}>
-                        <div className="p-3 flex flex-row items-center border border-gray-500 bg-[#202123]">
-                            <LoadingIcon style={{ width: "24px", height: "24px" }}/>
-                            <span className="text-lg font-bold ml-2 text-white">{isLoading}</span> 
-                        </div>
-                    </div> </div>}
+                <div className="fixed top-14 ml-20 left-3/4 transform translate-x-3/4 z-[9999] pointer-events-none animate-float">
+                    <div className="p-3 flex flex-row items-center border border-gray-500 bg-[#202123] rounded-lg shadow-xl pointer-events-auto">
+                        <LoadingIcon style={{ width: "24px", height: "24px" }}/>
+                        <span className="text-lg font-bold ml-2 text-white">{isLoading}</span>
+                    </div>
+                </div>}
 
                 {(isModalOpen) &&  
                     <div className="shadow-xl flex justify-center w-full">
@@ -430,52 +537,14 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
 
                         {"Send Amplify Artifact"}
                         {featureFlags.assistantAdminInterface && groups && groups.length > 0  &&  <>{includeGroupInfoBox}</>}
-                        <div className='flex flex-row gap-2'>
-                            <div className="flex-shrink-0 ml-[-6px] mr-2">
-                                <button
-                                    type="button"
-                                    title='Add Account'
-                                    id="addAccount"
-                                    className="ml-2 mt-1 px-3 py-1.5 text-white rounded bg-neutral-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500"
-                                    onClick={handleAddEmails}
-                                >
-                                    <IconPlus size={18} />
-                                </button>
-                            </div>
-                            <div className='w-full relative mb-4'>
-                                <EmailsAutoComplete
-                                    input = {input}
-                                    setInput =  {setInput}
-                                    allEmails = {allEmails}
-                            alreadyAddedEmails = {Object.keys(shareWith)}
-                            /> 
-                            </div>  
-                        </div>   
-                        <div className="h-[62px] overflow-y-auto "> 
-                            {shareWith.map((email, index) => (
-                                <div 
-                                    key={index}
-                                    className="flex items-center justify-between bg-white dark:bg-neutral-200 rounded-md px-2 py-0 mr-2 mb-2 shadow-lg"
-                                    style={{ backgroundColor: stringToColor(email) }}
-                                >
-                                    <button
-                                        className="text-gray-800 transition-all"
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            setShareWith(shareWith.filter(x => x !== email));
-                                        }}
-                                        title="Remove Email"
-                                    >
-                                        <IconCircleX size={17} />
-                                        
-                                    </button>
-                                    <div className="ml-1">
-                                        <label className="text-gray-800 font-medium text-sm">{email}</label>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                        
+                        <AddEmailWithAutoComplete
+                            id="artifactShare"
+                            emails={shareWith}
+                            allEmails={allEmails || []}
+                            handleUpdateEmails={handleUpdateEmails}
+                            displayEmails={true}
+                        />
 
                         <CancelSubmitButtons
                         submitText="Share"

@@ -20,7 +20,7 @@ export interface ScheduleDateRange {
 export interface TaskExecutionRecord {
   executionId: string;
   executedAt: string;
-  status: 'success' | 'failure' | 'timeout';
+  status: 'success' | 'failure' | 'timeout' | 'running';
   source?: string;
 }
 

@@ -11,7 +11,7 @@ import React from "react";
 import { ActiveTabs } from "../ReusableComponents/ActiveTabs";
 import { OpDef } from "@/types/op";
 import { AMPLIFY_ASSISTANTS_GROUP_NAME } from "@/utils/app/amplifyAssistants";
-import { noRateLimit, PeriodType, rateLimitObj } from "@/types/rateLimit";
+import { noRateLimit, PeriodType, RateLimit, rateLimitObj } from "@/types/rateLimit";
 import { adminTabHasChanges} from "@/utils/app/admin";
 import { OpenAIEndpointsTab } from "./AdminComponents/OpenAIEndpoints";
 import { FeatureFlagsTab } from "./AdminComponents/FeatureFlags";
@@ -52,7 +52,7 @@ interface Props {
 
 
 export const AdminUI: FC<Props> = ({ open, onClose }) => {
-    const { state: { statsService, storageSelection, amplifyUsers}, dispatch: homeDispatch, setLoadingMessage } = useContext(HomeContext);
+    const { state: { statsService, storageSelection, amplifyUsers, featureFlags}, dispatch: homeDispatch, setLoadingMessage } = useContext(HomeContext);
 
     const [loadData, setLoadData] = useState<boolean>(true);   
     const [stillLoadingData, setStillLoadingData] = useState<boolean>(true);  
@@ -66,6 +66,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [rateLimit, setRateLimit] = useState<{period: PeriodType, rate: string}>({...noRateLimit, rate: '0'});
     const [promptCostAlert, setPromptCostAlert] = useState<PromptCostAlert>({isActive:false, alertMessage: '', cost: 0});
     const [emailSupport, setEmailSupport] = useState<EmailSupport>({isActive:false, email:''});
+    const [aiEmailDomain, setAiEmailDomain] = useState<string>('');
 
     const [defaultConversationStorage, setDefaultConversationStorage] = useState<ConversationStorage>('future-local');
 
@@ -95,6 +96,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     const [integrations, setIntegrations] = useState<IntegrationsMap | null >(null);
     const [integrationSecrets, setIntegrationSecrets] = useState<IntegrationSecretsMap>({});
+    const [hasChildModalOpen, setHasChildModalOpen] = useState<boolean>(false);
 
     const mergeIntegrationLists = ( supported: Integration[] | undefined,
                                     baseIntegrations: Integration[] | undefined ): Integration[] => {
@@ -156,6 +158,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 setPromptCostAlert(data[AdminConfigTypes.PROMPT_COST_ALERT || promptCostAlert]);
                 setDefaultConversationStorage(data[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE] || defaultConversationStorage);
                 setEmailSupport(data[AdminConfigTypes.EMAIL_SUPPORT || emailSupport]);
+                setAiEmailDomain(data[AdminConfigTypes.AI_EMAIL_DOMAIN] || aiEmailDomain);
                 setDefaultModels(data[AdminConfigTypes.DEFAULT_MODELS] || {});
                 setLoadingMessage("");
             
@@ -224,6 +227,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return defaultConversationStorage;
             case AdminConfigTypes.EMAIL_SUPPORT:
                 return emailSupport;
+            case AdminConfigTypes.AI_EMAIL_DOMAIN:
+                return aiEmailDomain;
             case AdminConfigTypes.APP_SECRETS:
                 return appSecrets;
             case AdminConfigTypes.APP_VARS:
@@ -286,6 +291,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                               supportConvAnalysis: g.supportConvAnalysis
                                                             }));
             case AdminConfigTypes.AMPLIFY_GROUPS:
+                Object.keys(ampGroups).forEach((key: string) => {
+                    if (!ampGroups[key].isBillingGroup) ampGroups[key].isBillingGroup = false;
+                    if (!ampGroups[key].rateLimit) ampGroups[key].rateLimit = noRateLimit;
+                });
                 return ampGroups;
             case AdminConfigTypes.PPTX_TEMPLATES:
                 return templates.filter((pptx:Pptx_TEMPLATES) => changedTemplates.includes(pptx.name));
@@ -293,6 +302,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return integrations;
             case AdminConfigTypes.OPENAI_ENDPOINTS:
                 const toTest:{key: string, url: string, model:string}[] = [];
+                
+                // Track removed models for toast notifications
+                const originalModelNames = new Set<string>();
+                openAiEndpoints.models.forEach(model => {
+                    Object.keys(model).forEach(modelName => originalModelNames.add(modelName));
+                });
+                
                 const cleanedOpenAiEndpoints: OpenAIModelsConfig = {
                     models: openAiEndpoints.models.map(model => {
                         const newModel: Record<string, { endpoints: Endpoint[] }>= {};
@@ -305,11 +321,31 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                 if (isNew) toTest.push({...rest, model: modelName});
                                 return rest; 
                             });
-                            newModel[modelName] = { endpoints };
+                            // Only include models that have at least one endpoint
+                            if (endpoints.length > 0) {
+                                newModel[modelName] = { endpoints };
+                            }
                         });
                         return newModel;
-                    })
+                    }).filter(model => Object.keys(model).length > 0) // Remove empty model objects
                 };
+                
+                // Track cleaned model names and show toast for removed models
+                const cleanedModelNames = new Set<string>();
+                cleanedOpenAiEndpoints.models.forEach(model => {
+                    Object.keys(model).forEach(modelName => cleanedModelNames.add(modelName));
+                });
+                
+                // Show toast for each removed model
+                originalModelNames.forEach(modelName => {
+                    if (!cleanedModelNames.has(modelName)) {
+                        toast(`Removed ${modelName} (no endpoints configured)`);
+                    }
+                });
+                
+                // Update UI state to match cleaned data
+                setOpenAiEndpoints(cleanedOpenAiEndpoints);
+                
                 if (toTest.length > 0) testEndpointsRef.current = toTest;
                 return cleanedOpenAiEndpoints;
         }   
@@ -413,6 +449,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         saveAction([AdminConfigTypes.AVAILABLE_MODELS, AdminConfigTypes.DEFAULT_MODELS], saveUpdateAvailableModels);
         saveAction([AdminConfigTypes.PPTX_TEMPLATES], saveUpdatePptx); 
         saveAction([AdminConfigTypes.EMAIL_SUPPORT], () => homeDispatch({ field: 'supportEmail', value: emailSupport.email}));
+        saveAction([AdminConfigTypes.AI_EMAIL_DOMAIN], () => homeDispatch({ field: 'aiEmailDomain', value: aiEmailDomain}));
         if (!storageSelection) saveAction([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () => homeDispatch({ field: 'storageSelection', value: defaultConversationStorage})); 
     }
 
@@ -422,7 +459,11 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             return;
         }
         const collectUpdateData =  Array.from(unsavedConfigs).map((type: AdminConfigTypes) => ({type: type, data: getConfigTypeData(type)}));
-        console.log("Saving... ", collectUpdateData);
+        console.log("Saving...", collectUpdateData);
+        
+        // Enhanced logging for admin data
+        const adminData = collectUpdateData.find(item => item.type === AdminConfigTypes.ADMINS);
+
         if (!validateSavedData()) return;
         // console.log(" testing: ", testEndpointsRef.current);
         if (testEndpointsRef.current.length > 0) {
@@ -436,22 +477,112 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         
         setLoadingMessage('Saving Configurations');
         const result = await updateAdminConfigs(collectUpdateData);
+        
         if (result.success) {
+            
+            // Check for detailed admin-specific response
+            if (result.data && result.data[AdminConfigTypes.ADMINS]) {
+                const adminResult = result.data[AdminConfigTypes.ADMINS];
+                
+                if (adminResult.success) {
+                    
+                    // VERIFY WHAT ACTUALLY GOT SAVED
+                    if (adminData && adminData.data.length > 0) {
+                        // Delay to allow backend processing to complete
+                        setTimeout(async () => {
+                            try {
+                                // Fetch current admin configurations to see what's actually saved
+                                const response = await getAdminConfigs(true); // Use existing service
+                                
+                                if (response.success && response.data) {
+                                    const actualSavedAdmins = response.data[AdminConfigTypes.ADMINS] || [];
+                                    
+                                    // Compare what was sent vs what's actually saved
+                                    const sentSet = new Set(adminData.data);
+                                    const savedSet = new Set(actualSavedAdmins);
+                                    
+                                    const notSaved = adminData.data.filter((admin: string) => !savedSet.has(admin));
+                                    const unexpectedlyAdded = actualSavedAdmins.filter((admin: string) => !sentSet.has(admin));
+                                    
+                                    if (notSaved.length > 0) {
+                                        toast(`⚠️ ${notSaved.length} admin(s) were rejected: ${notSaved.join(', ')}`, {
+                                            icon: '⚠️',
+                                            duration: 8000
+                                        });
+                                    }
+                                    
+                                    // Update local state to match what's actually in the database
+                                    if (actualSavedAdmins.length !== adminData.data.length) {
+                                        setAdmins(actualSavedAdmins);
+                                    }
+                                } else {
+                                    console.error("❌ Failed to fetch current admin configs for verification:", response);
+                                }
+                            } catch (error) {
+                                console.error("❌ Verification error:", error);
+                            }
+                        }, 1000); // 1 second delay
+                    }
+                } else {
+                    console.warn("⚠️ Admin validation issues:", adminResult);
+                    toast(`Admin save completed with warnings. Check console for details.`, {
+                        icon: '⚠️',
+                        duration: 5000
+                    });
+                }
+            }
+            
             // update ui affecting changes 
             updateOnSave();
             toast("Configurations successfully saved");
             setUnsavedConfigs(new Set());
             testEndpointsRef.current = [];
         } else {
+            // Enhanced error logging
+            console.error("❌ Save failed. Full response:", result);
+            
+            if (adminData) {
+                console.error("❌ Failed to save admin emails:", adminData.data);
+            }
+            
             if (result.data && Object.keys(result.data).length !== unsavedConfigs.size) {
                 const unsucessful: AdminConfigTypes[] = [];
                 Array.from(unsavedConfigs).forEach(key => {
-                    if ((!(key in result.data)) || (!result.data[key].success)) unsucessful.push(key);
+                    if ((!(key in result.data)) || (!result.data[key].success)) {
+                        unsucessful.push(key);
+                        
+                        // Log specific failure details for admins
+                        if (key === AdminConfigTypes.ADMINS && result.data[key]) {
+                            console.error("❌ Admin save failure details:", result.data[key]);
+                            if (result.data[key].error) {
+                                console.error("📝 Admin validation error:", result.data[key].error);
+                            }
+                            if (result.data[key].message) {
+                                console.error("💬 Admin save message:", result.data[key].message);
+                            }
+                        }
+                    }
                 });
+                
                 // should always be true
-                if (unsucessful.length > 0) alert(`The following configurations were unable to be saved: \n${unsucessful}`);
+                if (unsucessful.length > 0) {
+                    const errorMsg = `The following configurations were unable to be saved: \n${unsucessful.join(', ')}`;
+                    console.error("❌ Unsuccessful saves:", errorMsg);
+                    alert(errorMsg);
+                    
+                    // Additional admin-specific error display
+                    if (unsucessful.includes(AdminConfigTypes.ADMINS) && result.data[AdminConfigTypes.ADMINS]) {
+                        const adminError = result.data[AdminConfigTypes.ADMINS];
+                        if (adminError.error || adminError.message) {
+                            toast(`Admin validation failed: ${adminError.error || adminError.message}`, {
+                                icon: '❌',
+                                duration: 8000
+                            });
+                        }
+                    }
+                }
             } else {
-                console.log("result: ", result);
+                console.error("❌ Complete save failure. Result:", result);
                 alert("We are unable to save the configurations at this time. Please try again later...");
             }
         }
@@ -500,6 +631,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     return <Modal 
     fullScreen={true}
+    disableClickOutside={hasChildModalOpen}
     title={`Admin Interface${unsavedConfigs.size > 0 ? " * " : ""}`}
     onCancel={() => {
         if (unsavedConfigs.size === 0 || confirm("You have unsaved changes!\n\nYou will lose any unsaved data, would you still like to close the Admin Interface?"))  onClose();
@@ -509,7 +641,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     }
     cancelLabel={"Close"}
     submitLabel={"Save Changes"}
-    disableSubmit={unsavedConfigs.size === 0}
+    disableSubmit={unsavedConfigs.size === 0 || stillLoadingData}
     content={
       <div className="text-black dark:text-white overflow-x-hidden">
          <button
@@ -550,9 +682,12 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     setDefaultConversationStorage={setDefaultConversationStorage}
                     emailSupport={emailSupport}
                     setEmailSupport={setEmailSupport}
+                    aiEmailDomain={aiEmailDomain}
+                    setAiEmailDomain={featureFlags.assistantEmailEvents ? setAiEmailDomain : undefined}
                     allEmails={allEmails}
                     admin_text={admin_text}
                     updateUnsavedConfigs={updateUnsavedConfigs}
+                    onModalStateChange={setHasChildModalOpen}
                 />
             },
 
@@ -906,6 +1041,8 @@ export interface Amplify_Group { // can be a cognito group
     members : string[];
     createdBy : string;
     includeFromOtherGroups? : string[]; // if is a cognito group, this will always be Absent
+    rateLimit? : RateLimit;
+    isBillingGroup? : boolean;
 }
 
 export interface Amplify_Groups {

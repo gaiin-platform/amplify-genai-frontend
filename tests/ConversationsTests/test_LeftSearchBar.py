@@ -84,24 +84,61 @@ class SearchBarLeftTests(BaseTest):
 
         folder = next((el for el in drop_name_elements if el.text == chat_name), None)
         self.assertIsNotNone(folder, "New Conversation button should be present")
+        
+    def delete_all_chats(self):
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
+        )
+
+        prompt_handler_button.click()
+
+        time.sleep(2)
+
+        # Click the button with ID "Delete"
+        delete_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "Delete"))
+        )
+
+        delete_button.click()
+
+        time.sleep(2)  # Give time for the menu to appear
+
+        # Click the select all checkbox
+        select_all_check = self.wait.until(
+            EC.presence_of_element_located((By.ID, "selectAllCheck"))
+        )
+
+        # Locate the checkbox within the parent container
+        checkbox = select_all_check.find_element(By.XPATH, ".//input[@type='checkbox']")
+        self.assertIsNotNone(checkbox, f"Checkbox for prompt All should be present")
+
+        checkbox.click()
+
+        time.sleep(2)
+
+        # Click the Delete Button
+        confirm_delete_button = self.wait.until(
+            EC.element_to_be_clickable((By.ID, "confirmItem"))
+        )
+        self.assertTrue(confirm_delete_button, "Delete Button should be initialized")
+        confirm_delete_button.click()
+
+        time.sleep(2)
 
     # ----------------- Test Search Chats -----------------
     """Ensure the Chats searched in the Left Search Bar appear"""
 
     def test_search_assistant(self):
+        
+        self.delete_all_chats()
 
         self.create_chat("Birdo")
 
         # Click the searchBar Button
-        search_bars_plural = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "SearchBar"))
+        search_bar = self.wait.until(
+            EC.presence_of_element_located((By.ID, "SearchBar"))
         )
-        self.assertGreater(
-            len(search_bars_plural), 1, "Expected multiple buttons with ID 'SearchBar'"
-        )
-
-        # Select the first search bar
-        search_bar = search_bars_plural[0]
+        self.assertTrue(search_bar, "Expected element with ID 'SearchBar'")
 
         # Type "Birdo" into the search bar
         search_bar.clear()  # Clears any existing text
@@ -110,12 +147,12 @@ class SearchBarLeftTests(BaseTest):
         time.sleep(1)
 
         side_bar_detection = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "sideBar"))
+            EC.presence_of_element_located((By.ID, "sideBar"))
         )
-        self.assertGreater(len(side_bar_detection), 1, "Expected multiple side bars")
+        self.assertTrue(side_bar_detection, "Expected multiple side bars")
 
         # Use the left sidebar
-        left_panel = side_bar_detection[0]
+        left_panel = side_bar_detection
 
         # Locate all elements with the ID 'promptName'
         prompt_name_elements = left_panel.find_elements(By.ID, "chatName")
@@ -137,19 +174,16 @@ class SearchBarLeftTests(BaseTest):
     """Ensure nothing appears after searching in the Left Search Bar"""
 
     def test_search_nothing(self):
+        
+        self.delete_all_chats()
 
         self.create_chat("Birdo")
 
         # Click the searchBar Button
-        search_bars_plural = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "SearchBar"))
+        search_bar = self.wait.until(
+            EC.presence_of_element_located((By.ID, "SearchBar"))
         )
-        self.assertGreater(
-            len(search_bars_plural), 1, "Expected multiple buttons with ID 'SearchBar'"
-        )
-
-        # Select the first search bar
-        search_bar = search_bars_plural[0]
+        self.assertTrue(search_bar, "Expected multiple buttons with ID 'SearchBar'")
 
         # Type "Yoshi" into the search bar
         search_bar.clear()  # Clears any existing text
@@ -158,12 +192,12 @@ class SearchBarLeftTests(BaseTest):
         time.sleep(1)
 
         side_bar_detection = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "sideBar"))
+            EC.presence_of_element_located((By.ID, "sideBar"))
         )
-        self.assertGreater(len(side_bar_detection), 1, "Expected multiple side bars")
+        self.assertTrue(side_bar_detection, "Expected multiple side bars")
 
         # Use the left sidebar
-        left_panel = side_bar_detection[0]
+        left_panel = side_bar_detection
 
         # Locate all elements with the ID 'chatName'
         prompt_name_elements = left_panel.find_elements(By.ID, "chatName")

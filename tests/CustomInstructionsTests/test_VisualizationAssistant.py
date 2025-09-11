@@ -15,12 +15,37 @@ class VisualizationAssistantTests(BaseTest):
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
         super().setUp(headless=True)
+        
+    def click_assistants_tab(self):
+        
+        time.sleep(5)
+        
+        tab_buttons = self.wait.until(
+            EC.presence_of_all_elements_located((By.ID, "tabSelection"))
+        )
+
+        # Search for the one with title including 'Assistants'
+        assistants_button = next(
+            (btn for btn in tab_buttons if "Assistants" in btn.get_attribute("title")),
+            None
+        )
+
+        self.assertIsNotNone(assistants_button, "'Assistants' tab button not found")
+
+        # Click the Assistants button
+        assistants_button.click()
+
+        # Wait briefly for UI to respond
+        time.sleep(2)
 
     # ----------------- Test Visualization Assistant can be clicked -----------------
     """Ensure the Visualization Assistant button in the Custom Instructions folder can be clicked 
        on the Right Side Bar"""
 
     def test_visualization_assistant_is_interactable(self):
+        
+        self.click_assistants_tab()
+        
         # Locate all elements with the ID 'dropName'
         drop_name_elements = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "dropName"))
@@ -95,6 +120,9 @@ class VisualizationAssistantTests(BaseTest):
        on the Right Side Bar and that it makes the Share Modal appear"""
 
     def test_share_button(self):
+        
+        self.click_assistants_tab()
+        
         # Locate all elements with the ID 'dropName'
         drop_name_elements = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "dropName"))
@@ -177,6 +205,9 @@ class VisualizationAssistantTests(BaseTest):
        on the Right Side Bar and that it creates a duplicate in the prompts"""
 
     def test_visualization_assistant_duplicate(self):
+        
+        self.click_assistants_tab()
+        
         # Locate all elements with the ID 'dropName'
         drop_name_elements = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "dropName"))
@@ -284,7 +315,10 @@ class VisualizationAssistantTests(BaseTest):
     """Ensure the Visualization Assistant button in the Visualization Assistant folder can be clicked 
        on the Right Side Bar and the modal is interactable"""
     
-    def test_visualization_assistant_modal_is_interactable(self):                        
+    def test_visualization_assistant_modal_is_interactable(self): 
+        
+        self.click_assistants_tab()
+                               
         # Locate all elements with the ID 'dropName'
         drop_name_elements = self.wait.until(EC.presence_of_all_elements_located(
             (By.ID, "dropName")

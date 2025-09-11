@@ -1,4 +1,5 @@
 import React, {FC, useContext, useEffect, useState} from 'react';
+import { createPortal } from 'react-dom';
 import {ExportFormatV4, ShareItem} from "@/types/export";
 import {
     IconInfoCircle,
@@ -29,7 +30,7 @@ const LegacyWorkspaces: FC<Props> = () => {
     const user = session?.user;
 
     const {
-        state: {statsService, workspaces},
+        state: {statsService, workspaces, lightMode},
         dispatch: homeDispatch,
     } = useContext(HomeContext);
 
@@ -75,7 +76,8 @@ const LegacyWorkspaces: FC<Props> = () => {
     return (
         <div className="legacy-workspaces-container">
 
-            {importModalOpen && (
+            {importModalOpen && createPortal(
+               <div className={lightMode}>
                 <ImportAnythingModal
                     onImport={(sharedData) => {
                         statsService.sharedItemAcceptedEvent(user?.email ?? 'Self', selectedNote, sharedData);
@@ -89,7 +91,8 @@ const LegacyWorkspaces: FC<Props> = () => {
                     note={selectedNote}
                     importButtonLabel={"Import Items"}
                     title={"Choose Workspace Items to Import"}
-                    />
+                    /></div>,
+                document.body
             )}
             
             <div className="settings-card">
@@ -151,7 +154,7 @@ const LegacyWorkspaces: FC<Props> = () => {
                         </div>
 
                         <div className="legacy-workspace-actions">
-                          <div className="legacy-workspace-action-hint mt-[-50px]">
+                          <div className="legacy-workspace-action-hint ">
                             Click to import items →
                           </div>
                         </div>

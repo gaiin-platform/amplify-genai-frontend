@@ -376,3 +376,145 @@ export function stringToColor(str:string) {
     const index = hash % colors.length; // Modulus operation to get a valid array index
     return colors[index];
 }
+
+
+
+// URL validation and sanitization
+const sanitizeUrl = (inputUrl: string): string => {
+    let cleanUrl = inputUrl.trim();
+    
+    // Remove common prefixes people might accidentally include
+    cleanUrl = cleanUrl.replace(/^(url:|link:|website:)/i, '');
+    cleanUrl = cleanUrl.trim();
+    
+    // If no protocol is specified, assume https://
+    if (!/^https?:\/\//i.test(cleanUrl)) {
+        cleanUrl = 'https://' + cleanUrl;
+    }
+    
+    return cleanUrl;
+};
+
+
+export const validateUrl = (inputUrl: string, isSitemap: boolean): { isValid: boolean; error?: string; sanitizedUrl?: string; warning?: string } => {
+    if (!inputUrl.trim()) {
+        return { isValid: false, error: 'URL is required' };
+    }
+
+    const sanitizedUrl = sanitizeUrl(inputUrl);
+    
+    try {
+        const urlObj = new URL(sanitizedUrl);
+        
+        // Check for valid protocols
+        if (!['http:', 'https:'].includes(urlObj.protocol)) {
+            return { isValid: false, error: 'URL must use http:// or https://' };
+        }
+        
+        // Check for valid hostname
+        if (!urlObj.hostname || urlObj.hostname.length === 0) {
+            return { isValid: false, error: 'URL must have a valid domain name' };
+        }
+        
+        // Check for spaces in hostname (invalid)
+        if (urlObj.hostname.includes(' ')) {
+            return { isValid: false, error: 'Domain name cannot contain spaces' };
+        }
+        
+        const hostname = urlObj.hostname.toLowerCase();
+        
+        // Allow localhost
+        if (hostname === 'localhost') {
+            return { isValid: true, sanitizedUrl };
+        }
+        
+        // Allow IP addresses (IPv4)
+        const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+        if (ipv4Regex.test(hostname)) {
+            // Validate IP address ranges (0-255)
+            const parts = hostname.split('.');
+            for (const part of parts) {
+                const num = parseInt(part);
+                if (num < 0 || num > 255) {
+                    return { isValid: false, error: 'Invalid IP address' };
+                }
+            }
+            return { isValid: true, sanitizedUrl };
+        }
+        
+        // For regular domains, require proper structure
+        if (!hostname.includes('.')) {
+            return { isValid: false, error: 'Domain must have a top-level domain (e.g., .com, .org)' };
+        }
+        
+        const domainParts = hostname.split('.');
+        
+        // Check that no part is empty (handles cases like example..com)
+        if (domainParts.some(part => part.length === 0)) {
+            return { isValid: false, error: 'Invalid domain format' };
+        }
+        
+        // Check TLD (last part) is valid
+        const tld = domainParts[domainParts.length - 1];
+        if (tld.length < 2 || !/^[a-z]+$/i.test(tld)) {
+            return { isValid: false, error: 'Invalid top-level domain (must be at least 2 letters)' };
+        }
+        
+        // Check domain name parts contain only valid characters
+        const domainRegex = /^[a-z0-9-]+$/i;
+        for (let i = 0; i < domainParts.length - 1; i++) {
+            const part = domainParts[i];
+            if (!domainRegex.test(part) || part.startsWith('-') || part.endsWith('-')) {
+                return { isValid: false, error: 'Domain contains invalid characters' };
+            }
+        }
+        
+        // Sitemap-specific validation
+        if (isSitemap) {
+            const path = urlObj.pathname.toLowerCase();
+            const urlLower = sanitizedUrl.toLowerCase();
+            
+            // Common sitemap patterns
+            const sitemapPatterns = [
+                /\/sitemap\.xml$/,
+                /\/sitemap_index\.xml$/,
+                /\/sitemap-index\.xml$/,
+                /\/sitemaps\/.*\.xml$/,
+                /\/sitemap\/.*\.xml$/,
+                /\/sitemap.*\.xml$/,
+                /\/.*sitemap.*\.xml$/,
+                /robots\.txt$/
+            ];
+            
+            const hasValidPattern = sitemapPatterns.some(pattern => pattern.test(path));
+            const isXmlFile = path.endsWith('.xml');
+            const containsSitemap = urlLower.includes('sitemap');
+            const isRobotsTxt = path.includes('robots.txt');
+            
+            // If none of the common patterns match, show warning
+            if (!hasValidPattern && !isXmlFile && !containsSitemap && !isRobotsTxt) {
+                return { 
+                    isValid: true, 
+                    sanitizedUrl,
+                    warning: 'This URL doesn\'t look like a typical sitemap. Sitemaps usually end with .xml or contain "sitemap" in the path.'
+                };
+            }
+        }
+        
+        return { isValid: true, sanitizedUrl };
+        
+    } catch (error) {
+        return { isValid: false, error: 'Please enter a valid URL (e.g., https://example.com)' };
+    }
+
+};
+
+export const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(amount);
+};
+

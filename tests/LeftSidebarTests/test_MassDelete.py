@@ -92,19 +92,11 @@ class MassDeleteTests(BaseTest):
         self.create_chat("Rillaboom")
         self.create_chat("Typhlosion")
 
-        # Click the promptHandler Button
-        prompt_handler_buttons_plural = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptHandler"))
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
         )
-        self.assertGreater(
-            len(prompt_handler_buttons_plural),
-            1,
-            "Expected multiple buttons with ID 'promptHandler'",
-        )
-
-        prompt_handler_buttons_plural[0].click()
-
-        time.sleep(3)
+        prompt_handler_button.click()
+        time.sleep(2)
 
         # Click the Delete Button
         delete_button = self.wait.until(EC.element_to_be_clickable((By.ID, "Delete")))
@@ -202,13 +194,13 @@ class MassDeleteTests(BaseTest):
         chat_in_list = next(
             (el for el in chat_name_elements if el.text == "Pawmot"), None
         )
-        self.assertIsNone(chat_in_list, "Pawmot should be visible in the dropdown")
+        self.assertIsNone(chat_in_list, "Pawmot should not be visible in the dropdown")
 
         # Check if any of the elements do not contain "Rillaboom"
         chat_in_list = next(
             (el for el in chat_name_elements if el.text == "Rillaboom"), None
         )
-        self.assertIsNone(chat_in_list, "Rillaboom should be visible in the dropdown")
+        self.assertIsNone(chat_in_list, "Rillaboom should not be visible in the dropdown")
 
     # ----------------- Test Delete Mass Chats -----------------
     """This test ensures that all chats can be selected and deleted via the three dots handler
@@ -221,17 +213,10 @@ class MassDeleteTests(BaseTest):
         self.create_chat("Weezing")
         self.create_chat("Moraidon")
 
-        # Click the promptHandler Button
-        prompt_handler_buttons_plural = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "promptHandler"))
+        prompt_handler_button = self.wait.until(
+            EC.presence_of_element_located((By.ID, "promptHandler"))
         )
-        self.assertGreater(
-            len(prompt_handler_buttons_plural),
-            1,
-            "Expected multiple buttons with ID 'promptHandler'",
-        )
-
-        prompt_handler_buttons_plural[0].click()
+        prompt_handler_button.click()
 
         time.sleep(3)
 

@@ -28,6 +28,7 @@ import {
     Memory,
 } from '@/types/memory';
 import { getSettings } from '@/utils/app/settings';
+import { isBasePrompt } from '@/utils/app/basePrompts';
 import { promptForData } from '@/utils/app/llm';
 import {
     buildExtractFactsPrompt,
@@ -35,6 +36,7 @@ import {
     buildMemoryContextPrompt
 } from '@/utils/app/memory';
 import { handleAgentRun, handleAgentRunResult, isWaitingForAgentResponse } from '@/utils/app/agent';
+import { lzwCompress } from '@/utils/app/lzwCompression';
 
 export type ChatRequest = {
     message: Message;
@@ -147,10 +149,10 @@ export function useSendService() {
             
             try {
                 homeDispatch({field: 'messageIsStreaming', value: true}); 
-                const agentResult = await handleAgentRun(sessionId, (status: any) => homeDispatch({ field: "status", value: [newStatus(status)] }), messageTimestampRef.current);
+                const agentResult = await handleAgentRun(sessionId, (status: any) => homeDispatch({ field: "status", value: [newStatus(status)] }));
                 if (agentResult && selectedConversation) {
                     const lastIndex = selectedConversation.messages.length - 1;
-                    selectedConversation.messages[lastIndex].data.state.agentLog = agentResult;
+                    selectedConversation.messages[lastIndex].data.state.agentLog = lzwCompress(JSON.stringify(agentResult));
                     const updatedConversation = await handleAgentRunResult(agentResult, selectedConversation, getDefaultModel(DefaultModels.CHEAPEST), defaultAccount, homeDispatch, statsService, chatEndpoint || '');
                     handleUpdateSelectedConversation(updatedConversation);
                 } else {
@@ -260,8 +262,13 @@ export function useSendService() {
 
                     let isArtifactsOn = featureFlags.artifacts && featureOptions.includeArtifacts &&
                         // we only consider whats in the plugins if we have the feature option for it on.
-                        (!pluginIds || (pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER)));
+                        (!pluginIds || (pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER))) &&
+                        // turn off artifacts for base prompt templates
+                        !(selectedConversation?.promptTemplate && isBasePrompt(selectedConversation.promptTemplate.id));
                     console.log("Artifacts on: ", isArtifactsOn)
+                    if (selectedConversation?.promptTemplate && isBasePrompt(selectedConversation.promptTemplate.id)) {
+                        console.log("Artifacts disabled for base prompt template: ", selectedConversation.promptTemplate.name);
+                    }
                     const isSmartMessagesOn = featureOptions.includeFocusedMessages && (!pluginIds || (pluginIds.includes(PluginID.SMART_MESSAGES)));
                     console.log("Smart Messageson: ", isSmartMessagesOn)
 
@@ -474,11 +481,14 @@ export function useSendService() {
                         }
 
                         let outOfOrder = false;
-                        let currentState = {};
+                        let currentState: any = {};
+                        let reasoningText = "";
+                        let reasoningMode = false; // support gemini reasoning
 
                         const metaHandler: MetaHandler = {
                             status: (meta: any) => {
-                                //console.log("Chat-Status: ", meta);
+                                //capture reasoning to compress and save in state at the end of the astresponse
+                                if (meta.id === "reasoning") reasoningText += meta.message;
                                 homeDispatch({ type: "append", field: "status", value: newStatus(meta) })
                             },
                             mode: (modeName: string) => {
@@ -533,7 +543,6 @@ export function useSendService() {
                         const reader = data.getReader();
                         const decoder = new TextDecoder();
                         let done = false;
-                        let isFirst = true;
                         let text = '';
 
                         // Reset the status display
@@ -587,8 +596,27 @@ export function useSendService() {
                                         //move onto the next iteration
                                         continue;
                                     }
+                                    if (text.includes("<thought>")) reasoningMode = true;
+                        
+                                    // Split by reasoning tags and process alternately
+                                    const parts = chunkValue.split(/(<\/?thought>)/);
+                                    
+                                    for (const part of parts) {
+                                        if (part === '<thought>') {
+                                            reasoningMode = true;
+                                        } else if (part === '</thought>') {
+                                            reasoningMode = false;
+                                        } else if (part) {
+                                            if (reasoningMode) {
+                                                reasoningText += part;
+                                                homeDispatch({ type: "append", field: "status", value: newStatus({id: "reasoning", summary: "Thinking Details:", message: part, icon: "bolt", inProgress: true, animated: true}) });
+                                            } else {
+                                                text += part;
+                                            }
+                                        }
+                                    }
 
-                                    text += chunkValue;
+                                    if (text.includes("</thought>")) reasoningMode = false;
                                 } else {
                                     let event = { s: "0", d: chunkValue };
                                     try {
@@ -648,7 +676,7 @@ export function useSendService() {
                                 return;
                             }
                         }
-                        // }
+                      
 
                         //console.log("Dispatching post procs: " + postProcessingCallbacks.length);
                         postProcessingCallbacks.forEach(callback => callback({
@@ -668,7 +696,8 @@ export function useSendService() {
                                     if (index === updatedConversation.messages.length - 1) {
                                         const disclaimer = message.data.state.currentAssistantDisclaimer;
                                         let astMsg = updatedText;
-                                        if (disclaimer) astMsg += "\n\n" + disclaimer
+                                        if (disclaimer) astMsg += "\n\n" + disclaimer;
+                                        if (reasoningText) message.data.state.reasoning = lzwCompress(reasoningText);
 
                                         return {
                                             ...message,
@@ -737,7 +766,7 @@ export function useSendService() {
                                     // Build and send fact extraction prompt
                                     const extractFactsPrompt = buildExtractFactsPrompt(userInput, existingMemories);
 
-                                    console.log("Extract facts prompt: ", extractFactsPrompt);
+                                    // console.log("Extract facts prompt: ", extractFactsPrompt);
 
                                     const extractFactsResult = await promptForData(
                                         chatEndpoint || '',

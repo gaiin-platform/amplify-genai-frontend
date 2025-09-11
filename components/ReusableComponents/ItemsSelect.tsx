@@ -5,7 +5,7 @@ import { Prompt } from "@/types/prompt";
 import React from "react";
 import { FC, useContext, useEffect, useRef, useState } from "react";
 import Checkbox from "./CheckBox";
-import { IconFolder, IconMessage, IconRobot } from "@tabler/icons-react";
+import { IconFolder, IconMessage, IconRobot, IconChevronUp, IconChevronDown } from "@tabler/icons-react";
 
 interface Props {
     promptOptions?: Prompt[];
@@ -92,7 +92,33 @@ export const ItemSelect: FC<Props> = (
     const [allPromptsChecked, setAllPromptsChecked] = useState(false);
     const [allConversationsChecked, setAllConversationsChecked] = useState(false);
     const [allFoldersChecked, setAllFoldersChecked] = useState(false);
+    
+    // Expandable section state
+    const [expandedSection, setExpandedSection] = useState<ItemType | null>(null);
+    const [hoveredSection, setHoveredSection] = useState<ItemType | null>(null);
+    
     const noItems = ITEM_TYPES.every(type => getItems(type).length === 0);
+    
+    // Calculate which sections are visible and their heights
+    const visibleSections = ITEM_TYPES.filter(type => getItems(type).length > 0);
+    const numVisibleSections = visibleSections.length;
+    
+    // Calculate dynamic heights
+    const calculateSectionHeight = (sectionType: ItemType) => {
+        if (numVisibleSections === 1) return '400px'; // Single section takes full height
+        
+        if (expandedSection) {
+            if (sectionType === expandedSection) {
+                return '300px'; // Expanded section
+            } else {
+                return '100px'; // Collapsed sections
+            }
+        }
+        
+        // Even distribution
+        const baseHeight = Math.floor(400 / numVisibleSections);
+        return `${baseHeight}px`;
+    };
 
     
     const handlePromptsCheck = (checked:boolean) => {
@@ -111,6 +137,17 @@ export const ItemSelect: FC<Props> = (
     const handleFoldersCheck = (checked:boolean) => {
         setSelectedFolders(checked ? folderOptions ?? foldersRef.current : []);
         setAllFoldersChecked(checked);
+    };
+    
+    // Handle section expand/collapse
+    const handleSectionToggle = (sectionType: ItemType) => {
+        if (numVisibleSections <= 1) return; // Don't allow expand/collapse if only one section
+        
+        if (expandedSection === sectionType) {
+            setExpandedSection(null); // Collapse if already expanded
+        } else {
+            setExpandedSection(sectionType); // Expand this section
+        }
     };
 
     useEffect(() => {
@@ -269,25 +306,57 @@ export const ItemSelect: FC<Props> = (
         const renderScrollableSection = (isChecked: boolean, handleCheck: (e :boolean) => void, itemType: ItemType) => {
             const items:Array<Prompt | Conversation | FolderInterface> = getItems(itemType);
             if (items.length === 0) return null;
-            return <>
-                    <div className="mt-6 flex items-center border-b border-b-black dark:border-b-white">
-                        <div className="ml-2" title={`${isChecked ? "Deselect": "Selectl"} All ${itemType}s`}>
-                        <Checkbox
-                            id={itemType}
-                            label={``}
-                            checked={isChecked}
-                            onChange={(checked: boolean) => handleCheck(checked)}
-                        />
+            
+            const sectionHeight = calculateSectionHeight(itemType);
+            const isExpanded = expandedSection === itemType;
+            const showCaret = numVisibleSections > 1;
+            const isHovered = hoveredSection === itemType;
+            
+            return (
+                <div 
+                    className="relative mt-6 flex flex-col transition-all duration-300"
+                    style={{ height: sectionHeight }}
+                    onMouseEnter={() => setHoveredSection(itemType)}
+                    onMouseLeave={() => setHoveredSection(null)}
+                >
+                    {/* Header with checkbox and title */}
+                    <div className="flex items-center border-b border-b-black dark:border-b-white pb-2">
+                        <div className="ml-2" title={`${isChecked ? "Deselect": "Select"} All ${itemType}s`}>
+                            <Checkbox
+                                id={itemType}
+                                label={``}
+                                checked={isChecked}
+                                onChange={(checked: boolean) => handleCheck(checked)}
+                            />
                         </div>
                         <h3 className="ml-2 mb-1 text-black dark:text-white text-lg">{`${itemType}s`}</h3>
                     </div>
 
-                    <div className="max-h-[180px] overflow-y-auto">
+                    {/* Scrollable content area */}
+                    <div className="flex-1 overflow-y-auto mt-2">
                         {items.map((item) =>
                             renderItem(item, itemType)
                         )}
                     </div>
-                    </>
+                    
+                    {/* Expandable caret - only show if multiple sections and (hovered or collapsed when expanded) */}
+                    {showCaret && (isHovered || (expandedSection && !isExpanded)) && (
+                        <div className="absolute bottom-[-15px] left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                            <button
+                                onClick={() => handleSectionToggle(itemType)}
+                                className="bg-gray-400 dark:bg-gray-600 hover:bg-gray-500 dark:hover:bg-gray-500 rounded-full p-1 transition-colors duration-200 shadow-lg"
+                                title={isExpanded ? `Collapse ${itemType}s` : `Expand ${itemType}s`}
+                            >
+                                {isExpanded ? (
+                                    <IconChevronUp size={16} className="text-white" />
+                                ) : (
+                                    <IconChevronDown size={16} className="text-white" />
+                                )}
+                            </button>
+                        </div>
+                    )}
+                </div>
+            );
         };
             
     return (

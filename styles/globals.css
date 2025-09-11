@@ -219,3 +219,19 @@ pre:has(div.codeblock) {
 .animate-glow {
   animation: glow 3s ease-in-out infinite;
 }
+
+@keyframes float {
+  0% {
+    transform: translate(-50%, 0px);
+  }
+  50% {
+    transform: translate(-50%, -4px);
+  }
+  100% {
+    transform: translate(-50%, 0px);
+  }
+}
+
+.animate-float {
+  animation: float 2s ease-in-out infinite;
+}

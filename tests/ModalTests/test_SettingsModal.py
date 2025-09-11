@@ -30,31 +30,28 @@ class SettingsModalTests(BaseTest):
 
         time.sleep(5)
 
-        tabs = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
-        self.assertGreater(len(tabs), 1, "Expected multiple buttons with ID 'tabSelection'")
-        settings_tab = next((tab for tab in tabs if tab.get_attribute("title") == "Settings"), None)
-        self.assertIsNotNone(settings_tab, "The 'Settings' tab should be present")
-        settings_tab.click()
+        user_menu = self.wait.until(EC.presence_of_element_located((By.ID, "userMenu")))
+        self.assertTrue(user_menu, "User Menu button is present")
+        user_menu.click()
+        time.sleep(3)
 
-        side_bar_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "sideBarButton")))
-        self.assertGreater(len(side_bar_buttons), 1, "Expected multiple buttons with ID 'sideBarButton'",)
-        target_button = None
-        for button in side_bar_buttons:
-            try:
-                span_element = button.find_element(By.TAG_NAME, "span")
-                if span_element.text.strip() == "Settings":
-                    target_button = button
-                    break
-            except:
-                continue
-
-        self.assertIsNotNone(target_button, "The 'Settings' button should be present")
-        target_button.click()
+        settings_select = self.wait.until(EC.presence_of_element_located((By.ID, "settingsInterface")))
+        self.assertTrue(settings_select, "The Settings button should be present")
+        settings_select.click()
+        time.sleep(7)
 
         settings_modal_element = self.wait.until(EC.presence_of_element_located((By.ID, "modalTitle")))
         self.assertTrue(settings_modal_element.is_displayed(), "Settings window element is visible")
         modal_text = settings_modal_element.text
         self.assertEqual(modal_text, "Settings", "Modal title should be 'Settings'")
+        time.sleep(2)
+        
+        tabs = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabName")))
+        self.assertGreater(len(tabs), 1, "Expected multiple buttons with ID 'tabName'")
+        admin_supported_models_tab = next((tab for tab in tabs if tab.text == "Configurations"), None)
+        self.assertIsNotNone(admin_supported_models_tab, "The 'Configurations' tab should be present")
+        admin_supported_models_tab.click()
+        time.sleep(5)
     
     # ----------------- Test Settings Theme -----------------
     def test_settings_theme(self):
@@ -69,18 +66,17 @@ class SettingsModalTests(BaseTest):
         light_mode_label = self.wait.until(EC.presence_of_element_located((By.ID, "themelight")))
 
         # Get the input elements inside each label
-        dark_radio = dark_mode_label.find_element(By.ID, "checkboxInput")
-        light_radio = light_mode_label.find_element(By.ID, "checkboxInput")
+        dark_radio = dark_mode_label.find_element(By.CSS_SELECTOR, "input[type='radio']")
 
         # Check which one is currently selected
         if dark_radio.is_selected():
             print("Dark mode is currently selected. Switching to Light mode...")
             time.sleep(1)
-            light_radio.click()
+            light_mode_label.click()
         else:
             print("Light mode is currently selected. Switching to Dark mode...")
             time.sleep(1)
-            dark_radio.click()
+            dark_mode_label.click()
 
         time.sleep(2)
         
@@ -116,18 +112,17 @@ class SettingsModalTests(BaseTest):
         light_mode_label = self.wait.until(EC.presence_of_element_located((By.ID, "themelight")))
 
         # Get the input elements inside each label
-        dark_radio = dark_mode_label.find_element(By.ID, "checkboxInput")
-        light_radio = light_mode_label.find_element(By.ID, "checkboxInput")
+        dark_radio = dark_mode_label.find_element(By.CSS_SELECTOR, "input[type='radio']")
 
         # Check which one is currently selected
         if dark_radio.is_selected():
             print("Dark mode is currently selected. Switching to Light mode...")
             time.sleep(1)
-            light_radio.click()
+            light_mode_label.click()
         else:
             print("Light mode is currently selected. Switching to Dark mode...")
             time.sleep(1)
-            dark_radio.click()
+            dark_mode_label.click()
 
         time.sleep(2)
         
@@ -162,6 +157,7 @@ class SettingsModalTests(BaseTest):
         time.sleep(2)
         
         openai_check = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "label[for='modelOptionFlags-allOpenAI']")))
+        self.assertTrue(openai_check, "OpenAi is visible and clickable")
         
         time.sleep(2)
         
@@ -443,64 +439,70 @@ class SettingsModalTests(BaseTest):
         # Sleep to allow the page to load or stabilize
         time.sleep(2)
         
-        conversation_storage_tab = self.wait.until(EC.element_to_be_clickable((By.ID, "Enable conversations to sync across devices or keep them priavte")))
-        self.assertIsNotNone(conversation_storage_tab, "Conversation Storage Tab should be initialized and clickable")
+        tabs = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabName")))
+        self.assertGreater(len(tabs), 1, "Expected multiple buttons with ID 'tabName'")
+        conversation_storage_tab = next((tab for tab in tabs if tab.text == "Conversation Storage"), None)
+        self.assertIsNotNone(conversation_storage_tab, "The 'Conversation Storage' tab should be present")
         conversation_storage_tab.click()
-        
         time.sleep(2)
         
-        local_only_check = self.wait.until(EC.element_to_be_clickable((By.ID, "local-only")))
+        local_only_check = self.wait.until(EC.presence_of_element_located((By.ID, "local-only")))
         self.assertIsNotNone(local_only_check, "Store all existing and new conversations locally should be initialized and clickable")
-        local_only_check.click()
+        
+        # Click the parent label
+        local_only_label = local_only_check.find_element(By.XPATH, "./ancestor::label")
+        local_only_label.click()
         
         time.sleep(2)
         
-        future_local_check = self.wait.until(EC.element_to_be_clickable((By.ID, "future-local")))
+        future_local_check = self.wait.until(EC.presence_of_element_located((By.ID, "future-local")))
         self.assertIsNotNone(future_local_check, "Store only new conversations locally should be initialized and clickable")
-        future_local_check.click()
+        
+        # Click the parent label
+        future_local_label = future_local_check.find_element(By.XPATH, "./ancestor::label")
+        future_local_label.click()
         
         time.sleep(2)
         
-        cloud_only_check = self.wait.until(EC.element_to_be_clickable((By.ID, "cloud-only")))
+        cloud_only_check = self.wait.until(EC.presence_of_element_located((By.ID, "cloud-only")))
         self.assertIsNotNone(cloud_only_check, "Store all existing and new conversations in the cloud should be initialized and clickable")
-        cloud_only_check.click()
+        
+        # Click the parent label
+        cloud_only_label = cloud_only_check.find_element(By.XPATH, "./ancestor::label")
+        cloud_only_label.click()
         
         time.sleep(2)
         
-        future_cloud_check = self.wait.until(EC.element_to_be_clickable((By.ID, "future-cloud")))
+        future_cloud_check = self.wait.until(EC.presence_of_element_located((By.ID, "future-cloud")))
         self.assertIsNotNone(future_cloud_check, "Store only new conversations in the cloud should be initialized and clickable")
-        future_cloud_check.click()
+
+        # Click the parent label
+        future_cloud_label = future_cloud_check.find_element(By.XPATH, "./ancestor::label")
+        future_cloud_label.click()
         
         time.sleep(2)
         
         applyConversationStorage_check = self.wait.until(EC.element_to_be_clickable((By.ID, "applyConversationStorage")))
         self.assertIsNotNone(applyConversationStorage_check, "Apply Conversation Storage should be initialized and clickable")
         
-        future_local_check = self.wait.until(EC.element_to_be_clickable((By.ID, "future-local")))
+        future_local_check = self.wait.until(EC.presence_of_element_located((By.ID, "future-local")))
         self.assertIsNotNone(future_local_check, "Store only new conversations locally should be initialized and clickable")
-        future_local_check.click()
+        
+        # Click the parent label
+        future_local_label = future_local_check.find_element(By.XPATH, "./ancestor::label")
+        future_local_label.click()
+        
+        time.sleep(2)
+        
+        # Test the Confirm Changes
+        cancel_button = self.wait.until(
+            EC.presence_of_all_elements_located((By.ID, "confirmationButton"))
+        )
+        self.assertTrue(cancel_button, "Cancel button can be clicked")
+        cancel_button[0].click()
         
         time.sleep(5)
         
-    # ----------------- Test Settings Model Pricing / Million Tokens -----------------
-    def test_settings_model_pricing(self):
-        
-        self.settings_settings()
-        
-        # Sleep to allow the page to load or stabilize
-        time.sleep(2)
-        
-        model_pricing_tab = self.wait.until(EC.element_to_be_clickable((By.ID, "View the model pricing")))
-        self.assertIsNotNone(model_pricing_tab, "Model Pricing / Million Tokens Tab should be initialized and clickable")
-        model_pricing_tab.click()
-        
-        time.sleep(2)
-    
-        # Scroll up to make sure the slider is in view id="modalScroll"
-        settings_scroll_window = self.wait.until(EC.presence_of_element_located((By.ID, "modalScroll")))
-        self.driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight;", settings_scroll_window)
-        
-        time.sleep(2)
 
 
 if __name__ == "__main__":

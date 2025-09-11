@@ -2,6 +2,7 @@ import { doRequestOp } from "./doRequestOp";
 
 const URL_PATH = "/utilities";
 const SERVICE_NAME = "emailAutocomplete";
+const OBJECT_ACCESS_SERVICE_NAME = "object-access";
 
 export const fetchEmailSuggestions = async (queryInput: string) => {
     const op = {
@@ -18,3 +19,15 @@ export const fetchEmailSuggestions = async (queryInput: string) => {
         return null;
     }
 }
+
+export const validateUsers = async (userNames: string[]) => {
+    const op = {
+        method: 'POST',
+        data: { user_names: userNames },
+        path: URL_PATH,
+        op: "/validate_users",
+        service: OBJECT_ACCESS_SERVICE_NAME
+    };
+    return await doRequestOp(op);
+}
+
