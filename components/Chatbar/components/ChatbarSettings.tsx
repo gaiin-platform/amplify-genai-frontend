@@ -25,7 +25,6 @@ export const ChatbarSettings = () => {
     const [isWorkflowBuilderOpen, setIsWorkflowBuilderOpen] = useState(false);
     const [isScheduledTasksOpen, setIsScheduledTasksOpen] = useState(false);
     const initTaskRef = useRef<ScheduledTask | undefined>(undefined);
-    const lastClickTimeRef = useRef<number>(0);
 
     const {
         state: { featureFlags, syncingPrompts },
@@ -57,16 +56,6 @@ export const ChatbarSettings = () => {
     } = useContext(ChatbarContext);
 
     const handleAssistantGroupInterfaceClick = useCallback(() => {
-        const now = Date.now();
-        const timeSinceLastClick = now - lastClickTimeRef.current;
-        
-        // Debounce: prevent clicks within 300ms of each other
-        if (timeSinceLastClick < 300) {
-            return;
-        }
-        
-        lastClickTimeRef.current = now;
-        
         try {
             // Dispatch the event with proper configuration
             const event = new CustomEvent('openAstAdminInterfaceTrigger', { 

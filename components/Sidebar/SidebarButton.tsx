@@ -16,10 +16,7 @@ export const SidebarButton: FC<Props> = ({ text, icon, onClick, disabled }) => {
       return;
     }
     
-    // Add small delay to ensure DOM is ready
-    requestAnimationFrame(() => {
-      onClick();
-    });
+    onClick();
   };
 
   return (
