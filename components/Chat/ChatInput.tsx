@@ -884,6 +884,28 @@ export const ChatInput = ({
                                     (file: File) => { handleFile(file, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController, featureFlags.uploadDocuments, undefined, resolveRagEnabled(featureFlags, ragOn) )}
                                     : undefined
                                 }
+                                onDatabaseConnectionSelected={(connection) => {
+                                    const doc = {
+                                        id: `database://${connection.id}`,
+                                        name: `${connection.connection_name} (${connection.type})`,
+                                        raw: null,
+                                        type: "amplify/database",
+                                        data: "",
+                                        metadata: {
+                                            connection_id: connection.id,
+                                            connection_name: connection.connection_name,
+                                            database_type: connection.type,
+                                            host: connection.host,
+                                            port: connection.port,
+                                            database: connection.database,
+                                            username: connection.username
+                                        }
+                                    };
+                                    addDocument(doc);
+                                    handleSetKey(doc, doc.id);
+                                    handleSetMetadata(doc, doc.metadata);
+                                    handleDocumentState(doc, 100);
+                                }}
                             />
                         </div>
                     )}
