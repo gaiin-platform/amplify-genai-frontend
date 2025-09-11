@@ -1,5 +1,5 @@
 import { IconFileExport, IconPuzzle, IconBinaryTree2, IconApps, IconSettings, IconHelp, IconCloud, IconRobot, IconUser, IconSettingsBolt, IconDeviceSdCard, IconTools, IconAlarm, IconUsers } from '@tabler/icons-react';
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState, useCallback } from 'react';
 
 
 import { useTranslation } from 'next-i18next';
@@ -25,6 +25,7 @@ export const ChatbarSettings = () => {
     const [isWorkflowBuilderOpen, setIsWorkflowBuilderOpen] = useState(false);
     const [isScheduledTasksOpen, setIsScheduledTasksOpen] = useState(false);
     const initTaskRef = useRef<ScheduledTask | undefined>(undefined);
+    const lastClickTimeRef = useRef<number>(0);
 
     const {
         state: { featureFlags, syncingPrompts },
@@ -55,6 +56,31 @@ export const ChatbarSettings = () => {
         handleExportData,
     } = useContext(ChatbarContext);
 
+    const handleAssistantGroupInterfaceClick = useCallback(() => {
+        const now = Date.now();
+        const timeSinceLastClick = now - lastClickTimeRef.current;
+        
+        // Debounce: prevent clicks within 300ms of each other
+        if (timeSinceLastClick < 300) {
+            return;
+        }
+        
+        lastClickTimeRef.current = now;
+        
+        try {
+            // Dispatch the event with proper configuration
+            const event = new CustomEvent('openAstAdminInterfaceTrigger', { 
+                detail: { isOpen: true },
+                bubbles: true,
+                cancelable: true
+            });
+            
+            window.dispatchEvent(event);
+        } catch (error) {
+            // console.error('Failed to dispatch openAstAdminInterfaceTrigger event:', error);
+        }
+    }, []);
+
     return (
         <div className="slide-in flex flex-col items-center space-y-0 m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">   
 
@@ -63,11 +89,7 @@ export const ChatbarSettings = () => {
                     disabled={syncingPrompts}
                     text={t('Assistant Group Interface')}
                     icon={<IconUsers size={19} />}
-                    onClick={() => {
-                        // send trigger to close side bars and open the interface 
-                        window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', { detail: { isOpen: true }} ));
-                      
-                    }}
+                    onClick={handleAssistantGroupInterfaceClick}
                 />
             }
 
