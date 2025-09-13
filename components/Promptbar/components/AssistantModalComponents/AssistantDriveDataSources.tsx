@@ -14,6 +14,7 @@ import { SchedulerPanel, SchedulerAlarmButton } from '@/components/ReusableCompo
 import { getScheduledTask } from '@/services/scheduledTasksService';
 import { cronToDriveRescanSchedule } from '@/utils/app/scheduledTasks';
 import { AssistantDefinition } from '@/types/assistant';
+import { getDriveFileIntegrationTypes } from '@/utils/app/integrations';
 
 
  // Add helper function to check if there are any files selected
@@ -419,14 +420,14 @@ export const AssistantDriveDataSources: FC<Props> = ({
   };
 
   const handleOnConnectedIntegrations = (integrations: string[]) => {
-    const driveConnected = integrations.filter((i: string) => i.includes("drive"));
+    const driveConnected = getDriveFileIntegrationTypes(integrations);
     setConnectedDriveIntegrations(driveConnected);
   }
 
   const handleOnSupportedIntegrations = (integrations: IntegrationsMap) => {
-    const driveSupported = Object.values(integrations).flatMap(providerArray => 
-        providerArray.map(integration => integration.id).filter(id => id.includes("drive"))
-      );
+    const driveSupported = Object.values(integrations).flatMap(providerArray =>
+      getDriveFileIntegrationTypes(providerArray.map(integration => integration.id))
+    );
     setSupportedDriveIntegrations(driveSupported);
     if (driveSupported.length > 0) setSelectedIntegration(driveSupported.sort()[0]);
   }

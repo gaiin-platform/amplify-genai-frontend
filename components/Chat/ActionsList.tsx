@@ -1,4 +1,4 @@
-import { getOperationIcon } from '@/types/integrations';
+import { getOperationIcon } from '@/utils/app/integrations';
 import {
     IconX,
     IconTrash,
