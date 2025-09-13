@@ -10,6 +10,7 @@ import HomeContext from '@/pages/api/home/home.context';
 import { capitalize } from '@/utils/app/data';
 import DataSourcesTableScrollingIntegrations from './DataSourcesTableScrollingIntegrations';
 import { translateIntegrationIcon } from '../Integrations/IntegrationsDialog';
+import { getDriveFileIntegrationTypes } from '@/utils/app/integrations';
 
 interface Props {
     onDataSourceSelected: (dataSource: DataSource) => void;
@@ -43,8 +44,7 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
             let integrations: any = [];
             if (featureFlags.integrations) {
                 const result = await getConnectedIntegrations();
-                const connected = !result?.success ? [] : 
-                                  result.data.filter((i: string) => i.includes("drive"));
+                const connected = !result?.success ? [] : getDriveFileIntegrationTypes(result.data);
                 integrations = connected;
             }
             setLoading(false);
@@ -197,7 +197,7 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                 {selectedPage === "files" && (
                     <DataSourcesTableScrolling
                         height={height}
-                        visibleColumns={ showActionButtons ? ["name", "id", "createdAt", "commonType", "embeddingStatus", "delete", "re-embed"] 
+                        visibleColumns={ showActionButtons ? ["name", "id", "createdAt", "commonType", "embeddingStatus", "delete"] 
                                                            : ["name", "createdAt", "commonType", "embeddingStatus"]}
                         onDataSourceSelected={onDataSourceSelected}
                         tableParams={{

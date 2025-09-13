@@ -1,5 +1,5 @@
-import React, {FC, useEffect, useState} from 'react';
-import { IconCircleX, IconCheck, IconWorld, IconSitemap } from '@tabler/icons-react';
+import React, {FC, useContext, useEffect, useState} from 'react';
+import { IconCircleX, IconCheck, IconWorld, IconSitemap, IconRefresh } from '@tabler/icons-react';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
@@ -7,7 +7,10 @@ import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import Search from '../Search';
 import { embeddingDocumentStaus } from '@/services/adminService';
-import { extractKey, getDocumentStatusConfig } from '@/utils/app/files';
+import { extractKey, getDocumentStatusConfig, startFileReprocessingWithPolling } from '@/utils/app/files';
+import ActionButton from '@/components/ReusableComponents/ActionButton';
+import { IMAGE_FILE_TYPES } from '@/utils/app/const';
+import HomeContext from '@/pages/api/home/home.context';
 
 interface Props {
     documents:AttachedDocument[]|undefined;
@@ -179,12 +182,14 @@ const groupDataSourcesBySitemap = (documents: AttachedDocument[]): GroupedDataSo
 };
 
 export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocuments, allowRemoval = true, boldTitle=true, onRemoval}) => {
+    const { dispatch: homeDispatch, state:{lightMode} } = useContext(HomeContext);
 
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [dataSources, setDataSources] = useState<AttachedDocument[]>(documents ?? []);
     const [hovered, setHovered] = useState<string>('');
     const [expandedSitemaps, setExpandedSitemaps] = useState<Set<string>>(new Set());
     const [embeddingStatus, setEmbeddingStatus] = useState<{[key: string]: string} | null >(null);
+    const [pollingFiles, setPollingFiles] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         if (documents) setDataSources(documents);
@@ -200,15 +205,36 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
             }).filter(ds => ds) as {key: string, type: string}[];
             
             if (keys.length > 0) {
-                embeddingDocumentStaus(keys)
-                    .then(response => {
-                        if (response?.success && response?.data) {
-                            setEmbeddingStatus(response.data);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Failed to fetch embedding status:', error);
-                    });
+                // Break keys into chunks of 25
+                const chunkSize = 25;
+                const chunks: Array<{key: string, type: string}[]> = [];
+                for (let i = 0; i < keys.length; i += chunkSize) {
+                    chunks.push(keys.slice(i, i + chunkSize));
+                }
+
+                // Make concurrent calls for each chunk
+                const statusPromises = chunks.map(chunk => 
+                    embeddingDocumentStaus(chunk)
+                        .then(response => {
+                            if (response?.success && response?.data) {
+                                // Merge results into existing state as they come in
+                                setEmbeddingStatus(prevStatus => ({
+                                    ...prevStatus,
+                                    ...response.data
+                                }));
+                            }
+                            return response;
+                        })
+                        .catch(error => {
+                            console.error('Failed to fetch embedding status for chunk:', error);
+                            return null;
+                        })
+                );
+
+                // Wait for all chunks to complete
+                Promise.all(statusPromises).catch(error => {
+                    console.error('Failed to fetch embedding status:', error);
+                });
             }
         }
     }, [dataSources]);
@@ -241,6 +267,59 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
         }
     };
 
+    const fileReprocessing = async (key: string) => {
+        // Find the document that will be reprocessed to get its type
+        const reprocessedDoc = dataSources.find(ds => extractKey(ds) === key);
+        if (!reprocessedDoc) {
+            console.error('Document not found for reprocessing:', key);
+            return;
+        }
+
+        await startFileReprocessingWithPolling({
+            key,
+            fileType: reprocessedDoc.type,
+            setPollingFiles,
+            setEmbeddingStatus
+        });
+    };
+
+
+    const reprocessButton = (doc: AttachedDocument) => {
+        if (IMAGE_FILE_TYPES.includes(doc.type)) return null;
+        
+        const key = extractKey(doc);
+        
+        if (pollingFiles.has(key)) {
+            return <LoadingIcon style={{ width: "16px", height: "16px", color: lightMode === 'dark' ? 'white' : 'gray'}} />;
+        }
+        
+        return (
+        <ActionButton
+            title='Regenerate text extraction and embeddings for this file.'
+            handleClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (confirm("Are you sure you want to regenerate the text extraction and embeddings for this file?")) {
+                    fileReprocessing(key);
+                }
+            }}
+        > 
+            <IconRefresh size={16} />
+        </ActionButton>)
+
+    }
+
+    const embeddingStatusIndicator = (doc: AttachedDocument) => {
+        if (!embeddingStatus) return null;
+        const status = embeddingStatus[extractKey(doc)];
+        if (!status) return null;
+        const config = getDocumentStatusConfig(status);
+        return config?.showIndicatorWhenNotHovered ? (
+            <span className={`${config.indicatorColor} text-sm ml-1 ${config.indicator === '●' ? 'text-xs' : 'text-sm'} ${config.animate ? 'animate-pulse' : ''}`}>
+                {config.indicator}
+            </span>
+        ) : null;
+    }
     // Shared component for rendering document items
     const DocumentItem: FC<{
         id: string;
@@ -299,25 +378,20 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                         textOverflow: 'ellipsis',
                     }}>
                         {itemNumber}. {displayText} {icon}
-                        {document && embeddingStatus && (() => {
-                            const status = embeddingStatus[extractKey(document)];
-                            if (!status) return null;
-                            const config = getDocumentStatusConfig(status);
-                            return config?.showIndicatorWhenNotHovered ? (
-                                <span className={`${config.indicatorColor} text-sm ml-1 ${config.animate ? 'animate-pulse' : ''}`}>
-                                    {config.indicator}
-                                </span>
-                            ) : null;
-                        })()}
+                        {document && embeddingStatus && embeddingStatusIndicator(document)}
+
                     </p>
-                    <div className="flex-shrink-0 px-4">
+                    {(hovered === id || (document && pollingFiles.has(extractKey(document)))) && 
+                    <div className="flex-shrink-0 px-4 flex items-center gap-1">
                         {document && embeddingStatus && (
                             <StatusBadge 
                                 status={embeddingStatus[extractKey(document)]} 
-                                isRowHovered={hovered === id}
                             />
                         )}
-                    </div>
+                        {document && embeddingStatus && embeddingStatus[extractKey(document)] && embeddingStatus[extractKey(document)] !== 'completed' && (
+                           reprocessButton(document)
+                        )}
+                    </div>}
                 </div>
            
                 {allowRemoval && onRemove && 
@@ -358,23 +432,17 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                     textOverflow: 'ellipsis',
                 }}>
                     ↳ {document.metadata?.sourceUrl || document.name}
-                    {embeddingStatus && (() => {
-                        const status = embeddingStatus[extractKey(document)];
-                        if (!status) return null;
-                        const config = getDocumentStatusConfig(status);
-                        return config?.showIndicatorWhenNotHovered ? (
-                            <span className={`${config.indicatorColor} text-sm ml-1 ${config.animate ? 'animate-pulse' : ''}`}>
-                                {config.indicator}
-                            </span>
-                        ) : null;
-                    })()}
+                    {embeddingStatus && (embeddingStatusIndicator(document))}
                 </p>
-                <div className="flex-shrink-0 px-4">
+                {(hovered === document.id || pollingFiles.has(extractKey(document))) &&
+                <div className="flex-shrink-0 px-4 flex items-center gap-1">
                     {embeddingStatus && <StatusBadge 
                         status={embeddingStatus[extractKey(document)]} 
-                        isRowHovered={hovered === document.id}
                     />}
-                </div>
+                    {embeddingStatus && embeddingStatus[extractKey(document)] && embeddingStatus[extractKey(document)] !== 'completed' && (
+                        reprocessButton(document)
+                    )}
+                </div>}
             </div>
        
             {allowRemoval && 
@@ -491,7 +559,7 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
 
 
     // Status badge component  
-export const StatusBadge: FC<{ status: string | null | undefined; isRowHovered: boolean }> = ({ status, isRowHovered }) => {
+export const StatusBadge: FC<{ status: string | null | undefined}> = ({ status }) => {
     if (!status) return null;
     
     const config = getDocumentStatusConfig(status);
@@ -499,11 +567,9 @@ export const StatusBadge: FC<{ status: string | null | undefined; isRowHovered: 
     
     return (
         <div className="inline-block min-w-[60px] text-right">
-            {isRowHovered ? (
                 <span className={`${config.color} text-xs px-1.5 py-0.5 rounded font-normal whitespace-nowrap`}>
                     {config.text}
                 </span>
-            ) : null}
         </div>
     );
 };

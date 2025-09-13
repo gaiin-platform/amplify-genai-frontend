@@ -7,17 +7,18 @@ import {
 } from 'mantine-react-table';
 import {MantineProvider, ScrollArea} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
-import {FileQuery, FileRecord, PageKey, queryUserFiles, reprocessFile, setTags} from "@/services/fileService";
+import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
 import {DataSource} from "@/types/chat";
 import { v4 as uuidv4 } from 'uuid';
-import { deleteDatasourceFile, downloadDataSourceFile, extractKey, getDocumentStatusConfig } from '@/utils/app/files';
+import { deleteDatasourceFile, downloadDataSourceFile, extractKey, getDocumentStatusConfig, startFileReprocessingWithPolling } from '@/utils/app/files';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
 import { IMAGE_FILE_TYPES } from '@/utils/app/const';
-import toast from 'react-hot-toast';
 import { embeddingDocumentStaus } from '@/services/adminService';
 import { capitalize } from '@/utils/app/data';
+import styled, {keyframes} from "styled-components";
+import {FiCommand} from "react-icons/fi";
 
 
 interface Props {
@@ -27,6 +28,22 @@ interface Props {
     tableParams?: { [key: string]: any };
     height?: string;
 }
+
+const animate = keyframes`
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(720deg);
+  }
+`;
+
+const LoadingIcon = styled(FiCommand)`
+  color: #777777;
+  font-size: 1.1rem;
+  font-weight: bold;
+  animation: ${animate} 2s infinite;
+`;
 
 const DataSourcesTableScrolling: FC<Props> = ({
                                                   visibleTypes,
@@ -46,7 +63,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
 
     const [pagination, setPagination] = useState({
         pageIndex: 0,
-        pageSize: 100, //customize the default page size
+        pageSize: 50, //customize the default page size
     });
 
     const [lastPageIndex, setLastPageIndex] = useState(0);
@@ -75,6 +92,8 @@ const DataSourcesTableScrolling: FC<Props> = ({
     const [isLoadingStatus, setIsLoadingStatus] = useState(false);
     // Cache to track which files have had their status fetched
     const fetchedStatusKeys = useRef<Set<string>>(new Set());
+    // Track files being reprocessed/polled
+    const [pollingFiles, setPollingFiles] = useState<Set<string>>(new Set());
 
     const getTypeFromCommonName = (commonName: string) => {
         const foundType = Object.entries(mimeTypeToCommonName)
@@ -402,17 +421,20 @@ const DataSourcesTableScrolling: FC<Props> = ({
     }
 
     const fileReprocessing = async (key: string) => {
-        setLoadingMessage("Reprocessing File...");
-        try {
-            const result = await reprocessFile(key);
-            if (result.success) {
-                toast("File's rag and embeddings regenerated successfully. Please wait a few minutes for the changes to take effect.");
-            } else {
-                alert("Failed to regenerate file's rag and embeddings.");
-            }
-        } finally {
-            setLoadingMessage("");
+        // Find the document that will be reprocessed to get its type
+        const reprocessedDoc = data.find(file => file.id === key);
+        if (!reprocessedDoc) {
+            console.error('Document not found for reprocessing:', key);
+            return;
         }
+
+        await startFileReprocessingWithPolling({
+            key: extractKey(reprocessedDoc),
+            fileType: reprocessedDoc.type,
+            setPollingFiles,
+            setEmbeddingStatus,
+            setLoadingMessage
+        });
     }
 
     const handleSaveCell = (table: MRT_TableInstance<FileRecord>, cell: MRT_Cell<FileRecord>, value: any) => {
@@ -527,9 +549,9 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: 'embeddingStatus', //embedding status column
                 header: 'Status',
-                width: 120,
-                size: 120,
-                maxSize: 120,
+                width: 150,
+                size: 150,
+                maxSize: 150,
                 enableSorting: false,
                 enableColumnActions: false,
                 enableColumnFilter: false,
@@ -537,7 +559,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
                     // Use the same key extraction as the API call
                     const key = extractKey(cell.row.original);
                     const status = embeddingStatus?.[key];
-                    
+                    const fileType = cell.row.original.type;
                     
                     // Show loading only if this specific file hasn't been fetched yet
                     if (!fetchedStatusKeys.current.has(key)) {
@@ -558,10 +580,29 @@ const DataSourcesTableScrolling: FC<Props> = ({
                     }
 
                     return (
-                        <div className="flex items-center justify-start">
+                        <div className="flex items-center justify-start gap-2">
                             <span className={`${config.color} text-xs px-1.5 py-0.5 rounded font-normal whitespace-nowrap`}>
                                 {capitalize(config.text)}
                             </span>
+                            {/* Show refresh button for non-completed, non-image files */}
+                            {status !== 'completed' && !IMAGE_FILE_TYPES.includes(fileType) && (
+                                pollingFiles.has(cell.row.original.id) ? (
+                                    <LoadingIcon style={{ width: "18px", height: "18px" }} />
+                                ) : (
+                                    <ActionButton
+                                        title='Regenerate text extraction and embeddings for this file.'
+                                        handleClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            if (confirm("Are you sure you want to regenerate the text extraction and embeddings for this file?")) {
+                                                fileReprocessing(cell.row.original.id);
+                                            }
+                                        }}
+                                    > 
+                                        <IconRefresh size={16} />
+                                    </ActionButton>
+                                )
+                            )}
                         </div>
                     );
                 },
@@ -586,35 +627,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
                         <IconTrash size={20}/>
                     </ActionButton>
                 ),   
-            },
-            {
-                accessorKey: 're-embed', //access nested data with dot notation
-                header: ' ',
-                width: 18,
-                size: 18,
-                maxSize: 18,
-                enableSorting: false,
-                enableColumnActions: false,
-                enableColumnFilter: false,
-                Cell: ({cell}) => {
-                    // Only show the refresh button for non-image file types
-                    const fileType = cell.row.original.type;
-                    if (IMAGE_FILE_TYPES.includes(fileType)) {
-                        return null;
-                    }
-                    
-                    return (
-                        <ActionButton
-                            title='Regenerate text extraction and embeddings for this file.'
-                            handleClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                fileReprocessing(cell.row.original.id);
-                            }}> 
-                        <IconRefresh size={20} />
-                        </ActionButton>
-                    );
-                },
             },
         ],
         [embeddingStatus, fetchedStatusKeys],
