@@ -15,6 +15,7 @@ import { AstWorkflow, Step } from '@/types/assistantWorkflows';
 import { OpDef } from '@/types/op';
 import { AgentTool } from '@/types/agentTools';
 import HomeContext from '@/pages/api/home/home.context';
+import Checkbox from '@/components/ReusableComponents/CheckBox';
 
 interface VisualWorkflowBuilderProps {
   isOpen: boolean;
@@ -937,6 +938,8 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   const [selectedToolType, setSelectedToolType] = useState<string>('all');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [clearAllTrigger, setClearAllTrigger] = useState(0);
+  const [leftPanelWidth, setLeftPanelWidth] = useState(320); // Default 320px (w-80)
+  const [isResizing, setIsResizing] = useState(false);
 
   const clearAllFilters = () => {
     setSearchTerm('');
@@ -944,6 +947,50 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
     setSelectedTags([]);
     setClearAllTrigger(prev => prev + 1);
   };
+
+  // Resize handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsResizing(true);
+    e.preventDefault();
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isResizing) return;
+    
+    const newWidth = e.clientX;
+    const minWidth = 240; // Minimum panel width
+    const maxWidth = Math.min(600, window.innerWidth * 0.5); // Maximum panel width (50% of viewport or 600px, whichever is smaller)
+    
+    if (newWidth >= minWidth && newWidth <= maxWidth) {
+      setLeftPanelWidth(newWidth);
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsResizing(false);
+  };
+
+  // Add event listeners for global mouse events during resize
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing]);
   
   // Modal states
   const [showToolPicker, setShowToolPicker] = useState(false);
@@ -961,6 +1008,34 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   
   // Tool items state
   const [toolItems, setToolItems] = useState<ToolItem[]>([]);
+  
+  // Update workflow state when initialWorkflow prop changes
+  useEffect(() => {
+    if (initialWorkflow) {
+      setWorkflow({
+        templateId: initialWorkflow.templateId || '',
+        name: initialWorkflow.name || '',
+        description: initialWorkflow.description || '',
+        inputSchema: initialWorkflow.inputSchema || { type: 'object', properties: {} },
+        outputSchema: initialWorkflow.outputSchema || {},
+        template: initialWorkflow.template || { steps: [] },
+        isBaseTemplate: initialWorkflow.isBaseTemplate !== undefined ? initialWorkflow.isBaseTemplate : true,
+        isPublic: initialWorkflow.isPublic || false
+      });
+      
+      // Convert template steps to workflow steps
+      if (initialWorkflow.template?.steps) {
+        const convertedSteps: WorkflowStep[] = initialWorkflow.template.steps.map((step, index) => ({
+          ...step,
+          id: `step-${index}`,
+          position: index
+        }));
+        setWorkflowSteps(convertedSteps);
+      } else {
+        setWorkflowSteps([]);
+      }
+    }
+  }, [initialWorkflow]);
   
   // Initialize tool items
   useEffect(() => {
@@ -1345,7 +1420,10 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
         {/* Content */}
         <div className="flex flex-1 overflow-hidden">
           {/* Tool Palette - Left Panel */}
-          <div className="w-80 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+          <div 
+            className="border-r border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0"
+            style={{ width: `${leftPanelWidth}px` }}
+          >
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 bg-gray-50 dark:bg-gray-700/50">
               <h4 className="font-medium text-gray-900 dark:text-white mb-3">Tool Selection</h4>
             </div>
@@ -1451,9 +1529,27 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
             </div>
           </div>
           
+          {/* Resize Handle */}
+          <div
+            className={`w-1 bg-gray-300 dark:bg-gray-600 hover:bg-blue-400 dark:hover:bg-blue-500 cursor-col-resize transition-all duration-150 ${
+              isResizing ? 'bg-blue-500 dark:bg-blue-400 w-2' : ''
+            }`}
+            onMouseDown={handleMouseDown}
+            title="Drag to resize Tool Selection panel"
+          >
+            {/* Optional: Add subtle grip dots for visual hint */}
+            <div className="h-full w-full flex items-center justify-center">
+              <div className="flex flex-col space-y-1 opacity-0 hover:opacity-60 transition-opacity">
+                <div className="w-0.5 h-1 bg-gray-500 dark:bg-gray-400 rounded-full"></div>
+                <div className="w-0.5 h-1 bg-gray-500 dark:bg-gray-400 rounded-full"></div>
+                <div className="w-0.5 h-1 bg-gray-500 dark:bg-gray-400 rounded-full"></div>
+              </div>
+            </div>
+          </div>
+          
           {/* Workflow Canvas - Right Panel */}
-          <div className="flex-1 flex flex-col">
-            <div className="bg-gray-50 dark:bg-gray-700/50 px-4 py-3 border-b border-gray-200 dark:border-gray-600">
+          <div className="flex-1 overflow-y-auto">
+            <div className="bg-gray-50 dark:bg-gray-700/50 px-4 py-3">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Workflow Canvas</h4>
@@ -1462,7 +1558,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                       ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                       : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                   }`}>
-                    {initialWorkflow?.templateId ? 'Editing Existing' : 'Creating New'}
+                    {initialWorkflow?.templateId ? 'Editing' : 'New'}
                   </div>
                 </div>
               </div>
@@ -1483,13 +1579,42 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                   <p className="text-xs text-red-500 mt-1">Workflow name is required</p>
                 )}
               </div>
+
+              {/* Workflow Description */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                  Description
+                </label>
+                <textarea
+                  value={workflow.description}
+                  onChange={(e) => setWorkflow(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Describe what this workflow does..."
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  rows={2}
+                />
+              </div>
+
+              {/* Accessibility Checkbox */}
+              <div className="mb-4 text-xs">
+                <Checkbox
+                  id="isPublic"
+                  label="Accessible to any Amplify user"
+                  checked={workflow.isPublic || false}
+                  onChange={(checked) => setWorkflow(prev => ({ ...prev, isPublic: checked }))}
+                />
+              </div>
               
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Drag tools to the drop zone or onto steps to add/replace them. Drag steps to reorder your workflow.
-              </p>
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-xs text-blue-800 dark:text-blue-200">
+                   Drag tools to the Drop Zone or onto steps to add/replace them. Drag steps to reorder your workflow.
+                </p>
+              </div>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-4">
+            {/* Subtle visual separator */}
+            <div className="border-t border-gray-200 dark:border-gray-600"></div>
+            
+            <div className="p-4">
               <div className="max-w-xl mx-auto space-y-3">
                 {/* Header with Add Step button */}
                 <div className="relative mb-4">
@@ -1550,6 +1675,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                                 className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors"
                               >
                                 <IconPlus size={24} className="mx-auto mb-2 opacity-50" />
+                                <p className="text-sm font-medium">Drop Zone</p>
                                 <p className="text-sm font-medium">Drag tools here to add new steps</p>
                                 <p className="text-xs mt-1">or use the &quot;Add Step&quot; button above</p>
                               </div>
