@@ -22,6 +22,7 @@ import { OpDef, Schema } from '@/types/op';
 import { AgentTool } from '@/types/agentTools';
 import { emptySchema } from '@/utils/app/tools';
 import WorkflowGeneratorModal from './WorkflowGeneratorModal';
+import DragDropWorkflowBuilder from './DragDropWorkflowBuilder';
 
 interface WorkflowTemplateBuilderProps {
   isOpen: boolean;
@@ -121,6 +122,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
 
   const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
   const [showWorkflowGenerator, setShowWorkflowGenerator] = useState(false);
+  const [showVisualBuilder, setShowVisualBuilder] = useState(false);
 
 
       const filterOps = async (data: any[]) => {
@@ -1151,6 +1153,13 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           <div className="absolute right-1 top-[-6px] flex flex-row gap-3">
              <button
               className={`px-2  ${buttonStyle}`}
+              onClick={() => setShowVisualBuilder(true)}
+              title="Open visual drag-and-drop workflow builder">
+              <IconPuzzle size={18} />
+              Visual Builder
+            </button>
+             <button
+              className={`px-2  ${buttonStyle}`}
               onClick={() => {
                 setShowWorkflowGenerator(true);
                 setIsPreviewing(false);
@@ -1274,6 +1283,19 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
         }}
         availableApis={availableApis}
         availableAgentTools={availableAgentTools}
+      />
+      
+      <DragDropWorkflowBuilder
+        isOpen={showVisualBuilder}
+        onClose={() => setShowVisualBuilder(false)}
+        onSave={(workflow) => {
+          setSelectedWorkflow(workflow);
+          setShowVisualBuilder(false);
+          setIsPreviewing(false);
+        }}
+        availableApis={availableApis}
+        availableAgentTools={availableAgentTools}
+        initialWorkflow={selectedWorkflow}
       />
     </>
   );
