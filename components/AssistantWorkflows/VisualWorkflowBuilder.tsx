@@ -4,14 +4,19 @@ import {
   IconX, IconSearch, IconPlus, IconGripVertical, IconTrash, IconSettings, IconPlayerPlay,
   IconBraces, IconMail, IconDatabase, IconMessageCircle, IconBrain,
   IconFileText, IconChartBar, IconPuzzle, IconArrowDown, IconCheck,
-  IconAlertTriangle, IconTool, IconRotateClockwise, IconHelp, IconChevronDown, IconChevronUp
+  IconAlertTriangle, IconTool, IconRotateClockwise, IconHelp, IconChevronDown, IconChevronUp,
+  IconFiles,
+  IconActivity,
+  IconSettingsAutomation
 } from '@tabler/icons-react';
+import { getOperationIcon } from '@/types/integrations';
+import { snakeCaseToTitleCase } from '@/utils/app/data';
 import { AstWorkflow, Step } from '@/types/assistantWorkflows';
 import { OpDef } from '@/types/op';
 import { AgentTool } from '@/types/agentTools';
 import HomeContext from '@/pages/api/home/home.context';
 
-interface DragDropWorkflowBuilderProps {
+interface VisualWorkflowBuilderProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (workflow: AstWorkflow) => void;
@@ -68,6 +73,7 @@ interface SmartTagSelectorProps {
   selectedTags: string[];
   onTagsChange: (tags: string[]) => void;
   toolItems: ToolItem[];
+  clearTrigger?: number;
 }
 
 const ToolReplacementModal: React.FC<ToolReplacementModalProps> = ({
@@ -282,7 +288,14 @@ const ToolPickerModal: React.FC<ToolPickerModalProps> = ({
   isOpen, onClose, onSelect, tools, title
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedToolType, setSelectedToolType] = useState('all');
+  const [clearAllTrigger, setClearAllTrigger] = useState(0);
+
+  const clearAllFilters = () => {
+    setSearchTerm('');
+    setSelectedToolType('all');
+    setClearAllTrigger(prev => prev + 1);
+  };
 
   if (!isOpen) return null;
 
@@ -291,8 +304,8 @@ const ToolPickerModal: React.FC<ToolPickerModalProps> = ({
     const matchesSearch = !searchTerm || 
       tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (tool.description && tool.description.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesCategory = selectedCategory === 'all' || tool.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    const matchesToolType = selectedToolType === 'all' || tool.category === selectedToolType;
+    return matchesSearch && matchesToolType;
   });
 
   return createPortal(
@@ -306,6 +319,16 @@ const ToolPickerModal: React.FC<ToolPickerModalProps> = ({
         </div>
         
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          {/* Clear All Filters Link */}
+          <div className="flex justify-end mb-3">
+            <button
+              onClick={clearAllFilters}
+              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline focus:outline-none"
+            >
+              Clear All Filters
+            </button>
+          </div>
+          
           <div className="flex gap-3">
             <div className="flex-1 relative">
               <IconSearch size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -318,13 +341,13 @@ const ToolPickerModal: React.FC<ToolPickerModalProps> = ({
               />
             </div>
             <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              value={selectedToolType}
+              onChange={(e) => setSelectedToolType(e.target.value)}
               className="px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             >
               {categories.map(category => (
                 <option key={category} value={category}>
-                  {category === 'all' ? 'All Tools' : category}
+                  {category === 'all' ? 'All Types' : category}
                 </option>
               ))}
             </select>
@@ -382,13 +405,24 @@ const ToolPickerModal: React.FC<ToolPickerModalProps> = ({
 };
 
 const SmartTagSelector: React.FC<SmartTagSelectorProps> = ({
-  allTags, selectedTags, onTagsChange, toolItems
+  allTags, selectedTags, onTagsChange, toolItems, clearTrigger
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [showCategories, setShowCategories] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Clear internal state when clearTrigger changes
+  useEffect(() => {
+    if (clearTrigger !== undefined && clearTrigger > 0) {
+      setSearchTerm('');
+      setExpandedCategories([]);
+      setShowCategories(false);
+      setIsOpen(false);
+      onTagsChange([]);
+    }
+  }, [clearTrigger, onTagsChange]);
 
   // Calculate tag frequency for popular tags
   const tagFrequency = allTags.reduce((acc, tag) => {
@@ -402,7 +436,7 @@ const SmartTagSelector: React.FC<SmartTagSelectorProps> = ({
     const lowerTag = tag.toLowerCase();
     let category = 'Other';
     
-    if (['communication', 'notification', 'email', 'slack', 'chat', 'message'].some(keyword => lowerTag.includes(keyword))) {
+    if (['communication', 'notification', 'microsoft_outlook', 'google_gmail', 'email', 'slack', 'chat', 'message'].some(keyword => lowerTag.includes(keyword))) {
       category = 'Communication';
     } else if (['data', 'database', 'storage', 'file', 'document', 'analytics'].some(keyword => lowerTag.includes(keyword))) {
       category = 'Data & Files';
@@ -420,13 +454,13 @@ const SmartTagSelector: React.FC<SmartTagSelectorProps> = ({
   }, {} as Record<string, string[]>);
 
   // Category icons
-  const categoryIcons: Record<string, string> = {
-    'Communication': '🗣️',
-    'Data & Files': '📊',
-    'Processing': '⚙️',
-    'AI & Logic': '🧠',
-    'Control & Flow': '🔄',
-    'Other': '📁'
+  const categoryIcons: Record<string, JSX.Element> = {
+    'Communication': <IconMessageCircle size={16} />,
+    'Data & Files': <IconFiles size={16} />,
+    'Processing': <IconActivity size={16} />,
+    'AI & Logic': <IconBrain size={16} />,
+    'Control & Flow': <IconSettingsAutomation size={16} />,
+    'Other': <IconHelp size={16} />
   };
 
   // Filter tags based on search
@@ -491,7 +525,9 @@ const SmartTagSelector: React.FC<SmartTagSelectorProps> = ({
         {showCategories && (
           <div className="px-3 pb-3 border-t border-gray-200 dark:border-gray-600 mt-1 pt-3">
             <div className="space-y-1">
-              {Object.entries(categorizedTags).map(([category, tags]) => (
+              {Object.entries(categorizedTags)
+                .sort(([categoryA], [categoryB]) => categoryA.localeCompare(categoryB))
+                .map(([category, tags]) => (
                 <div key={category} className="border border-gray-200 dark:border-gray-600 rounded-lg">
                   {/* Category Header */}
                   <button
@@ -660,18 +696,8 @@ const StepCard: React.FC<StepCardProps> = ({
   const getStepIcon = (toolName: string, isEmpty?: boolean) => {
     if (isEmpty) return <IconHelp size={20} className="text-orange-500" />;
     
-    const iconMap: Record<string, React.ReactNode> = {
-      'email': <IconMail size={20} />,
-      'database': <IconDatabase size={20} />,
-      'slack': <IconMessageCircle size={20} />,
-      'think': <IconBrain size={20} />,
-      'search': <IconSearch size={20} />,
-      'file_ops': <IconFileText size={20} />,
-      'analytics': <IconChartBar size={20} />,
-      'terminate': <IconCheck size={20} />,
-    };
-    
-    return iconMap[toolName] || <IconPuzzle size={20} />;
+    const IconComponent = getOperationIcon(toolName);
+    return <IconComponent size={20} />;
   };
 
   const handleDragStart = (e: React.DragEvent) => {
@@ -877,7 +903,12 @@ const getSegmentColor = (segment: string): string => {
   return segmentColors[index];
 };
 
-const DragDropWorkflowBuilder: React.FC<DragDropWorkflowBuilderProps> = ({
+
+const filterTags = (tags: string[]): string[] => {
+  return tags.filter((t: string) => !['default', 'all'].includes(t));
+};
+
+const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   isOpen,
   onClose,
   onSave,
@@ -903,8 +934,16 @@ const DragDropWorkflowBuilder: React.FC<DragDropWorkflowBuilderProps> = ({
   
   // UI state
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedToolType, setSelectedToolType] = useState<string>('all');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [clearAllTrigger, setClearAllTrigger] = useState(0);
+
+  const clearAllFilters = () => {
+    setSearchTerm('');
+    setSelectedToolType('all');
+    setSelectedTags([]);
+    setClearAllTrigger(prev => prev + 1);
+  };
   
   // Modal states
   const [showToolPicker, setShowToolPicker] = useState(false);
@@ -977,11 +1016,12 @@ const DragDropWorkflowBuilder: React.FC<DragDropWorkflowBuilderProps> = ({
           return;
         }
         
+        const IconComponent = getOperationIcon(api.name);
         items.push({
           id: getUniqueId(api.id || api.name, 'api'),
           name: api.name,
           description: api.description,
-          icon: getToolIcon(api.name, api.tags),
+          icon: <IconComponent size={20} />,
           category: api.type === 'custom' ? 'Custom APIs' : 'Internal APIs',
           tags: api.tags || [],
           parameters: api.parameters,
@@ -999,11 +1039,12 @@ const DragDropWorkflowBuilder: React.FC<DragDropWorkflowBuilderProps> = ({
           return;
         }
         
+        const IconComponent = getOperationIcon(tool.tool_name);
         items.push({
           id: getUniqueId(tool.tool_name, 'agent'),
           name: tool.tool_name,
           description: tool.description,
-          icon: getToolIcon(tool.tool_name, tool.tags),
+          icon: <IconComponent size={20} />,
           category: 'Agent Tools',
           tags: tool.tags || [],
           parameters: tool.parameters || { properties: {} },
@@ -1041,24 +1082,6 @@ const DragDropWorkflowBuilder: React.FC<DragDropWorkflowBuilderProps> = ({
     }
   }, [initialWorkflow]);
   
-  const getToolIcon = (toolName: string, tags?: string[]): React.ReactNode => {
-    const name = toolName.toLowerCase();
-    const tagList = (tags || []).map(t => t.toLowerCase());
-    
-    if (name.includes('email') || name.includes('mail')) return <IconMail size={20} />;
-    if (name.includes('database') || name.includes('db')) return <IconDatabase size={20} />;
-    if (name.includes('slack') || name.includes('chat')) return <IconMessageCircle size={20} />;
-    if (name.includes('think') || name.includes('reason')) return <IconBrain size={20} />;
-    if (name.includes('search') || name.includes('find')) return <IconSearch size={20} />;
-    if (name.includes('file') || name.includes('document')) return <IconFileText size={20} />;
-    if (name.includes('analytic') || name.includes('metric')) return <IconChartBar size={20} />;
-    
-    if (tagList.includes('analytics') || tagList.includes('data')) return <IconChartBar size={20} />;
-    if (tagList.includes('communication') || tagList.includes('notification')) return <IconMail size={20} />;
-    if (tagList.includes('processing') || tagList.includes('transform')) return <IconBraces size={20} />;
-    
-    return <IconPuzzle size={20} />;
-  };
   
   const categories = ['all', ...Array.from(new Set(toolItems.map(item => item.category)))];
   const allTags = Array.from(new Set(toolItems.flatMap(item => item.tags || [])));
@@ -1069,12 +1092,12 @@ const DragDropWorkflowBuilder: React.FC<DragDropWorkflowBuilderProps> = ({
       (tool.description && tool.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (tool.tags && tool.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())));
     
-    const matchesCategory = selectedCategory === 'all' || tool.category === selectedCategory;
+    const matchesToolType = selectedToolType === 'all' || tool.category === selectedToolType;
     
     const matchesTags = selectedTags.length === 0 || 
       (tool.tags && selectedTags.some(tag => tool.tags.includes(tag)));
     
-    return matchesSearch && matchesCategory && matchesTags;
+    return matchesSearch && matchesToolType && matchesTags;
   });
   
   const createStepFromTool = (toolItem: ToolItem): WorkflowStep => {
@@ -1082,9 +1105,9 @@ const DragDropWorkflowBuilder: React.FC<DragDropWorkflowBuilderProps> = ({
       id: `step-${Date.now()}`,
       position: 0,
       stepName: toolItem.name.toLowerCase().replace(/\s+/g, '_'),
-      description: toolItem.description || `${toolItem.name} tool`,
+      description: toolItem.description || `${snakeCaseToTitleCase(toolItem.name)} tool`,
       tool: toolItem.name,
-      instructions: `Use the ${toolItem.name} tool${toolItem.description ? ` to ${toolItem.description.toLowerCase()}` : ''}`,
+      instructions: `Use the ${snakeCaseToTitleCase(toolItem.name)} tool${toolItem.description ? ` to ${toolItem.description.toLowerCase()}` : ''}`,
       args: {},
       values: {}
     };
@@ -1330,16 +1353,29 @@ const DragDropWorkflowBuilder: React.FC<DragDropWorkflowBuilderProps> = ({
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto p-4">
               <div className="space-y-4">
+                {/* Clear Search Button */}
+                <div className="flex justify-end">
+                  <button
+                    onClick={clearAllFilters}
+                    className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    Clear Search
+                  </button>
+                </div>
+                
                 {/* Category Filter */}
                 <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Tool Type
+                  </label>
                   <select
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    value={selectedToolType}
+                    onChange={(e) => setSelectedToolType(e.target.value)}
                     className="w-full px-3 py-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   >
                     {categories.map(category => (
                       <option key={category} value={category}>
-                        {category === 'all' ? 'All Tools' : category}
+                        {category === 'all' ? 'All Types' : category}
                       </option>
                     ))}
                   </select>
@@ -1363,6 +1399,7 @@ const DragDropWorkflowBuilder: React.FC<DragDropWorkflowBuilderProps> = ({
                   selectedTags={selectedTags}
                   onTagsChange={setSelectedTags}
                   toolItems={toolItems}
+                  clearTrigger={clearAllTrigger}
                 />
                 
                 {/* Tool List */}
@@ -1370,39 +1407,45 @@ const DragDropWorkflowBuilder: React.FC<DragDropWorkflowBuilderProps> = ({
                   <div className="text-sm font-medium text-gray-900 dark:text-white border-t border-gray-200 dark:border-gray-700 pt-4">
                     Available Tools ({filteredTools.length})
                   </div>
-                  {filteredTools.map(tool => (
-                    <div
-                      key={tool.id}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('tool', JSON.stringify(tool));
-                      }}
-                      className="p-2 border border-gray-200 dark:border-gray-700 rounded-md cursor-grab hover:bg-gray-50 dark:hover:bg-gray-700 active:cursor-grabbing transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="text-gray-600 dark:text-gray-400 flex-shrink-0">
-                          {tool.icon}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h5 className="font-medium text-gray-900 dark:text-white text-sm">
-                            {tool.name}
-                          </h5>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                            {tool.description}
-                          </p>
-                          {tool.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {tool.tags.slice(0, 2).map(tag => (
-                                <span key={tag} className="px-1 py-0.5 text-xs bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded">
-                                  #{tag}
-                                </span>
-                              ))}
-                            </div>
-                          )}
+                  <div className="max-h-[400px] overflow-y-auto">
+                    {filteredTools.map(tool => (
+                      <div
+                        key={tool.id}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('tool', JSON.stringify(tool));
+                        }}
+                        className="tool-item border border-gray-400 dark:border-gray-500 bg-gradient-to-br from-gray-200 via-gray-100 to-gray-300 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 shadow-lg hover:shadow-xl transition-all duration-200 ease-in-out text-gray-800 dark:text-gray-100 cursor-grab active:cursor-grabbing rounded-lg mb-2"
+                        style={{
+                          padding: '10px',
+                          margin: '10px 0',
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="text-gray-600 dark:text-gray-400 flex-shrink-0">
+                            {tool.icon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h5 className="font-bold text-gray-900 dark:text-white text-sm">
+                              {snakeCaseToTitleCase(tool.name)}
+                            </h5>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 mt-2 leading-relaxed">
+                              {tool.description || ''}
+                            </p>
+                            {filterTags(tool.tags).length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {filterTags(tool.tags).slice(0, 3).map(tag => (
+                                  <span key={tag} className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded">
+                                    #{tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1597,4 +1640,4 @@ const DragDropWorkflowBuilder: React.FC<DragDropWorkflowBuilderProps> = ({
   return createPortal(modalContent, document.body);
 };
 
-export default DragDropWorkflowBuilder;
+export default VisualWorkflowBuilder;

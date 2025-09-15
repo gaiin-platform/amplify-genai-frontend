@@ -22,7 +22,7 @@ import { OpDef, Schema } from '@/types/op';
 import { AgentTool } from '@/types/agentTools';
 import { emptySchema } from '@/utils/app/tools';
 import WorkflowGeneratorModal from './WorkflowGeneratorModal';
-import DragDropWorkflowBuilder from './DragDropWorkflowBuilder';
+import VisualWorkflowBuilder from './VisualWorkflowBuilder';
 
 interface WorkflowTemplateBuilderProps {
   isOpen: boolean;
@@ -1285,7 +1285,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
         availableAgentTools={availableAgentTools}
       />
       
-      <DragDropWorkflowBuilder
+      <VisualWorkflowBuilder
         isOpen={showVisualBuilder}
         onClose={() => setShowVisualBuilder(false)}
         onSave={(workflow) => {
