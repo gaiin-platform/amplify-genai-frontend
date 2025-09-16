@@ -1,6 +1,7 @@
 import NextAuth from "next-auth"
 import CognitoProvider from "next-auth/providers/cognito"
 import { signIn } from "next-auth/react";
+import { decodeJwt } from "jose";
 
 export const authOptions = {
     // Configure one or more authentication providers
@@ -23,6 +24,15 @@ export const authOptions = {
         // newUser: '/auth/new-user' // New users will be directed here on first sign in (leave the property out if not of interest)
     },
     callbacks: {
+        // This ensures that any user trying to login has an 'immutable_id' attribute
+        // TODO(Karely): we may wish to move this to check the token rather than the profile
+        async signIn({ account, profile }) {
+            if (profile && profile['custom:immutable_id']) {
+                return true;
+            } else {
+                return false;
+            }
+        },
         async jwt({ token, profile, account }) {
             // Persist the OAuth access_token to the token right after signin
             if (account) {
@@ -41,7 +51,6 @@ export const authOptions = {
 
             // This is so we don't constantly call the upgrade/create endpoint
             if (token.upgradedOrCreated) {
-                console.log("Account already upgraded or created.");
                 return token;
             }
 
@@ -64,7 +73,6 @@ export const authOptions = {
                     signal: null,
                 });
             
-                console.log(`debug response = `, response);
                 if (!response.ok) {
                     // Should we fail here?
                     throw new Error(`Failed to call: ${response.status}`);
@@ -73,10 +81,8 @@ export const authOptions = {
                 token.upgradedOrCreated = true;
                 const result = await response.json();
 
-                console.log(`debug result from backend = `, result);
             } catch (error) {
-                console.error('Error calling /user/create:\n');
-                console.log("--- end error ---");
+                console.error('Error calling /user/create: ', error);
             }
 
             return token
