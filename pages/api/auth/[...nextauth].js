@@ -56,9 +56,9 @@ export const authOptions = {
 
             // check if the account needs to be upgraded/created
             try {
-                // const response = await fetch((process.env.API_BASE_URL || "") + '/user/create', {
+                const response = await fetch((process.env.API_BASE_URL || "") + '/user/create', {
                 // This is a hard coded value for local testing
-                const response = await fetch('http://localhost:3015/dev/user/create', {
+                // const response = await fetch('http://localhost:3015/dev/user/create', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
