@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Step } from '@/types/assistantWorkflows';
 import { OpDef, Schema } from '@/types/op';
 import { AgentTool } from '@/types/agentTools';
@@ -6,7 +6,8 @@ import { emptySchema } from '@/utils/app/tools';
 import { IconPlus, IconTrash, IconChevronDown, IconChevronUp, IconEdit, IconEditOff } from '@tabler/icons-react';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
 import { InputsMap } from '@/components/ReusableComponents/InputMap';
-import ApiIntegrationsPanel from '../AssistantApi/ApiIntegrationsPanel';
+import { ToolPickerModal, ToolItem } from './ToolPickerModal';
+import { getOperationIcon } from '@/types/integrations';
 import cloneDeep from 'lodash/cloneDeep';
 
 interface StepEditorProps {
@@ -32,17 +33,68 @@ const StepEditor: React.FC<StepEditorProps> = ({
   const [hoveredArgIndex, setHoveredArgIndex] = useState<string | null>(null);
   const [hoveredValueIndex, setHoveredValueIndex] = useState<string | null>(null);
 
-  const handleSelectTool = (toolName: string, parameters: Schema) => {
+  // Create ToolItems from available APIs and agent tools
+  const toolItems = useMemo(() => {
+    const items: ToolItem[] = [];
+    const seenTools = new Set<string>();
+    
+    // Add available APIs
+    if (availableApis) {
+      availableApis.forEach(api => {
+        if (!seenTools.has(api.name)) {
+          seenTools.add(api.name);
+          const IconComponent = getOperationIcon(api.name);
+          items.push({
+            id: api.name,
+            name: api.name,
+            description: api.description || 'No description available',
+            icon: <IconComponent size={16} />,
+            category: api.category || 'Custom APIs',
+            tags: api.tags || [],
+            parameters: api.parameters,
+            type: 'api',
+            originalTool: api
+          });
+        }
+      });
+    }
+    
+    // Add agent tools
+    if (availableAgentTools) {
+      Object.entries(availableAgentTools).forEach(([toolName, agentTool]) => {
+        if (!seenTools.has(toolName)) {
+          seenTools.add(toolName);
+          const IconComponent = getOperationIcon(toolName);
+          items.push({
+            id: toolName,
+            name: toolName,
+            description: agentTool.description || 'No description available',
+            icon: <IconComponent size={16} />,
+            category: 'Agent Tools',
+            tags: agentTool.tags || [],
+            parameters: agentTool.parameters || emptySchema,
+            type: 'agent',
+            originalTool: agentTool
+          });
+        }
+      });
+    }
+    
+    return items;
+  }, [availableApis, availableAgentTools]);
+
+  const handleSelectTool = (toolItem: ToolItem) => {
     const args: Record<string, string> = {};
-    if (parameters.properties) {
-      Object.entries(parameters.properties).forEach(([paramName, paramInfo]: [string, any]) => {
+    if (toolItem.parameters?.properties) {
+      Object.entries(toolItem.parameters.properties).forEach(([paramName, paramInfo]: [string, any]) => {
         args[paramName] = paramInfo.description ?? "No description provided";
       });
     }
     
     const updatedStep = cloneDeep(step);
-    updatedStep.tool = toolName;
+    updatedStep.tool = toolItem.name;
     updatedStep.args = args;
+    
     onStepChange(updatedStep);
     setShowToolSelector(false);
   };
@@ -53,16 +105,21 @@ const StepEditor: React.FC<StepEditorProps> = ({
   };
 
   const addArgumentValue = () => {
-    const availableArgs = Object.keys(step.args || {});
-    const usedArgs = Object.keys(step.values || {});
-    const firstAvailableArg = availableArgs.find(arg => !usedArgs.includes(arg));
+    const stepArgs = step.args || {};
+    const stepValues = step.values || {};
+    const availableArgs = Object.keys(stepArgs);
+    const usedArgs = Object.keys(stepValues);
+    const unusedArgs = availableArgs.filter(arg => !usedArgs.includes(arg));
+    const firstAvailableArg = unusedArgs[0];
     
     if (firstAvailableArg) {
+      const updatedValues = { 
+        ...stepValues, 
+        [firstAvailableArg]: '' 
+      };
+      
       updateStep({
-        values: { 
-          ...step.values, 
-          [firstAvailableArg]: '' 
-        }
+        values: updatedValues
       });
     }
   };
@@ -130,40 +187,14 @@ const StepEditor: React.FC<StepEditorProps> = ({
           <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200">
             Tool
           </label>
-          <div className="flex flex-col">
-            <button
-              disabled={isTerminate}
-              type="button"
-              className={`flex flex-row w-full p-2 border border-gray-300 text-left rounded-lg bg-white dark:bg-[#40414F] dark:border-neutral-600 text-gray-900 dark:text-white ${isTerminate ? "" : "hover:bg-gray-50 dark:hover:bg-[#4a4b59] transition-colors"}`}
-              onClick={() => setShowToolSelector(!showToolSelector)}
-            >
-              {step.tool || "Select a tool"}
-              {!showToolSelector ?
-                <IconChevronDown size={18} className="ml-auto flex-shrink-0 ml-1" /> :
-                <IconChevronUp size={18} className="ml-auto flex-shrink-0 ml-1" />}
-            </button>
-
-            {showToolSelector && !isTerminate && (
-              <div className='border-b flex flex-col border-neutral-500'>
-                <ApiIntegrationsPanel
-                  // API-related props
-                  availableApis={availableApis}
-                  onClickApiItem={(api: OpDef) => {
-                    handleSelectTool(api.name, api.parameters);
-                  }}
-                  // Agent tools props
-                  availableAgentTools={availableAgentTools}
-                  onClickAgentTool={(tool: AgentTool) => {
-                    handleSelectTool(tool.tool_name, tool.parameters || emptySchema);
-                  }}
-                  // python function 
-                  allowCreatePythonFunction={false}
-                  hideApisPanel={['external']}
-                />
-                <br></br>
-              </div>
-            )}
-          </div>
+          <button
+            disabled={isTerminate}
+            type="button"
+            className={`w-full p-2 border border-gray-300 text-left rounded-lg bg-white dark:bg-[#40414F] dark:border-neutral-600 text-gray-900 dark:text-white ${isTerminate ? "" : "hover:bg-gray-50 dark:hover:bg-[#4a4b59] transition-colors"}`}
+            onClick={() => setShowToolSelector(true)}
+          >
+            {step.tool || "Select a tool"}
+          </button>
         </div>
       )}
 
@@ -282,16 +313,27 @@ const StepEditor: React.FC<StepEditorProps> = ({
           <label className="block text-sm font-medium dark:text-neutral-200">
             Argument Values - Set fixed values for specific parameters (overrides AI decision-making)
           </label>
-          <button
-            onClick={addArgumentValue}
-            className="flex items-center px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-            disabled={Object.keys(step.args || {}).filter(argKey => 
-              !Object.keys(step.values || {}).includes(argKey)
-            ).length === 0}
-          >
-            <IconPlus size={14} className="mr-1" />
-            Add Value
-          </button>
+          <div className="flex flex-col items-end">
+            <button
+              onClick={addArgumentValue}
+              className={`flex items-center px-2 py-1 rounded text-sm ${
+                Object.keys(step.args || {}).filter(argKey => 
+                  !Object.keys(step.values || {}).includes(argKey)
+                ).length === 0
+                  ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+              disabled={Object.keys(step.args || {}).filter(argKey => 
+                !Object.keys(step.values || {}).includes(argKey)
+              ).length === 0}
+              title={Object.keys(step.args || {}).filter(argKey => 
+                !Object.keys(step.values || {}).includes(argKey)
+              ).length === 0 ? 'No arguments available to add values for' : 'Add a value for an available argument'}
+            >
+              <IconPlus size={14} className="mr-1" />
+              Add Value
+            </button>
+          </div>
         </div>
         {Object.keys(step.values || {}).length === 0 ? (
           <div className="text-neutral-500 dark:text-neutral-400">
@@ -378,6 +420,17 @@ const StepEditor: React.FC<StepEditorProps> = ({
             ))
         )}
       </div>
+
+      {/* Tool Picker Modal */}
+      <ToolPickerModal
+        isOpen={showToolSelector}
+        onClose={() => setShowToolSelector(false)}
+        onSelect={handleSelectTool}
+        tools={toolItems}
+        title="Select Tool for Step"
+        showAdvancedFiltering={false}
+        showClearSearch={false}
+      />
     </div>
   );
 };

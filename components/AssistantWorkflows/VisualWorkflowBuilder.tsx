@@ -16,58 +16,10 @@ import { OpDef } from '@/types/op';
 import { AgentTool } from '@/types/agentTools';
 import HomeContext from '@/pages/api/home/home.context';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
-
-interface VisualWorkflowBuilderProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (workflow: AstWorkflow) => void;
-  availableApis: OpDef[] | null;
-  availableAgentTools: Record<string, AgentTool> | null;
-  initialWorkflow?: AstWorkflow;
-}
-
-interface ToolItem {
-  id: string;
-  name: string;
-  description: string;
-  icon: React.ReactNode;
-  category: string;
-  tags: string[];
-  parameters: any;
-  type: 'api' | 'agent' | 'builtin';
-  originalTool?: OpDef | AgentTool;
-}
-
-interface WorkflowStep extends Step {
-  id: string;
-  position: number;
-  isEmpty?: boolean; // For steps created without tools
-}
-
-interface ToolPickerModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSelect: (tool: ToolItem) => void;
-  tools: ToolItem[];
-  title: string;
-}
-
-interface ToolReplacementModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  currentTool: string;
-  newTool: ToolItem;
-  stepName: string;
-}
-
-interface ParameterConfigModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (step: WorkflowStep) => void;
-  step: WorkflowStep;
-  tool: ToolItem;
-}
+import { ToolPickerModal, ToolItem, ToolPickerModalProps, filterTags } from './ToolPickerModal';
+import StepEditor from './StepEditor';
+import { registerAstWorkflowTemplate, updateAstWorkflowTemplate } from '@/services/assistantWorkflowService';
+import { toast } from 'react-hot-toast';
 
 interface SmartTagSelectorProps {
   allTags: string[];
@@ -76,380 +28,6 @@ interface SmartTagSelectorProps {
   toolItems: ToolItem[];
   clearTrigger?: number;
 }
-
-const ToolReplacementModal: React.FC<ToolReplacementModalProps> = ({
-  isOpen, onClose, onConfirm, currentTool, newTool, stepName
-}) => {
-  if (!isOpen) return null;
-
-  return createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 max-w-md w-full mx-4">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <IconRotateClockwise size={20} />
-            Replace Tool in Step
-          </h3>
-        </div>
-        
-        <div className="px-6 py-4 space-y-4">
-          <div className="flex items-center justify-center gap-4 text-lg">
-            <span className="font-medium">{currentTool}</span>
-            <IconArrowDown size={20} className="text-gray-400" />
-            <div className="flex items-center gap-2">
-              {newTool.icon}
-              <span className="font-medium">{newTool.name}</span>
-            </div>
-          </div>
-          
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-            <div className="flex items-start gap-2">
-              <IconAlertTriangle size={16} className="text-yellow-600 dark:text-yellow-400 mt-0.5" />
-              <div className="text-sm text-yellow-800 dark:text-yellow-200">
-                <p className="font-medium mb-1">What will change:</p>
-                <ul className="list-disc list-inside space-y-1 text-xs">
-                  <li>Tool will change from &ldquo;{currentTool}&rdquo; to &ldquo;{newTool.name}&rdquo;</li>
-                  <li>Parameters will be reset to {newTool.name} defaults</li>
-                  <li>Previous parameter values will be lost</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-            <div className="flex items-start gap-2">
-              <IconCheck size={16} className="text-green-600 dark:text-green-400 mt-0.5" />
-              <div className="text-sm text-green-800 dark:text-green-200">
-                <p className="font-medium mb-1">What will be preserved:</p>
-                <ul className="list-disc list-inside space-y-1 text-xs">
-                  <li>Step name: &ldquo;{stepName}&rdquo;</li>
-                  <li>Step position in workflow</li>
-                  <li>Action segment (if any)</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
-          >
-            Replace Tool
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-};
-
-const ParameterConfigModal: React.FC<ParameterConfigModalProps> = ({
-  isOpen, onClose, onSave, step, tool
-}) => {
-  const [editedStep, setEditedStep] = useState<WorkflowStep>(step);
-
-  useEffect(() => {
-    setEditedStep(step);
-  }, [step]);
-
-  if (!isOpen) return null;
-
-  const handleSave = () => {
-    onSave(editedStep);
-    onClose();
-  };
-
-  return createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <IconSettings size={20} />
-            Configure Step: {tool.name}
-          </h3>
-        </div>
-        
-        <div className="px-6 py-4 space-y-4">
-          {/* Step Name */}
-          <div>
-            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-              Step Name
-            </label>
-            <input
-              type="text"
-              value={editedStep.stepName || ''}
-              onChange={(e) => setEditedStep(prev => ({ ...prev, stepName: e.target.value }))}
-              className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              placeholder="Enter step name"
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-              Description
-            </label>
-            <input
-              type="text"
-              value={editedStep.description || ''}
-              onChange={(e) => setEditedStep(prev => ({ ...prev, description: e.target.value }))}
-              className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              placeholder="What this step does"
-            />
-          </div>
-
-          {/* Instructions */}
-          <div>
-            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-              Instructions
-            </label>
-            <textarea
-              value={editedStep.instructions || ''}
-              onChange={(e) => setEditedStep(prev => ({ ...prev, instructions: e.target.value }))}
-              rows={3}
-              className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              placeholder="Detailed instructions for this step"
-            />
-          </div>
-
-          {/* Action Segment */}
-          <div>
-            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-              Action Segment (Optional)
-            </label>
-            <input
-              type="text"
-              value={editedStep.actionSegment || ''}
-              onChange={(e) => setEditedStep(prev => ({ ...prev, actionSegment: e.target.value || undefined }))}
-              className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              placeholder="Group related steps together"
-            />
-          </div>
-
-          {/* Parameters */}
-          {Object.keys(editedStep.args || {}).length > 0 && (
-            <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                Parameter Instructions
-              </label>
-              <div className="space-y-2">
-                {Object.entries(editedStep.args || {}).map(([paramName, paramValue]) => (
-                  <div key={paramName} className="grid grid-cols-3 gap-2">
-                    <div className="font-medium text-sm text-gray-600 dark:text-gray-400 flex items-center">
-                      {paramName}
-                    </div>
-                    <div className="col-span-2">
-                      <textarea
-                        value={String(paramValue)}
-                        onChange={(e) => setEditedStep(prev => ({
-                          ...prev,
-                          args: { ...prev.args, [paramName]: e.target.value }
-                        }))}
-                        rows={2}
-                        className="w-full p-2 text-sm border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        placeholder={`Instructions for ${paramName}`}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-        
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
-          >
-            Save Configuration
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-};
-
-const ToolPickerModal: React.FC<ToolPickerModalProps> = ({
-  isOpen, onClose, onSelect, tools, title
-}) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedToolType, setSelectedToolType] = useState('all');
-  const [clearAllTrigger, setClearAllTrigger] = useState(0);
-  
-  // Detect dark mode from the main app
-  const isDarkMode = typeof window !== 'undefined' && 
-    (document.documentElement.classList.contains('dark') || 
-     document.body.classList.contains('dark') ||
-     document.querySelector('main')?.classList.contains('dark'));
-
-  const clearAllFilters = () => {
-    setSearchTerm('');
-    setSelectedToolType('all');
-    setClearAllTrigger(prev => prev + 1);
-  };
-
-  if (!isOpen) return null;
-
-  const categories = ['all', ...Array.from(new Set(tools.map(tool => tool.category)))];
-  const filteredTools = tools.filter(tool => {
-    const matchesSearch = !searchTerm || 
-      tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (tool.description && tool.description.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesToolType = selectedToolType === 'all' || tool.category === selectedToolType;
-    return matchesSearch && matchesToolType;
-  });
-
-  return createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black bg-opacity-50">
-      <div className={`rounded-lg shadow-xl border max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col ${
-        isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-      }`}>
-        <div className={`px-6 py-4 border-b ${
-          isDarkMode ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-200 bg-white text-gray-900'
-        }`}>
-          <h3 className={`text-lg font-semibold flex items-center gap-2 ${
-            isDarkMode ? 'text-white' : 'text-gray-900'
-          }`}>
-            <IconTool size={20} />
-            {title}
-          </h3>
-        </div>
-        
-        <div className={`px-6 py-4 border-b ${
-          isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
-        }`}>
-          {/* Clear Search Link */}
-          <div className="flex justify-end mb-3">
-            <button
-              onClick={clearAllFilters}
-              className={`text-sm underline focus:outline-none ${
-                isDarkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'
-              }`}
-            >
-              Clear Search
-            </button>
-          </div>
-          
-          <div className="flex gap-3">
-            <div className="flex-1 relative">
-              <IconSearch size={18} className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${
-                isDarkMode ? 'text-gray-500' : 'text-gray-400'
-              }`} />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search tools..."
-                className={`w-full pl-10 pr-4 py-2 border rounded-lg ${
-                  isDarkMode 
-                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                }`}
-              />
-            </div>
-            <select
-              value={selectedToolType}
-              onChange={(e) => setSelectedToolType(e.target.value)}
-              className={`px-3 py-2 border rounded-lg ${
-                isDarkMode 
-                  ? 'bg-gray-700 border-gray-600 text-white' 
-                  : 'bg-white border-gray-300 text-gray-900'
-              }`}
-            >
-              {categories.map(category => (
-                <option key={category} value={category} className={isDarkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'}>
-                  {category === 'all' ? 'All Types' : category}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        
-        <div className={`flex-1 overflow-y-auto p-6 ${
-          isDarkMode ? 'bg-gray-800' : 'bg-white'
-        }`}>
-          <div className="grid gap-3">
-            {filteredTools.map(tool => (
-              <div
-                key={tool.id}
-                onClick={() => onSelect(tool)}
-                className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                  isDarkMode 
-                    ? 'border-gray-700 bg-gray-800 hover:bg-gray-700 text-white' 
-                    : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-900'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
-                    {tool.icon}
-                  </div>
-                  <div className="flex-1">
-                    <h4 className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {tool.name}
-                    </h4>
-                    <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {tool.description}
-                    </p>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {tool.tags.slice(0, 3).map(tag => (
-                        <span key={tag} className={`px-2 py-0.5 text-xs rounded ${
-                          isDarkMode 
-                            ? 'bg-gray-600 text-gray-300' 
-                            : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <button className={`px-3 py-1 text-sm text-white rounded transition-colors ${
-                    isDarkMode 
-                      ? 'bg-blue-600 hover:bg-blue-500' 
-                      : 'bg-blue-600 hover:bg-blue-700'
-                  }`}>
-                    Select
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        
-        <div className={`px-6 py-4 border-t flex justify-end ${
-          isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
-        }`}>
-          <button
-            onClick={onClose}
-            className={`px-4 py-2 text-sm font-medium rounded-md ${
-              isDarkMode 
-                ? 'text-gray-300 bg-gray-700 hover:bg-gray-600' 
-                : 'text-gray-700 bg-gray-100 hover:bg-gray-200'
-            }`}
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-};
 
 const SmartTagSelector: React.FC<SmartTagSelectorProps> = ({
   allTags, selectedTags, onTagsChange, toolItems, clearTrigger
@@ -720,6 +298,112 @@ const SmartTagSelector: React.FC<SmartTagSelectorProps> = ({
   );
 };
 
+interface VisualWorkflowBuilderProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (workflow: AstWorkflow) => void;
+  availableApis: OpDef[] | null;
+  availableAgentTools: Record<string, AgentTool> | null;
+  initialWorkflow?: AstWorkflow;
+  forceReset?: boolean; // Force reset to clean state even if initialWorkflow exists
+}
+
+
+interface WorkflowStep extends Step {
+  id: string;
+  position: number;
+  isEmpty?: boolean; // For steps created without tools
+}
+
+
+interface ToolReplacementModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  currentTool: string;
+  newTool: ToolItem;
+  stepName: string;
+}
+
+
+
+const ToolReplacementModal: React.FC<ToolReplacementModalProps> = ({
+  isOpen, onClose, onConfirm, currentTool, newTool, stepName
+}) => {
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 max-w-md w-full mx-4">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <IconRotateClockwise size={20} />
+            Replace Tool in Step
+          </h3>
+        </div>
+        
+        <div className="px-6 py-4 space-y-4">
+          <div className="flex items-center justify-center gap-4 text-lg">
+            <span className="font-medium">{currentTool}</span>
+            <IconArrowDown size={20} className="text-gray-400" />
+            <div className="flex items-center gap-2">
+              {newTool.icon}
+              <span className="font-medium">{newTool.name}</span>
+            </div>
+          </div>
+          
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+            <div className="flex items-start gap-2">
+              <IconAlertTriangle size={16} className="text-yellow-600 dark:text-yellow-400 mt-0.5" />
+              <div className="text-sm text-yellow-800 dark:text-yellow-200">
+                <p className="font-medium mb-1">What will change:</p>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li>Tool will change from &ldquo;{currentTool}&rdquo; to &ldquo;{newTool.name}&rdquo;</li>
+                  <li>Parameters will be reset to {newTool.name} defaults</li>
+                  <li>Previous parameter values will be lost</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+            <div className="flex items-start gap-2">
+              <IconCheck size={16} className="text-green-600 dark:text-green-400 mt-0.5" />
+              <div className="text-sm text-green-800 dark:text-green-200">
+                <p className="font-medium mb-1">What will be preserved:</p>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li>Step name: &ldquo;{stepName}&rdquo;</li>
+                  <li>Step position in workflow</li>
+                  <li>Action segment (if any)</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+          >
+            Replace Tool
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
+
+
+
 
 interface StepCardProps {
   step: WorkflowStep;
@@ -727,7 +411,7 @@ interface StepCardProps {
   onEdit: (step: WorkflowStep) => void;
   onDelete: (stepId: string) => void;
   onMove: (stepId: string, direction: 'up' | 'down') => void;
-  onToolReplace: (step: WorkflowStep, newTool: ToolItem) => void;
+  onToolReplace: (step: WorkflowStep, serializableToolData: any) => void;
   onReorder: (dragIndex: number, hoverIndex: number) => void;
   canMoveUp: boolean;
   canMoveDown: boolean;
@@ -792,9 +476,9 @@ const StepCard: React.FC<StepCardProps> = ({
       }
     } else if (toolData && step.tool !== 'terminate') {
       // Handle tool replacement
-      const toolItem: ToolItem = JSON.parse(toolData);
-      if (toolItem.name !== step.tool) {
-        onToolReplace(step, toolItem);
+      const serializableToolData = JSON.parse(toolData);
+      if (serializableToolData.name !== step.tool) {
+        onToolReplace(step, serializableToolData);
       }
     }
   };
@@ -951,9 +635,6 @@ const getSegmentColor = (segment: string): string => {
 };
 
 
-const filterTags = (tags: string[]): string[] => {
-  return tags.filter((t: string) => !['default', 'all'].includes(t));
-};
 
 const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   isOpen,
@@ -961,7 +642,8 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   onSave,
   availableApis,
   availableAgentTools,
-  initialWorkflow
+  initialWorkflow,
+  forceReset = false
 }) => {
   const { state: { lightMode } } = useContext(HomeContext);
   
@@ -986,6 +668,10 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   const [clearAllTrigger, setClearAllTrigger] = useState(0);
   const [leftPanelWidth, setLeftPanelWidth] = useState(320); // Default 320px (w-80)
   const [isResizing, setIsResizing] = useState(false);
+  
+  // Save state
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const clearAllFilters = () => {
     setSearchTerm('');
@@ -1057,7 +743,8 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   
   // Update workflow state when initialWorkflow prop changes
   useEffect(() => {
-    if (initialWorkflow) {
+    if (initialWorkflow && !forceReset) {
+      // Edit existing workflow
       setWorkflow({
         templateId: initialWorkflow.templateId || '',
         name: initialWorkflow.name || '',
@@ -1078,10 +765,86 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
         }));
         setWorkflowSteps(convertedSteps);
       } else {
-        setWorkflowSteps([]);
+        // Initialize with terminate step
+        const terminateStep: WorkflowStep = {
+          id: 'step-terminate',
+          position: 0,
+          stepName: 'done',
+          description: 'Terminate the conversation',
+          tool: 'terminate',
+          instructions: 'Terminate the conversation and provide a conclusion.',
+          args: { message: '<fill in with conclusion message>' },
+          values: {}
+        };
+        setWorkflowSteps([terminateStep]);
       }
+    } else {
+      // Create new workflow or force reset - reset to clean state
+      setWorkflow({
+        templateId: '',
+        name: '',
+        description: '',
+        inputSchema: { type: 'object', properties: {} },
+        outputSchema: {},
+        template: { steps: [] },
+        isBaseTemplate: true,
+        isPublic: false
+      });
+      
+      // Initialize with terminate step only
+      const terminateStep: WorkflowStep = {
+        id: 'step-terminate',
+        position: 0,
+        stepName: 'done',
+        description: 'Terminate the conversation',
+        tool: 'terminate',
+        instructions: 'Terminate the conversation and provide a conclusion.',
+        args: { message: '<fill in with conclusion message>' },
+        values: {}
+      };
+      setWorkflowSteps([terminateStep]);
     }
-  }, [initialWorkflow]);
+  }, [initialWorkflow, forceReset]);
+
+  // Reset state when modal opens for a new workflow or force reset
+  useEffect(() => {
+    if (isOpen && (!initialWorkflow || forceReset)) {
+      // Reset to clean state for new workflow
+      setWorkflow({
+        templateId: '',
+        name: '',
+        description: '',
+        inputSchema: { type: 'object', properties: {} },
+        outputSchema: {},
+        template: { steps: [] },
+        isBaseTemplate: true,
+        isPublic: false
+      });
+      
+      // Initialize with terminate step only
+      const terminateStep: WorkflowStep = {
+        id: 'step-terminate',
+        position: 0,
+        stepName: 'done',
+        description: 'Terminate the conversation',
+        tool: 'terminate',
+        instructions: 'Terminate the conversation and provide a conclusion.',
+        args: { message: '<fill in with conclusion message>' },
+        values: {}
+      };
+      setWorkflowSteps([terminateStep]);
+      
+      // Reset UI state as well
+      setSearchTerm('');
+      setSelectedToolType('all');
+      setSelectedTags([]);
+      setShowToolPicker(false);
+      setShowToolReplacement(false);
+      setShowParameterConfig(false);
+      setConfigStep(null);
+      setReplacementData(null);
+    }
+  }, [isOpen, initialWorkflow, forceReset]);
   
   // Initialize tool items
   useEffect(() => {
@@ -1178,30 +941,6 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
     setToolItems(items);
   }, [availableApis, availableAgentTools]);
   
-  // Initialize workflow steps
-  useEffect(() => {
-    if (initialWorkflow?.template?.steps) {
-      const steps: WorkflowStep[] = initialWorkflow.template.steps.map((step, index) => ({
-        ...step,
-        id: `step-${index}`,
-        position: index
-      }));
-      setWorkflowSteps(steps);
-    } else {
-      // Add terminate step by default
-      const terminateStep: WorkflowStep = {
-        id: 'step-terminate',
-        position: 0,
-        stepName: 'done',
-        description: 'Terminate the conversation',
-        tool: 'terminate',
-        instructions: 'Terminate the conversation and provide a conclusion.',
-        args: { message: '<fill in with conclusion message>' },
-        values: {}
-      };
-      setWorkflowSteps([terminateStep]);
-    }
-  }, [initialWorkflow]);
   
   
   const categories = ['all', ...Array.from(new Set(toolItems.map(item => item.category)))];
@@ -1226,9 +965,9 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       id: `step-${Date.now()}`,
       position: 0,
       stepName: toolItem.name.toLowerCase().replace(/\s+/g, '_'),
-      description: toolItem.description || `${snakeCaseToTitleCase(toolItem.name)} tool`,
+      description: '',
       tool: toolItem.name,
-      instructions: `Use the ${snakeCaseToTitleCase(toolItem.name)} tool${toolItem.description ? ` to ${toolItem.description.toLowerCase()}` : ''}`,
+      instructions: '',
       args: {},
       values: {}
     };
@@ -1268,9 +1007,13 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
     setShowToolPicker(false);
   };
   
-  const handleToolReplace = (step: WorkflowStep, newTool: ToolItem) => {
-    setReplacementData({ step, newTool });
-    setShowToolReplacement(true);
+  const handleToolReplace = (step: WorkflowStep, serializableToolData: any) => {
+    // Find the complete tool item from the available toolItems array
+    const newTool = toolItems.find(t => t.id === serializableToolData.id || t.name === serializableToolData.name);
+    if (newTool) {
+      setReplacementData({ step, newTool });
+      setShowToolReplacement(true);
+    }
   };
   
   const handleConfirmReplacement = () => {
@@ -1305,15 +1048,40 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       }
     }
   };
-  
-  const handleParameterSave = (updatedStep: WorkflowStep) => {
+
+  const handleStepChange = (updatedStep: Step, stepId: string) => {
     const newSteps = [...workflowSteps];
-    const stepIndex = newSteps.findIndex(s => s.id === updatedStep.id);
+    const stepIndex = newSteps.findIndex(s => s.id === stepId);
     if (stepIndex !== -1) {
-      newSteps[stepIndex] = updatedStep;
+      // Preserve WorkflowStep properties while updating Step properties
+      const updatedWorkflowStep = {
+        ...newSteps[stepIndex],
+        ...updatedStep
+      };
+      newSteps[stepIndex] = updatedWorkflowStep;
       setWorkflowSteps(newSteps);
+      
+      // Update configStep if this is the step currently being edited
+      if (configStep && configStep.step.id === stepId) {
+        let updatedTool = configStep.tool;
+        
+        // If the tool changed, find the new tool item
+        if (updatedStep.tool && updatedStep.tool !== configStep.step.tool) {
+          const newToolItem = toolItems.find(t => t.name === updatedStep.tool);
+          if (newToolItem) {
+            updatedTool = newToolItem;
+          }
+        }
+        
+        setConfigStep({
+          ...configStep,
+          step: updatedWorkflowStep,
+          tool: updatedTool
+        });
+      }
     }
   };
+
   
   const handleStepDelete = (stepId: string) => {
     setWorkflowSteps(prev => prev.filter(step => step.id !== stepId));
@@ -1395,48 +1163,157 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
     
     const toolData = e.dataTransfer.getData('tool');
     if (toolData) {
-      const toolItem: ToolItem = JSON.parse(toolData);
+      const serializableToolData = JSON.parse(toolData);
+      // Find the complete tool item from the available toolItems array
+      const toolItem = toolItems.find(t => t.id === serializableToolData.id || t.name === serializableToolData.name);
       
-      // Create a new step from the dropped tool
-      const newStep = createStepFromTool(toolItem);
-      
-      // Find the terminate step and insert before it
-      const terminateIndex = workflowSteps.findIndex(step => step.tool === 'terminate');
-      const newSteps = [...workflowSteps];
-      
-      if (terminateIndex !== -1) {
-        newSteps.splice(terminateIndex, 0, newStep);
-      } else {
-        newSteps.push(newStep);
+      if (toolItem) {
+        // Create a new step from the dropped tool
+        const newStep = createStepFromTool(toolItem);
+        
+        // Find the terminate step and insert before it
+        const terminateIndex = workflowSteps.findIndex(step => step.tool === 'terminate');
+        const newSteps = [...workflowSteps];
+        
+        if (terminateIndex !== -1) {
+          newSteps.splice(terminateIndex, 0, newStep);
+        } else {
+          newSteps.push(newStep);
+        }
+        
+        // Update positions
+        newSteps.forEach((step, index) => {
+          step.position = index;
+        });
+        
+        setWorkflowSteps(newSteps);
+        
+        // Show parameter configuration modal for the new step
+        const stepPosition = terminateIndex !== -1 ? terminateIndex : newSteps.length - 1;
+        setConfigStep({ step: newSteps[stepPosition], tool: toolItem });
+        setShowParameterConfig(true);
       }
-      
-      // Update positions
-      newSteps.forEach((step, index) => {
-        step.position = index;
-      });
-      
-      setWorkflowSteps(newSteps);
-      
-      // Show parameter configuration modal for the new step
-      const stepPosition = terminateIndex !== -1 ? terminateIndex : newSteps.length - 1;
-      setConfigStep({ step: newSteps[stepPosition], tool: toolItem });
-      setShowParameterConfig(true);
     }
   };
   
-  const handleSave = () => {
-    // Convert workflow steps back to regular steps
-    const steps: Step[] = workflowSteps
-      .filter(step => !step.isEmpty) // Filter out empty steps
-      .map(({ id, position, isEmpty, ...step }) => step);
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+      setSaveError(null);
+      
+      // Validate workflow name
+      if (!workflow.name.trim()) {
+        setSaveError('Workflow name is required');
+        setIsSaving(false);
+        return;
+      }
+      
+      // Convert workflow steps back to regular steps
+      const steps: Step[] = workflowSteps
+        .filter(step => !step.isEmpty) // Filter out empty steps
+        .map(({ id, position, isEmpty, ...step }) => step);
+      
+      // Validate steps exist
+      if (!steps.length) {
+        setSaveError('Workflow must have at least one step');
+        setIsSaving(false);
+        return;
+      }
+      
+      // Validate steps exist other than terminate step
+      const nonTerminateSteps = steps.filter(
+        step => step.tool !== 'terminate' && step.stepName !== 'done'
+      );
+      
+      if (nonTerminateSteps.length === 0) {
+        setSaveError('Workflow must have at least one non-terminate step');
+        setIsSaving(false);
+        return;
+      }
+      
+      // Validate each step has required fields
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        const isTerminate = step.tool === 'terminate';
+        
+        if (!isTerminate) {
+          if (!step.description?.trim()) {
+            setSaveError(`Step ${i+1} is missing a description`);
+            setIsSaving(false);
+            return;
+          }
+          
+          if (!step.tool?.trim()) {
+            setSaveError(`Step ${i+1} is missing a tool`);
+            setIsSaving(false);
+            return;
+          }
+          
+          if (!step.instructions?.trim()) {
+            setSaveError(`Step ${i+1} is missing instructions`);
+            setIsSaving(false);
+            return;
+          }
+        }
+      }
+      
+      // Ensure terminateStep is the last step
+      const lastStep = steps[steps.length - 1];
+      if (lastStep.tool !== 'terminate') {
+        setSaveError('The last step must be a terminate step');
+        setIsSaving(false);
+        return;
+      }
+      
+      const updatedWorkflow: AstWorkflow = {
+        ...workflow,
+        template: { steps }
+      };
+      
+      const isBaseTemplate = true;
+      let response;
     
-    const updatedWorkflow: AstWorkflow = {
-      ...workflow,
-      template: { steps }
-    };
-    
-    onSave(updatedWorkflow);
-    onClose();
+      if (updatedWorkflow.templateId && updatedWorkflow.templateId.trim() !== '') {
+        // Update existing template
+        response = await updateAstWorkflowTemplate(
+          updatedWorkflow.templateId,
+          updatedWorkflow.template,
+          updatedWorkflow.name,
+          updatedWorkflow.description,
+          updatedWorkflow.inputSchema,
+          updatedWorkflow.outputSchema,
+          isBaseTemplate,
+          updatedWorkflow.isPublic
+        );
+      } else {
+        // Register new template
+        response = await registerAstWorkflowTemplate(
+          updatedWorkflow.template,
+          updatedWorkflow.name,
+          updatedWorkflow.description,
+          updatedWorkflow.inputSchema,
+          updatedWorkflow.outputSchema,
+          isBaseTemplate,
+          updatedWorkflow.isPublic
+        );
+      }
+      
+      if (response.success && response.data) {
+        toast.success("Successfully saved workflow template");
+        
+        // Don't call onSave - we've already saved directly to the backend
+        // Just close the modal since the workflow has been persisted
+        onClose();
+      } else {
+        setSaveError(response.message || 'Failed to save workflow template');
+        console.error(response.message);
+      }
+    } catch (err) {
+      setSaveError('An error occurred while saving the workflow');
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
   };
   
   if (!isOpen) return null;
@@ -1537,7 +1414,18 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                         key={tool.id}
                         draggable
                         onDragStart={(e) => {
-                          e.dataTransfer.setData('tool', JSON.stringify(tool));
+                          // Create a serializable version of the tool object (excluding React elements)
+                          const serializableTool = {
+                            id: tool.id,
+                            name: tool.name,
+                            description: tool.description,
+                            category: tool.category,
+                            tags: tool.tags,
+                            parameters: tool.parameters,
+                            type: tool.type
+                            // Exclude 'icon' and 'originalTool' as they contain non-serializable data
+                          };
+                          e.dataTransfer.setData('tool', JSON.stringify(serializableTool));
                         }}
                         className="tool-item border border-gray-400 dark:border-gray-500 bg-gradient-to-br from-gray-200 via-gray-100 to-gray-300 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 shadow-lg hover:shadow-xl transition-all duration-200 ease-in-out text-gray-800 dark:text-gray-100 cursor-grab active:cursor-grabbing rounded-lg mb-2"
                         style={{
@@ -1763,19 +1651,41 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
         </div>
         
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3 flex-shrink-0">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
-          >
-            Save Workflow
-          </button>
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+          {/* Error Display */}
+          {saveError && (
+            <div className="flex-1 mr-3">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-3 py-2 rounded-md text-sm">
+                {saveError}
+              </div>
+            </div>
+          )}
+          
+          {/* Buttons */}
+          <div className="flex justify-end space-x-3">
+            <button
+              onClick={onClose}
+              disabled={isSaving}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                isSaving 
+                  ? 'text-gray-400 bg-gray-200 dark:bg-gray-600 cursor-not-allowed'
+                  : 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isSaving || !workflow.name.trim()}
+              className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
+                isSaving || !workflow.name.trim()
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700'
+              }`}
+            >
+              {isSaving ? 'Saving...' : 'Save Workflow'}
+            </button>
+          </div>
         </div>
       </div>
       
@@ -1786,6 +1696,8 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
         onSelect={handleToolSelect}
         tools={toolItems.filter(t => t.name !== 'terminate')}
         title="Select Tool for Step"
+        showAdvancedFiltering={false}
+        showClearSearch={false}
       />
       
       <ToolReplacementModal
@@ -1798,13 +1710,41 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       />
       
       {configStep && (
-        <ParameterConfigModal
-          isOpen={showParameterConfig}
-          onClose={() => setShowParameterConfig(false)}
-          onSave={handleParameterSave}
-          step={configStep.step}
-          tool={configStep.tool}
-        />
+        <div className={`fixed inset-0 z-[10000] flex items-center justify-center bg-black bg-opacity-50 ${showParameterConfig ? '' : 'hidden'}`}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 max-w-4xl w-full mx-4 max-h-[80vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <IconSettings size={20} />
+                Configure Step: {configStep.step.stepName || configStep.step.description || 'Step'}
+              </h3>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <StepEditor
+                step={configStep.step}
+                stepIndex={workflowSteps.findIndex(s => s.id === configStep.step.id)}
+                onStepChange={(updatedStep) => handleStepChange(updatedStep, configStep.step.id)}
+                availableApis={availableApis}
+                availableAgentTools={availableAgentTools}
+                isTerminate={configStep.step.tool === 'terminate'}
+                allowToolSelection={true}
+              />
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+              <button
+                onClick={() => setShowParameterConfig(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setShowParameterConfig(false)}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+              >
+                Save & Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

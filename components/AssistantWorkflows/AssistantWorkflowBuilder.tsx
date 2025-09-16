@@ -124,6 +124,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   const [isGeneratingWorkflow, setIsGeneratingWorkflow] = useState(false);
   const [showWorkflowGenerator, setShowWorkflowGenerator] = useState(false);
   const [showVisualBuilder, setShowVisualBuilder] = useState(false);
+  const [forceVisualBuilderReset, setForceVisualBuilderReset] = useState(false);
 
 
       const filterOps = async (data: any[]) => {
@@ -335,11 +336,13 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   };
 
   const handleDeleteTemplate = async (templateId: string, index: number) => {
-    console.log("handleDeleteTemplate: ", templateId);
-    console.log("expecting 21f303ed-9dae-4324-bd38-b31219984429");
     setIsDeletingTemplate(index);
     const response = await deleteAstWorkflowTemplate(templateId);
     if (response.success) {
+      // If we deleted the currently selected workflow, reset to empty template
+      if (selectedWorkflow.templateId === templateId) {
+        setSelectedWorkflow(emptyTemplate(isBaseTemplate));
+      }
       fetchTemplates();
     }
     setIsDeletingTemplate(-1);
@@ -810,7 +813,13 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           <div className="absolute right-1 top-[-6px] flex flex-row gap-3">
              <button
               className={`px-2  ${buttonStyle}`}
-              onClick={() => setShowVisualBuilder(true)}
+              onClick={() => {
+                // Force reset if we don't have a saved workflow (no templateId)
+                const shouldForceReset = !selectedWorkflow?.templateId;
+                
+                setForceVisualBuilderReset(shouldForceReset);
+                setShowVisualBuilder(true);
+              }}
               title="Open visual drag-and-drop workflow builder">
               <IconPuzzle size={18} />
               Visual Builder
@@ -944,15 +953,21 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
       
       <VisualWorkflowBuilder
         isOpen={showVisualBuilder}
-        onClose={() => setShowVisualBuilder(false)}
+        onClose={() => {
+          setShowVisualBuilder(false);
+          setForceVisualBuilderReset(false); // Reset the force flag when closing
+          fetchTemplates(); // Refresh template list in case a new template was saved
+        }}
         onSave={(workflow) => {
           setSelectedWorkflow(workflow);
           setShowVisualBuilder(false);
           setIsPreviewing(false);
+          setForceVisualBuilderReset(false); // Reset the force flag when saving
         }}
         availableApis={availableApis}
         availableAgentTools={availableAgentTools}
         initialWorkflow={selectedWorkflow}
+        forceReset={forceVisualBuilderReset}
       />
     </>
   );
