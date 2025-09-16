@@ -291,6 +291,12 @@ const ToolPickerModal: React.FC<ToolPickerModalProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedToolType, setSelectedToolType] = useState('all');
   const [clearAllTrigger, setClearAllTrigger] = useState(0);
+  
+  // Detect dark mode from the main app
+  const isDarkMode = typeof window !== 'undefined' && 
+    (document.documentElement.classList.contains('dark') || 
+     document.body.classList.contains('dark') ||
+     document.querySelector('main')?.classList.contains('dark'));
 
   const clearAllFilters = () => {
     setSearchTerm('');
@@ -311,43 +317,63 @@ const ToolPickerModal: React.FC<ToolPickerModalProps> = ({
 
   return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+      <div className={`rounded-lg shadow-xl border max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col ${
+        isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+      }`}>
+        <div className={`px-6 py-4 border-b ${
+          isDarkMode ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-200 bg-white text-gray-900'
+        }`}>
+          <h3 className={`text-lg font-semibold flex items-center gap-2 ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>
             <IconTool size={20} />
             {title}
           </h3>
         </div>
         
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          {/* Clear All Filters Link */}
+        <div className={`px-6 py-4 border-b ${
+          isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
+        }`}>
+          {/* Clear Search Link */}
           <div className="flex justify-end mb-3">
             <button
               onClick={clearAllFilters}
-              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline focus:outline-none"
+              className={`text-sm underline focus:outline-none ${
+                isDarkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'
+              }`}
             >
-              Clear All Filters
+              Clear Search
             </button>
           </div>
           
           <div className="flex gap-3">
             <div className="flex-1 relative">
-              <IconSearch size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <IconSearch size={18} className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${
+                isDarkMode ? 'text-gray-500' : 'text-gray-400'
+              }`} />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search tools..."
-                className="w-full pl-10 pr-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                className={`w-full pl-10 pr-4 py-2 border rounded-lg ${
+                  isDarkMode 
+                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                }`}
               />
             </div>
             <select
               value={selectedToolType}
               onChange={(e) => setSelectedToolType(e.target.value)}
-              className="px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className={`px-3 py-2 border rounded-lg ${
+                isDarkMode 
+                  ? 'bg-gray-700 border-gray-600 text-white' 
+                  : 'bg-white border-gray-300 text-gray-900'
+              }`}
             >
               {categories.map(category => (
-                <option key={category} value={category}>
+                <option key={category} value={category} className={isDarkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'}>
                   {category === 'all' ? 'All Types' : category}
                 </option>
               ))}
@@ -355,34 +381,48 @@ const ToolPickerModal: React.FC<ToolPickerModalProps> = ({
           </div>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className={`flex-1 overflow-y-auto p-6 ${
+          isDarkMode ? 'bg-gray-800' : 'bg-white'
+        }`}>
           <div className="grid gap-3">
             {filteredTools.map(tool => (
               <div
                 key={tool.id}
                 onClick={() => onSelect(tool)}
-                className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                  isDarkMode 
+                    ? 'border-gray-700 bg-gray-800 hover:bg-gray-700 text-white' 
+                    : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-900'
+                }`}
               >
                 <div className="flex items-center gap-3">
-                  <div className="text-gray-600 dark:text-gray-400">
+                  <div className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
                     {tool.icon}
                   </div>
                   <div className="flex-1">
-                    <h4 className="font-medium text-gray-900 dark:text-white">
+                    <h4 className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                       {tool.name}
                     </h4>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                       {tool.description}
                     </p>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {tool.tags.slice(0, 3).map(tag => (
-                        <span key={tag} className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded">
+                        <span key={tag} className={`px-2 py-0.5 text-xs rounded ${
+                          isDarkMode 
+                            ? 'bg-gray-600 text-gray-300' 
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>
                           #{tag}
                         </span>
                       ))}
                     </div>
                   </div>
-                  <button className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+                  <button className={`px-3 py-1 text-sm text-white rounded transition-colors ${
+                    isDarkMode 
+                      ? 'bg-blue-600 hover:bg-blue-500' 
+                      : 'bg-blue-600 hover:bg-blue-700'
+                  }`}>
                     Select
                   </button>
                 </div>
@@ -391,10 +431,16 @@ const ToolPickerModal: React.FC<ToolPickerModalProps> = ({
           </div>
         </div>
         
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+        <div className={`px-6 py-4 border-t flex justify-end ${
+          isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
+        }`}>
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md"
+            className={`px-4 py-2 text-sm font-medium rounded-md ${
+              isDarkMode 
+                ? 'text-gray-300 bg-gray-700 hover:bg-gray-600' 
+                : 'text-gray-700 bg-gray-100 hover:bg-gray-200'
+            }`}
           >
             Cancel
           </button>
@@ -1595,7 +1641,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
               </div>
 
               {/* Accessibility Checkbox */}
-              <div className="mb-4 text-xs">
+              <div className="mb-4 text-xs text-gray-700 dark:text-gray-300">
                 <Checkbox
                   id="isPublic"
                   label="Accessible to any Amplify user"
