@@ -1,10 +1,10 @@
 // Create Workflows from scratch
 
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { AstWorkflow, Step } from '@/types/assistantWorkflows';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import { registerAstWorkflowTemplate, listAstWorkflowTemplates, getAstWorkflowTemplate, updateAstWorkflowTemplate, deleteAstWorkflowTemplate } from '@/services/assistantWorkflowService';
-import { IconPlus, IconTrash, IconChevronDown, IconChevronUp, IconCaretDown, IconCaretRight, IconArrowUp, IconArrowDown, IconLoader2, IconInfoCircle, IconPresentation, IconPuzzle, IconPuzzleFilled, IconEdit, IconEditOff, IconRobot } from '@tabler/icons-react';
+import { IconPlus, IconTrash, IconChevronDown, IconChevronUp, IconCaretDown, IconCaretRight, IconArrowUp, IconArrowDown, IconLoader2, IconInfoCircle, IconPresentation, IconPuzzle, IconPuzzleFilled, IconEdit, IconEditOff, IconRobot, IconEye, IconEyeOff } from '@tabler/icons-react';
 import cloneDeep from 'lodash/cloneDeep';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
 import ExpansionComponent from '../Chat/ExpansionComponent';
@@ -125,6 +125,11 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   const [showWorkflowGenerator, setShowWorkflowGenerator] = useState(false);
   const [showVisualBuilder, setShowVisualBuilder] = useState(false);
   const [forceVisualBuilderReset, setForceVisualBuilderReset] = useState(false);
+  const [showWorkflowBuilder, setShowWorkflowBuilder] = useState(false);
+  const [workflowBuilderWorkflow, setWorkflowBuilderWorkflow] = useState<AstWorkflow | null>(null);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const createMenuRef = useRef<HTMLDivElement>(null);
 
 
       const filterOps = async (data: any[]) => {
@@ -339,9 +344,11 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
     setIsDeletingTemplate(index);
     const response = await deleteAstWorkflowTemplate(templateId);
     if (response.success) {
-      // If we deleted the currently selected workflow, reset to empty template
-      if (selectedWorkflow.templateId === templateId) {
+      // If we deleted the currently selected workflow, reset to empty state
+      if (selectedWorkflowId === templateId) {
         setSelectedWorkflow(emptyTemplate(isBaseTemplate));
+        setSelectedWorkflowId(null);
+        setIsPreviewing(false);
       }
       fetchTemplates();
     }
@@ -391,18 +398,41 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
     setIsPreviewing(false);
   };
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showCreateMenu && createMenuRef.current && !createMenuRef.current.contains(event.target as Node)) {
+        setShowCreateMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showCreateMenu]);
+
   useEffect(() => {
     setDetailedPreview(false);
   }, [isPreviewing]);
 
 
   const handleLoadTemplate = async (templateId: string) => {
+    // Handle deselection - if clicking the already selected template, deselect it
+    if (selectedWorkflowId === templateId) {
+      setSelectedWorkflowId(null);
+      setSelectedWorkflow(emptyTemplate(false));
+      setIsPreviewing(false);
+      return;
+    }
+
     setLoadingSelectedWorkflow(true);
-    setIsPreviewing(false);
+    setIsPreviewing(true); // Automatically show preview when selecting
+    setSelectedWorkflowId(templateId);
+    
     const selectedTemp = allTemplates.find(t => t.templateId === templateId);
     if (!selectedTemp) {
       alert("Template not found");
       setSelectedWorkflow( emptyTemplate(false) );
+      setSelectedWorkflowId(null);
       setLoadingSelectedWorkflow(false);
       return;
     }
@@ -435,6 +465,91 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
     setLoadingSelectedWorkflow(false);
   };
 
+  const handleOpenWorkflowBuilder = () => {
+    if (selectedWorkflowId) {
+      // Edit existing workflow
+      const workflowToEdit = allTemplates.find(t => t.templateId === selectedWorkflowId);
+      if (workflowToEdit) {
+        setWorkflowBuilderWorkflow(cloneDeep(workflowToEdit));
+      }
+    } else {
+      // Create new workflow
+      setWorkflowBuilderWorkflow(emptyTemplate(isBaseTemplate));
+    }
+    setShowWorkflowBuilder(true);
+  };
+
+  const handleSaveWorkflowFromBuilder = async (workflow: AstWorkflow) => {
+    try {
+      // Validate workflow
+      if (!workflow.name.trim()) {
+        throw new Error('Workflow name is required');
+      }
+
+      if (!workflow.template?.steps || workflow.template.steps.length === 0) {
+        throw new Error('Workflow must have at least one step');
+      }
+
+      const nonTerminateSteps = workflow.template.steps.filter(
+        step => step.tool !== 'terminate' && step.stepName !== 'done'
+      );
+      
+      if (nonTerminateSteps.length === 0) {
+        throw new Error('Workflow must have at least one non-terminate step');
+      }
+
+      // Save workflow
+      const isBaseTemplate = true;
+      let response;
+
+      if (workflow.templateId && workflow.templateId.trim() !== '') {
+        // Update existing template
+        response = await updateAstWorkflowTemplate(
+          workflow.templateId,
+          workflow.template,
+          workflow.name,
+          workflow.description,
+          workflow.inputSchema,
+          workflow.outputSchema,
+          isBaseTemplate,
+          workflow.isPublic
+        );
+      } else {
+        // Register new template
+        response = await registerAstWorkflowTemplate(
+          workflow.template,
+          workflow.name,
+          workflow.description,
+          workflow.inputSchema,
+          workflow.outputSchema,
+          isBaseTemplate,
+          workflow.isPublic
+        );
+      }
+
+      if (response.success && response.data) {
+        toast.success("Successfully saved workflow template");
+        
+        // Refresh templates and select the saved workflow
+        await fetchTemplates();
+        setSelectedWorkflowId(response.data.templateId);
+        setSelectedWorkflow({
+          ...workflow,
+          templateId: response.data.templateId,
+          isBaseTemplate: isBaseTemplate
+        });
+        
+        setShowWorkflowBuilder(false);
+        setWorkflowBuilderWorkflow(null);
+      } else {
+        throw new Error(response.message || 'Failed to save workflow template');
+      }
+    } catch (error) {
+      console.error('Error saving workflow:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to save workflow');
+    }
+  };
+
   const handleSelectTool = (toolName: string, index: number, parameters: Schema) => {
     const args: Record<string, string> = {};
     if (parameters.properties) {
@@ -456,9 +571,53 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   
       <div className="flex justify-between items-center mb-2">
           <div className="text-sm font-bold">Templates</div>
-          <button onClick={handleNewTemplate} title="Add New Template" className="hover:text-blue-600">
+          <div className="relative" ref={createMenuRef}>
+            <button 
+              onClick={() => setShowCreateMenu(!showCreateMenu)} 
+              title="Create New Workflow" 
+              className="hover:text-blue-600 relative"
+            >
               <IconPlus size={18} />
-          </button>
+            </button>
+            
+            {showCreateMenu && (
+              <div className="absolute top-8 right-0 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-2 min-w-[180px]">
+                <button
+                  className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                  onClick={() => {
+                    setForceVisualBuilderReset(true);
+                    setShowVisualBuilder(true);
+                    setShowCreateMenu(false);
+                  }}
+                >
+                  <IconPuzzle size={16} className="text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm">Visual Builder</span>
+                </button>
+                
+                <button
+                  className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                  onClick={() => {
+                    setShowWorkflowGenerator(true);
+                    setShowCreateMenu(false);
+                  }}
+                >
+                  <IconRobot size={16} className="text-green-600 dark:text-green-400" />
+                  <span className="text-sm">AI Generate</span>
+                </button>
+                
+                <button
+                  className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                  onClick={() => {
+                    handleOpenWorkflowBuilder();
+                    setShowCreateMenu(false);
+                  }}
+                >
+                  <IconEdit size={16} className="text-purple-600 dark:text-purple-400" />
+                  <span className="text-sm">Workflow Builder</span>
+                </button>
+              </div>
+            )}
+          </div>
       </div>
       
       {isLoadingTemplates ? (
@@ -475,7 +634,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
             <div
               key={template.templateId}
               className={`p-2 rounded-lg cursor-pointer flex flex-row ${
-                selectedWorkflow.templateId === template.templateId
+                selectedWorkflowId === template.templateId
                   ? 'bg-blue-100 dark:bg-blue-900'
                   : 'hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
@@ -496,7 +655,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                 )} */}
               </div>
               
-              { selectedWorkflow.templateId === template.templateId &&
+              { selectedWorkflowId === template.templateId &&
                 <button className="ml-auto right-2"
                 title="Delete Template"
                 onClick={(e) => {
@@ -512,6 +671,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           ))}
         </div>
       )}
+
     </div>
   );
   
@@ -886,31 +1046,139 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
 
   const renderPreviewContent = () => (
     <div className="flex-1 pl-4">
-       <div className="relative mt-2 ">
-        <div className="absolute right-1 top-[-6px] flex flex-row gap-4">
-        <button
-              className={`w-[168px] px-4 ${buttonStyle}`}
-              onClick={() => setDetailedPreview(!detailedPreview)}>
-              {`${detailedPreview ? "Hide" : "View"} Detailed Steps`}
-            </button>
+      {/* Workflow Preview with Controls */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white">Workflow Preview</h3>
+          <div className="flex gap-2">
             <button
-              className={`px-3  ${buttonStyle}`}
-              onClick={() => setIsPreviewing(false)}>
-              <IconPuzzle className="ml-1" size={20} />
+              className={`px-3 py-2 ${buttonStyle}`}
+              onClick={() => {
+                const shouldForceReset = false; // Don't reset when editing existing
+                setForceVisualBuilderReset(shouldForceReset);
+                setShowVisualBuilder(true);
+              }}
+            >
+              <IconPuzzle size={18} className="text-blue-600 dark:text-blue-400" />
+              Visual Builder
+            </button>
+
+            <button
+              className={`px-3 py-2 ${buttonStyle}`}
+              onClick={handleOpenWorkflowBuilder}
+            >
+              <IconEdit size={18} className="text-purple-600 dark:text-purple-400" />
               Workflow Builder
             </button>
+            
+            <button
+              className={`px-4 py-2 ${buttonStyle}`}
+              onClick={() => setDetailedPreview(!detailedPreview)}
+            >
+              {detailedPreview ? <IconEyeOff size={18} /> : <IconEye size={18} />}
+              {`${detailedPreview ? "Hide" : "View"} Detailed Steps`}
+            </button>
           </div>
-      </div>
-      <AssistantWorkflow 
+        </div>
+        
+        <AssistantWorkflow 
           id={"previewCurrentWorkflow"}
           workflowTemplate={selectedWorkflow} 
           enableCustomization={false}  // do nothing 
           onWorkflowTemplateUpdate={(workflowTemplate: AstWorkflow | null) => {}}
           obfuscate={!detailedPreview}
-      />
-
+        />
+      </div>
     </div>
   );
+
+  const renderCenterPanel = () => {
+    if (selectedWorkflowId) {
+      // Show preview when a workflow is selected
+      return renderPreviewContent();
+    } else {
+      // Show instructions and quick actions when no workflow is selected
+      return (
+        <div className="flex-1 pl-4">
+          <div className="relative mt-2">
+            <ExpansionComponent
+              closedWidget={<IconInfoCircle size={18} className='flex-shrink-0'/>}
+              title="Understanding Assistant Workflow Templates"
+              content={<div className="mb-8 py-2">
+                <InfoBox
+                  content={
+                    <span className='px-4'>
+                  Workflow templates are used to create assistant workflows. They are a collection of steps that are executed in order.
+                  
+                  <ul className="mt-2 list-disc pl-5">
+                    <li><strong>Steps and Tools:</strong> Each step allows you to select a Tool (internal API, custom API, or agent tool). </li>
+                    <li className="ml-4"> Selecting a tool will automatically populate the Arguments section. </li>
+                    <li className="ml-4"> {"Edit the Arguments instructions to influence the Assistant's generated argument value."} </li>
+                    <li className="ml-4"> Use the Values section to assign permanent values to specific arguments, otherwise the assistant will decide the value at runtime.</li>
+                    <li className="ml-4"> Arguments are not required and can be removed by clicking the Trash Icon to the right of the argument name. </li>
+                    <li className="ml-4"> Select the Edit Icon to the right of the argument name to enable/disable the ability to edit the argument value when adding this workflow to an assistant. </li>
+                    <li><strong>Action Segments:</strong> Group related steps by giving them the same Action Segment name. Steps with the same segment will be color-coded together. When creating an assistant with this template, you can enable/disable entire segments at once.</li>
+                    <li><strong>Terminate Step:</strong> Every workflow must end with a terminate step. This step is automatically added and should always remain as the last step in your workflow.</li>
+                  </ul>
+                </span>
+                }
+              /></div> }
+            /> 
+            
+            {/* Quick Action Buttons */}
+            <div className="mt-6 space-y-4">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">Create New Workflow</h3>
+              <div className="grid gap-4 md:grid-cols-3">
+                <button
+                  className="p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-left hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                  onClick={() => {
+                    setForceVisualBuilderReset(true);
+                    setShowVisualBuilder(true);
+                  }}
+                >
+                  <div className="flex items-center mb-2">
+                    <IconPuzzle size={24} className="text-blue-600 dark:text-blue-400 mr-2" />
+                    <span className="font-medium text-gray-900 dark:text-white">Visual Builder</span>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Drag and drop tools to build workflows visually
+                  </p>
+                </button>
+
+                <button
+                  className="p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-left hover:border-green-500 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                  onClick={() => {
+                    setShowWorkflowGenerator(true);
+                  }}
+                >
+                  <div className="flex items-center mb-2">
+                    <IconRobot size={24} className="text-green-600 dark:text-green-400 mr-2" />
+                    <span className="font-medium text-gray-900 dark:text-white">AI Generate</span>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Describe your workflow and let AI create it
+                  </p>
+                </button>
+
+                <button
+                  className="p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-left hover:border-purple-500 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
+                  onClick={handleOpenWorkflowBuilder}
+                >
+                  <div className="flex items-center mb-2">
+                    <IconEdit size={24} className="text-purple-600 dark:text-purple-400 mr-2" />
+                    <span className="font-medium text-gray-900 dark:text-white">Workflow Builder</span>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Create workflows with step-by-step editing
+                  </p>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+  };
   
   if (!isOpen) return null;
   
@@ -921,12 +1189,12 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
         content={
           <div className="flex flex-row" style={{height: (window.innerHeight * 0.9) * 0.8}}>
                   {renderSidebar()}
-                  { isPreviewing ? renderPreviewContent() : renderMainContent()}
+                  {renderCenterPanel()}
           </div>
         }
-        showCancel={false}
-        submitLabel={isSubmitting ? 'Saving Template...' : 'Save Template'}
-        onSubmit={handleSaveTemplate}
+        showCancel={true}
+        submitLabel="Close"
+        onSubmit={onClose}
         onCancel={ () => {
           setSelectedWorkflow(emptyTemplate(isBaseTemplate));
           onClose();
@@ -941,15 +1209,195 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           setShowWorkflowGenerator(false);
           setIsGeneratingWorkflow(false);
         }}
-        onGenerate={(workflow) => {
-          setSelectedWorkflow(workflow);
-          setShowWorkflowGenerator(false);
-          setIsGeneratingWorkflow(false);
-          setIsPreviewing(false);
+        onGenerate={async (workflow) => {
+          try {
+            // Save the generated workflow directly
+            const response = await registerAstWorkflowTemplate(
+              workflow.template,
+              workflow.name,
+              workflow.description,
+              workflow.inputSchema,
+              workflow.outputSchema,
+              isBaseTemplate,
+              workflow.isPublic
+            );
+
+            if (response.success && response.data) {
+              toast.success("Successfully generated and saved workflow");
+              
+              // Refresh templates and select the new workflow
+              await fetchTemplates();
+              setSelectedWorkflowId(response.data.templateId);
+              setSelectedWorkflow({
+                ...workflow,
+                templateId: response.data.templateId,
+                isBaseTemplate: isBaseTemplate
+              });
+              setIsPreviewing(true); // Show preview of the new workflow
+              
+              setShowWorkflowGenerator(false);
+              setIsGeneratingWorkflow(false);
+            } else {
+              throw new Error(response.message || 'Failed to save generated workflow');
+            }
+          } catch (error) {
+            console.error('Error saving generated workflow:', error);
+            toast.error(error instanceof Error ? error.message : 'Failed to save generated workflow');
+            
+            // Still allow the user to see the workflow even if save failed
+            setSelectedWorkflow(workflow);
+            setSelectedWorkflowId(null);
+            setShowWorkflowGenerator(false);
+            setIsGeneratingWorkflow(false);
+            setIsPreviewing(true);
+          }
         }}
         availableApis={availableApis}
         availableAgentTools={availableAgentTools}
       />
+
+      {/* Workflow Builder Modal */}
+      {showWorkflowBuilder && workflowBuilderWorkflow && (
+        <Modal
+          title={workflowBuilderWorkflow.templateId ? 'Edit Workflow' : 'Create New Workflow'}
+          content={
+            <div style={{ height: (window.innerHeight * 0.9) * 0.7, overflow: 'auto' }}>
+              <div className="space-y-6">
+                {/* Workflow Basic Info */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                      Workflow Name
+                    </label>
+                    <input
+                      type="text"
+                      value={workflowBuilderWorkflow.name}
+                      onChange={(e) => setWorkflowBuilderWorkflow({
+                        ...workflowBuilderWorkflow,
+                        name: e.target.value
+                      })}
+                      className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+                      placeholder="Enter workflow name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                      Description
+                    </label>
+                    <textarea
+                      value={workflowBuilderWorkflow.description}
+                      onChange={(e) => setWorkflowBuilderWorkflow({
+                        ...workflowBuilderWorkflow,
+                        description: e.target.value
+                      })}
+                      className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+                      rows={2}
+                      placeholder="Describe what this workflow does"
+                    />
+                  </div>
+
+                  <div>
+                    <Checkbox
+                      id="workflowBuilder-isPublic"
+                      label="Accessible to any Amplify user"
+                      checked={workflowBuilderWorkflow.isPublic || false}
+                      onChange={(checked) => setWorkflowBuilderWorkflow({
+                        ...workflowBuilderWorkflow,
+                        isPublic: checked
+                      })}
+                    />
+                  </div>
+                </div>
+
+                {/* Steps Section */}
+                <div>
+                  <h3 className="text-lg font-medium mb-4 text-gray-900 dark:text-white">Workflow Steps</h3>
+                  <div className="space-y-4">
+                    {workflowBuilderWorkflow.template?.steps?.map((step, index) => (
+                      <div key={index} className="border rounded-lg p-4 dark:border-gray-600">
+                        <div className="flex justify-between items-center mb-3">
+                          <h4 className="font-medium text-gray-900 dark:text-white">
+                            Step {index + 1}: {step.stepName || 'Untitled Step'}
+                          </h4>
+                          {step.tool !== 'terminate' && (
+                            <button
+                              onClick={() => {
+                                const updatedWorkflow = cloneDeep(workflowBuilderWorkflow);
+                                updatedWorkflow.template?.steps?.splice(index, 1);
+                                setWorkflowBuilderWorkflow(updatedWorkflow);
+                              }}
+                              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                            >
+                              <IconTrash size={16} />
+                            </button>
+                          )}
+                        </div>
+                        
+                        <StepEditor
+                          step={step}
+                          stepIndex={index}
+                          onStepChange={(updatedStep) => {
+                            const updatedWorkflow = cloneDeep(workflowBuilderWorkflow);
+                            if (updatedWorkflow.template?.steps) {
+                              updatedWorkflow.template.steps[index] = updatedStep;
+                              setWorkflowBuilderWorkflow(updatedWorkflow);
+                            }
+                          }}
+                          availableApis={availableApis}
+                          availableAgentTools={availableAgentTools}
+                          isTerminate={step.tool === 'terminate'}
+                          allowToolSelection={step.tool !== 'terminate'}
+                        />
+                      </div>
+                    ))}
+
+                    {/* Add Step Button */}
+                    <button
+                      onClick={() => {
+                        const updatedWorkflow = cloneDeep(workflowBuilderWorkflow);
+                        if (!updatedWorkflow.template) {
+                          updatedWorkflow.template = { steps: [] };
+                        }
+                        
+                        const newStep: Step = {
+                          stepName: '',
+                          description: '',
+                          tool: '',
+                          instructions: '',
+                          args: {},
+                          values: {}
+                        };
+                        
+                        // Insert before terminate step if it exists
+                        const terminateIndex = updatedWorkflow.template.steps.findIndex(s => s.tool === 'terminate');
+                        if (terminateIndex !== -1) {
+                          updatedWorkflow.template.steps.splice(terminateIndex, 0, newStep);
+                        } else {
+                          updatedWorkflow.template.steps.push(newStep);
+                        }
+                        
+                        setWorkflowBuilderWorkflow(updatedWorkflow);
+                      }}
+                      className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:border-blue-500 dark:hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <IconPlus size={20} />
+                      Add New Step
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          }
+          showCancel={true}
+          submitLabel="Save Workflow"
+          onSubmit={() => handleSaveWorkflowFromBuilder(workflowBuilderWorkflow)}
+          onCancel={() => {
+            setShowWorkflowBuilder(false);
+            setWorkflowBuilderWorkflow(null);
+          }}
+        />
+      )}
       
       <VisualWorkflowBuilder
         isOpen={showVisualBuilder}
