@@ -291,6 +291,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                             }));
             case AdminConfigTypes.AMPLIFY_GROUPS:
                 Object.keys(ampGroups).forEach((key: string) => {
+                    if (!ampGroups[key].groupName) ampGroups[key].groupName = key;
                     if (!ampGroups[key].isBillingGroup) ampGroups[key].isBillingGroup = false;
                     if (!ampGroups[key].rateLimit) ampGroups[key].rateLimit = noRateLimit;
                 });
