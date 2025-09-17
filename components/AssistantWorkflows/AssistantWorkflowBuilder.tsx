@@ -686,6 +686,14 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
 
   const renderStepEditor = (step: Step, index: number) => {
     const isTerminate = isTerminateStep(step);
+    // Detect if step is likely new (empty or minimal content)
+    const isNewStep = !isTerminate && (
+      !step.description?.trim() && 
+      !step.tool?.trim() && 
+      !step.instructions?.trim() &&
+      (!step.stepName?.trim() || step.stepName === 'New Step')
+    );
+    
     return (
       <div className="mb-4">
         <StepEditor
@@ -696,6 +704,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           availableAgentTools={availableAgentTools}
           isTerminate={isTerminate}
           allowToolSelection={true}
+          isNewStep={isNewStep}
         />
       </div>
     );
@@ -1348,6 +1357,12 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                           availableAgentTools={availableAgentTools}
                           isTerminate={step.tool === 'terminate'}
                           allowToolSelection={step.tool !== 'terminate'}
+                          isNewStep={step.tool !== 'terminate' && (
+                            !step.description?.trim() && 
+                            !step.tool?.trim() && 
+                            !step.instructions?.trim() &&
+                            (!step.stepName?.trim() || step.stepName === 'New Step')
+                          )}
                         />
                       </div>
                     ))}

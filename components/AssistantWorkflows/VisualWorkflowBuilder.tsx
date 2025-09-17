@@ -7,7 +7,8 @@ import {
   IconAlertTriangle, IconTool, IconRotateClockwise, IconHelp, IconChevronDown, IconChevronUp,
   IconFiles,
   IconActivity,
-  IconSettingsAutomation
+  IconSettingsAutomation,
+  IconLoader2
 } from '@tabler/icons-react';
 import { getOperationIcon } from '@/types/integrations';
 import { snakeCaseToTitleCase } from '@/utils/app/data';
@@ -736,10 +737,24 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   const [configStep, setConfigStep] = useState<{
     step: WorkflowStep;
     tool: ToolItem;
+    isNewStep?: boolean; // Flag to indicate if this is a newly created step
   } | null>(null);
   
   // Tool items state
   const [toolItems, setToolItems] = useState<ToolItem[]>([]);
+  
+  // Ref for step editor modal scroll container
+  const stepEditorScrollRef = useRef<HTMLDivElement>(null);
+  
+  // Counter to force fresh StepEditor instance when modal reopens
+  const [stepEditorResetCounter, setStepEditorResetCounter] = useState(0);
+  
+  // Handle closing parameter config modal and resetting AI state
+  const handleCloseParameterConfig = () => {
+    setShowParameterConfig(false);
+    // Increment counter to force fresh StepEditor instance (clears AI description)
+    setStepEditorResetCounter(prev => prev + 1);
+  };
   
   // Update workflow state when initialWorkflow prop changes
   useEffect(() => {
@@ -846,6 +861,14 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
     }
   }, [isOpen, initialWorkflow, forceReset]);
   
+  // Reset step editor modal scroll position when opened
+  useEffect(() => {
+    if (showParameterConfig && stepEditorScrollRef.current) {
+      // Reset scroll to top when modal opens
+      stepEditorScrollRef.current.scrollTop = 0;
+    }
+  }, [showParameterConfig]);
+  
   // Initialize tool items
   useEffect(() => {
     const items: ToolItem[] = [];
@@ -947,6 +970,11 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   const allTags = Array.from(new Set(toolItems.flatMap(item => item.tags || [])));
   
   const filteredTools = toolItems.filter(tool => {
+    // Exclude terminate tool - it's automatically managed
+    if (tool.name === 'terminate') {
+      return false;
+    }
+    
     const matchesSearch = !searchTerm || 
       tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (tool.description && tool.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -1000,7 +1028,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
         setWorkflowSteps(newSteps);
         
         // Show parameter configuration modal
-        setConfigStep({ step: updatedStep, tool });
+        setConfigStep({ step: updatedStep, tool, isNewStep: true });
         setShowParameterConfig(true);
       }
     }
@@ -1043,7 +1071,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
     } else {
       const tool = toolItems.find(t => t.name === step.tool);
       if (tool) {
-        setConfigStep({ step, tool });
+        setConfigStep({ step, tool, isNewStep: false });
         setShowParameterConfig(true);
       }
     }
@@ -1190,7 +1218,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
         
         // Show parameter configuration modal for the new step
         const stepPosition = terminateIndex !== -1 ? terminateIndex : newSteps.length - 1;
-        setConfigStep({ step: newSteps[stepPosition], tool: toolItem });
+        setConfigStep({ step: newSteps[stepPosition], tool: toolItem, isNewStep: true });
         setShowParameterConfig(true);
       }
     }
@@ -1646,47 +1674,63 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                   </div>
                 )}
               </div>
+              
+              {/* Workflow Canvas Footer - Error Display & Action Buttons */}
+              <div className="border-t border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-4 mt-4">
+                {/* Error Display */}
+                {saveError && (
+                  <div className="mb-3">
+                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-3 py-2 rounded-md text-sm">
+                      <div className="flex items-start gap-2">
+                        <IconAlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+                        <div>
+                          <div className="font-medium">Save Failed</div>
+                          <div className="mt-1">{saveError}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Action Buttons */}
+                <div className="flex justify-between items-center">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    {workflowSteps.filter(s => s.tool !== 'terminate').length} steps configured
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    <button
+                      onClick={onClose}
+                      disabled={isSaving}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        isSaving 
+                          ? 'text-gray-400 bg-gray-200 dark:bg-gray-600 cursor-not-allowed'
+                          : 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600'
+                      }`}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      disabled={isSaving || !workflow.name.trim()}
+                      className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors flex items-center gap-2 ${
+                        isSaving || !workflow.name.trim()
+                          ? 'bg-gray-400 cursor-not-allowed'
+                          : 'bg-blue-600 hover:bg-blue-700 shadow-sm'
+                      }`}
+                    >
+                      {isSaving && <IconLoader2 size={16} className="animate-spin" />}
+                      {isSaving ? 'Saving...' : 'Save Workflow'}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
         
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
-          {/* Error Display */}
-          {saveError && (
-            <div className="flex-1 mr-3">
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-3 py-2 rounded-md text-sm">
-                {saveError}
-              </div>
-            </div>
-          )}
-          
-          {/* Buttons */}
-          <div className="flex justify-end space-x-3">
-            <button
-              onClick={onClose}
-              disabled={isSaving}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                isSaving 
-                  ? 'text-gray-400 bg-gray-200 dark:bg-gray-600 cursor-not-allowed'
-                  : 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={isSaving || !workflow.name.trim()}
-              className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
-                isSaving || !workflow.name.trim()
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700'
-              }`}
-            >
-              {isSaving ? 'Saving...' : 'Save Workflow'}
-            </button>
-          </div>
-        </div>
+        {/* Minimal Footer - Removed buttons/errors, moved to Workflow Canvas */}
+        <div className="h-2"></div>
       </div>
       
       {/* Modals */}
@@ -1718,8 +1762,9 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                 Configure Step: {configStep.step.stepName || configStep.step.description || 'Step'}
               </h3>
             </div>
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6" ref={stepEditorScrollRef}>
               <StepEditor
+                key={`step-editor-${configStep.step.id}-${stepEditorResetCounter}`}
                 step={configStep.step}
                 stepIndex={workflowSteps.findIndex(s => s.id === configStep.step.id)}
                 onStepChange={(updatedStep) => handleStepChange(updatedStep, configStep.step.id)}
@@ -1727,17 +1772,18 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                 availableAgentTools={availableAgentTools}
                 isTerminate={configStep.step.tool === 'terminate'}
                 allowToolSelection={true}
+                isNewStep={configStep.isNewStep || false}
               />
             </div>
             <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
               <button
-                onClick={() => setShowParameterConfig(false)}
+                onClick={handleCloseParameterConfig}
                 className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md"
               >
                 Cancel
               </button>
               <button
-                onClick={() => setShowParameterConfig(false)}
+                onClick={handleCloseParameterConfig}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
               >
                 Save & Close

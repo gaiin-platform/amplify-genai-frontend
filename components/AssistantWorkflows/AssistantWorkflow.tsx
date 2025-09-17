@@ -215,13 +215,13 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
 
     return (
       <div className="mt-4 mb-6" key={id}>
-        <div className="text-sm font-bold text-black dark:text-neutral-200 mb-2">
-          Workflow - {capitalize(internalTemplate.name)} 
+        <div className="text-sm text-black dark:text-neutral-200 mb-2">
+          <span className="font-bold">Name:</span> {capitalize(internalTemplate.name)} 
         </div>
         
         {internalTemplate.description && (
-          <div className="ml-1 text-sm text-neutral-700 dark:text-neutral-300 mb-4">
-            {internalTemplate.description}
+          <div className="text-sm text-neutral-700 dark:text-neutral-300 mb-4">
+            <span className="font-bold">Description:</span> {internalTemplate.description}
           </div>
         )}
         

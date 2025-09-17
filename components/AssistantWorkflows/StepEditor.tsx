@@ -1,14 +1,18 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useContext, useEffect } from 'react';
 import { Step } from '@/types/assistantWorkflows';
 import { OpDef, Schema } from '@/types/op';
 import { AgentTool } from '@/types/agentTools';
 import { emptySchema } from '@/utils/app/tools';
-import { IconPlus, IconTrash, IconChevronDown, IconChevronUp, IconEdit, IconEditOff } from '@tabler/icons-react';
+import { IconPlus, IconTrash, IconChevronDown, IconChevronUp, IconEdit, IconEditOff, IconRobot, IconLoader2, IconSparkles, IconWand } from '@tabler/icons-react';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
 import { InputsMap } from '@/components/ReusableComponents/InputMap';
 import { ToolPickerModal, ToolItem } from './ToolPickerModal';
 import { getOperationIcon } from '@/types/integrations';
 import cloneDeep from 'lodash/cloneDeep';
+import HomeContext from '@/pages/api/home/home.context';
+import { generateSingleStep, AIStepGenerationResult } from '@/utils/workflowAI';
+import { toast } from 'react-hot-toast';
+import { DefaultModels } from '@/types/model';
 
 interface StepEditorProps {
   step: Step;
@@ -18,6 +22,7 @@ interface StepEditorProps {
   availableAgentTools: Record<string, AgentTool> | null;
   isTerminate?: boolean;
   allowToolSelection?: boolean;
+  isNewStep?: boolean; // Flag to indicate if this is a newly created step
 }
 
 const StepEditor: React.FC<StepEditorProps> = ({
@@ -27,11 +32,39 @@ const StepEditor: React.FC<StepEditorProps> = ({
   availableApis,
   availableAgentTools,
   isTerminate = false,
-  allowToolSelection = true
+  allowToolSelection = true,
+  isNewStep = false
 }) => {
+  const { state: { chatEndpoint, defaultAccount, statsService }, getDefaultModel } = useContext(HomeContext);
+  
   const [showToolSelector, setShowToolSelector] = useState(false);
   const [hoveredArgIndex, setHoveredArgIndex] = useState<string | null>(null);
   const [hoveredValueIndex, setHoveredValueIndex] = useState<string | null>(null);
+  
+  // AI Generation state
+  const [useAI, setUseAI] = useState(isNewStep && !isTerminate); // ON by default for new steps
+  const [aiDescription, setAiDescription] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showAIHint, setShowAIHint] = useState(isNewStep && !isTerminate); // Show hint for new steps
+  
+  // Track the current step to reset AI state when configuring a different step
+  const [currentStepKey, setCurrentStepKey] = useState('');
+
+  // Reset AI state when configuring a different step
+  useEffect(() => {
+    // Create a unique key for this step configuration (exclude stepName since AI can change it)
+    const stepKey = `${stepIndex}-${step.tool || 'no-tool'}`;
+    
+    if (currentStepKey && currentStepKey !== stepKey) {
+      // We're configuring a different step, reset AI state
+      setAiDescription('');
+      setIsGenerating(false);
+      setUseAI(isNewStep && !isTerminate);
+      setShowAIHint(isNewStep && !isTerminate);
+    }
+    
+    setCurrentStepKey(stepKey);
+  }, [stepIndex, step.tool, isNewStep, isTerminate, currentStepKey]);
 
   // Create ToolItems from available APIs and agent tools
   const toolItems = useMemo(() => {
@@ -80,7 +113,8 @@ const StepEditor: React.FC<StepEditorProps> = ({
       });
     }
     
-    return items;
+    // Filter out terminate tool - it's automatically managed in workflows
+    return items.filter(item => item.name !== 'terminate');
   }, [availableApis, availableAgentTools]);
 
   const handleSelectTool = (toolItem: ToolItem) => {
@@ -149,8 +183,141 @@ const StepEditor: React.FC<StepEditorProps> = ({
     }
   };
 
+  // Handle AI step generation
+  const handleAIGenerate = async () => {
+    if (!aiDescription.trim()) {
+      toast.error('Please describe your desired step');
+      return;
+    }
+
+    setIsGenerating(true);
+    
+    try {
+      const result: AIStepGenerationResult = await generateSingleStep(
+        aiDescription,
+        step.tool || null,
+        availableApis,
+        availableAgentTools,
+        chatEndpoint!,
+        getDefaultModel,
+        defaultAccount,
+        statsService
+      );
+
+      if (result.success && result.step) {
+        // Merge AI-generated step with current step, preserving any existing data
+        const mergedStep = {
+          ...step,
+          ...result.step,
+          // Use AI-generated stepName, but preserve user-customized names
+          // If stepName is just the tool name, let AI override it
+          stepName: (step.stepName && step.stepName !== step.tool && step.stepName !== step.tool?.toLowerCase().replace(/\s+/g, '_')) 
+            ? step.stepName 
+            : result.step.stepName,
+        };
+        
+        onStepChange(mergedStep);
+        toast.success('Step generated successfully! You can edit the fields below.');
+        setShowAIHint(false); // Hide hint after successful generation
+      } else {
+        toast.error(result.error || 'Failed to generate step');
+      }
+    } catch (error) {
+      console.error('AI generation error:', error);
+      toast.error('Failed to generate step. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
     <div className="mb-4">
+      {/* AI Generate Section */}
+      {!isTerminate && (
+        <div className="mb-6 p-4 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-900/10">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <IconRobot size={20} className="text-blue-600 dark:text-blue-400" />
+              <label className="text-sm font-medium text-blue-800 dark:text-blue-300">
+                AI Step Generator
+              </label>
+              {showAIHint && (
+                <div className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                  <IconSparkles size={14} />
+                  <span>Try AI Generate!</span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-blue-700 dark:text-blue-300">
+                {useAI ? 'ON' : 'OFF'}
+              </span>
+              <button
+                onClick={() => setUseAI(!useAI)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  useAI 
+                    ? 'bg-blue-600 dark:bg-blue-500' 
+                    : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    useAI ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+          
+          {useAI && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-2 text-blue-800 dark:text-blue-300">
+                  Describe your desired step:
+                </label>
+                <textarea
+                  value={aiDescription}
+                  onChange={(e) => setAiDescription(e.target.value)}
+                  className="w-full p-3 border border-blue-300 dark:border-blue-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  rows={3}
+                  placeholder={`Example: "Send an email notification to the project manager with the analysis results and next steps"`}
+                />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleAIGenerate}
+                  disabled={isGenerating || !aiDescription.trim()}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  {isGenerating ? (
+                    <>
+                      <IconLoader2 size={16} className="animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <IconWand size={16} />
+                      Generate Step
+                    </>
+                  )}
+                </button>
+                
+                {step.tool && (
+                  <div className="text-sm text-blue-700 dark:text-blue-300">
+                    Using tool: <span className="font-medium">{step.tool}</span>
+                  </div>
+                )}
+              </div>
+              
+              <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/20 p-2 rounded">
+                💡 AI will generate the step name, description, instructions, and configure arguments based on your description and the selected tool.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      
       {/* Step Name */}
       <div className={`mb-4 ${isTerminate ? 'opacity-50' : ''}`}>
         <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200">

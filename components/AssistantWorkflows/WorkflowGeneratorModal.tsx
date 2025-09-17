@@ -29,8 +29,6 @@ const WorkflowGeneratorModal: React.FC<WorkflowGeneratorModalProps> = ({
 }) => {
   const { state: { lightMode, chatEndpoint, defaultAccount, statsService }, getDefaultModel } = useContext(HomeContext);
   
-  const [workflowName, setWorkflowName] = useState('');
-  const [workflowDescription, setWorkflowDescription] = useState('');
   const [description, setDescription] = useState('');
   const [selectedApis, setSelectedApis] = useState<OpDef[]>([]);
   const [selectedAgentTools, setSelectedAgentTools] = useState<string[]>([]);
@@ -39,8 +37,6 @@ const WorkflowGeneratorModal: React.FC<WorkflowGeneratorModalProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const handleClose = () => {
-    setWorkflowName('');
-    setWorkflowDescription('');
     setDescription('');
     setSelectedApis([]);
     setSelectedAgentTools([]);
@@ -197,11 +193,6 @@ Generate ONLY the JSON, no additional text.`;
   };
 
   const generateWorkflow = async () => {
-    if (!workflowName.trim()) {
-      setError('Please provide a name for your workflow');
-      return;
-    }
-
     if (!description.trim()) {
       setError('Please provide a description of your desired workflow');
       return;
@@ -280,8 +271,8 @@ Generate ONLY the JSON, no additional text.`;
       // Validate and transform to AstWorkflow format
       const workflow: AstWorkflow = {
         templateId: '',
-        name: workflowName || validatedWorkflow.name || 'Generated Workflow',
-        description: workflowDescription || validatedWorkflow.description || 'AI-generated workflow',
+        name: validatedWorkflow.name || 'Generated Workflow',
+        description: validatedWorkflow.description || 'AI-generated workflow',
         inputSchema: { type: 'object', properties: {} },
         outputSchema: {},
         template: {
@@ -341,34 +332,6 @@ Generate ONLY the JSON, no additional text.`;
 
           {!generatedWorkflow ? (
             <>
-              {/* Workflow Name */}
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                  Workflow Name
-                </label>
-                <input
-                  type="text"
-                  value={workflowName}
-                  onChange={(e) => setWorkflowName(e.target.value)}
-                  className="w-full p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  placeholder="Enter a name for your workflow..."
-                />
-              </div>
-
-              {/* Workflow Description */}
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                  Workflow Description
-                </label>
-                <textarea
-                  value={workflowDescription}
-                  onChange={(e) => setWorkflowDescription(e.target.value)}
-                  className="w-full p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  rows={2}
-                  placeholder="Briefly describe what this workflow does..."
-                />
-              </div>
-
               {/* AI Generation Instructions */}
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
@@ -417,9 +380,11 @@ Generate ONLY the JSON, no additional text.`;
           ) : (
             /* Generated Workflow Preview */
             <div className='text-black dark:text-neutral-300'>
-              <h4 className="text-lg font-medium mb-3 text-gray-900 dark:text-white">
+              <h4 className="text-lg font-medium mb-4 text-gray-900 dark:text-white">
                 Generated Workflow Preview
               </h4>
+              
+              
               <AssistantWorkflow 
                 id={"generatedWorkflowPreview"}
                 workflowTemplate={generatedWorkflow} 
@@ -443,7 +408,7 @@ Generate ONLY the JSON, no additional text.`;
               </button>
               <button
                 onClick={generateWorkflow}
-                disabled={isGenerating || !workflowName.trim() || !description.trim()}
+                disabled={isGenerating || !description.trim()}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors flex items-center gap-2"
               >
                 {isGenerating ? (
@@ -471,7 +436,7 @@ Generate ONLY the JSON, no additional text.`;
                 onClick={handleAccept}
                 className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
               >
-                Use This Workflow
+                Save This Workflow
               </button>
             </>
           )}
