@@ -418,7 +418,8 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                     alert(`There already exists a group with the name ${name}.\n\n Please change the group name to create the Amplify Group.`);
                                 } else {
                                     setAmpGroupSearchTerm('');
-                                    handleUpdateAmpGroups({...ampGroups, [name] : isAddingAmpGroups});
+                                    const {groupName, ...groupData} = isAddingAmpGroups;
+                                    handleUpdateAmpGroups({...ampGroups, [name] : groupData});
                                     setIsAddingAmpGroups(null);
                                 }
                             }}
@@ -546,7 +547,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
 
                                             <div className={`flex items-center ${addingMembersTo === groupName ? "flex-col":'flex-row'}`}>
                                             <div
-                                                className={`flex items-center ${addingMembersTo === group.groupName ? "flex-wrap": "overflow-x-auto"}`} >
+                                                className={`flex items-center ${addingMembersTo === groupName ? "flex-wrap": "overflow-x-auto"}`} >
                                                 {group.members?.map((user, idx) => (
                                                 <div key={idx} className="flex items-center gap-1 mr-1"
                                                     onMouseEnter={() => {

@@ -291,9 +291,9 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                             }));
             case AdminConfigTypes.AMPLIFY_GROUPS:
                 Object.keys(ampGroups).forEach((key: string) => {
-                    if (!ampGroups[key].groupName) ampGroups[key].groupName = key;
                     if (!ampGroups[key].isBillingGroup) ampGroups[key].isBillingGroup = false;
                     if (!ampGroups[key].rateLimit) ampGroups[key].rateLimit = noRateLimit;
+                    delete ampGroups[key].groupName;
                 });
                 return ampGroups;
             case AdminConfigTypes.PPTX_TEMPLATES:
@@ -941,7 +941,7 @@ export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, 
 
 
 export interface Amplify_Group { // can be a cognito group 
-    groupName : string; 
+    groupName?: string; 
     members : string[];
     createdBy : string;
     includeFromOtherGroups? : string[]; // if is a cognito group, this will always be Absent

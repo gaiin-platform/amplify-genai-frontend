@@ -1357,7 +1357,7 @@ const Home = ({
                                         if (user && user.email) {
                                             if (inputEmail.toLowerCase() === user.email.toLowerCase()) {
                                                 if (hasScrolledToBottom) {
-                                                    saveDataDisclosureDecision(user.email, true);
+                                                    saveDataDisclosureDecision(true);
                                                     sethasAcceptedDataDisclosure(true);
                                                 } else {
                                                     alert('You must scroll to the bottom of the disclosure before accepting.');
@@ -1376,7 +1376,7 @@ const Home = ({
                                     if ( user && user.email ) {
                                         if (inputEmail.toLowerCase() === user.email.toLowerCase()) {
                                             if (hasScrolledToBottom) {
-                                                saveDataDisclosureDecision(user.email, true);
+                                                saveDataDisclosureDecision(true);
                                                 sethasAcceptedDataDisclosure(true);
                                             } else {
                                                 alert('You must scroll to the bottom of the disclosure before accepting.');

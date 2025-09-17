@@ -13,9 +13,9 @@ export const checkDataDisclosureDecision = async () => {
     return await doRequestOp(op);
 }
 
-export const saveDataDisclosureDecision = async (email: string, acceptedDataDisclosure: boolean) => {
+export const saveDataDisclosureDecision = async (acceptedDataDisclosure: boolean) => {
     const op = {
-        data: { email: email, acceptedDataDisclosure: acceptedDataDisclosure },
+        data: { acceptedDataDisclosure: acceptedDataDisclosure },
         method: 'POST',
         path: URL_PATH,
         op: '/save',
