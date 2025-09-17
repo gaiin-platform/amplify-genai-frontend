@@ -336,7 +336,7 @@ const ToolReplacementModal: React.FC<ToolReplacementModalProps> = ({
   return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black bg-opacity-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 max-w-md w-full mx-4">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <IconRotateClockwise size={20} />
             Replace Tool in Step
@@ -1354,7 +1354,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       {/* Modal */}
       <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 max-w-7xl w-full mx-4 flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center flex-shrink-0">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex justify-between items-center flex-shrink-0">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <IconPuzzle size={24} />
             Visual Workflow Template Builder
@@ -1756,7 +1756,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       {configStep && (
         <div className={`fixed inset-0 z-[10000] flex items-center justify-center bg-black bg-opacity-50 ${showParameterConfig ? '' : 'hidden'}`}>
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 max-w-4xl w-full mx-4 max-h-[80vh] flex flex-col">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                 <IconSettings size={20} />
                 Configure Step: {configStep.step.stepName || configStep.step.description || 'Step'}

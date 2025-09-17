@@ -1,16 +1,16 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { IconLoader2, IconRobot, IconChevronDown, IconChevronUp, IconX, IconTools } from '@tabler/icons-react';
 import { AstWorkflow } from '@/types/assistantWorkflows';
 import { OpDef } from '@/types/op';
 import HomeContext from '@/pages/api/home/home.context';
-import ApiIntegrationsPanel from '../AssistantApi/ApiIntegrationsPanel';
+import { ToolPickerModal, ToolItem } from './ToolPickerModal';
 import { promptForData } from '@/utils/app/llm';
 import { Message, newMessage } from '@/types/chat';
 import { DefaultModels } from '@/types/model';
-import ExpansionComponent from '../Chat/ExpansionComponent';
 import { AssistantWorkflow } from './AssistantWorkflow';
 import { fixJsonString } from '@/utils/app/errorHandling';
+import { getOperationIcon } from '@/types/integrations';
 
 interface WorkflowGeneratorModalProps {
   isOpen: boolean;
@@ -30,36 +30,71 @@ const WorkflowGeneratorModal: React.FC<WorkflowGeneratorModalProps> = ({
   const { state: { lightMode, chatEndpoint, defaultAccount, statsService }, getDefaultModel } = useContext(HomeContext);
   
   const [description, setDescription] = useState('');
-  const [selectedApis, setSelectedApis] = useState<OpDef[]>([]);
-  const [selectedAgentTools, setSelectedAgentTools] = useState<string[]>([]);
+  const [selectedTools, setSelectedTools] = useState<ToolItem[]>([]);
+  const [showToolPicker, setShowToolPicker] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedWorkflow, setGeneratedWorkflow] = useState<AstWorkflow | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Create tool items from available APIs and agent tools
+  const toolItems = useMemo(() => {
+    const items: ToolItem[] = [];
+    
+    // Add APIs
+    if (availableApis) {
+      availableApis.forEach(api => {
+        const IconComponent = getOperationIcon(api.name);
+        items.push({
+          id: `api-${api.name}`,
+          name: api.name,
+          description: api.description || 'API integration',
+          icon: <IconComponent size={20} />,
+          category: 'API',
+          tags: api.tags || [],
+          parameters: api.parameters,
+          type: 'api',
+          originalTool: api
+        });
+      });
+    }
+    
+    // Add agent tools  
+    if (availableAgentTools) {
+      Object.entries(availableAgentTools).forEach(([toolName, tool]) => {
+        const IconComponent = getOperationIcon(tool.tool_name);
+        items.push({
+          id: `agent-${tool.tool_name}`,
+          name: tool.tool_name,
+          description: tool.description || 'Built-in agent tool',
+          icon: <IconComponent size={20} />,
+          category: 'Agent Tool',
+          tags: tool.tags || [],
+          parameters: tool.parameters,
+          type: 'agent',
+          originalTool: tool
+        });
+      });
+    }
+    
+    // Filter out terminate tool
+    return items.filter(item => item.name !== 'terminate');
+  }, [availableApis, availableAgentTools]);
+
   const handleClose = () => {
     setDescription('');
-    setSelectedApis([]);
-    setSelectedAgentTools([]);
+    setSelectedTools([]);
     setGeneratedWorkflow(null);
     setError(null);
     onClose();
   };
 
-  const validateAndFilterWorkflow = (parsedWorkflow: any, selectedTools: any[]) => {
+  const validateAndFilterWorkflow = (parsedWorkflow: any, selectedToolItems: ToolItem[]) => {
     // Create a map of valid tools and their parameters
     const validTools: Record<string, string[]> = {};
     
-    // Add selected APIs
-    selectedApis.forEach(api => {
-      validTools[api.name] = Object.keys(api.parameters?.properties || {});
-    });
-    
-    // Add selected agent tools
-    selectedAgentTools.forEach(toolName => {
-      if (availableAgentTools && availableAgentTools[toolName]) {
-        const tool = availableAgentTools[toolName];
-        validTools[tool.tool_name] = Object.keys(tool.parameters?.properties || {});
-      }
+    // Add selected tools
+    selectedToolItems.forEach(toolItem => {
+      validTools[toolItem.name] = Object.keys(toolItem.parameters?.properties || {});
     });
     
     // Always include think tool
@@ -123,19 +158,29 @@ const WorkflowGeneratorModal: React.FC<WorkflowGeneratorModalProps> = ({
     };
   };
 
-  const createPrompt = (userDescription: string, selectedTools: any[]) => {
-    const hasThink = selectedTools.some(tool => tool.tool_name === 'Think');
+  const createPrompt = (userDescription: string, selectedToolItems: ToolItem[]) => {
+    const toolsForPrompt = [...selectedToolItems];
+    
+    const hasThink = toolsForPrompt.some(tool => tool.name === 'think');
     if (!hasThink) {
-      selectedTools.push({
-        "name": "think",
-        "description": "Stop and think step by step.\n\n    :param message:\n    :return:",
-        "parameters": [
-          "what_to_think_about"
-        ]
-      });
+      toolsForPrompt.push({
+        id: 'think',
+        name: "think",
+        description: "Stop and think step by step.\n\n    :param message:\n    :return:",
+        icon: null,
+        category: 'Agent Tool',
+        tags: [],
+        parameters: {
+          properties: {
+            what_to_think_about: { type: 'string' }
+          }
+        },
+        type: 'builtin'
+      } as ToolItem);
     }
-    const toolsInfo = selectedTools.map(tool => ({
-      name: tool.name || tool.tool_name,
+    
+    const toolsInfo = toolsForPrompt.map(tool => ({
+      name: tool.name,
       description: tool.description,
       parameters: Object.keys(tool.parameters?.properties || {})
     }));
@@ -207,13 +252,6 @@ Generate ONLY the JSON, no additional text.`;
     setError(null);
 
     try {
-      const selectedTools = [
-        ...selectedApis,
-        ...selectedAgentTools.map(toolName => 
-          availableAgentTools ? availableAgentTools[toolName] : null
-        ).filter(Boolean)
-      ];
-
       const prompt = createPrompt(description, selectedTools);
       const messages: Message[] = [newMessage({"content": prompt})];
       const model = getDefaultModel(DefaultModels.ADVANCED);
@@ -309,7 +347,7 @@ Generate ONLY the JSON, no additional text.`;
       {/* Modal */}
       <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 max-w-4xl w-full mx-4 flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center flex-shrink-0">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex justify-between items-center flex-shrink-0">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <IconRobot size={24} />
             AI Generate Workflow
@@ -347,34 +385,57 @@ Generate ONLY the JSON, no additional text.`;
               </div>
 
               {/* Tool Selection */}
-              <div className='text-black dark:text-neutral-100'>
-                <ExpansionComponent
-                  closedWidget={<IconTools className='flex-shrink-0' size={18} />}
-                  content={ (
-                  <div className="mt-3 p-4 border rounded-lg dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                      Select specific tools you want to include in your workflow.
-                    </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                     If no tools are selected, you will have to add tools to each individual step yourself, the generated workflow will be a bare framework with step descriptions but no actual tools.
-                     </p>
-                    <ApiIntegrationsPanel
-                      key="workflow-generator-apis" 
-                      availableApis={availableApis}
-                      selectedApis={selectedApis}
-                      setSelectedApis={setSelectedApis}
-                      availableAgentTools={availableAgentTools}
-                      builtInAgentTools={selectedAgentTools}
-                      setBuiltInAgentTools={setSelectedAgentTools}
-                      allowCreatePythonFunction={false}
-                      compactDisplay={false}
-                      height="300px"
-                    />
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                  Select Tools for Workflow (Optional)
+                </label>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                  Pre-selecting tools helps the AI generate more accurate steps. If no tools are selected, 
+                  you'll add tools to individual steps later.
+                </p>
+                
+                {/* Selected Tools Preview */}
+                {selectedTools.length > 0 && (
+                  <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
+                        Selected Tools ({selectedTools.length})
+                      </span>
+                      <button
+                        onClick={() => setSelectedTools([])}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                      >
+                        Clear all
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedTools.map(tool => (
+                        <span
+                          key={tool.id}
+                          className="inline-flex items-center px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 rounded"
+                        >
+                          {tool.name}
+                          <button
+                            onClick={() => setSelectedTools(prev => prev.filter(t => t.id !== tool.id))}
+                            className="ml-1 hover:text-blue-600 dark:hover:text-blue-300"
+                          >
+                            <IconX size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
-                title="Pre-select APIs (Recommended - This helps the AI generate more accurate steps.)"
-                isOpened={true}
-                />
+                
+                <button
+                  onClick={() => setShowToolPicker(true)}
+                  className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                >
+                  <IconTools size={20} />
+                  <span>
+                    {selectedTools.length > 0 ? 'Add More Tools' : 'Select Tools'}
+                  </span>
+                </button>
               </div>
             </>
           ) : (
@@ -445,7 +506,25 @@ Generate ONLY the JSON, no additional text.`;
     </div>
   );
 
-  return createPortal(modalContent, document.body);
+  return (
+    <>
+      {createPortal(modalContent, document.body)}
+      <ToolPickerModal
+        isOpen={showToolPicker}
+        onClose={() => setShowToolPicker(false)}
+        onSelect={() => {}} // Not used in multi-select mode
+        tools={toolItems}
+        title="Select Tools for Workflow"
+        allowMultiSelect={true}
+        showSelectionPreview={true}
+        selectedTools={selectedTools}
+        onMultiSelectChange={setSelectedTools}
+        showAdvancedFiltering={true}
+        showClearSearch={true}
+        defaultToolType="all"
+      />
+    </>
+  );
 };
 
 export default WorkflowGeneratorModal; 
