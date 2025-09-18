@@ -539,7 +539,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           <div className="relative" ref={createMenuRef}>
             <button 
               onClick={() => setShowCreateMenu(!showCreateMenu)} 
-              title="Create New Workflow Template" 
+              title="Create New Workflow Template using different methods" 
               className="hover:text-blue-600 relative"
             >
               <IconPlus size={18} />
@@ -554,6 +554,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                     setShowVisualBuilder(true);
                     setShowCreateMenu(false);
                   }}
+                  title="Drag-and-drop interface for building workflows visually with real-time preview"
                 >
                   <IconPuzzle size={16} className="text-blue-600 dark:text-blue-400" />
                   <span className="text-sm">Visual Builder</span>
@@ -565,6 +566,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                     setShowWorkflowGenerator(true);
                     setShowCreateMenu(false);
                   }}
+                  title="Let AI create a workflow based on your description and selected tools"
                 >
                   <IconRobot size={16} className="text-green-600 dark:text-green-400" />
                   <span className="text-sm">AI Generate</span>
@@ -576,6 +578,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                     handleOpenWorkflowBuilder();
                     setShowCreateMenu(false);
                   }}
+                  title="Traditional step-by-step workflow creation interface with detailed configuration"
                 >
                   <IconEdit size={16} className="text-purple-600 dark:text-purple-400" />
                   <span className="text-sm">Workflow Builder</span>
@@ -603,7 +606,8 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                   ? 'bg-blue-100 dark:bg-blue-900'
                   : 'hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
-              onClick={() => handleLoadTemplate(template.templateId)}>
+              onClick={() => handleLoadTemplate(template.templateId)}
+              title="Click to preview this workflow template, click again to deselect">
               <div className="flex flex-col truncate">
                 <div className="font-medium text-neutral-800 dark:text-neutral-200">
                   {template.name}
@@ -824,6 +828,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
               setSelectedWorkflow(newTemplate);
             }}
             className="flex items-center px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            title="Add a new step before the terminate step"
           >
             <IconPlus size={16} className="mr-1" />
             Add Step
@@ -954,7 +959,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                 setForceVisualBuilderReset(shouldForceReset);
                 setShowVisualBuilder(true);
               }}
-              title="Open visual drag-and-drop workflow builder">
+              title="Open visual drag-and-drop workflow builder for intuitive workflow creation">
               <IconPuzzle size={18} />
               Visual Builder
             </button>
@@ -964,13 +969,15 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                 setShowWorkflowGenerator(true);
                 setIsPreviewing(false);
                 setDetailedPreview(false);
-              }}>
+              }}
+              title="Use AI to generate a workflow from your description and selected tools">
               {isGeneratingWorkflow ? <IconLoader2 size={18} className='animate-spin' /> : <IconRobot size={18} />}
               AI Generate Workflow
             </button>
             <button
               className={`px-3  ${buttonStyle}`}
-              onClick={() => setIsPreviewing(true)}>
+              onClick={() => setIsPreviewing(true)}
+              title="Preview how this workflow will appear to users when they use it">
               <IconPresentation size={18} />
               Preview Workflow
             </button>
@@ -986,17 +993,20 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           onChange={(e) => setSelectedWorkflow({...selectedWorkflow, name: e.target.value})}
           className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
           placeholder="Name your workflow template"
+          title="Choose a descriptive name for this workflow template that explains its purpose"
         />
       </div>
       
       <div className="mb-4">
         
-        <Checkbox
-          id="isPublic"
-          label="Accessible to any Amplify user"
-          checked={selectedWorkflow.isPublic || false}
-          onChange={(checked) => setSelectedWorkflow({...selectedWorkflow, isPublic: checked})}
-        />
+        <div title="Allow any Amplify user to access and use this workflow template">
+          <Checkbox
+            id="isPublic"
+            label="Accessible to any Amplify user"
+            checked={selectedWorkflow.isPublic || false}
+            onChange={(checked) => setSelectedWorkflow({...selectedWorkflow, isPublic: checked})}
+          />
+        </div>
 
       </div>
       
@@ -1010,6 +1020,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
           rows={2}
           placeholder="Describe what this workflow does"
+          title="Explain what this workflow does and when to use it"
         />
       </div>
       
@@ -1032,6 +1043,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                 setForceVisualBuilderReset(shouldForceReset);
                 setShowVisualBuilder(true);
               }}
+              title="Edit this workflow using the visual drag-and-drop interface"
             >
               <IconPuzzle size={18} className="text-blue-600 dark:text-blue-400" />
               Visual Builder
@@ -1040,6 +1052,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
             <button
               className={`px-3 py-2 ${buttonStyle}`}
               onClick={handleOpenWorkflowBuilder}
+              title="Edit this workflow using the step-by-step editor interface"
             >
               <IconEdit size={18} className="text-purple-600 dark:text-purple-400" />
               Workflow Builder
@@ -1100,6 +1113,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                     setForceVisualBuilderReset(true);
                     setShowVisualBuilder(true);
                   }}
+                  title="Best for visual learners and complex workflows. Drag tools from a palette onto a canvas to build your workflow with instant preview."
                 >
                   <div className="flex items-center mb-2">
                     <IconPuzzle size={24} className="text-blue-600 dark:text-blue-400 mr-2" />
@@ -1115,6 +1129,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                   onClick={() => {
                     setShowWorkflowGenerator(true);
                   }}
+                  title="Perfect for quick workflow creation. Describe your desired workflow in plain language and AI will generate the steps and tool configurations for you."
                 >
                   <div className="flex items-center mb-2">
                     <IconRobot size={24} className="text-green-600 dark:text-green-400 mr-2" />
@@ -1128,6 +1143,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                 <button
                   className="p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-left hover:border-purple-500 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
                   onClick={handleOpenWorkflowBuilder}
+                  title="Best for detailed control and complex configurations. Traditional form-based interface for precise step-by-step workflow creation."
                 >
                   <div className="flex items-center mb-2">
                     <IconEdit size={24} className="text-purple-600 dark:text-purple-400 mr-2" />

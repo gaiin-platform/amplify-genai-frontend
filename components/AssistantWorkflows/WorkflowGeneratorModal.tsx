@@ -1,6 +1,6 @@
 import React, { useState, useContext, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { IconLoader2, IconRobot, IconChevronDown, IconChevronUp, IconX, IconTools } from '@tabler/icons-react';
+import { IconLoader2, IconRobot, IconChevronDown, IconChevronUp, IconX, IconTools, IconCheck } from '@tabler/icons-react';
 import { AstWorkflow } from '@/types/assistantWorkflows';
 import { OpDef } from '@/types/op';
 import HomeContext from '@/pages/api/home/home.context';
@@ -308,11 +308,14 @@ Generate ONLY the JSON, no additional text.`;
       {/* Modal */}
       <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 max-w-4xl w-full mx-4 flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex justify-between items-center flex-shrink-0">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <IconRobot size={24} />
-            AI Generate Workflow
-          </h3>
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm flex justify-between items-center flex-shrink-0">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <IconRobot size={20} className="text-green-600 dark:text-green-400" />
+              AI Generate Workflow
+            </h3>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Describe your workflow and let AI create the steps for you</p>
+          </div>
           <button
             onClick={handleClose}
             className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
@@ -322,10 +325,16 @@ Generate ONLY the JSON, no additional text.`;
         </div>
         
         {/* Content */}
-        <div className="px-6 py-4 space-y-4 flex-grow overflow-y-auto">
+        <div className="px-6 py-4 space-y-6 flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
           {error && (
-            <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-              {error}
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg">
+              <div className="flex items-start gap-2">
+                <IconX size={16} className="flex-shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-medium">Generation Failed</div>
+                  <div className="mt-1 text-sm">{error}</div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -333,40 +342,49 @@ Generate ONLY the JSON, no additional text.`;
             <>
               {/* AI Generation Instructions */}
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                  Describe your desired workflow
+                <label className="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200">
+                  Describe Your Workflow
                 </label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                   rows={4}
                   placeholder="e.g., Create a workflow that processes customer feedback, analyzes sentiment, and sends notifications based on the results..."
+                  title="Describe your desired workflow in natural language. Be specific about the steps and tools you want to use for better AI generation results."
                 />
               </div>
 
               {/* Tool Selection */}
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                  Select Tools for Workflow (Optional)
+                <label className="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200">
+                  Pre-Select Tools (Optional)
                 </label>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                  Pre-selecting tools helps the AI generate more accurate steps. If no tools are selected, 
-                  you'll add tools to individual steps later.
-                </p>
+                <div 
+                  className="text-sm text-gray-600 dark:text-gray-400 mb-3"
+                  title="Selecting tools beforehand helps the AI create more specific and accurate workflow steps"
+                >
+                  <p>Pre-selecting tools helps the AI generate more accurate steps. If no tools are selected, 
+                  you'll add tools to individual steps later.</p>
+                </div>
                 
                 {/* Selected Tools Preview */}
                 {selectedTools.length > 0 && (
-                  <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="mb-3 p-3 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
-                        Selected Tools ({selectedTools.length})
+                      <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                        <IconTools size={16} className="text-gray-600 dark:text-gray-400" />
+                        Selected Tools 
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium">
+                          {selectedTools.length}
+                        </span>
                       </span>
                       <button
                         onClick={() => setSelectedTools([])}
-                        className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                        className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-md transition-colors"
+                        title="Remove all selected tools from the workflow generation"
                       >
-                        Clear all
+                        Clear All
                       </button>
                     </div>
                     <div className="flex flex-wrap gap-1">
@@ -379,6 +397,7 @@ Generate ONLY the JSON, no additional text.`;
                           <button
                             onClick={() => setSelectedTools(prev => prev.filter(t => t.id !== tool.id))}
                             className="ml-1 hover:text-blue-600 dark:hover:text-blue-300"
+                            title="Remove this tool from the selection"
                           >
                             <IconX size={12} />
                           </button>
@@ -390,7 +409,8 @@ Generate ONLY the JSON, no additional text.`;
                 
                 <button
                   onClick={() => setShowToolPicker(true)}
-                  className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                  className="w-full flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all duration-200 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium"
+                  title="Pre-selecting tools helps the AI generate more accurate workflow steps. You can add more tools after generation."
                 >
                   <IconTools size={20} />
                   <span>
@@ -402,9 +422,16 @@ Generate ONLY the JSON, no additional text.`;
           ) : (
             /* Generated Workflow Preview */
             <div className='text-black dark:text-neutral-300'>
-              <h4 className="text-lg font-medium mb-4 text-gray-900 dark:text-white">
-                Generated Workflow Preview
-              </h4>
+              <div className="mb-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
+                <h4 
+                  className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2"
+                  title="Review the AI-generated workflow before saving it to your templates"
+                >
+                  <IconCheck size={20} className="text-green-600 dark:text-green-400" />
+                  Generated Workflow Preview
+                </h4>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Review and customize before saving to your templates</p>
+              </div>
               
               
               <AssistantWorkflow 
@@ -424,14 +451,15 @@ Generate ONLY the JSON, no additional text.`;
             <>
               <button
                 onClick={handleClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors border border-gray-300 dark:border-gray-600"
               >
                 Cancel
               </button>
               <button
                 onClick={generateWorkflow}
                 disabled={isGenerating || !description.trim()}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors flex items-center gap-2"
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors flex items-center gap-2 shadow-sm"
+                title="Uses AI to create a workflow based on your description and selected tools"
               >
                 {isGenerating ? (
                   <>
@@ -450,13 +478,15 @@ Generate ONLY the JSON, no additional text.`;
             <>
               <button
                 onClick={() => setGeneratedWorkflow(null)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors border border-gray-300 dark:border-gray-600"
+                title="Create a new version of the workflow with the same inputs"
               >
                 Regenerate
               </button>
               <button
                 onClick={handleAccept}
-                className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors shadow-sm"
+                title="Accept this workflow and add it to your templates"
               >
                 Save This Workflow
               </button>

@@ -8,7 +8,9 @@ import {
   IconFiles,
   IconActivity,
   IconSettingsAutomation,
-  IconLoader2
+  IconLoader2,
+  IconTools,
+  IconEdit
 } from '@tabler/icons-react';
 import { snakeCaseToTitleCase } from '@/utils/app/data';
 import { createToolItemsForVisualBuilder } from '@/utils/toolItemFactory';
@@ -241,13 +243,19 @@ const StepCard: React.FC<StepCardProps> = ({
       onClick={() => onEdit(step)}
     >
       {/* Drag Handle */}
-      <div className="absolute left-2 top-1/2 transform -translate-y-1/2 opacity-40 hover:opacity-100">
+      <div 
+        className="absolute left-2 top-1/2 transform -translate-y-1/2 opacity-40 hover:opacity-100"
+        title="Drag to reorder steps (terminate step must remain last)"
+      >
         <IconGripVertical size={16} className="text-gray-400" />
       </div>
 
       {/* Drop Indicator for Tool Replacement */}
       {isDragOver && step.tool !== 'terminate' && (
-        <div className="absolute inset-0 bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-400 border-dashed rounded-lg flex items-center justify-center">
+        <div 
+          className="absolute inset-0 bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-400 border-dashed rounded-lg flex items-center justify-center"
+          title="Drop a tool here to replace the current tool in this step"
+        >
           <div className="text-blue-600 dark:text-blue-400 font-medium text-sm">
             Drop to replace tool
           </div>
@@ -274,7 +282,10 @@ const StepCard: React.FC<StepCardProps> = ({
 
         {/* Warning for empty steps */}
         {step.isEmpty && (
-          <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400 text-sm mb-2">
+          <div 
+            className="flex items-center gap-2 text-orange-600 dark:text-orange-400 text-sm mb-2"
+            title="This step needs a tool selected to function properly. Click to configure."
+          >
             <IconAlertTriangle size={16} />
             <span>Step needs a tool to function</span>
           </div>
@@ -303,6 +314,7 @@ const StepCard: React.FC<StepCardProps> = ({
             <span 
               className="inline-block px-2 py-1 text-xs rounded-full text-white font-medium"
               style={{ backgroundColor: segmentColor }}
+              title="Steps with the same segment name are grouped together and can be enabled/disabled as a unit when creating assistants"
             >
               {step.actionSegment}
             </span>
@@ -996,32 +1008,39 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
             className="border-r border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0"
             style={{ width: `${leftPanelWidth}px` }}
           >
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 bg-gray-50 dark:bg-gray-700/50">
-              <h4 className="font-medium text-gray-900 dark:text-white mb-3">Tool Selection</h4>
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 bg-white dark:bg-gray-800 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <IconTools size={20} className="text-blue-600 dark:text-blue-400" />
+                Tool Selection
+              </h3>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Drag tools to the canvas to build your workflow</p>
             </div>
             
             {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900/50">
               <div className="space-y-4">
                 {/* Clear Search Button */}
                 <div className="flex justify-end">
                   <button
                     onClick={clearAllFilters}
-                    className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-md transition-colors"
+                    title="Reset all filters to show all available tools"
                   >
-                    Clear Search
+                    Clear All
                   </button>
                 </div>
                 
                 {/* Category Filter */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-xs font-semibold text-gray-800 dark:text-gray-200 mb-2 flex items-center gap-1">
+                    <IconChevronDown size={14} className="text-gray-500" />
                     Tool Type
                   </label>
                   <select
                     value={selectedToolType}
                     onChange={(e) => setSelectedToolType(e.target.value)}
                     className="w-full px-3 py-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    title="Filter tools by type (API integrations, agent tools, etc.)"
                   >
                     {categories.map(category => (
                       <option key={category} value={category}>
@@ -1033,6 +1052,10 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                 
                 {/* Search Filter */}
                 <div className="relative">
+                  <label className="block text-xs font-semibold text-gray-800 dark:text-gray-200 mb-2 flex items-center gap-1">
+                    <IconSearch size={14} className="text-gray-500" />
+                    Search Tools
+                  </label>
                   <IconSearch size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                   <input
                     type="text"
@@ -1040,22 +1063,29 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Search tools..."
                     className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    title="Search by tool name, description, or tags"
                   />
                 </div>
                 
                 {/* Smart Tag Filter */}
-                <SmartTagSelector
-                  allTags={allTags}
-                  selectedTags={selectedTags}
-                  onTagsChange={setSelectedTags}
-                  toolItems={toolItems}
-                  clearTrigger={clearAllTrigger}
-                />
+                <div title="Filter tools by functionality tags">
+                  <SmartTagSelector
+                    allTags={allTags}
+                    selectedTags={selectedTags}
+                    onTagsChange={setSelectedTags}
+                    toolItems={toolItems}
+                    clearTrigger={clearAllTrigger}
+                  />
+                </div>
                 
                 {/* Tool List */}
                 <div className="space-y-2">
-                  <div className="text-sm font-medium text-gray-900 dark:text-white border-t border-gray-200 dark:border-gray-700 pt-4">
-                    Available Tools ({filteredTools.length})
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white border-t border-gray-300 dark:border-gray-600 pt-4 pb-2 flex items-center gap-2">
+                    <IconTool size={16} className="text-gray-600 dark:text-gray-400" />
+                    Available Tools 
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium">
+                      {filteredTools.length}
+                    </span>
                   </div>
                   <div className="max-h-[400px] overflow-y-auto">
                     {filteredTools.map(tool => (
@@ -1081,6 +1111,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                           padding: '10px',
                           margin: '10px 0',
                         }}
+                        title="Drag this tool to the canvas or onto existing steps to replace them"
                       >
                         <div className="flex items-center gap-3">
                           <div className="text-gray-600 dark:text-gray-400 flex-shrink-0">
@@ -1130,12 +1161,15 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
             </div>
           </div>
           
-          {/* Workflow Canvas - Right Panel */}
+          {/* Workflow Template Canvas - Right Panel */}
           <div className="flex-1 overflow-y-auto">
-            <div className="bg-gray-50 dark:bg-gray-700/50 px-4 py-3">
+            <div className="bg-white dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Workflow Canvas</h4>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <IconPuzzle size={20} className="text-purple-600 dark:text-purple-400" />
+                    Workflow Template Canvas
+                  </h3>
                   <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                     initialWorkflow?.templateId 
                       ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
@@ -1145,10 +1179,11 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                   </div>
                 </div>
               </div>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-4">Configure your workflow template details and arrange steps</p>
               
               {/* Workflow Name Input */}
-              <div className="mb-3">
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+              <div className="mb-4">
+                <label className="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200">
                   Workflow Template Name <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -1157,6 +1192,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                   onChange={(e) => setWorkflow(prev => ({ ...prev, name: e.target.value }))}
                   placeholder="Enter a descriptive name for your workflow..."
                   className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  title="Give your workflow template a descriptive name that clearly explains what it does"
                 />
                 {!workflow.name.trim() && (
                   <p className="text-xs text-red-500 mt-1">Workflow name is required</p>
@@ -1165,7 +1201,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
 
               {/* Workflow Description */}
               <div className="mb-4">
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                <label className="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200">
                   Description
                 </label>
                 <textarea
@@ -1174,30 +1210,29 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                   placeholder="Describe what this workflow does..."
                   className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   rows={2}
+                  title="Describe what this workflow accomplishes and when to use it"
                 />
               </div>
 
               {/* Accessibility Checkbox */}
-              <div className="mb-4 text-xs text-gray-700 dark:text-gray-300">
-                <Checkbox
-                  id="isPublic"
-                  label="Accessible to any Amplify user"
-                  checked={workflow.isPublic || false}
-                  onChange={(checked) => setWorkflow(prev => ({ ...prev, isPublic: checked }))}
-                />
+              <div className="mb-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
+                <div title="Make this template available to all Amplify users, not just you">
+                  <Checkbox
+                    id="isPublic"
+                    label="Accessible to any Amplify user"
+                    checked={workflow.isPublic || false}
+                    onChange={(checked) => setWorkflow(prev => ({ ...prev, isPublic: checked }))}
+                  />
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 ml-6">When enabled, other users can discover and use this template</p>
               </div>
               
-              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <p className="text-xs text-blue-800 dark:text-blue-200">
-                   Drag tools to the Drop Zone or onto steps to add/replace them. Drag steps to reorder your workflow.
-                </p>
-              </div>
             </div>
             
-            {/* Subtle visual separator */}
-            <div className="border-t border-gray-200 dark:border-gray-600"></div>
+            {/* Visual separator with gradient */}
+            <div className="h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent"></div>
             
-            <div className="p-4">
+            <div className="p-4 bg-gray-50 dark:bg-gray-900/50">
               <div className="max-w-xl mx-auto space-y-3">
                 {/* Header with Add Step button */}
                 <div className="relative mb-4">
@@ -1211,6 +1246,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                   <button
                     onClick={handleAddStep}
                     className="absolute right-0 top-0 flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
+                    title="Add a new step before the terminate step"
                   >
                     <IconPlus size={16} />
                     Add Step
@@ -1256,6 +1292,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                                 }}
                                 onDrop={handleToolDrop}
                                 className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center text-gray-500 dark:text-gray-400 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors"
+                                title="Drag tools from the left panel here to create new workflow steps"
                               >
                                 <IconPlus size={24} className="mx-auto mb-2 opacity-50" />
                                 <p className="text-sm font-medium">Drop Zone</p>
@@ -1296,7 +1333,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                 )}
               </div>
               
-              {/* Workflow Canvas Footer - Error Display & Action Buttons */}
+              {/* Workflow Template Canvas Footer - Error Display & Action Buttons */}
               <div className="border-t border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-4 mt-4">
                 {/* Error Display */}
                 {saveError && (
@@ -1350,7 +1387,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
           </div>
         </div>
         
-        {/* Minimal Footer - Removed buttons/errors, moved to Workflow Canvas */}
+        {/* Minimal Footer - Removed buttons/errors, moved to Workflow Template Canvas */}
         <div className="h-2"></div>
       </div>
       
