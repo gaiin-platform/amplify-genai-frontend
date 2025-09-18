@@ -10,6 +10,7 @@ import cloneDeep from 'lodash/cloneDeep';
 import InputsMap from "../ReusableComponents/InputMap";
 import { rebuildWorkflowFromBase } from "@/utils/app/assistantWorkflows";
 import ExpansionComponent from "../Chat/ExpansionComponent";
+import { getSegmentColor } from "@/utils/app/segmentColors";
 
 interface WorkflowProps {
     id: string;
@@ -33,8 +34,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
     const { state: {featureFlags} } = useContext(HomeContext);
     
     const [disabledActionSegments, setDisabledActionSegments] = useState<string[]>([]);
-    const [obfuscateSteps, setObfuscateSteps] = useState<boolean>(obfuscate ?? !featureFlags.assistantWorkflows);
-    const [expandedSteps, setExpandedSteps] = useState<number[]>([]);
+    const [expandedSegments, setExpandedSegments] = useState<Record<string, boolean>>({});
     const [internalTemplate, setInternalTemplate] = useState(cloneDeep(workflowTemplate));
 
     const groupSteps = (template: AstWorkflow) => {
@@ -49,9 +49,6 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
     } 
     const [groupedSteps, setGroupedSteps] = useState<Record<string, Step[]>>(groupSteps(internalTemplate)?? {});
 
-    useEffect(() => {
-      if (obfuscate !== undefined) setObfuscateSteps(obfuscate);
-  }, [obfuscate]);
 
     useEffect(() => {
       const displayTemplate = rebuildWorkflowFromBase(workflowTemplate, internalTemplate);
@@ -123,6 +120,14 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                                        : [...disabledActionSegments, segment];
       setDisabledActionSegments(disabledSegments);
       updateInternalWithDisabledSegments(disabledSegments);
+    };
+
+    // Toggle segment expanded/collapsed state
+    const toggleSegmentExpanded = (segment: string) => {
+      setExpandedSegments(prev => ({
+        ...prev,
+        [segment]: !prev[segment] // Default false (collapsed)
+      }));
     };
 
 
@@ -225,111 +230,118 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
           </div>
         )}
         
-        <div className="border rounded-lg border-neutral-300 dark:border-neutral-700 overflow-hidden mr-4"
-        >
+        <div className="text-sm text-neutral-700 dark:text-neutral-300 mb-4">
+          <span className="font-bold">Workflow Segments:</span> Each segment groups related steps that will be executed together. Click the toggle icon to expand or collapse segment details.
+        </div>
+        
+        <div className="space-y-3 mr-4">
           {Object.entries(groupedSteps).map(([segment, steps], index) => {
             const isDisabled = disabledActionSegments.includes(segment);
-            
+            const isExpanded = expandedSegments[segment] || false;
             const segmentTitle = segment !== 'default' ? formatSegmentName(segment) : 'Default Actions';
-            const segmentDescription = steps[0]?.description || '';
+            const segmentColor = getSegmentColor(segment, true); // Use gray for default segments
             
             return (
               <div 
                 key={segment} 
-                className={`border-b border-neutral-300 dark:border-neutral-700 last:border-b-0 ${isDisabled ? 'opacity-50' : ''}`}
-                > 
-                <div className={`gap-1 items-center px-3 pb-4 bg-neutral-100 dark:bg-[#2A2B32] cursor-pointer 
-                                 ${ expandedSteps.includes(index) ?"" : "hover:bg-neutral-200 dark:hover:bg-[#343541]"} ${isDisabled ? 'opacity-70' : ''}`}>
-              
-                  <div className="flex flex-col w-full flex-grow">
-                    <div className="relative">
-                      {segmentDescription && (
-                        <div className="absolute text-sm text-neutral-600 dark:text-neutral-400 truncate"
-                             style={{transform: 'translateY(32px) translateX(24px)', maxWidth: window.innerWidth * 0.5}}>
-                          {segmentDescription}
-                        </div>
+                className={`border rounded-lg border-neutral-300 dark:border-neutral-700 overflow-hidden ${isDisabled ? 'opacity-50' : ''}`}
+              > 
+                {/* Segment Header */}
+                <div className={`flex items-center justify-between p-3 bg-neutral-50 dark:bg-[#2A2B32] border-b border-neutral-300 dark:border-neutral-700 ${isDisabled ? 'opacity-70' : ''}`}>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => toggleSegmentExpanded(segment)}
+                      className="flex-shrink-0 p-1 hover:bg-neutral-200 dark:hover:bg-neutral-600 rounded"
+                    >
+                      {isExpanded ? (
+                        <IconChevronDown size={18} />
+                      ) : (
+                        <IconChevronRight size={18} />
                       )}
-                      {enableCustomization && segment !== 'default' && (
-                        <div  className="absolute right-1 mt-4"
-                              onClick={e => e.stopPropagation()} 
-                           >
-                          <Checkbox
-                            id={`segment-${segment}`}
-                            label=""
-                            checked={!isDisabled}
-                            onChange={(checked) => toggleSegmentEnabled(segment, checked)}
-                          />
-                        </div>
-                      )}
-                    </div>
-                    <ExpansionComponent
-                      isOpened={obfuscateSteps || typeof obfuscate === 'boolean'}
-                      title={segmentTitle}
-                      content={ <div className="py-3 mt-5 bg-gray-200 dark:bg-[#22232b] p-2">
-                          {obfuscateSteps ? (
-                            // Simplified view (obfuscated)
-                            <div className="text-sm text-neutral-700 dark:text-neutral-300">
-                              {steps.map((step, index) => (
-                                <div key={index} className="mb-2 last:mb-0">
-                                  • {step.description}
-                                  {renderEditableArgs(step, index, "ml-3")}
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            // Detailed view
-                            <div>
-                              {steps.map((step, index) => (
-                                <div key={index} className="mb-4 last:mb-0 p-2 border-l-2 border-neutral-300 dark:border-neutral-700 pl-3">
-                                  <div className="font-medium text-neutral-800 dark:text-neutral-200 mb-1">
-                                  • {step.description}
-                                  </div>
-                                  <div className="text-xs bg-gray-300 dark:bg-[#343541] p-2 rounded">
-                                    
-                                    <div className="mb-1"><span className="font-medium">Tool:</span> {step.tool}</div>
-                                    
-                                    {step.args && Object.keys(step.args).length > 0 && (
-                                      <div className="mt-2">
-                                        <div className="font-medium">Arguments:</div>
-                                        <ul className="list-disc pl-4">
-                                          {Object.entries(step.args).map(([key, value]) => (
-                                            <li key={key}>{key}: {value}</li>
-                                          ))}
-                                        </ul>
-                                        {renderEditableArgs(step, index)}
-                                      </div>
-                                    )}
-                                    
-                                    {step.values && Object.keys(step.values).length > 0 && (
-                                      <div className="my-2">
-                                        <div className="font-medium">Values:</div>
-                                        <ul className="list-disc pl-4">
-                                          {Object.entries(step.values).map(([key, value]) => (
-                                            <li key={key}>{key}: {value}</li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                    )}
-
-                                  <ExpansionComponent
-                                    title={"Instructions"}
-                                    content={<div><span className="font-medium">Instructions:</span> {step.instructions}</div>}
-                                    />
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div> 
-                      }
-                      onOpen={() => setExpandedSteps([...expandedSteps, index])}
-                      onClose={() => setExpandedSteps(expandedSteps.filter(i => i !== index))}
-                      closedWidget={<IconChevronDown className="my-4 flex-shrink-0" size={18} />}
-                      openWidget={<IconChevronRight className="my-4 flex-shrink-0" size={18} />}
-                    />
+                    </button>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                      {segmentTitle}
+                    </span>
                   </div>
+                  {enableCustomization && segment !== 'default' && (
+                    <Checkbox
+                      id={`segment-${segment}`}
+                      label=""
+                      checked={!isDisabled}
+                      onChange={(checked) => toggleSegmentEnabled(segment, checked)}
+                    />
+                  )}
                 </div>
-               
+
+                {/* Segment Content */}
+                <div className="p-3">
+                  {isExpanded ? (
+                    // Detailed view - full step information
+                    <div className="space-y-3">
+                      {steps.map((step, stepIndex) => (
+                        <div 
+                          key={stepIndex} 
+                          className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border-l-4" 
+                          style={{ borderLeftColor: segmentColor }}
+                        >
+                          <div className="font-medium text-neutral-800 dark:text-neutral-200 mb-2">
+                            • {step.description}
+                          </div>
+                          <div className="text-sm space-y-2">
+                            <div>
+                              <span className="font-medium text-gray-600 dark:text-gray-400">Tool:</span>{' '}
+                              <span className="text-gray-800 dark:text-gray-200">{step.tool}</span>
+                            </div>
+                            
+                            {step.args && Object.keys(step.args).length > 0 && (
+                              <div>
+                                <div className="font-medium text-gray-600 dark:text-gray-400 mb-1">Arguments:</div>
+                                <ul className="list-disc pl-4 text-gray-700 dark:text-gray-300">
+                                  {Object.entries(step.args).map(([key, value]) => (
+                                    <li key={key}>{key}: {value}</li>
+                                  ))}
+                                </ul>
+                                {renderEditableArgs(step, stepIndex)}
+                              </div>
+                            )}
+                            
+                            {step.values && Object.keys(step.values).length > 0 && (
+                              <div>
+                                <div className="font-medium text-gray-600 dark:text-gray-400 mb-1">Values:</div>
+                                <ul className="list-disc pl-4 text-gray-700 dark:text-gray-300">
+                                  {Object.entries(step.values).map(([key, value]) => (
+                                    <li key={key}>{key}: {value}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            {step.instructions && (
+                              <ExpansionComponent
+                                title="Instructions"
+                                content={
+                                  <div className="text-gray-700 dark:text-gray-300">
+                                    <span className="font-medium">Instructions:</span> {step.instructions}
+                                  </div>
+                                }
+                              />
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    // Collapsed view - simple step list
+                    <div className="text-sm text-neutral-700 dark:text-neutral-300">
+                      {steps.map((step, stepIndex) => (
+                        <div key={stepIndex} className="mb-2 last:mb-0">
+                          • {step.description}
+                          {renderEditableArgs(step, stepIndex, "ml-3")}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}

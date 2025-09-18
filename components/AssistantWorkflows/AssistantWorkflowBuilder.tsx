@@ -18,6 +18,7 @@ import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import toast from 'react-hot-toast';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { AssistantWorkflow } from './AssistantWorkflow';
+import { getSegmentColor } from '@/utils/app/segmentColors';
 import { OpDef, Schema } from '@/types/op';
 import { AgentTool } from '@/types/agentTools';
 import { emptySchema } from '@/utils/app/tools';
@@ -55,42 +56,6 @@ const emptyTemplate = (isBaseTemplate: boolean): AstWorkflow => {
   }
 }
 
-// Add this color palette for action segments
-const segmentColors = [
-  "#00EAFF", // electric cyan
-  "#FF00FF", // magenta
-  "#00FF00", // neon green
-  "#FF3800", // neon orange
-  "#FFF100", // bright yellow
-  "#FF0080", // hot pink
-  "#7B00FF", // electric purple
-  "#00FF8A", // electric mint
-  "#FF484B", // bright red
-  "#01CDFE", // bright sky blue
-  "#FF6EFF", // neon pink
-  "#CCFF00", // electric lime
-  "#00FFCC", // bright turquoise
-  "#B3FF00", // chartreuse
-  "#6600FF", // deep violet
-  "#FF9500", // vivid orange
-  "#00B3FF", // azure
-  "#FFDD00", // golden yellow
-  "#FF0054", // ruby red
-  "#46FFCA", // aquamarine
-];
-
-const getSegmentColor = (segment: string): string => {
-  if (!segment || segment === "") return "";
-  
-  // Hash the segment name to get a consistent index
-  let hashCode = 0;
-  for (let i = 0; i < segment.length; i++) {
-    hashCode = segment.charCodeAt(i) + ((hashCode << 5) - hashCode);
-  }
-  
-  const index = Math.abs(hashCode) % segmentColors.length;
-  return segmentColors[index];
-};
 
 export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = ({
   isOpen, onClose, initialTemplate, onRegister, isBaseTemplate = true }) => {
@@ -570,11 +535,11 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
          style={{height: '100% !important'}}>
   
       <div className="flex justify-between items-center mb-2">
-          <div className="text-sm font-bold">Templates</div>
+          <div className="text-sm font-bold">Workflow Templates</div>
           <div className="relative" ref={createMenuRef}>
             <button 
               onClick={() => setShowCreateMenu(!showCreateMenu)} 
-              title="Create New Workflow" 
+              title="Create New Workflow Template" 
               className="hover:text-blue-600 relative"
             >
               <IconPlus size={18} />
@@ -1055,10 +1020,10 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
 
   const renderPreviewContent = () => (
     <div className="flex-1 pl-4">
-      {/* Workflow Preview with Controls */}
+      {/* Workflow Template Preview with Controls */}
       <div className="mb-4">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white">Workflow Preview</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white">Workflow Template Preview</h3>
           <div className="flex gap-2">
             <button
               className={`px-3 py-2 ${buttonStyle}`}
@@ -1079,14 +1044,6 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
               <IconEdit size={18} className="text-purple-600 dark:text-purple-400" />
               Workflow Builder
             </button>
-            
-            <button
-              className={`px-4 py-2 ${buttonStyle}`}
-              onClick={() => setDetailedPreview(!detailedPreview)}
-            >
-              {detailedPreview ? <IconEyeOff size={18} /> : <IconEye size={18} />}
-              {`${detailedPreview ? "Hide" : "View"} Detailed Steps`}
-            </button>
           </div>
         </div>
         
@@ -1095,7 +1052,6 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           workflowTemplate={selectedWorkflow} 
           enableCustomization={false}  // do nothing 
           onWorkflowTemplateUpdate={(workflowTemplate: AstWorkflow | null) => {}}
-          obfuscate={!detailedPreview}
         />
       </div>
     </div>
@@ -1136,7 +1092,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
             
             {/* Quick Action Buttons */}
             <div className="mt-6 space-y-4">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white">Create New Workflow</h3>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">Create New Workflow Template</h3>
               <div className="grid gap-4 md:grid-cols-3">
                 <button
                   className="p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-left hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
@@ -1268,7 +1224,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
       {/* Workflow Builder Modal */}
       {showWorkflowBuilder && workflowBuilderWorkflow && (
         <Modal
-          title={workflowBuilderWorkflow.templateId ? 'Edit Workflow' : 'Create New Workflow'}
+          title={workflowBuilderWorkflow.templateId ? 'Edit Workflow Template' : 'Create New Workflow Template'}
           content={
             <div style={{ height: (window.innerHeight * 0.9) * 0.7, overflow: 'auto' }}>
               <div className="space-y-6">

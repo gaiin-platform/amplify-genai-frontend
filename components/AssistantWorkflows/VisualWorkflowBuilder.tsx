@@ -23,6 +23,7 @@ import { SmartTagSelector } from './shared/SmartTagSelector';
 import StepEditor from './StepEditor';
 import { registerAstWorkflowTemplate, updateAstWorkflowTemplate } from '@/services/assistantWorkflowService';
 import { toast } from 'react-hot-toast';
+import { getSegmentColor } from '@/utils/app/segmentColors';
 
 
 interface VisualWorkflowBuilderProps {
@@ -343,23 +344,6 @@ const StepCard: React.FC<StepCardProps> = ({
   );
 };
 
-// Color palette for action segments (reused from original)
-const segmentColors = [
-  "#00EAFF", "#FF00FF", "#00FF00", "#FF3800", "#FFF100", "#FF0080", 
-  "#7B00FF", "#00FF8A", "#FF484B", "#01CDFE", "#FF6EFF", "#CCFF00",
-  "#00FFCC", "#B3FF00", "#6600FF", "#FF9500", "#00B3FF", "#FFDD00",
-  "#FF0054", "#46FFCA"
-];
-
-const getSegmentColor = (segment: string): string => {
-  if (!segment || segment === "") return "";
-  let hashCode = 0;
-  for (let i = 0; i < segment.length; i++) {
-    hashCode = segment.charCodeAt(i) + ((hashCode << 5) - hashCode);
-  }
-  const index = Math.abs(hashCode) % segmentColors.length;
-  return segmentColors[index];
-};
 
 
 
