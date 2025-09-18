@@ -7,8 +7,8 @@ import { IconPlus, IconTrash, IconChevronDown, IconChevronUp, IconEdit, IconEdit
 import Checkbox from '@/components/ReusableComponents/CheckBox';
 import { InputsMap } from '@/components/ReusableComponents/InputMap';
 import { ToolPickerModal, ToolItem } from './ToolPickerModal';
-import { getOperationIcon } from '@/types/integrations';
 import cloneDeep from 'lodash/cloneDeep';
+import { createAllToolItems, TOOL_ITEM_PRESETS } from '@/utils/toolItemFactory';
 import HomeContext from '@/pages/api/home/home.context';
 import { generateSingleStep, AIStepGenerationResult } from '@/utils/workflowAI';
 import { toast } from 'react-hot-toast';
@@ -68,53 +68,15 @@ const StepEditor: React.FC<StepEditorProps> = ({
 
   // Create ToolItems from available APIs and agent tools
   const toolItems = useMemo(() => {
-    const items: ToolItem[] = [];
-    const seenTools = new Set<string>();
+    const items = createAllToolItems(availableApis, availableAgentTools, TOOL_ITEM_PRESETS.STEP_EDITOR);
     
-    // Add available APIs
-    if (availableApis) {
-      availableApis.forEach(api => {
-        if (!seenTools.has(api.name)) {
-          seenTools.add(api.name);
-          const IconComponent = getOperationIcon(api.name);
-          items.push({
-            id: api.name,
-            name: api.name,
-            description: api.description || 'No description available',
-            icon: <IconComponent size={16} />,
-            category: api.category || 'Custom APIs',
-            tags: api.tags || [],
-            parameters: api.parameters,
-            type: 'api',
-            originalTool: api
-          });
-        }
-      });
-    }
-    
-    // Add agent tools
-    if (availableAgentTools) {
-      Object.entries(availableAgentTools).forEach(([toolName, agentTool]) => {
-        if (!seenTools.has(toolName)) {
-          seenTools.add(toolName);
-          const IconComponent = getOperationIcon(toolName);
-          items.push({
-            id: toolName,
-            name: toolName,
-            description: agentTool.description || 'No description available',
-            icon: <IconComponent size={16} />,
-            category: 'Agent Tools',
-            tags: agentTool.tags || [],
-            parameters: agentTool.parameters || emptySchema,
-            type: 'agent',
-            originalTool: agentTool
-          });
-        }
-      });
-    }
-    
-    // Filter out terminate tool - it's automatically managed in workflows
-    return items.filter(item => item.name !== 'terminate');
+    // Apply emptySchema fallback for agent tools that might not have parameters
+    return items.map(item => {
+      if (item.type === 'agent' && !item.parameters) {
+        return { ...item, parameters: emptySchema };
+      }
+      return item;
+    });
   }, [availableApis, availableAgentTools]);
 
   const handleSelectTool = (toolItem: ToolItem) => {

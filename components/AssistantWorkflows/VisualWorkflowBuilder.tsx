@@ -10,8 +10,9 @@ import {
   IconSettingsAutomation,
   IconLoader2
 } from '@tabler/icons-react';
-import { getOperationIcon } from '@/types/integrations';
 import { snakeCaseToTitleCase } from '@/utils/app/data';
+import { createToolItemsForVisualBuilder } from '@/utils/toolItemFactory';
+import { getOperationIcon } from '@/types/integrations';
 import { AstWorkflow, Step } from '@/types/assistantWorkflows';
 import { OpDef } from '@/types/op';
 import { AgentTool } from '@/types/agentTools';
@@ -871,96 +872,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   
   // Initialize tool items
   useEffect(() => {
-    const items: ToolItem[] = [];
-    const usedIds = new Set<string>();
-    
-    // Helper function to ensure unique IDs
-    const getUniqueId = (baseId: string, type: string): string => {
-      let uniqueId = baseId;
-      let counter = 1;
-      while (usedIds.has(uniqueId)) {
-        uniqueId = `${baseId}_${type}_${counter}`;
-        counter++;
-      }
-      usedIds.add(uniqueId);
-      return uniqueId;
-    };
-    
-    // Built-in tools (these get priority for IDs)
-    const builtinTools = [
-      {
-        id: 'builtin_think',
-        name: 'think',
-        description: 'Stop and think step by step',
-        icon: <IconBrain size={20} />,
-        category: 'Built-in',
-        tags: ['reasoning', 'planning'],
-        parameters: { properties: { what_to_think_about: { type: 'string' } } },
-        type: 'builtin' as const
-      },
-      {
-        id: 'builtin_terminate',
-        name: 'terminate',
-        description: 'End the workflow',
-        icon: <IconCheck size={20} />,
-        category: 'Built-in',
-        tags: ['control'],
-        parameters: { properties: { message: { type: 'string' } } },
-        type: 'builtin' as const
-      }
-    ];
-    
-    builtinTools.forEach(tool => {
-      usedIds.add(tool.id);
-      items.push(tool);
-    });
-    
-    // Add API tools with unique IDs
-    if (availableApis) {
-      availableApis.forEach(api => {
-        // Skip if this is a duplicate of built-in tools
-        if (api.name === 'think' || api.name === 'terminate') {
-          return;
-        }
-        
-        const IconComponent = getOperationIcon(api.name);
-        items.push({
-          id: getUniqueId(api.id || api.name, 'api'),
-          name: api.name,
-          description: api.description,
-          icon: <IconComponent size={20} />,
-          category: api.type === 'custom' ? 'Custom APIs' : 'Internal APIs',
-          tags: api.tags || [],
-          parameters: api.parameters,
-          type: 'api',
-          originalTool: api
-        });
-      });
-    }
-    
-    // Add agent tools with unique IDs
-    if (availableAgentTools) {
-      Object.values(availableAgentTools).forEach(tool => {
-        // Skip if this is a duplicate of built-in tools
-        if (tool.tool_name === 'think' || tool.tool_name === 'terminate') {
-          return;
-        }
-        
-        const IconComponent = getOperationIcon(tool.tool_name);
-        items.push({
-          id: getUniqueId(tool.tool_name, 'agent'),
-          name: tool.tool_name,
-          description: tool.description,
-          icon: <IconComponent size={20} />,
-          category: 'Agent Tools',
-          tags: tool.tags || [],
-          parameters: tool.parameters || { properties: {} },
-          type: 'agent',
-          originalTool: tool
-        });
-      });
-    }
-    
+    const items = createToolItemsForVisualBuilder(availableApis, availableAgentTools);
     setToolItems(items);
   }, [availableApis, availableAgentTools]);
   

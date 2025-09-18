@@ -10,7 +10,7 @@ import { Message, newMessage } from '@/types/chat';
 import { DefaultModels } from '@/types/model';
 import { AssistantWorkflow } from './AssistantWorkflow';
 import { fixJsonString } from '@/utils/app/errorHandling';
-import { getOperationIcon } from '@/types/integrations';
+import { createAllToolItems, TOOL_ITEM_PRESETS } from '@/utils/toolItemFactory';
 
 interface WorkflowGeneratorModalProps {
   isOpen: boolean;
@@ -38,46 +38,7 @@ const WorkflowGeneratorModal: React.FC<WorkflowGeneratorModalProps> = ({
 
   // Create tool items from available APIs and agent tools
   const toolItems = useMemo(() => {
-    const items: ToolItem[] = [];
-    
-    // Add APIs
-    if (availableApis) {
-      availableApis.forEach(api => {
-        const IconComponent = getOperationIcon(api.name);
-        items.push({
-          id: `api-${api.name}`,
-          name: api.name,
-          description: api.description || 'API integration',
-          icon: <IconComponent size={20} />,
-          category: 'API',
-          tags: api.tags || [],
-          parameters: api.parameters,
-          type: 'api',
-          originalTool: api
-        });
-      });
-    }
-    
-    // Add agent tools  
-    if (availableAgentTools) {
-      Object.entries(availableAgentTools).forEach(([toolName, tool]) => {
-        const IconComponent = getOperationIcon(tool.tool_name);
-        items.push({
-          id: `agent-${tool.tool_name}`,
-          name: tool.tool_name,
-          description: tool.description || 'Built-in agent tool',
-          icon: <IconComponent size={20} />,
-          category: 'Agent Tool',
-          tags: tool.tags || [],
-          parameters: tool.parameters,
-          type: 'agent',
-          originalTool: tool
-        });
-      });
-    }
-    
-    // Filter out terminate tool
-    return items.filter(item => item.name !== 'terminate');
+    return createAllToolItems(availableApis, availableAgentTools, TOOL_ITEM_PRESETS.WORKFLOW_GENERATOR);
   }, [availableApis, availableAgentTools]);
 
   const handleClose = () => {
