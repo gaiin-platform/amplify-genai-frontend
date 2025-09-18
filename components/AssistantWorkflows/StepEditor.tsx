@@ -196,86 +196,89 @@ const StepEditor: React.FC<StepEditorProps> = ({
     <div className="mb-4">
       {/* AI Generate Section */}
       {!isTerminate && (
-        <div className="mb-6 p-4 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-900/10">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <IconRobot size={20} className="text-blue-600 dark:text-blue-400" />
-              <label className="text-sm font-medium text-blue-800 dark:text-blue-300">
-                AI Step Generator
-              </label>
-              {showAIHint && (
-                <div className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
-                  <IconSparkles size={14} />
-                  <span>Try AI Generate!</span>
+        <div className="mb-4">
+          {useAI ? (
+            // Expanded view - Full AI Generation Section
+            <div className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-800">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <IconRobot size={20} className="text-green-600 dark:text-green-400" />
+                  <label className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                    AI Step Generator
+                  </label>
                 </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-blue-700 dark:text-blue-300">
-                {useAI ? 'ON' : 'OFF'}
-              </span>
-              <button
-                onClick={() => setUseAI(!useAI)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  useAI 
-                    ? 'bg-blue-600 dark:bg-blue-500' 
-                    : 'bg-gray-300 dark:bg-gray-600'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    useAI ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-          
-          {useAI && (
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium mb-2 text-blue-800 dark:text-blue-300">
-                  Describe your desired step:
-                </label>
-                <textarea
-                  value={aiDescription}
-                  onChange={(e) => setAiDescription(e.target.value)}
-                  className="w-full p-3 border border-blue-300 dark:border-blue-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  rows={3}
-                  placeholder={`Example: "Send an email notification to the project manager with the analysis results and next steps"`}
-                />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setUseAI(false)}
+                    className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 flex items-center gap-1"
+                    title="Collapse AI Generator"
+                  >
+                    <IconChevronUp size={16} />
+                    Collapse
+                  </button>
+                </div>
               </div>
               
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleAIGenerate}
-                  disabled={isGenerating || !aiDescription.trim()}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors"
-                >
-                  {isGenerating ? (
-                    <>
-                      <IconLoader2 size={16} className="animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <IconWand size={16} />
-                      Generate Step
-                    </>
-                  )}
-                </button>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200">
+                    Describe your desired step:
+                  </label>
+                  <textarea
+                    value={aiDescription}
+                    onChange={(e) => setAiDescription(e.target.value)}
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    rows={3}
+                    placeholder={`Example: "Send an email notification to the project manager with the analysis results and next steps"`}
+                  />
+                </div>
                 
-                {step.tool && (
-                  <div className="text-sm text-blue-700 dark:text-blue-300">
-                    Using tool: <span className="font-medium">{step.tool}</span>
-                  </div>
-                )}
-              </div>
-              
-              <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/20 p-2 rounded">
-                💡 AI will generate the step name, description, instructions, and configure arguments based on your description and the selected tool.
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleAIGenerate}
+                    disabled={isGenerating || !aiDescription.trim()}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <IconLoader2 size={16} className="animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <IconWand size={16} />
+                        Generate Step
+                      </>
+                    )}
+                  </button>
+                  
+                  {step.tool && (
+                    <div className="text-sm text-gray-700 dark:text-gray-300">
+                      Using tool: <span className="font-medium">{step.tool}</span>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="text-xs text-gray-600 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 p-2 rounded">
+                  💡 AI will generate the step name, description, instructions, and configure arguments based on your description and the selected tool.
+                </div>
               </div>
             </div>
+          ) : (
+            // Collapsed view - Compact header only
+            <button
+              onClick={() => setUseAI(true)}
+              className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-between group"
+              title="Expand AI Step Generator"
+            >
+              <div className="flex items-center gap-2">
+                <IconRobot size={18} className="text-green-600 dark:text-green-400" />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Use AI to Generate Step
+                </span>
+              </div>
+              <IconChevronDown size={16} className="text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200" />
+            </button>
           )}
         </div>
       )}
