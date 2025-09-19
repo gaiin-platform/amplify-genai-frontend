@@ -20,8 +20,9 @@ import { OpDef } from '@/types/op';
 import { AgentTool } from '@/types/agentTools';
 import HomeContext from '@/pages/api/home/home.context';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
-import { ToolPickerModal, ToolItem, ToolPickerModalProps, filterTags } from './ToolPickerModal';
-import { SmartTagSelector } from './shared/SmartTagSelector';
+import { ToolSelectorModal, ToolItem, ToolSelectorModalProps } from './ToolSelectorModal';
+import { ToolSelectorPanel } from './ToolSelectorPanel';
+import { filterTags } from './ToolSelectorCore';
 import StepEditor from './StepEditor';
 import { registerAstWorkflowTemplate, updateAstWorkflowTemplate } from '@/services/assistantWorkflowService';
 import { toast } from 'react-hot-toast';
@@ -385,10 +386,6 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   const [workflowSteps, setWorkflowSteps] = useState<WorkflowStep[]>([]);
   
   // UI state
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedToolType, setSelectedToolType] = useState<string>('all');
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [clearAllTrigger, setClearAllTrigger] = useState(0);
   const [leftPanelWidth, setLeftPanelWidth] = useState(320); // Default 320px (w-80)
   const [isResizing, setIsResizing] = useState(false);
   
@@ -396,12 +393,6 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const clearAllFilters = () => {
-    setSearchTerm('');
-    setSelectedToolType('all');
-    setSelectedTags([]);
-    setClearAllTrigger(prev => prev + 1);
-  };
 
   // Resize handlers
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -572,9 +563,6 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       setWorkflowSteps([terminateStep]);
       
       // Reset UI state as well
-      setSearchTerm('');
-      setSelectedToolType('all');
-      setSelectedTags([]);
       setShowToolPicker(false);
       setShowToolReplacement(false);
       setShowParameterConfig(false);
@@ -599,27 +587,8 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   
   
   
-  const categories = ['all', ...Array.from(new Set(toolItems.map(item => item.category)))];
-  const allTags = Array.from(new Set(toolItems.flatMap(item => item.tags || [])));
-  
-  const filteredTools = toolItems.filter(tool => {
-    // Exclude terminate tool - it's automatically managed
-    if (tool.name === 'terminate') {
-      return false;
-    }
-    
-    const matchesSearch = !searchTerm || 
-      tool.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (tool.description && tool.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (tool.tags && tool.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())));
-    
-    const matchesToolType = selectedToolType === 'all' || tool.category === selectedToolType;
-    
-    const matchesTags = selectedTags.length === 0 || 
-      (tool.tags && selectedTags.some(tag => tool.tags.includes(tag)));
-    
-    return matchesSearch && matchesToolType && matchesTags;
-  });
+  // Filter out terminate tool - it's automatically managed
+  const availableTools = toolItems.filter(tool => tool.name !== 'terminate');
   
   const createStepFromTool = (toolItem: ToolItem): WorkflowStep => {
     const newStep: WorkflowStep = {
@@ -680,17 +649,24 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   const handleConfirmReplacement = () => {
     if (replacementData) {
       const { step, newTool } = replacementData;
+      
+      // Create a clean step with the new tool, clearing all user-editable fields
       const updatedStep = createStepFromTool(newTool);
+      // Preserve only the essential step metadata
       updatedStep.id = step.id;
       updatedStep.position = step.position;
-      updatedStep.stepName = step.stepName || updatedStep.stepName;
       updatedStep.actionSegment = step.actionSegment;
+      // Clear user fields (stepName, description, instructions, args, values are reset by createStepFromTool)
       
       const newSteps = [...workflowSteps];
       const stepIndex = newSteps.findIndex(s => s.id === step.id);
       if (stepIndex !== -1) {
         newSteps[stepIndex] = updatedStep;
         setWorkflowSteps(newSteps);
+        
+        // Automatically open Step Editor for the user to configure the new tool
+        setConfigStep({ step: updatedStep, tool: newTool, isNewStep: false });
+        setShowParameterConfig(true);
       }
     }
     setShowToolReplacement(false);
@@ -1004,144 +980,11 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
         {/* Content */}
         <div className="flex flex-1 overflow-hidden">
           {/* Tool Palette - Left Panel */}
-          <div 
-            className="border-r border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0"
-            style={{ width: `${leftPanelWidth}px` }}
-          >
-            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 bg-white dark:bg-gray-800 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <IconTools size={20} className="text-blue-600 dark:text-blue-400" />
-                Tool Selection
-              </h3>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Drag tools to the canvas to build your workflow</p>
-            </div>
-            
-            {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900/50">
-              <div className="space-y-4">
-                {/* Clear Search Button */}
-                <div className="flex justify-end">
-                  <button
-                    onClick={clearAllFilters}
-                    className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-md transition-colors"
-                    title="Reset all filters to show all available tools"
-                  >
-                    Clear All
-                  </button>
-                </div>
-                
-                {/* Category Filter */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-800 dark:text-gray-200 mb-2 flex items-center gap-1">
-                    <IconChevronDown size={14} className="text-gray-500" />
-                    Tool Type
-                  </label>
-                  <select
-                    value={selectedToolType}
-                    onChange={(e) => setSelectedToolType(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                    title="Filter tools by type (API integrations, agent tools, etc.)"
-                  >
-                    {categories.map(category => (
-                      <option key={category} value={category}>
-                        {category === 'all' ? 'All Types' : category}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-                {/* Search Filter */}
-                <div className="relative">
-                  <label className="block text-xs font-semibold text-gray-800 dark:text-gray-200 mb-2 flex items-center gap-1">
-                    <IconSearch size={14} className="text-gray-500" />
-                    Search Tools
-                  </label>
-                  <IconSearch size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search tools..."
-                    className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                    title="Search by tool name, description, or tags"
-                  />
-                </div>
-                
-                {/* Smart Tag Filter */}
-                <div title="Filter tools by functionality tags">
-                  <SmartTagSelector
-                    allTags={allTags}
-                    selectedTags={selectedTags}
-                    onTagsChange={setSelectedTags}
-                    toolItems={toolItems}
-                    clearTrigger={clearAllTrigger}
-                  />
-                </div>
-                
-                {/* Tool List */}
-                <div className="space-y-2">
-                  <div className="text-sm font-semibold text-gray-900 dark:text-white border-t border-gray-300 dark:border-gray-600 pt-4 pb-2 flex items-center gap-2">
-                    <IconTool size={16} className="text-gray-600 dark:text-gray-400" />
-                    Available Tools 
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium">
-                      {filteredTools.length}
-                    </span>
-                  </div>
-                  <div className="max-h-[400px] overflow-y-auto">
-                    {filteredTools.map(tool => (
-                      <div
-                        key={tool.id}
-                        draggable
-                        onDragStart={(e) => {
-                          // Create a serializable version of the tool object (excluding React elements)
-                          const serializableTool = {
-                            id: tool.id,
-                            name: tool.name,
-                            description: tool.description,
-                            category: tool.category,
-                            tags: tool.tags,
-                            parameters: tool.parameters,
-                            type: tool.type
-                            // Exclude 'icon' and 'originalTool' as they contain non-serializable data
-                          };
-                          e.dataTransfer.setData('tool', JSON.stringify(serializableTool));
-                        }}
-                        className="tool-item border border-gray-400 dark:border-gray-500 bg-gradient-to-br from-gray-200 via-gray-100 to-gray-300 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 shadow-lg hover:shadow-xl transition-all duration-200 ease-in-out text-gray-800 dark:text-gray-100 cursor-grab active:cursor-grabbing rounded-lg mb-2"
-                        style={{
-                          padding: '10px',
-                          margin: '10px 0',
-                        }}
-                        title="Drag this tool to the canvas or onto existing steps to replace them"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="text-gray-600 dark:text-gray-400 flex-shrink-0">
-                            {tool.icon}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h5 className="font-bold text-gray-900 dark:text-white text-sm">
-                              {snakeCaseToTitleCase(tool.name)}
-                            </h5>
-                            <p className="text-sm text-gray-700 dark:text-gray-300 mt-2 leading-relaxed">
-                              {tool.description || ''}
-                            </p>
-                            {filterTags(tool.tags).length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-2">
-                                {filterTags(tool.tags).slice(0, 3).map(tag => (
-                                  <span key={tag} className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded">
-                                    #{tag}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ToolSelectorPanel
+            tools={availableTools}
+            onSelect={handleToolSelect}
+            width={leftPanelWidth}
+          />
           
           {/* Resize Handle */}
           <div
@@ -1392,7 +1235,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       </div>
       
       {/* Modals */}
-      <ToolPickerModal
+      <ToolSelectorModal
         isOpen={showToolPicker}
         onClose={() => setShowToolPicker(false)}
         onSelect={handleToolSelect}
