@@ -73,7 +73,10 @@ const ChatContentBlock: React.FC<Props> = (
 
     // Check if content contains LaTeX
     const hasLatex = useCallback((content: string) => {
-        return /\$\$.*?\$\$|\$[^$\n]+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)/.test(content);
+        // More precise LaTeX detection that avoids code blocks
+        const codeBlockRegex = /```[\s\S]*?```|`[^`]*`/g;
+        const contentWithoutCode = content.replace(codeBlockRegex, '');
+        return /\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)/.test(contentWithoutCode);
     }, []);
 
     // Debounced LaTeX processing to reduce jitter during streaming - only for LaTeX content
@@ -96,14 +99,29 @@ const ChatContentBlock: React.FC<Props> = (
 
     // Memoized LaTeX processing function
     const processLatex = useCallback((content: string) => {
-        // Replace display math $$...$$ with placeholder
-        let processed = content.replace(/\$\$(.*?)\$\$/g, (match, latex) => {
-            return `<math-display>${latex}</math-display>`;
+        // Store code blocks temporarily to avoid processing them
+        const codeBlocks: string[] = [];
+        const codeBlockPlaceholders: string[] = [];
+        
+        // Replace code blocks with placeholders
+        let processed = content.replace(/```[\s\S]*?```/g, (match, offset) => {
+            const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
+            codeBlocks.push(match);
+            codeBlockPlaceholders.push(placeholder);
+            return placeholder;
         });
         
-        // Replace inline math $...$ with placeholder  
-        processed = processed.replace(/\$([^$\n]+?)\$/g, (match, latex) => {
-            return `<math-inline>${latex}</math-inline>`;
+        // Replace inline code with placeholders
+        processed = processed.replace(/`[^`]*`/g, (match, offset) => {
+            const placeholder = `__INLINE_CODE_${codeBlocks.length}__`;
+            codeBlocks.push(match);
+            codeBlockPlaceholders.push(placeholder);
+            return placeholder;
+        });
+        
+        // Replace display math $$...$$ with placeholder
+        processed = processed.replace(/\$\$(.*?)\$\$/g, (match, latex) => {
+            return `<math-display>${latex}</math-display>`;
         });
         
         // Replace LaTeX display math \[ ... \] with placeholder
@@ -114,6 +132,11 @@ const ChatContentBlock: React.FC<Props> = (
         // Replace LaTeX inline math \( ... \) with placeholder
         processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (match, latex) => {
             return `<math-inline>${latex}</math-inline>`;
+        });
+        
+        // Restore code blocks
+        codeBlockPlaceholders.forEach((placeholder, index) => {
+            processed = processed.replace(placeholder, codeBlocks[index]);
         });
         
         return processed;
