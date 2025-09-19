@@ -6,7 +6,7 @@ import { emptySchema } from '@/utils/app/tools';
 import { IconPlus, IconTrash, IconChevronDown, IconChevronUp, IconEdit, IconEditOff, IconRobot, IconLoader2, IconSparkles, IconWand } from '@tabler/icons-react';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
 import { InputsMap } from '@/components/ReusableComponents/InputMap';
-import { ToolPickerModal, ToolItem } from './ToolPickerModal';
+import { ToolSelectorModal, ToolItem } from './ToolSelectorModal';
 import cloneDeep from 'lodash/cloneDeep';
 import { createAllToolItems, TOOL_ITEM_PRESETS } from '@/utils/toolItemFactory';
 import HomeContext from '@/pages/api/home/home.context';
@@ -554,7 +554,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
       </div>
 
       {/* Tool Picker Modal */}
-      <ToolPickerModal
+      <ToolSelectorModal
         isOpen={showToolSelector}
         onClose={() => setShowToolSelector(false)}
         onSelect={handleSelectTool}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ToolItem } from '@/components/AssistantWorkflows/ToolPickerModal';
+import { ToolItem } from '@/components/AssistantWorkflows/ToolSelectorModal';
 import { OpDef } from '@/types/op';
 import { AgentTool } from '@/types/agentTools';
 import { getOperationIcon } from '@/types/integrations';

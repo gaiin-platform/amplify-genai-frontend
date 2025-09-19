@@ -4,7 +4,7 @@ import { IconLoader2, IconRobot, IconChevronDown, IconChevronUp, IconX, IconTool
 import { AstWorkflow } from '@/types/assistantWorkflows';
 import { OpDef } from '@/types/op';
 import HomeContext from '@/pages/api/home/home.context';
-import { ToolPickerModal, ToolItem } from './ToolPickerModal';
+import { ToolSelectorModal, ToolItem } from './ToolSelectorModal';
 import { promptForData } from '@/utils/app/llm';
 import { Message, newMessage } from '@/types/chat';
 import { DefaultModels } from '@/types/model';
@@ -500,7 +500,7 @@ Generate ONLY the JSON, no additional text.`;
   return (
     <>
       {createPortal(modalContent, document.body)}
-      <ToolPickerModal
+      <ToolSelectorModal
         isOpen={showToolPicker}
         onClose={() => setShowToolPicker(false)}
         onSelect={() => {}} // Not used in multi-select mode
@@ -510,7 +510,7 @@ Generate ONLY the JSON, no additional text.`;
         showSelectionPreview={true}
         selectedTools={selectedTools}
         onMultiSelectChange={setSelectedTools}
-        showAdvancedFiltering={true}
+        showAdvancedFiltering={false}
         showClearSearch={true}
         defaultToolType="all"
       />

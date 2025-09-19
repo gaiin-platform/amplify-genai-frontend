@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { IconChevronDown, IconChevronUp, IconX, IconSearch } from '@tabler/icons-react';
-import { ToolItem } from '../ToolPickerModal';
+import { ToolItem } from '../ToolSelectorModal';
 
 export interface SmartTagSelectorProps {
   allTags: string[];
@@ -86,7 +86,7 @@ export const SmartTagSelector: React.FC<SmartTagSelectorProps> = ({
       <div className="mb-4">
         <button
           onClick={() => setIsOpen(true)}
-          className={`flex items-center gap-2 px-3 py-2 text-sm border rounded-md transition-colors ${
+          className={`w-full flex items-center gap-2 px-3 py-2 text-sm border rounded-md transition-colors ${
             isDarkMode 
               ? 'border-gray-600 text-gray-300 bg-gray-700 hover:bg-gray-600' 
               : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
