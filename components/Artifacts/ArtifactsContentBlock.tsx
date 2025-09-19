@@ -47,23 +47,42 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
 
     // Advanced LaTeX detection with whitespace prevention
     const hasLatex = useCallback((content: string) => {
-        return /\$\$.*?\$\$|\$[^$\n]+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)/.test(content);
+        // More precise LaTeX detection that avoids code blocks
+        const codeBlockRegex = /```[\s\S]*?```|`[^`]*`/g;
+        const contentWithoutCode = content.replace(codeBlockRegex, '');
+        return /\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)/.test(contentWithoutCode);
     }, []);
 
     // Memoized LaTeX processing with enhanced layout stability
     const processLatexWithLayoutStability = useCallback((content: string) => {
         if (!hasLatex(content)) return content;
         
+        // Store code blocks temporarily to avoid processing them
+        const codeBlocks: string[] = [];
+        const codeBlockPlaceholders: string[] = [];
+        
+        // Replace code blocks with placeholders
+        let processed = content.replace(/```[\s\S]*?```/g, (match, offset) => {
+            const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
+            codeBlocks.push(match);
+            codeBlockPlaceholders.push(placeholder);
+            return placeholder;
+        });
+        
+        // Replace inline code with placeholders
+        processed = processed.replace(/`[^`]*`/g, (match, offset) => {
+            const placeholder = `__INLINE_CODE_${codeBlocks.length}__`;
+            codeBlocks.push(match);
+            codeBlockPlaceholders.push(placeholder);
+            return placeholder;
+        });
+        
         // Pre-calculate approximate dimensions to prevent layout shifts
-        let processed = content.replace(/\$\$([\s\S]*?)\$\$/g, (match, latex) => {
+        processed = processed.replace(/\$\$([\s\S]*?)\$\$/g, (match, latex) => {
             // Estimate display math height based on content complexity
             const estimatedHeight = latex.includes('\\frac') || latex.includes('\\sqrt') || 
                                   latex.includes('\\sum') || latex.includes('\\int') ? '3em' : '1.5em';
             return `<math-display data-height="${estimatedHeight}">${latex}</math-display>`;
-        });
-        
-        processed = processed.replace(/\$([^$\n]+?)\$/g, (match, latex) => {
-            return `<math-inline data-height="1em">${latex}</math-inline>`;
         });
         
         processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (match, latex) => {
@@ -74,6 +93,11 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
         
         processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (match, latex) => {
             return `<math-inline data-height="1em">${latex}</math-inline>`;
+        });
+        
+        // Restore code blocks
+        codeBlockPlaceholders.forEach((placeholder, index) => {
+            processed = processed.replace(placeholder, codeBlocks[index]);
         });
         
         return processed;
