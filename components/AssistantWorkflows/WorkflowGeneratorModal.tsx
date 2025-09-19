@@ -1,16 +1,16 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { IconLoader2, IconRobot, IconChevronDown, IconChevronUp, IconX, IconTools } from '@tabler/icons-react';
+import { IconLoader2, IconRobot, IconChevronDown, IconChevronUp, IconX, IconTools, IconCheck } from '@tabler/icons-react';
 import { AstWorkflow } from '@/types/assistantWorkflows';
 import { OpDef } from '@/types/op';
 import HomeContext from '@/pages/api/home/home.context';
-import ApiIntegrationsPanel from '../AssistantApi/ApiIntegrationsPanel';
+import { ToolSelectorModal, ToolItem } from './ToolSelectorModal';
 import { promptForData } from '@/utils/app/llm';
 import { Message, newMessage } from '@/types/chat';
 import { DefaultModels } from '@/types/model';
-import ExpansionComponent from '../Chat/ExpansionComponent';
 import { AssistantWorkflow } from './AssistantWorkflow';
 import { fixJsonString } from '@/utils/app/errorHandling';
+import { createAllToolItems, TOOL_ITEM_PRESETS } from '@/utils/toolItemFactory';
 
 interface WorkflowGeneratorModalProps {
   isOpen: boolean;
@@ -30,36 +30,32 @@ const WorkflowGeneratorModal: React.FC<WorkflowGeneratorModalProps> = ({
   const { state: { lightMode, chatEndpoint, defaultAccount, statsService }, getDefaultModel } = useContext(HomeContext);
   
   const [description, setDescription] = useState('');
-  const [selectedApis, setSelectedApis] = useState<OpDef[]>([]);
-  const [selectedAgentTools, setSelectedAgentTools] = useState<string[]>([]);
+  const [selectedTools, setSelectedTools] = useState<ToolItem[]>([]);
+  const [showToolPicker, setShowToolPicker] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedWorkflow, setGeneratedWorkflow] = useState<AstWorkflow | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Create tool items from available APIs and agent tools
+  const toolItems = useMemo(() => {
+    return createAllToolItems(availableApis, availableAgentTools, TOOL_ITEM_PRESETS.WORKFLOW_GENERATOR);
+  }, [availableApis, availableAgentTools]);
+
   const handleClose = () => {
     setDescription('');
-    setSelectedApis([]);
-    setSelectedAgentTools([]);
+    setSelectedTools([]);
     setGeneratedWorkflow(null);
     setError(null);
     onClose();
   };
 
-  const validateAndFilterWorkflow = (parsedWorkflow: any, selectedTools: any[]) => {
+  const validateAndFilterWorkflow = (parsedWorkflow: any, selectedToolItems: ToolItem[]) => {
     // Create a map of valid tools and their parameters
     const validTools: Record<string, string[]> = {};
     
-    // Add selected APIs
-    selectedApis.forEach(api => {
-      validTools[api.name] = Object.keys(api.parameters?.properties || {});
-    });
-    
-    // Add selected agent tools
-    selectedAgentTools.forEach(toolName => {
-      if (availableAgentTools && availableAgentTools[toolName]) {
-        const tool = availableAgentTools[toolName];
-        validTools[tool.tool_name] = Object.keys(tool.parameters?.properties || {});
-      }
+    // Add selected tools
+    selectedToolItems.forEach(toolItem => {
+      validTools[toolItem.name] = Object.keys(toolItem.parameters?.properties || {});
     });
     
     // Always include think tool
@@ -123,19 +119,29 @@ const WorkflowGeneratorModal: React.FC<WorkflowGeneratorModalProps> = ({
     };
   };
 
-  const createPrompt = (userDescription: string, selectedTools: any[]) => {
-    const hasThink = selectedTools.some(tool => tool.tool_name === 'Think');
+  const createPrompt = (userDescription: string, selectedToolItems: ToolItem[]) => {
+    const toolsForPrompt = [...selectedToolItems];
+    
+    const hasThink = toolsForPrompt.some(tool => tool.name === 'think');
     if (!hasThink) {
-      selectedTools.push({
-        "name": "think",
-        "description": "Stop and think step by step.\n\n    :param message:\n    :return:",
-        "parameters": [
-          "what_to_think_about"
-        ]
-      });
+      toolsForPrompt.push({
+        id: 'think',
+        name: "think",
+        description: "Stop and think step by step.\n\n    :param message:\n    :return:",
+        icon: null,
+        category: 'Agent Tool',
+        tags: [],
+        parameters: {
+          properties: {
+            what_to_think_about: { type: 'string' }
+          }
+        },
+        type: 'builtin'
+      } as ToolItem);
     }
-    const toolsInfo = selectedTools.map(tool => ({
-      name: tool.name || tool.tool_name,
+    
+    const toolsInfo = toolsForPrompt.map(tool => ({
+      name: tool.name,
       description: tool.description,
       parameters: Object.keys(tool.parameters?.properties || {})
     }));
@@ -207,13 +213,6 @@ Generate ONLY the JSON, no additional text.`;
     setError(null);
 
     try {
-      const selectedTools = [
-        ...selectedApis,
-        ...selectedAgentTools.map(toolName => 
-          availableAgentTools ? availableAgentTools[toolName] : null
-        ).filter(Boolean)
-      ];
-
       const prompt = createPrompt(description, selectedTools);
       const messages: Message[] = [newMessage({"content": prompt})];
       const model = getDefaultModel(DefaultModels.ADVANCED);
@@ -272,7 +271,7 @@ Generate ONLY the JSON, no additional text.`;
       const workflow: AstWorkflow = {
         templateId: '',
         name: validatedWorkflow.name || 'Generated Workflow',
-        description: validatedWorkflow.description || description,
+        description: validatedWorkflow.description || 'AI-generated workflow',
         inputSchema: { type: 'object', properties: {} },
         outputSchema: {},
         template: {
@@ -309,11 +308,14 @@ Generate ONLY the JSON, no additional text.`;
       {/* Modal */}
       <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 max-w-4xl w-full mx-4 flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center flex-shrink-0">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <IconRobot size={24} />
-            AI Generate Workflow
-          </h3>
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm flex justify-between items-center flex-shrink-0">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <IconRobot size={20} className="text-green-600 dark:text-green-400" />
+              AI Generate Workflow
+            </h3>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Describe your workflow and let AI create the steps for you</p>
+          </div>
           <button
             onClick={handleClose}
             className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
@@ -323,66 +325,115 @@ Generate ONLY the JSON, no additional text.`;
         </div>
         
         {/* Content */}
-        <div className="px-6 py-4 space-y-4 flex-grow overflow-y-auto">
+        <div className="px-6 py-4 space-y-6 flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
           {error && (
-            <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-              {error}
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg">
+              <div className="flex items-start gap-2">
+                <IconX size={16} className="flex-shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-medium">Generation Failed</div>
+                  <div className="mt-1 text-sm">{error}</div>
+                </div>
+              </div>
             </div>
           )}
 
           {!generatedWorkflow ? (
             <>
-              {/* Description Input */}
+              {/* AI Generation Instructions */}
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                  Describe your desired workflow
+                <label className="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200">
+                  Describe Your Workflow
                 </label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                   rows={4}
                   placeholder="e.g., Create a workflow that processes customer feedback, analyzes sentiment, and sends notifications based on the results..."
+                  title="Describe your desired workflow in natural language. Be specific about the steps and tools you want to use for better AI generation results."
                 />
               </div>
 
               {/* Tool Selection */}
-              <div className='text-black dark:text-neutral-100'>
-                <ExpansionComponent
-                  closedWidget={<IconTools className='flex-shrink-0' size={18} />}
-                  content={ (
-                  <div className="mt-3 p-4 border rounded-lg dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                      Select specific tools you want to include in your workflow.
-                    </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                     If no tools are selected, you will have to add tools to each individual step yourself, the generated workflow will be a bare framework with step descriptions but no actual tools.
-                     </p>
-                    <ApiIntegrationsPanel
-                      key="workflow-generator-apis" 
-                      availableApis={availableApis}
-                      selectedApis={selectedApis}
-                      setSelectedApis={setSelectedApis}
-                      availableAgentTools={availableAgentTools}
-                      builtInAgentTools={selectedAgentTools}
-                      setBuiltInAgentTools={setSelectedAgentTools}
-                      allowCreatePythonFunction={false}
-                      compactDisplay={false}
-                      height="300px"
-                    />
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200">
+                  Pre-Select Tools (Optional)
+                </label>
+                <div 
+                  className="text-sm text-gray-600 dark:text-gray-400 mb-3"
+                  title="Selecting tools beforehand helps the AI create more specific and accurate workflow steps"
+                >
+                  <p>Pre-selecting tools helps the AI generate more accurate steps. If no tools are selected, 
+                  you'll add tools to individual steps later.</p>
+                </div>
+                
+                {/* Selected Tools Preview */}
+                {selectedTools.length > 0 && (
+                  <div className="mb-3 p-3 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                        <IconTools size={16} className="text-gray-600 dark:text-gray-400" />
+                        Selected Tools 
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium">
+                          {selectedTools.length}
+                        </span>
+                      </span>
+                      <button
+                        onClick={() => setSelectedTools([])}
+                        className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-md transition-colors"
+                        title="Remove all selected tools from the workflow generation"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedTools.map(tool => (
+                        <span
+                          key={tool.id}
+                          className="inline-flex items-center px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 rounded"
+                        >
+                          {tool.name}
+                          <button
+                            onClick={() => setSelectedTools(prev => prev.filter(t => t.id !== tool.id))}
+                            className="ml-1 hover:text-blue-600 dark:hover:text-blue-300"
+                            title="Remove this tool from the selection"
+                          >
+                            <IconX size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
-                title="Pre-select APIs (Recommended - This helps the AI generate more accurate steps.)"
-                isOpened={true}
-                />
+                
+                <button
+                  onClick={() => setShowToolPicker(true)}
+                  className="w-full flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all duration-200 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium"
+                  title="Pre-selecting tools helps the AI generate more accurate workflow steps. You can add more tools after generation."
+                >
+                  <IconTools size={20} />
+                  <span>
+                    {selectedTools.length > 0 ? 'Add More Tools' : 'Select Tools'}
+                  </span>
+                </button>
               </div>
             </>
           ) : (
             /* Generated Workflow Preview */
             <div className='text-black dark:text-neutral-300'>
-              <h4 className="text-lg font-medium mb-3 text-gray-900 dark:text-white">
-                Generated Workflow Preview
-              </h4>
+              <div className="mb-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
+                <h4 
+                  className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2"
+                  title="Review the AI-generated workflow before saving it to your templates"
+                >
+                  <IconCheck size={20} className="text-green-600 dark:text-green-400" />
+                  Generated Workflow Preview
+                </h4>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Review and customize before saving to your templates</p>
+              </div>
+              
+              
               <AssistantWorkflow 
                 id={"generatedWorkflowPreview"}
                 workflowTemplate={generatedWorkflow} 
@@ -400,14 +451,15 @@ Generate ONLY the JSON, no additional text.`;
             <>
               <button
                 onClick={handleClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors border border-gray-300 dark:border-gray-600"
               >
                 Cancel
               </button>
               <button
                 onClick={generateWorkflow}
                 disabled={isGenerating || !description.trim()}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors flex items-center gap-2"
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors flex items-center gap-2 shadow-sm"
+                title="Uses AI to create a workflow based on your description and selected tools"
               >
                 {isGenerating ? (
                   <>
@@ -426,15 +478,17 @@ Generate ONLY the JSON, no additional text.`;
             <>
               <button
                 onClick={() => setGeneratedWorkflow(null)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors border border-gray-300 dark:border-gray-600"
+                title="Create a new version of the workflow with the same inputs"
               >
                 Regenerate
               </button>
               <button
                 onClick={handleAccept}
-                className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors shadow-sm"
+                title="Accept this workflow and add it to your templates"
               >
-                Use This Workflow
+                Save This Workflow
               </button>
             </>
           )}
@@ -443,7 +497,25 @@ Generate ONLY the JSON, no additional text.`;
     </div>
   );
 
-  return createPortal(modalContent, document.body);
+  return (
+    <>
+      {createPortal(modalContent, document.body)}
+      <ToolSelectorModal
+        isOpen={showToolPicker}
+        onClose={() => setShowToolPicker(false)}
+        onSelect={() => {}} // Not used in multi-select mode
+        tools={toolItems}
+        title="Select Tools for Workflow"
+        allowMultiSelect={true}
+        showSelectionPreview={true}
+        selectedTools={selectedTools}
+        onMultiSelectChange={setSelectedTools}
+        showAdvancedFiltering={false}
+        showClearSearch={true}
+        defaultToolType="all"
+      />
+    </>
+  );
 };
 
 export default WorkflowGeneratorModal; 
