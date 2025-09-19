@@ -365,7 +365,7 @@ Generate ONLY the JSON, no additional text.`;
                   title="Selecting tools beforehand helps the AI create more specific and accurate workflow steps"
                 >
                   <p>Pre-selecting tools helps the AI generate more accurate steps. If no tools are selected, 
-                  you'll add tools to individual steps later.</p>
+                  you will need to add tools to the individual steps later.</p>
                 </div>
                 
                 {/* Selected Tools Preview */}
