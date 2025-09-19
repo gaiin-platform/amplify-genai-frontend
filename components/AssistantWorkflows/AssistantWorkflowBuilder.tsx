@@ -471,7 +471,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
         // Update existing template
         response = await updateAstWorkflowTemplate(
           workflow.templateId,
-          workflow.template,
+          workflow.template ?? { steps: [] },
           workflow.name,
           workflow.description,
           workflow.inputSchema,
@@ -1194,7 +1194,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           try {
             // Save the generated workflow directly
             const response = await registerAstWorkflowTemplate(
-              workflow.template,
+              workflow.template ?? { steps: [] },
               workflow.name,
               workflow.description,
               workflow.inputSchema,

@@ -84,6 +84,7 @@ export const createToolItemsFromAvailable = (
       originalTool: {
         tool_name: 'think',
         description: 'Stop and think step by step.',
+        tags: [],
         parameters: {
           type: 'object',
           properties: {
@@ -279,8 +280,14 @@ export const generateSingleStep = async (
     } catch (parseError) {
       try {
         // Try to fix common JSON issues
-        const fixedJson = fixJsonString(response);
-        parsedStep = JSON.parse(fixedJson);
+        const fixedJson = await fixJsonString(
+          model,
+          chatEndpoint,
+          statsService,
+          response,
+          defaultAccount
+        );
+        parsedStep = JSON.parse(fixedJson ?? "");
       } catch (fixError) {
         return { 
           success: false, 
@@ -290,7 +297,7 @@ export const generateSingleStep = async (
     }
 
     // Validate and filter the generated step
-    const validatedStep = validateAndFilterStep(parsedStep, selectedToolItem);
+    const validatedStep = validateAndFilterStep(parsedStep, selectedToolItem ?? null);
 
     return { success: true, step: validatedStep };
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { ToolItem } from '@/components/AssistantWorkflows/ToolSelectorModal';
 import { OpDef } from '@/types/op';
 import { AgentTool } from '@/types/agentTools';
-import { getOperationIcon } from '@/types/integrations';
+import { getOperationIcon } from '@/utils/app/integrations';
 import { IconBrain, IconCheck } from '@tabler/icons-react';
 
 export interface ToolItemOptions {
@@ -46,7 +46,7 @@ export function createToolItemFromApi(
     name: api.name,
     description: api.description || (opts.apiCategory === 'Custom APIs' ? 'No description available' : 'API integration'),
     icon: React.createElement(IconComponent, { size: opts.iconSize }),
-    category: api.category || opts.apiCategory, // Use API's own category if available
+    category: opts.apiCategory, // Use default API category
     tags: api.tags || [],
     parameters: api.parameters,
     type: 'api',

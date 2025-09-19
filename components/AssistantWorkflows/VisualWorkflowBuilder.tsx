@@ -14,7 +14,8 @@ import {
 } from '@tabler/icons-react';
 import { snakeCaseToTitleCase } from '@/utils/app/data';
 import { createToolItemsForVisualBuilder } from '@/utils/toolItemFactory';
-import { getOperationIcon } from '@/types/integrations';
+// import getOperationIcon from the correct location
+import { getOperationIcon } from '@/utils/app/integrations';
 import { AstWorkflow, Step } from '@/types/assistantWorkflows';
 import { OpDef } from '@/types/op';
 import { AgentTool } from '@/types/agentTools';
@@ -914,7 +915,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
         // Update existing template
         response = await updateAstWorkflowTemplate(
           updatedWorkflow.templateId,
-          updatedWorkflow.template,
+          updatedWorkflow.template ?? { steps: [] },
           updatedWorkflow.name,
           updatedWorkflow.description,
           updatedWorkflow.inputSchema,
@@ -925,7 +926,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       } else {
         // Register new template
         response = await registerAstWorkflowTemplate(
-          updatedWorkflow.template,
+          updatedWorkflow.template ?? { steps: [] },
           updatedWorkflow.name,
           updatedWorkflow.description,
           updatedWorkflow.inputSchema,
