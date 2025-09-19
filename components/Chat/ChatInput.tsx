@@ -6,7 +6,9 @@ import {
     IconSend,
     IconBrain,
     IconBulb,
-    IconScale, IconSettingsAutomation
+    IconScale, 
+    IconSettingsAutomation,
+    IconUpload
 } from '@tabler/icons-react';
 import SaveActionsModal from './SaveActionsModal';
 import {
@@ -37,6 +39,7 @@ import {COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS} from "@/utils/
 import {useChatService} from "@/hooks/useChatService";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {getAssistants} from "@/utils/app/assistants";
+import { processDragDropFiles, processPastedFiles } from '@/utils/fileHandler';
 import AssistantsInUse from "@/components/Chat/AssistantsInUse";
 import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
 import QiModal from './QiModal';
@@ -246,6 +249,10 @@ export const ChatInput = ({
     
     // Action set modal states
     const [showSaveActionsModal, setShowSaveActionsModal] = useState(false);
+
+    // Drag and drop state management
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragCounter, setDragCounter] = useState(0);
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     //const [assistant, setAssistant] = useState<Assistant>(selectedAssistant || DEFAULT_ASSISTANT);
@@ -720,6 +727,92 @@ export const ChatInput = ({
         setShowQiDialog(false);
     }
 
+    // Drag and drop handlers
+    const handleDragEnter = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Only handle file drags
+        if (e.dataTransfer.types.includes('Files')) {
+            setDragCounter(prev => prev + 1);
+            setIsDragging(true);
+        }
+    }, []);
+
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        setDragCounter(prev => {
+            const newCounter = prev - 1;
+            if (newCounter === 0) {
+                setIsDragging(false);
+            }
+            return newCounter;
+        });
+    }, []);
+
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Only allow file drops
+        if (e.dataTransfer.types.includes('Files')) {
+            e.dataTransfer.dropEffect = 'copy';
+        }
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        setIsDragging(false);
+        setDragCounter(0);
+
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length === 0) return;
+
+        // Process dropped files using centralized file processor
+        processDragDropFiles(files, {
+            disallowedExtensions: getDisallowedFileExtensions(),
+            onAttach: addDocument,
+            onUploadProgress: handleDocumentState,
+            onSetKey: handleSetKey,
+            onSetMetadata: handleSetMetadata,
+            onSetAbortController: handleDocumentAbortController,
+            statsService,
+            featureFlags,
+            ragOn,
+            uploadDocuments: featureFlags.uploadDocuments,
+            groupId: undefined,
+            props: {}
+        });
+    }, [featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
+
+    // Clipboard paste handler
+    const handlePaste = useCallback((e: React.ClipboardEvent) => {
+        const files = Array.from(e.clipboardData.files);
+        if (files.length === 0) return;
+
+        e.preventDefault();
+
+        // Process pasted files using centralized file processor
+        processPastedFiles(files, {
+            disallowedExtensions: getDisallowedFileExtensions(),
+            onAttach: addDocument,
+            onUploadProgress: handleDocumentState,
+            onSetKey: handleSetKey,
+            onSetMetadata: handleSetMetadata,
+            onSetAbortController: handleDocumentAbortController,
+            statsService,
+            featureFlags,
+            ragOn,
+            uploadDocuments: featureFlags.uploadDocuments,
+            groupId: undefined,
+            props: {}
+        });
+    }, [featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
+
     ////// Plugin Dependencies //////
 
     // PluginID.CODE_INTERPRETER is not compatible with Selected Assistants for now
@@ -1003,7 +1096,35 @@ export const ChatInput = ({
 
                     </div>
 
-                    <div className="relative mx-2 flex w-full flex-grow flex-col rounded-md border border-black/10 bg-white shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:border-gray-900/50 dark:bg-[#40414F] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4" >
+                    <div 
+                        className={`relative mx-2 flex w-full flex-grow flex-col rounded-md border shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4 transition-colors duration-200 ${
+                            isDragging 
+                                ? 'border-blue-400 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-900/20' 
+                                : 'border-black/10 bg-white dark:border-gray-900/50 dark:bg-[#40414F]'
+                        }`}
+                        onDragEnter={handleDragEnter}
+                        onDragLeave={handleDragLeave}
+                        onDragOver={handleDragOver}
+                        onDrop={handleDrop}
+                    >
+                        {/* Drag and drop overlay */}
+                        {isDragging && (
+                            <div className="absolute inset-0 z-50 rounded-md">
+                                {/* Main drop zone - centered in box */}
+                                <div className="absolute inset-0 flex items-center justify-center bg-blue-50/80 dark:bg-blue-900/40 backdrop-blur-sm rounded-md border-2 border-dashed border-blue-400 dark:border-blue-500">
+                                    <div className="flex items-center justify-center gap-2 text-blue-600 dark:text-blue-400 font-medium">
+                                        <IconUpload size={24} />
+                                        <span>Drop files here to attach</span>
+                                    </div>
+                                </div>
+                                {/* Subtitle positioned below the box */}
+                                <div className="absolute bottom-0 left-0 right-0 transform translate-y-full pt-2 text-center">
+                                    <div className="text-blue-500 dark:text-blue-300 text-sm">
+                                        Supports documents, images, and more
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Render ActionsList above the input area */}
                         {featureFlags.actionSets && addedActions.length > 0 && (
@@ -1105,6 +1226,7 @@ export const ChatInput = ({
                                 ref={textareaRef}
                                 onFocus={() => setIsInputInFocus(true)}
                                 onBlur={() => setIsInputInFocus(false)}
+                                onPaste={handlePaste}
                                 id="messageChatInputText"
                                 className="m-0 w-full resize-none border-0 bg-transparent p-0 py-2 pr-8 pl-10 text-black dark:bg-transparent dark:text-white md:py-3 md:pl-10"
                                 style={{
