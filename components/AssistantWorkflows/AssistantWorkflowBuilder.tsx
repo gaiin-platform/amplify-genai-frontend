@@ -482,7 +482,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
       } else {
         // Register new template
         response = await registerAstWorkflowTemplate(
-          workflow.template,
+          workflow.template ?? { steps: [] },
           workflow.name,
           workflow.description,
           workflow.inputSchema,
