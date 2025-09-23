@@ -212,7 +212,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
     useEffect(() => {
         window.addEventListener('settingsSave', handleSave);
         return () => window.removeEventListener('settingsSave', handleSave);
-    }, []);
+    }, [accounts, defaultAccount, addedAccounts, hasEdits]);
 
     return <div className='accounts-settings-container'> 
             <div className="accounts-info-banner">

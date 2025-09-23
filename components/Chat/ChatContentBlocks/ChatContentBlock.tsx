@@ -1,6 +1,7 @@
 import {MemoizedReactMarkdown} from "@/components/Markdown/MemoizedReactMarkdown";
 import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
+import rehypeRaw from "rehype-raw";
+import LatexBlock from "./LatexBlock";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {CodeBlock} from "@/components/Markdown/CodeBlock";
 import {Conversation, Message} from "@/types/chat";
@@ -10,7 +11,7 @@ import AssistantBlock from "@/components/Chat/ChatContentBlocks/AssistantBlock";
 import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {parsePartialJson} from "@/utils/app/data";
 import AutonomousBlock from "@/components/Chat/ChatContentBlocks/AutonomousBlock";
-import {useContext, useEffect, useRef, useState} from "react";
+import {useContext, useEffect, useRef, useState, useCallback} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import OpBlock from "@/components/Chat/ChatContentBlocks/OpBlock";
 import ApiKeyBlock from "./ApiKeyBlock";
@@ -67,8 +68,81 @@ const ChatContentBlock: React.FC<Props> = (
     const transformedMessageContent = selectedConversation ?
         transformMessageContent(selectedConversation, message) :
         message.content;
+
     const isLast = messageIndex == (selectedConversation?.messages?.length ?? 0) - 1;
 
+    // Check if content contains LaTeX
+    const hasLatex = useCallback((content: string) => {
+        // More precise LaTeX detection that avoids code blocks
+        const codeBlockRegex = /```[\s\S]*?```|`[^`]*`/g;
+        const contentWithoutCode = content.replace(codeBlockRegex, '');
+        return /\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)/.test(contentWithoutCode);
+    }, []);
+
+    // Debounced LaTeX processing to reduce jitter during streaming - only for LaTeX content
+    const [debouncedContent, setDebouncedContent] = useState(transformedMessageContent);
+    
+    useEffect(() => {
+        // If not streaming, not the last message, or no LaTeX detected, process immediately
+        if (!messageIsStreaming || !isLast || !hasLatex(transformedMessageContent)) {
+            setDebouncedContent(transformedMessageContent);
+            return;
+        }
+
+        // For streaming messages with LaTeX, debounce the processing
+        const timer = setTimeout(() => {
+            setDebouncedContent(transformedMessageContent);
+        }, 100); // 100ms debounce only for LaTeX content
+
+        return () => clearTimeout(timer);
+    }, [transformedMessageContent, messageIsStreaming, isLast, hasLatex]);
+
+    // Memoized LaTeX processing function
+    const processLatex = useCallback((content: string) => {
+        // Store code blocks temporarily to avoid processing them
+        const codeBlocks: string[] = [];
+        const codeBlockPlaceholders: string[] = [];
+        
+        // Replace code blocks with placeholders
+        let processed = content.replace(/```[\s\S]*?```/g, (match, offset) => {
+            const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
+            codeBlocks.push(match);
+            codeBlockPlaceholders.push(placeholder);
+            return placeholder;
+        });
+        
+        // Replace inline code with placeholders
+        processed = processed.replace(/`[^`]*`/g, (match, offset) => {
+            const placeholder = `__INLINE_CODE_${codeBlocks.length}__`;
+            codeBlocks.push(match);
+            codeBlockPlaceholders.push(placeholder);
+            return placeholder;
+        });
+        
+        // Replace display math $$...$$ with placeholder
+        processed = processed.replace(/\$\$(.*?)\$\$/g, (match, latex) => {
+            return `<math-display>${latex}</math-display>`;
+        });
+        
+        // Replace LaTeX display math \[ ... \] with placeholder
+        processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (match, latex) => {
+            return `<math-display>${latex}</math-display>`;
+        });
+        
+        // Replace LaTeX inline math \( ... \) with placeholder
+        processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (match, latex) => {
+            return `<math-inline>${latex}</math-inline>`;
+        });
+        
+        // Restore code blocks
+        codeBlockPlaceholders.forEach((placeholder, index) => {
+            processed = processed.replace(placeholder, codeBlocks[index]);
+        });
+        
+        return processed;
+    }, []);
+
+    const finalContent = processLatex(debouncedContent);
 
     const promptbarRef = useRef(showPromptbar);
 
@@ -96,8 +170,9 @@ const ChatContentBlock: React.FC<Props> = (
         return () => window.removeEventListener('resize', updateInnerWindow);
         }, []);
  
-  // Add local state to trigger re-render
+  // Add local state to trigger re-render but use more stable key
   const [renderKey, setRenderKey] = useState(0);
+  const [lastRenderContent, setLastRenderContent] = useState("");
 
   useEffect(() => {
       const handleReRenderEvent = () => {
@@ -111,6 +186,14 @@ const ChatContentBlock: React.FC<Props> = (
       };
   }, []);
 
+  // Only update render key when content significantly changes (not during streaming jitter)
+  useEffect(() => {
+      if (!messageIsStreaming && finalContent !== lastRenderContent) {
+          setLastRenderContent(finalContent);
+          setRenderKey(prev => prev + 1);
+      }
+  }, [finalContent, messageIsStreaming, lastRenderContent]);
+
 //   console.log(transformedMessageContent)
   
     return (
@@ -122,13 +205,20 @@ const ChatContentBlock: React.FC<Props> = (
     <MemoizedReactMarkdown
     key={renderKey}
     className="prose dark:prose-invert flex-1 max-w-none w-full" 
-    remarkPlugins={[remarkGfm, remarkMath]}
+    remarkPlugins={[remarkGfm]}
+    // @ts-ignore
+    rehypePlugins={[rehypeRaw]}
     //onMouseUp={handleTextHighlight}
-    //rehypePlugins={[rehypeRaw]}
-    //rehypePlugins={[rehypeMathjax]}
     components={{
         // @ts-ignore
         Mermaid,
+        // Math components for LaTeX rendering
+        'math-display': ({children}: {children: React.ReactNode}) => (
+            <LatexBlock math={String(children)} displayMode={true} />
+        ),
+        'math-inline': ({children}: {children: React.ReactNode}) => (
+            <LatexBlock math={String(children)} displayMode={false} />
+        ),
         a({href, title, children, ...props}) {
             if (href && !href.startsWith("javascript:")) {
 
@@ -329,7 +419,7 @@ const ChatContentBlock: React.FC<Props> = (
         },
     }}
 >
-    {`${transformedMessageContent}${
+    {`${finalContent}${
         messageIsStreaming && !document.querySelector('.highlight-pulse') && 
         messageIndex == (selectedConversation?.messages?.length ?? 0) - 1 ? '`▍`' : ''
     }`}

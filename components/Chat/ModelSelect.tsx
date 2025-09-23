@@ -71,6 +71,7 @@ export const ModelSelect: React.FC<Props> = ({
   const [selectModel, setSelectModel] = useState<string | undefined>(modelId ?? defaultModelId);
   const [isOpen, setIsOpen] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState<{top: number, left: number, width: number} | null>(null);
 
   const selectRef = useRef<HTMLDivElement>(null);
 
@@ -92,13 +93,51 @@ export const ModelSelect: React.FC<Props> = ({
     const handleClickOutside = (event: MouseEvent) => {
       if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        setDropdownPosition(null);
       }
     };
+    
+    const handleResize = () => {
+      if (isOpen) {
+        const position = calculateDropdownPosition();
+        setDropdownPosition(position);
+      }
+    };
+    
     document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('resize', handleResize);
+    
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('resize', handleResize);
     };
-  }, []);
+  }, [isOpen]);
+
+  // Calculate dropdown position to avoid clipping
+  const calculateDropdownPosition = () => {
+    if (!selectRef.current) return null;
+    
+    const rect = selectRef.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const dropdownMaxHeight = viewportHeight * 0.55;
+    
+    // Calculate available space below and above
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    
+    let top = rect.bottom;
+    
+    // If not enough space below, show above if there's more space there
+    if (spaceBelow < dropdownMaxHeight && spaceAbove > spaceBelow) {
+      top = rect.top - Math.min(dropdownMaxHeight, spaceAbove);
+    }
+    
+    return {
+      top: Math.max(0, top),
+      left: rect.left,
+      width: rect.width
+    };
+  };
 
   const handleOptionClick = (modelId: string) => {
     if (handleModelChange) {
@@ -112,6 +151,7 @@ export const ModelSelect: React.FC<Props> = ({
     }
     setSelectModel(modelId);
     setIsOpen(false);
+    setDropdownPosition(null);
   };
 
   const selectedModel:Model | undefined = models.find((model) => model.id === selectModel);
@@ -140,7 +180,7 @@ const getIcons = (model: Model) => {
           <label className="mb-2 text-left text-neutral-700 dark:text-neutral-400">
             {t('Model')}
           </label>
-          <div id="legendHover" className='ml-auto' onMouseEnter={() => setShowLegend(true) } onMouseLeave={() => setShowLegend(false)}>
+          <div id="legendHover" className='ml-auto relative' onMouseEnter={() => setShowLegend(true) } onMouseLeave={() => setShowLegend(false)}>
             <IconInfoCircle size={19} className='mr-1 mt-[-4px] flex-shrink-0 text-gray-600 dark:text-gray-300' />
             {showLegend && legend(showPricingBreakdown, featureFlags)}
           </div>
@@ -149,7 +189,15 @@ const getIcons = (model: Model) => {
       <div ref={selectRef} className="relative w-full">
         <button
           disabled={isDisabled}
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => {
+            if (!isOpen) {
+              const position = calculateDropdownPosition();
+              setDropdownPosition(position);
+            } else {
+              setDropdownPosition(null);
+            }
+            setIsOpen(!isOpen);
+          }}
           title={isDisabled ? disableMessage : 'Select Model'}
           id="modelSelect"
           className={`w-full flex items-center justify-between rounded-lg bg-transparent p-2 pr-2 text-neutral-900 dark:border-neutral-600 dark:text-white custom-shadow ${
@@ -168,9 +216,15 @@ const getIcons = (model: Model) => {
           }
           
         </button>
-        {isOpen && (
-          <ul id="modelList" className="absolute mt-1 w-full overflow-auto rounded-lg border border-neutral-200 bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-[#343541] sm:text-sm"
-              style={{maxHeight: window.innerHeight * 0.55, zIndex: 20}}>
+        {isOpen && dropdownPosition && (
+          <ul id="modelList" className="fixed mt-1 overflow-auto rounded-lg border border-neutral-200 bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-[#343541] sm:text-sm"
+              style={{
+                top: dropdownPosition.top,
+                left: dropdownPosition.left,
+                width: dropdownPosition.width,
+                maxHeight: window.innerHeight * 0.55,
+                zIndex: 9999
+              }}>
             {models.sort((a, b) => a.name.localeCompare(b.name))
                     .map((model: Model) => (
               <li
@@ -202,10 +256,83 @@ const legendItem = (icon: JSX.Element, message: string) => {
   );
 };
 
-const legend = (showPricingBreakdown: boolean, featureFlags: any) => {
+const Legend = ({ showPricingBreakdown, featureFlags }: { showPricingBreakdown: boolean, featureFlags: any }) => {
+  const legendRef = React.useRef<HTMLDivElement>(null);
+  const [position, setPosition] = React.useState({ top: 0, left: 0, shouldFlipUp: false });
+  const [isPositioned, setIsPositioned] = React.useState(false);
+
+  React.useEffect(() => {
+    const calculatePosition = () => {
+      if (legendRef.current) {
+        const triggerElement = legendRef.current.parentElement;
+        if (triggerElement) {
+          const triggerRect = triggerElement.getBoundingClientRect();
+          const viewportHeight = window.innerHeight;
+          const viewportWidth = window.innerWidth;
+          
+          // Calculate legend dimensions (approximate if not rendered yet)
+          const legendHeight = legendRef.current.offsetHeight || 350;
+          const legendWidth = 260;
+          
+          // Calculate space available
+          const spaceBelow = viewportHeight - triggerRect.bottom;
+          const spaceAbove = triggerRect.top;
+          const bufferSpace = 20;
+          
+          // Determine if should flip up
+          const shouldFlipUp = (spaceBelow < legendHeight + bufferSpace) && (spaceAbove > legendHeight + bufferSpace);
+          
+          // Calculate horizontal position (similar to translateX(-85%))
+          let left = triggerRect.left - (legendWidth * 0.85);
+          
+          // Ensure legend doesn't go off-screen horizontally
+          if (left < 10) left = 10;
+          if (left + legendWidth > viewportWidth - 10) left = viewportWidth - legendWidth - 10;
+          
+          // Calculate vertical position
+          let top;
+          if (shouldFlipUp) {
+            top = triggerRect.top - legendHeight - 2;
+          } else {
+            top = triggerRect.bottom - 2;
+          }
+          
+          // Ensure legend doesn't go off-screen vertically
+          if (top < 10) top = 10;
+          if (top + legendHeight > viewportHeight - 10) top = viewportHeight - legendHeight - 10;
+          
+          setPosition({ top, left, shouldFlipUp });
+          setIsPositioned(true);
+        }
+      }
+    };
+
+    // Multiple attempts to ensure proper positioning
+    const timeouts: NodeJS.Timeout[] = [];
+    timeouts.push(setTimeout(calculatePosition, 0));
+    timeouts.push(setTimeout(calculatePosition, 10));
+    timeouts.push(setTimeout(calculatePosition, 50));
+    
+    window.addEventListener('resize', calculatePosition);
+    window.addEventListener('scroll', calculatePosition);
+    
+    return () => {
+      timeouts.forEach(clearTimeout);
+      window.removeEventListener('resize', calculatePosition);
+      window.removeEventListener('scroll', calculatePosition);
+    };
+  }, []);
+
   return (
-    <div className='text-black dark:text-white absolute mt-1 w-[260px] rounded-lg border border-neutral-200 bg-white p-4 text-sm shadow-lg z-20 dark:border-neutral-600 dark:bg-[#343541]'
-         style={{transform: 'translateX(-85%)'}}>
+    <div 
+      ref={legendRef}
+      className='text-black dark:text-white fixed w-[260px] rounded-lg border border-neutral-200 bg-white p-4 text-sm shadow-lg z-[9999] dark:border-neutral-600 dark:bg-[#343541] max-h-[min(350px,calc(100vh-100px))] overflow-y-auto'
+      style={{
+        top: position.top,
+        left: position.left,
+        opacity: isPositioned ? 1 : 0,
+        transition: 'opacity 0.1s ease-in-out',
+      }}>
       <div id="modelLegend" className='mb-2 font-semibold text-neutral-700 dark:text-neutral-300'>
         Legend
       </div>
@@ -227,6 +354,10 @@ const legend = (showPricingBreakdown: boolean, featureFlags: any) => {
       </div>}
     </div>
   );
+};
+
+const legend = (showPricingBreakdown: boolean, featureFlags: any) => {
+  return <Legend showPricingBreakdown={showPricingBreakdown} featureFlags={featureFlags} />;
 };
 
 

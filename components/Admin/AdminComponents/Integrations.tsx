@@ -25,8 +25,6 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
     const [secretsHasChanges, setSecretsHasChanges] = useState<string[]>([]);
     const [isRegisteringSecrets, setIsRegisteringSecrets] = useState<string>('');
 
-    
-
     const handleUpdateIntegrations = (integrationsMap: IntegrationsMap) => {
         setIntegrations(integrationsMap);
         updateUnsavedConfigs(AdminConfigTypes.INTEGRATIONS);
@@ -127,9 +125,9 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
                             <div className="mr-4 ">
                                 <div className="flex items-center mb-2">
                                 {integration.isAvailable && (<IconCheck className="w-5 h-5 mr-2 text-green-500" /> )}
-                                {translateIntegrationIcon(integration.icon)}
-                                <span className="text-black dark:text-white font-semibold">{`${getLabel(name)} ${integration.name}`}</span>
-                                </div>
+                                {translateIntegrationIcon(integration.id)} 
+                                <span className="ml-2 text-black dark:text-white font-semibold">{`${getLabel(name)} ${integration.name}`}</span>
+                                </div> 
                                 <p className="text-sm text-gray-600 dark:text-gray-300">{integration.description}</p>
                             </div>
 

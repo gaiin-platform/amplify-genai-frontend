@@ -206,7 +206,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
     if (!result) {
       alert("Settings failed to update in the cloud at the time. However, your changes have been saved and applied locally within this browser. ");
     } else {
-      toast("Settings saved succsessully");
+      toast("Settings saved successfully");
     }
 
   };

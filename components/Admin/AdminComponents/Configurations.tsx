@@ -1,7 +1,8 @@
-import { FC, useState } from "react";
+import { FC, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Amplify_Group, Amplify_Groups, AmplifyGroupSelect, EmailSupport, PromptCostAlert, titleLabel, UserAction } from "../AdminUI";
 import { AdminConfigTypes} from "@/types/admin";
-import { IconPlus, IconTrash, IconX, IconCloudFilled, IconMessage, IconCheck, IconEdit } from "@tabler/icons-react";
+import { IconPlus, IconTrash, IconX, IconCloudFilled, IconMessage, IconCheck, IconEdit, IconFileImport } from "@tabler/icons-react";
 import Checkbox from "@/components/ReusableComponents/CheckBox";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import { RateLimiter } from "@/components/Settings/AccountComponents/RateLimit";
@@ -14,6 +15,11 @@ import InputsMap from "@/components/ReusableComponents/InputMap";
 import { AddEmailWithAutoComplete } from "@/components/Emails/AddEmailsAutoComplete";
 import { ConversationStorage } from "@/types/conversationStorage";
 import { capitalize } from "@/utils/app/data";
+import { CsvUpload } from "@/components/ReusableComponents/CsvUpload";
+import { CsvPreviewModal } from "@/components/ReusableComponents/CsvPreviewModal";
+import { useCsvUpload } from "@/hooks/useCsvUpload";
+import { AdminCsvUploadConfig, AdminCsvPreviewConfig } from "@/config/csvUploadConfigs";
+import toast from "react-hot-toast";
 
 interface Props {
     admins: string[];
@@ -40,14 +46,15 @@ interface Props {
     allEmails: Array<string> | null;
 
     admin_text: string;
-    updateUnsavedConfigs: (t: AdminConfigTypes) => void;   
+    updateUnsavedConfigs: (t: AdminConfigTypes) => void;
+    onModalStateChange?: (hasOpenModal: boolean) => void;   
 }
 
 export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setAmpGroups, allEmails,
                                               rateLimit, setRateLimit, promptCostAlert, setPromptCostAlert,
                                               defaultConversationStorage, setDefaultConversationStorage,
                                               emailSupport, setEmailSupport, aiEmailDomain, setAiEmailDomain,
-                                              admin_text, updateUnsavedConfigs}) => {
+                                              admin_text, updateUnsavedConfigs, onModalStateChange}) => {
 
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
@@ -65,7 +72,29 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     const [tempRateLimitPeriod, setTempRateLimitPeriod] = useState<PeriodType>('Unlimited');
     const [tempRateLimitRate, setTempRateLimitRate] = useState<string>('0');  
     const [hoveredRateLimit, setHoveredRateLimit] = useState<string | null>(null);
+    const [showAddAdminInput, setShowAddAdminInput] = useState<boolean>(false);
+    
+    // Admin CSV Upload functionality using the new generic hook
+    const adminCsvUpload = useCsvUpload({
+        uploadConfig: AdminCsvUploadConfig,
+        previewConfig: AdminCsvPreviewConfig,
+        existingItems: admins,
+        onImportComplete: async (newAdmins: string[]) => {
+            const updatedAdmins = [...admins, ...newAdmins];
+            handleUpdateAdmins(updatedAdmins);
+        },
+        onImportSuccess: (newAdmins: string[]) => {
+            toast.success(`Successfully imported ${newAdmins.length} admin(s)`);
+        },
+        onImportError: (error: Error) => {
+            toast.error('Failed to import admins. Please try again.');
+        }
+    });
 
+    // Notify parent about modal state changes
+    useEffect(() => {
+        onModalStateChange?.(adminCsvUpload.hasOpenModal);
+    }, [adminCsvUpload.hasOpenModal, onModalStateChange]);
 
     const handleUpdateAdmins = (updatedAdmins: string[]) => {
         setAdmins(updatedAdmins);
@@ -102,81 +131,109 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     const handleUpdateAmpGroups = (updatedGroups: Amplify_Groups) => {
         setAmpGroups(updatedGroups);
         updateUnsavedConfigs(AdminConfigTypes.AMPLIFY_GROUPS);
-        console.log(updatedGroups);
     }
-        
+
 
     return <> 
     <div className="admin-style-settings-card overflow-x-hidden">
         <div className="admin-style-settings-card-header">
-                <h3 className="admin-style-settings-card-title">Admins</h3>
-                <p className="admin-style-settings-card-description">Manage the admins of the admin panel</p>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="admin-style-settings-card-title">Admins</h3>
+                        <p className="admin-style-settings-card-description">Manage the admins of the admin panel</p>
+                    </div>
+                    <button
+                        title="Import Admins from CSV"
+                        onClick={adminCsvUpload.openUpload}
+                        className="flex items-center cursor-pointer group px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                        id="csvUploadButton"
+                    >
+                        <div className="icon-pop-group">
+                            <IconFileImport size={18} />
+                        </div>
+                        <span style={{marginLeft: '10px'}}>Upload Admins</span>
+                    </button>
+                </div>
             </div>
                 
                 <div className="settings-card-content px-6">
-                    <div className="relative z-10 flex flex-row gap-2.5 h-0" style={{ transform: `translateX(160px) translateY(-22px)` }}>
-                        {admins.length > 0 &&
-                        <button onClick={ () => setIsDeleting(true)} style={{ display: 'flex', cursor: 'pointer' }}
-                            className="flex flex-shrink-0 items-center justify-center p-2"
-                            id="removeAdminButton"
-                            title={"Remove Admins"}
+                    <div className='w-full pr-20 relative'>
+                        {/* Buttons on same line */}
+                        <div className="flex items-start gap-4 mb-4">
+                            {/* Add Admins button */}
+                            <button 
+                                className="flex items-center cursor-pointer group"
+                                onClick={() => setShowAddAdminInput(!showAddAdminInput)}
+                                title="Add Admins"
                             >
-                            <IconTrash className="mt-0.5" size={15}/>
-                            <span style={{marginLeft: '10px'}}>{"Remove Admins"}</span>
-                        </button>}
+                                <div className="icon-pop-group">
+                                    <IconPlus size={18} />
+                                </div>
+                                <span style={{marginLeft: '10px'}}>Add Admins</span>
+                            </button>
 
-                        {isDeleting && 
-                        <>
-                            <UserAction
-                                label={"Remove Admins"}
-                                onConfirm={() => {
-                                    if (deleteUsersList.length > 0) {
-                                        const updatedAdmins = admins.filter(admin => !deleteUsersList.includes(admin));
-                                        handleUpdateAdmins(updatedAdmins);
-                                    }
-                                }}
-                                onCancel={() => {
-                                    setIsDeleting(false);
-                                    setDeleteUsersList([]);
-                                }}
-                                top="mt-[0px]"
-                            />
-                            <div className="mt-[-2px] ml-4">
-                                <Checkbox
-                                    id={`selectAll${AdminConfigTypes.ADMINS}`}
-                                    label="Select All"
-                                    checked={deleteUsersList.length === admins.length}
-                                    onChange={(isChecked: boolean) => {
-                                        if (isChecked) {
-                                            // If checked, add all user names to the list
-                                            setDeleteUsersList(admins.map((a:string) => a));
-                                        } else {
+                            {/* Remove Admins button */}
+                            {admins.length > 0 && (
+                                <button 
+                                    onClick={() => setIsDeleting(true)} 
+                                    className="flex items-center cursor-pointer group"
+                                    id="removeAdminButton"
+                                    title="Remove Admins"
+                                >
+                                    <div className="icon-pop-group">
+                                        <IconTrash size={15}/>
+                                    </div>
+                                    <span style={{marginLeft: '10px'}}>Remove Admins</span>
+                                </button>
+                            )}
+
+                            {/* Delete confirmation controls - simple, no red box */}
+                            {isDeleting && (
+                                <div className="flex items-center gap-3 ml-4">
+                                    <UserAction
+                                        label="Confirm Removal"
+                                        onConfirm={() => {
+                                            if (deleteUsersList.length > 0) {
+                                                const updatedAdmins = admins.filter(admin => !deleteUsersList.includes(admin));
+                                                handleUpdateAdmins(updatedAdmins);
+                                            }
+                                            setIsDeleting(false);
                                             setDeleteUsersList([]);
-                                        }
-                                    }}
+                                        }}
+                                        onCancel={() => {
+                                            setIsDeleting(false);
+                                            setDeleteUsersList([]);
+                                        }}
+                                        top="mt-0"
+                                    />
+                                    <Checkbox
+                                        id={`selectAll${AdminConfigTypes.ADMINS}`}
+                                        label="Select All"
+                                        checked={deleteUsersList.length === admins.length}
+                                        onChange={(isChecked: boolean) => {
+                                            if (isChecked) {
+                                                setDeleteUsersList(admins.map((a:string) => a));
+                                            } else {
+                                                setDeleteUsersList([]);
+                                            }
+                                        }}
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Add Admin input - full width on new line - only show when button clicked */}
+                        {showAddAdminInput && (
+                            <div className="w-full mb-4">
+                                <AddEmailWithAutoComplete
+                                    id={String(AdminConfigTypes.ADMINS)}
+                                    emails={admins}
+                                    allEmails={allEmails ?? []}
+                                    handleUpdateEmails={(updatedAdmins: Array<string>) => handleUpdateAdmins(updatedAdmins)}
                                 />
                             </div>
-                        </>
-                        }
+                        )}
                     </div>
-                    <div className='w-full pr-20 relative min-w-[300px]'
-                        style={{ transform: `translateY(-24px)` }}>
-
-                        <ExpansionComponent 
-                            title={'Add Admins'} 
-                            content={ 
-                                <AddEmailWithAutoComplete
-                                id={String(AdminConfigTypes.ADMINS)}
-                                emails={admins}
-                                allEmails={allEmails ?? []}
-                                handleUpdateEmails={(updatedAdmins: Array<string>) => handleUpdateAdmins(updatedAdmins)}
-                                />
-                            }
-                            closedWidget= { <IconPlus size={18} />}
-                        />
-
-                    </div>
-
             </div>
                 
             <div className="ml-10 pr-5 ">
@@ -758,6 +815,38 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                         }
                 </div>
             </div>
+
+            {/* CSV Upload Modal */}
+            {adminCsvUpload.showUpload && createPortal(
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    {/* Backdrop */}
+                    <div className="absolute inset-0 bg-black bg-opacity-50" onClick={adminCsvUpload.handleCancel} />
+                    
+                    {/* Modal Content */}
+                    <div className="relative max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                        <CsvUpload
+                            config={AdminCsvUploadConfig}
+                            existingItems={admins}
+                            onUploadSuccess={adminCsvUpload.handleUploadSuccess}
+                            onClose={adminCsvUpload.handleCancel}
+                        />
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* CSV Preview Modal */}
+            {createPortal(
+                <CsvPreviewModal
+                    open={adminCsvUpload.showPreview}
+                    result={adminCsvUpload.uploadResult}
+                    config={AdminCsvPreviewConfig}
+                    onConfirm={adminCsvUpload.handleImportConfirm}
+                    onCancel={adminCsvUpload.handleCancel}
+                    isProcessing={adminCsvUpload.isProcessing}
+                />,
+                document.body
+            )}
                     
     </>
 
