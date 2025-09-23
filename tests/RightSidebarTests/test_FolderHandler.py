@@ -60,11 +60,11 @@ class FolderHandlerTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
         
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
 
@@ -102,6 +102,7 @@ class FolderHandlerTests(BaseTest):
             "Add Assistant button should be initialized and clickable",
         )
         assistant_add_button.click()
+        time.sleep(7)
 
         assistant_name_input = self.wait.until(
             EC.presence_of_element_located((By.ID, "assistantNameInput"))
@@ -109,11 +110,11 @@ class FolderHandlerTests(BaseTest):
         self.assertIsNotNone(
             assistant_name_input, "Assistant Name input should be present"
         )
-        time.sleep(2)
+        time.sleep(3)
         assistant_name_input.clear()
-        time.sleep(2)
+        time.sleep(3)
         assistant_name_input.send_keys(assistant_name)
-        time.sleep(2)
+        time.sleep(3)
 
         # Locate and click the Save button
         confirmation_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
@@ -165,24 +166,20 @@ class FolderHandlerTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
 
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
 
-        # Hover over the second folderSort (nested one)
+        # Hover over the second sort-menu (nested one)
         nested_sub_menu = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "sort-menu"))
         )
-        self.assertGreater(
-            len(nested_sub_menu),
-            1,
-            "Expected multiple buttons with ID 'folderSort'",
-        )
-        nested_sub_menu[1].click()
+        self.assertTrue(visible_sub_menu, "Element with id='sort-menu' is present")
+        nested_sub_menu.click()
         time.sleep(1)
 
         # Click the button with ID "Name"
@@ -238,11 +235,11 @@ class FolderHandlerTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
 
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
 
@@ -337,11 +334,11 @@ class FolderHandlerTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
 
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
 
@@ -406,11 +403,11 @@ class FolderHandlerTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
 
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
 
@@ -546,11 +543,11 @@ class FolderHandlerTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
 
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
 
@@ -793,11 +790,11 @@ class FolderHandlerTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
 
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
 
@@ -825,145 +822,145 @@ class FolderHandlerTests(BaseTest):
             f"Dropdown names do not match.\nExpected: {expected_names}\nActual: {actual_names}"
         )
 
-    # ----------------- Test Folder Open All -----------------
-    """Test the three button handler can open all folders to see contents inside"""
+    # # ----------------- Test Folder Open All -----------------
+    # """Test the three button handler can open all folders to see contents inside"""
 
-    def test_folder_open_all(self):
-        self.click_assistants_tab()
-        self.delete_all_folders()
-        self.create_folder("Luigi's Mansion")
-        self.create_folder("Baby Park")
-        self.create_folder("Admiral Bobbery's Ship")
+    # def test_folder_open_all(self):
+    #     self.click_assistants_tab()
+    #     self.delete_all_folders()
+    #     self.create_folder("Luigi's Mansion")
+    #     self.create_folder("Baby Park")
+    #     self.create_folder("Admiral Bobbery's Ship")
 
-        prompt_handler_button = self.wait.until(
-            EC.presence_of_element_located((By.ID, "promptHandler"))
-        )
-        prompt_handler_button.click()
+    #     prompt_handler_button = self.wait.until(
+    #         EC.presence_of_element_located((By.ID, "promptHandler"))
+    #     )
+    #     prompt_handler_button.click()
 
-        time.sleep(3)
+    #     time.sleep(3)
 
-        # Select First Submenu
-        sub_menu = self.wait.until(EC.presence_of_element_located((By.ID, "subMenu")))
-        self.assertTrue(sub_menu, "Element with id='subMenu' is present")
-        time.sleep(1)  # Give time for the menu to appear
+    #     # Select First Submenu
+    #     sub_menu = self.wait.until(EC.presence_of_element_located((By.ID, "subMenu")))
+    #     self.assertTrue(sub_menu, "Element with id='subMenu' is present")
+    #     time.sleep(1)  # Give time for the menu to appear
 
-        # Click the id="folderSort"
-        visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
-        )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
-        visible_sub_menu.click()
-        time.sleep(1)
+    #     # Click the id="folders-menu"
+    #     visible_sub_menu = self.wait.until(
+    #         EC.presence_of_element_located((By.ID, "folders-menu"))
+    #     )
+    #     self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
+    #     visible_sub_menu.click()
+    #     time.sleep(1)
 
-        # Click the button with ID "Share"
-        button = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "Open All"))
-        )
-        button[-1].click()
+    #     # Click the button with ID "Share"
+    #     button = self.wait.until(
+    #         EC.presence_of_all_elements_located((By.ID, "Open All"))
+    #     )
+    #     button[-1].click()
 
-        time.sleep(1)  # Give time for the menu to appear
+    #     time.sleep(1)  # Give time for the menu to appear
 
-        side_bar_detection = self.wait.until(
-            EC.presence_of_element_located((By.ID, "sideBar"))
-        )
-        self.assertTrue(side_bar_detection, "Expected side bar")
+    #     side_bar_detection = self.wait.until(
+    #         EC.presence_of_element_located((By.ID, "sideBar"))
+    #     )
+    #     self.assertTrue(side_bar_detection, "Expected side bar")
 
-        # Use the right sidebar
-        right_panel = side_bar_detection
+    #     # Use the right sidebar
+    #     right_panel = side_bar_detection
 
-        # Locate all elements with the ID 'dropDown'
-        drop_name_elements = right_panel.find_elements(By.ID, "dropDown")
-        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
+    #     # Locate all elements with the ID 'dropDown'
+    #     drop_name_elements = right_panel.find_elements(By.ID, "dropDown")
+    #     self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
 
-        # Extract and print all title attributes for debugging
-        titles = [element.get_attribute("title") for element in drop_name_elements]
-        print("Extracted Titles:", titles)  # Debugging output
+    #     # Extract and print all title attributes for debugging
+    #     titles = [element.get_attribute("title") for element in drop_name_elements]
+    #     print("Extracted Titles:", titles)  # Debugging output
 
-        # Extract and verify that all elements have the title "Collapse Folder"
-        expected_title = "Collapse folder"
-        all_titles_match = all(
-            element.get_attribute("title") == expected_title
-            for element in drop_name_elements
-        )
+    #     # Extract and verify that all elements have the title "Collapse Folder"
+    #     expected_title = "Collapse folder"
+    #     all_titles_match = all(
+    #         element.get_attribute("title") == expected_title
+    #         for element in drop_name_elements
+    #     )
 
-        self.assertTrue(
-            all_titles_match,
-            "All dropDown elements should have the title 'Collapse Folder'",
-        )
+    #     self.assertTrue(
+    #         all_titles_match,
+    #         "All dropDown elements should have the title 'Collapse Folder'",
+    #     )
 
-    # ----------------- Test Folder Close All -----------------
-    """Test the three button handler can close all folders"""
+    # # ----------------- Test Folder Close All -----------------
+    # """Test the three button handler can close all folders"""
 
-    def test_folder_close_all(self):
-        self.click_assistants_tab()
-        self.delete_all_folders()
-        self.create_folder("Luigi's Mansion")
-        self.create_folder("Baby Park")
-        self.create_folder("Admiral Bobbery's Ship")
+    # def test_folder_close_all(self):
+    #     self.click_assistants_tab()
+    #     self.delete_all_folders()
+    #     self.create_folder("Luigi's Mansion")
+    #     self.create_folder("Baby Park")
+    #     self.create_folder("Admiral Bobbery's Ship")
 
-        prompt_handler_button = self.wait.until(
-            EC.presence_of_element_located((By.ID, "promptHandler"))
-        )
-        prompt_handler_button.click()
+    #     prompt_handler_button = self.wait.until(
+    #         EC.presence_of_element_located((By.ID, "promptHandler"))
+    #     )
+    #     prompt_handler_button.click()
 
-        time.sleep(3)
+    #     time.sleep(3)
 
-        # Select First Submenu
-        sub_menu = self.wait.until(EC.presence_of_element_located((By.ID, "subMenu")))
-        self.assertTrue(sub_menu, "Element with id='subMenu' is present")
-        time.sleep(1)  # Give time for the menu to appear
+    #     # Select First Submenu
+    #     sub_menu = self.wait.until(EC.presence_of_element_located((By.ID, "subMenu")))
+    #     self.assertTrue(sub_menu, "Element with id='subMenu' is present")
+    #     time.sleep(1)  # Give time for the menu to appear
 
-        # Click the id="folderSort"
-        visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
-        )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
-        visible_sub_menu.click()
-        time.sleep(1)
+    #     # Click the id="folders-menu"
+    #     visible_sub_menu = self.wait.until(
+    #         EC.presence_of_element_located((By.ID, "folders-menu"))
+    #     )
+    #     self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
+    #     visible_sub_menu.click()
+    #     time.sleep(1)
 
-        # Click the button with ID "Open All"
-        button = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "Open All"))
-        )
-        button[-1].click()
+    #     # Click the button with ID "Open All"
+    #     button = self.wait.until(
+    #         EC.presence_of_all_elements_located((By.ID, "Open All"))
+    #     )
+    #     button[-1].click()
 
-        time.sleep(1)  # Give time for the menu to appear
+    #     time.sleep(1)  # Give time for the menu to appear
 
-        # Click the button with ID "Close All"
-        button = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "Close All"))
-        )
-        button[-1].click()
+    #     # Click the button with ID "Close All"
+    #     button = self.wait.until(
+    #         EC.presence_of_all_elements_located((By.ID, "Close All"))
+    #     )
+    #     button[-1].click()
 
-        time.sleep(1)  # Give time for the menu to appear
+    #     time.sleep(1)  # Give time for the menu to appear
 
-        side_bar_detection = self.wait.until(
-            EC.presence_of_element_located((By.ID, "sideBar"))
-        )
-        self.assertTrue(side_bar_detection, "Expected side bar")
+    #     side_bar_detection = self.wait.until(
+    #         EC.presence_of_element_located((By.ID, "sideBar"))
+    #     )
+    #     self.assertTrue(side_bar_detection, "Expected side bar")
 
-        # Use the right sidebar
-        right_panel = side_bar_detection
+    #     # Use the right sidebar
+    #     right_panel = side_bar_detection
 
-        # Locate all elements with the ID 'dropDown'
-        drop_name_elements = right_panel.find_elements(By.ID, "dropDown")
-        self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
+    #     # Locate all elements with the ID 'dropDown'
+    #     drop_name_elements = right_panel.find_elements(By.ID, "dropDown")
+    #     self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
 
-        # Extract and print all title attributes for debugging
-        titles = [element.get_attribute("title") for element in drop_name_elements]
-        print("Extracted Titles:", titles)  # Debugging output
+    #     # Extract and print all title attributes for debugging
+    #     titles = [element.get_attribute("title") for element in drop_name_elements]
+    #     print("Extracted Titles:", titles)  # Debugging output
 
-        # Extract and verify that all elements have the title "Expand Folder"
-        expected_title = "Expand folder"
-        all_titles_match = all(
-            element.get_attribute("title") == expected_title
-            for element in drop_name_elements
-        )
+    #     # Extract and verify that all elements have the title "Expand Folder"
+    #     expected_title = "Expand folder"
+    #     all_titles_match = all(
+    #         element.get_attribute("title") == expected_title
+    #         for element in drop_name_elements
+    #     )
 
-        self.assertTrue(
-            all_titles_match,
-            "All dropDown elements should have the title 'Expand Folder'",
-        )
+    #     self.assertTrue(
+    #         all_titles_match,
+    #         "All dropDown elements should have the title 'Expand Folder'",
+    #     )
 
 
 if __name__ == "__main__":

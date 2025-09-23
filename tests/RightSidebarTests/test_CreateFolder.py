@@ -44,11 +44,11 @@ class CreateFolderTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
         
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
 
@@ -494,6 +494,7 @@ class CreateFolderTests(BaseTest):
             "Add Assistant button should be initialized and clickable",
         )
         assistant_add_button.click()
+        time.sleep(3)
 
         # Locate the Assistant Name input field, clear it, and type "Assistant Aiba"
         assistant_name_input = self.wait.until(
@@ -518,23 +519,6 @@ class CreateFolderTests(BaseTest):
         save_button.click()
 
         time.sleep(5)
-
-        # # Locate all elements with the ID 'dropName'
-        # drop_name_elements = self.wait.until(
-        #     EC.presence_of_all_elements_located((By.ID, "dropName"))
-        # )
-        # self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
-
-        # # Find the element with text "Assistants"
-        # assistant_dropdown_button = next(
-        #     (el for el in drop_name_elements if el.text == "Assistants"), None
-        # )
-        # self.assertIsNotNone(
-        #     assistant_dropdown_button, "Assistants button should be present"
-        # )
-
-        # # Click to open the dropdown
-        # assistant_dropdown_button.click()
 
         # Locate all elements with ID "assistantName"
         prompt_name_elements = self.wait.until(

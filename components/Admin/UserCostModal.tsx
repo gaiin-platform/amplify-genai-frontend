@@ -436,7 +436,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
               </div>
             )}
           </div>
-          <span className="font-semibold text-gray-900 dark:text-white flex-shrink-0 ml-2">
+          <span id="userInGroupCost" className="font-semibold text-gray-900 dark:text-white flex-shrink-0 ml-2">
             {formatCurrency(user.totalCost)}
           </span>
         </div>
@@ -583,7 +583,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
             <IconUsers className="h-8 w-8 text-blue-600 dark:text-blue-400" />
             <div className="ml-3">
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Users</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{usersSummary.totalUsers}</p>
+              <p className="text-2xl font-semibold text-gray-900 dark:text-white" id="totalUsers">{usersSummary.totalUsers}</p>
             </div>
           </div>
         </div>
@@ -594,7 +594,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
             </div>
             <div className="ml-3">
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Cost</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{formatCurrency(usersSummary.totalCost)}</p>
+              <p className="text-2xl font-semibold text-gray-900 dark:text-white" id="totalCost">{formatCurrency(usersSummary.totalCost)}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">MTD</p>
             </div>
           </div>
@@ -606,7 +606,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
             </div>
             <div className="ml-3">
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Avg Cost/User</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{formatCurrency(usersSummary.avgCostPerUser)}</p>
+              <p className="text-2xl font-semibold text-gray-900 dark:text-white" id="avgCostUsers">{formatCurrency(usersSummary.avgCostPerUser)}</p>
             </div>
           </div>
         </div>
@@ -631,14 +631,14 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                       {isSystem && (
                         <IconUserCog size={14} className="text-orange-600 dark:text-orange-400 flex-shrink-0" />
                       )}
-                      <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                      <p id="topSpenderName" className="text-sm font-semibold text-gray-900 dark:text-white truncate">
                         {emailInfo.isGroup ? emailInfo.displayName : emailInfo.displayName.split('@')[0]}
                       </p>
                     </>
                   );
                 })()}
               </div>
-              <p className="text-xs text-red-600 dark:text-red-400">{usersSummary.topSpender ? formatCurrency(usersSummary.topSpender.totalCost) : 'N/A'}</p>
+              <p className="text-xs text-red-600 dark:text-red-400" id="topSpender">{usersSummary.topSpender ? formatCurrency(usersSummary.topSpender.totalCost) : 'N/A'}</p>
             </div>
           </div>
         </div>
@@ -682,6 +682,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
             disabled={userLoading || userCosts.length === 0}
             className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             style={{ opacity: userLoading || userCosts.length === 0? 0.5 : 1 }}
+            id="downloadCSVButton"
             title="Download CSV"
           >
             <IconDownload size={16} />
@@ -691,6 +692,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
             onClick={handleRefresh}
             disabled={userLoading}
             className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            id="refreshDataButton"
             title="Refresh data"
           >
             {userLoading ? (
@@ -745,8 +747,8 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
               </div>
             ) : (
               <div className="flex-1 overflow-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700" id="userCostTable">
+                  <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0" id="userCostHead">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         User Email
@@ -762,14 +764,15 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700" id="userCostBody">
                     {filteredUsers.map((user, index) => (
                       <React.Fragment key={`${user.email}_${index}`}>
-                        <tr className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <tr className="hover:bg-gray-50 dark:hover:bg-gray-700" id="userCostContainer">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                             <button
                               onClick={() => toggleUserExpansion(user.email)}
                               className="flex items-center space-x-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+                              id="userEmailName"
                             >
                               <span>{expandedUser === user.email ? '▼' : '▶'}</span>
                               {(() => {
@@ -783,7 +786,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                                     {isSystem && (
                                       <IconUserCog size={16} className="text-orange-600 dark:text-orange-400" />
                                     )}
-                                    <span>{emailInfo.displayName}</span>
+                                    <span id="userEmailNameExtract">{emailInfo.displayName}</span>
                                   </div>
                                 );
                               })()}
@@ -795,17 +798,17 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                             </button>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            <span className={`font-semibold ${user.dailyCost > 5 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                            <span id="userDailyCost" className={`font-semibold ${user.dailyCost > 5 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                               {formatCurrency(user.dailyCost)}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            <span className={`font-semibold ${user.monthlyCost > 10 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                            <span id="userMonthCost" className={`font-semibold ${user.monthlyCost > 10 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                               {formatCurrency(user.monthlyCost)}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            <span className={`font-semibold ${user.totalCost > 15 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                            <span id="userTotalCost" className={`font-semibold ${user.totalCost > 15 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                               {formatCurrency(user.totalCost)}
                             </span>
                           </td>
@@ -816,7 +819,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                               <div className="ml-6">
                                 <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Account Breakdown:</h4>
                                 <div className="overflow-x-auto">
-                                  <table className="min-w-full text-sm">
+                                  <table className="min-w-full text-sm" id="accountTable">
                                     <thead>
                                       <tr className="border-b border-gray-200 dark:border-gray-700">
                                         <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Account Info</th>
@@ -891,7 +894,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
               <IconBuilding className="h-8 w-8 text-purple-600 dark:text-purple-400" />
               <div className="ml-3">
                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Groups</p>
-                <p className="text-2xl font-semibold text-gray-900 dark:text-white">{groupsSummary.totalBillingGroups}</p>
+                <p id="totalBillingGroupsNumber" className="text-2xl font-semibold text-gray-900 dark:text-white">{groupsSummary.totalBillingGroups}</p>
               </div>
             </div>
           </div>
@@ -900,7 +903,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
               <IconUsers className="h-8 w-8 text-blue-600 dark:text-blue-400" />
               <div className="ml-3">
                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Users</p>
-                <p className="text-2xl font-semibold text-gray-900 dark:text-white">{groupsSummary.totalUsers}</p>
+                <p id="totalUsersNumber" className="text-2xl font-semibold text-gray-900 dark:text-white">{groupsSummary.totalUsers}</p>
               </div>
             </div>
           </div>
@@ -911,7 +914,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
               </div>
               <div className="ml-3">
                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Token Cost</p>
-                <p className="text-2xl font-semibold text-gray-900 dark:text-white">{formatCurrency(groupsSummary.totalCost)}</p>
+                <p id="totalTokenCost" className="text-2xl font-semibold text-gray-900 dark:text-white">{formatCurrency(groupsSummary.totalCost)}</p>
               </div>
             </div>
           </div>
@@ -922,7 +925,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
               </div>
               <div className="ml-3">
                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Highest Spending</p>
-                <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                <div id="topGroupSpenderName" className="text-sm font-semibold text-gray-900 dark:text-white">
                   {(() => {
                     const maxCost = Math.max(...Object.values(billingGroups).map(g => g.costs.total));
                     const topGroups = Object.entries(billingGroups)
@@ -936,7 +939,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                     return topGroups.join(' • ');
                   })()}
                 </div>
-                <p className="text-xs text-amber-600 dark:text-amber-400">
+                <p id="topGroupSpender" className="text-xs text-amber-600 dark:text-amber-400">
                   {Object.entries(billingGroups).length > 0 
                     ? `${formatCurrency(Math.max(...Object.values(billingGroups).map(g => g.costs.total)))}`
                     : 'N/A'
@@ -991,6 +994,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
             onClick={downloadGroupsCSV}
             disabled={userLoading || Object.keys(billingGroups).length === 0}
             className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            id="downloadCSVButton"
             title="Download CSV"
             style={{ opacity: userLoading || Object.keys(billingGroups).length === 0 ? 0.5 : 1 }}
           >
@@ -1001,6 +1005,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
             onClick={handleRefresh}
             disabled={groupsLoading}
             className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            id="refreshDataButton"
             title="Refresh data"
           >
             {groupsLoading ? (
@@ -1044,14 +1049,14 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
           ) : (
             <div className="space-y-4">
               {filteredBillingGroups.map(([groupName, group]) => (
-                <div key={groupName} className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+                <div id="billingGroupContainer" key={groupName} className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700">
                   {/* Group Header */}
                   <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
                         <IconBuilding className="h-6 w-6 text-purple-600 dark:text-purple-400" />
                         <div>
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          <h3 id="billingGroupName" className="text-lg font-semibold text-gray-900 dark:text-white">
                             {groupName}
                           </h3>
                           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -1060,7 +1065,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        <p id="billingGroupCost" className="text-2xl font-bold text-gray-900 dark:text-white">
                           {formatCurrency(group.costs.total)}
                         </p>
                       </div>
@@ -1071,19 +1076,19 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                   <div className="px-6 py-4">
                     <div className="grid grid-cols-3 gap-4 mb-4">
                       <div className="text-center">
-                        <p className="text-2xl font-semibold text-blue-600 dark:text-blue-400">
+                        <p id="directMemberNumber" className="text-2xl font-semibold text-blue-600 dark:text-blue-400">
                           {group.groupInfo.directMemberCount}
                         </p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">Direct</p>
                       </div>
                       <div className="text-center">
-                        <p className="text-2xl font-semibold text-purple-600 dark:text-purple-400">
+                        <p id="indirectMemberNumber" className="text-2xl font-semibold text-purple-600 dark:text-purple-400">
                           {group.groupInfo.indirectMemberCount}
                         </p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">Indirect</p>
                       </div>
                       <div className="text-center">
-                        <p className="text-2xl font-semibold text-green-600 dark:text-green-400">
+                        <p id="totalMemberNumber" className="text-2xl font-semibold text-green-600 dark:text-green-400">
                           {group.groupInfo.totalMemberCount}
                         </p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">Total</p>
@@ -1093,15 +1098,15 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                     <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
                       <div>
                         <p className="text-gray-500 dark:text-gray-400">Daily:</p>
-                        <p className="font-semibold text-gray-900 dark:text-white">{formatCurrency(group.costs.daily)}</p>
+                        <p id="dailyCostNumber" className="font-semibold text-gray-900 dark:text-white">{formatCurrency(group.costs.daily)}</p>
                       </div>
                       <div>
                         <p className="text-gray-500 dark:text-gray-400">Monthly:</p>
-                        <p className="font-semibold text-gray-900 dark:text-white">{formatCurrency(group.costs.monthly)}</p>
+                        <p id="monthlyCostNumber" className="font-semibold text-gray-900 dark:text-white">{formatCurrency(group.costs.monthly)}</p>
                       </div>
                       <div>
                         <p className="text-gray-500 dark:text-gray-400">Avg/Member:</p>
-                        <p className="font-semibold text-gray-900 dark:text-white">{formatCurrency(group.costs.avgPerMember)}</p>
+                        <p id="avgCostPerMemberNumber" className="font-semibold text-gray-900 dark:text-white">{formatCurrency(group.costs.avgPerMember)}</p>
                       </div>
                     </div>
 
@@ -1158,6 +1163,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                     <div className="flex space-x-2">
                       <button
                         onClick={() => toggleGroupMembersExpansion(groupName)}
+                        id="expandMembersList"
                         className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm"
                       >
                         {expandedGroupMembers === groupName ? '↑ Hide Members' : '↓ View All Members'}
@@ -1236,7 +1242,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
           <div className="mb-4 px-6 py-3 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <h2 id="totalTokenCost" className="text-lg font-semibold text-gray-900 dark:text-white">
                   Token Total: {groupsSummary ? formatCurrency(groupsSummary.totalCost) : formatCurrency(usersSummary.totalCost)} MTD
                 </h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400">

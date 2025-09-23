@@ -450,7 +450,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   
       <div className="flex justify-between items-center mb-2">
           <div className="text-sm font-bold">Templates</div>
-          <button onClick={handleNewTemplate} title="Add New Template" className="hover:text-blue-600">
+          <button id="addNewTemplate" onClick={handleNewTemplate} title="Add New Template" className="hover:text-blue-600">
               <IconPlus size={18} />
           </button>
       </div>
@@ -475,7 +475,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
               }`}
               onClick={() => handleLoadTemplate(template.templateId)}>
               <div className="flex flex-col truncate">
-                <div className="font-medium text-neutral-800 dark:text-neutral-200">
+                <div id="templateName" className="font-medium text-neutral-800 dark:text-neutral-200">
                   {template.name}
                 </div>
                 {template.description && (
@@ -1027,6 +1027,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
               
               setSelectedWorkflow(newTemplate);
             }}
+            id="addStepButton"
             className="flex items-center px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             <IconPlus size={16} className="mr-1" />
@@ -1070,6 +1071,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                   onDragEnd={handleDragEnd}
                   onMouseEnter={() => setHoveredStepIndex(index)}
                   onMouseLeave={() => setHoveredStepIndex(null)}
+                  
                 >
                   <div className='flex flex-col w-full'>
                     <ExpansionComponent
@@ -1151,6 +1153,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           <div className="absolute right-1 top-[-6px] flex flex-row gap-3">
              <button
               className={`px-2  ${buttonStyle}`}
+              id="aiGenerateWorkflow"
               onClick={() => {
                 setShowWorkflowGenerator(true);
                 setIsPreviewing(false);
@@ -1161,6 +1164,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
             </button>
             <button
               className={`px-3  ${buttonStyle}`}
+              id="previewWorkflow"
               onClick={() => setIsPreviewing(true)}>
               <IconPresentation size={18} />
               Preview Workflow
@@ -1176,6 +1180,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           value={selectedWorkflow.name}
           onChange={(e) => setSelectedWorkflow({...selectedWorkflow, name: e.target.value})}
           className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+          id="nameYourWorkflowTemplate"
           placeholder="Name your workflow template"
         />
       </div>
@@ -1198,6 +1203,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
         <textarea
           value={selectedWorkflow.description}
           onChange={(e) => setSelectedWorkflow({...selectedWorkflow, description: e.target.value})}
+          id="describeWorkflow"
           className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
           rows={2}
           placeholder="Describe what this workflow does"

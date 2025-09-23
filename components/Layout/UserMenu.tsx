@@ -397,6 +397,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
             {/* Close button */}
             <button
               onClick={handleClose}
+              id="closeUserMenu"
               className="absolute top-3 right-3 p-1 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
               title="Close menu"
             >
@@ -404,8 +405,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({
             </button>
 
             <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-600/50 pr-10">
-              <div className="sidebar-title truncate text-neutral-800 dark:text-neutral-100 mb-0.5">{displayName}</div>
-              <div className="truncate text-neutral-500 dark:text-neutral-400 text-xs font-medium">{email}</div>
+              <div id="userName" className="sidebar-title truncate text-neutral-800 dark:text-neutral-100 mb-0.5">{displayName}</div>
+              <div id="userEmail" className="truncate text-neutral-500 dark:text-neutral-400 text-xs font-medium">{email}</div>
             </div>
 
             {showMtdCost && (
@@ -414,7 +415,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                   <IconCreditCard size={16} className="enhanced-icon text-blue-500" />
                   <div className="sidebar-text font-medium text-neutral-700 dark:text-neutral-300">Month-To-Date Cost</div>
                 </div>
-                <div className="text-lg font-bold text-blue-600 dark:text-blue-400 text-center transition-all duration-300 hover:scale-105" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                <div className="text-lg font-bold text-blue-600 dark:text-blue-400 text-center transition-all duration-300 hover:scale-105" id="MonthToDateCostDisplay" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
                  {mtdCost === '0' ? <div className="flex justify-center"> <IconLoader2 size={24} className="animate-spin" /> </div> : <>{mtdCost}</>}  
                 </div>
               </div>

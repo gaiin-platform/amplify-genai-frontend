@@ -23,7 +23,7 @@ class AccountModalTests(BaseTest):
 
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
-        super().setUp(headless=False)
+        super().setUp(headless=True)
         
     
     # ----------------- Setup Test Data ------------------
@@ -377,7 +377,7 @@ class AccountModalTests(BaseTest):
         
     #     time.sleep(2)
         
-    #     create_api_key_button = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent")))
+    #     create_api_key_button = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Create API Key")))
     #     self.assertIsNotNone(create_api_key_button, "Create API Key Expand Button should be present")
     #     create_api_key_button.click()
         
@@ -397,9 +397,9 @@ class AccountModalTests(BaseTest):
     #     time.sleep(2)
         
     #     # Depricate Email stuff for now, It doesn't work with "For System Use"
-    #     # expand_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
+    #     # expand_buttons = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Add Delegate")))
     #     # self.assertIsNotNone(expand_buttons, "Expand Buttons are visible should be present")
-    #     # expand_buttons[1].click() # Click the second one "Add Delegate"
+    #     # expand_buttons.click() # Click the second one "Add Delegate"
          
     #     # email_input_field = self.wait.until(
     #     #     EC.presence_of_element_located((By.ID, "emailInput"))
@@ -407,9 +407,9 @@ class AccountModalTests(BaseTest):
     #     # email_input_field.clear()
     #     # email_input_field.send_keys("THK@email.com")
         
-    #     # expand_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
+    #     # expand_buttons = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Add Delegate")))
     #     # self.assertIsNotNone(expand_buttons, "Expand Buttons are visible should be present")
-    #     # expand_buttons[1].click() # Click the second one "Add Delegate"
+    #     # expand_buttons.click() # Click the second one "Add Delegate"
         
     #     # time.sleep(2)
         
@@ -431,9 +431,9 @@ class AccountModalTests(BaseTest):
         
     #     time.sleep(2)
         
-    #     expand_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
+    #     expand_buttons = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Add Delegate")))
     #     self.assertIsNotNone(expand_buttons, "Expand Buttons are visible should be present")
-    #     expand_buttons[-1].click() # Click the second one "Add Delegate"
+    #     expand_buttons.click() # Click the second one "Add Delegate"
         
     #     time.sleep(2)
         
@@ -459,9 +459,9 @@ class AccountModalTests(BaseTest):
         
     #     # time.sleep(2)
         
-    #     expand_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
+    #     expand_buttons = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Add Delegate")))
     #     self.assertIsNotNone(expand_buttons, "Expand Buttons are visible should be present")
-    #     expand_buttons[-1].click() # Click the second one "Add Delegate"
+    #     expand_buttons.click() # Click the second one "Add Delegate"
         
     #     time.sleep(2) # id="createAPIKeyConfirm"
         

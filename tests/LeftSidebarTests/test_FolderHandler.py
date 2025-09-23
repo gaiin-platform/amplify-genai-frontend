@@ -141,11 +141,11 @@ class FolderHandlerLeftTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
         
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
 
@@ -197,24 +197,20 @@ class FolderHandlerLeftTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
 
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
 
-        # Hover over the second folderSort (nested one)
+        # Hover over the second sort-menu (nested one)
         nested_sub_menu = self.wait.until(
-            EC.presence_of_all_elements_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "sort-menu"))
         )
-        self.assertGreater(
-            len(nested_sub_menu),
-            1,
-            "Expected multiple buttons with ID 'folderSort'",
-        )
-        nested_sub_menu[1].click()
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
+        nested_sub_menu.click()
         time.sleep(1)
 
         # Click the button with ID "Name"
@@ -271,11 +267,11 @@ class FolderHandlerLeftTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
 
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
 
@@ -371,11 +367,11 @@ class FolderHandlerLeftTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
         
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
 
@@ -440,11 +436,11 @@ class FolderHandlerLeftTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
 
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
 
@@ -581,11 +577,11 @@ class FolderHandlerLeftTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
 
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
 
@@ -816,11 +812,11 @@ class FolderHandlerLeftTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
         
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
 
@@ -1088,11 +1084,11 @@ class FolderHandlerLeftTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
         
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
 
@@ -1407,11 +1403,11 @@ class FolderHandlerLeftTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
         
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
 
@@ -1465,11 +1461,11 @@ class FolderHandlerLeftTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
         
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
         
@@ -1530,11 +1526,11 @@ class FolderHandlerLeftTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
         
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
         

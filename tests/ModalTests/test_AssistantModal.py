@@ -445,7 +445,7 @@ class AssistantModalTests(BaseTest):
         
         time.sleep(2)
         
-        advanced_button = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent")))
+        advanced_button = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Advanced")))
         self.assertIsNotNone(advanced_button, "Advanced Button should be present")
         advanced_button.click()
         
@@ -585,7 +585,7 @@ class AssistantModalTests(BaseTest):
         
         time.sleep(2)
         
-        advanced_button = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent")))
+        advanced_button = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Advanced")))
         self.assertIsNotNone(advanced_button, "Advanced Button should be present")
         advanced_button.click()
 
@@ -647,7 +647,7 @@ class AssistantModalTests(BaseTest):
         
         time.sleep(2)
         
-        advanced_button = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent")))
+        advanced_button = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Advanced")))
         self.assertIsNotNone(advanced_button, "Advanced Button should be present")
         advanced_button.click()
         
@@ -658,9 +658,9 @@ class AssistantModalTests(BaseTest):
         
         time.sleep(2)
         
-        manage_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
-        self.assertTrue(manage_buttons, "Manage Button elements should be initialized")
-        manage_buttons[1].click()
+        manage_buttons = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Data Source Options")))
+        self.assertTrue(manage_buttons, "Data Source Options elements should be initialized")
+        manage_buttons.click()
         
         time.sleep(2)
         
@@ -764,7 +764,7 @@ class AssistantModalTests(BaseTest):
         
         time.sleep(2)
         
-        advanced_button = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent")))
+        advanced_button = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Advanced")))
         self.assertIsNotNone(advanced_button, "Advanced Button should be present")
         advanced_button.click()
         
@@ -775,9 +775,9 @@ class AssistantModalTests(BaseTest):
         
         time.sleep(2)
         
-        manage_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
-        self.assertTrue(manage_buttons, "Manage Button elements should be initialized")
-        manage_buttons[1].click()
+        manage_buttons = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Data Source Options")))
+        self.assertTrue(manage_buttons, "Data Source Options elements should be initialized")
+        manage_buttons.click()
         
         time.sleep(2)
         
@@ -908,19 +908,19 @@ class AssistantModalTests(BaseTest):
         
         time.sleep(2)
         
-        manage_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
+        manage_buttons = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Sources")))
         self.assertTrue(manage_buttons, "Manage Button elements should be initialized")
-        manage_buttons[0].click()
+        manage_buttons.click()
         time.sleep(2)
         
         chat_scroll_window = self.wait.until(EC.presence_of_element_located((By.ID, "chatScrollWindow")))
         self.driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight;", chat_scroll_window)
         
-        time.sleep(2)
+        time.sleep(100)
         
-        manage_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
+        manage_buttons = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Document Search Results (RAG)")))
         self.assertTrue(manage_buttons, "Manage Button elements should be initialized")
-        manage_buttons[1].click()
+        manage_buttons.click()
         
         time.sleep(2)
         

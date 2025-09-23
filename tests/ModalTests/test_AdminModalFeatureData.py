@@ -100,7 +100,7 @@ class AccountModalTests(BaseTest):
         time.sleep(3)
         
         expand_manage_assistant_admin_groups_button = self.wait.until(
-            EC.element_to_be_clickable((By.ID, "expandComponent"))
+            EC.element_to_be_clickable((By.ID, "expandComponent-Manage Assistant Admin Groups"))
         )
         self.assertIsNotNone(expand_manage_assistant_admin_groups_button, "Expand Manage Assistant Admin Groups can be clicked")
         expand_manage_assistant_admin_groups_button.click()
@@ -109,10 +109,10 @@ class AccountModalTests(BaseTest):
         assistant_admin_table = self.wait.until(
             EC.invisibility_of_element_located((By.ID, "assistantAdminGroupsTable"))
         )
-        self.assertTrue(assistant_admin_table, "Manage Assistant Admin Groups table is not presence and deleted")
+        self.assertTrue(assistant_admin_table, "Manage Assistant Admin Groups table is not present")
         
         expand_manage_assistant_admin_groups_button = self.wait.until(
-            EC.element_to_be_clickable((By.ID, "expandComponent"))
+            EC.element_to_be_clickable((By.ID, "expandComponent-Manage Assistant Admin Groups"))
         )
         self.assertIsNotNone(expand_manage_assistant_admin_groups_button, "Expand Manage Assistant Admin Groups can be clicked")
         expand_manage_assistant_admin_groups_button.click()
@@ -121,7 +121,7 @@ class AccountModalTests(BaseTest):
         assistant_admin_table = self.wait.until(
             EC.presence_of_element_located((By.ID, "assistantAdminGroupsTable"))
         )
-        self.assertTrue(assistant_admin_table, "Manage Assistant Admin Groups table is not presence and deleted")
+        self.assertTrue(assistant_admin_table, "Manage Assistant Admin Groups table is present")
         
         time.sleep(3)
         

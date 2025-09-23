@@ -28,7 +28,7 @@ const ExpansionComponent: React.FC<ExpansionProps> = ({ title, content, openWidg
             <button onClick={handleToggle} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
             className="group"
             title={isOpen ? "Collapse" : "Expand"}
-            id="expandComponent"
+            id={`expandComponent-${title}`}
             >
                 {isOpen ?
                     ((openWidget) ? openWidget : <IconCaretDown size={18} />) :

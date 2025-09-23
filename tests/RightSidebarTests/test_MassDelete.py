@@ -182,11 +182,11 @@ class MassDeleteTests(BaseTest):
         self.assertTrue(sub_menu, "Element with id='subMenu' is present")
         time.sleep(1)  # Give time for the menu to appear
         
-        # Click the id="folderSort"
+        # Click the id="folders-menu"
         visible_sub_menu = self.wait.until(
-            EC.presence_of_element_located((By.ID, "folderSort"))
+            EC.presence_of_element_located((By.ID, "folders-menu"))
         )
-        self.assertTrue(visible_sub_menu, "Element with id='folderSort' is present")
+        self.assertTrue(visible_sub_menu, "Element with id='folders-menu' is present")
         visible_sub_menu.click()
         time.sleep(1)
 

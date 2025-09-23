@@ -334,7 +334,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
     
         <div className="flex justify-between items-center mb-2">
             <div className="text-sm font-bold">Scheduled Tasks</div>
-            <button onClick={handleNewTask} title="Add New Task" className="hover:text-blue-600">
+            <button onClick={handleNewTask} id="addNewTask" title="Add New Task" className="hover:text-blue-600">
                 <IconPlus size={18} />
             </button>
         </div>
@@ -656,6 +656,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               disabled={isDisabled()}
               title={getTitleComment()}
               type="text"
+              id="taskNameInput"
               value={selectedTask.taskName}
               onChange={(e) => setSelectedTask({...selectedTask, taskName: e.target.value})}
               className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
@@ -669,6 +670,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             </label>
             <textarea
               value={selectedTask.description}
+              id="descriptionInput"
               onChange={(e) => setSelectedTask({...selectedTask, description: e.target.value})}
               className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
               rows={2}
@@ -682,6 +684,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             </label>
             <textarea
               value={selectedTask.taskInstructions}
+              id="taskInstructionsInput"
               onChange={(e) => setSelectedTask({...selectedTask, taskInstructions: e.target.value})}
               className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
               rows={4}
@@ -706,6 +709,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             <label className="flex items-center">
               <input
                 type="checkbox"
+                id="activeCheckbox"
                 checked={selectedTask.active}
                 onChange={(e) => setSelectedTask({...selectedTask, active: e.target.checked})}
                 className="mr-2"
@@ -722,6 +726,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             <select
               disabled={isDisabled() }
               value={selectedTask.taskType ?? ''}
+              id="taskTypeSelect"
               onChange={(e) => {
                 const updatedSelectedTask = {...selectedTask, 
                                              objectInfo: {objectId: '', objectName: ''},
@@ -749,6 +754,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             </label>
             <input
               type="text"
+              id="tagInput"
               value={selectedTask.tags?.join(', ') || ''}
               onChange={(e) => setSelectedTask({...selectedTask, tags: e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag)})}
               className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
@@ -763,6 +769,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               <div className="flex items-center">
                 <input
                   type="checkbox"
+                  id="notifyCompletionCheckbox"
                   checked={selectedTask.notifyOnCompletion ?? false}
                   onChange={(e) => setSelectedTask({...selectedTask, notifyOnCompletion: e.target.checked})}
                   className="mr-2"
@@ -773,6 +780,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               <div className="flex items-center">
                 <input
                   type="checkbox"
+                  id="notifyFailureCheckbox"
                   checked={selectedTask.notifyOnFailure ?? false}
                   onChange={(e) => setSelectedTask({...selectedTask, notifyOnFailure: e.target.checked})}
                   className="mr-2"
@@ -787,6 +795,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                 <input
                   type="text"
                   value={selectedTask.notifyEmailAddresses?.join(', ') || ''}
+                  id="emailInput"
                   onChange={(e) => setSelectedTask({
                     ...selectedTask, 
                     notifyEmailAddresses: e.target.value.split(',').map(email => email.trim()).filter(email => email)

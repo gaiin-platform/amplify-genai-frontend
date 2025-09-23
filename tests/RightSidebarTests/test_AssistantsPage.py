@@ -30,8 +30,8 @@ class ActiveAssistantsListTests(BaseTest):
         time.sleep(12)
         title_element = self.wait.until(EC.presence_of_element_located((By.ID, "assistantNameTitle")))
         title_text = title_element.text
-        self.assertEqual(title_text, 'Assistant', "Assistant title should be 'Assistant'")
-        # self.assertEqual(title_text, 'Donkey Kong', "Assistant title should be 'Donkey Kong'")
+        # self.assertEqual(title_text, 'Assistant', "Assistant title should be 'Assistant'")
+        self.assertEqual(title_text, 'Donkey Kong', "Assistant title should be 'Donkey Kong'")
         
     def click_assistants_tab(self):
         time.sleep(5)
@@ -68,7 +68,7 @@ class ActiveAssistantsListTests(BaseTest):
         
         time.sleep(2)
         
-        advanced_button = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent")))
+        advanced_button = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Advanced")))
         self.assertIsNotNone(advanced_button, "Advanced Button should be present")
         advanced_button.click()
         

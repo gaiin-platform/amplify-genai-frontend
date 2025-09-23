@@ -112,9 +112,15 @@ class AccountModalTests(BaseTest):
         
         time.sleep(5)
         
-        expand_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
+        expand_buttons = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Understanding Ops")))
         self.assertIsNotNone(expand_buttons, "Expand Buttons are visible should be present")
-        expand_buttons[0].click() # Close the "Understanding Ops"
+        expand_buttons.click() # Close the "Understanding Ops"
+        
+        expand_buttons = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Manage Ops")))
+        self.assertIsNotNone(expand_buttons, "Expand Buttons are visible should be present")
+        expand_buttons.click() # Close the "Understanding Ops"
+        time.sleep(2)
+        expand_buttons.click()
         
         time.sleep(3)
         
@@ -128,7 +134,7 @@ class AccountModalTests(BaseTest):
         feature_names = [element.text for element in search_results]
         
         # Expected group names. Temporarily Description is out??
-        expected_group_names = ["Function Name", "Tags", "Path", "Method", "Parameters", ""]
+        expected_group_names = ['Function Name', 'Tags', 'Path', 'Method', 'Parameters', 'Description']
         
         # Assert that the group_names match the expected list
         self.assertListEqual(
@@ -195,9 +201,9 @@ class AccountModalTests(BaseTest):
         
         time.sleep(5)
         
-        expand_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
+        expand_buttons = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Understanding Ops")))
         self.assertIsNotNone(expand_buttons, "Expand Buttons are visible should be present")
-        expand_buttons[0].click() # Close the "Understanding Ops"
+        expand_buttons.click() # Close the "Understanding Ops"
         
         time.sleep(3)
         

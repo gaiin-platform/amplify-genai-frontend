@@ -19,7 +19,7 @@ class FileInclusionTests(BaseTest):
     
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
-        super().setUp(headless=False)
+        super().setUp(headless=True)
         
     # ----------------- Setup Test Data ------------------
     def upload_file(self, filename):
@@ -103,7 +103,7 @@ class FileInclusionTests(BaseTest):
         time.sleep(2)  # Give time for table data to load
 
         # Locate the table body
-        table_body = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "tbody.mantine-yzu17x")))
+        table_body = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "tbody[class^='mantine-']")))
 
         # Get all table rows
         rows = table_body.find_elements(By.TAG_NAME, "tr")
@@ -160,7 +160,7 @@ class FileInclusionTests(BaseTest):
         time.sleep(5)  # Give time for table data to load
 
         # Locate the table body
-        table_body = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "tbody.mantine-yzu17x")))
+        table_body = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "tbody[class^='mantine-']")))
 
         # Get all table rows
         rows = table_body.find_elements(By.TAG_NAME, "tr")
@@ -217,7 +217,7 @@ class FileInclusionTests(BaseTest):
         time.sleep(5)  # Give time for table data to load
 
         # Locate the table body
-        table_body = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "tbody.mantine-yzu17x")))
+        table_body = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "tbody[class^='mantine-']")))
 
         # Get all table rows
         rows = table_body.find_elements(By.TAG_NAME, "tr")
@@ -274,7 +274,7 @@ class FileInclusionTests(BaseTest):
         time.sleep(5)  # Give time for table data to load
 
         # Locate the table body
-        table_body = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "tbody.mantine-yzu17x")))
+        table_body = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "tbody[class^='mantine-']")))
 
         # Get all table rows
         rows = table_body.find_elements(By.TAG_NAME, "tr")
@@ -331,7 +331,7 @@ class FileInclusionTests(BaseTest):
         time.sleep(5)  # Give time for table data to load
 
         # Locate the table body
-        table_body = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "tbody.mantine-yzu17x")))
+        table_body = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "tbody[class^='mantine-']")))
 
         # Get all table rows
         rows = table_body.find_elements(By.TAG_NAME, "tr")
@@ -390,7 +390,7 @@ class FileInclusionTests(BaseTest):
         time.sleep(5)  # Give time for table data to load
 
         # Locate the table body
-        table_body = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "tbody.mantine-yzu17x")))
+        table_body = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "tbody[class^='mantine-']")))
 
         # Get all table rows
         rows = table_body.find_elements(By.TAG_NAME, "tr")
@@ -441,7 +441,7 @@ class FileInclusionTests(BaseTest):
         time.sleep(5)  # Give time for table data to load
 
         # Locate the table body
-        table_body = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "tbody.mantine-yzu17x")))
+        table_body = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "tbody[class^='mantine-']")))
 
         # Get all table rows
         rows = table_body.find_elements(By.TAG_NAME, "tr")
@@ -468,7 +468,7 @@ class FileInclusionTests(BaseTest):
         doc_files_button.click()
         
         # Locate the table body
-        table_body = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "tbody.mantine-yzu17x")))
+        table_body = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "tbody[class^='mantine-']")))
 
         # Get all table rows
         rows = table_body.find_elements(By.TAG_NAME, "tr")

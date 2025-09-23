@@ -56,9 +56,9 @@ class AccountModalTests(BaseTest):
         
         time.sleep(5)
         
-        expand_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
+        expand_buttons = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Google")))
         self.assertIsNotNone(expand_buttons, "Expand Buttons are visible should be present")
-        expand_buttons[0].click() # Open the "Google"
+        expand_buttons.click() # Open the "Google"
         
         time.sleep(2)
         
@@ -113,9 +113,9 @@ class AccountModalTests(BaseTest):
         
         time.sleep(5)
         
-        expand_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
+        expand_buttons = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Microsoft")))
         self.assertIsNotNone(expand_buttons, "Expand Buttons are visible should be present")
-        expand_buttons[-1].click() # Open the "Microsoft"
+        expand_buttons.click() # Open the "Microsoft"
         
         time.sleep(2)
         
@@ -197,8 +197,11 @@ class AccountModalTests(BaseTest):
         
         time.sleep(5)
         
-        expand_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
-        self.assertIsNotNone(expand_buttons, "Expand Buttons are visible should be present")
+        expand_button_google = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Google")))
+        self.assertIsNotNone(expand_button_google, "Expand Buttons are visible should be present")
+        
+        expand_button_microsoft = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Microsoft")))
+        self.assertIsNotNone(expand_button_microsoft, "Expand Buttons are visible should be present")
         
     
     

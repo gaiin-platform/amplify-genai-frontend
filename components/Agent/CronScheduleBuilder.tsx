@@ -609,6 +609,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
           <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Hour</label>
           <select
             value={presetConfig.hour}
+            id="hourSelect"
             onChange={(e) => setPresetConfig({ ...presetConfig, hour: e.target.value })}
             className={selectClassName}
           >
@@ -621,6 +622,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
           <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Minute</label>
           <select
             value={presetConfig.minute}
+            id="minuteSelect"
             onChange={(e) => setPresetConfig({ ...presetConfig, minute: e.target.value })}
             className={selectClassName}
           >
@@ -889,9 +891,9 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
   const renderRunTimesPreview = () => (
     <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg text-sm text-blue-800 dark:text-blue-200">
       <h4 className="font-medium mb-2">Schedule Preview</h4>
-      <ul className="space-y-1 list-disc pl-5">
+      <ul id="schedulePreviewList" className="space-y-1 list-disc pl-5">
         {nextRunTimes.length > 0 && nextRunTimes.map((time, index) => (
-          <li key={index}>{time}</li>
+          <li id={`scheduleIndex${index}`} key={index}>{time}</li>
         ))}
       </ul>
     </div>
@@ -931,6 +933,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
             </label>
             <input
               type="date"
+              id="startDateInput"
               value={startDate}
               min={today}
               onChange={(e) => {
@@ -947,6 +950,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
             </label>
             <input
               type="date"
+              id="endDateInput"
               value={endDate}
               min={startDate || today}
               onChange={(e) => {
@@ -974,6 +978,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
             <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Scheduled Time</label>
             <select
               value={scheduleType}
+              id="scheduledTimeSelect"
               onChange={(e) => setScheduleType(e.target.value)}
               className={selectClassName}
             >

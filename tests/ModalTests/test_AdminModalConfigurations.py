@@ -58,10 +58,10 @@ class AdminConfigurationsModalTests(BaseTest):
         
         time.sleep(10) # Manage Accounts maximum load time
         
-        # Click expand Component id="expandComponent"
-        expand_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
+        # Click expand Component id="expandComponent-Add Admins"
+        expand_buttons = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Add Admins")))
         self.assertIsNotNone(expand_buttons, "Expand Buttons are visible should be present")
-        expand_buttons[0].click() # Click the first one "Add Admins"
+        expand_buttons.click() # Click the first one "Add Admins"
         
         time.sleep(2)
         
@@ -70,7 +70,7 @@ class AdminConfigurationsModalTests(BaseTest):
             EC.presence_of_element_located((By.ID, "emailInput"))
         )
         email_input_field.clear()
-        email_input_field.send_keys("TheRealHollowKnight@email.com")
+        email_input_field.send_keys("TheRealHollowKnight@VoidHollowEmail.com")
         
         time.sleep(2)
         
@@ -108,9 +108,9 @@ class AdminConfigurationsModalTests(BaseTest):
         
         time.sleep(2)
         
-        expand_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
+        expand_buttons = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Add Admins")))
         self.assertIsNotNone(expand_buttons, "Expand Buttons are visible should be present")
-        expand_buttons[0].click() # Close the "Add Admins"
+        expand_buttons.click() # Close the "Add Admins"
         
         time.sleep(2)
         
@@ -200,7 +200,7 @@ class AdminConfigurationsModalTests(BaseTest):
             EC.presence_of_element_located((By.ID, "emailInput"))
         )
         email_input_field.clear()
-        email_input_field.send_keys("TheRealHollowKnight@email.com")
+        email_input_field.send_keys("TheRealHollowKnight@VoidHollowEmail.com")
         
         time.sleep(2)
         
@@ -219,9 +219,9 @@ class AdminConfigurationsModalTests(BaseTest):
         
         time.sleep(2)
         
-        expand_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
+        expand_buttons = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Manage Amplify Groups")))
         self.assertIsNotNone(expand_buttons, "Expand Buttons are visible should be present")
-        expand_buttons[-1].click() # Close the "Manage Amplify Groups"
+        expand_buttons.click() # Close the "Manage Amplify Groups"
         
         time.sleep(2)
         
@@ -274,7 +274,7 @@ class AdminConfigurationsModalTests(BaseTest):
         group_names = [element.text for element in search_results]
 
         # Expected group names
-        expected_group_names = ['Admins', 'Amplify_Dev_SoN', 'Amplify_Dev_Students', 'Amplify_Dev', 'api_test']  # Update with your actual expected names
+        expected_group_names = ['Amplify_Dev_SoN', 'Amplify_Dev_Students', 'testing_group123', 'Admins', 'Amplify_Dev', 'api_test', 'Test_Group']  # Update with your actual expected names
 
         # Assert that the group_names match the expected list
         self.assertListEqual(
@@ -390,7 +390,7 @@ class AdminConfigurationsModalTests(BaseTest):
         group_names = [element.text for element in search_results]
 
         # Expected group names
-        expected_group_names = ['Admins', 'Amplify_Dev_SoN', 'Amplify_Dev_Students', 'Amplify_Dev', 'api_test']  # Update with your actual expected names
+        expected_group_names = ['Amplify_Dev_SoN', 'Amplify_Dev_Students', 'testing_group123', 'Admins', 'Amplify_Dev', 'api_test', 'Test_Group']  # Update with your actual expected names
 
         # Assert that the group_names match the expected list
         self.assertListEqual(
@@ -480,8 +480,7 @@ class AdminConfigurationsModalTests(BaseTest):
         self.settings_admin_interface()
         
         time.sleep(10) # Manage Accounts maximum load time
-        
-        # Get the admin ids up till whatever index it reaches (it should be 4, but I want to make the test dynamic)
+
         # Get the highest admin index before the test
         admin_elements = self.driver.find_elements(By.CSS_SELECTOR, "[id^='adminEmail']")
         max_index_before = max(
@@ -493,10 +492,10 @@ class AdminConfigurationsModalTests(BaseTest):
 
         print(f"Max admin index before add attempt: {max_index_before}")
         
-        # Click expand Component id="expandComponent"
-        expand_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "expandComponent")))
+        # Click expand Component id="expandComponent-Add Admins"
+        expand_buttons = self.wait.until(EC.presence_of_element_located((By.ID, "expandComponent-Add Admins")))
         self.assertIsNotNone(expand_buttons, "Expand Buttons are visible should be present")
-        expand_buttons[0].click() # Click the first one "Add Admins"
+        expand_buttons.click() # Click the first one "Add Admins"
         
         time.sleep(2)
         
@@ -511,8 +510,6 @@ class AdminConfigurationsModalTests(BaseTest):
         )
         self.assertIsNotNone(add_admin_button, "Add Admin Button button can be clicked")
         add_admin_button.click()
-        
-        # Get the admin ids up till whatever index it reaches (it should STILL be 4, but I want to make the test dynamic)
         
         # Get the highest admin index after the add attempt
         admin_elements_after = self.driver.find_elements(By.CSS_SELECTOR, "[id^='adminEmail']")
