@@ -63,6 +63,18 @@ import OperationSelector from "@/components/Agent/OperationSelector";
 import ActionsList from "@/components/Chat/ActionsList";
 import { resolveRagEnabled } from '@/types/features';
 import { OpBindings } from '@/types/op';
+import { 
+    processLargeText, 
+    LargeTextData, 
+    LargeTextBlock, 
+    generateSummaryText, 
+    generatePreviewText,
+    createLargeTextBlock,
+    generatePlaceholderText,
+    replacePlaceholdersWithText,
+    removeLargeTextBlockFromContent
+} from '@/utils/app/largeText';
+import { LargeTextDisplay } from '@/components/Chat/LargeTextDisplay';
 
 
 
@@ -257,6 +269,11 @@ export const ChatInput = ({
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     //const [assistant, setAssistant] = useState<Assistant>(selectedAssistant || DEFAULT_ASSISTANT);
     const [availableAssistants, setAvailableAssistants] = useState<Assistant[]>([DEFAULT_ASSISTANT]);
+    
+    // Large text handling state - now supports multiple blocks
+    const [largeTextBlocks, setLargeTextBlocks] = useState<LargeTextBlock[]>([]);
+    const [showLargeTextPreview, setShowLargeTextPreview] = useState(false);
+    const [largeTextCounter, setLargeTextCounter] = useState(0); // Global counter for unique IDs
     const [showAssistantSelect, setShowAssistantSelect] = useState(false);
     const [documents, setDocuments] = useState<AttachedDocument[]>();
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>({});
@@ -349,6 +366,14 @@ export const ChatInput = ({
             return;
         }
 
+        // Check for deleted placeholder characters and remove corresponding blocks
+        largeTextBlocks.forEach((block) => {
+            if (!value.includes(block.placeholderChar)) {
+                // Placeholder character was deleted → remove the entire block
+                handleRemoveLargeTextBlock(block.id);
+            }
+        });
+
         setContent(value);
         updatePromptListVisibility(value);
     };
@@ -413,10 +438,42 @@ export const ChatInput = ({
         }
 
         const type = (isWorkflowOn) ? MessageType.AUTOMATION : MessageType.PROMPT;
+        
+        // Prepare message content and label for large text handling
+        let messageContent = content || '';
+        let messageLabel = content || '';
+        let messageData: any = {};
+        
+        if (largeTextBlocks.length > 0) {
+            // Replace all placeholders in content with actual large text for sending to model
+            messageContent = replacePlaceholdersWithText(messageContent, largeTextBlocks);
+            
+            // Keep the label as is for display purposes (with placeholders)
+            messageLabel = messageLabel;
+            
+            // Add large text metadata
+            messageData = {
+                hasLargeText: true,
+                largeTextBlocks: largeTextBlocks.map(block => ({
+                    id: block.id,
+                    displayName: block.displayName,
+                    placeholderChar: block.placeholderChar,
+                    charCount: block.charCount,
+                    lineCount: block.lineCount,
+                    wordCount: block.wordCount,
+                    preview: block.preview,
+                    originalText: block.originalText,
+                    pastePosition: messageLabel.indexOf(block.placeholderChar)
+                }))
+            };
+        }
+        
         let msg = newMessage({
             role: 'user', 
-            content: content, 
+            content: messageContent, 
+            label: messageLabel,
             type: type,
+            data: messageData,
             configuredTools: addedActions.length > 0 ? [...addedActions] : undefined
         });
 
@@ -463,6 +520,11 @@ export const ChatInput = ({
         setDocuments([]);
         setDocumentState({});
         setDocumentMetadata({});
+        
+        // Clear large text state
+        setLargeTextBlocks([]);
+        setShowLargeTextPreview(false);
+        setLargeTextCounter(0); // Reset counter for next message
         
         // Keep the actions list after sending - removed setAddedActions([])
 
@@ -792,26 +854,93 @@ export const ChatInput = ({
     // Clipboard paste handler
     const handlePaste = useCallback((e: React.ClipboardEvent) => {
         const files = Array.from(e.clipboardData.files);
-        if (files.length === 0) return;
+        const pastedText = e.clipboardData.getData('text/plain');
 
-        e.preventDefault();
+        // Handle file pastes first (existing functionality)
+        if (files.length > 0) {
+            e.preventDefault();
+            // Process pasted files using centralized file processor
+            processPastedFiles(files, {
+                disallowedExtensions: getDisallowedFileExtensions(),
+                onAttach: addDocument,
+                onUploadProgress: handleDocumentState,
+                onSetKey: handleSetKey,
+                onSetMetadata: handleSetMetadata,
+                onSetAbortController: handleDocumentAbortController,
+                statsService,
+                featureFlags,
+                ragOn,
+                uploadDocuments: featureFlags.uploadDocuments,
+                groupId: undefined,
+                props: {}
+            });
+            return;
+        }
 
-        // Process pasted files using centralized file processor
-        processPastedFiles(files, {
-            disallowedExtensions: getDisallowedFileExtensions(),
-            onAttach: addDocument,
-            onUploadProgress: handleDocumentState,
-            onSetKey: handleSetKey,
-            onSetMetadata: handleSetMetadata,
-            onSetAbortController: handleDocumentAbortController,
-            statsService,
-            featureFlags,
-            ragOn,
-            uploadDocuments: featureFlags.uploadDocuments,
-            groupId: undefined,
-            props: {}
-        });
-    }, [featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
+        // Handle text pastes - check if it's large text
+        if (pastedText && pastedText.trim()) {
+            const processedText = processLargeText(pastedText);
+            
+            if (processedText.isLarge) {
+                e.preventDefault();
+                
+                // Get current cursor position and content
+                const textarea = textareaRef.current;
+                if (textarea) {
+                    const cursorPos = textarea.selectionStart;
+                    const currentContent = content || '';
+                    
+                    // Create new large text block using global counter
+                    const newBlock = createLargeTextBlock(
+                        processedText,
+                        cursorPos,
+                        largeTextCounter
+                    );
+                    
+                    // Increment counter and add to blocks array
+                    setLargeTextCounter(prev => prev + 1);
+                    const updatedBlocks = [...largeTextBlocks, newBlock];
+                    setLargeTextBlocks(updatedBlocks);
+                    setShowLargeTextPreview(true);
+                    
+                    // Insert placeholder text at cursor position
+                    const beforeCursor = currentContent.substring(0, cursorPos);
+                    const afterCursor = currentContent.substring(cursorPos);
+                    const placeholder = generatePlaceholderText(newBlock);
+                    
+                    const newContent = beforeCursor + placeholder + afterCursor;
+                    setContent(newContent);
+                    
+                    // Update cursor position after the inserted placeholder
+                    setTimeout(() => {
+                        const newCursorPos = cursorPos + placeholder.length;
+                        textarea.setSelectionRange(newCursorPos, newCursorPos);
+                    }, 0);
+                }
+            }
+            // If text is not large, let the default paste behavior handle it
+        }
+    }, [content, largeTextBlocks, featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
+
+    // Handle individual large text block removal
+    const handleRemoveLargeTextBlock = useCallback((blockId: string) => {
+        const blockToRemove = largeTextBlocks.find(block => block.id === blockId);
+        if (blockToRemove && content) {
+            // Remove the placeholder from content
+            const updatedContent = removeLargeTextBlockFromContent(content, blockToRemove);
+            setContent(updatedContent);
+            
+            // Remove block from array
+            const updatedBlocks = largeTextBlocks.filter(block => block.id !== blockId);
+            setLargeTextBlocks(updatedBlocks);
+            
+            // Hide preview if no blocks remain
+            if (updatedBlocks.length === 0) {
+                setShowLargeTextPreview(false);
+            }
+        }
+    }, [largeTextBlocks, content]);
+
 
     ////// Plugin Dependencies //////
 
@@ -1093,6 +1222,30 @@ export const ChatInput = ({
                                     setDocuments={setDocuments}/>
                         </div>
                      }
+                     
+                     {/* Large Text Summary Display - Multiple Blocks */}
+                     {largeTextBlocks.length > 0 && showLargeTextPreview && (
+                        <div style={{transform: 'translateY(-4px)'}}>
+                            {largeTextBlocks.map((block) => (
+                                <LargeTextDisplay 
+                                    key={block.id}
+                                    data={{
+                                        originalText: block.originalText,
+                                        charCount: block.charCount,
+                                        lineCount: block.lineCount,
+                                        wordCount: block.wordCount,
+                                        preview: block.preview,
+                                        placeholderChar: block.placeholderChar,
+                                        isLarge: true
+                                    }}
+                                    blockId={block.id}
+                                    displayName={block.displayName}
+                                    showRemoveButton={true}
+                                    onRemove={() => handleRemoveLargeTextBlock(block.id)}
+                                />
+                            ))}
+                        </div>
+                     )}
 
                     </div>
 
@@ -1183,7 +1336,7 @@ export const ChatInput = ({
                             {featureFlags.promptOptimizer && isInputInFocus && (
                                 <div className='relative mr-[-32px]'>
                                     <PromptOptimizerButton
-                                        prompt={content || ""}
+                                        prompt={largeTextBlocks.length > 0 ? replacePlaceholdersWithText(content || "", largeTextBlocks) : (content || "")}
                                         onOptimized={(optimizedPrompt:string) => {
                                             setContent(optimizedPrompt);
                                             textareaRef.current?.focus();
@@ -1228,7 +1381,7 @@ export const ChatInput = ({
                                 onBlur={() => setIsInputInFocus(false)}
                                 onPaste={handlePaste}
                                 id="messageChatInputText"
-                                className="m-0 w-full resize-none border-0 bg-transparent p-0 py-2 pr-8 pl-10 text-black dark:bg-transparent dark:text-white md:py-3 md:pl-10"
+                                className="m-0 w-full resize-none border-0 bg-transparent p-0 py-2 pr-8 pl-10 text-black dark:bg-transparent dark:text-white md:py-3 md:pl-10 large-text-input"
                                 style={{
                                     resize: 'none',
                                     bottom: `${textareaRef?.current?.scrollHeight}px`,

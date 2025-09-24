@@ -76,17 +76,44 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, onOptimi
         const messages: Message[] = [newMessage({role: 'user', content : `${promptInstructions}:\n\n\nOriginal Prompt: ${promptValue}`, type: MessageType.PROMPT})];
         const model = getDefaultModel(DefaultModels.ADVANCED);
         try {
-            const result = await promptForData(chatEndpoint ?? '', messages, model, "Improve the users prompt, NO COMMENTS, PLEASANTRIES, PREAMBLES ALLOWED", defaultAccount, null, 1000);
-            // console.log("Optimization result: ", result);
+            if (!chatEndpoint) {
+                console.error("No chatEndpoint available");
+                alert("Chat endpoint not configured. Please check your settings.");
+                return;
+            }
+            
+            if (!model) {
+                console.error("No model available");
+                alert("No model available. Please check your model configuration.");
+                return;
+            }
+            
+            const result = await promptForData(chatEndpoint, messages, model, "Improve the users prompt, NO COMMENTS, PLEASANTRIES, PREAMBLES ALLOWED", defaultAccount, null, 1000);
+            
+            if (!result) {
+                console.error("promptForData returned null - likely backend service error");
+                alert("Failed to get response from AI service. This appears to be a backend service issue.");
+                return;
+            }
+            
+            // Check for backend error messages
+            if (result.includes("Error retrieving response")) {
+                console.error("Backend service error:", result);
+                alert("Backend AI service error. Please contact your administrator or try again later.");
+                return;
+            }
+            
             const extractedPrompt = result?.match(/\/OPTIMIZE_PROMPT_START\s*([\s\S]*?)\s*\/OPTIMIZE_PROMPT_END/);
+            
             if (extractedPrompt && extractedPrompt[1]) {
                 onOptimized(extractedPrompt[1].trim());
             } else {
-                alert("Error optimizing prompt. Please try again.");
+                console.error("Failed to extract optimized prompt from result:", result);
+                alert("AI response format was invalid. The service may be experiencing issues.");
             }
         } catch (e) {
-            console.log(e);
-            alert("Error optimizing prompt. Please try again.")
+            console.error("Exception in prompt optimization:", e);
+            alert("Error optimizing prompt: " + (e instanceof Error ? e.message : String(e)));
         }
         finally {
             setLoadingMessage("");
