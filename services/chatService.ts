@@ -8,6 +8,7 @@ export interface MetaHandler {
     mode: (mode: string) => void;
     state: (state: any) => void;
     shouldAbort: () => boolean;
+    mcpMetadata?: (metadata: any) => void;
 }
 
 export async function killRequest(endpoint: string, accessToken: string, requestId: string) {
@@ -65,7 +66,12 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
 
     // console.log('sending chat request with dataSources', requestBody);
 
-    const body = JSON.stringify(requestBody);
+    // Wrap the request body in 'data' field as expected by the backend
+    const wrappedBody = {
+        data: requestBody
+    };
+
+    const body = JSON.stringify(wrappedBody);
 
     const res = await fetch(endpoint, {
         method: 'POST',
@@ -191,6 +197,11 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
                             } else if (json.s && json.s === 'meta' && json.stateReset) {
                                 if (metaHandler) {
                                     metaHandler.state({});
+                                }
+                            } else if (json.s && json.s === 'mcp_metadata' && json.mcp) {
+                                // Handle MCP metadata for frontend banners
+                                if (metaHandler && metaHandler.mcpMetadata) {
+                                    metaHandler.mcpMetadata(json.mcp);
                                 }
                             }
                             return;

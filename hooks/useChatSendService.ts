@@ -314,12 +314,18 @@ export function useSendService() {
                             ]);
 
                             const memoriesResponse = await memoriesPromise;
-                            const allMemories = JSON.parse(memoriesResponse.body).memories || [];
-                            const relevantMemories = getRelevantMemories(allMemories);
-                            const memoryContext = buildMemoryContextPrompt(relevantMemories);
 
-                            if (memoryContext) {
-                                chatBody.prompt += '\n\n' + memoryContext;
+                            // Check if memoriesResponse.body is valid JSON
+                            if (memoriesResponse.body && memoriesResponse.body !== "undefined" && memoriesResponse.body.trim() !== "") {
+                                const allMemories = JSON.parse(memoriesResponse.body).memories || [];
+                                const relevantMemories = getRelevantMemories(allMemories);
+                                const memoryContext = buildMemoryContextPrompt(relevantMemories);
+
+                                if (memoryContext) {
+                                    chatBody.prompt += '\n\n' + memoryContext;
+                                }
+                            } else {
+                                console.warn("Memory response body is empty or undefined, skipping memory context");
                             }
                         } catch (error) {
                             // If memory fetching times out or fails, just proceed without it
@@ -484,6 +490,7 @@ export function useSendService() {
                         let currentState: any = {};
                         let reasoningText = "";
                         let reasoningMode = false; // support gemini reasoning
+                        let mcpMetadata: any = null; // Store MCP metadata for banners
 
                         const metaHandler: MetaHandler = {
                             status: (meta: any) => {
@@ -504,6 +511,11 @@ export function useSendService() {
                                     return true;
                                 }
                                 return false;
+                            },
+                            mcpMetadata: (metadata: any) => {
+                                // Store MCP metadata for adding to assistant message
+                                mcpMetadata = metadata;
+                                console.log("Received MCP metadata:", metadata);
                             }
                         };
 
@@ -635,7 +647,14 @@ export function useSendService() {
                                             {
                                                 ...message,
                                                 content: text,
-                                                data: { ...(message.data || {}), state: currentState }
+                                                data: {
+                                                    ...(message.data || {}),
+                                                    state: currentState,
+                                                    ...(mcpMetadata && {
+                                                        mcpTools: mcpMetadata.mcpTools,
+                                                        mcpStatus: mcpMetadata.mcpStatus
+                                                    })
+                                                }
                                             };
                                             return assistantMessage
                                         }
@@ -757,8 +776,14 @@ export function useSendService() {
                                     let existingMemories: Memory[] = [];
 
                                     try {
-                                        const allMemories = JSON.parse(memoriesResponse.body).memories || [];
-                                        existingMemories = getRelevantMemories(allMemories);
+                                        // Check if memoriesResponse.body is valid JSON
+                                        if (memoriesResponse.body && memoriesResponse.body !== "undefined" && memoriesResponse.body.trim() !== "") {
+                                            const allMemories = JSON.parse(memoriesResponse.body).memories || [];
+                                            existingMemories = getRelevantMemories(allMemories);
+                                        } else {
+                                            console.warn("Memory response body is empty or undefined, skipping memory context");
+                                            existingMemories = [];
+                                        }
                                     } catch (error) {
                                         console.error("Error fetching existing memories for fact extraction:", error);
                                     }
