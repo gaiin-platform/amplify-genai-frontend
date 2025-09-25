@@ -235,3 +235,44 @@ pre:has(div.codeblock) {
 .animate-float {
   animation: float 2s ease-in-out infinite;
 }
+
+/* Large Text Placeholder Styling */
+.large-text-input::placeholder {
+  font-style: italic;
+  color: #6b7280; /* gray-500 */
+}
+
+/* ExpandedTextDisplay - Force proper text colors to override parent styles */
+.expanded-text-container {
+  /* Ensure consistent background and border */
+  background-color: white !important;
+}
+
+.expanded-text-content {
+  /* Force proper text colors with high specificity */
+  color: #111827 !important; /* text-gray-900 */
+  background-color: transparent !important;
+}
+
+/* Dark mode overrides */
+@media (prefers-color-scheme: dark) {
+  .expanded-text-container {
+    background-color: #374151 !important; /* bg-gray-700 */
+  }
+  
+  .expanded-text-content {
+    color: #f3f4f6 !important; /* text-gray-100 */
+  }
+}
+
+/* Class-based dark mode support (for manual theme switching) */
+.dark .expanded-text-container {
+  background-color: #374151 !important; /* bg-gray-700 */
+}
+
+.dark .expanded-text-content {
+  color: #f3f4f6 !important; /* text-gray-100 */
+}
+
+/* Note: Unfortunately, CSS cannot style text inside textarea based on content patterns.
+   The italic styling for angle bracket placeholders is handled in React components. */

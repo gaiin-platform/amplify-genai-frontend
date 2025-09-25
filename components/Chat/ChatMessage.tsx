@@ -41,6 +41,8 @@ import AgentLogBlock from '@/components/Chat/ChatContentBlocks/AgentLogBlock';
 import { Settings } from '@/types/settings';
 import RagEvaluationBlock from './ChatContentBlocks/RagEvaluationBlock';
 import { AssistantReasoningMessage } from './ChatContentBlocks/AssistantReasoningMessage';
+import { LargeTextDisplay } from './LargeTextDisplay';
+import { generatePlaceholderText } from '@/utils/app/largeText';
 
 export interface Props {
     message: Message;
@@ -112,6 +114,82 @@ export const ChatMessage: FC<Props> = memo(({
 
     const assistantRecipient = (message.role === "user" && message.data && message.data.assistant) ?
         message.data.assistant : null;
+
+    // Function to render message content with inline large text blocks
+    const renderMessageWithLargeText = (message: Message) => {
+        if (!message.data?.hasLargeText || !message.data?.largeTextBlocks) {
+            return message.label || message.content;
+        }
+
+        const largeTextBlocks = message.data.largeTextBlocks;
+        let labelText = message.label || message.content;
+        let result: React.ReactNode[] = [];
+        let lastIndex = 0;
+        
+        // Sort blocks by their position in the text for proper rendering order
+        const sortedBlocks = [...largeTextBlocks].sort((a, b) => {
+            const aPlaceholder = generatePlaceholderText(a);
+            const bPlaceholder = generatePlaceholderText(b);
+            const aPos = labelText.indexOf(aPlaceholder);
+            const bPos = labelText.indexOf(bPlaceholder);
+            return aPos - bPos;
+        });
+        
+        sortedBlocks.forEach((block, index) => {
+            const placeholder = generatePlaceholderText(block);
+            const blockPosition = labelText.indexOf(placeholder, lastIndex);
+            
+            if (blockPosition >= 0) {
+                // Add text before this block
+                if (blockPosition > lastIndex) {
+                    result.push(labelText.substring(lastIndex, blockPosition));
+                }
+                
+                // Add the large text block component
+                result.push(
+                    <div key={`large-text-${block.id}`} className="my-2">
+                        <LargeTextDisplay 
+                            message={{
+                                ...message,
+                                data: {
+                                    ...message.data,
+                                    largeTextData: block
+                                }
+                            }} 
+                            messageIndex={messageIndex}
+                            showRemoveButton={false}
+                        />
+                    </div>
+                );
+                
+                lastIndex = blockPosition + placeholder.length;
+            }
+        });
+        
+        // Add any remaining text after the last block
+        if (lastIndex < labelText.length) {
+            result.push(labelText.substring(lastIndex));
+        }
+        
+        return (
+            <>
+                {result.map((item, index) => 
+                    typeof item === 'string' ? (
+                        // Check if this text segment contains placeholder patterns and style them
+                        item.match(/[⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽]/g) ? (
+                            <span key={`text-${index}`} dangerouslySetInnerHTML={{
+                                __html: item.replace(/([⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽])/g, '<span style="font-style: italic; color: #6b7280;">$1</span>')
+                            }} />
+                        ) : (
+                            <span key={`text-${index}`}>{item}</span>
+                        )
+                    ) : (
+                        item
+                    )
+                )}
+            </>
+        );
+    };
 
     const toggleEditing = () => {
         setIsEditing(!isEditing);
@@ -474,10 +552,15 @@ export const ChatMessage: FC<Props> = memo(({
                                     <div className="flex flex-col">
                                         <div className="flex flex-row">
                                             <div id="userMessage" className="prose whitespace-pre-wrap dark:prose-invert flex-1  max-w-none w-full">
-                                                {getAtBlock()} {message.label || message.content}
+                                                {getAtBlock()} {message.data?.hasLargeText ? 
+                                                    // For large text messages, parse and render with inline large text blocks
+                                                    renderMessageWithLargeText(message)
+                                                    : (message.label || message.content)
+                                                }
                                             </div>
                                         </div>
                                         <DataSourcesBlock message={message} handleDownload={handleDownload}/>
+                                        
                                         {isActionResult && (
                                             <ChatSourceBlock
                                                 messageIsStreaming={messageIsStreaming}
