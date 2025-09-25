@@ -25,6 +25,7 @@ import { Accounts } from './AccountComponents/Account';
 import { Account, noCoaAccount } from '@/types/accounts';
 import { getAccounts } from '@/services/accountService';
 import { noRateLimit } from '@/types/rateLimit';
+import { MCPServerSettings } from './MCPServerSettings';
 
   interface Props {
   open: boolean;
@@ -511,6 +512,19 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                 title: "Manage your integration connections",
                 content: <IntegrationTabs open={open} depth={1}/>
               }] : []),
+              ///////////////////////////////////////////////////////////////////////////////
+              // MCP Settings Tab
+              {label: `MCP Settings`,
+                title: "Manage Model Context Protocol servers and tools",
+                content: <MCPServerSettings
+                  servers={[]}
+                  onServerAdd={(server) => console.log('Add server:', server)}
+                  onServerEdit={(server) => console.log('Edit server:', server)}
+                  onServerDelete={(serverName) => console.log('Delete server:', serverName)}
+                  onServerToggle={(serverName, enabled) => console.log('Toggle server:', serverName, enabled)}
+                  onServerTest={(serverName) => Promise.resolve(true)}
+                />
+              },
 
               ///////////////////////////////////////////////////////////////////////////////
               // Conversation Storage

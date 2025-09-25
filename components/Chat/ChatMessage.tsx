@@ -41,6 +41,8 @@ import AgentLogBlock from '@/components/Chat/ChatContentBlocks/AgentLogBlock';
 import { Settings } from '@/types/settings';
 import RagEvaluationBlock from './ChatContentBlocks/RagEvaluationBlock';
 import { AssistantReasoningMessage } from './ChatContentBlocks/AssistantReasoningMessage';
+import { MCPToolIndicator } from './MCPToolIndicator';
+import { MCPStatusDisplay } from './MCPStatusDisplay';
 
 export interface Props {
     message: Message;
@@ -583,12 +585,33 @@ export const ChatMessage: FC<Props> = memo(({
                                         <PromptingStatusDisplay statusHistory={status}/>
                                     )}
 
-                                     {!messageIsStreaming && 
-                                     <AssistantReasoningMessage 
+                                    {/* MCP Status Display - Real-time tool execution during streaming */}
+                                    {messageIsStreaming && message.data?.mcpStatus && (
+                                        <MCPStatusDisplay
+                                            status={message.data.mcpStatus}
+                                            compact={false}
+                                            showProgressBars={true}
+                                        />
+                                    )}
+
+                                     {!messageIsStreaming &&
+                                     <AssistantReasoningMessage
                                         message={message}
                                         messageIndex={messageIndex}
                                         selectedConversation={selectedConversation}
                                      />}
+
+                                    {/* MCP Tool Indicator - Show tools used in completed messages */}
+                                    {!messageIsStreaming && message.data?.mcpTools && message.data.mcpTools.length > 0 && (
+                                        <MCPToolIndicator
+                                            tools={message.data.mcpTools}
+                                            executionStatus={message.data?.mcpStatus || []}
+                                            showDetails={true}
+                                            onToolClick={(tool) => {
+                                                console.log('MCP Tool clicked:', tool);
+                                            }}
+                                        />
+                                    )}
 
                                      {featureFlags.highlighter && settingRef.current.featureOptions.includeHighlighter && 
                                       isHighlightDisplay && !isEditing && 
