@@ -151,20 +151,32 @@ export function processLargeText(
 }
 
 /**
- * Generate display summary text for large text
+ * Generate display summary text with metrics (unified implementation)
+ * @private - Internal function used by public summary functions
+ */
+function generateSummaryTextInternal(
+  charCount: number,
+  lineCount: number, 
+  wordCount: number,
+  displayName: string
+): string {
+  // Use most relevant metric based on content
+  if (lineCount > 10) {
+    return `${displayName} (${lineCount} lines, ${charCount.toLocaleString()} characters)`;
+  } else if (wordCount > 50) {
+    return `${displayName} (${wordCount} words, ${charCount.toLocaleString()} characters)`;
+  } else {
+    return `${displayName} (${charCount.toLocaleString()} characters)`;
+  }
+}
+
+/**
+ * Generate display summary text for large text data
  */
 export function generateSummaryText(data: LargeTextData, displayName?: string): string {
   const { charCount, lineCount, wordCount } = data;
   const prefix = displayName || "Large Text";
-  
-  // Use most relevant metric based on content
-  if (lineCount > 10) {
-    return `${prefix} (${lineCount} lines, ${charCount.toLocaleString()} characters)`;
-  } else if (wordCount > 50) {
-    return `${prefix} (${wordCount} words, ${charCount.toLocaleString()} characters)`;
-  } else {
-    return `${prefix} (${charCount.toLocaleString()} characters)`;
-  }
+  return generateSummaryTextInternal(charCount, lineCount, wordCount, prefix);
 }
 
 /**
@@ -238,6 +250,18 @@ export function getParenthesizedNumber(counter: number): string {
 }
 
 /**
+ * Extract number from parenthesized character (reverse of getParenthesizedNumber)
+ */
+export function extractNumberFromParenthesizedChar(char: string): string {
+  const charCode = char.charCodeAt(0);
+  if (charCode >= 0x2474 && charCode <= 0x247D) {
+    // ⑴ ⑵ ⑶ ... ⑽ (Unicode range)
+    return (charCode - 0x2473).toString();
+  }
+  return '1'; // fallback
+}
+
+/**
  * Generate placeholder text for input (single character citation style)
  */
 export function generatePlaceholderText(block: LargeTextBlock): string {
@@ -249,14 +273,7 @@ export function generatePlaceholderText(block: LargeTextBlock): string {
  */
 export function generateBlockSummaryText(block: LargeTextBlock): string {
   const { lineCount, charCount, wordCount, displayName } = block;
-  
-  if (lineCount > 10) {
-    return `${displayName} (${lineCount} lines, ${charCount.toLocaleString()} characters)`;
-  } else if (wordCount > 50) {
-    return `${displayName} (${wordCount} words, ${charCount.toLocaleString()} characters)`;
-  } else {
-    return `${displayName} (${charCount.toLocaleString()} characters)`;
-  }
+  return generateSummaryTextInternal(charCount, lineCount, wordCount, displayName);
 }
 
 /**
@@ -308,4 +325,25 @@ export function createTextAreaSummary(
   const marker = `\n${summaryText}\n${previewText}\n`;
   
   return originalContent + marker;
+}
+
+/**
+ * Generate citation context for prompt optimizer
+ */
+export function generateCitationContext(largeTextBlocks: LargeTextBlock[]): string {
+  if (largeTextBlocks.length === 0) {
+    return '';
+  }
+  
+  const contextLines = largeTextBlocks.map((block, index) => {
+    const citation = getParenthesizedNumber(index);
+    // Create a simple 60-character summary of the content
+    const truncatedText = block.originalText.length > 60 
+      ? block.originalText.substring(0, 60).trim() + '...' 
+      : block.originalText;
+    const size = block.originalText.length;
+    return `${citation} = ${truncatedText} (${size} characters)`;
+  });
+  
+  return `\n\nCitation Context:\n${contextLines.join('\n')}`;
 }

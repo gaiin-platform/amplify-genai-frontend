@@ -64,17 +64,11 @@ import ActionsList from "@/components/Chat/ActionsList";
 import { resolveRagEnabled } from '@/types/features';
 import { OpBindings } from '@/types/op';
 import { 
-    processLargeText, 
-    LargeTextData, 
     LargeTextBlock, 
-    generateSummaryText, 
-    generatePreviewText,
-    createLargeTextBlock,
-    generatePlaceholderText,
-    replacePlaceholdersWithText,
-    removeLargeTextBlockFromContent
+    replacePlaceholdersWithText
 } from '@/utils/app/largeText';
 import { LargeTextDisplay } from '@/components/Chat/LargeTextDisplay';
+import { useLargeTextManager } from '@/hooks/useLargeTextManager';
 
 
 
@@ -191,23 +185,34 @@ export const ChatInput = ({
         !artifactIsStreaming;
 
     useEffect(() => {
-        const updateWidth = () => {
-            if (!messageIsStreaming && !artifactIsStreaming) setChatContainerWidth(updateSize());
-        }
-        window.addEventListener('resize', updateWidth);
-        window.addEventListener('orientationchange', updateWidth);
-        window.addEventListener('pageshow', updateWidth);
-        window.addEventListener('pagehide', updateWidth);
-        const observer = new MutationObserver(updateWidth);
-        observer.observe(document, { childList: true, subtree: true, attributes: true });
-        return () => {
-            window.removeEventListener('resize', updateWidth);
-            window.removeEventListener('orientationchange', updateWidth);
-            window.removeEventListener('pageshow', updateWidth);
-            window.removeEventListener('pagehide', updateWidth);
-            observer.disconnect();
+        let timeoutId: NodeJS.Timeout;
+        
+        const debouncedUpdateWidth = () => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                if (!messageIsStreaming && !artifactIsStreaming) {
+                    setChatContainerWidth(updateSize());
+                }
+            }, 150); // Debounce updates
         };
-    }, []);
+
+        window.addEventListener('resize', debouncedUpdateWidth);
+        window.addEventListener('orientationchange', debouncedUpdateWidth);
+        window.addEventListener('pageshow', debouncedUpdateWidth);
+        window.addEventListener('pagehide', debouncedUpdateWidth);
+        
+        // Remove the MutationObserver to prevent infinite loop
+        // const observer = new MutationObserver(debouncedUpdateWidth);
+        // observer.observe(document, { childList: true, subtree: true, attributes: true });
+        
+        return () => {
+            clearTimeout(timeoutId);
+            window.removeEventListener('resize', debouncedUpdateWidth);
+            window.removeEventListener('orientationchange', debouncedUpdateWidth);
+            window.removeEventListener('pageshow', debouncedUpdateWidth);
+            window.removeEventListener('pagehide', debouncedUpdateWidth);
+        };
+    }, [messageIsStreaming, artifactIsStreaming]);
 
 
     const promptsRef = useRef(prompts);
@@ -270,10 +275,15 @@ export const ChatInput = ({
     //const [assistant, setAssistant] = useState<Assistant>(selectedAssistant || DEFAULT_ASSISTANT);
     const [availableAssistants, setAvailableAssistants] = useState<Assistant[]>([DEFAULT_ASSISTANT]);
     
-    // Large text handling state - now supports multiple blocks
-    const [largeTextBlocks, setLargeTextBlocks] = useState<LargeTextBlock[]>([]);
-    const [showLargeTextPreview, setShowLargeTextPreview] = useState(false);
-    const [largeTextCounter, setLargeTextCounter] = useState(0); // Global counter for unique IDs
+    // Large text handling - using custom hook for state management
+    const { 
+        largeTextBlocks, 
+        showLargeTextPreview, 
+        hasLargeTextBlocks,
+        handleLargeTextPaste, 
+        removeLargeTextBlock: removeLargeTextBlockFromHook,
+        clearLargeText 
+    } = useLargeTextManager();
     const [showAssistantSelect, setShowAssistantSelect] = useState(false);
     const [documents, setDocuments] = useState<AttachedDocument[]>();
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>({});
@@ -521,10 +531,8 @@ export const ChatInput = ({
         setDocumentState({});
         setDocumentMetadata({});
         
-        // Clear large text state
-        setLargeTextBlocks([]);
-        setShowLargeTextPreview(false);
-        setLargeTextCounter(0); // Reset counter for next message
+        // Clear large text state using hook
+        clearLargeText();
         
         // Keep the actions list after sending - removed setAddedActions([])
 
@@ -879,67 +887,34 @@ export const ChatInput = ({
 
         // Handle text pastes - check if it's large text
         if (pastedText && pastedText.trim()) {
-            const processedText = processLargeText(pastedText);
-            
-            if (processedText.isLarge) {
-                e.preventDefault();
+            const textarea = textareaRef.current;
+            if (textarea) {
+                const cursorPos = textarea.selectionStart;
+                const currentContent = content || '';
                 
-                // Get current cursor position and content
-                const textarea = textareaRef.current;
-                if (textarea) {
-                    const cursorPos = textarea.selectionStart;
-                    const currentContent = content || '';
-                    
-                    // Create new large text block using global counter
-                    const newBlock = createLargeTextBlock(
-                        processedText,
-                        cursorPos,
-                        largeTextCounter
-                    );
-                    
-                    // Increment counter and add to blocks array
-                    setLargeTextCounter(prev => prev + 1);
-                    const updatedBlocks = [...largeTextBlocks, newBlock];
-                    setLargeTextBlocks(updatedBlocks);
-                    setShowLargeTextPreview(true);
-                    
-                    // Insert placeholder text at cursor position
-                    const beforeCursor = currentContent.substring(0, cursorPos);
-                    const afterCursor = currentContent.substring(cursorPos);
-                    const placeholder = generatePlaceholderText(newBlock);
-                    
-                    const newContent = beforeCursor + placeholder + afterCursor;
+                const { newContent, hasLargeText } = handleLargeTextPaste(
+                    pastedText,
+                    currentContent,
+                    cursorPos,
+                    textareaRef
+                );
+                
+                if (hasLargeText) {
+                    e.preventDefault();
                     setContent(newContent);
-                    
-                    // Update cursor position after the inserted placeholder
-                    setTimeout(() => {
-                        const newCursorPos = cursorPos + placeholder.length;
-                        textarea.setSelectionRange(newCursorPos, newCursorPos);
-                    }, 0);
                 }
             }
             // If text is not large, let the default paste behavior handle it
         }
-    }, [content, largeTextBlocks, featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
+    }, [content, handleLargeTextPaste, featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
 
-    // Handle individual large text block removal
+    // Handle individual large text block removal using hook
     const handleRemoveLargeTextBlock = useCallback((blockId: string) => {
-        const blockToRemove = largeTextBlocks.find(block => block.id === blockId);
-        if (blockToRemove && content) {
-            // Remove the placeholder from content
-            const updatedContent = removeLargeTextBlockFromContent(content, blockToRemove);
+        if (content) {
+            const updatedContent = removeLargeTextBlockFromHook(blockId, content);
             setContent(updatedContent);
-            
-            // Remove block from array
-            const updatedBlocks = largeTextBlocks.filter(block => block.id !== blockId);
-            setLargeTextBlocks(updatedBlocks);
-            
-            // Hide preview if no blocks remain
-            if (updatedBlocks.length === 0) {
-                setShowLargeTextPreview(false);
-            }
         }
-    }, [largeTextBlocks, content]);
+    }, [content, removeLargeTextBlockFromHook]);
 
 
     ////// Plugin Dependencies //////
@@ -1336,7 +1311,8 @@ export const ChatInput = ({
                             {featureFlags.promptOptimizer && isInputInFocus && (
                                 <div className='relative mr-[-32px]'>
                                     <PromptOptimizerButton
-                                        prompt={largeTextBlocks.length > 0 ? replacePlaceholdersWithText(content || "", largeTextBlocks) : (content || "")}
+                                        prompt={content || ""}
+                                        largeTextBlocks={largeTextBlocks}
                                         onOptimized={(optimizedPrompt:string) => {
                                             setContent(optimizedPrompt);
                                             textareaRef.current?.focus();
