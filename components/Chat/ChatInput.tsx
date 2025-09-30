@@ -8,7 +8,9 @@ import {
     IconBulb,
     IconScale, 
     IconSettingsAutomation,
-    IconUpload
+    IconUpload,
+    IconCheck,
+    IconX
 } from '@tabler/icons-react';
 import SaveActionsModal from './SaveActionsModal';
 import {
@@ -68,6 +70,8 @@ import {
     replacePlaceholdersWithText
 } from '@/utils/app/largeText';
 import { LargeTextDisplay } from '@/components/Chat/LargeTextDisplay';
+import { LargeTextTabs } from '@/components/Chat/LargeTextTabs';
+import { AttachmentDisplay } from '@/components/Chat/AttachmentDisplay';
 import { useLargeTextManager } from '@/hooks/useLargeTextManager';
 
 
@@ -282,8 +286,17 @@ export const ChatInput = ({
         hasLargeTextBlocks,
         handleLargeTextPaste, 
         removeLargeTextBlock: removeLargeTextBlockFromHook,
-        clearLargeText 
+        clearLargeText,
+        setLargeTextBlocks
     } = useLargeTextManager();
+    
+    // Edit mode state for large text blocks
+    const [editMode, setEditMode] = useState<{
+        isEditing: boolean;
+        blockId: string | null;
+        originalContent: string;
+        editContent: string;
+    }>({ isEditing: false, blockId: null, originalContent: '', editContent: '' });
     const [showAssistantSelect, setShowAssistantSelect] = useState(false);
     const [documents, setDocuments] = useState<AttachedDocument[]>();
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>({});
@@ -910,11 +923,81 @@ export const ChatInput = ({
 
     // Handle individual large text block removal using hook
     const handleRemoveLargeTextBlock = useCallback((blockId: string) => {
+        // If we're editing this block, exit edit mode
+        if (editMode.isEditing && editMode.blockId === blockId) {
+            setEditMode({ isEditing: false, blockId: null, originalContent: '', editContent: '' });
+            setContent(editMode.originalContent);
+        }
+        
         if (content) {
             const updatedContent = removeLargeTextBlockFromHook(blockId, content);
             setContent(updatedContent);
         }
-    }, [content, removeLargeTextBlockFromHook]);
+    }, [content, removeLargeTextBlockFromHook, editMode]);
+    
+    // Handle entering edit mode for a large text block
+    const handleEditLargeTextBlock = useCallback((blockId: string) => {
+        const block = largeTextBlocks.find(b => b.id === blockId);
+        if (!block) return;
+        
+        // Save current content and switch to edit mode
+        setEditMode({
+            isEditing: true,
+            blockId,
+            originalContent: content || '',
+            editContent: block.originalText
+        });
+        
+        // Set textarea content to the block's text for editing
+        setContent(block.originalText);
+        
+        // Focus textarea
+        setTimeout(() => {
+            if (textareaRef.current) {
+                textareaRef.current.focus();
+                textareaRef.current.setSelectionRange(0, 0);
+            }
+        }, 0);
+    }, [largeTextBlocks, content]);
+    
+    // Handle saving edited text block
+    const handleSaveEditedBlock = useCallback(() => {
+        if (!editMode.isEditing || !editMode.blockId) return;
+        
+        const currentEditContent = content || '';
+        const block = largeTextBlocks.find(b => b.id === editMode.blockId);
+        if (!block) return;
+        
+        // Update the block with new content
+        const updatedBlocks = largeTextBlocks.map(b => 
+            b.id === editMode.blockId 
+                ? { ...b, originalText: currentEditContent, 
+                    charCount: currentEditContent.length,
+                    lineCount: currentEditContent.split('\n').length,
+                    wordCount: currentEditContent.trim().split(/\s+/).filter(word => word.length > 0).length
+                  }
+                : b
+        );
+        
+        setLargeTextBlocks(updatedBlocks);
+        
+        // Restore original chat content with placeholder
+        setContent(editMode.originalContent);
+        
+        // Exit edit mode
+        setEditMode({ isEditing: false, blockId: null, originalContent: '', editContent: '' });
+    }, [editMode, content, largeTextBlocks, setLargeTextBlocks]);
+    
+    // Handle canceling edit mode
+    const handleCancelEdit = useCallback(() => {
+        if (!editMode.isEditing) return;
+        
+        // Restore original content
+        setContent(editMode.originalContent);
+        
+        // Exit edit mode
+        setEditMode({ isEditing: false, blockId: null, originalContent: '', editContent: '' });
+    }, [editMode]);
 
 
     ////// Plugin Dependencies //////
@@ -1189,36 +1272,20 @@ export const ChatInput = ({
                             setSelectedProject(project);
                             setShowProjectList(false);
                         }}/>} */}
-                     {documents && documents.length > 0 && 
-                        <div  style={{transform: 'translateY(-4px)'}}>
-                            <FileList documents={documents}
-                                    documentStates={documentState}
-                                    onCancelUpload={onCancelUpload}
-                                    setDocuments={setDocuments}/>
-                        </div>
-                     }
-                     
-                     {/* Large Text Summary Display - Multiple Blocks */}
-                     {largeTextBlocks.length > 0 && showLargeTextPreview && (
+                     {/* Unified Attachment Display - Files and Large Text */}
+                     {((documents && documents.length > 0) || (largeTextBlocks.length > 0 && showLargeTextPreview)) && (
                         <div style={{transform: 'translateY(-4px)'}}>
-                            {largeTextBlocks.map((block) => (
-                                <LargeTextDisplay 
-                                    key={block.id}
-                                    data={{
-                                        originalText: block.originalText,
-                                        charCount: block.charCount,
-                                        lineCount: block.lineCount,
-                                        wordCount: block.wordCount,
-                                        preview: block.preview,
-                                        placeholderChar: block.placeholderChar,
-                                        isLarge: true
-                                    }}
-                                    blockId={block.id}
-                                    displayName={block.displayName}
-                                    showRemoveButton={true}
-                                    onRemove={() => handleRemoveLargeTextBlock(block.id)}
-                                />
-                            ))}
+                            <AttachmentDisplay
+                                documents={documents}
+                                documentStates={documentState}
+                                onCancelUpload={onCancelUpload}
+                                setDocuments={setDocuments}
+                                largeTextBlocks={largeTextBlocks}
+                                onRemoveBlock={handleRemoveLargeTextBlock}
+                                onEditBlock={handleEditLargeTextBlock}
+                                currentlyEditingId={editMode.isEditing ? editMode.blockId || undefined : undefined}
+                                showLargeTextPreview={showLargeTextPreview}
+                            />
                         </div>
                      )}
 
@@ -1369,16 +1436,56 @@ export const ChatInput = ({
                                     }`,
                                 }}
                                 placeholder={
-                                    // t('Type a message or type "/" to select a prompt...') || ''
-                                    "Type a message to chat with Amplify..."
+                                    editMode.isEditing 
+                                        ? `Editing large text block - ESC to cancel, Ctrl+Enter to save`
+                                        : "Type a message to chat with Amplify..."
                                 }
                                 value={content}
                                 rows={1}
                                 onCompositionStart={() => setIsTyping(true)}
                                 onCompositionEnd={() => setIsTyping(false)}
                                 onChange={handleChange}
-                                onKeyDown={handleKeyDown}
+                                onKeyDown={(e) => {
+                                    // Handle edit mode shortcuts
+                                    if (editMode.isEditing) {
+                                        if (e.key === 'Escape') {
+                                            e.preventDefault();
+                                            handleCancelEdit();
+                                            return;
+                                        }
+                                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                            e.preventDefault();
+                                            handleSaveEditedBlock();
+                                            return;
+                                        }
+                                    }
+                                    
+                                    // Normal key handling
+                                    handleKeyDown(e);
+                                }}
                             />
+
+                            {/* Edit Mode Controls */}
+                            {editMode.isEditing && (
+                                <div className="flex items-center gap-2 mx-2">
+                                    <button
+                                        className="px-3 py-1 text-sm bg-green-500 hover:bg-green-600 text-white rounded-md transition-colors"
+                                        onClick={handleSaveEditedBlock}
+                                        title="Save changes (Ctrl+Enter)"
+                                    >
+                                        <IconCheck size={16} className="inline mr-1" />
+                                        Save
+                                    </button>
+                                    <button
+                                        className="px-3 py-1 text-sm bg-gray-500 hover:bg-gray-600 text-white rounded-md transition-colors"
+                                        onClick={handleCancelEdit}
+                                        title="Cancel editing (Escape)"
+                                    >
+                                        <IconX size={16} className="inline mr-1" />
+                                        Cancel
+                                    </button>
+                                </div>
+                            )}
 
                             <button
                                 id="sendMessage"
