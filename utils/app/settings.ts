@@ -10,35 +10,55 @@ export const getSettings = (featureFlags:any): Settings => {
     featureOptions: featureOptionDefaults(featureFlags),
     hiddenModelIds: []
   };
-  const settingsJson = localStorage.getItem(STORAGE_KEY);
-  if (settingsJson) {
-    try {
+  
+  // Check if we're on the client side
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+    return settings;
+  }
+  
+  try {
+    const settingsJson = localStorage.getItem(STORAGE_KEY);
+    if (settingsJson) {
       let savedSettings = JSON.parse(settingsJson) as Settings;
-      const allowedFeatureOptions = settings.featureOptions;
+      const allowedFeatureOptions = settings.featureOptions || {};
+
+      // Initialize featureOptions if it doesn't exist
+      if (!savedSettings.featureOptions || typeof savedSettings.featureOptions !== 'object') {
+        savedSettings.featureOptions = {};
+      }
 
       // Remove keys from savedSettings.featureOptions that are not in allowedFeatureOptions
       for (const key in savedSettings.featureOptions) {
-        if (!allowedFeatureOptions.hasOwnProperty(key)) delete savedSettings.featureOptions[key];
+        if (!Object.prototype.hasOwnProperty.call(allowedFeatureOptions, key)) {
+          delete savedSettings.featureOptions[key];
+        }
       }
       // Add keys to savedSettings.featureOptions that are in allowedFeatureOptions but missing in savedSettings.featureOptions
       for (const key in allowedFeatureOptions) {
-        if (!savedSettings.featureOptions.hasOwnProperty(key)) savedSettings.featureOptions[key] = allowedFeatureOptions[key];
+        if (!Object.prototype.hasOwnProperty.call(savedSettings.featureOptions, key)) {
+          savedSettings.featureOptions[key] = allowedFeatureOptions[key];
+        }
       }
 
       settings = Object.assign(settings, savedSettings);
-    } catch (e) {
-      console.error(e);
     }
+  } catch (e) {
+    console.error('Error loading settings:', e);
   }
+  
   return settings;
 };
 
 export const saveWorkspaceMetadata = (workspaceMetadata: Workspace) => {
-  localStorage.setItem('workspaceMetadata', JSON.stringify(workspaceMetadata));
+  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+    localStorage.setItem('workspaceMetadata', JSON.stringify(workspaceMetadata));
+  }
 };
 
 export const saveSettings = (settings: Settings) => {  
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  }
 };
 
 

@@ -1,5 +1,5 @@
 import {useEffect, createElement, useContext} from 'react';
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 
 export interface LoaderProps {
     size?: string;

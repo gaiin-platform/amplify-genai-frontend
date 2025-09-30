@@ -1,7 +1,7 @@
 import { FC, useState, useEffect, useRef, useContext } from 'react';
 import { Plugin, PluginID, PluginList, Plugins } from '@/types/plugin';
 import { IconGripVertical, IconSparkles, IconX } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import { getSettings } from '@/utils/app/settings';
 import { getActivePlugins } from '@/utils/app/plugin';
 import { Settings } from '@/types/settings';

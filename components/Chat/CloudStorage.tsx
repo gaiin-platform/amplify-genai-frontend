@@ -6,7 +6,7 @@ import { FC, useContext, useEffect, useRef, useState } from 'react';
 
 import { useTranslation } from 'next-i18next';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import { handleSelectedConversationStorageChange} from '@/utils/app/conversationStorage';
 import { isRemoteConversation, isLocalConversation } from '@/utils/app/conversation';
 import { Conversation } from '@/types/chat';

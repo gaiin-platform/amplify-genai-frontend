@@ -7,7 +7,7 @@ import {Conversation, Message} from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
 import { FolderInterface, FolderType } from '@/types/folder';
 
-import { HomeInitialState } from './home.state';
+import { HomeInitialState } from './Home.state';
 import {Account} from "@/types/accounts";
 import { DefaultModels, Model } from '@/types/model';
 

@@ -10,7 +10,7 @@ import { saveConversations, isLocalConversation, isRemoteConversation, deleteCon
 import { Conversation } from '@/types/chat';
 import { SupportedExportFormats } from '@/types/export';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 
 import { ChatFolders } from './components/ChatFolders';
 import { Conversations } from './components/Conversations';

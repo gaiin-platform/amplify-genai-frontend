@@ -5,7 +5,7 @@ import {AttachFile} from "@/components/Chat/AttachFile";
 import {AttachedDocument, AttachedDocumentMetadata} from "@/types/attacheddocument";
 import {WorkflowDefinition} from "@/types/workflow";
 import {Model} from "@/types/model";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import {getType, parsePromptVariableValues, variableTypeOptions} from "@/utils/app/prompts";
 import {FileList} from "@/components/Chat/FileList";
 import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";

@@ -1,0 +1,123 @@
+import { NextApiRequest, NextApiResponse } from 'next';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/pages/api/auth/[...nextauth]';
+
+const handler = async (req: NextApiRequest, res: NextApiResponse) => {
+  const session = await getServerSession(req, res, authOptions as any);
+
+  if (!session) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  // Mock response with default models while the backend service is being deployed
+  const mockModels = {
+    success: true,
+    data: {
+      models: [
+        {
+          id: 'claude-3-sonnet',
+          name: 'Claude 3 Sonnet',
+          provider: 'bedrock',
+          description: 'Anthropic\'s Claude 3 Sonnet model',
+          inputCostPer1K: 0.003,
+          outputCostPer1K: 0.015,
+          inputContextWindow: 200000,
+          supportsImages: true,
+          supportsReasoning: false
+        },
+        {
+          id: 'claude-3-5-sonnet',
+          name: 'Claude 3.5 Sonnet',
+          provider: 'bedrock',
+          description: 'Anthropic\'s Claude 3.5 Sonnet model',
+          inputCostPer1K: 0.003,
+          outputCostPer1K: 0.015,
+          inputContextWindow: 200000,
+          supportsImages: true,
+          supportsReasoning: false
+        },
+        {
+          id: 'claude-3-haiku',
+          name: 'Claude 3 Haiku',
+          provider: 'bedrock',
+          description: 'Anthropic\'s Claude 3 Haiku model - fast and efficient',
+          inputCostPer1K: 0.00025,
+          outputCostPer1K: 0.00125,
+          inputContextWindow: 200000,
+          supportsImages: true,
+          supportsReasoning: false
+        },
+        {
+          id: 'gpt-4',
+          name: 'GPT-4',
+          provider: 'openai',
+          description: 'OpenAI\'s GPT-4 model',
+          inputCostPer1K: 0.03,
+          outputCostPer1K: 0.06,
+          inputContextWindow: 8192,
+          supportsImages: false,
+          supportsReasoning: false
+        },
+        {
+          id: 'gpt-3.5-turbo',
+          name: 'GPT-3.5 Turbo',
+          provider: 'openai',
+          description: 'OpenAI\'s GPT-3.5 Turbo model',
+          inputCostPer1K: 0.0005,
+          outputCostPer1K: 0.0015,
+          inputContextWindow: 16385,
+          supportsImages: false,
+          supportsReasoning: false
+        },
+        {
+          id: 'gemini-pro',
+          name: 'Gemini Pro',
+          provider: 'google',
+          description: 'Google\'s Gemini Pro model',
+          inputCostPer1K: 0.00025,
+          outputCostPer1K: 0.0005,
+          inputContextWindow: 32768,
+          supportsImages: true,
+          supportsReasoning: false
+        }
+      ],
+      default: {
+        id: 'claude-3-5-sonnet',
+        name: 'Claude 3.5 Sonnet',
+        provider: 'bedrock',
+        description: 'Anthropic\'s Claude 3.5 Sonnet model',
+        inputCostPer1K: 0.003,
+        outputCostPer1K: 0.015,
+        inputContextWindow: 200000,
+        supportsImages: true,
+        supportsReasoning: false
+      },
+      cheapest: {
+        id: 'claude-3-haiku',
+        name: 'Claude 3 Haiku',
+        provider: 'bedrock',
+        description: 'Anthropic\'s Claude 3 Haiku model - fast and efficient',
+        inputCostPer1K: 0.00025,
+        outputCostPer1K: 0.00125,
+        inputContextWindow: 200000,
+        supportsImages: true,
+        supportsReasoning: false
+      },
+      advanced: {
+        id: 'gpt-4',
+        name: 'GPT-4',
+        provider: 'openai',
+        description: 'OpenAI\'s GPT-4 model',
+        inputCostPer1K: 0.03,
+        outputCostPer1K: 0.06,
+        inputContextWindow: 8192,
+        supportsImages: false,
+        supportsReasoning: false
+      }
+    }
+  };
+
+  res.status(200).json(mockModels);
+};
+
+export default handler;

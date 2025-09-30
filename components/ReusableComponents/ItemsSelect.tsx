@@ -1,4 +1,4 @@
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import { Conversation } from "@/types/chat";
 import { FolderInterface } from "@/types/folder";
 import { Prompt } from "@/types/prompt";

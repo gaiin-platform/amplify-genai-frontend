@@ -1,4 +1,4 @@
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import {Conversation, Message} from "@/types/chat";
 import React, {FC, useContext, useEffect, useRef, useState} from "react";
 import { useSession } from "next-auth/react"

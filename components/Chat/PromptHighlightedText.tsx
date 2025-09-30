@@ -1,4 +1,4 @@
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import { Conversation, Message, MessageType, newMessage } from "@/types/chat";
 import { IconArrowBackUp, IconMessage, IconPencilBolt, IconSend, IconTextPlus } from "@tabler/icons-react";
 import {setAssistant as setAssistantInMessage} from "@/utils/app/assistants";
@@ -6,6 +6,7 @@ import React, { useContext, useEffect, useRef } from "react";
 import { useState } from "react";
 import { HighlightPromptTypes, highlightSource } from "@/types/highlightTextPrompts";
 import { getSession } from "next-auth/react";
+import { getClientJWT } from '@/utils/client/getClientJWT';
 import { MetaHandler, sendChatRequestWithDocuments } from "@/services/chatService";
 import { DEFAULT_ASSISTANT } from "@/types/assistant";
 import { deepMerge } from "@/utils/app/state";
@@ -995,10 +996,10 @@ const handleParagraphSelection = (range: Range) => {
             }
         };
     
-    const accessToken = await getSession().then((session) => { 
-                                // @ts-ignore
-                                return session.accessToken
-                            })
+    const accessToken = await getClientJWT();
+    if (!accessToken) {
+        throw new Error("No valid access token available");
+    }
     movePulse();
     homeDispatch({field: 'messageIsStreaming', value: true}); 
     if (isArtifactSource) homeDispatch({field: 'artifactIsStreaming', value: true});
@@ -1038,7 +1039,7 @@ const handleParagraphSelection = (range: Range) => {
                 text += chunkValue;
                 if (updatedConversation && source?.source === 'chat') {
                   let updatedMessages: Message[] = [];
-                  updatedMessages = updatedConversation.messages.map((message, index) => {
+                  updatedMessages = updatedConversation.messages.map((message: Message, index: number) => {
                           if (index === source?.messageIndex) {
                               return { ...message,
                                       content: `${leadingText}${text}${trailingText}`,

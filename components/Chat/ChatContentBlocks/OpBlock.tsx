@@ -1,6 +1,6 @@
 
 import {useContext, useEffect, useState} from "react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import {IconRobot} from "@tabler/icons-react";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import { useOpsService} from "@/hooks/useOpsService";

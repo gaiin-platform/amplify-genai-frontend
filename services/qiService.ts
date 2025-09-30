@@ -3,6 +3,7 @@ import { Model } from "@/types/model";
 import { QiSummary, QiSummaryType } from "@/types/qi";
 import { getSession } from "next-auth/react"
 import { sendChatRequestWithDocuments } from "./chatService";
+import { getClientJWT } from '@/utils/client/getClientJWT';
 import { doRequestOp } from "./doRequestOp";
 
 const URL_PATH = "/qi";
@@ -28,10 +29,10 @@ const qiConversationPrompt =
 export const createQiSummary = async (chatEndpoint: string, model: Model, data: any, type: QiSummaryType, statsService: any) => {
     const controller = new AbortController();
 
-    const accessToken = await getSession().then((session) => {
-        // @ts-ignore
-        return session.accessToken
-    })
+    const accessToken = await getClientJWT();
+    if (!accessToken) {
+        throw new Error("No valid access token available");
+    }
 
     try {
         const chatBody = {

@@ -1,5 +1,5 @@
 import { useMemo, useReducer } from 'react';
-import {HomeInitialState} from "@/pages/api//home/home.state";
+import {HomeInitialState} from "@/components/Home/Home.state";
 import {Conversation, Message} from "@/types/chat";
 import {condenseForConversationHistory} from "@/utils/app/conversation";
 import {v4 as uuidv4} from "uuid";

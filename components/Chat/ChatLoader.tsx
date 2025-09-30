@@ -1,6 +1,6 @@
 import { FC, useContext } from 'react';
 import { Amplify } from './Avatars';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 
 interface Props { }
 

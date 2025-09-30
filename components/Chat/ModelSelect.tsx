@@ -5,7 +5,7 @@ import { useTranslation } from 'next-i18next';
 
 import { Model } from '@/types/model';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
 import React from 'react';
@@ -75,7 +75,7 @@ export const ModelSelect: React.FC<Props> = ({
 
   const models = presetModels ? presetModels : 
              applyModelFilter ? filterModels(availableModels, getSettings(featureFlags).hiddenModelIds)
-                              : Object.values(availableModels);
+                              : (Object.values(availableModels) as Model[]);
 
 
   useEffect(() => {

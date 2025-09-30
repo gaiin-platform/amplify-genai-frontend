@@ -1,7 +1,7 @@
 // src/hooks/useChatService.js
 import {incrementalJSONtoCSV} from "@/utils/app/incrementalCsvParser";
 import {useContext} from 'react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import {killRequest as killReq, MetaHandler, sendChatRequestWithDocuments} from '../services/chatService';
 import {ChatBody, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {ColumnsSpec, generateCSVSchema} from "@/utils/app/csv";
@@ -11,6 +11,7 @@ import {getSession} from "next-auth/react"
 import json5 from "json5";
 import {newStatus} from "@/types/workflow";
 import { DefaultModels } from "@/types/model";
+import { getClientJWT } from '@/utils/client/getClientJWT';
 
 export function useChatService() {
     const {
@@ -21,15 +22,13 @@ export function useChatService() {
     } = useContext(HomeContext);
 
     const killRequest = async (requestId:string) => {
-        const session = await getSession();
+        const accessToken = await getClientJWT();
 
-        // @ts-ignore
-        if(!session || !session.accessToken || !chatEndpoint){
+        if(!accessToken || !chatEndpoint){
             return false;
         }
 
-        // @ts-ignore
-        const result = await killReq(chatEndpoint, session.accessToken, requestId);
+        const result = await killReq(chatEndpoint, accessToken, requestId);
 
         return result;
     }
@@ -151,9 +150,11 @@ export function useChatService() {
 
         const targetEndpoint = chatBody.endpoint || chatEndpoint;
 
-        response = getSession().then((session) => {
-            // @ts-ignore
-            return sendChatRequestWithDocuments(targetEndpoint, session.accessToken, chatBody, abortSignal, metaHandler);
+        response = getClientJWT().then((accessToken) => {
+            if (!accessToken) {
+                throw new Error("No valid JWT access token available");
+            }
+            return sendChatRequestWithDocuments(targetEndpoint, accessToken, chatBody, abortSignal, metaHandler);
         }).catch((e) => {
             if(chatBody.assistantId){
                 alert("The assistant you sent the message to is currently unavailable. Please try again in a minute.");

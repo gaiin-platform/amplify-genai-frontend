@@ -35,10 +35,10 @@ export const remoteOpHandler = (opDef:OpDef, chatEndpoint: string, model: Model)
             const headers = {
                 "Content-Type": "application/json"
             }
+            // Note: Authorization header is added by the /api/requestOp endpoint
+            // which has access to the session via getServerSession
             if (includeAccessToken){
-                console.log("Including access token");
-                // @ts-ignore
-                headers["Authorization"] = `Bearer ${session?.accessToken}` // Assuming the API Gateway/Lambda expects a Bearer token
+                console.log("Access token will be included by requestOp endpoint");
             }
 
             const req:Record<string,any> = {

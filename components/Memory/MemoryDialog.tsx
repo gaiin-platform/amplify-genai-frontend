@@ -3,7 +3,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from 'next/router';
 import { Modal } from '../ReusableComponents/Modal';
 import { doReadMemoryOp, doEditMemoryOp, doRemoveMemoryOp } from '../../services/memoryService';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import { Toggle } from '@/components/ReusableComponents/Toggle';
 import MemoryTreeView from './MemoryTreeView';
 import {

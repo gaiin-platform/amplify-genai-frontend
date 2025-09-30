@@ -40,9 +40,8 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
     // Use the timzezone to get the user's local time
     const time = new Date().toLocaleString('en-US', {timeZone: timeZone});
 
-    // Check if we should use the LLM router endpoint
-    const useLLMRouter = process.env.NEXT_PUBLIC_LLM_ROUTER_ENDPOINT && 
-                        ['bedrock', 'gemini', 'openai'].includes(chatBody.model.provider?.toLowerCase());
+    // ALWAYS route bedrock, gemini, and openai through our handler to fix display issue
+    const providerNeedsHandler = ['bedrock', 'gemini', 'openai'].includes(chatBody.model.provider?.toLowerCase());
     
     let requestBody: any = {
         model: chatBody.model.id,
@@ -67,12 +66,12 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
         }
     }
     
-    // If using LLM router, add provider information
-    if (useLLMRouter) {
+    // If using these providers, add provider information for our handler
+    if (providerNeedsHandler) {
         requestBody = {
             ...requestBody,
             provider: chatBody.model.provider,
-            // For LLM router, we send messages differently
+            // For these providers, we send messages differently
             messages: chatBody.messages,
             prompt: chatBody.prompt
         };
@@ -82,9 +81,8 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
 
     const body = JSON.stringify(requestBody);
     
-    // Use LLM router endpoint if configured and provider supports it
-    const finalEndpoint = useLLMRouter && process.env.NEXT_PUBLIC_LLM_ROUTER_ENDPOINT ? 
-                         process.env.NEXT_PUBLIC_LLM_ROUTER_ENDPOINT : endpoint;
+    // ALWAYS use local handler for these providers to convert JSON to SSE
+    const finalEndpoint = providerNeedsHandler ? '/api/chat/amplify-handler' : endpoint;
 
     const res = await fetch(finalEndpoint, {
         method: 'POST',
@@ -103,7 +101,7 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
     const decoder = new TextDecoder();
 
     if (res.status !== 200) {
-        const result = await res.json();
+        const result = await res.json().catch(() => ({ error: 'Unknown error' }));
         let error = 'Error communicating with the server. Please try again in a minute.';
         if (result.error) {
             error = result.error;
@@ -252,8 +250,15 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
                             }
 
                             const text = json.choices[0].delta.content;
-                            const queue = encoder.encode(text);
-                            controller.enqueue(queue);
+                            // Debug logging
+                            if (chatBody.model.provider && ['bedrock', 'gemini', 'openai'].includes(chatBody.model.provider.toLowerCase())) {
+                                console.log('[SSE Debug] Received delta:', json.choices[0].delta, 'Content:', text);
+                            }
+                            // Only enqueue if there's actual content
+                            if (text !== undefined && text !== null) {
+                                const queue = encoder.encode(text);
+                                controller.enqueue(queue);
+                            }
                         }
                     } catch (e) {
                         // Apparent edge case required for Azure

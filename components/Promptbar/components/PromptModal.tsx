@@ -4,7 +4,7 @@ import { useTranslation } from 'next-i18next';
 import JSON5 from 'json5'
 import { Prompt } from '@/types/prompt';
 import {MessageType} from "@/types/chat";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import {variableTypeOptions, parsePromptVariableValues, parsePromptVariables, getType, getName} from "@/utils/app/prompts";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import EditableField from "@/components/Promptbar/components/EditableField";

@@ -1,0 +1,8 @@
+# Quick patch based on v6
+FROM 135808927724.dkr.ecr.us-east-1.amazonaws.com/dev-amplifygenai-repo:v6
+
+# Copy updated files
+COPY --chown=nextjs:nodejs pages/api/public/chat.ts ./pages/api/public/chat.ts
+COPY --chown=nextjs:nodejs services/chatService.ts ./services/chatService.ts
+
+# The app should automatically pick up these changes

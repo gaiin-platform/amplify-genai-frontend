@@ -1,5 +1,5 @@
 import {useContext, useEffect, useState} from "react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import {IconKey, IconUser} from "@tabler/icons-react";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import { useSession } from "next-auth/react"

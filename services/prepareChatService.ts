@@ -1,6 +1,7 @@
 import {  Conversation, Message } from "@/types/chat";
 import {getSession} from "next-auth/react"
 import { sendChatRequestWithDocuments } from "./chatService";
+import { getClientJWT } from '@/utils/client/getClientJWT';
 import { Artifact, ArtifactBlockDetail } from "@/types/artifacts";
 import { messageTopicData, messageTopicDataPast } from "@/types/topics";
 import { lzwUncompress } from "@/utils/app/lzwCompression";
@@ -247,10 +248,10 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
     
     const controller = new AbortController();
     
-    const accessToken = await getSession().then((session) => { 
-                                // @ts-ignore
-                                return session.accessToken
-                            })
+    const accessToken = await getClientJWT();
+    if (!accessToken) {
+        return defaultResponse(); // Return default if no access token
+    }
     let customInstructions = isSmartMessagesOn ? DIVIDER_CUSTOM_INSTRUCTIONS : "";
 
     const topicData = gatherDataForPrompt(cloneDeep(conversation), isSmartMessagesOn, isArtifactsOn);

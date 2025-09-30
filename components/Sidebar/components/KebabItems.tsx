@@ -1,4 +1,4 @@
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import { CheckItemType } from "@/types/checkItem";
 import { FC, useContext, useState } from "react";
 import React from "react";

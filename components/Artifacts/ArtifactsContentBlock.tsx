@@ -8,7 +8,7 @@ import VegaVis from "@/components/Chat/ChatContentBlocks/VegaVisBlock";
 import {useArtifactPromptFinderService} from "@/hooks/usePromptFinderArtifactService";
 import {parsePartialJson} from "@/utils/app/data";
 import {useContext, useEffect, useRef, useState} from "react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import { Artifact } from "@/types/artifacts";
 import { lzwUncompress } from "@/utils/app/lzwCompression";
 import DOMPurify from "dompurify";

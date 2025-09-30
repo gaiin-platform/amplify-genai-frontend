@@ -1,0 +1,37 @@
+FROM --platform=linux/amd64 node:18-alpine AS deps
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+
+FROM --platform=linux/amd64 node:18-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+
+# Copy everything except what's in .dockerignore
+COPY . .
+
+# Build with environment variables
+ENV NEXT_PUBLIC_LLM_ROUTER_ENDPOINT=https://x18hnd6yh6.execute-api.us-east-1.amazonaws.com/prod/proxy/llm
+ENV NEXT_PUBLIC_MIXPANEL_TOKEN=""
+ENV NEXT_PUBLIC_LOCAL_SERVICES=""
+
+RUN npm run build
+
+FROM --platform=linux/amd64 node:18-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV production
+
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nextjs -u 1001
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+EXPOSE 3000
+ENV PORT 3000
+
+CMD ["node", "server.js"]

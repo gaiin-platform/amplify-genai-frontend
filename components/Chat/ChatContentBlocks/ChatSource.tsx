@@ -1,4 +1,4 @@
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import { DataSource } from '@/types/chat';
 import { downloadDataSourceFile } from '@/utils/app/files';
 import { useSession } from 'next-auth/react';

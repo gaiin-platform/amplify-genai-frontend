@@ -1,6 +1,6 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import { Account, noCoaAccount } from "@/types/accounts";
 import { Accounts } from './Account';
 import { ApiKeys } from './ApiKeys';

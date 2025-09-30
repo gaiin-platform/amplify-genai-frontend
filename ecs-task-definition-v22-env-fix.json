@@ -1,0 +1,121 @@
+{
+  "family": "hfu-hfu-amplify-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::135808927724:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::135808927724:role/hfu-hfu-amplify-task-role",
+  "containerDefinitions": [
+    {
+      "name": "hfu-amplifyApp",
+      "image": "135808927724.dkr.ecr.us-east-1.amazonaws.com/dev-amplifygenai-repo:v21",
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "PORT",
+          "value": "3000"
+        },
+        {
+          "name": "NEXTAUTH_URL",
+          "value": "https://hfu-amplify.org"
+        },
+        {
+          "name": "NEXTAUTH_URL_INTERNAL",
+          "value": "https://hfu-amplify.org"
+        },
+        {
+          "name": "NEXT_PUBLIC_DEFAULT_AUTH_PROVIDER",
+          "value": "cognito"
+        },
+        {
+          "name": "NEXT_PUBLIC_AUTH_ENABLED",
+          "value": "true"
+        },
+        {
+          "name": "NEXT_PUBLIC_ENABLE_STREAMING",
+          "value": "true"
+        },
+        {
+          "name": "NEXT_PUBLIC_LLM_ROUTER_ENDPOINT",
+          "value": "https://x18hnd6yh6.execute-api.us-east-1.amazonaws.com/prod/proxy/llm"
+        },
+        {
+          "name": "NEXT_PUBLIC_API_BASE_URL",
+          "value": "https://qfgrhljoh0.execute-api.us-east-1.amazonaws.com/prod"
+        },
+        {
+          "name": "NEXT_PUBLIC_APP_NAME",
+          "value": "HFU Amplify"
+        },
+        {
+          "name": "NEXT_PUBLIC_APP_VERSION",
+          "value": "1.0.21"
+        },
+        {
+          "name": "CHAT_ENDPOINT",
+          "value": "https://qfgrhljoh0.execute-api.us-east-1.amazonaws.com/prod/amplify/chat"
+        },
+        {
+          "name": "API_BASE_URL",
+          "value": "https://qfgrhljoh0.execute-api.us-east-1.amazonaws.com/prod"
+        },
+        {
+          "name": "COGNITO_ISSUER",
+          "value": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_PgwOR439P"
+        },
+        {
+          "name": "COGNITO_DOMAIN",
+          "value": "https://amplify-prod-auth-1753145624.auth.us-east-1.amazoncognito.com"
+        },
+        {
+          "name": "NEXT_TELEMETRY_DISABLED",
+          "value": "1"
+        },
+        {
+          "name": "TRUST_PROXY",
+          "value": "true"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "NEXTAUTH_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:135808927724:secret:amplify/nextauth-secret-LIsree:NEXTAUTH_SECRET::"
+        },
+        {
+          "name": "COGNITO_CLIENT_ID",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:135808927724:secret:amplify/cognito-credentials-IofBy1:CLIENT_ID::"
+        },
+        {
+          "name": "COGNITO_CLIENT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:135808927724:secret:amplify/cognito-credentials-IofBy1:CLIENT_SECRET::"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/hfu-amplify",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}

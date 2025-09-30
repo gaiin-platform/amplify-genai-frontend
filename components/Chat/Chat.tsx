@@ -23,7 +23,7 @@ import {throttle} from '@/utils/data/throttle';
 import {Conversation, DataSource, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin} from '@/types/plugin';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 
 import Spinner from '../Spinner';
 import {ChatInput} from './ChatInput';
@@ -163,7 +163,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }
 
         const getSelectModel = () => {
-            const model: Model | undefined = Object.values(availableModels)
+            const model: Model | undefined = (Object.values(availableModels) as Model[])
                                                    .find((model: Model) => model.id === selectedModelId);
             return model;
         }
@@ -290,7 +290,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
             if (astModel && selectedModelId !== astModel) setSelectedModelId(astModel);
             if (astModel && selectedConversation && selectedConversation.model?.id !== astModel) {
-                const model:Model | undefined = Object.values(availableModels).find(
+                const model:Model | undefined = (Object.values(availableModels) as Model[]).find(
                                                           (model: Model) => model.id === astModel,
                                                    );
                 if (model) handleUpdateSelectedConversation({...selectedConversation, model: model});
@@ -1161,7 +1161,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             </>
                                         )}               
                                         {` `}{selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
-                                                                ? Object.values(availableModels).find(m => m.id === selectedAssistant.definition?.data?.model)?.name 
+                                                                ? (Object.values(availableModels) as Model[]).find(m => m.id === selectedAssistant.definition?.data?.model)?.name 
                                                                 : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
                                         <button
                                             className="ml-2 cursor-pointer hover:opacity-50"

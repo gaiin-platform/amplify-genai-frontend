@@ -6,7 +6,7 @@ import {DataSource} from "@/types/chat";
 import DataSourcesTableScrolling from "@/components/DataSources/DataSourcesTableScrolling";
 import {UserTagsList} from "@/components/UserTags/UserTagsList";
 import { getConnectedIntegrations } from '@/services/oauthIntegrationsService';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import { capitalize } from '@/utils/app/data';
 import DataSourcesTableScrollingIntegrations from './DataSourcesTableScrollingIntegrations';
 

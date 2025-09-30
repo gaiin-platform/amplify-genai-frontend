@@ -4,7 +4,7 @@ import { snakeCaseToTitleCase } from "@/utils/app/data";
 import { IconPlus } from "@tabler/icons-react";
 import { useContext, useEffect, useState } from "react";
 import { AssistantWorkflowBuilder } from "./AssistantWorkflowBuilder";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 
 
 interface Props {

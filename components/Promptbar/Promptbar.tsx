@@ -7,7 +7,7 @@ import { createEmptyPrompt, savePrompts } from '@/utils/app/prompts';
 
 import { Prompt } from '@/types/prompt';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 
 import { PromptFolders } from './components/PromptFolders';
 import { Prompts } from './components/Prompts';

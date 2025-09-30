@@ -11,7 +11,7 @@ import { exportData, importData } from '@/utils/app/importExport';
 import { Conversation } from '@/types/chat';
 import { LatestExportFormat, SupportedExportFormats } from '@/types/export';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 
 import {ChatbarSettings} from "@/components/Chatbar/components/ChatbarSettings";
 

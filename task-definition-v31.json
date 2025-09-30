@@ -1,0 +1,112 @@
+{
+    "taskDefinitionArn": "arn:aws:ecs:us-east-1:135808927724:task-definition/dev-amplifygenai-task:1",
+    "containerDefinitions": [
+        {
+            "name": "dev-amplifygenai-container",
+            "image": "135808927724.dkr.ecr.us-east-1.amazonaws.com/dev-amplifygenai-repo:v31",
+            "cpu": 0,
+            "portMappings": [
+                {
+                    "containerPort": 3000,
+                    "hostPort": 3000,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {
+                    "name": "API_BASE_URL",
+                    "value": "https://qfgrhljoh0.execute-api.us-east-1.amazonaws.com/prod"
+                },
+                {
+                    "name": "CHAT_ENDPOINT",
+                    "value": "https://qfgrhljoh0.execute-api.us-east-1.amazonaws.com/prod/amplify/chat"
+                },
+                {
+                    "name": "NEXTAUTH_SECRET",
+                    "value": "k0hQgPid73ExcDT/6G1T5PBtkW4wISYvAAV4fpL3sO4="
+                },
+                {
+                    "name": "COGNITO_CLIENT_SECRET",
+                    "value": "p2np9r5nt5nptnc74gv65q7siigo8a0rim211ai1nqmqvl7ssuk"
+                },
+                {
+                    "name": "COGNITO_DOMAIN",
+                    "value": "https://amplify-prod-auth-1753145624.auth.us-east-1.amazoncognito.com"
+                },
+                {
+                    "name": "NEXTAUTH_URL",
+                    "value": "https://hfu-amplify.org"
+                },
+                {
+                    "name": "NEXT_PUBLIC_LLM_ROUTER_ENDPOINT",
+                    "value": "https://x18hnd6yh6.execute-api.us-east-1.amazonaws.com/prod/proxy/llm"
+                },
+                {
+                    "name": "COGNITO_ISSUER",
+                    "value": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_PgwOR439P"
+                },
+                {
+                    "name": "COGNITO_CLIENT_ID",
+                    "value": "2rq8ekafegrh5mcd51q80rt0bh"
+                }
+            ],
+            "mountPoints": [],
+            "volumesFrom": [],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/dev-amplifygenai-task",
+                    "awslogs-region": "us-east-1",
+                    "awslogs-stream-prefix": "ecs"
+                }
+            },
+            "systemControls": []
+        }
+    ],
+    "family": "dev-amplifygenai-task",
+    "taskRoleArn": "arn:aws:iam::135808927724:role/dev-amplifygenai-ecs-task-role",
+    "executionRoleArn": "arn:aws:iam::135808927724:role/dev-amplifygenai-ecs-task-execution-role",
+    "networkMode": "awsvpc",
+    "revision": 1,
+    "volumes": [],
+    "status": "ACTIVE",
+    "requiresAttributes": [
+        {
+            "name": "com.amazonaws.ecs.capability.logging-driver.awslogs"
+        },
+        {
+            "name": "ecs.capability.execution-role-awslogs"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.ecr-auth"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.19"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.task-iam-role"
+        },
+        {
+            "name": "ecs.capability.execution-role-ecr-pull"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18"
+        },
+        {
+            "name": "ecs.capability.task-eni"
+        }
+    ],
+    "placementConstraints": [],
+    "compatibilities": [
+        "EC2",
+        "FARGATE"
+    ],
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "256",
+    "memory": "512",
+    "registeredAt": "2025-08-25T10:36:49.066000-04:00",
+    "registeredBy": "arn:aws:iam::135808927724:user/amplify-deploy-agent"
+}

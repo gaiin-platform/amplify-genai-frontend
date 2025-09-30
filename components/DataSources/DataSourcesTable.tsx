@@ -10,7 +10,7 @@ import {
     MRT_ToggleFiltersButton,
 } from 'mantine-react-table';
 import {MantineProvider} from "@mantine/core";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags, getFileDownloadUrl, reprocessFile} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
 import { downloadDataSourceFile, deleteDatasourceFile } from '@/utils/app/files';

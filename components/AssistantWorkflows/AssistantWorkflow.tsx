@@ -4,7 +4,7 @@ import { AstWorkflow, Step } from "@/types/assistantWorkflows";
 import { useState, useEffect, useContext, useRef } from "react";
 import Checkbox from "@/components/ReusableComponents/CheckBox";
 import { IconBulb, IconChevronDown, IconChevronRight } from "@tabler/icons-react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import { camelCaseToTitle, capitalize } from "@/utils/app/data";
 import cloneDeep from 'lodash/cloneDeep';
 import InputsMap from "../ReusableComponents/InputMap";

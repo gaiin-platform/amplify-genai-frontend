@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import Search from '../Search';
 import { KebabMenu } from './components/KebabMenu';
 import { SortType } from '@/types/folder';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import { getSettings } from '@/utils/app/settings';
 
 

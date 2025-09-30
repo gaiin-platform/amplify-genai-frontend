@@ -1,5 +1,5 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import { IconCheck, IconFiles, IconPlus, IconSettings, IconTrashX, IconX } from '@tabler/icons-react';
 import { AssistantModal } from '../Promptbar/components/AssistantModal';
 import { Prompt } from '@/types/prompt';

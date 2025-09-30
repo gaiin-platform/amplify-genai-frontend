@@ -4,7 +4,7 @@ import {
     IconInfoCircle,
     IconRocket,
 } from '@tabler/icons-react';
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import {useSession} from "next-auth/react";
 import { ImportAnythingModal, ImportFetcher } from '../Share/ImportAnythingModal';
 import { loadSharedItem } from '@/services/shareService';

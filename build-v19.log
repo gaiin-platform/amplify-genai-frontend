@@ -1,0 +1,396 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile.standalone
+#1 transferring dockerfile: 2.01kB done
+#1 WARN: FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 2)
+#1 WARN: FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 39)
+#1 DONE 0.0s
+
+#2 [auth] library/node:pull token for registry-1.docker.io
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/node:18-alpine
+#3 DONE 0.3s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 267B done
+#4 DONE 0.0s
+
+#5 [base 1/3] FROM docker.io/library/node:18-alpine@sha256:8d6421d663b4c28fd3ebc498332f249011d118945588d0a35cb9bc4b8ca09d9e
+#5 resolve docker.io/library/node:18-alpine@sha256:8d6421d663b4c28fd3ebc498332f249011d118945588d0a35cb9bc4b8ca09d9e 0.0s done
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 transferring context: 65.15kB 0.1s done
+#6 DONE 0.1s
+
+#7 [base 2/3] WORKDIR /app
+#7 CACHED
+
+#8 [base 3/3] COPY package*.json ./
+#8 CACHED
+
+#9 [build 1/3] COPY . .
+#9 DONE 0.4s
+
+#10 [build 2/3] RUN npm ci
+#10 6.784 npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+#10 10.43 npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+#10 10.94 npm warn deprecated glob@7.1.7: Glob versions prior to v9 are no longer supported
+#10 14.88 npm warn deprecated @types/moment-timezone@0.5.30: This is a stub types definition. moment-timezone provides its own type definitions, so you do not need this installed.
+#10 15.82 npm warn deprecated @humanwhocodes/object-schema@2.0.3: Use @eslint/object-schema instead
+#10 15.86 npm warn deprecated @humanwhocodes/config-array@0.11.14: Use @eslint/config-array instead
+#10 24.14 npm warn deprecated eslint@8.36.0: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+#10 45.02 
+#10 45.02 added 978 packages, and audited 979 packages in 44s
+#10 45.02 
+#10 45.02 294 packages are looking for funding
+#10 45.02   run `npm fund` for details
+#10 45.06 
+#10 45.06 8 vulnerabilities (2 low, 5 moderate, 1 critical)
+#10 45.06 
+#10 45.06 To address issues that do not require attention, run:
+#10 45.06   npm audit fix
+#10 45.06 
+#10 45.06 To address all issues (including breaking changes), run:
+#10 45.06   npm audit fix --force
+#10 45.06 
+#10 45.06 Run `npm audit` for details.
+#10 45.07 npm notice
+#10 45.07 npm notice New major version of npm available! 10.8.2 -> 11.5.2
+#10 45.07 npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.5.2
+#10 45.07 npm notice To update run: npm install -g npm@11.5.2
+#10 45.07 npm notice
+#10 DONE 46.9s
+
+#11 [build 3/3] RUN npm run build
+#11 2.219 
+#11 2.219 > amplify-genai@0.7.5 build
+#11 2.219 > next build
+#11 2.219 
+#11 3.627 Attention: Next.js now collects completely anonymous telemetry regarding usage.
+#11 3.628 This information is used to shape Next.js' roadmap and prioritize features.
+#11 3.628 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+#11 3.628 https://nextjs.org/telemetry
+#11 3.628 
+#11 3.698   ▲ Next.js 14.2.27
+#11 3.698   - Environments: .env.production
+#11 3.698 
+#11 3.699    Linting and checking validity of types ...
+#11 21.81 
+#11 21.81 ./pages/api/home/home.tsx
+#11 21.81 239:8  Warning: React Hook useEffect has a missing dependency: 'dispatch'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 244:8  Warning: React Hook useEffect has a missing dependency: 'dispatch'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 610:8  Warning: React Hook useEffect has missing dependencies: 'messageIsStreaming' and 'selectedConversation'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 667:8  Warning: React Hook useEffect has a missing dependency: 'dispatch'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 672:8  Warning: React Hook useEffect has a missing dependency: 'user'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 1170:8  Warning: React Hook useEffect has missing dependencies: 'checkScrollableContent', 'dispatch', 'getDefaultModel', 'handleUpdateSelectedConversation', 'initialRender', 'selectedConversation', 'storageSelection', and 'workspaces'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 1331:8  Warning: React Hook useEffect has missing dependencies: 'dispatch', 'featureFlags', 'getDefaultModel', and 't'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./pages/assistants/[assistantSlug].tsx
+#11 21.81 146:6  Warning: React Hook useEffect has a missing dependency: 'selectedModel'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Admin/AdminComponents/FeatureData.tsx
+#11 21.81 855:4  Warning: React Hook useEffect has missing dependencies: 'completeCheck' and 'uploadedDocument'. Either include them or remove the dependency array. If 'completeCheck' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Admin/AdminUI.tsx
+#11 21.81 136:8  Warning: React Hook useEffect has missing dependencies: 'getActiveIntegrations', 'integrations', and 'stillLoadingData'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 209:10  Warning: React Hook useEffect has missing dependencies: 'allEmails', 'amplifyUsers', 'defaultConversationStorage', 'emailSupport', 'getActiveIntegrations', 'onClose', 'promptCostAlert', 'rateLimit', and 'setLoadingMessage'. Either include them or remove the dependency array. If 'onClose' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Admin/AssistantAdminUI.tsx
+#11 21.81 469:8  Warning: React Hook useEffect has a missing dependency: 'statsService'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 982:8  Warning: React Hook useEffect has a missing dependency: 'usersmap'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 1652:8  Warning: React Hook useEffect has missing dependencies: 'amplifyGroups' and 'systemUsers'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 1665:8  Warning: React Hook useEffect has missing dependencies: 'groups', 'homeDispatch', and 'user'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 1680:8  Warning: React Hook useEffect has missing dependencies: 'activeSubTab' and 'selectedAssistant'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 1684:8  Warning: React Hook useEffect has a missing dependency: 'activeSubTab'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 1695:8  Warning: React Hook useEffect has missing dependencies: 'filteredForAdminAccess' and 'groups'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 1722:8  Warning: React Hook useEffect has missing dependencies: 'selectedGroup' and 'statsService'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 1746:8  Warning: React Hook useEffect has missing dependencies: 'selectedGroup' and 'statsService'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 3022:8  Warning: React Hook useEffect has missing dependencies: 'additionalGroupData' and 'setAdditionalGroupData'. Either include them or remove the dependency array. If 'setAdditionalGroupData' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 3027:8  Warning: React Hook useEffect has missing dependencies: 'additionalGroupData' and 'setAdditionalGroupData'. Either include them or remove the dependency array. If 'setAdditionalGroupData' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Artifacts/ArtifactEditor.tsx
+#11 21.81 265:6  Warning: React Hook useEffect has a missing dependency: 'sandpackRef'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Artifacts/ArtifactPreview.tsx
+#11 21.81 209:8  Warning: React Hook useEffect has missing dependencies: 'files' and 'isStaticTemplate'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 267:8  Warning: React Hook useMemo has a missing dependency: 'isStaticTemplate'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 813:6  Warning: React Hook useEffect has missing dependencies: 'files', 'setupAngularFiles', 'setupReactFiles', and 'setupVueFiles'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Artifacts/Artifacts.tsx
+#11 21.81 75:8  Warning: React Hook useEffect has missing dependencies: 'codeBlocks' and 'getArtifactContents'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 131:8  Warning: React Hook useEffect has missing dependencies: 'allEmails', 'amplifyUsers', 'groups', and 'user'. Either include them or remove the dependency array. Outer scope values like 'open' aren't valid dependencies because mutating them doesn't re-render the component.  react-hooks/exhaustive-deps
+#11 21.81 193:8  Warning: React Hook useEffect has a missing dependency: 'cleanUp'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Artifacts/ArtifactsContentBlock.tsx
+#11 21.81 84:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+#11 21.81 84:21  Warning: img elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+#11 21.81 
+#11 21.81 ./components/AssistantWorkflows/AssistantWorkflow.tsx
+#11 21.81 61:7  Warning: React Hook useEffect has missing dependencies: 'onWorkflowTemplateUpdate' and 'workflowTemplate'. Either include them or remove the dependency array. If 'onWorkflowTemplateUpdate' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 69:8  Warning: React Hook useEffect has missing dependencies: 'internalTemplate?.templateId' and 'workflowTemplate'. Either include them or remove the dependency array. If 'setInternalTemplate' needs the current value of 'workflowTemplate', you can also switch to useReducer instead of useState and read 'workflowTemplate' in the reducer.  react-hooks/exhaustive-deps
+#11 21.81 117:8  Warning: React Hook useEffect has missing dependencies: 'computedDisabledSegments' and 'updateInternalWithDisabledSegments'. Either include them or remove the dependency array. If 'computedDisabledSegments' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/AssistantWorkflows/AssistantWorkflowBuilder.tsx
+#11 21.81 139:10  Warning: React Hook useEffect has a missing dependency: 'featureFlags.integrations'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 148:10  Warning: React Hook useEffect has a missing dependency: 'featureFlags.agentTools'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 173:6  Warning: React Hook useEffect has a missing dependency: 'selectedWorkflow'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/AssistantWorkflows/AssistantWorkflowSelector.tsx
+#11 21.81 37:8  Warning: React Hook useEffect has a missing dependency: 'workflowTemplates'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Assistants/ActiveAssistantsList.tsx
+#11 21.81 35:11  Warning: The 'baseAssistant' object makes the dependencies of useEffect Hook (at line 65) change on every render. To fix this, wrap the initialization of 'baseAssistant' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/Chat.tsx
+#11 21.81 144:12  Warning: React Hook useEffect has a missing dependency: 'featureFlags'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 254:12  Warning: React Hook useEffect has missing dependencies: 'chatEndpoint', 'getDefaultModel', 'handleUpdateSelectedConversation', 'isRenaming', 'messageIsStreaming', 'selectedModelId', and 'statsService'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 281:12  Warning: React Hook useEffect has missing dependencies: 'availableModels' and 'featureFlags'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 285:12  Warning: React Hook useEffect has a missing dependency: 'plugins'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 302:12  Warning: React Hook useEffect has missing dependencies: 'availableAstModelId', 'availableModels', 'handleUpdateSelectedConversation', and 'selectedModelId'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 307:12  Warning: React Hook useEffect has missing dependencies: 'handleResponseTokenChange' and 'responseSliderState'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 747:12  Warning: React Hook useCallback has a missing dependency: 'handleUpdateConversation'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 906:12  Warning: React Hook useEffect has a missing dependency: 'homeDispatch'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 962:12  Warning: React Hook useEffect has a missing dependency: 'userEmail'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/ChatContentBlocks/APIDocBlock.tsx
+#11 21.81 33:8  Warning: React Hook useEffect has missing dependencies: 'docFileContents' and 'messageIsStreaming'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 37:8  Warning: React Hook useEffect has a missing dependency: 'messageIsStreaming'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/ChatContentBlocks/ApiKeyBlock.tsx
+#11 21.81 89:8  Warning: React Hook useEffect has missing dependencies: 'data', 'op', and 'repairJson'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 184:8  Warning: React Hook useEffect has a missing dependency: 'op'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/ChatContentBlocks/ArtifactsBlock.tsx
+#11 21.81 43:8  Warning: React Hook useEffect has a missing dependency: 'artifacts'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 53:8  Warning: React Hook useEffect has a missing dependency: 'messageIndex'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/ChatContentBlocks/AssistantBlock.tsx
+#11 21.81 262:8  Warning: React Hook useEffect has missing dependencies: 'definition' and 'parseAssistant'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/ChatContentBlocks/AutoArtifactBlock.tsx
+#11 21.81 168:4  Warning: React Hook useEffect has missing dependencies: 'artifactIsStreaming', 'content', 'message.data.artifactStatus', and 'prepareArtifacts'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/ChatContentBlocks/AutonomousBlock.tsx
+#11 21.81 513:8  Warning: React Hook useEffect has a missing dependency: 'runAction'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/ChatContentBlocks/ChatCodeInterpreter.tsx
+#11 21.81 237:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+#11 21.81 256:4  Warning: React Hook useEffect has missing dependencies: 'csvOverflow' and 'pdfError'. Either include them or remove the dependency array. You can also replace multiple useState variables with useReducer if 'setFileContent' needs the current value of 'csvOverflow'.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/ChatContentBlocks/DataSourcesBlock.tsx
+#11 21.81 78:40  Warning: The ref value 'imageUrlsRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'imageUrlsRef.current' to a variable inside the effect, and use that variable in the cleanup function.  react-hooks/exhaustive-deps
+#11 21.81 82:8  Warning: React Hook React.useEffect has a missing dependency: 'getImage'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/ChatContentBlocks/InvokeBlock.tsx
+#11 21.81 369:6  Warning: React Hook useEffect has a missing dependency: 'runAction'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/ChatContentBlocks/MermaidBlock.tsx
+#11 21.81 198:8  Warning: React Hook useEffect has a missing dependency: 'messageIsStreaming'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 218:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+#11 21.81 
+#11 21.81 ./components/Chat/ChatContentBlocks/OpBlock.tsx
+#11 21.81 255:8  Warning: React Hook useEffect has missing dependencies: 'definition' and 'parseOp'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/ChatContentBlocks/VegaVisBlock.tsx
+#11 21.81 45:8  Warning: React Hook useEffect has a missing dependency: 'repairJson'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/ChatInput.tsx
+#11 21.81 134:8  Warning: React Hook useEffect has missing dependencies: 'availableModels' and 'featureFlags'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 139:8  Warning: React Hook useEffect has a missing dependency: 'featureFlags'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 197:8  Warning: React Hook useEffect has missing dependencies: 'artifactIsStreaming' and 'messageIsStreaming'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 636:8  Warning: React Hook useEffect has a missing dependency: 'textareaRef'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 740:8  Warning: React Hook useEffect has a missing dependency: 'homeDispatch'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 744:8  Warning: React Hook useEffect has missing dependencies: 'plugins' and 'setPlugins'. Either include them or remove the dependency array. If 'setPlugins' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 755:8  Warning: React Hook useEffect has missing dependencies: 'featureFlags.memory', 'plugins', and 'setPlugins'. Either include them or remove the dependency array. If 'setPlugins' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 769:8  Warning: React Hook useEffect has missing dependencies: 'plugins' and 'setPlugins'. Either include them or remove the dependency array. If 'setPlugins' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 779:8  Warning: React Hook useEffect has a missing dependency: 'setPlugins'. Either include it or remove the dependency array. If 'setPlugins' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/ChatMessage.tsx
+#11 21.81 96:8  Warning: React Hook useEffect has a missing dependency: 'featureFlags'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/CloudStorage.tsx
+#11 21.81 52:6  Warning: React Hook useEffect has missing dependencies: 'checkConvLocked' and 'inCloud'. Either include them or remove the dependency array. You can also do a functional update 'setInCloud(i => ...)' if you only need 'inCloud' in the 'setInCloud' call.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/FeaturePluginSelector/FeaturePlugins.tsx
+#11 21.81 120:8  Warning: React Hook useCallback has a missing dependency: 'stopDragging'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 130:8  Warning: React Hook useCallback has a missing dependency: 'homeDispatch'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/FeaturePluginSelector/PluginSelector.tsx
+#11 21.81 58:6  Warning: React Hook useEffect has missing dependencies: 'featureFlags', 'onPluginChange', and 'savePluginSelection'. Either include them or remove the dependency array. If 'onPluginChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 70:8  Warning: React Hook useEffect has missing dependencies: 'featureFlags' and 'filterPlugInList'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 86:6  Warning: React Hook useEffect has a missing dependency: 'savePluginSelection'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/FileList.tsx
+#11 21.81 141:8  Warning: React Hook useEffect has a missing dependency: 'documents'. Either include it or remove the dependency array. If 'setDataSources' needs the current value of 'documents', you can also switch to useReducer instead of useState and read 'documents' in the reducer.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/MemoryPresenter.tsx
+#11 21.81 39:8  Warning: React Hook useEffect has a missing dependency: 'featureFlags'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/ModelSelect.tsx
+#11 21.81 87:6  Warning: React Hook useEffect has missing dependencies: 'defaultModelId' and 'handleModelChange'. Either include them or remove the dependency array. If 'handleModelChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/OperationSelector.tsx
+#11 21.81 178:8  Warning: React Hook useEffect has missing dependencies: 'filteredOperations' and 'selectedOp'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/PromptHighlightedText.tsx
+#11 21.81 292:6  Warning: React Hook useEffect has a missing dependency: 'addCompositeButtons'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 296:6  Warning: React Hook useEffect has missing dependencies: 'artifactIsStreaming', 'clear', 'messageIsStreaming', and 'showComponent'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 329:6  Warning: React Hook useEffect has a missing dependency: 'position'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 407:6  Warning: React Hook useEffect has missing dependencies: 'handleHighlightSelection' and 'validateSelectionRange'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 687:6  Warning: React Hook useEffect has a missing dependency: 'clear'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/QiModal.tsx
+#11 21.81 51:8  Warning: React Hook useEffect has missing dependencies: 'conversation' and 'strippedConversation'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/Sliders/ResponseTokens.tsx
+#11 21.81 14:5  Warning: React Hook useEffect has a missing dependency: 'onResponseTokenRatioChange'. Either include it or remove the dependency array. If 'onResponseTokenRatioChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chat/VariableModal.tsx
+#11 21.81 172:8  Warning: React Hook useEffect has a missing dependency: 'conversationVariableMap'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 184:7  Warning: React Hook useEffect has missing dependencies: 'handleUpdateModel' and 'models'. Either include them or remove the dependency array. If 'handleUpdateModel' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chatbar/Chatbar.tsx
+#11 21.81 200:6  Warning: React Hook useEffect has missing dependencies: 'chatDispatch' and 'statsService'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chatbar/components/ChatbarSettings.tsx
+#11 21.81 55:8  Warning: React Hook useEffect has a missing dependency: 'featureFlags'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Chatbar/components/Conversation.tsx
+#11 21.81 70:6  Warning: React Hook useEffect has a missing dependency: 'conversation.id'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/DataSources/DataSourceSelector.tsx
+#11 21.81 56:8  Warning: React Hook useEffect has a missing dependency: 'featureFlags.integrations'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/DataSources/DataSourcesTable.tsx
+#11 21.81 403:9  Warning: React Hook useMemo has missing dependencies: 'deleteFile', 'downloadFile', and 'fileReprocessing'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/DataSources/DataSourcesTableScrolling.tsx
+#11 21.81 230:8  Warning: React Hook useCallback has a missing dependency: 'fetchFiles'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 495:9  Warning: React Hook useMemo has missing dependencies: 'deleteFile', 'downloadFile', and 'fileReprocessing'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/DataSources/DataSourcesTableScrollingIntegrations.tsx
+#11 21.81 327:9  Warning: React Hook useMemo has missing dependencies: 'downloadFile', 'enableDownload', and 'featureFlags.uploadDocuments'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Emails/EmailsList.tsx
+#11 21.81 123:8  Warning: React Hook useEffect has missing dependencies: 'allEmails', 'amplifyUsers', 'groups', and 'user'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Folder/Folder.tsx
+#11 21.81 148:6  Warning: React Hook useEffect has a missing dependency: 'currentFolder.type'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 154:6  Warning: React Hook useEffect has a missing dependency: 'currentFolder.type'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 158:6  Warning: React Hook useEffect has a missing dependency: 'currentFolder'. Either include it or remove the dependency array. If 'setIsChecked' needs the current value of 'currentFolder', you can also switch to useReducer instead of useState and read 'currentFolder' in the reducer.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Integrations/IntegrationsDialog.tsx
+#11 21.81 72:6  Warning: React Hook useEffect has a missing dependency: 'refreshUserIntegrations'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Market/Market.tsx
+#11 21.81 225:8  Warning: React Hook useEffect has missing dependencies: 'scrollToTop', 'search', and 'updateNavItems'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 999:69  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+#11 21.81 1125:69  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+#11 21.81 
+#11 21.81 ./components/Memory/MemoryDialog.tsx
+#11 21.81 88:8  Warning: React Hook useEffect has a missing dependency: 'loadMemories'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Memory/MemoryTreeView.tsx
+#11 21.81 97:8  Warning: React Hook useEffect has missing dependencies: 'buildMemoryTree' and 'collectAllPaths'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Operations/PythonFunctionModal.tsx
+#11 21.81 403:8  Warning: React Hook useEffect has a missing dependency: 'loadFunctionDetails'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Promptbar/Promptbar.tsx
+#11 21.81 268:6  Warning: React Hook useEffect has missing dependencies: 'featureFlags.overrideInvisiblePrompts', 'promptDispatch', and 'statsService'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Promptbar/components/AssistantModal.tsx
+#11 21.81 294:8  Warning: React Hook useEffect has missing dependencies: 'astPath', 'astPathData', and 'definition.assistantId'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 330:8  Warning: React Hook useEffect has missing dependencies: 'curAllowedSenders' and 'definition.data?.emailEvents?.tag'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 348:8  Warning: React Hook useEffect has a missing dependency: 'featureFlags.integrations'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 357:8  Warning: React Hook useEffect has a missing dependency: 'featureFlags.agentTools'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Promptbar/components/AssistantModalComponents/AssistantEmailEvents.tsx
+#11 21.81 84:8  Warning: React Hook useEffect has missing dependencies: 'assistantName', 'emailEventTag', and 'handleCheckIsTagAvailable'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Promptbar/components/AssistantModalComponents/AssistantPathEditor.tsx
+#11 21.81 69:8  Warning: React Hook useEffect has a missing dependency: 'amplifyGroups'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Promptbar/components/AssistantModalComponents/AssistantWorkflowDisplay.tsx
+#11 21.81 57:7  Warning: React Hook useEffect has missing dependencies: 'baseWorkflowTemplate' and 'getWorkflowTemplate'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 71:7  Warning: React Hook useEffect has missing dependencies: 'astWorkflowTemplate' and 'getWorkflowTemplate'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Promptbar/components/Prompt.tsx
+#11 21.81 189:8  Warning: React Hook useEffect has a missing dependency: 'prompt'. Either include it or remove the dependency array. If 'setIsChecked' needs the current value of 'prompt', you can also switch to useReducer instead of useState and read 'prompt' in the reducer.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/ReusableComponents/ActiveTabs.tsx
+#11 21.81 41:10  Warning: React Hook useEffect has a missing dependency: 'getInnerWindowSize'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/ReusableComponents/ItemsSelect.tsx
+#11 21.81 128:8  Warning: React Hook useEffect has missing dependencies: 'allPromptsChecked', 'getItems', and 'handleRootPromptIds'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 135:8  Warning: React Hook useEffect has missing dependencies: 'allConversationsChecked' and 'getItems'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 142:8  Warning: React Hook useEffect has missing dependencies: 'allFoldersChecked' and 'getItems'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 228:8  Warning: React Hook useEffect has missing dependencies: 'scrollToFirstSelected', 'selectedConversationsState', 'selectedFoldersState', and 'selectedPromptsState'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/ReusableComponents/Modal.tsx
+#11 21.81 65:6  Warning: React Hook useEffect has a missing dependency: 'getInnerWindowSize'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 76:6  Warning: React Hook useEffect has a missing dependency: 'getInnerWindowSize'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Settings/AccountComponents/Account.tsx
+#11 21.81 80:8  Warning: React Hook useEffect has a missing dependency: 'setUnsavedChanged'. Either include it or remove the dependency array. If 'setUnsavedChanged' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Settings/AccountComponents/AccountDialog.tsx
+#11 21.81 85:4  Warning: React Hook useEffect has a missing dependency: 'setLoadingMessage'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 101:8  Warning: React Hook useEffect has a missing dependency: 'fetchApiKeys'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 108:8  Warning: React Hook useEffect has a missing dependency: 'setLoadingMessage'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 121:8  Warning: React Hook useEffect has a missing dependency: 'fetchApiKeys'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Settings/AccountComponents/ApiKeys.tsx
+#11 21.81 131:8  Warning: React Hook useEffect has a missing dependency: 'setUnsavedChanges'. Either include it or remove the dependency array. If 'setUnsavedChanges' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 140:8  Warning: React Hook useEffect has missing dependencies: 'allEmails', 'amplifyUsers', and 'user'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 145:8  Warning: React Hook useEffect has a missing dependency: 'systemUse'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 150:8  Warning: React Hook useEffect has a missing dependency: 'user'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 893:8  Warning: React Hook useEffect has a missing dependency: 'setFullAccess'. Either include it or remove the dependency array. If 'setFullAccess' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 1001:8  Warning: React Hook useEffect has missing dependencies: 'csvUrl' and 'handleTabSwitch'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Settings/SettingDialog.tsx
+#11 21.81 160:6  Warning: React Hook useEffect has a missing dependency: 'statsService'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 168:6  Warning: React Hook useEffect has a missing dependency: 'featuresChanged'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 213:6  Warning: React Hook useEffect has missing dependencies: 'availableModels' and 'modelOptions'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Share/ImportAnythingModal.tsx
+#11 21.81 112:8  Warning: React Hook useEffect has a missing dependency: 'checkCanImport'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 300:8  Warning: React Hook useEffect has missing dependencies: 'importFetcher', 'importKey', 'onClose', and 'user'. Either include them or remove the dependency array. If 'importFetcher' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Share/ShareAnythingModal.tsx
+#11 21.81 87:8  Warning: React Hook useEffect has missing dependencies: 'selectedConversations', 'selectedFolders', and 'selectedPrompts'. Either include them or remove the dependency array. If 'setSelectedPrompts' needs the current value of 'selectedPrompts', you can also switch to useReducer instead of useState and read 'selectedPrompts' in the reducer.  react-hooks/exhaustive-deps
+#11 21.81 96:8  Warning: React Hook useEffect has a missing dependency: 'checkCanShare'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Share/ShareAnythingToMarketModal.tsx
+#11 21.81 348:8  Warning: React Hook useEffect has missing dependencies: 'selectedConversations', 'selectedFolders', and 'selectedPrompts'. Either include them or remove the dependency array. If 'setSelectedPrompts' needs the current value of 'selectedPrompts', you can also switch to useReducer instead of useState and read 'selectedPrompts' in the reducer.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Share/SharedItemList.tsx
+#11 21.81 66:8  Warning: React Hook useEffect has missing dependencies: 'fetchSWYData', 'groupedItems', and 'statsService'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Sidebar/components/KebabMenu.tsx
+#11 21.81 67:8  Warning: React Hook useEffect has a missing dependency: 'isConvSide'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/StandAloneAssistant/AssistantContentBlock.tsx
+#11 21.81 72:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+#11 21.81 72:15  Warning: img elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+#11 21.81 
+#11 21.81 ./components/TabSidebar/TabSidebar.tsx
+#11 21.81 121:8  Warning: React Hook useEffect has missing dependencies: 'childrenArray', 'handleAdmin', 'isArtifactsOpen', 'isMultipleTabs', 'isOpen', and 'side'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Workspace/ImportWorkspaceModal.tsx
+#11 21.81 121:7  Warning: React Hook useEffect has missing dependencies: 'handleConversationsCheck', 'handleFoldersCheck', and 'handlePromptsCheck'. Either include them or remove the dependency array. Outer scope values like 'open' aren't valid dependencies because mutating them doesn't re-render the component.  react-hooks/exhaustive-deps
+#11 21.81 338:8  Warning: React Hook useEffect has missing dependencies: 'conversations', 'folders', 'importKey', 'onCancel', 'prompts', and 'user'. Either include them or remove the dependency array. If 'onCancel' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Workspace/LegacyWorkspace.tsx
+#11 21.81 38:8  Warning: React Hook useEffect has a missing dependency: 'statsService'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Workspace/SaveWorkspaceModal.tsx
+#11 21.81 299:8  Warning: React Hook useEffect has missing dependencies: 'selectedConversations', 'selectedFolders', and 'selectedPrompts'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 ./components/Workspace/WorkspaceList.tsx
+#11 21.81 76:8  Warning: React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+#11 21.81 
+#11 21.81 info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/basic-features/eslint#disabling-rules
+#11 51.28    Creating an optimized production build ...

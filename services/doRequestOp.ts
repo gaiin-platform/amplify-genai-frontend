@@ -86,14 +86,35 @@ export const doRequestOp = async (opData: opData, abortSignal = null) => {
         if (response.ok) {
             try {
                 const encodedResult = await response.json();
-                // Decode response
-                return transformPayload.decode(encodedResult.data);
+                
+                // Check if the response has data and if it's base64 encoded
+                if (encodedResult.data && typeof encodedResult.data === 'string') {
+                    try {
+                        // Try to decode as base64
+                        return transformPayload.decode(encodedResult.data);
+                    } catch (decodeError) {
+                        console.warn('Failed to decode as base64, returning raw response:', decodeError);
+                        // If decode fails, return the raw response
+                        return encodedResult;
+                    }
+                } else {
+                    // If no data field or not a string, return the response as-is
+                    return encodedResult;
+                }
             } catch (e) {
+                console.error('Error parsing response:', e);
                 return { success: false, message: `Error parsing response from ${request}.` };
             }
         } else {
             console.log(`Error calling.\n ${request}: ${response.statusText}.`);
-            return { success: false, message: `Error calling ${request}: ${response.statusText}.` }
+            
+            // Try to get error details from response body
+            try {
+                const errorData = await response.json();
+                return { success: false, message: `Error calling ${request}: ${response.statusText}`, error: errorData };
+            } catch (e) {
+                return { success: false, message: `Error calling ${request}: ${response.statusText}.` }
+            }
         }
     } catch (error) {
         console.log(`Network Error calling ${request}: ${error}.`);

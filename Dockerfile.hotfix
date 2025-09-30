@@ -1,0 +1,35 @@
+FROM --platform=linux/amd64 node:18-alpine AS base
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+RUN npm ci --production
+
+# Copy source files
+COPY . .
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV NEXT_PUBLIC_LLM_ROUTER_ENDPOINT=https://x18hnd6yh6.execute-api.us-east-1.amazonaws.com/prod/proxy/llm
+
+# Build the app
+RUN npm run build
+
+# Production stage
+FROM --platform=linux/amd64 node:18-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV production
+
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nextjs -u 1001
+
+# Copy built application
+COPY --from=base --chown=nextjs:nodejs /app/public ./public
+COPY --from=base --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=base --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+EXPOSE 3000
+
+CMD ["node", "server.js"]

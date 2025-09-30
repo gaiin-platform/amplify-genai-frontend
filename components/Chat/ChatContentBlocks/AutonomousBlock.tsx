@@ -1,6 +1,6 @@
 
 import React, {useContext, useEffect, useRef} from "react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import {useSendService} from "@/hooks/useChatSendService";
 import {Conversation, Message, newMessage} from "@/types/chat";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
@@ -201,12 +201,12 @@ const AutonomousBlock: React.FC<Props> = (
 
             if(chats.length === 0){
                 console.log("No conversations found for the given ids. Searching for folders with the specified ids.");
-                const matchedFolders = folders.filter((f) => ids.includes(f.id));
+                const matchedFolders = folders.filter((f: FolderInterface) => ids.includes(f.id));
 
                 console.log("Matched folders:", matchedFolders);
 
-                matchedFolders.forEach((f) => {
-                    const folderChats = conversations.filter((c) => c.folderId === f.id);
+                matchedFolders.forEach((f: FolderInterface) => {
+                    const folderChats = conversations.filter((c: Conversation) => c.folderId === f.id);
                     console.log("Folder chats:", folderChats);
                     chats.push(...folderChats);
                 });
@@ -217,9 +217,9 @@ const AutonomousBlock: React.FC<Props> = (
               );
               
               // Filter out null or undefined values
-            const completeChats = getCompleteChats.filter((chat) => chat !== null && chat !== undefined);
+            const completeChats = getCompleteChats.filter((chat: Conversation | null | undefined) => chat !== null && chat !== undefined) as Conversation[];
 
-            const sampledMessagesPerChat = completeChats.map((c:any) => {
+            const sampledMessagesPerChat = completeChats.map((c: Conversation) => {
                 const messages = c.messages;
                 const sampledMessages = messages.slice(0, 6);
                 return {

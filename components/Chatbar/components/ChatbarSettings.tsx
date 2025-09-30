@@ -4,7 +4,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 
 import { useTranslation } from 'next-i18next';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 
 import { SettingDialog } from '@/components/Settings/SettingDialog';
 

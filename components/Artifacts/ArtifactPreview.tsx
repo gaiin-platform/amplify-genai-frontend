@@ -9,7 +9,7 @@ import {
 import { CodeBlockDetails } from '@/utils/app/codeblock';
 import { getSettings } from '@/utils/app/settings';
 import DOMPurify from 'dompurify';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import { IconAlertCircle, IconPresentation } from '@tabler/icons-react';
 import { SandpackErrorMessage, SandpackMessage, SandpackMessageConsoleMethods } from '@codesandbox/sandpack-client';
 

@@ -14,6 +14,7 @@ import {  Message } from "@/types/chat";
 import { Model } from "@/types/model";
 import {getSession } from "next-auth/react"
 import { sendChatRequestWithDocuments } from "@/services/chatService";
+import { getClientJWT } from '@/utils/client/getClientJWT';
 import cloneDeep from 'lodash/cloneDeep';
 
 
@@ -22,10 +23,18 @@ export const promptForData = async (chatEndpoint:string, messages: Message[], mo
                                      prompt: string, statsService: any = null, maxTokens: number = 4000) => {
     const controller = new AbortController();
     
-     const accessToken = await getSession().then((session) => { 
-                                // @ts-ignore
-                                return session.accessToken
-                            })
+     let accessToken = await getClientJWT();
+     if (!accessToken) {
+         // Fallback: try to get token directly from session
+         const session = await getSession();
+         if (session && (session as any).accessToken) {
+             accessToken = (session as any).accessToken;
+         }
+     }
+     
+     if (!accessToken) {
+         throw new Error("No valid access token available");
+     }
 
     try {
         const updatedMessages = cloneDeep(messages);

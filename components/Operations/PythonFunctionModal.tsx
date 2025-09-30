@@ -31,12 +31,13 @@ import { Model } from "@/types/model";
 
 
 
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 
 
 
 import PromptTextArea from "@/components/PromptTextArea/PromptTextArea";
 import {getSession} from "next-auth/react";
+import { getClientJWT } from '@/utils/client/getClientJWT';
 
 
 interface Props {
@@ -307,9 +308,8 @@ if __name__ == "__main__":
     const [dependencies, setDependencies] = useState('');
 
     useEffect(() => {
-        getSession().then((session) => {
-            // @ts-ignore
-            setAccessToken(session.accessToken || null);
+        getClientJWT().then((token) => {
+            setAccessToken(token);
         });
     }, []);
 

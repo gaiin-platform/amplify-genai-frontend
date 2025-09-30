@@ -2,7 +2,7 @@ import { FC, useContext, useEffect, useRef } from 'react';
 
 import { DEFAULT_TEMPERATURE } from '@/utils/app/const';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import { Slider } from '../../ReusableComponents/Slider';
 
 interface Props {

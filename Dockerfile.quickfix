@@ -1,0 +1,18 @@
+FROM --platform=linux/amd64 135808927724.dkr.ecr.us-east-1.amazonaws.com/prod-amplifygenai-repo:v6
+
+# Switch to root to copy files
+USER root
+
+# Copy the fixed chat service that always uses direct endpoint
+COPY services/chatService-fixed.ts /app/services/chatService.ts
+COPY pages/api/direct/chat.ts /app/pages/api/direct/
+
+# Fix permissions
+RUN chown -R appuser:appgroup /app/services/chatService.ts /app/pages/api/direct/chat.ts
+
+# Switch back to appuser
+USER appuser
+
+# The app is already built in v6, so we just need to start it
+EXPOSE 3000
+CMD ["npm", "start"]

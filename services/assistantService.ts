@@ -102,6 +102,7 @@ export const deleteAssistant = async (assistantId: string) => {
 // Simple function to send a direct message to an assistant (for standalone mode)
 import { getSession } from "next-auth/react";
 import { MetaHandler, sendChatRequestWithDocuments } from "./chatService";
+import { getClientJWT } from '@/utils/client/getClientJWT';
 import { emptyAstPathData } from "@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor";
 import { DEFAULT_SYSTEM_PROMPT } from "@/utils/app/const";
 import { deepMerge } from "@/utils/app/state";
@@ -120,11 +121,10 @@ export const sendDirectAssistantMessage = async (
   controller: AbortController
 ) => {
   try {
-    const session = await getSession();
+    const accessToken = await getClientJWT();
     
-    // @ts-ignore
-    if (!session || !session.accessToken || !chatEndpoint) {
-      throw new Error("No session or chat endpoint available");
+    if (!accessToken || !chatEndpoint) {
+      throw new Error("No access token or chat endpoint available");
     }
     
     // Create user message with assistant data embedded
@@ -187,8 +187,7 @@ export const sendDirectAssistantMessage = async (
       shouldAbort: () => false
     };
     // console.log("chatBody", chatBody);
-    // @ts-ignore
-    const response = await sendChatRequestWithDocuments(chatEndpoint, session.accessToken, chatBody, controller.signal, metaHandler);
+    const response = await sendChatRequestWithDocuments(chatEndpoint, accessToken, chatBody, controller.signal, metaHandler);
     
     return {
       success: response.ok,

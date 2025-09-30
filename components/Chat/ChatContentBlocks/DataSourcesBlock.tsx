@@ -1,7 +1,7 @@
 import React, { useContext, useState, useRef } from "react";
 import {Message} from "@/types/chat";
 import {IconDownload, IconFileCheck, IconX} from "@tabler/icons-react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import { getFileDownloadUrl } from "@/services/fileService";
 import { fetchImageFromPresignedUrl } from "@/utils/app/files";
 import { IMAGE_FILE_TYPES } from "@/utils/app/const";

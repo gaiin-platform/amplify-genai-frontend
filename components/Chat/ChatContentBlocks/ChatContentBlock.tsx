@@ -11,7 +11,7 @@ import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {parsePartialJson} from "@/utils/app/data";
 import AutonomousBlock from "@/components/Chat/ChatContentBlocks/AutonomousBlock";
 import {useContext, useEffect, useRef, useState} from "react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import OpBlock from "@/components/Chat/ChatContentBlocks/OpBlock";
 import ApiKeyBlock from "./ApiKeyBlock";
 import { ApiDocBlock } from "./APIDocBlock";
@@ -52,17 +52,18 @@ const ChatContentBlock: React.FC<Props> = (
     const transformMessageContent = (conversation:Conversation, message:Message) => {
         try {
             const {transformer} = getOutputTransformers(conversation, message);
-            return transformer(conversation, message, {parsePartialJson});
+            const result = transformer(conversation, message, {parsePartialJson});
+            return result || '';
         }catch(e){
             console.log("Error transforming output.");
             console.log(e);
         }
-        return message.content;
+        return message.content || '';
     }
 
     const transformedMessageContent = selectedConversation ?
         transformMessageContent(selectedConversation, message) :
-        message.content;
+        (message.content || '');
     const isLast = messageIndex == (selectedConversation?.messages?.length ?? 0) - 1;
 
 
@@ -107,7 +108,10 @@ const ChatContentBlock: React.FC<Props> = (
       };
   }, []);
 
-//   console.log(transformedMessageContent)
+  // Debug: Log content to help diagnose rendering issues
+  if (messageIsStreaming && isLast) {
+      console.log(`[ChatContentBlock] Streaming message content: "${transformedMessageContent?.substring(0, 100)}..."`);
+  }
   
     return (
     <div className="chatContentBlock w-full overflow-x-auto" 
@@ -306,7 +310,7 @@ const ChatContentBlock: React.FC<Props> = (
         },
     }}
 >
-    {`${transformedMessageContent}${
+    {`${transformedMessageContent || ''}${
         messageIsStreaming && !document.querySelector('.highlight-pulse') && 
         messageIndex == (selectedConversation?.messages?.length ?? 0) - 1 ? '`▍`' : ''
     }`}

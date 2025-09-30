@@ -1,6 +1,6 @@
 // src/hooks/useChatService.js
 import { useCallback, useContext, useEffect, useRef } from 'react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import { killRequest as killReq, MetaHandler } from '../services/chatService';
 import { ChatBody, Conversation, CustomFunction, JsonSchema, Message, newMessage } from "@/types/chat";
 import { ColumnsSpec, } from "@/utils/app/csv";
@@ -554,6 +554,10 @@ export function useSendService() {
                                                 content: text,
                                                 data: { ...(message.data || {}), state: currentState }
                                             };
+                                            // Debug: Log streaming content
+                                            if (isFirst || done || text.length % 50 === 0) {
+                                                console.log(`[useSendService] Streaming update - content length: ${text.length}, first 100 chars: "${text.substring(0, 100)}..."`);
+                                            }
                                             return assistantMessage
                                         }
                                         return message;

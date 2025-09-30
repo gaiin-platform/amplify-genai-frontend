@@ -1,0 +1,26 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including devDependencies for build)
+RUN npm ci
+
+# Copy all source files
+COPY . .
+
+# Build the application
+ENV NODE_ENV=production
+ENV NEXT_PUBLIC_LLM_ROUTER_ENDPOINT=https://x18hnd6yh6.execute-api.us-east-1.amazonaws.com/prod/proxy/llm
+RUN npm run build
+
+# Remove dev dependencies
+RUN npm prune --production
+
+# Expose port
+EXPOSE 3000
+
+# Start the application
+CMD ["npm", "start"]

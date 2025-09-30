@@ -5,7 +5,7 @@ import ExpansionComponent from "../../../Chat/ExpansionComponent";
 import { constructAstEventEmailAddress, EMAIL_EVENT_TAG_PREFIX, isPresetEmailEventTag, safeEmailEventTag } from "@/utils/app/assistantEmailEvents";
 import { useSession } from "next-auth/react";
 import { useContext, useEffect, useRef } from "react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import { isEventTemplateTagAvailable } from "@/services/emailEventService";
 
 // Fallback function in case the imported one is not available

@@ -2,7 +2,7 @@ import { useCallback, useRef, useState, useContext, useEffect } from 'react';
 import { IconSparkles } from '@tabler/icons-react';
 import { Plugin, PluginID, PluginList } from '@/types/plugin';
 import { PluginSelector } from './PluginSelector';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import React from 'react';
 
 interface Props {

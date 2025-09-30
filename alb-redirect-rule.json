@@ -1,0 +1,6 @@
+[
+  {
+    "Field": "host-header",
+    "Values": ["hfu-hfu-amplify-alb-*.elb.amazonaws.com"]
+  }
+]

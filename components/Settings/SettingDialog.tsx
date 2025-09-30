@@ -6,7 +6,7 @@ import { featureOptionFlags, getSettings, saveSettings } from '@/utils/app/setti
 
 import { Settings, Theme } from '@/types/settings';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import React from 'react';
 import { StorageDialog } from './StorageDialog';
 import FlagsMap, { Flag } from '../ReusableComponents/FlagsMap';

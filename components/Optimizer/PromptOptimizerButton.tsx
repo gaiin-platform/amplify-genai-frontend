@@ -1,6 +1,6 @@
 
 
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import { Message, MessageType, newMessage } from "@/types/chat";
 import { DefaultModels } from "@/types/model";
 import { promptForData } from "@/utils/app/llm";

@@ -1,0 +1,86 @@
+FROM node:18-alpine AS base
+
+# Install dependencies only when needed
+FROM base AS deps
+RUN apk add --no-cache libc6-compat python3 make g++
+WORKDIR /app
+
+# Copy dependency files
+COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
+RUN npm ci
+
+# Development dependencies
+FROM base AS dev-deps
+RUN apk add --no-cache libc6-compat python3 make g++
+WORKDIR /app
+COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
+RUN npm ci --include=dev
+
+# Rebuild the source code only when needed
+FROM base AS builder
+WORKDIR /app
+COPY --from=dev-deps /app/node_modules ./node_modules
+
+# IMPORTANT: Copy .env.production BEFORE building
+COPY .env.production .env.production
+
+# Copy source code
+COPY . .
+
+# Build-time environment variables from .env.production
+ARG NEXTAUTH_SECRET
+ARG NEXTAUTH_URL=https://hfu-amplify.org
+ARG NEXT_PUBLIC_DEFAULT_AUTH_PROVIDER=cognito
+ARG NEXT_PUBLIC_AUTH_ENABLED=true
+ARG NEXT_PUBLIC_ENABLE_STREAMING=true
+ARG NEXT_PUBLIC_LLM_ROUTER_ENDPOINT=
+ARG NEXT_PUBLIC_API_BASE_URL=
+ARG NEXT_PUBLIC_APP_NAME="HFU Amplify"
+ARG NEXT_PUBLIC_APP_VERSION="1.0.27"
+
+ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
+ENV NEXTAUTH_URL=$NEXTAUTH_URL
+ENV NEXT_PUBLIC_DEFAULT_AUTH_PROVIDER=$NEXT_PUBLIC_DEFAULT_AUTH_PROVIDER
+ENV NEXT_PUBLIC_AUTH_ENABLED=$NEXT_PUBLIC_AUTH_ENABLED
+ENV NEXT_PUBLIC_ENABLE_STREAMING=$NEXT_PUBLIC_ENABLE_STREAMING
+ENV NEXT_PUBLIC_LLM_ROUTER_ENDPOINT=$NEXT_PUBLIC_LLM_ROUTER_ENDPOINT
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME
+ENV NEXT_PUBLIC_APP_VERSION=$NEXT_PUBLIC_APP_VERSION
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# CRITICAL: Add cache-busting step
+# This ensures Docker rebuilds when source files change
+ARG CACHEBUST=1
+RUN echo "Cache bust: $CACHEBUST"
+
+# Clean any existing build artifacts
+RUN rm -rf .next
+
+# Build the application
+RUN npm run build
+
+# Production image, copy all the files and run next
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Copy built application
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Copy the production env file
+COPY --from=builder --chown=nextjs:nodejs /app/.env.production ./.env.production
+
+USER nextjs
+
+EXPOSE 3000
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+CMD ["node", "server.js"]

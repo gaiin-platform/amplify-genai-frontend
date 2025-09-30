@@ -1,0 +1,16 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret"
+      ],
+      "Resource": [
+        "arn:aws:secretsmanager:us-east-1:135808927724:secret:amplify/nextauth-secret-*",
+        "arn:aws:secretsmanager:us-east-1:135808927724:secret:amplify/cognito-credentials-*"
+      ]
+    }
+  ]
+}

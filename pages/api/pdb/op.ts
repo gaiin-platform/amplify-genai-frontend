@@ -1,19 +1,23 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import {getServerSession} from "next-auth/next";
 import {authOptions} from "@/pages/api/auth/[...nextauth]";
+import { getAuthToken } from "@/utils/auth/getAuthToken";
 
 
 const pdbOp =
     async (req: NextApiRequest, res: NextApiResponse) => {
 
-        const session = await getServerSession(req, res, authOptions);
+        const session = await getServerSession(req, res, authOptions as any);
 
         if (!session) {
             // Unauthorized access, no session found
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        const { accessToken } = session;
+        const accessToken = await getAuthToken(req, res);
+        if (!accessToken) {
+            return res.status(401).json({ error: 'No valid authentication token' });
+        }
 
         let apiUrl = process.env.API_BASE_URL + "/personal/db" || "";
 

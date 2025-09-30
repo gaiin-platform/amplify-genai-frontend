@@ -1,7 +1,7 @@
 import DataSourcesTable from "@/components/DataSources/DataSourcesTable";
 import {FC, useContext, useState} from "react";
 import {IconFiles, IconX} from "@tabler/icons-react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 
 
 

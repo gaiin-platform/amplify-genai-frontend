@@ -1,5 +1,5 @@
 import {FolderInterface} from "@/types/folder";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import {Conversation} from "@/types/chat";
 import React, {FC, useContext, useEffect, useRef, useState} from "react";
 import {Prompt} from "@/types/prompt";

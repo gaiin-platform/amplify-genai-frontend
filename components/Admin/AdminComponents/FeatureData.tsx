@@ -16,7 +16,7 @@ import { calculateMd5, uploadFileAsAdmin } from "@/utils/app/admin";
 import { deletePptx, uploadPptx } from "@/services/adminService";
 import toast from "react-hot-toast";
 import { generateTimestamp } from "@/utils/app/date";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import Checkbox from "@/components/ReusableComponents/CheckBox";
 import Search from "@/components/Search";
 import { useSession } from "next-auth/react";

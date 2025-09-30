@@ -1,0 +1,79 @@
+# ---- Base Node ----
+FROM --platform=linux/amd64 node:18-alpine AS base
+WORKDIR /app
+COPY package*.json ./
+
+# ---- Dependencies ----
+FROM base AS dependencies
+RUN npm ci --only=production
+
+# ---- Build ----
+FROM base AS build
+# Copy all source files
+COPY . .
+
+# Install all dependencies (including dev)
+RUN npm ci
+
+# Set build-time environment variables
+ARG NEXT_PUBLIC_LLM_ROUTER_ENDPOINT
+ARG NEXT_PUBLIC_MIXPANEL_TOKEN
+ARG NEXT_PUBLIC_LOCAL_SERVICES
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_COGNITO_CLIENT_ID
+ARG NEXT_PUBLIC_COGNITO_USER_POOL_ID
+ARG NEXT_PUBLIC_COGNITO_DOMAIN
+
+ENV NEXT_PUBLIC_LLM_ROUTER_ENDPOINT=$NEXT_PUBLIC_LLM_ROUTER_ENDPOINT
+ENV NEXT_PUBLIC_MIXPANEL_TOKEN=$NEXT_PUBLIC_MIXPANEL_TOKEN
+ENV NEXT_PUBLIC_LOCAL_SERVICES=$NEXT_PUBLIC_LOCAL_SERVICES
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_COGNITO_CLIENT_ID=$NEXT_PUBLIC_COGNITO_CLIENT_ID
+ENV NEXT_PUBLIC_COGNITO_USER_POOL_ID=$NEXT_PUBLIC_COGNITO_USER_POOL_ID
+ENV NEXT_PUBLIC_COGNITO_DOMAIN=$NEXT_PUBLIC_COGNITO_DOMAIN
+
+# Build the application
+RUN npm run build
+
+# ---- Production ----
+FROM --platform=linux/amd64 node:18-alpine AS production
+
+# Create app user
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nextjs -u 1001
+
+WORKDIR /app
+
+# Copy public assets
+COPY --from=build --chown=nextjs:nodejs /app/public ./public
+
+# Copy standalone build output
+COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Copy environment file for runtime
+COPY --from=build --chown=nextjs:nodejs /app/.env.production ./.env.production
+
+# Copy i18n files if they exist
+# Note: The || true syntax doesn't work in COPY, so we'll skip this for now
+
+USER nextjs
+
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); })" || exit 1
+
+# Copy custom server that loads env vars
+COPY standalone-server.js ./standalone-server.js
+
+# Install dotenv in production stage
+RUN npm install dotenv
+
+# Use our custom server wrapper
+CMD ["node", "standalone-server.js"]

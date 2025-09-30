@@ -1,0 +1,62 @@
+{
+  "family": "dev-amplifygenai-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::135808927724:role/ecs-task-execution-role",
+  "taskRoleArn": "arn:aws:iam::135808927724:role/ecs-task-role",
+  "containerDefinitions": [
+    {
+      "name": "hfu-amplifyApp",
+      "image": "135808927724.dkr.ecr.us-east-1.amazonaws.com/dev-amplifygenai-repo:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "NEXTAUTH_URL",
+          "value": "https://hfu-amplify.org"
+        },
+        {
+          "name": "COGNITO_ISSUER",
+          "value": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_OdyXJkoiG"
+        },
+        {
+          "name": "COGNITO_DOMAIN",
+          "value": "https://hfu-amplify.auth.us-east-1.amazoncognito.com"
+        },
+        {
+          "name": "API_ENDPOINT",
+          "value": "https://api.hfu-amplify.org"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "COGNITO_CLIENT_ID",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:135808927724:secret:amplify/cognito-credentials-IofBy1:CLIENT_ID::"
+        },
+        {
+          "name": "COGNITO_CLIENT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:135808927724:secret:amplify/cognito-credentials-IofBy1:CLIENT_SECRET::"
+        },
+        {
+          "name": "NEXTAUTH_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:135808927724:secret:amplify/nextauth-credentials-OQdecV:NEXTAUTH_SECRET::"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/dev-amplifygenai-task",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

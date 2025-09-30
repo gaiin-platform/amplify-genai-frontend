@@ -1,0 +1,32 @@
+# Use the working v8-quickfix image as base
+FROM prod-amplifygenai-repo:v8-quickfix
+
+# Switch to root to modify files
+USER root
+
+# Create the chat endpoint directory
+RUN mkdir -p pages/api/chat
+
+# Copy the new chat endpoint
+COPY pages/api/chat/mock.ts pages/api/chat/mock.ts
+
+# Copy the updated chat service
+COPY services/chatService.ts services/chatService.ts
+
+# Copy the updated settings file
+COPY utils/app/settings.ts utils/app/settings.ts
+
+# Copy the updated _document.tsx with settings fix
+COPY pages/_document.tsx pages/_document.tsx
+
+# Set ownership
+RUN chown -R nextjs:nodejs pages/api/chat
+RUN chown nextjs:nodejs services/chatService.ts
+RUN chown nextjs:nodejs utils/app/settings.ts
+RUN chown nextjs:nodejs pages/_document.tsx
+
+# Switch back to nextjs user
+USER nextjs
+
+# The app is already built and ready to run
+CMD ["node", "server.js"]

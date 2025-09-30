@@ -5,7 +5,7 @@ import Loader from '@/components/Loader/Loader';
 import { Prompt } from '@/types/prompt';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { Model } from '@/types/model';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import { ChatBody, newMessage } from '@/types/chat';
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';

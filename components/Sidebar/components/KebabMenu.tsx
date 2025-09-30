@@ -14,7 +14,7 @@ import { TagsList } from "@/components/Chat/TagsList";
 import { Conversation } from "@/types/chat";
 import { getAssistant, isAssistant } from "@/utils/app/assistants";
 import { DEFAULT_ASSISTANT } from "@/types/assistant";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import { Prompt } from "@/types/prompt";
 import { deleteAssistant } from "@/services/assistantService";
 import { DefaultModels } from "@/types/model";

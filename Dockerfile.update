@@ -1,0 +1,12 @@
+FROM 135808927724.dkr.ecr.us-east-1.amazonaws.com/prod-amplifygenai-repo:v6
+
+# Copy updated files
+COPY --chown=appuser:appgroup services/chatService.ts /app/services/chatService.ts
+COPY --chown=appuser:appgroup pages/api/direct/chat.ts /app/pages/api/direct/chat.ts
+
+# Rebuild the app
+USER appuser
+RUN npm run build
+
+EXPOSE 3000
+CMD ["npm", "start"]

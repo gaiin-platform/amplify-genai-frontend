@@ -1,5 +1,5 @@
 import { useEffect, useState, useContext, useRef, useLayoutEffect } from "react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import ExpansionComponent from "../ExpansionComponent";
 import { fetchApiDoc } from "@/services/apiKeysService";
 import { DownloadFileButton } from "@/components/ReusableComponents/DownloadFileButton";

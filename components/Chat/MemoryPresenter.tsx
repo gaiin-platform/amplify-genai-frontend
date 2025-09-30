@@ -6,14 +6,15 @@ import {
     useState,
 } from 'react';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import { getSettings } from '@/utils/app/settings';
 import { useSession } from 'next-auth/react';
 import { doSaveMemoryOp } from '@/services/memoryService';
 import { Settings } from '@/types/settings';
 import { Toggle } from '@/components/ReusableComponents/Toggle';
 import {
-    MemoryType
+    MemoryType,
+    ExtractedFact
 } from '@/types/memory';
 
 interface Props {
@@ -82,7 +83,7 @@ export const MemoryPresenter: FC<Props> = ({
                 conversation_id: selectedConversation?.id
             }]);
 
-            const updatedFacts = extractedFacts.filter((_, i) => i !== index);
+            const updatedFacts = extractedFacts.filter((_: ExtractedFact, i: number) => i !== index);
             homeDispatch({ field: 'extractedFacts', value: updatedFacts });
 
             const updatedFactTypes = { ...factTypes };
@@ -108,7 +109,7 @@ export const MemoryPresenter: FC<Props> = ({
     const handleDeleteFact = (index: number) => {
         setLoadingStates(prev => ({ ...prev, [index]: 'deleting' }));
 
-        const updatedFacts = extractedFacts.filter((_, i) => i !== index);
+        const updatedFacts = extractedFacts.filter((_: ExtractedFact, i: number) => i !== index);
         homeDispatch({ field: 'extractedFacts', value: updatedFacts });
 
         const updatedFactTypes = { ...factTypes };
@@ -138,7 +139,7 @@ export const MemoryPresenter: FC<Props> = ({
                                             </tr>
                                         </thead>
                                         <tbody className="px-4">
-                                            {extractedFacts.map((fact, index) => (
+                                            {extractedFacts.map((fact: ExtractedFact, index: number) => (
                                                 <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                                                     <td className="border border-gray-200 dark:border-gray-600 px-4 py-2">{fact.content}</td>
                                                     <td className="border border-gray-200 dark:border-gray-600 px-4 py-2">

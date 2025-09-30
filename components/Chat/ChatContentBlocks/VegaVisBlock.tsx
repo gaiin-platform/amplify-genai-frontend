@@ -1,5 +1,5 @@
 import {useContext, useEffect, useState} from "react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import {VegaLite} from "react-vega";
 import { fixJsonString } from "@/utils/app/errorHandling";
 import { DefaultModels } from "@/types/model";

@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { IconLoader2, IconCheck, IconAlertTriangle, IconLock } from '@tabler/icons-react';
 import { lookupAssistant } from '@/services/assistantService';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import { promptForData } from '@/utils/app/llm';
 import { DefaultModels } from '@/types/model';
 import { MessageType, newMessage } from '@/types/chat';

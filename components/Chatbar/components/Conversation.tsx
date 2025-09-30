@@ -19,7 +19,7 @@ import {
 
 import { Conversation } from '@/types/chat';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 
 import ChatbarContext from '@/components/Chatbar/Chatbar.context';
 import { uploadConversation } from '@/services/remoteConversationService';

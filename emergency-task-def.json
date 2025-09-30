@@ -1,0 +1,89 @@
+{
+  "family": "hfu-hfu-amplify-task",
+  "taskRoleArn": "arn:aws:iam::135808927724:role/ecsTaskExecutionRole",
+  "executionRoleArn": "arn:aws:iam::135808927724:role/ecsTaskExecutionRole",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "containerDefinitions": [
+    {
+      "name": "hfu-amplify-container",
+      "image": "135808927724.dkr.ecr.us-east-1.amazonaws.com/hfu-hfu-amplify-repo:demo-working",
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "NEXT_PUBLIC_API_URL",
+          "value": "https://api.hfu-amplify.org"
+        },
+        {
+          "name": "PORT",
+          "value": "3000"
+        },
+        {
+          "name": "HOSTNAME",
+          "value": "0.0.0.0"
+        },
+        {
+          "name": "NEXTAUTH_URL",
+          "value": "https://hfu-amplify.org"
+        },
+        {
+          "name": "NEXT_PUBLIC_BASE_URL",
+          "value": "https://hfu-amplify.org"
+        },
+        {
+          "name": "DISABLE_STREAMING",
+          "value": "false"
+        },
+        {
+          "name": "TRUST_HOST",
+          "value": "true"
+        },
+        {
+          "name": "NEXT_PUBLIC_DEFAULT_TEMPERATURE",
+          "value": "0.5"
+        },
+        {
+          "name": "NEXT_PUBLIC_DEFAULT_MODEL",
+          "value": "claude-3-5-sonnet-20241022"
+        },
+        {
+          "name": "MODELS",
+          "value": "claude-3-5-sonnet-20241022,claude-3-5-haiku-20241022,claude-3-opus-20240229,gpt-4o,gpt-4o-mini,gpt-4-turbo,gemini-1.5-pro-002,gemini-1.5-flash-002,gemini-2.0-flash-exp,gemini-exp-1206"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "NEXTAUTH_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:135808927724:secret:amplify/nextauth-secret-LIsree"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/hfu-amplify",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}

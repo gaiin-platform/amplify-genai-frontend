@@ -29,7 +29,7 @@ import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
 import {FileList} from "@/components/Chat/FileList";
 import {AttachedDocument, AttachedDocumentMetadata} from "@/types/attacheddocument";
 import {setAssistant as setAssistantInMessage} from "@/utils/app/assistants";
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/Home.context';
 import {PromptList} from './PromptList';
 import {VariableModal} from './VariableModal';
 import {DefaultModels, Model, REASONING_LEVELS, ReasoningLevels} from "@/types/model";

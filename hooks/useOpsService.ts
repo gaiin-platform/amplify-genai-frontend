@@ -1,5 +1,5 @@
 import {useContext, useEffect, useRef, useState} from "react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/Home.context";
 import {Op, OpDef} from "@/types/op";
 import JSON5 from "json5";
 import { Conversation } from "@/types/chat";

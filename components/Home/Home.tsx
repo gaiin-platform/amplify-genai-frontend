@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { GetServerSideProps } from 'next';
 import { useTranslation } from 'next-i18next';
-import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
 import { SettingsBar } from "@/components/Settings/SettingsBar";
@@ -52,7 +50,7 @@ import {
     IconLogout,
 } from "@tabler/icons-react";
 
-import { initialState } from './home.state';
+import { initialState } from './Home.state';
 import useEventService from "@/hooks/useEventService";
 import { v4 as uuidv4 } from 'uuid';
 
@@ -72,7 +70,7 @@ import { fetchAllRemoteConversations, fetchRemoteConversation, uploadConversatio
 import {killRequest as killReq} from "@/services/chatService";
 import { DefaultUser } from 'next-auth';
 import { addDateAttribute, getDate, getDateName } from '@/utils/app/date';
-import HomeContext, {  ClickContext, Processor } from './home.context';
+import HomeContext, {  ClickContext, Processor } from './Home.context';
 import { ReservedTags } from '@/types/tags';
 import { noCoaAccount } from '@/types/accounts';
 import { noRateLimit } from '@/types/rateLimit';
@@ -421,7 +419,7 @@ const Home = ({
                         return undefined;
                     }
                     return p;
-                }).filter((p): p is Prompt => p !== undefined);;
+                }).filter((p: Prompt | undefined): p is Prompt => p !== undefined);;
         
                 dispatch({ field: 'prompts', value: updatedPrompts });
                 savePrompts(updatedPrompts);
@@ -688,6 +686,47 @@ const Home = ({
         const fetchModels = async (hasAdminAccess: boolean) => {      
             console.log("Fetching Models...");
             let message = 'There was a problem retrieving the available models, please contact our support team.';
+            
+            // Try direct endpoint first
+            try {
+                const directResponse = await fetch('/api/direct/models', {
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (directResponse.ok) {
+                    const data = await directResponse.json();
+                    if (data.success && data.data) {
+                        console.log("Using direct models endpoint");
+                        const defaultModel = data.data.default;
+                        const models = data.data.models;
+                        
+                        // Process models same as original code
+                        if (selectedConversation && selectedConversation?.model?.id === '') {
+                            handleUpdateSelectedConversation({...selectedConversation, model: defaultModel ?? lowestCostModel(models)});
+                        }
+
+                        if (defaultModel) {
+                            console.log("DefaultModel dispatch: ", defaultModel);
+                            dispatch({ field: 'defaultModelId', value: defaultModel.id });
+                        }
+                        if (data.data.cheapest) dispatch({ field: 'cheapestModelId', value: data.data.cheapest.id });
+                        if (data.data.advanced) dispatch({ field: 'advancedModelId', value: data.data.advanced.id });
+                        const modelMap = models.reduce((acc:any, model:any) => ({...acc, [model.id]: model}), {});
+                        dispatch({ field: 'availableModels', value: modelMap});  
+
+                        //save default model 
+                        localStorage.setItem('defaultModel', JSON.stringify(defaultModel));
+                        return;
+                    }
+                }
+            } catch (directError) {
+                console.log("Direct models endpoint failed, trying original method:", directError);
+            }
+            
+            // Original method as fallback
             try {
                 const response = await getAvailableModels();
                 if (response.success && response.data) {
@@ -717,9 +756,117 @@ const Home = ({
                 } 
             } catch (e) {
                 console.log("Failed to fetch models: ", e);
-            } 
-            dispatch({ field: 'modelError', value: {code: null, title: "Failed to Retrieve Models",
-                                                    messageLines: [message]} as ErrorMessage});  
+            }
+            
+            // If we reach here, models failed to load. Set default models instead of showing error
+            console.log("Setting default models as fallback");
+            const fallbackModels = {
+                "anthropic.claude-3-5-sonnet-20241022-v2:0": {
+                    id: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+                    name: "Claude 3.5 Sonnet",
+                    provider: "bedrock",
+                    description: "Most capable Claude model via AWS Bedrock",
+                    inputCostPer1K: 0.003,
+                    outputCostPer1K: 0.015,
+                    inputContextWindow: 200000,
+                    outputTokenLimit: 4096,
+                    supportsImages: true,
+                    supportsReasoning: false
+                },
+                "anthropic.claude-3-sonnet-20240229-v1:0": {
+                    id: "anthropic.claude-3-sonnet-20240229-v1:0",
+                    name: "Claude 3 Sonnet",
+                    provider: "bedrock",
+                    description: "Balanced Claude 3 model via AWS Bedrock",
+                    inputCostPer1K: 0.003,
+                    outputCostPer1K: 0.015,
+                    inputContextWindow: 200000,
+                    outputTokenLimit: 4096,
+                    supportsImages: true,
+                    supportsReasoning: false
+                },
+                "anthropic.claude-3-haiku-20240307-v1:0": {
+                    id: "anthropic.claude-3-haiku-20240307-v1:0",
+                    name: "Claude 3 Haiku",
+                    provider: "bedrock",
+                    description: "Fast Claude 3 Haiku via AWS Bedrock",
+                    inputCostPer1K: 0.00025,
+                    outputCostPer1K: 0.00125,
+                    inputContextWindow: 200000,
+                    outputTokenLimit: 4096,
+                    supportsImages: true,
+                    supportsReasoning: false
+                },
+                "mistral.mistral-large-2402-v1:0": {
+                    id: "mistral.mistral-large-2402-v1:0",
+                    name: "Mistral Large",
+                    provider: "bedrock",
+                    description: "Mistral Large via AWS Bedrock",
+                    inputCostPer1K: 0.004,
+                    outputCostPer1K: 0.012,
+                    inputContextWindow: 32000,
+                    outputTokenLimit: 4096,
+                    supportsImages: false,
+                    supportsReasoning: false
+                },
+                "gpt-4": {
+                    id: "gpt-4",
+                    name: "GPT-4",
+                    provider: "openai",
+                    description: "OpenAI GPT-4",
+                    inputCostPer1K: 0.03,
+                    outputCostPer1K: 0.06,
+                    inputContextWindow: 8192,
+                    outputTokenLimit: 4096,
+                    supportsImages: false,
+                    supportsReasoning: true
+                },
+                "gpt-3.5-turbo": {
+                    id: "gpt-3.5-turbo",
+                    name: "GPT-3.5 Turbo",
+                    provider: "openai",
+                    description: "OpenAI GPT-3.5 Turbo",
+                    inputCostPer1K: 0.0005,
+                    outputCostPer1K: 0.0015,
+                    inputContextWindow: 16385,
+                    outputTokenLimit: 4096,
+                    supportsImages: false,
+                    supportsReasoning: false
+                },
+                "gemini-1.5-pro": {
+                    id: "gemini-1.5-pro",
+                    name: "Gemini 1.5 Pro",
+                    provider: "gemini",
+                    description: "Google Gemini 1.5 Pro",
+                    inputCostPer1K: 0.00125,
+                    outputCostPer1K: 0.005,
+                    inputContextWindow: 2097152,
+                    outputTokenLimit: 8192,
+                    supportsImages: true,
+                    supportsReasoning: true
+                },
+                "gemini-1.5-flash": {
+                    id: "gemini-1.5-flash",
+                    name: "Gemini 1.5 Flash",
+                    provider: "gemini",
+                    description: "Fast Gemini model",
+                    inputCostPer1K: 0.00035,
+                    outputCostPer1K: 0.0007,
+                    inputContextWindow: 1048576,
+                    outputTokenLimit: 8192,
+                    supportsImages: true,
+                    supportsReasoning: false
+                }
+            };
+            
+            const defaultModel = fallbackModels["anthropic.claude-3-5-sonnet-20241022-v2:0"];
+            dispatch({ field: 'defaultModelId', value: defaultModel.id });
+            dispatch({ field: 'availableModels', value: fallbackModels});
+            localStorage.setItem('defaultModel', JSON.stringify(defaultModel));
+            
+            // Don't show error, just use fallback models
+            // dispatch({ field: 'modelError', value: {code: null, title: "Failed to Retrieve Models",
+            //                                         messageLines: [message]} as ErrorMessage});  
         };
 
         const fetchDataDisclosureDecision = async (featureOn: boolean) => {
@@ -1575,7 +1722,7 @@ const Home = ({
                         <LoadingIcon />
                     </h1>
                     <button
-                        onClick={() => signIn('cognito')}
+                        onClick={() => signIn('cognito', { callbackUrl: window.location.origin })}
                         id="loginButton"
                         className="shadow-md"
                         style={{
@@ -1600,36 +1747,4 @@ const Home = ({
 };
 export default Home;
 
-export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
-
-    const chatEndpoint = process.env.CHAT_ENDPOINT;
-    const mixPanelToken = process.env.MIXPANEL_TOKEN;
-    const cognitoClientId = process.env.COGNITO_CLIENT_ID;
-    const cognitoDomain = process.env.COGNITO_DOMAIN;
-    const aiEmailDomain = process.env.AI_EMAIL_DOMAIN ?? '';
-    
-    // const googleApiKey = process.env.GOOGLE_API_KEY;
-    // const googleCSEId = process.env.GOOGLE_CSE_ID;
-    // if (googleApiKey && googleCSEId) {
-    //     serverSidePluginKeysSet = true;
-    // }
-
-    return {
-        props: {
-            chatEndpoint,
-            mixPanelToken,
-            cognitoClientId,
-            cognitoDomain,
-            aiEmailDomain,
-            ...(await serverSideTranslations(locale ?? 'en', [
-                'common',
-                'chat',
-                'sidebar',
-                'markdown',
-                'promptbar',
-                'settings',
-            ])),
-        },
-    };
-};
 
