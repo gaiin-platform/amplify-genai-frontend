@@ -5,7 +5,7 @@ import { authOptions } from '@/pages/api/auth/[...nextauth]';
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   console.log('[LLM Proxy] Request received');
   
-  const session = await getServerSession(req, res, authOptions as any);
+  const session = await getServerSession(req, res, authOptions(req) as any);
   
   if (!session) {
     console.log('[LLM Proxy] No session - unauthorized');

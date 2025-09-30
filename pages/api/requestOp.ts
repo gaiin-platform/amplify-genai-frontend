@@ -13,7 +13,7 @@ interface reqPayload {
 const requestOp =
     async (req: NextApiRequest, res: NextApiResponse) => {
 
-        const session = await getServerSession(req, res, authOptions as any);
+        const session = await getServerSession(req, res, authOptions(req) as any);
 
         if (!session) {
             // Unauthorized access, no session found

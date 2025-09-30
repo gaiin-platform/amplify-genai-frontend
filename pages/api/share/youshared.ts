@@ -8,7 +8,7 @@ import { getAuthToken } from "@/utils/auth/getAuthToken";
 export const getYouShared =
     async (req: NextApiRequest, res: NextApiResponse) => {
 
-        const session = await getServerSession(req, res, authOptions as any);
+        const session = await getServerSession(req, res, authOptions(req) as any);
 
         if (!session) {
             return res.status(401).json({ error: 'Unauthorized' });
