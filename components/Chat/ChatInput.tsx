@@ -294,9 +294,9 @@ export const ChatInput = ({
     const [editMode, setEditMode] = useState<{
         isEditing: boolean;
         blockId: string | null;
-        originalContent: string;
+        originalConversationContent: string; // The original conversation content before any editing
         editContent: string;
-    }>({ isEditing: false, blockId: null, originalContent: '', editContent: '' });
+    }>({ isEditing: false, blockId: null, originalConversationContent: '', editContent: '' });
     const [showAssistantSelect, setShowAssistantSelect] = useState(false);
     const [documents, setDocuments] = useState<AttachedDocument[]>();
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>({});
@@ -928,12 +928,12 @@ export const ChatInput = ({
     const handleRemoveLargeTextBlock = useCallback((blockId: string) => {
         // If we're editing this block, exit edit mode first
         if (editMode.isEditing && editMode.blockId === blockId) {
-            setEditMode({ isEditing: false, blockId: null, originalContent: '', editContent: '' });
+            setEditMode({ isEditing: false, blockId: null, originalConversationContent: '', editContent: '' });
         }
         
-        // Use the original content if we were editing, otherwise use current content
+        // Use the original conversation content if we were editing, otherwise use current content
         const contentToUse = (editMode.isEditing && editMode.blockId === blockId) 
-            ? editMode.originalContent 
+            ? editMode.originalConversationContent 
             : (content || '');
             
         if (contentToUse) {
@@ -947,11 +947,16 @@ export const ChatInput = ({
         const block = largeTextBlocks.find(b => b.id === blockId);
         if (!block) return;
         
-        // Save current content and switch to edit mode
+        // Save the original conversation content only if not already editing
+        // This preserves the true original state across multiple edit sessions
+        const originalConversationContent = editMode.isEditing 
+            ? editMode.originalConversationContent 
+            : (content || '');
+        
         setEditMode({
             isEditing: true,
             blockId,
-            originalContent: content || '',
+            originalConversationContent,
             editContent: block.originalText
         });
         
@@ -965,7 +970,7 @@ export const ChatInput = ({
                 textareaRef.current.setSelectionRange(0, 0);
             }
         }, 0);
-    }, [largeTextBlocks, content]);
+    }, [largeTextBlocks, content, editMode]);
     
     // Handle saving edited text block
     const handleSaveEditedBlock = useCallback(() => {
@@ -988,22 +993,22 @@ export const ChatInput = ({
         
         setLargeTextBlocks(updatedBlocks);
         
-        // Restore original chat content with placeholder
-        setContent(editMode.originalContent);
+        // Restore original conversation content with placeholder
+        setContent(editMode.originalConversationContent);
         
         // Exit edit mode
-        setEditMode({ isEditing: false, blockId: null, originalContent: '', editContent: '' });
+        setEditMode({ isEditing: false, blockId: null, originalConversationContent: '', editContent: '' });
     }, [editMode, content, largeTextBlocks, setLargeTextBlocks]);
     
     // Handle canceling edit mode
     const handleCancelEdit = useCallback(() => {
         if (!editMode.isEditing) return;
         
-        // Restore original content
-        setContent(editMode.originalContent);
+        // Restore original conversation content
+        setContent(editMode.originalConversationContent);
         
         // Exit edit mode
-        setEditMode({ isEditing: false, blockId: null, originalContent: '', editContent: '' });
+        setEditMode({ isEditing: false, blockId: null, originalConversationContent: '', editContent: '' });
     }, [editMode]);
 
 
@@ -1472,9 +1477,9 @@ export const ChatInput = ({
                                 }}
                             />
 
-                            {/* Edit Mode Controls - positioned more naturally */}
+                            {/* Edit Mode Controls - positioned inline */}
                             {editMode.isEditing && (
-                                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-2 z-10">
+                                <div className="flex items-center gap-2 ml-2">
                                     <button
                                         className="px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded transition-colors flex items-center gap-1"
                                         onClick={handleSaveEditedBlock}
