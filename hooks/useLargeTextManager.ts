@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import {
   LargeTextBlock,
   processLargeText,
@@ -28,6 +29,12 @@ export function useLargeTextManager() {
     const processedText = processLargeText(pastedText);
     
     if (!processedText.isLarge) {
+      return { newContent: currentContent, hasLargeText: false };
+    }
+
+    // Check if we've reached the maximum number of text blocks (20)
+    if (largeTextBlocks.length >= 20) {
+      toast.error('Maximum 20 text blocks allowed. Additional text will be pasted as regular text.');
       return { newContent: currentContent, hasLargeText: false };
     }
 
