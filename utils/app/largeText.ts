@@ -236,7 +236,7 @@ export function createLargeTextBlock(
 /**
  * Generate parenthesized number characters for placeholders
  */
-const PARENTHESIZED_NUMBERS = ['⑴', '⑵', '⑶', '⑷', '⑸', '⑹', '⑺', '⑻', '⑼', '⑽'];
+const PARENTHESIZED_NUMBERS = ['⑴', '⑵', '⑶', '⑷', '⑸', '⑹', '⑺', '⑻', '⑼', '⑽', '⑾', '⑿', '⒀', '⒁', '⒂', '⒃', '⒄', '⒅', '⒆', '⒇'];
 
 /**
  * Get parenthesized number character for given counter (0-based)
@@ -245,7 +245,7 @@ export function getParenthesizedNumber(counter: number): string {
   if (counter < PARENTHESIZED_NUMBERS.length) {
     return PARENTHESIZED_NUMBERS[counter];
   }
-  // Fallback for numbers > 10 (unlikely but safe)
+  // Fallback for numbers > 20 (unlikely but safe)
   return `(${counter + 1})`;
 }
 
@@ -254,8 +254,8 @@ export function getParenthesizedNumber(counter: number): string {
  */
 export function extractNumberFromParenthesizedChar(char: string): string {
   const charCode = char.charCodeAt(0);
-  if (charCode >= 0x2474 && charCode <= 0x247D) {
-    // ⑴ ⑵ ⑶ ... ⑽ (Unicode range)
+  if (charCode >= 0x2474 && charCode <= 0x2487) {
+    // ⑴ ⑵ ⑶ ... ⒇ (Unicode range)
     return (charCode - 0x2473).toString();
   }
   
