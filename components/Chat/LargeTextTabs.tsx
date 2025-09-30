@@ -37,7 +37,7 @@ export const LargeTextTabs: React.FC<LargeTextTabsProps> = ({
   }
 
   return (
-    <div className="flex overflow-x-auto pb-2 mt-2">
+    <div className="flex flex-wrap gap-1 pb-2 mt-2">
       {largeTextBlocks.map((block) => {
         const isEditing = currentlyEditingId === block.id;
         const isHovered = hoveredBlock === block.id;
@@ -46,7 +46,7 @@ export const LargeTextTabs: React.FC<LargeTextTabsProps> = ({
           <div
             key={block.id}
             className={`
-              flex flex-row items-center justify-between border rounded-md px-2 py-1.5 ml-1 mr-1 shadow-md dark:shadow-lg
+              flex flex-row items-center justify-between border rounded-md px-2 py-1.5 shadow-md dark:shadow-lg
               ${isEditing 
                 ? 'bg-blue-100 border-blue-400 dark:bg-blue-900/40 dark:border-blue-500' 
                 : 'bg-white border-gray-200 dark:bg-[#40414F] dark:border-neutral-500'

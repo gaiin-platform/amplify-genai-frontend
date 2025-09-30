@@ -146,7 +146,7 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
   });
 
   return (
-    <div className="flex overflow-x-auto pb-2 mt-2">
+    <div className="flex flex-wrap gap-1 pb-2 mt-2">
       {allAttachments.map((attachment) => {
         const isHovered = hoveredItem === attachment.id;
         
@@ -157,7 +157,7 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
           return (
             <div
               key={attachment.id}
-              className={`${isComplete ? 'bg-white' : 'bg-yellow-400'} flex flex-row items-center justify-between border bg-white rounded-md px-1 py-1 ml-1 mr-1 shadow-md dark:shadow-lg`}
+              className={`${isComplete ? 'bg-white' : 'bg-yellow-400'} flex flex-row items-center justify-between border bg-white rounded-md px-1 py-1 shadow-md dark:shadow-lg`}
               style={{ maxWidth: '220px' }}
               onMouseEnter={() => setHoveredItem(attachment.id)}
               onMouseLeave={() => setHoveredItem('')}
@@ -197,7 +197,7 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
             <div
               key={attachment.id}
               className={`
-                flex flex-row items-center justify-between border rounded-md px-2 py-1.5 ml-1 mr-1 shadow-md dark:shadow-lg
+                flex flex-row items-center justify-between border rounded-md px-2 py-1.5 shadow-md dark:shadow-lg
                 ${isEditing 
                   ? 'bg-blue-100 border-blue-400 dark:bg-blue-900/40 dark:border-blue-500' 
                   : 'bg-white border-gray-200 dark:bg-[#40414F] dark:border-neutral-500'
