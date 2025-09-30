@@ -258,7 +258,17 @@ export function extractNumberFromParenthesizedChar(char: string): string {
     // ⑴ ⑵ ⑶ ... ⑽ (Unicode range)
     return (charCode - 0x2473).toString();
   }
-  return '1'; // fallback
+  
+  // Handle fallback format like "(11)", "(12)", etc.
+  if (char.startsWith('(') && char.endsWith(')')) {
+    const numberPart = char.slice(1, -1);
+    const parsed = parseInt(numberPart, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      return parsed.toString();
+    }
+  }
+  
+  return '1'; // ultimate fallback
 }
 
 /**
