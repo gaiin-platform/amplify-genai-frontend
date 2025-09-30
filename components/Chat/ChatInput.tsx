@@ -389,13 +389,16 @@ export const ChatInput = ({
             return;
         }
 
-        // Check for deleted placeholder characters and remove corresponding blocks
-        largeTextBlocks.forEach((block) => {
-            if (!value.includes(block.placeholderChar)) {
-                // Placeholder character was deleted → remove the entire block
-                handleRemoveLargeTextBlock(block.id);
-            }
-        });
+        // Skip placeholder deletion logic when in edit mode
+        if (!editMode.isEditing) {
+            // Check for deleted placeholder characters and remove corresponding blocks
+            largeTextBlocks.forEach((block) => {
+                if (!value.includes(block.placeholderChar)) {
+                    // Placeholder character was deleted → remove the entire block
+                    handleRemoveLargeTextBlock(block.id);
+                }
+            });
+        }
 
         setContent(value);
         updatePromptListVisibility(value);
@@ -923,14 +926,18 @@ export const ChatInput = ({
 
     // Handle individual large text block removal using hook
     const handleRemoveLargeTextBlock = useCallback((blockId: string) => {
-        // If we're editing this block, exit edit mode
+        // If we're editing this block, exit edit mode first
         if (editMode.isEditing && editMode.blockId === blockId) {
             setEditMode({ isEditing: false, blockId: null, originalContent: '', editContent: '' });
-            setContent(editMode.originalContent);
         }
         
-        if (content) {
-            const updatedContent = removeLargeTextBlockFromHook(blockId, content);
+        // Use the original content if we were editing, otherwise use current content
+        const contentToUse = (editMode.isEditing && editMode.blockId === blockId) 
+            ? editMode.originalContent 
+            : (content || '');
+            
+        if (contentToUse) {
+            const updatedContent = removeLargeTextBlockFromHook(blockId, contentToUse);
             setContent(updatedContent);
         }
     }, [content, removeLargeTextBlockFromHook, editMode]);
@@ -1273,7 +1280,7 @@ export const ChatInput = ({
                             setShowProjectList(false);
                         }}/>} */}
                      {/* Unified Attachment Display - Files and Large Text */}
-                     {((documents && documents.length > 0) || (largeTextBlocks.length > 0 && showLargeTextPreview)) && (
+                     {((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || editMode.isEditing))) && (
                         <div style={{transform: 'translateY(-4px)'}}>
                             <AttachmentDisplay
                                 documents={documents}
@@ -1284,7 +1291,7 @@ export const ChatInput = ({
                                 onRemoveBlock={handleRemoveLargeTextBlock}
                                 onEditBlock={handleEditLargeTextBlock}
                                 currentlyEditingId={editMode.isEditing ? editMode.blockId || undefined : undefined}
-                                showLargeTextPreview={showLargeTextPreview}
+                                showLargeTextPreview={showLargeTextPreview || editMode.isEditing}
                             />
                         </div>
                      )}
@@ -1465,23 +1472,23 @@ export const ChatInput = ({
                                 }}
                             />
 
-                            {/* Edit Mode Controls */}
+                            {/* Edit Mode Controls - positioned more naturally */}
                             {editMode.isEditing && (
-                                <div className="flex items-center gap-2 mx-2">
+                                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-2 z-10">
                                     <button
-                                        className="px-3 py-1 text-sm bg-green-500 hover:bg-green-600 text-white rounded-md transition-colors"
+                                        className="px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded transition-colors flex items-center gap-1"
                                         onClick={handleSaveEditedBlock}
                                         title="Save changes (Ctrl+Enter)"
                                     >
-                                        <IconCheck size={16} className="inline mr-1" />
+                                        <IconCheck size={14} />
                                         Save
                                     </button>
                                     <button
-                                        className="px-3 py-1 text-sm bg-gray-500 hover:bg-gray-600 text-white rounded-md transition-colors"
+                                        className="px-2 py-1 text-xs bg-gray-500 hover:bg-gray-600 text-white rounded transition-colors flex items-center gap-1"
                                         onClick={handleCancelEdit}
                                         title="Cancel editing (Escape)"
                                     >
-                                        <IconX size={16} className="inline mr-1" />
+                                        <IconX size={14} />
                                         Cancel
                                     </button>
                                 </div>
