@@ -4,8 +4,7 @@ import {Conversation, MessageType} from "@/types/chat";
 import {Prompt} from "@/types/prompt";
 import HomeContext from "@/components/Home/Home.context";
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
-import {IconCheck, IconCircleX, IconAt} from "@tabler/icons-react";
-import {AttachedDocument} from "@/types/attacheddocument";
+import {IconRobot, IconX} from "@tabler/icons-react";
 import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
 
 type Props = {
@@ -46,16 +45,24 @@ const AssistantsInUse: React.FC<Props> = ({assistants,assistantsChanged}) => {
     }
 
     return (
-        <div className="flex flex-row pb-2 mt-2">
+        <div className="flex flex-row pb-4 my-1">
             {assistants?.map((assistant, i) => (
                 <div
                     id="assistantChatLabel"
                     key={i}
-                    className={`bg-white flex flex-row items-center justify-between border bg-white rounded-md px-1 py-1 ml-1 mr-1 shadow-lg`}
+                    className={`relative enhanced-assistant-badge flex flex-row items-center justify-between rounded-full px-3 py-1.5 ml-1 mr-1`}
                     style={{ maxWidth: '300px' }}
                 >
+                    <div className="flex flex-row items-center gap-1.5">
+                        <IconRobot size="16" className="text-white/90"/>
+                        <div className={`truncate font-medium text-sm text-white leading-normal pr-2 mr-2`}
+                           style={{ maxWidth: '250px' }}>
+                            {getLabel(assistant)}
+                        </div>
+                    </div>
+                    
                     <button
-                        className="text-gray-400 hover:text-gray-600 transition-all"
+                        className="absolute right-2 text-white/70 hover:text-white transition-all"
                         onClick={(e) =>{
                             e.preventDefault();
                             e.stopPropagation();
@@ -63,18 +70,8 @@ const AssistantsInUse: React.FC<Props> = ({assistants,assistantsChanged}) => {
                             handleRemoveSelectedAssistant(assistant);
                         }}
                     >
-                        <IconCircleX/>
+                        <IconX size="16"/>
                     </button>
-
-                    <div className="ml-1 flex flex-row items-center">
-                        <div>
-                            <IconAt size="18" className="text-gray-800"/>
-                        </div>
-                        <div className={`truncate font-medium text-sm text-gray-800`}
-                           style={{ maxWidth: '300px' }}>
-                            {getLabel(assistant)}
-                        </div>
-                    </div>
                 </div>
             ))}
         </div>

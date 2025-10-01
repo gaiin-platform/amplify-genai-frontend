@@ -31,8 +31,6 @@ import { Stars } from './Stars';
 import { saveUserRating } from '@/services/groupAssistantService';
 import { ArtifactsBlock } from './ChatContentBlocks/ArtifactsBlock';
 import { Amplify, User } from './Avatars';
-import cloneDeep from 'lodash/cloneDeep';
-import { v4 as uuidv4 } from 'uuid';
 import AssistantMessageHighlight from './ChatContentBlocks/AssistantMessageHighlight';
 import { getSettings } from '@/utils/app/settings';
 import { lzwCompress } from '@/utils/app/lzwCompression';
@@ -42,6 +40,7 @@ import { getDateName } from '@/utils/app/date';
 import AgentLogBlock from '@/components/Chat/ChatContentBlocks/AgentLogBlock';
 import { Settings } from '@/types/settings';
 import RagEvaluationBlock from './ChatContentBlocks/RagEvaluationBlock';
+import { AssistantReasoningMessage } from './ChatContentBlocks/AssistantReasoningMessage';
 
 export interface Props {
     message: Message;
@@ -113,8 +112,6 @@ export const ChatMessage: FC<Props> = memo(({
 
     const assistantRecipient = (message.role === "user" && message.data && message.data.assistant) ?
         message.data.assistant : null;
-
-    const chat_icons_cn = "invisible group-hover:visible focus:visible text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
 
     const toggleEditing = () => {
         setIsEditing(!isEditing);
@@ -242,12 +239,13 @@ export const ChatMessage: FC<Props> = memo(({
     const isActionResult = message.data && message.data.actionResult;
     const isAssistant = message.role === 'assistant';
 
-    let msgStyle = 'border-b border-t border-black/10 bg-white text-gray-800 dark:border-gray-900/50 dark:bg-[#343541] dark:text-gray-100';
-    if(isActionResult){
-        msgStyle = 'bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-[#444654] dark:text-gray-100';
-    }
-    else if(isAssistant){
-        msgStyle = 'bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-[#444654] dark:text-gray-100';
+    let msgStyle = 'enhanced-chat-message';
+    if (isActionResult){
+        msgStyle = 'enhanced-chat-message action-message text-amber-400';
+    } else if(isAssistant){
+        msgStyle = 'enhanced-chat-message assistant-message';
+    } else {
+        msgStyle = 'enhanced-chat-message user-message';
     }
 
     const enableTools = !isActionResult;
@@ -268,15 +266,15 @@ export const ChatMessage: FC<Props> = memo(({
             assistantRecipient.definition &&
             assistantRecipient.definition.name &&
             assistantRecipient.definition.assistantId) {
-            return (<span className="bg-neutral-300 dark:bg-neutral-600 rounded-xl pr-1 pl-1">
+            return (<span className="enhanced-at-block">
                                                         {"@" + assistantRecipient.definition.name + ":"}
                                                     </span>);
         } else if(!isActionResult) {
-            return (<span className="bg-neutral-300 dark:bg-neutral-600 rounded-xl pr-1 pl-1">
+            return (<span className="enhanced-at-block">
                                                         @Amplify:
                                                     </span>);
         } else {
-           return (<span className="bg-yellow-500 dark:bg-yellow-500 text-black rounded-xl py-1.5 pr-1 pl-1">
+           return (<span className="enhanced-at-block action-block">
                                                         {'\u2713 Action Completed:'}
                                                     </span>);
         }
@@ -326,11 +324,115 @@ export const ChatMessage: FC<Props> = memo(({
         }
     };
 
+    const [isHovered, setIsHovered] = useState(false);
+    const [iconsPosition, setIconsPosition] = useState({ top: 0, right: 0 });
+    const messageRef = useRef<HTMLDivElement>(null);
+
+    const handleMouseEnter = () => {
+        setIsHovered(true);
+        updateIconsPosition();
+    };
+
+    const handleMouseLeave = () => {
+        setIsHovered(false);
+    };
+
+    const isMessageShorterThanViewport = (): boolean => {
+        if (!messageRef.current) return true; // Default to true if ref not available
+        
+        const messageHeight = messageRef.current.getBoundingClientRect().height;
+        const viewportHeight = window.innerHeight;
+        
+        return messageHeight < viewportHeight;
+    };
+
+    const updateIconsPosition = () => {
+        if (messageRef.current) {
+            const rect = messageRef.current.getBoundingClientRect();
+            const viewportHeight = window.innerHeight;
+            const messageHeight = rect.height;
+            
+            // Step 1: Determine ideal top position
+            let idealTop;
+            if (messageHeight > viewportHeight) {
+                // Long message: use viewport center
+                idealTop = viewportHeight / 2;
+            } else {
+                // Short message: use message center
+                idealTop = rect.top + messageHeight / 2;
+            }
+            
+            // Step 2: Constrain within message boundaries (with padding)
+            const messageTop = rect.top;
+            const messageBottom = rect.bottom;
+            const padding = 150; // Minimum distance from message edges - tightened constraint
+            
+            const constrainedTop = Math.max(
+                messageTop + padding, 
+                Math.min(messageBottom - padding, idealTop)
+            );
+            
+            // Step 3: Calculate right position relative to message container
+            const messageLeft = rect.left;
+            const messageRight = rect.right;
+            const iconsPadding = 2; // Distance from the right edge of the message
+            const viewportWidth = window.innerWidth;
+            
+            // Position icons relative to the message's right edge, but ensure they stay within viewport
+            const idealRight = viewportWidth - messageRight + iconsPadding;
+            const constrainedRight = Math.max(iconsPadding, idealRight);
+            
+            setIconsPosition({
+                top: constrainedTop,
+                right: constrainedRight
+            });
+        }
+    };
+
+    useEffect(() => {
+        
+        const handleScroll = (event: Event) => {
+            if (isHovered) updateIconsPosition();
+        };
+        
+        // Try multiple scroll targets to find the right one
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        
+        // Also try listening on the message's parent containers
+        const messageElement = messageRef.current;
+        if (messageElement) {
+            let parent = messageElement.parentElement;
+            while (parent) {
+                parent.addEventListener('scroll', handleScroll, { passive: true });
+                parent = parent.parentElement;
+                if (parent === document.body) break; // Don't go beyond body
+            }
+        }
+        
+        return () => {
+            window.removeEventListener('scroll', handleScroll);
+            
+            // Remove from parent containers
+            const messageElement = messageRef.current;
+            if (messageElement) {
+                let parent = messageElement.parentElement;
+                while (parent) {
+                    parent.removeEventListener('scroll', handleScroll);
+                    parent = parent.parentElement;
+                    if (parent === document.body) break;
+                }
+            }
+        };
+    }, [isHovered]);
+
     // @ts-ignore
     return (
         <div
             className={`group md:px-4 ${msgStyle}`}
             style={{overflowWrap: 'anywhere'}}
+            ref={messageRef}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
         >
 
             {isDownloadDialogVisible && (
@@ -349,8 +451,8 @@ export const ChatMessage: FC<Props> = memo(({
             )}
 
             <div
-                className="relative m-[30px] flex p-2 text-base md:gap-6 md:py-2">
-                <div className="ml-[45px] min-w-[40px] text-right font-bold">
+                className="enhanced-message-content relative m-[30px] flex p-2 text-base md:gap-6 md:py-2">
+                <div className="flex-shrink-0 ml-[45px] min-w-[40px] text-right font-bold">
                     {getIcon()}
                 </div>
 
@@ -397,8 +499,21 @@ export const ChatMessage: FC<Props> = memo(({
 
                             {!isEditing && (
                                 <div
-                                    className="px-3 md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-col items-center md:items-start justify-end md:justify-start">
-                                    <div>
+                                    className={isMessageShorterThanViewport() 
+                                        ? "enhanced-chat-icons px-1 py-2 md:-mr-10 md:ml-4 flex flex-col md:flex-col items-center md:items-start justify-end md:justify-start sticky top-1/2 transform -translate-y-1/2"
+                                        : "enhanced-chat-icons px-1 py-2 flex flex-col gap-1 items-center transition-all duration-300 ease-in-out"
+                                    }
+                                    style={!isMessageShorterThanViewport() ? {
+                                        position: 'fixed',
+                                        top: `${iconsPosition.top}px`,
+                                        right: `${iconsPosition.right}px`,
+                                        transform: 'translateY(-50%)',
+                                        opacity: isHovered && !messageIsStreaming ? 1 : 0,
+                                        visibility: isHovered && !messageIsStreaming ? 'visible' : 'hidden',
+                                        zIndex: 50
+                                    } : undefined}
+                                >
+                                    <div className="flex-shrink-0">
                                         {messagedCopied ? (
                                             <IconCheck
                                                 size={20}
@@ -406,7 +521,7 @@ export const ChatMessage: FC<Props> = memo(({
                                             />
                                         ) : (
                                             <button
-                                                className={chat_icons_cn}
+                                                className={"enhanced-chat-icon-button"}
                                                 onClick={copyOnClick}
                                                 title="Copy Prompt"
                                                 id="copyPrompt"
@@ -418,7 +533,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     {!isActionResult && (
                                     <div>
                                         <button
-                                            className={chat_icons_cn}
+                                            className={"enhanced-chat-icon-button"}
                                             onClick={() => setIsDownloadDialogVisible(true)}
                                             title="Download Prompt"
                                             id="downloadPrompt"
@@ -429,7 +544,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     }
                                     <div>
                                         <button
-                                            className={chat_icons_cn}
+                                            className={"enhanced-chat-icon-button"}
                                             onClick={toggleEditing}
                                             title="Edit Prompt"
                                             id="editPrompt"
@@ -438,7 +553,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         </button>
                                     </div>
                                     <button
-                                        className={chat_icons_cn}
+                                        className={"enhanced-chat-icon-button"}
                                         onClick={() => handleForkConversation(messageIndex)}
                                         title="Branch Into New Conversation"
                                         id="branchPrompt"
@@ -449,7 +564,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     <div>
                                         <button
                                             id="deletePromptChat"
-                                            className={chat_icons_cn}
+                                            className={"enhanced-chat-icon-button"}
                                             onClick={handleDeleteMessage}
                                             title="Delete Prompt"
                                         >
@@ -467,6 +582,14 @@ export const ChatMessage: FC<Props> = memo(({
                                     {(selectedConversation?.messages?.length === messageIndex + 1) && (
                                         <PromptingStatusDisplay statusHistory={status}/>
                                     )}
+
+                                     {!messageIsStreaming && 
+                                     <AssistantReasoningMessage 
+                                        message={message}
+                                        messageIndex={messageIndex}
+                                        selectedConversation={selectedConversation}
+                                     />}
+
                                      {featureFlags.highlighter && settingRef.current.featureOptions.includeHighlighter && 
                                       isHighlightDisplay && !isEditing && 
 
@@ -536,7 +659,20 @@ export const ChatMessage: FC<Props> = memo(({
                                 </div>
 
                                 { !isEditing && <div
-                                    className="px-3 md:-mr-8 ml-1 md:ml-0 flex flex-col md:flex-col gap-4 md:gap-1 items-center md:items-start justify-end md:justify-start">
+                                    className={isMessageShorterThanViewport() 
+                                        ? "enhanced-chat-icons px-1 py-2 md:-mr-10 md:ml-4 flex flex-col md:flex-col items-center md:items-start justify-end md:justify-start sticky top-1/2 transform -translate-y-1/2"
+                                        : "enhanced-chat-icons mr-8 px-1 py-2 flex flex-col gap-1 items-center transition-all duration-300 ease-in-out"
+                                    }
+                                    style={!isMessageShorterThanViewport() ? {
+                                        position: 'fixed',
+                                        top: `${iconsPosition.top}px`,
+                                        right: `${iconsPosition.right}px`,
+                                        transform: 'translateY(-50%)',
+                                        opacity: isHovered && !messageIsStreaming ? 1 : 0,
+                                        visibility: isHovered && !messageIsStreaming ? 'visible' : 'hidden',
+                                        zIndex: 50
+                                    } : undefined}
+                                >
                                     {messagedCopied ? (
                                         <IconCheck
                                             size={20}
@@ -544,7 +680,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         />
                                     ) : (
                                         <button
-                                        className={chat_icons_cn}
+                                        className={"enhanced-chat-icon-button"}
                                             onClick={copyOnClick}
                                             title="Copy Response"
                                             id="copyResponse"
@@ -554,7 +690,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     )}
 
                                     <button
-                                        className={chat_icons_cn}
+                                        className={"enhanced-chat-icon-button"}
                                         onClick={() => handleCreateArtifactFromMessage(messageContent)}
                                         title="Turn Into Artifact"
                                         id="turnIntoArtifact"
@@ -563,7 +699,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     </button>
 
                                     <button
-                                        className={chat_icons_cn}
+                                        className={"enhanced-chat-icon-button"}
                                         onClick={() => setIsDownloadDialogVisible(true)}
                                         title="Download Response"
                                         id="downloadResponse"
@@ -571,11 +707,11 @@ export const ChatMessage: FC<Props> = memo(({
                                         <IconDownload size={20}/>
                                     </button>
                                     <button
-                                        className={chat_icons_cn}
+                                        className={"enhanced-chat-icon-button"}
                                         title="Email Response"
                                         id="emailResponse"
                                     >
-                                        <a className={chat_icons_cn}
+                                        <a className={"enhanced-chat-icon-button"}
                                            href={`mailto:?body=${encodeURIComponent(messageContent)}`}>
                                             <IconMail size={20}/>
                                         </a>
@@ -584,7 +720,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     {featureFlags.highlighter && 
                                      settingRef.current.featureOptions.includeHighlighter && 
                                         <button
-                                            className={chat_icons_cn}
+                                            className={"enhanced-chat-icon-button"}
                                             onClick={() => {setIsHighlightDisplay(!isHighlightDisplay)}}
                                             title="Prompt On Highlight"
                                         >
@@ -592,7 +728,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         </button>
                                     }
                                     <button
-                                        className={chat_icons_cn}
+                                        className={"enhanced-chat-icon-button"}
                                         onClick={toggleEditing}
                                         title="Edit Response"
                                         id="editResponse"
@@ -600,7 +736,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         <IconEdit size={20}/>
                                     </button>
                                     <button
-                                        className={chat_icons_cn}
+                                        className={"enhanced-chat-icon-button"}
                                         onClick={() => handleForkConversation(messageIndex)}
                                         title="Branch Into New Conversation"
                                         id="branchIntoNewConversation"

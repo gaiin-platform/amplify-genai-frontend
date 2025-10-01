@@ -14,6 +14,7 @@ export interface Message {
   label?: string;
   topicData?: messageTopicData;
   configuredTools?: any[];
+  timestamp?: string; // ISO timestamp for when the message was created
 }
 
 export enum MessageType {
@@ -33,6 +34,7 @@ export const newMessage = (data: any) => {
     data: {},
     ...data,
     id: uuidv4(),
+    timestamp: new Date().toISOString(), // Add ISO timestamp to the message
   }
 }
 

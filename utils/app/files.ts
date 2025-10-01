@@ -2,6 +2,7 @@ import { getFileDownloadUrl, deleteFile } from "@/services/fileService";
 import { DataSource } from "@/types/chat";
 import { IMAGE_FILE_TYPES } from "./const";
 import toast from "react-hot-toast";
+import { capitalize } from "./data";
 
 export const downloadDataSourceFile = async (dataSource: DataSource, groupId: string | undefined = undefined) => {
     const response = await getFileDownloadUrl(dataSource.id, groupId); // support images too 
@@ -102,3 +103,70 @@ export async function fetchFile(presignedUrl: string) {
       return "";
     }
   }
+
+
+  // Status configuration helper
+export const getDocumentStatusConfig = (status: string) => {
+    const name = capitalize(status);
+    switch (status) {
+        case 'starting':
+            return { 
+                color: 'text-blue-600 bg-blue-50', 
+                text: name,
+                indicator: '●',
+                indicatorColor: 'text-slate-400 opacity-50',
+                showIndicatorWhenNotHovered: true,
+                animate: false
+            };
+        case 'processing':
+            return { 
+                color: 'text-amber-600 bg-amber-50', 
+                text: name,
+                indicator: '●',
+                indicatorColor: 'text-gray-400',
+                showIndicatorWhenNotHovered: true,
+                animate: true
+            };
+        case 'completed':
+            return { 
+                color: 'text-emerald-600 bg-emerald-50', 
+                text: name,
+                showIndicatorWhenNotHovered: false
+            };
+        case 'failed':
+            return { 
+                color: 'text-red-600 bg-red-50', 
+                text: name,
+                indicator: '!',
+                indicatorColor: 'text-red-500',
+                showIndicatorWhenNotHovered: true
+            };
+        case 'terminated':
+            return { 
+                color: 'text-slate-500 bg-slate-50', 
+                text: name,
+                indicator: '!',
+                indicatorColor: 'text-orange-500',
+                showIndicatorWhenNotHovered: true
+            };
+        case 'not_found':
+            return { 
+                color: 'text-red-600 bg-red-50', 
+                text: 'Error',
+                indicator: '!',
+                indicatorColor: 'text-red-500',
+                showIndicatorWhenNotHovered: true
+            };
+        default:
+            return null;
+    }
+};
+
+
+export const extractKey = (ds: any) => {
+  const key = ds.id || ds.key || ds.metadata?.contentKey;
+  if (key && key.startsWith("s3://")) {
+      return key.split("s3://").pop() || key;
+  }
+  return key;
+}

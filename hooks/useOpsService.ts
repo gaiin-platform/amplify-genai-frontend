@@ -3,6 +3,7 @@ import HomeContext from "@/components/Home/Home.context";
 import {Op, OpDef} from "@/types/op";
 import JSON5 from "json5";
 import { Conversation } from "@/types/chat";
+import { emptySchema } from "@/utils/app/tools";
 
 
 export function useOpsService() {
@@ -25,14 +26,6 @@ export function useOpsService() {
 
         opsArray.forEach(op => {
             result += op.name;
-            if (op.params) {
-                const paramKeys: string[] = Object.keys(op.params);
-                // @ts-ignore
-                // const paramValuesPlaceholder: string = paramKeys.map((key) => `"${op.params[key]}"`).join(', ');
-                // if (paramValuesPlaceholder) {
-                //     result += ', ' + paramValuesPlaceholder;
-                // }
-            }
             result += ' -- ' + op.description + '\n';
         });
 
@@ -74,7 +67,7 @@ export function useOpsService() {
             name: 'List Ops',
             description: 'List all of the available ops',
             type: 'chat',
-            params: [],
+            parameters: emptySchema,
             paramChecker: (params: any) => {
                 return true;
             },
@@ -95,7 +88,7 @@ export function useOpsService() {
                 name: 'List Conversations',
                 description: 'List all of the conversations',
                 type: 'chat',
-                params: [],
+                parameters: emptySchema,
                 paramChecker: (params: any) => {
                     return true;
                 },
@@ -117,7 +110,7 @@ export function useOpsService() {
                 name: 'Search Conversations',
                 description: 'Search all of the conversations for a set of key words',
                 type: 'chat',
-                params: [],//'keywords': 'a comma separated list of keywords to search for'},
+                parameters: emptySchema,//'keywords': 'a comma separated list of keywords to search for'},
                 paramChecker: (params: any) => {
                     return true;
                 },
@@ -151,7 +144,7 @@ export function useOpsService() {
                 name: 'Get Conversation',
                 description: 'Get the contents of a conversation',
                 type: 'chat',
-                params: [],//{'id': 'ID of the conversation'},
+                parameters: emptySchema,//{'id': 'ID of the conversation'},
                 paramChecker: (params: any) => {
                     return true;
                 },

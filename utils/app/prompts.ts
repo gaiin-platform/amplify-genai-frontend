@@ -5,6 +5,7 @@ import {AttachedDocument} from "@/types/attacheddocument";
 import {parseVariableName} from "@/components/Chat/VariableModal";
 import {MessageType} from "@/types/chat";
 import { isAssistant, isSystemAssistant } from './assistants';
+import { storageSet } from './storage';
 
 export interface VariableFillOption {
     isEditable?: boolean,
@@ -117,7 +118,7 @@ export const savePrompts = (prompts: Prompt[]) => {
   const importedAssistants = prompts.filter(prompt => isAssistant(prompt) && prompt.data?.noShare && 
                                                        !prompt.groupId && !isSystemAssistant(prompt));   
   const localPrompts = prompts.filter((p:Prompt) => !isAssistant(p)); // imported ones 
-  localStorage.setItem('prompts', JSON.stringify([...localPrompts, ...importedAssistants]));
+  storageSet('prompts', JSON.stringify([...localPrompts, ...importedAssistants]));
 };
 
 

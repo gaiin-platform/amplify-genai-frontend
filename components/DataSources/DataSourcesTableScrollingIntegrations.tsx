@@ -1,5 +1,5 @@
 import React, {FC, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
-import {IconArrowLeft, IconArrowNarrowLeft, IconDownload, IconFolder} from "@tabler/icons-react";
+import {IconArrowNarrowLeft, IconDownload, IconFolder, IconCheck} from "@tabler/icons-react";
 import {
     MantineReactTable,
     useMantineReactTable,
@@ -12,17 +12,11 @@ import ActionButton from '../ReusableComponents/ActionButton';
 import { downloadIntegrationFile, listIntegrationFiles } from '@/services/oauthIntegrationsService';
 import { loading } from '../Admin/AdminUI';
 import toast from 'react-hot-toast';
-import { getExtensionFromFilename, getFileTypeFromExtension, mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
+import { getExtensionFromFilename, getFileTypeFromExtension, getFirstMimeTypeFromCommonName, mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
 import { capitalize } from '@/utils/app/data';
+import Checkbox from '../ReusableComponents/CheckBox';
+import { IntegrationFileRecord } from '@/types/integrations';
 
-type FileRecord = {
-    name: string;
-    id:  string;
-    mimeType:  string;
-    size: string;
-    downloadLink?: string;
-   
-}
 
 interface Props {
     driveId: string;
@@ -33,6 +27,10 @@ interface Props {
     height?: string;
     disallowedFileExtensions?: string[];
     enableDownload?: boolean;
+    // New props for selection mode
+    onItemSelected?: (file: IntegrationFileRecord, isChecked: boolean) => void;
+    isItemSelected?: (fileId: string, isFolder: boolean) => boolean;
+    onFolderPathChange?: (folderHistory: Array<{id: string | null, name: string}>) => void;
 }
 
 const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
@@ -43,13 +41,16 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                                                   height,
                                                   disallowedFileExtensions,
                                                   enableDownload,
+                                                  onItemSelected,
+                                                  isItemSelected,
+                                                  onFolderPathChange,
                                               }) => {
 
     const {
         state: {lightMode, featureFlags, statsService}, setLoadingMessage
     } = useContext(HomeContext);
 
-    const [data, setData] = useState<FileRecord[]>([]);
+    const [data, setData] = useState<IntegrationFileRecord[]>([]);
 
     const [isError, setIsError] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -57,15 +58,12 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
     const [columnFilters, setColumnFilters] = useState<MRT_ColumnFiltersState>(
         [],
     );
-    const [previousColumnFilters, setPreviousColumnFilters] = useState<MRT_ColumnFiltersState>([]);
-    // const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
 
     const [folderHistory, setFolderHistory] = useState<{ id: string | null; name: string }[]>([]);
-    const folderCacheRef = useRef<{ [key: string]: FileRecord[] }>({})
+    const folderCacheRef = useRef<{ [key: string]: IntegrationFileRecord[] }>({})
 
     const [globalFilter, setGlobalFilter] = useState('');
     const [sorting, setSorting] = useState<MRT_SortingState>([]);
-    const [prevSorting, setPrevSorting] = useState<string>('createdAt#desc');
     const tableContainerRef = useRef<HTMLDivElement>(null);
 
     const ROOT = 'root';
@@ -82,6 +80,23 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
         }
     }
 
+    const getExtendedTypeFromMimeType = (mimeType: string, filename: string): string => {
+        if (mimeType === 'file') {
+            // For generic "file" type, determine type from extension
+            let fileType = "text/plain";
+            const extension = getExtensionFromFilename(filename);
+            if (extension) {
+                const displayName = getFileTypeFromExtension(extension);
+                const updatedType = (getFirstMimeTypeFromCommonName(displayName) ?? getFirstMimeTypeFromCommonName(displayName.split(" ")[0]))
+                if (updatedType) fileType = updatedType;
+            }
+            return fileType;
+        } else {
+            return mimeType;
+        }
+    };
+
+
     const fetchFiles = async (folderId:string = '') => {
         const cacheKey = folderId || ROOT;
 
@@ -96,12 +111,12 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
         const result = await listIntegrationFiles(data);
         if (result.success) {
             let files = result.data
-            .map((f: FileRecord) => {
-                return {...f, mimeType: getTypeFromCommonName(f.mimeType, f.name)}
+            .map((f: IntegrationFileRecord) => {
+                return {...f, mimeType: getTypeFromCommonName(f.mimeType, f.name), type: getExtendedTypeFromMimeType(f.mimeType, f.name)}
             })
 
             if (disallowedFileExtensions && disallowedFileExtensions.length > 0) {
-                files = files.filter((file: FileRecord) => {
+                files = files.filter((file: IntegrationFileRecord) => {
                     // Skip folders from filtering
                     if (file.mimeType.toLowerCase().includes("folder")) return true;
                     const extension = getExtensionFromFilename(file.name)
@@ -109,7 +124,7 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                 });
             }
 
-            files.sort((a:FileRecord, b:FileRecord) => {
+            files.sort((a:IntegrationFileRecord, b:IntegrationFileRecord) => {
                 const aIsFolder = a.mimeType.toLowerCase().includes("folder");
                 const bIsFolder = b.mimeType.toLowerCase().includes("folder");
                 if (aIsFolder && !bIsFolder) return -1;
@@ -142,11 +157,13 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
         setIsLoading(true);
         if (index === undefined) {
             setFolderHistory([]);
+            onFolderPathChange?.([]);
             fetchFiles();
             return;
         } else {
             newHistory = folderHistory.slice(0, index + 1);
             setFolderHistory(newHistory);
+            onFolderPathChange?.(newHistory);
             const newFolderId = newHistory.length > 0 ? newHistory[index].id : "";
             // Fetch from cache or call API
             fetchFiles(newFolderId || '');
@@ -158,7 +175,7 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
     // Render the breadcrumb bar.
     const renderBreadcrumbs = () => {
         return !folderHistory ? null : (
-        <div className="bottom-2 flex items-center p-2 border-b">
+        <div className="bottom-2 flex items-center p-2 pb-5 border-b">
             {folderHistory.length > 0 && (
             <>
             <ActionButton
@@ -193,7 +210,7 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
         );
     };
 
-    const downloadFile = async (item: FileRecord) => {
+    const downloadFile = async (item: IntegrationFileRecord) => {
         setLoadingMessage("Preparing to Download...");
         let success = false;
         try {
@@ -222,12 +239,12 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
         return null;
     }
 
-    const onFileSelected = async (item: FileRecord) => {
+    const onFileSelected = async (item: IntegrationFileRecord) => {
         setLoadingMessage("Preparing Document for Upload...");
         // have to get a download link because we need to get the file contents which is only doable by saving it in our internal servers
 
         const downloadLink = await getDownloadLinkData(item.id, false);
-        console.log("downloadLink: ", downloadLink);
+        // console.log("downloadLink: ", downloadLink);
         if (downloadLink) {
             try {
                 
@@ -269,7 +286,7 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
 
 
     //should be memoized or stable
-    const allColumns = useMemo<MRT_ColumnDef<FileRecord>[]>(
+    const allColumns = useMemo<MRT_ColumnDef<IntegrationFileRecord>[]>(
         () => [
             {
                 accessorKey: 'name',
@@ -281,26 +298,63 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                   const record = row.original;
                   const isFolder = record.mimeType.toLowerCase().includes("folder");
                   const displayName = record.name;
+                  const isSelected = isItemSelected ? isItemSelected(record.id, isFolder) : false;
                   
-                  return isFolder 
-                    ? <span className='text-gray-400 flex flex-row gap-2'>
-                        <IconFolder size={16} className='flex items-center'/>{displayName}
-                      </span>
-                    : <div className={`flex flex-row ${featureFlags.uploadDocuments ? 'cursor-pointer' : ''}`}>
-                        {displayName} 
-                         {enableDownload && 
-                         <div className='ml-auto'>
-                            <ActionButton
-                                title='Download File'
-                                handleClick={(e) => {
+                  return (
+                    <div className="flex flex-row items-center gap-2">
+                      {/* Checkbox for selection */}
+                      {onItemSelected && (
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            id={`checkbox-${record.id}`}
+                            checked={isSelected}
+                            onChange={(e) => onItemSelected(record, e.target.checked)}
+                          />
+                        </div>
+                      )}
+                      
+                      {/* File/Folder content */}
+                      <div className="flex-1">
+                        {isFolder ? (
+                          <div className="flex flex-row items-center gap-2">
+                            <IconFolder size={16} className="flex items-center" />
+                            <span 
+                              className="text-gray-400 cursor-pointer hover:text-blue-500"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const newHistory = [...folderHistory, { id: record.id, name: record.name }];
+                                setFolderHistory(newHistory);
+                                onFolderPathChange?.(newHistory);
+                                setIsLoading(true);
+                                fetchFiles(record.id);
+                              }}
+                            >
+                              {displayName}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-row items-center">
+                            <span>{displayName}</span>
+                            {enableDownload && (
+                              <div className="ml-auto">
+                                <ActionButton
+                                  title="Download File"
+                                  handleClick={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
                                     downloadFile(record);
-                                }}> 
-                                <IconDownload size={22}/>
-                            </ActionButton>
-                          </div>}
-                      </div>;
+                                  }}
+                                >
+                                  <IconDownload size={22} />
+                                </ActionButton>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
                 }
               },
               {
@@ -324,7 +378,7 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                     Edit: ({cell, column, table}) => <>{cell.getValue<string>()}</>,
                 },
         ],
-        [],
+        [enableDownload, featureFlags.uploadDocuments, isItemSelected, onItemSelected],
     );
 
     const columns = allColumns.filter(
@@ -370,17 +424,19 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
               event.preventDefault();
               const record = row.original;
               const isFolder = record.mimeType.toLowerCase().includes("folder");
+
               if (isFolder) {
-                setFolderHistory(prev => [...prev, { id: record.id, name: record.name }]);
+                const newHistory = [...folderHistory, { id: record.id, name: record.name }];
+                setFolderHistory(newHistory);
+                onFolderPathChange?.(newHistory);
                 setIsLoading(true);
                 fetchFiles(record.id);
               } else {
-                if (!featureFlags.uploadDocuments || !onDataSourceSelected) {
+                if (!featureFlags.uploadDocuments) {
                     toast("Uploading documents is disabled.");
-                } else {
+                } else if (onDataSourceSelected) {
                     onFileSelected(record);
                 }
-                
               }
             },
             sx: {

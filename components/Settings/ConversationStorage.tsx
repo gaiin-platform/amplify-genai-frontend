@@ -19,7 +19,7 @@ interface Props {
 }
 
 
-export const StorageDialog: FC<Props> = ({ open }) => {
+export const ConversationsStorage: FC<Props> = ({ open }) => {
 
   const { dispatch: homeDispatch, state:{conversations, selectedConversation, folders, statsService, storageSelection} } = useContext(HomeContext);
 
@@ -88,11 +88,10 @@ export const StorageDialog: FC<Props> = ({ open }) => {
   }
 
   return ( open ? (
-          <div
-            className="w-full pr-6  inline-block transform overflow-y-auto rounded-lg  bg-transparent text-left align-bottom transition-all  sm:align-middle"
-          >
-            <div className="text-lg pb-2 font-bold text-black dark:text-neutral-200 flex items-center">
-              {t('Conversation Storage')}
+        <div className="settings-card">
+            <div className="settings-card-header flex flex-row items-center gap-4">
+              <h3 className="settings-card-title">{t('Conversation Storage')}</h3>
+              <p className="settings-card-description">Choose your preferred conversation storage</p>
             </div>
 
             <InfoBox
@@ -113,6 +112,7 @@ export const StorageDialog: FC<Props> = ({ open }) => {
             {t('Where would you like to store your conversations?')}
             <button
               type="button"
+              id="applyConversationStorage"
               title='Apply Conversation Storage Changes To The Current Browser'
               className={`text-xs ml-10 p-2 py-1 rounded-lg shadow-md focus:outline-none  bg-neutral-100 text-black hover:bg-neutral-200
                           ${hasChanges ? 'border-2 border-green-500' : 'border border-neutral-800'}`}
@@ -125,86 +125,107 @@ export const StorageDialog: FC<Props> = ({ open }) => {
               </>
               </button>
           </div>
-
-        <form className='mt-12 flex justify-center ml-6'>
-          {/* Local Storage Section */}
-          <div className='mr-12'>
-              <div className="pb-1 border-b border-gray-300">
-                  <label className="text-base font-semibold" title='Local storage keeps your conversations only in this browser, ensuring they remain private.' >Local Storage</label>
-                  <button
-                      type="button"
-                      className="ml-0.8 bg-transparent border-none " 
-                      disabled
-                      title='Local storage keeps your conversations only in this browser, ensuring they remain private.'
-                      >
-                      <IconMessage className='ml-2' size={18} style={{ marginBottom: '-4px' }} />
-                    </button>
-              </div>
-              <div className="mt-2 mb-2">
-                  <input
+       
+       <div className="m-4 storage-options-container">
+              {/* Local Storage Card */}
+              <div className="storage-option-card">
+                <div className="storage-option-header">
+                  <div className="storage-option-icon-wrapper local">
+                    <IconMessage size={24} className="storage-option-icon" />
+                  </div>
+                  <div className="storage-option-title-section">
+                    <h3 className="storage-option-title">Local Storage</h3>
+                    <p className="storage-option-subtitle">Private & secure on this device</p>
+                  </div>
+                </div>
+                
+                <div className="storage-option-choices">
+                  <label className={`storage-choice ${selectedOption === 'local-only' ? 'storage-choice-selected' : ''}`}>
+                    <input
                       type="radio"
                       id="local-only"
                       name="storageOption"
                       value="local-only"
                       checked={selectedOption === 'local-only'}
                       onChange={(e) => handleSelectedOptionChanged(e.target.value)}
-                  />
-                  <label htmlFor="local-only"> Store all existing and new conversations locally </label>
-              </div>
-              <div className="mb-1">
-                  <input
+                      className="storage-choice-radio"
+                    />
+                    <div className="storage-choice-content">
+                      <div className="storage-choice-title">All Conversations Local</div>
+                      <div className="storage-choice-description">Move all existing conversations to local storage and store all new ones locally</div>
+                    </div>
+                    <div className="storage-choice-indicator"></div>
+                  </label>
+                  
+                  <label className={`storage-choice ${selectedOption === 'future-local' ? 'storage-choice-selected' : ''}`}>
+                    <input
                       type="radio"
                       id="future-local"
                       name="storageOption"
                       value="future-local"
                       checked={selectedOption === 'future-local'}
                       onChange={(e) => handleSelectedOptionChanged(e.target.value)}
-                  />
-                  <label htmlFor="future-local"> Store only new conversations locally</label>
+                      className="storage-choice-radio"
+                    />
+                    <div className="storage-choice-content">
+                      <div className="storage-choice-title">New Conversations Only</div>
+                      <div className="storage-choice-description">Store only new conversations locally, keep existing ones where they are</div>
+                    </div>
+                    <div className="storage-choice-indicator"></div>
+                  </label>
+                </div>
               </div>
-          </div>
 
-          {/* Cloud Storage Section */}
-          <div>
-              <div className="pb-1 border-b border-gray-300">
-                  <label className="text-base font-semibold" title="Cloud storage allows access to your conversations from any device.">Cloud Storage</label>
-                  <button
-                      type="button"
-                      className="ml-0.8 bg-transparent border-none " 
-                      disabled
-                      title='Cloud storage allows access to your conversations from any device.'
-                      >
-                      <div className='ml-2' style={{ marginBottom: '-4px' }} >
-                        <IconCloud className="block dark:hidden" size={20} />
-                        <IconCloudFilled className="hidden dark:block dark:text-neutral-200" size={20} />
-                      </div>
-                    </button>
-              </div>
-              <div className="mt-2  mb-2">
-                  <input
+              {/* Cloud Storage Card */}
+              <div className="storage-option-card">
+                <div className="storage-option-header">
+                  <div className="storage-option-icon-wrapper cloud">
+                    <IconCloud size={24} className="storage-option-icon block dark:hidden" />
+                    <IconCloudFilled size={24} className="storage-option-icon hidden dark:block" />
+                  </div>
+                  <div className="storage-option-title-section">
+                    <h3 className="storage-option-title">Cloud Storage</h3>
+                    <p className="storage-option-subtitle">Access from any device</p>
+                  </div>
+                </div>
+                
+                <div className="storage-option-choices">
+                  <label className={`storage-choice ${selectedOption === 'cloud-only' ? 'storage-choice-selected' : ''}`}>
+                    <input
                       type="radio"
                       id="cloud-only"
                       name="storageOption"
                       value="cloud-only"
                       checked={selectedOption === 'cloud-only'}
                       onChange={(e) => handleSelectedOptionChanged(e.target.value)}
-                  />
-                  <label htmlFor="cloud-only"> Store all existing and new conversations in the cloud</label>
-              </div>
-              <div>
-                  <input
+                      className="storage-choice-radio"
+                    />
+                    <div className="storage-choice-content">
+                      <div className="storage-choice-title">All Conversations Cloud</div>
+                      <div className="storage-choice-description">Move all existing conversations to cloud and store all new ones in cloud</div>
+                    </div>
+                    <div className="storage-choice-indicator"></div>
+                  </label>
+                  
+                  <label className={`storage-choice ${selectedOption === 'future-cloud' ? 'storage-choice-selected' : ''}`}>
+                    <input
                       type="radio"
                       id="future-cloud"
                       name="storageOption"
                       value="future-cloud"
                       checked={selectedOption === 'future-cloud'}
                       onChange={(e) => handleSelectedOptionChanged(e.target.value)}
-                  />
-                  <label htmlFor="future-cloud"> Store only new conversations in the cloud</label>
-              </div>
-          </div>
-        </form>
+                      className="storage-choice-radio"
+                    />
+                    <div className="storage-choice-content">
+                      <div className="storage-choice-title">New Conversations Only</div>
+                      <div className="storage-choice-description">Store only new conversations in cloud, keep existing ones where they are</div>
+                    </div>
+                    <div className="storage-choice-indicator"></div>
+                  </label>
+                </div>
+              </div>        
+        </div>
       </div>
-       
   ) : <></>)
 };

@@ -7,6 +7,8 @@ import { Model } from "@/types/model";
 import toast from "react-hot-toast";
 import { Integration, integrationProvidersList, IntegrationsMap } from "@/types/integrations";
 import { getAvailableIntegrations } from "@/services/oauthIntegrationsService";
+import { Account } from "@/types/accounts";
+import { parametersToParms } from "./tools";
 
 // Reference types
 export const DATASOURCE_TYPE = "#$"
@@ -14,7 +16,7 @@ export const OP_TYPE = "#!"
 export const ASSISTANT_TYPE = "#@"
 const RESPONSE_THRESHOLD = 10000; 
 
-export const remoteOpHandler = (opDef:OpDef, chatEndpoint: string, model: Model) => {
+export const remoteOpHandler = (opDef:OpDef, chatEndpoint: string, model: Model, defaultAccount?: Account) => {
 
     console.log("Building remote op handler", opDef);
 
@@ -48,9 +50,12 @@ export const remoteOpHandler = (opDef:OpDef, chatEndpoint: string, model: Model)
 
             const payload:Record<string,any> = {};
 
+            // Convert parameters Schema to params array for processing
+            const paramsArray = parametersToParms(opDef.parameters);
+
             // params = params.slice(1); // The first param is the operation name
-            for (let i = 0; i < opDef.params.length; i++) {
-                const paramDef = opDef.params[i];
+            for (let i = 0; i < paramsArray.length; i++) {
+                const paramDef = paramsArray[i];
                 console.log(`paramDef ${i}:`, paramDef);
                 try {
                     payload[paramDef.name] = JSON5.parse(params[i]);
@@ -66,7 +71,7 @@ export const remoteOpHandler = (opDef:OpDef, chatEndpoint: string, model: Model)
                 
                 if (response) {
                     const strResponse = JSON.stringify(response);
-                    return strResponse.length > RESPONSE_THRESHOLD ? condenseResponse(strResponse, chatEndpoint, model) : response;
+                    return strResponse.length > RESPONSE_THRESHOLD ? condenseResponse(strResponse, chatEndpoint, model, defaultAccount) : response;
                 } else {
                     return {
                         success: false,
@@ -103,7 +108,7 @@ export const getServerProvidedReferences = (message:Message): Reference[] => {
         message.data.state.references : [];
 }
 
-export const resolveServerHandler = (message:Message, id:string, chatEndpoint: string | null, model: Model) => {
+export const resolveServerHandler = (message:Message, id:string, chatEndpoint: string | null, model: Model, defaultAccount?: Account) => {
     const serverResolvedOps = getServerProvidedOps(message);
 
     if(!serverResolvedOps || serverResolvedOps.length === 0){
@@ -114,7 +119,7 @@ export const resolveServerHandler = (message:Message, id:string, chatEndpoint: s
         (op:any) => op.id === id || op.id === "/"+id
     );
 
-    return opDef ? remoteOpHandler(opDef, chatEndpoint ?? '', model) : null;
+    return opDef ? remoteOpHandler(opDef, chatEndpoint ?? '', model, defaultAccount) : null;
 }
 
 export const resolveOpDef = (message:Message, id:string) => {
@@ -240,8 +245,8 @@ export function parseApiCalls(str:string):ApiCall[] {
     return calls;
 }
 
-export function resolveOp(id:string, message:Message, chatEndpoint: string | null, model: Model) {
-    const serverHandler = resolveServerHandler(message, id, chatEndpoint, model);
+export function resolveOp(id:string, message:Message, chatEndpoint: string | null, model: Model, defaultAccount?: Account) {
+    const serverHandler = resolveServerHandler(message, id, chatEndpoint, model, defaultAccount);
 
     if(serverHandler){
         return serverHandler;
@@ -274,14 +279,14 @@ Before responding, verify that each point:
 Respond ONLY with the essential information, maintaining complete accuracy WITHOUT COMMENTS, PLEASANTRIES, PREAMBLES.
 `;
 
-const condenseResponse = async (response: string, chatEndpoint: string, model: Model) => {
+const condenseResponse = async (response: string, chatEndpoint: string, model: Model, defaultAccount?: Account) => {
     console.log("Response is too large, attempting to condense...");
     const messages: Message[] = [newMessage({role: 'user', content : `${prompt}:\n\n\n ${response}`, type: MessageType.PROMPT})];
     setTimeout(() => {
          toast("Still processing request... almost done");
     }, 1800);
    
-    const updatedResponse = await promptForData(chatEndpoint, messages, model, "Transform extensive information into an easily consumable format, NO COMMENTS, PLEASANTRIES, PREAMBLES ALLOWED", null, model.outputTokenLimit);
+    const updatedResponse = await promptForData(chatEndpoint, messages, model, "Transform extensive information into an easily consumable format, NO COMMENTS, PLEASANTRIES, PREAMBLES ALLOWED", defaultAccount, null, model.outputTokenLimit);
     console.log("Condensed Response: ", updatedResponse);
 
     return updatedResponse ? {success: true, data: updatedResponse}: JSON.parse(response);

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { GetServerSideProps } from 'next';
 import { useTranslation } from 'next-i18next';
+import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
 import { SettingsBar } from "@/components/Settings/SettingsBar";
@@ -25,9 +27,10 @@ import {
     isRemoteConversation,
     deleteConversationCleanUp,
 } from '@/utils/app/conversation';
-import { getHiddenGroupFolders, saveFolders } from '@/utils/app/folders';
+import { getArchiveNumOfDays, getHiddenGroupFolders, saveFolders } from '@/utils/app/folders';
 import { savePrompts } from '@/utils/app/prompts';
 import { getSettings, saveSettings } from '@/utils/app/settings';
+import { storageGet, storageSet } from '@/utils/app/storage';
 import { getAccounts } from "@/services/accountService";
 
 import { Conversation, Message, newMessage } from '@/types/chat';
@@ -48,9 +51,11 @@ import {
     IconSettings,
     IconDeviceSdCard,
     IconLogout,
+    IconSparkles,
+    IconHammer,
 } from "@tabler/icons-react";
 
-import { initialState } from './Home.state';
+import { initialState } from './home.state';
 import useEventService from "@/hooks/useEventService";
 import { v4 as uuidv4 } from 'uuid';
 
@@ -65,12 +70,12 @@ import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { deleteAssistant, listAssistants } from '@/services/assistantService';
-import { getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
+import { filterAstsByFeatureFlags, getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
 import { fetchAllRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import {killRequest as killReq} from "@/services/chatService";
 import { DefaultUser } from 'next-auth';
-import { addDateAttribute, getDate, getDateName } from '@/utils/app/date';
-import HomeContext, {  ClickContext, Processor } from './Home.context';
+import { addDateAttribute, getFullTimestamp, getDateName } from '@/utils/app/date';
+import HomeContext, {  ClickContext, Processor } from './home.context';
 import { ReservedTags } from '@/types/tags';
 import { noCoaAccount } from '@/types/accounts';
 import { noRateLimit } from '@/types/rateLimit';
@@ -84,14 +89,12 @@ import { getAvailableModels, getFeatureFlags, getPowerPoints, getUserAppConfigs 
 import { DefaultModels, Model } from '@/types/model';
 import { ErrorMessage } from '@/types/error';
 import { fetchEmailSuggestions } from '@/services/emailAutocompleteService';
-
-import { WorkspaceLegacyMessage } from '@/components/Workspace/WorkspaceLegacyMessage';
 import { getSharedItems } from '@/services/shareService';
 import { lowestCostModel } from '@/utils/app/models';
-import { SidebarButton } from '@/components/Sidebar/SidebarButton';
 import { useRouter } from 'next/router';
 import { AdminConfigTypes } from '@/types/admin';
 import { ConversationStorage } from '@/types/conversationStorage';
+import UserMenu from '@/components/Layout/UserMenu';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -106,7 +109,6 @@ interface Props {
     cognitoClientId: string | null;
     mixPanelToken: string;
     chatEndpoint: string | null;
-    aiEmailDomain: string;
 }
 
 
@@ -115,7 +117,6 @@ const Home = ({
     cognitoDomain,
     mixPanelToken,
     chatEndpoint,
-    aiEmailDomain,
 }: Props) => {
     const { t } = useTranslation('chat');
     const [initialRender, setInitialRender] = useState<boolean>(true);
@@ -127,8 +128,6 @@ const Home = ({
     const [dataDisclosure, setDataDisclosure] = useState<{url: string, html: string | null}|null>(null);
     const [hasAcceptedDataDisclosure, sethasAcceptedDataDisclosure] = useState<boolean | null> (null);
 
-    const [isMemoryDialogOpen, setIsMemoryDialogOpen] = useState(false);
-
     const { data: session, status } = useSession();
     const [user, setUser] = useState<DefaultUser | null>(null);
 
@@ -138,8 +137,7 @@ const Home = ({
     const contextValue = useHomeReducer({
         initialState: {
             ...initialState,
-            statsService: useEventService(mixPanelToken),
-            aiEmailDomain: aiEmailDomain },
+            statsService: useEventService(mixPanelToken) },
     });
 
 
@@ -307,6 +305,9 @@ const Home = ({
             dispatch({  field: 'selectedConversation',
                         value: newSelectedConv
                     });
+                    
+            // Reset standalone flag when selecting a conversation
+            dispatch({ field: 'isStandalonePromptCreation', value: false });
 
         }
     };
@@ -338,7 +339,7 @@ const Home = ({
 
         const newFolder: FolderInterface = {
             id: uuidv4(),
-            date: getDate(),
+            date: getFullTimestamp(),
             name,
             type,
         };
@@ -419,7 +420,7 @@ const Home = ({
                         return undefined;
                     }
                     return p;
-                }).filter((p: Prompt | undefined): p is Prompt => p !== undefined);;
+                }).filter((p): p is Prompt => p !== undefined);;
         
                 dispatch({ field: 'prompts', value: updatedPrompts });
                 savePrompts(updatedPrompts);
@@ -486,6 +487,7 @@ const Home = ({
             folderId: folder.id,
             promptTemplate: null,
             isLocal: getIsLocalStorageSelection(storageSelection),
+            date: getFullTimestamp(),
             ...params
         };
         if (isRemoteConversation(newConversation)) uploadConversation(newConversation, foldersRef.current);
@@ -506,7 +508,11 @@ const Home = ({
             statsService.forkConversationEvent();
             if (selectedConversation) {
                 setLoadingMessage("Forking Conversation...");
-                const newConversation = cloneDeep({...selectedConversation,  id: uuidv4(), codeInterpreterAssistantId: undefined,
+                const newConversation = cloneDeep({
+                                                   ...selectedConversation,  
+                                                   id: uuidv4(), 
+                                                   codeInterpreterAssistantId: undefined,
+                                                   date: getFullTimestamp(),
                                                    messages: selectedConversation?.messages.slice(0, messageIndex + 1)
                                                              .map((m:Message) => {
                                                                 if ( m.data?.state?.codeInterpreter ) {
@@ -662,6 +668,12 @@ const Home = ({
             dispatch({ field: 'showChatbar', value: false });
             dispatch({ field: 'showPromptbar', value: false });
         }
+        // check if the conversation has messages 
+        if (selectedConversation && !selectedConversation.messages) {
+            console.warn("Warning: Selected Conversation has no messages!");
+            //will fetch the remote conversation data and uncompress local messages 
+            handleSelectConversation(selectedConversation);
+        } 
     }, [selectedConversation]);
 
 
@@ -686,47 +698,6 @@ const Home = ({
         const fetchModels = async (hasAdminAccess: boolean) => {      
             console.log("Fetching Models...");
             let message = 'There was a problem retrieving the available models, please contact our support team.';
-            
-            // Try direct endpoint first
-            try {
-                const directResponse = await fetch('/api/direct/models', {
-                    credentials: 'include',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    }
-                });
-                if (directResponse.ok) {
-                    const data = await directResponse.json();
-                    if (data.success && data.data) {
-                        console.log("Using direct models endpoint");
-                        const defaultModel = data.data.default;
-                        const models = data.data.models;
-                        
-                        // Process models same as original code
-                        if (selectedConversation && selectedConversation?.model?.id === '') {
-                            handleUpdateSelectedConversation({...selectedConversation, model: defaultModel ?? lowestCostModel(models)});
-                        }
-
-                        if (defaultModel) {
-                            console.log("DefaultModel dispatch: ", defaultModel);
-                            dispatch({ field: 'defaultModelId', value: defaultModel.id });
-                        }
-                        if (data.data.cheapest) dispatch({ field: 'cheapestModelId', value: data.data.cheapest.id });
-                        if (data.data.advanced) dispatch({ field: 'advancedModelId', value: data.data.advanced.id });
-                        const modelMap = models.reduce((acc:any, model:any) => ({...acc, [model.id]: model}), {});
-                        dispatch({ field: 'availableModels', value: modelMap});  
-
-                        //save default model 
-                        localStorage.setItem('defaultModel', JSON.stringify(defaultModel));
-                        return;
-                    }
-                }
-            } catch (directError) {
-                console.log("Direct models endpoint failed, trying original method:", directError);
-            }
-            
-            // Original method as fallback
             try {
                 const response = await getAvailableModels();
                 if (response.success && response.data) {
@@ -741,7 +712,7 @@ const Home = ({
                         }
 
                         if (defaultModel) {
-                            console.log("DefaultModel dispatch: ", defaultModel);
+                            // console.log("DefaultModel dispatch: ", defaultModel);
                             dispatch({ field: 'defaultModelId', value: defaultModel.id });
                         }
                         if (response.data.cheapest) dispatch({ field: 'cheapestModelId', value: response.data.cheapest.id });
@@ -756,117 +727,9 @@ const Home = ({
                 } 
             } catch (e) {
                 console.log("Failed to fetch models: ", e);
-            }
-            
-            // If we reach here, models failed to load. Set default models instead of showing error
-            console.log("Setting default models as fallback");
-            const fallbackModels = {
-                "anthropic.claude-3-5-sonnet-20241022-v2:0": {
-                    id: "anthropic.claude-3-5-sonnet-20241022-v2:0",
-                    name: "Claude 3.5 Sonnet",
-                    provider: "bedrock",
-                    description: "Most capable Claude model via AWS Bedrock",
-                    inputCostPer1K: 0.003,
-                    outputCostPer1K: 0.015,
-                    inputContextWindow: 200000,
-                    outputTokenLimit: 4096,
-                    supportsImages: true,
-                    supportsReasoning: false
-                },
-                "anthropic.claude-3-sonnet-20240229-v1:0": {
-                    id: "anthropic.claude-3-sonnet-20240229-v1:0",
-                    name: "Claude 3 Sonnet",
-                    provider: "bedrock",
-                    description: "Balanced Claude 3 model via AWS Bedrock",
-                    inputCostPer1K: 0.003,
-                    outputCostPer1K: 0.015,
-                    inputContextWindow: 200000,
-                    outputTokenLimit: 4096,
-                    supportsImages: true,
-                    supportsReasoning: false
-                },
-                "anthropic.claude-3-haiku-20240307-v1:0": {
-                    id: "anthropic.claude-3-haiku-20240307-v1:0",
-                    name: "Claude 3 Haiku",
-                    provider: "bedrock",
-                    description: "Fast Claude 3 Haiku via AWS Bedrock",
-                    inputCostPer1K: 0.00025,
-                    outputCostPer1K: 0.00125,
-                    inputContextWindow: 200000,
-                    outputTokenLimit: 4096,
-                    supportsImages: true,
-                    supportsReasoning: false
-                },
-                "mistral.mistral-large-2402-v1:0": {
-                    id: "mistral.mistral-large-2402-v1:0",
-                    name: "Mistral Large",
-                    provider: "bedrock",
-                    description: "Mistral Large via AWS Bedrock",
-                    inputCostPer1K: 0.004,
-                    outputCostPer1K: 0.012,
-                    inputContextWindow: 32000,
-                    outputTokenLimit: 4096,
-                    supportsImages: false,
-                    supportsReasoning: false
-                },
-                "gpt-4": {
-                    id: "gpt-4",
-                    name: "GPT-4",
-                    provider: "openai",
-                    description: "OpenAI GPT-4",
-                    inputCostPer1K: 0.03,
-                    outputCostPer1K: 0.06,
-                    inputContextWindow: 8192,
-                    outputTokenLimit: 4096,
-                    supportsImages: false,
-                    supportsReasoning: true
-                },
-                "gpt-3.5-turbo": {
-                    id: "gpt-3.5-turbo",
-                    name: "GPT-3.5 Turbo",
-                    provider: "openai",
-                    description: "OpenAI GPT-3.5 Turbo",
-                    inputCostPer1K: 0.0005,
-                    outputCostPer1K: 0.0015,
-                    inputContextWindow: 16385,
-                    outputTokenLimit: 4096,
-                    supportsImages: false,
-                    supportsReasoning: false
-                },
-                "gemini-1.5-pro": {
-                    id: "gemini-1.5-pro",
-                    name: "Gemini 1.5 Pro",
-                    provider: "gemini",
-                    description: "Google Gemini 1.5 Pro",
-                    inputCostPer1K: 0.00125,
-                    outputCostPer1K: 0.005,
-                    inputContextWindow: 2097152,
-                    outputTokenLimit: 8192,
-                    supportsImages: true,
-                    supportsReasoning: true
-                },
-                "gemini-1.5-flash": {
-                    id: "gemini-1.5-flash",
-                    name: "Gemini 1.5 Flash",
-                    provider: "gemini",
-                    description: "Fast Gemini model",
-                    inputCostPer1K: 0.00035,
-                    outputCostPer1K: 0.0007,
-                    inputContextWindow: 1048576,
-                    outputTokenLimit: 8192,
-                    supportsImages: true,
-                    supportsReasoning: false
-                }
-            };
-            
-            const defaultModel = fallbackModels["anthropic.claude-3-5-sonnet-20241022-v2:0"];
-            dispatch({ field: 'defaultModelId', value: defaultModel.id });
-            dispatch({ field: 'availableModels', value: fallbackModels});
-            localStorage.setItem('defaultModel', JSON.stringify(defaultModel));
-            
-            // Don't show error, just use fallback models
-            // dispatch({ field: 'modelError', value: {code: null, title: "Failed to Retrieve Models",
-            //                                         messageLines: [message]} as ErrorMessage});  
+            } 
+            dispatch({ field: 'modelError', value: {code: null, title: "Failed to Retrieve Models",
+                                                    messageLines: [message]} as ErrorMessage});  
         };
 
         const fetchDataDisclosureDecision = async (featureOn: boolean) => {
@@ -879,12 +742,12 @@ const Home = ({
                     sethasAcceptedDataDisclosure(decisionValue);
                     if (!decisionValue) { // Fetch the latest data disclosure only if the user has not accepted it
                         const latestDisclosure = await getLatestDataDisclosure();
-                        // console.log(latestDisclosure);
                         const latestDisclosureBodyObject = JSON.parse(latestDisclosure.body);
+                        // console.log(latestDisclosure);
                         const latestDisclosureUrlPDF = latestDisclosureBodyObject.pdf_pre_signed_url;
                         const latestDisclosureHTML = latestDisclosureBodyObject.html_content;
                         setDataDisclosure({url: latestDisclosureUrlPDF, html: latestDisclosureHTML});
-
+                        // console.log("Data Disclosure: ", {url: latestDisclosureUrlPDF, html: latestDisclosureHTML});
                         checkScrollableContent();
                     }
                 } catch (error) {
@@ -937,6 +800,10 @@ const Home = ({
                     if (AdminConfigTypes.EMAIL_SUPPORT in data) {
                         const emailData = data[AdminConfigTypes.EMAIL_SUPPORT];
                         if (emailData && emailData.isActive && emailData.email) dispatch({ field: 'supportEmail', value: emailData.email});  
+                    }
+                    if (AdminConfigTypes.AI_EMAIL_DOMAIN in data) {
+                        const emailDomain = data[AdminConfigTypes.AI_EMAIL_DOMAIN];
+                        dispatch({ field: 'aiEmailDomain', value: emailDomain});  
                     }
                     if (AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE in data) {
                         const storageData = data[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE];
@@ -1007,10 +874,10 @@ const Home = ({
             try {
                 // returns the groups you are inquiring about in a object with the group as the key and is they are on the group as the value
                 const result = await getFeatureFlags();
-                if (result.success) {
+                if (result.success && result.data) {
                     const flags: { [key:string] : boolean } = result.data;
                     // console.log("feature flags:", flags)
-                    if (flags && Object.keys(flags).length > 0) dispatch({ field: 'featureFlags', value: flags});
+                    if (Object.keys(flags).length > 0) dispatch({ field: 'featureFlags', value: flags});
                     localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
                     return flags;
                 } else {
@@ -1030,7 +897,7 @@ const Home = ({
                 if (response.success) {
                     const workspaces = response.items.filter((item: { sharedBy: string; }) =>  item.sharedBy === user);
                     dispatch({ field: 'workspaces', value: workspaces});  
-                    localStorage.setItem('workspaces', JSON.stringify(workspaces));
+                    storageSet('workspaces', JSON.stringify(workspaces));
                     return;
                 } else {
                     console.log("Failed to fetch user workspaces.");
@@ -1042,7 +909,8 @@ const Home = ({
 
         const syncConversations = async (conversations: Conversation[], folders: FolderInterface[]) => {
             try {
-                const allRemoteConvs = await fetchAllRemoteConversations();
+                const days = getArchiveNumOfDays();
+                const allRemoteConvs = await fetchAllRemoteConversations(days === 0 ? undefined : days);
                 if (allRemoteConvs) return updateWithRemoteConversations(allRemoteConvs, conversations, folders, dispatch, getDefaultModel(DefaultModels.DEFAULT));
             } catch (e) {
                 console.log("Failed to sync cloud conversations: ", e);
@@ -1180,15 +1048,7 @@ const Home = ({
                     dispatch({field: 'folders', value: updatedFolders});
                     saveFolders(updatedFolders);
 
-                    let groupPrompts = groupsResult.groupPrompts;
-                    if (!flags.apiKeys) groupPrompts = groupPrompts.filter(prompt =>{
-                                                    const tags = prompt.data?.tags;
-                                                    return !(
-                                                        tags && 
-                                                        (tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER) || 
-                                                         tags.includes(ReservedTags.ASSISTANT_API_HELPER))
-                                                    );
-                                                });
+                    const groupPrompts = filterAstsByFeatureFlags(groupsResult.groupPrompts, flags);
                     updatedPrompts = [...updatedPrompts.filter((p : Prompt) => !p.groupId ), 
                                         ...groupPrompts];
                     
@@ -1238,180 +1098,164 @@ const Home = ({
 
     useEffect(() => {
         if (!initialRender) return;
-        console.log("Initial On Load");
-        const settings = getSettings(featureFlags);
-        setSettings(settings);
+        
+        const initializeData = async () => {
+            console.log("Initial On Load");
+            const settings = getSettings(featureFlags);
+            setSettings(settings);
 
-        if (settings.theme) {
-            dispatch({
-                field: 'lightMode',
-                value: settings.theme,
-            });
-        }
-
-        // will save us the call if a user does not have workspaces 
-        const savedWorkspaces = localStorage.getItem('workspaces');
-        if (savedWorkspaces) {
-            dispatch({ field: 'workspaces', value: JSON.parse(savedWorkspaces) });
-        }
-
-        // const workspaceMetadataStr = localStorage.getItem('workspaceMetadata');
-        // if (workspaceMetadataStr) {
-        //     dispatch({ field: 'workspaceMetadata', value: JSON.parse(workspaceMetadataStr) });
-        // }
-
-        if (window.innerWidth < 640) {
-            dispatch({ field: 'showChatbar', value: false });
-            dispatch({ field: 'showPromptbar', value: false });
-        } else {
-            const showChatbar = localStorage.getItem('showChatbar');
-            if (showChatbar) {
-                dispatch({ field: 'showChatbar', value: showChatbar === 'true' });
+            if (settings.theme) {
+                dispatch({
+                    field: 'lightMode',
+                    value: settings.theme,
+                });
             }
 
-            const showPromptbar = localStorage.getItem('showPromptbar');
-            if (showPromptbar) {
-                dispatch({ field: 'showPromptbar', value: showPromptbar === 'true' });
+            // will save us the call if a user does not have workspaces 
+            const savedWorkspaces = await storageGet('workspaces');
+            if (savedWorkspaces) {
+                dispatch({ field: 'workspaces', value: JSON.parse(savedWorkspaces) });
             }
-        }
 
-        const pluginLoc = localStorage.getItem('pluginLocation');
-        if (pluginLoc) {
-            dispatch({ field: 'pluginLocation', value: JSON.parse(pluginLoc) });
-        }
+            if (window.innerWidth < 640) {
+                dispatch({ field: 'showChatbar', value: false });
+                dispatch({ field: 'showPromptbar', value: false });
+            } else {
+                const showChatbar = localStorage.getItem('showChatbar');
+                if (!!showChatbar) {
+                    dispatch({ field: 'showChatbar', value: showChatbar === 'true' });
+                }
 
-       
-        const storageSelection = localStorage.getItem('storageSelection');
-        if (storageSelection) {
-            dispatch({field: 'storageSelection', value: storageSelection});
-        }
+                const showPromptbar = localStorage.getItem('showPromptbar');
+                if (!!showPromptbar) {
+                    dispatch({ field: 'showPromptbar', value: showPromptbar === 'true' });
+                }
+            }
 
-        const hiddenGroups = localStorage.getItem('hiddenGroupFolders');
-        if (hiddenGroups) {
-            dispatch({field: 'hiddenGroupFolders', value: JSON.parse(hiddenGroups) });
-        }
+            const pluginLoc = localStorage.getItem('pluginLocation');
+            if (pluginLoc) {
+                dispatch({ field: 'pluginLocation', value: JSON.parse(pluginLoc) });
+            }
 
-        const prompts = localStorage.getItem('prompts');
-        const promptsParsed = JSON.parse(prompts ? prompts : '[]')
-        if (prompts) {
-            dispatch({ field: 'prompts', value: promptsParsed });
-        }
+           
+            const storageSelection = localStorage.getItem('storageSelection');
+            if (storageSelection) {
+                dispatch({field: 'storageSelection', value: storageSelection});
+            }
 
-        const workflows = localStorage.getItem('workflows');
-        if (workflows) {
-            dispatch({ field: 'workflows', value: JSON.parse(workflows) });
-        }
+            const hiddenGroups = localStorage.getItem('hiddenGroupFolders');
+            if (hiddenGroups) {
+                dispatch({field: 'hiddenGroupFolders', value: JSON.parse(hiddenGroups) });
+            }
 
-        let folderIds: string[] = [];
+            const prompts = await storageGet('prompts');
+            const promptsParsed = JSON.parse(prompts ? prompts : '[]')
+            if (prompts) {
+                dispatch({ field: 'prompts', value: promptsParsed });
+            }
 
-        const folders = localStorage.getItem('folders');
-        const foldersParsed = JSON.parse(folders ? folders : '[]')
-        if (folders) {
-            // for older folders with no date, if it can be transform to the correct format then we add the date attribte
-            let updatedFolders:FolderInterface[] = foldersParsed.map((folder:FolderInterface) => {
-                                        return "date" in folder ? folder : addDateAttribute(folder);
-                                    })
-            // Make sure the "assistants" folder exists and create it if necessary
-            const assistantsFolder = updatedFolders.find((f:FolderInterface) => f.id === "assistants");
-            if (!assistantsFolder) updatedFolders.push( baseAssistantFolder );
-            
-            dispatch({ field: 'folders', value: updatedFolders});
-            folderIds = updatedFolders.map((f: FolderInterface) => f.id)
-        }
+            const workflows = await storageGet('workflows');
+            if (workflows) {
+                dispatch({ field: 'workflows', value: JSON.parse(workflows) });
+            }
 
-        // Create a string for the current date like Oct-18-2021
-        const dateName = getDateName();
+            let folderIds: string[] = [];
 
-        const conversationHistory = localStorage.getItem('conversationHistory');
-        let conversations: Conversation[] = JSON.parse(conversationHistory ? conversationHistory : '[]');
-        //ensure all conversation messagea are compressed and folder exists
-        conversations = compressAllConversationMessages(conversations).map((c: Conversation) => 
-                                            !c.folderId || folderIds.includes(c.folderId) ? c : {...c, folderId: null});
+            const folders = await storageGet('folders');
+            const foldersParsed = JSON.parse(folders ? folders : '[]')
+            if (folders) {
+                // for older folders with no date, if it can be transform to the correct format then we add the date attribte
+                let updatedFolders:FolderInterface[] = foldersParsed.map((folder:FolderInterface) => {
+                                            return "date" in folder ? folder : addDateAttribute(folder);
+                                        })
+                // Make sure the "assistants" folder exists and create it if necessary
+                const assistantsFolder = updatedFolders.find((f:FolderInterface) => f.id === "assistants");
+                if (!assistantsFolder) updatedFolders.push( baseAssistantFolder );
+                
+                dispatch({ field: 'folders', value: updatedFolders});
+                folderIds = updatedFolders.map((f: FolderInterface) => f.id)
+            }
 
-        // call fetach all conversations 
-        const lastConversation: Conversation | null = (conversations.length > 0) ? conversations[conversations.length - 1] : null;
-        const lastConversationFolder: FolderInterface | null = lastConversation && foldersParsed ? foldersParsed.find((f: FolderInterface) => f.id === lastConversation.folderId) : null;
+            // Create a string for the current date like Oct-18-2021
+            const dateName = getDateName();
 
-        let selectedConversation: Conversation | null = lastConversation ? { ...lastConversation } : null;
+            const conversationHistory = await storageGet('conversationHistory');
+            let conversations: Conversation[] = JSON.parse(conversationHistory ? conversationHistory : '[]');
+            //ensure all conversation messagea are compressed and folder exists
+            conversations = compressAllConversationMessages(conversations).map((c: Conversation) => 
+                                                !c.folderId || folderIds.includes(c.folderId) ? c : {...c, folderId: null});
 
-        if (!lastConversation || lastConversation.name !== 'New Conversation' ||
-            (lastConversationFolder && lastConversationFolder.name !== dateName)) {
+            // call fetach all conversations 
+            const lastConversation: Conversation | null = (conversations.length > 0) ? conversations[conversations.length - 1] : null;
+            const lastConversationFolder: FolderInterface | null = lastConversation && foldersParsed ? foldersParsed.find((f: FolderInterface) => f.id === lastConversation.folderId) : null;
 
-            // See if there is a folder with the same name as the date
-            let folder = foldersParsed.find((f: FolderInterface) => f.name === dateName);
-            if (!folder) {
-                const newFolder: FolderInterface = {
+            let selectedConversation: Conversation | null = lastConversation ? { ...lastConversation } : null;
+
+            if (!lastConversation || lastConversation.name !== 'New Conversation' ||
+                (lastConversationFolder && lastConversationFolder.name !== dateName)) {
+
+                // See if there is a folder with the same name as the date
+                let folder = foldersParsed.find((f: FolderInterface) => f.name === dateName);
+                if (!folder) {
+                    const newFolder: FolderInterface = {
+                        id: uuidv4(),
+                        date: getFullTimestamp(),
+                        name: dateName,
+                        type: "chat"
+                    };
+
+                    folder = newFolder;
+                    const updatedFolders = [...foldersParsed, newFolder];
+
+                    dispatch({ field: 'folders', value: updatedFolders });
+                    saveFolders(updatedFolders);
+                }
+
+                let defaultModel = localStorage.getItem('defaultModel');
+                defaultModel = defaultModel ? JSON.parse(defaultModel) : lastConversation?.model;
+
+                //new conversation on load 
+                const newConversation: Conversation = {
                     id: uuidv4(),
-                    date: getDate(),
-                    name: dateName,
-                    type: "chat"
+                    name: t('New Conversation'),
+                    messages: [],
+                    model: (defaultModel ?? {id:'', name: '', description: '', inputContextWindow: 0, supportsImages: false, supportsReasoning: false}) as Model, 
+                    prompt: DEFAULT_SYSTEM_PROMPT,
+                    temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
+                    folderId: folder.id,
+                    promptTemplate: null,
+                    isLocal: getIsLocalStorageSelection(storageSelection)
                 };
 
-                folder = newFolder;
-                const updatedFolders = [...foldersParsed, newFolder];
+                if (isRemoteConversation(newConversation)) uploadConversation(newConversation, foldersRef.current);
+                // Ensure the new conversation is added to the list of conversationHistory
+                conversations.push(newConversation);
 
-                dispatch({ field: 'folders', value: updatedFolders });
-                saveFolders(updatedFolders);
+                selectedConversation = { ...newConversation };
+
             }
 
-            let defaultModel = localStorage.getItem('defaultModel');
-            defaultModel = defaultModel ? JSON.parse(defaultModel) : lastConversation?.model;
-            console.log("local storage default Model: ", defaultModel)
+            dispatch({ field: 'selectedConversation', value: selectedConversation });
 
-            //new conversation on load 
-            const newConversation: Conversation = {
-                id: uuidv4(),
-                name: t('New Conversation'),
-                messages: [],
-                model: (defaultModel ?? {id:'', name: '', description: '', inputContextWindow: 0, supportsImages: false, supportsReasoning: false}) as Model, 
-                prompt: DEFAULT_SYSTEM_PROMPT,
-                temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
-                folderId: folder.id,
-                promptTemplate: null,
-                isLocal: getIsLocalStorageSelection(storageSelection)
-            };
+            if (conversationHistory) {
+                const cleanedConversationHistory = cleanConversationHistory(conversations, getDefaultModel(DefaultModels.DEFAULT));
 
-            if (isRemoteConversation(newConversation)) uploadConversation(newConversation, foldersRef.current);
-            // Ensure the new conversation is added to the list of conversationHistory
-            conversations.push(newConversation);
+                dispatch({ field: 'conversations', value: cleanedConversationHistory });
+                saveConversations(cleanedConversationHistory)
+            }
 
-            selectedConversation = { ...newConversation };
+            dispatch({
+                field: 'conversationStateId',
+                value: 'post-init',
+            });
+        };
 
-        }
-
-        dispatch({ field: 'selectedConversation', value: selectedConversation });
-
-        if (conversationHistory) {
-            const cleanedConversationHistory = cleanConversationHistory(conversations, getDefaultModel(DefaultModels.DEFAULT));
-
-            dispatch({ field: 'conversations', value: cleanedConversationHistory });
-            saveConversations(cleanedConversationHistory)
-        }
-
-        dispatch({
-            field: 'conversationStateId',
-            value: 'post-init',
-        });
+        initializeData();
     }, [initialRender]);
 
     const [preProcessingCallbacks, setPreProcessingCallbacks] = useState([]);
     const [postProcessingCallbacks, setPostProcessingCallbacks] = useState([]);
 
-    const federatedSignOut = async () => {
-
-        await signOut();
-        // signOut only signs out of Auth.js's session
-        // We need to log out of Cognito as well
-        // Federated signout is currently not supported.
-        // Therefore, we use a workaround: https://github.com/nextauthjs/next-auth/issues/836#issuecomment-1007630849
-        const signoutRedirectUrl = `${window.location.protocol}//${window.location.hostname}${window.location.port ? `:${window.location.port}` : ''}`;
-
-        window.location.replace(
-
-            `${cognitoDomain}/logout?client_id=${cognitoClientId}&logout_uri=${encodeURIComponent(signoutRedirectUrl)}`
-
-        );
-    };
 
     const getName = (email?: string | null) => {
         if (!email) return "Anonymous";
@@ -1484,12 +1328,7 @@ const Home = ({
                                     }}
                                     onScroll={handleScroll}
                                     dangerouslySetInnerHTML={{ __html: dataDisclosure.html }}
-                                > 
-                                {/*  for when we try out markitdown in pdf to md conversion in the backend
-                                <DataDisclosure
-                                content='dataDisclosure.html'
-                                /> */}
-                                    
+                                >   
                                 </div>
 
                             ) : (
@@ -1618,33 +1457,19 @@ const Home = ({
                         </div>
 
                         <div className="flex h-full w-full pt-[48px] sm:pt-0">
+                            <UserMenu
+                                email={user?.email}
+                                name={session?.user?.name}
+                            />
+
 
                             <TabSidebar
                                 side={"left"}
-                                footerComponent={
-                                    <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
-                                        <button id="logout" className="dark:text-white" title="Sign Out" onClick={() => {
-                                            const goLogout = async () => {
-                                                await federatedSignOut();
-                                            };
-                                            goLogout();
-                                        }}>
-
-                                            <div className="flex items-center">
-                                                <IconLogout className="m-2" />
-                                                <span>{isLoading ? 'Loading...' : getName(user?.email) ?? 'Unnamed user'}</span>
-                                            </div>
-
-                                        </button>
-
-                                    </div>
-                                }
+                                footerComponent={null}
                             >
                                 <Tab icon={<IconMessage />} title="Chats"><Chatbar /></Tab>
-                                <Tab icon={<IconShare />} title="Share"><SharedItemsList /></Tab>
-                                { workspaces && workspaces.length > 0 ? 
-                                <Tab icon={<IconTournament />} title="Workspaces"><WorkspaceLegacyMessage /></Tab> : null}
-                                <Tab icon={<IconSettings />} title="Settings"><SettingsBar /></Tab>
+                                <Tab icon={<IconSparkles />} title="Assistants"><Promptbar /></Tab>
+                                <Tab icon={<IconHammer />} title="Settings"><SettingsBar /></Tab>
                             </TabSidebar>
 
                             <div className="flex flex-1">
@@ -1660,35 +1485,13 @@ const Home = ({
                                     <MyHome />
                                 )}
                             </div>
-
-
-                            <TabSidebar
-                                side={"right"}
-                                footerComponent={
-                                    <>
-                                    {featureFlags.memory && settings?.featureOptions.includeMemory && (
-                                        <div className="m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">
-                                            <SidebarButton
-                                                text={t('Memory')}
-                                                icon={<IconDeviceSdCard size={20} />}
-                                                onClick={() => setIsMemoryDialogOpen(true)}
-                                            />
-                                            <MemoryDialog
-                                                open={isMemoryDialogOpen}
-                                                onClose={() => setIsMemoryDialogOpen(false)}
-                                            />
-                                        </div>
-                                    )}
-                                    </>
-                                }
-                            >
-                                <Tab icon={<Icon3dCubeSphere />}><Promptbar /></Tab>
-                                {/*<Tab icon={<IconBook2/>}><WorkflowDefinitionBar/></Tab>*/}
-                            </TabSidebar>
+                            
 
                         </div>
                         <LoadingDialog open={!!loadingMessage} message={loadingMessage}/>
                         <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/>
+
+                        
 
                     </main>
                 )}
@@ -1722,7 +1525,7 @@ const Home = ({
                         <LoadingIcon />
                     </h1>
                     <button
-                        onClick={() => signIn('cognito', { callbackUrl: window.location.origin })}
+                        onClick={() => signIn('cognito')}
                         id="loginButton"
                         className="shadow-md"
                         style={{
@@ -1747,4 +1550,34 @@ const Home = ({
 };
 export default Home;
 
+export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
+
+    const chatEndpoint = process.env.CHAT_ENDPOINT;
+    const mixPanelToken = process.env.MIXPANEL_TOKEN;
+    const cognitoClientId = process.env.COGNITO_CLIENT_ID;
+    const cognitoDomain = process.env.COGNITO_DOMAIN;
+    
+    // const googleApiKey = process.env.GOOGLE_API_KEY;
+    // const googleCSEId = process.env.GOOGLE_CSE_ID;
+    // if (googleApiKey && googleCSEId) {
+    //     serverSidePluginKeysSet = true;
+    // }
+
+    return {
+        props: {
+            chatEndpoint,
+            mixPanelToken,
+            cognitoClientId,
+            cognitoDomain,
+            ...(await serverSideTranslations(locale ?? 'en', [
+                'common',
+                'chat',
+                'sidebar',
+                'markdown',
+                'promptbar',
+                'settings',
+            ])),
+        },
+    };
+};
 

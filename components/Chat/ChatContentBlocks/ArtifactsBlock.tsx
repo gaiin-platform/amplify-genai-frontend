@@ -4,7 +4,7 @@
 import { useEffect, useState, useContext, useRef } from "react";
 import HomeContext from "@/components/Home/Home.context";
 import { IconLibrary, IconX } from "@tabler/icons-react";
-import { Conversation, Message } from "@/types/chat";
+import { Message } from "@/types/chat";
 import { Artifact, ArtifactBlockDetail } from "@/types/artifacts";
 import toast from "react-hot-toast";
 import React from "react";
@@ -19,7 +19,7 @@ import React from "react";
 // supports coming from assitant (coming from autoArtifacts block) and from message data (when saved artifact gets introduced to conversation)
 export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
 
-    const {state:{statsService, conversations, folders, messageIsStreaming, artifactIsStreaming, selectedConversation},  
+    const {state:{statsService, conversations, folders, messageIsStreaming, artifactIsStreaming, selectedConversation, selectedArtifacts},  
            dispatch:homeDispatch, handleUpdateSelectedConversation} = useContext(HomeContext);
 
     const [artifacts, setArtifacts] = useState <ArtifactBlockDetail[] | undefined > ((message?.data?.artifacts));
@@ -93,43 +93,49 @@ export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
             handleUpdateSelectedConversation(updatedConversation);
         }
     }
+    
+    const isHoveredArtifact = (i: number) => {
+        return isHovered === i;
+    }
 
    return (
-     <div className="flex flex-col gap-3 "
-     >
+     <div className="mt-1 flex flex-col gap-3 " style={{width: (selectedArtifacts?.length ?? 0) > 0 ? '86%' : '95%'}}>
         {selectedConversation &&  artifacts.map((artifact: ArtifactBlockDetail, i:number) => (
             (Object.keys(selectedConversation.artifacts ?? {}).includes(artifact.artifactId) && 
             <button onMouseEnter={() => setIsHovered(i)} onMouseLeave={() => setIsHovered(-1)}
                 onClick={() => handleOpenArtifacts(artifact)} 
                 title={artifact.description}
                 disabled={artifactIsStreaming || messageIsStreaming}
-                className="bg-yellow-400 dark:bg-[#B0BEC5] rounded-xl shadow-lg h-12 my-1.5 "
+                className="bg-yellow-400 dark:bg-[#B0BEC5] rounded-xl shadow-lg min-h-12 my-1.5 "
                 key={i}
                 id="artifactsButtonBlock"
             >
-                <div className="flex flex-row text-black">
-                    <div
-                        className="w-14 h-12 flex-none bg-cover rounded-l-xl text-center overflow-hidden"
-                        style={{backgroundImage: 'url("/sparc_apple.png")'}}
-                        title={artifact.name}>
-                    </div>
-                    <div className="ml-5 mt-3">
-                        <IconLibrary/>
-                    </div>
-                    <div className="mt-3 ml-3 text-[15px] text-start truncate max-w-[300px]">        
-                        {artifact.name}
-                    </div>
-                    {artifact.version && 
-                        <div className="mt-3 ml-2 text-[15px] text-gray-500 truncate">    
-                            -  Version {artifact.version}
-                        </div>}
-                    {isHovered === i &&
-                        <>
-                            <div className="mt-3 mr-2 ml-auto text-[14px] whitespace-nowrap">    
+                <div className="flex flex-col text-black">
+                    {/* Main row with icon, name, version, date, and remove button */}
+                    <div className="flex flex-row items-center min-h-12 flex-wrap">
+                        <div
+                            className="w-14 h-14 flex-none bg-cover rounded-l-xl text-center overflow-hidden"
+                            style={{backgroundImage: 'url("/sparc_apple.png")'}}
+                            title={artifact.name}>
+                        </div>
+                        <div className="ml-5 mt-1">
+                            <IconLibrary/>
+                        </div>
+                        <div className="relative ml-3 text-[16px] text-start truncate flex-1 h-9 min-w-0 flex flex-col"
+                            style={{transform: 'translateY(4px)'}}
+                        >        
+                            {artifact.name}
+                            {isHoveredArtifact(i) &&artifact.version && (
+                                <span className="absolute top-4 text-[13px] text-gray-500">Version {artifact.version}</span>
+                            )}
+                        </div>
+                        {isHoveredArtifact(i) && (
+                           <>
+                            {artifact.createdAt && 
+                            <div className="mx-2 mt-1 text-[14px] text-gray-500 flex-none">
                                 {artifact.createdAt}
-                            </div>
-
-                            <div className="mr-4 mt-3.5 text-gray-500 hover:text-neutral-900"
+                            </div>}
+                            <div className="mr-4 mt-1 text-gray-500 hover:text-neutral-900 flex-none"
                                 id="removeArtifactFromConversation"
                                 onClick={(e) => {
                                     e.stopPropagation(); 
@@ -137,11 +143,10 @@ export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
                                 title="Remove Artifact from Conversation"
                             >
                                 <IconX size={18} />
-                            </div> 
-                        </>
-                        
-                    }
-                               
+                            </div>
+                            </>
+                        )}
+                    </div>
                 </div>
             </button>)
             ))

@@ -19,7 +19,7 @@ class FileInclusionTests(BaseTest):
     
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
-        super().setUp(headless=True)
+        super().setUp(headless=False)
         
     # ----------------- Setup Test Data ------------------
     def upload_file(self, filename):
@@ -47,6 +47,23 @@ class FileInclusionTests(BaseTest):
         # print("Sending file to input field...")
         file_input.send_keys(file_path)
         time.sleep(35) 
+        
+    def sidebar_press(self):
+        time.sleep(1)  # Optional; remove if not strictly necessary
+
+        try:
+            # If the collapseSidebar is found and visible, sidebar is already open
+            collapse_sidebar = self.driver.find_element(By.ID, "collapseSidebar")
+            if collapse_sidebar.is_displayed():
+                # Sidebar is open; do nothing
+                return
+        except:
+            # Element not found, which means sidebar is likely closed — expand it
+            expand_sidebar_button = self.wait.until(
+                EC.presence_of_element_located((By.ID, "expandSidebar"))
+            )
+            self.assertTrue(expand_sidebar_button.is_displayed(), "Expand Sidebar Button is visible")
+            expand_sidebar_button.click()
         
     def send_message(self, message):
         # Locate the chatbar to input in messageChatInputText
@@ -111,21 +128,7 @@ class FileInclusionTests(BaseTest):
     
     def test_file_inclusions_doc_menu(self):
         
-        # Find the Select Collapse Left Sidebar Button
-        sidebar_collapse_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "collapseSidebar")))
-        self.assertTrue(sidebar_collapse_buttons, "collapseSidebar should be initialized")
-
-        # Collapse the Left Sidebar
-        sidebar_collapse_buttons[0].click()
-        
-        time.sleep(3)  # Give time for any UI changes
-        
-        # Find the Select Collapse Left Sidebar Button
-        sidebar_collapse_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "collapseSidebar")))
-        self.assertTrue(sidebar_collapse_buttons, "collapseSidebar should be initialized")
-
-        # Collapse the Left Sidebar
-        sidebar_collapse_buttons[-1].click()
+        self.sidebar_press()
         
         time.sleep(3)  # Give time for any UI changes
         
@@ -180,23 +183,9 @@ class FileInclusionTests(BaseTest):
     # ----------------- Test Files Slides -----------------
     """This test ensures that an uploaded pptx can be viewed in the Files Menu"""
     
-    def test_file_inclusions_doc_menu(self):
+    def test_file_inclusions_powerpoint_menu(self):
         
-        # Find the Select Collapse Left Sidebar Button
-        sidebar_collapse_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "collapseSidebar")))
-        self.assertTrue(sidebar_collapse_buttons, "collapseSidebar should be initialized")
-
-        # Collapse the Left Sidebar
-        sidebar_collapse_buttons[0].click()
-        
-        time.sleep(3)  # Give time for any UI changes
-        
-        # Find the Select Collapse Left Sidebar Button
-        sidebar_collapse_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "collapseSidebar")))
-        self.assertTrue(sidebar_collapse_buttons, "collapseSidebar should be initialized")
-
-        # Collapse the Left Sidebar
-        sidebar_collapse_buttons[-1].click()
+        self.sidebar_press()
         
         time.sleep(3)  # Give time for any UI changes
         
@@ -253,21 +242,7 @@ class FileInclusionTests(BaseTest):
 
     def test_file_inclusions_word_in_doc_menu(self):
         
-        # Find the Select Collapse Left Sidebar Button
-        sidebar_collapse_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "collapseSidebar")))
-        self.assertTrue(sidebar_collapse_buttons, "collapseSidebar should be initialized")
-
-        # Collapse the Left Sidebar
-        sidebar_collapse_buttons[0].click()
-        
-        time.sleep(3)  # Give time for any UI changes
-        
-        # Find the Select Collapse Left Sidebar Button
-        sidebar_collapse_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "collapseSidebar")))
-        self.assertTrue(sidebar_collapse_buttons, "collapseSidebar should be initialized")
-
-        # Collapse the Left Sidebar
-        sidebar_collapse_buttons[-1].click()
+        self.sidebar_press()
         
         time.sleep(3)  # Give time for any UI changes
         
@@ -324,21 +299,7 @@ class FileInclusionTests(BaseTest):
 
     def test_file_inclusions_markdown_in_doc_menu(self):
         
-        # Find the Select Collapse Left Sidebar Button
-        sidebar_collapse_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "collapseSidebar")))
-        self.assertTrue(sidebar_collapse_buttons, "collapseSidebar should be initialized")
-
-        # Collapse the Left Sidebar
-        sidebar_collapse_buttons[0].click()
-        
-        time.sleep(3)  # Give time for any UI changes
-        
-        # Find the Select Collapse Left Sidebar Button
-        sidebar_collapse_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "collapseSidebar")))
-        self.assertTrue(sidebar_collapse_buttons, "collapseSidebar should be initialized")
-
-        # Collapse the Left Sidebar
-        sidebar_collapse_buttons[-1].click()
+        self.sidebar_press()
         
         time.sleep(3)  # Give time for any UI changes
         
@@ -397,21 +358,7 @@ class FileInclusionTests(BaseTest):
 
     def test_file_inclusions_html_in_doc_menu(self):
         
-        # Find the Select Collapse Left Sidebar Button
-        sidebar_collapse_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "collapseSidebar")))
-        self.assertTrue(sidebar_collapse_buttons, "collapseSidebar should be initialized")
-
-        # Collapse the Left Sidebar
-        sidebar_collapse_buttons[0].click()
-        
-        time.sleep(3)  # Give time for any UI changes
-        
-        # Find the Select Collapse Left Sidebar Button
-        sidebar_collapse_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "collapseSidebar")))
-        self.assertTrue(sidebar_collapse_buttons, "collapseSidebar should be initialized")
-
-        # Collapse the Left Sidebar
-        sidebar_collapse_buttons[-1].click()
+        self.sidebar_press()
         
         time.sleep(3)  # Give time for any UI changes
         
@@ -470,21 +417,7 @@ class FileInclusionTests(BaseTest):
 
     def test_file_inclusions_csv_not_in_doc_menu(self):
         
-        # Find the Select Collapse Left Sidebar Button
-        sidebar_collapse_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "collapseSidebar")))
-        self.assertTrue(sidebar_collapse_buttons, "collapseSidebar should be initialized")
-
-        # Collapse the Left Sidebar
-        sidebar_collapse_buttons[0].click()
-        
-        time.sleep(3)  # Give time for any UI changes
-        
-        # Find the Select Collapse Left Sidebar Button
-        sidebar_collapse_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "collapseSidebar")))
-        self.assertTrue(sidebar_collapse_buttons, "collapseSidebar should be initialized")
-
-        # Collapse the Left Sidebar
-        sidebar_collapse_buttons[-1].click()
+        self.sidebar_press()
         
         time.sleep(3)  # Give time for any UI changes
         

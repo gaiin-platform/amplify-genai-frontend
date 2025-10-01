@@ -3,6 +3,7 @@ import { lzwCompress, lzwUncompress } from '@/utils/app/lzwCompression';
 import { compressMessages, uncompressMessages } from './messages';
 import { deleteCodeInterpreterConversation } from '@/services/codeInterpreterService';
 import { deleteRemoteConversation } from '@/services/remoteConversationService';
+import { storageSet } from './storage';
 
 export const updateConversation = (
   updatedConversation: Conversation, // expected to be the complete conversation 
@@ -49,7 +50,7 @@ export const deleteConversationCleanUp = (conversation: Conversation) => {
 export const saveConversations = (conversations: Conversation[]) => {
   // TODO ensure all conversations are compressed or stripped
   try {
-    localStorage.setItem('conversationHistory', JSON.stringify(conversations));
+    storageSet('conversationHistory', JSON.stringify(conversations));
   } catch (error) {
     alert("You have exceeded your available storage space for conversations. Please delete some converations before continuing. You can export your current conversations before deleting them.");
   }
@@ -57,7 +58,7 @@ export const saveConversations = (conversations: Conversation[]) => {
 
 export const saveConversationDirect = (conversation: Conversation) => {
   try {
-    localStorage.setItem('selectedConversation', JSON.stringify(conversation));
+    storageSet('selectedConversation', JSON.stringify(conversation));
   } catch (error) {
     alert("You have exceeded your available storage space for conversations. Please delete some converations before continuing. You can export your current conversations before deleting them.");
   }
@@ -65,7 +66,7 @@ export const saveConversationDirect = (conversation: Conversation) => {
 
 export const saveConversationsDirect = (conversations: Conversation[]) => {
   try {
-    localStorage.setItem('conversationHistory', JSON.stringify(conversations));
+    storageSet('conversationHistory', JSON.stringify(conversations));
   } catch (error) {
     alert("You have exceeded your available storage space for conversations. Please delete some converations before continuing. You can export your current conversations before deleting them.");
   }

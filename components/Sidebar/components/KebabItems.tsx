@@ -10,7 +10,7 @@ export interface ItemProps {
   title?: string;
   id?: string;
 }
-//min-w-[${minWidth}px]
+
 export const KebabItem: FC<ItemProps> = ({label, handleAction, icon, title=''}) => {
   return (
     <div className={`border-b dark:border-white/20`} title={title}>
@@ -19,9 +19,9 @@ export const KebabItem: FC<ItemProps> = ({label, handleAction, icon, title=''}) 
         key={label}
         value={label}
         onClick={handleAction}
-        className={`w-full items-center gap-1 flex flex-row pr-1 pl-1 cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#343541]/90`}>
-        <div className="text-neutral-900 dark:text-neutral-100 flex-shrink-0">{icon} </div>
-         {label}
+        className={`w-full items-center gap-2 flex flex-row pr-2 pl-2 py-1.5 cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#343541]/90 transition-all duration-200`}>
+        <div className="text-neutral-900 dark:text-neutral-100 flex-shrink-0 enhanced-icon">{icon} </div>
+        <span className="sidebar-text">{label}</span>
       </button>
     </div>);
 }
@@ -46,7 +46,7 @@ export interface actionItemAttr {
 }
 
 export const KebabActionItem: FC<ActionProps> = ({label, type, handleAction, setIsMenuOpen, setActiveItem, dropFolders, icon }) => {
-  const { dispatch: homeDispatch, state: { checkingItemType}} = useContext(HomeContext);
+  const { dispatch: homeDispatch, state: {}} = useContext(HomeContext);
 
   const selectedOptionLabel = (label: string) => {
     if (label === 'Tag') return 'Tagging';
@@ -69,16 +69,16 @@ export const KebabActionItem: FC<ActionProps> = ({label, type, handleAction, set
 
 
   return (
-    <div className="min-w-[72px] flex items-center gap-1 flex-row pr-1 pl-1 cursor-pointer border-b dark:border-white/20 hover:bg-neutral-200 dark:hover:bg-[#343541]/90"
+    <div className="border-b dark:border-white/20"
       title={`${label} ${type.includes('Folders') ? "Entire Folder" : type}`}>
-    
-      <div className="text-neutral-900 dark:text-neutral-100">{icon}</div>
       <button 
         id={label}
         key={label}
         value={label}
-        onClick={handleClick} >  
-        {label}  
+        onClick={handleClick}
+        className="w-full flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#343541]/90 transition-all duration-200">
+        <div className="text-neutral-900 dark:text-neutral-100 enhanced-icon">{icon}</div>
+        <span className="sidebar-text">{label}</span>  
       </button>
     </div>
   );
@@ -87,41 +87,44 @@ export const KebabActionItem: FC<ActionProps> = ({label, type, handleAction, set
 
 interface MenuItemsProps {
   label: string;
-  xShift?: number;
+  id?: string;
   children: (React.ReactElement<ItemProps> | React.ReactElement<ItemProps>[] |
              React.ReactElement<ActionProps> | React.ReactElement<ActionProps>[] |
              React.ReactElement<MenuItemsProps> | React.ReactElement<MenuItemsProps>[]) | React.ReactNode; 
-  minWidth?: number;
 }
 
-export const KebabMenuItems: FC<MenuItemsProps> = ({ label, xShift=220, minWidth=72, children}) => {
-  // const childrenArray = React.Children.toArray(children) as React.ReactElement<ItemProps | ActionProps | MenuItemsProps>[];
+export const KebabMenuItems: FC<MenuItemsProps> = ({ label, id, children}) => {
   const childrenArray = React.Children.toArray(children)
                              .filter(Boolean) as React.ReactElement<ItemProps | ActionProps | MenuItemsProps>[];
 
-  const [isSubMenuVisible, setIsSubMenuVisible] = useState<boolean>(false);
-
-  const xShiftPercentage = `-${xShift}%`;
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
   
   return (
-    <div
-    id="subMenu"
-    className={`pr-1 pl-1 border-b dark:border-white/20 cursor-pointer dark:border-white/20 hover:bg-neutral-200 dark:hover:bg-[#343541]/90 flex w-full items-center `}
-      onMouseEnter={() => setIsSubMenuVisible(true)}
-      onMouseLeave={() => setIsSubMenuVisible(false)}
-    >
-      {`< ${label}`}
-      {isSubMenuVisible && (
-        <div 
-          className={`relative`} 
-          style={{ display: isSubMenuVisible ? 'block' : 'none', top: `-11px`}}>
-          <div id="visibleSubMenu" className={`flex-grow absolute bg-neutral-100 dark:bg-[#202123] text-neutral-900 rounded border border-neutral-200 dark:border-neutral-600 dark:text-white z-50`}
-            style={{ transform: `translateX(${xShiftPercentage})`, minWidth: `${minWidth}px`}}>    
-            {childrenArray} 
+    <div>
+      <div className="border-b dark:border-white/20">
+        <button
+          id={id || label}
+          className="w-full flex items-center justify-between pr-2 pl-2 py-1.5 cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#343541]/90 transition-all duration-200"
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <div className="flex items-center gap-2">
+            <span className="sidebar-text font-medium">{label}</span>
           </div>
+          <span className="text-gray-500 dark:text-gray-400">
+            {isExpanded ? '▼' : '▶'}
+          </span>
+        </button>
+      </div>
+      
+      {isExpanded && (
+        <div className="bg-neutral-50 dark:bg-[#2a2b32] border-l-2 border-l-blue-200 dark:border-l-blue-800 ml-2">
+          {childrenArray.map((child, index) => (
+            <div key={index} className="pl-1">
+              {child}
+            </div>
+          ))}
         </div>
       )}
     </div>
   );
 };
-

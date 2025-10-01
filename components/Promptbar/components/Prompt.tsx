@@ -117,9 +117,9 @@ export const PromptComponent = ({ prompt }: Props) => {
 
         if (selectedAssistant && prompt?.data?.assistant?.definition.assistantId === selectedAssistant.definition.assistantId) homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT }); 
         
-        if(isAssistant(prompt) && canDelete ){
+        if (isAssistant(prompt) && canDelete ){
            const assistant = getAssistant(prompt);
-           if(assistant && assistant.assistantId){
+           if (assistant && assistant.assistantId){
                setLoadingMessage("Deleting assistant...");
                try {
                    const result = await deleteAssistant(assistant.assistantId);
@@ -217,22 +217,17 @@ export const PromptComponent = ({ prompt }: Props) => {
                     onClick={(e) => {
                         e.stopPropagation();
 
-                        if(isAssistant(prompt)){
-                            // console.log("Assistant selected", prompt);
-                        }
-
-                        if(isAssistant(prompt) && prompt.data && prompt.data.assistant){
+                        if (isAssistant(prompt) && prompt.data && prompt.data.assistant){
                             console.log("Updating assistant...")
                             handleStartConversation(prompt);
-                        }
-                        else {
+                        } else {
                             //setShowModal(true);
                             handleStartConversation(prompt);
                         }
                     }}
                     onDragStart={(e) => handleDragStart(e, prompt)}
                     title="Use Template"
-                    id="promptClick"
+                    id={isAssistant(prompt) ? "assistantClick" : "promptClick"}
                 >
                     {/*<IconEdit size={18} />*/}
 
@@ -241,7 +236,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                             {getIcon(prompt)}
                         </div>
                         <div
-                            id="promptName"
+                            id={isAssistant(prompt) ? "assistantName" : "promptName"}
                             className="overflow-hidden flex-1 text-ellipsis whitespace-nowrap break-all text-left text-[12.5px] leading-4">
                             {prompt.name}
                         </div>

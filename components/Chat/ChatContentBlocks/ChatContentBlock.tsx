@@ -1,6 +1,7 @@
 import {MemoizedReactMarkdown} from "@/components/Markdown/MemoizedReactMarkdown";
 import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
+import rehypeRaw from "rehype-raw";
+import LatexBlock from "./LatexBlock";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {CodeBlock} from "@/components/Markdown/CodeBlock";
 import {Conversation, Message} from "@/types/chat";
@@ -10,16 +11,19 @@ import AssistantBlock from "@/components/Chat/ChatContentBlocks/AssistantBlock";
 import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {parsePartialJson} from "@/utils/app/data";
 import AutonomousBlock from "@/components/Chat/ChatContentBlocks/AutonomousBlock";
-import {useContext, useEffect, useRef, useState} from "react";
-import HomeContext from "@/components/Home/Home.context";
+import {useContext, useEffect, useRef, useState, useCallback} from "react";
+import HomeContext from "@/pages/api/home/home.context";
 import OpBlock from "@/components/Chat/ChatContentBlocks/OpBlock";
 import ApiKeyBlock from "./ApiKeyBlock";
 import { ApiDocBlock } from "./APIDocBlock";
 import AutoArtifactsBlock from "./AutoArtifactBlock";
+import AgentTableBlock from "./AgentTableBlock";
+import AgentImageBlock from "./AgentImageBlock";
+import AgentFileBlock from "./AgentFileBlock";
 import DOMPurify from  "dompurify";
 import React from "react";
 import InvokeBlock from '@/components/Chat/ChatContentBlocks/InvokeBlock';
-
+import { DateToggle } from "@/components/ReusableComponents/DateToggle";
 
 
 
@@ -44,6 +48,7 @@ const ChatContentBlock: React.FC<Props> = (
             featureFlags,
             showPromptbar,
             showChatbar,
+            selectedArtifacts
         },
     } = useContext(HomeContext);
 
@@ -52,20 +57,69 @@ const ChatContentBlock: React.FC<Props> = (
     const transformMessageContent = (conversation:Conversation, message:Message) => {
         try {
             const {transformer} = getOutputTransformers(conversation, message);
-            const result = transformer(conversation, message, {parsePartialJson});
-            return result || '';
+            return transformer(conversation, message, {parsePartialJson});
         }catch(e){
             console.log("Error transforming output.");
             console.log(e);
         }
-        return message.content || '';
+        return message.content;
     }
 
     const transformedMessageContent = selectedConversation ?
         transformMessageContent(selectedConversation, message) :
-        (message.content || '');
+        message.content;
+
     const isLast = messageIndex == (selectedConversation?.messages?.length ?? 0) - 1;
 
+    // Check if content contains LaTeX
+    const hasLatex = useCallback((content: string) => {
+        return /\$\$.*?\$\$|\$[^$\n]+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)/.test(content);
+    }, []);
+
+    // Debounced LaTeX processing to reduce jitter during streaming - only for LaTeX content
+    const [debouncedContent, setDebouncedContent] = useState(transformedMessageContent);
+    
+    useEffect(() => {
+        // If not streaming, not the last message, or no LaTeX detected, process immediately
+        if (!messageIsStreaming || !isLast || !hasLatex(transformedMessageContent)) {
+            setDebouncedContent(transformedMessageContent);
+            return;
+        }
+
+        // For streaming messages with LaTeX, debounce the processing
+        const timer = setTimeout(() => {
+            setDebouncedContent(transformedMessageContent);
+        }, 100); // 100ms debounce only for LaTeX content
+
+        return () => clearTimeout(timer);
+    }, [transformedMessageContent, messageIsStreaming, isLast, hasLatex]);
+
+    // Memoized LaTeX processing function
+    const processLatex = useCallback((content: string) => {
+        // Replace display math $$...$$ with placeholder
+        let processed = content.replace(/\$\$(.*?)\$\$/g, (match, latex) => {
+            return `<math-display>${latex}</math-display>`;
+        });
+        
+        // Replace inline math $...$ with placeholder  
+        processed = processed.replace(/\$([^$\n]+?)\$/g, (match, latex) => {
+            return `<math-inline>${latex}</math-inline>`;
+        });
+        
+        // Replace LaTeX display math \[ ... \] with placeholder
+        processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (match, latex) => {
+            return `<math-display>${latex}</math-display>`;
+        });
+        
+        // Replace LaTeX inline math \( ... \) with placeholder
+        processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (match, latex) => {
+            return `<math-inline>${latex}</math-inline>`;
+        });
+        
+        return processed;
+    }, []);
+
+    const finalContent = processLatex(debouncedContent);
 
     const promptbarRef = useRef(showPromptbar);
 
@@ -82,7 +136,7 @@ const ChatContentBlock: React.FC<Props> = (
     }, [showChatbar]);
 
 
-    const calcWidth = () => window.innerWidth - ((+promptbarRef.current + +chatbarRef.current) * 450);
+    const calcWidth = () => window.innerWidth - ((+promptbarRef.current + +chatbarRef.current) * 300);
     
 
     const [windowInnerWidth, setWindowInnerWidth] = useState<number>(calcWidth());
@@ -93,8 +147,9 @@ const ChatContentBlock: React.FC<Props> = (
         return () => window.removeEventListener('resize', updateInnerWindow);
         }, []);
  
-  // Add local state to trigger re-render
+  // Add local state to trigger re-render but use more stable key
   const [renderKey, setRenderKey] = useState(0);
+  const [lastRenderContent, setLastRenderContent] = useState("");
 
   useEffect(() => {
       const handleReRenderEvent = () => {
@@ -108,27 +163,39 @@ const ChatContentBlock: React.FC<Props> = (
       };
   }, []);
 
-  // Debug: Log content to help diagnose rendering issues
-  if (messageIsStreaming && isLast) {
-      console.log(`[ChatContentBlock] Streaming message content: "${transformedMessageContent?.substring(0, 100)}..."`);
-  }
+  // Only update render key when content significantly changes (not during streaming jitter)
+  useEffect(() => {
+      if (!messageIsStreaming && finalContent !== lastRenderContent) {
+          setLastRenderContent(finalContent);
+          setRenderKey(prev => prev + 1);
+      }
+  }, [finalContent, messageIsStreaming, lastRenderContent]);
+
+//   console.log(transformedMessageContent)
   
     return (
-    <div className="chatContentBlock w-full overflow-x-auto" 
+    <div className="chatContentBlock overflow-x-auto" 
          id="chatContentBlock"
-         style={{maxWidth: windowInnerWidth}}
+         style={{maxWidth: windowInnerWidth, marginRight: (selectedArtifacts?.length ?? 0) > 0 ? '14%' : '0%'}}
          data-message-index={messageIndex}
          data-original-content={transformedMessageContent}>
     <MemoizedReactMarkdown
     key={renderKey}
     className="prose dark:prose-invert flex-1 max-w-none w-full" 
-    remarkPlugins={[remarkGfm, remarkMath]}
+    remarkPlugins={[remarkGfm]}
+    // @ts-ignore
+    rehypePlugins={[rehypeRaw]}
     //onMouseUp={handleTextHighlight}
-    //rehypePlugins={[rehypeRaw]}
-    //rehypePlugins={[rehypeMathjax]}
     components={{
         // @ts-ignore
         Mermaid,
+        // Math components for LaTeX rendering
+        'math-display': ({children}: {children: React.ReactNode}) => (
+            <LatexBlock math={String(children)} displayMode={true} />
+        ),
+        'math-inline': ({children}: {children: React.ReactNode}) => (
+            <LatexBlock math={String(children)} displayMode={false} />
+        ),
         a({href, title, children, ...props}) {
             if (href && !href.startsWith("javascript:")) {
 
@@ -182,6 +249,16 @@ const ChatContentBlock: React.FC<Props> = (
                 }
 
                 children[0] = (children[0] as string).replace("`▍`", "▍")
+            }
+
+            // Handle inline clickable dates
+            if (inline) {
+                const content = String(children);
+                if (content.startsWith('clickableDate:')) {
+                    const dateString = content.replace('clickableDate:', '');
+                    // console.log('DateToggle rendering for:', dateString); // Debug log
+                    return <DateToggle dateString={dateString} />;
+                }
             }
 
             let match = /language-(\w+)/.exec(className || '');
@@ -247,6 +324,15 @@ const ChatContentBlock: React.FC<Props> = (
 
                     case 'APIdoc':
                         return (<ApiDocBlock content={String(children)}/>);
+                        
+                    case 'agent_table':
+                        return (<AgentTableBlock filePath={String(children).trim()} message={message} />);
+                        
+                    case 'agent_image':
+                        return (<AgentImageBlock filePath={String(children).trim()} message={message} />);
+                        
+                    case 'agent':
+                        return (<AgentFileBlock filePath={String(children).trim()} message={message} />);
 
                     case 'integrationsDialog':
                         if (featureFlags.integrations) {
@@ -310,7 +396,7 @@ const ChatContentBlock: React.FC<Props> = (
         },
     }}
 >
-    {`${transformedMessageContent || ''}${
+    {`${finalContent}${
         messageIsStreaming && !document.querySelector('.highlight-pulse') && 
         messageIndex == (selectedConversation?.messages?.length ?? 0) - 1 ? '`▍`' : ''
     }`}

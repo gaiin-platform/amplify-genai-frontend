@@ -32,4 +32,5 @@ export interface Step {
     template?: AstWorkflowTemplate;
     isBaseTemplate?: boolean;
     isPublic?: boolean;
+    user?: string;
   }

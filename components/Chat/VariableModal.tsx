@@ -463,7 +463,8 @@ export const VariableModal: FC<Props> = ({
     return (
             <Modal 
                 title={prompt ? prompt.name : ""}
-                height={() => window.innerHeight * 0.7}
+                height={() => window.innerHeight * 0.75}
+                width={() => window.innerWidth * 0.55}
                 onCancel={()=>onClose(false)} 
                 onSubmit={() => {
                     handleSubmit();
@@ -564,6 +565,7 @@ export const VariableModal: FC<Props> = ({
                             <div className="flex items-center">
                                 <select
                                     className="rounded border-gray-300 text-neutral-900 shadow-sm focus:border-neutral-500 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
+                                    id="selectTool"
                                     value={variable.value}
                                     onChange={(e) => handleChange(index, e.target.value)}
                                 >
@@ -635,7 +637,7 @@ export const VariableModal: FC<Props> = ({
                 ))}
 
                 {showModelSelector && models && (
-                    <div className="relative h-[100px]">
+                    <div className="relative" style={{overflow: 'visible', zIndex: 1}}>
                     <ModelSelect
                         isTitled={true}
                         modelId={selectedModel.id}

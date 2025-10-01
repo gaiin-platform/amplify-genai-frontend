@@ -206,6 +206,8 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
 
   return (
     <Modal 
+      height={() => window.innerHeight * 0.75}
+      width={() => window.innerWidth * 0.55}
       title={"Prompt Template"}
       onCancel={() =>{
         onCancel();

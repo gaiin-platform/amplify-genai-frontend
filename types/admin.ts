@@ -9,7 +9,7 @@ export enum AdminConfigTypes {
     FEATURE_FLAGS = 'featureFlags', 
     APP_VARS = 'applicationVariables',
     APP_SECRETS = 'applicationSecrets',
-    OPENAI_ENDPONTS = 'openaiEndpoints',
+    OPENAI_ENDPOINTS = 'openaiEndpoints',
     AVAILABLE_MODELS = 'supportedModels',
     AST_ADMIN_GROUPS = 'assistantAdminGroups',
     PPTX_TEMPLATES = 'powerPointTemplates',
@@ -17,9 +17,10 @@ export enum AdminConfigTypes {
     RATE_LIMIT = 'rateLimit',
     PROMPT_COST_ALERT = 'promtCostAlert',
     EMAIL_SUPPORT = 'emailSupport',
+    AI_EMAIL_DOMAIN = 'aiEmailDomain',
     INTEGRATIONS = 'integrations',
     DEFAULT_CONVERSATION_STORAGE = 'defaultConversationStorage',
-    DEFAULT_MODELS = 'defaultModels' 
+    DEFAULT_MODELS = 'defaultModels'
 
   }
 
@@ -35,6 +36,7 @@ export const adminDataTabMap: Record<AdminTab, string[]> = {
       AdminConfigTypes.ADMINS,
       AdminConfigTypes.RATE_LIMIT,
       AdminConfigTypes.PROMPT_COST_ALERT,
+      AdminConfigTypes.AI_EMAIL_DOMAIN,
       AdminConfigTypes.EMAIL_SUPPORT,
       AdminConfigTypes.AMPLIFY_GROUPS,
       AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE,
@@ -68,7 +70,7 @@ export const adminDataTabMap: Record<AdminTab, string[]> = {
       AdminConfigTypes.APP_SECRETS,
     ],
     'OpenAi Endpoints' : [
-      AdminConfigTypes.OPENAI_ENDPONTS,
+      AdminConfigTypes.OPENAI_ENDPOINTS,
     ],
     
     'Ops' : [
@@ -160,7 +162,7 @@ export interface DefaultModelsConfig {
   'cheapest': string,
   'agent': string,
   'embeddings': string,
-  'qa': string,
+  'documentCaching': string,
 }
 
 

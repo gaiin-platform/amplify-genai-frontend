@@ -1,5 +1,5 @@
-import React, {useContext, useEffect, useMemo, useState} from 'react';
-import {IconDownload, IconTrash, IconRefresh} from "@tabler/icons-react";
+import React, {useContext, useEffect, useMemo, useRef, useState} from 'react';
+import {IconDownload, IconTrash, IconRefresh, IconLoader2} from "@tabler/icons-react";
 import {
     MantineReactTable,
     useMantineReactTable,
@@ -13,11 +13,13 @@ import {MantineProvider} from "@mantine/core";
 import HomeContext from "@/components/Home/Home.context";
 import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags, getFileDownloadUrl, reprocessFile} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
-import { downloadDataSourceFile, deleteDatasourceFile } from '@/utils/app/files';
+import { downloadDataSourceFile, deleteDatasourceFile, extractKey, getDocumentStatusConfig } from '@/utils/app/files';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
 import toast from 'react-hot-toast';
 import { IMAGE_FILE_TYPES } from '@/utils/app/const';
+import { embeddingDocumentStaus } from '@/services/adminService';
+import { capitalize } from '@/utils/app/data';
 
 
 const DataSourcesTable = () => {
@@ -55,6 +57,12 @@ const DataSourcesTable = () => {
     const [prevSorting, setPrevSorting] = useState<MRT_SortingState>([]);
 
     const [refreshKey, setRefreshKey] = useState(0);
+    
+    // Embedding status state
+    const [embeddingStatus, setEmbeddingStatus] = useState<{[key: string]: string} | null>(null);
+    const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+    // Cache to track which files have had their status fetched
+    const fetchedStatusKeys = useRef<Set<string>>(new Set());
 
     const handleRefresh = () => {
         setRefreshKey(prevKey => prevKey + 1); // Triggers re-fetch
@@ -121,7 +129,14 @@ const DataSourcesTable = () => {
                     const query: FileQuery = {
                         pageSize: pagination.pageSize,
                         sortIndex,
-                        forwardScan
+                        forwardScan,
+                        filters: [
+                            {
+                            "attribute": "data.type",
+                            "operator": "not_startsWith",
+                            "value": "assistant"
+                            }
+                        ]
                     };
                     if (pageKey) {
                         query.pageKey = pageKey;
@@ -152,7 +167,10 @@ const DataSourcesTable = () => {
                         setIsError(true);
                     }
 
-                    const updatedWithCommonNames = result.data.items.map((file: any) => {
+                    // dont show assistant icons in the data source table
+                    const items = result.data?.items.filter((file: any) => !(file?.data?.type && file.data.type.startsWith('assistant')));
+
+                    const updatedWithCommonNames = items?.map((file: any) => {
                         const commonName = mimeTypeToCommonName[file.type];
                         return {
                             ...file,
@@ -210,6 +228,70 @@ const DataSourcesTable = () => {
         refreshKey,
     ]);
 
+    // Fetch embedding status when data changes
+    useEffect(() => {
+        if (data.length > 0 && !isLoadingStatus) {
+            setIsLoadingStatus(true);
+            // Clear the cache when new data arrives
+            fetchedStatusKeys.current.clear();
+            
+            // Extract keys from file records using the same logic as FileList
+            const keys = data.map(file => {
+                return {key: extractKey(file), type: file.type};
+            }).filter(key => key) as {key: string, type: string}[];
+            
+            if (keys.length > 0) {
+                // Break keys into chunks of 25
+                const chunkSize = 25;
+                const chunks: Array<{key: string, type: string}[]> = [];
+                for (let i = 0; i < keys.length; i += chunkSize) {
+                    chunks.push(keys.slice(i, i + chunkSize));
+                }
+
+                // Make concurrent calls for each chunk
+                const statusPromises = chunks.map(chunk => 
+                    embeddingDocumentStaus(chunk)
+                        .then(response => {
+                            if (response?.success && response?.data) {
+                                // Merge results into existing state as they come in
+                                setEmbeddingStatus(prevStatus => {
+                                    const newStatus = {
+                                        ...prevStatus,
+                                        ...response.data
+                                    };
+                                    
+                                    // Mark these keys as fetched AFTER state update
+                                    chunk.forEach(item => {
+                                        fetchedStatusKeys.current.add(item.key);
+                                    });
+                                    
+                                    return newStatus;
+                                });
+                            } else {
+                                // Still mark keys as fetched to prevent infinite loading
+                                chunk.forEach(item => {
+                                    fetchedStatusKeys.current.add(item.key);
+                                });
+                            }
+                            return response;
+                        })
+                        .catch(error => {
+                            console.error('Failed to fetch embedding status for chunk:', error);
+                            return null;
+                        })
+                );
+
+                // Wait for all chunks to complete, then stop loading
+                Promise.allSettled(statusPromises)
+                    .finally(() => {
+                        setIsLoadingStatus(false);
+                    });
+            } else {
+                setIsLoadingStatus(false);
+            }
+        }
+    }, [data]);
+
 
     function formatIsoString(isoString: string) {
         const options = {
@@ -252,7 +334,7 @@ const DataSourcesTable = () => {
     const fileReprocessing = async (key: string) => {
         setLoadingMessage("Reprocessing File...");
         try {;
-            const result = {success: true};
+            const result = await reprocessFile(key);;
             if (result.success) {
                 toast("File's rag and embeddings regenerated successfully. Please wait a few minutes for the changes to take effect.");
             } else {
@@ -350,6 +432,47 @@ const DataSourcesTable = () => {
                 Edit: ({cell, column, table}) => <>{cell.getValue<string>()}</>,
             },
             {
+                accessorKey: 'embeddingStatus', //embedding status column
+                header: 'Status',
+                width: 120,
+                size: 120,
+                maxSize: 120,
+                enableSorting: false,
+                enableColumnActions: false,
+                enableColumnFilter: false,
+                Cell: ({cell}) => {
+                    // Use the same key extraction as the API call
+                    const key = extractKey(cell.row.original);
+                    const status = embeddingStatus?.[key];
+                    
+                    // Show loading only if this specific file hasn't been fetched yet
+                    if (!fetchedStatusKeys.current.has(key)) {
+                        return (
+                            <div className="flex items-center justify-center">
+                                <IconLoader2 className="animate-spin text-gray-400" size={16} />
+                            </div>
+                        );
+                    }
+                    
+                    if (!status) {
+                        return null;
+                    }
+
+                    const config = getDocumentStatusConfig(status);
+                    if (!config) {
+                        return null;
+                    }
+
+                    return (
+                        <div className="flex items-center justify-center">
+                            <span className={`${config.color} text-xs px-1.5 py-0.5 rounded font-normal whitespace-nowrap`}>
+                                {config.text}
+                            </span>
+                        </div>
+                    );
+                },
+            },
+            {
                 accessorKey: 'delete',
                 header: '',
                 width: 20,
@@ -400,7 +523,7 @@ const DataSourcesTable = () => {
                 },
             },
         ],
-        [],
+        [embeddingStatus, fetchedStatusKeys],
     );
 
     const myTailwindColors = {

@@ -1,6 +1,7 @@
 import { doRequestOp } from "./doRequestOp";
 
 const URL_PATH = "/amplifymin";
+const EMBEDDINGS_URL_PATH = "/embedding";
 const SERVICE_NAME = "admin";
 const EMBEDDINGS_SERVICE_NAME = "embeddings";
 
@@ -171,11 +172,23 @@ export const getAvailableModels = async () => {
     };
 }
 
+export const embeddingDocumentStaus = async (dataSources: {key: string, type: string}[]) => {
+    const op = {
+        data: { dataSources },
+        method: 'POST',
+        path: EMBEDDINGS_URL_PATH,
+        op: '/status',
+        SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
+    };
+    return await doRequestOp(op);
+}
+
+
 export const terminateEmbedding = async (key: any) => {
     const op = {
         data: { object_key: key },
         method: 'POST',
-        path: "/embedding",
+        path: EMBEDDINGS_URL_PATH,
         op: '/terminate',
         SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
     };
@@ -185,7 +198,7 @@ export const terminateEmbedding = async (key: any) => {
 export const getInFlightEmbeddings = async () => {
     const op = {
         method: 'GET',
-        path: "/embedding",
+        path: EMBEDDINGS_URL_PATH,
         op: '/sqs/get',
         SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
     };
@@ -202,6 +215,24 @@ export const getInFlightEmbeddings = async () => {
         console.error("Error parsing result body: ", e);
         return null;
     }
+}
+
+const isCompletionsEndpoint = (url: string) => {
+    return url.includes("/completions");
+}
+
+const translateDataToResponseBody = (data: any) => {
+    const messages = [...data.messages];
+    data.input = messages;
+    data.max_output_tokens = data.max_tokens || data.max_completion_tokens || 1000;
+    if (data.max_output_tokens < 16) data.max_output_tokens = 16;
+    delete data.messages;
+    delete data.max_tokens;
+    delete data.max_completion_tokens;
+    delete data.stream_options;
+    delete data.temperature;
+    delete data.n;
+    return data;
 }
 
 const endpointRequest = async (url: string, key: string, data: any) => {
@@ -223,20 +254,46 @@ const endpointRequest = async (url: string, key: string, data: any) => {
 }
 
 export const testEndpoint = async (url: string, key: string, model: string) => {
-    return endpointRequest(url, key, {
-        max_tokens: 50,
-        temperature: 1,
-        top_p: 1,
-        n: 1,
-        stream: false,
-        model: model,
-        messages: [
-            {
-                role: "user",
-                content: "This is a test. Say Hi!",
-            },
-        ],
-    });
+    const isOmodel = /^o\d/.test(model) || /^gpt-5/.test(model);
+    const isCompletionEndpoint = isCompletionsEndpoint(url);
+    
+    const baseMessages = [
+        {
+            role: "user",
+            content: "This is a test. Say Hi!",
+        },
+    ];
+
+    let requestBody;
+    if (isOmodel) {
+        // O models use max_completion_tokens and simplified body
+        requestBody = {
+            max_completion_tokens: 50,
+            messages: baseMessages,
+            model: model,
+            stream: false
+        };
+    } else {
+        // Regular models use the standard format
+        requestBody = {
+            max_tokens: 50,
+            temperature: 1,
+            top_p: 1,
+            n: 1,
+            stream: false,
+            model: model,
+            messages: baseMessages,
+        };
+    }
+
+    // Transform data for non-completions endpoints
+    if (!isCompletionEndpoint) {
+        requestBody = translateDataToResponseBody(requestBody);
+    }
+
+    const result = await endpointRequest(url, key, requestBody);
+    console.log("result", result);
+    return result;
 };
 
 

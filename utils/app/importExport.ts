@@ -18,6 +18,7 @@ import { savePrompts } from './prompts';
 import { saveFolders } from './folders';
 import { getDate } from './date';
 import { Model } from '@/types/model';
+import { storageSet } from './storage';
 export function isExportFormatV1(obj: any): obj is ExportFormatV1 {
   return Array.isArray(obj);
 }
@@ -133,7 +134,7 @@ export const importData = ( data: SupportedExportFormats, oldConversations: Conv
   );
   saveConversations(newHistory);
   if (newHistory.length > 0) {
-    localStorage.setItem(
+    storageSet(
       'selectedConversation',
       JSON.stringify(newHistory[newHistory.length - 1]),
     );

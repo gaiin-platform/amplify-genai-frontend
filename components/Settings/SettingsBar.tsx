@@ -24,6 +24,7 @@ import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {Prompt} from "@/types/prompt";
 import {FolderInterface} from "@/types/folder";
 import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
+import { getFullTimestamp } from '@/utils/app/date';
 import { DefaultModels } from '@/types/model';
 
 export const SettingsBar = () => {
@@ -94,7 +95,8 @@ export const SettingsBar = () => {
                 prompt: DEFAULT_SYSTEM_PROMPT,
                 temperature: DEFAULT_TEMPERATURE,
                 folderId: null,
-                isLocal: getIsLocalStorageSelection(storageSelection) 
+                isLocal: getIsLocalStorageSelection(storageSelection),
+                date: getFullTimestamp()
             },
         });
 

@@ -7,6 +7,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.support.ui import Select
 from tests.base_test import BaseTest
 
 
@@ -15,12 +16,56 @@ class SummaryWithQuotationsTests(BaseTest):
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
         super().setUp(headless=True)
+        
+    def click_assistants_tab(self):
+        
+        time.sleep(5)
+        
+        tab_buttons = self.wait.until(
+            EC.presence_of_all_elements_located((By.ID, "tabSelection"))
+        )
+
+        # Search for the one with title including 'Assistants'
+        assistants_button = next(
+            (btn for btn in tab_buttons if "Assistants" in btn.get_attribute("title")),
+            None
+        )
+
+        self.assertIsNotNone(assistants_button, "'Assistants' tab button not found")
+
+        # Click the Assistants button
+        assistants_button.click()
+
+        # Wait briefly for UI to respond
+        time.sleep(2)
+        
+    def upload_file(self, filename: str):
+        try:
+            # Build the full path to the test file
+            current_dir = os.path.dirname(os.path.abspath(__file__))  # tests/AmplifyHelperTests/
+            file_path = os.path.abspath(os.path.join(current_dir, "..", "test_files", filename))
+
+            # Locate the hidden file input element
+            file_input = self.wait.until(
+                EC.presence_of_element_located((By.ID, "__idVarFile0"))
+            )
+
+            # Send the full path to the input
+            file_input.send_keys(file_path)
+
+            time.sleep(20)  # Give it a sec to process the upload
+
+        except Exception as e:
+            self.fail(f"Failed to upload file '{filename}': {e}")
 
     # ----------------- Test drop down collapses and expands -----------------
     """Ensure the Amplify Helpers folder can be clicked and that the folder expands
        on the Right Side Bar"""
 
     def test_dropdown_closes_after_selection(self):
+        
+        self.click_assistants_tab()
+        
         # Locate all elements with the ID 'dropName'
         drop_name_elements = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "dropName"))
@@ -66,6 +111,9 @@ class SummaryWithQuotationsTests(BaseTest):
        on the Right Side Bar"""
 
     def test_summary_with_quotations_is_interactable(self):
+        
+        self.click_assistants_tab()
+        
         # Locate all elements with the ID 'dropName'
         drop_name_elements = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "dropName"))
@@ -139,6 +187,9 @@ class SummaryWithQuotationsTests(BaseTest):
        on the Right Side Bar and that it makes the Share Modal appear"""
 
     def test_share_button(self):
+        
+        self.click_assistants_tab()
+        
         # Locate all elements with the ID 'dropName'
         drop_name_elements = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "dropName"))
@@ -220,6 +271,9 @@ class SummaryWithQuotationsTests(BaseTest):
        on the Right Side Bar and that it creates a duplicate in the prompts"""
 
     def test_summary_with_quotations_duplicate(self):
+        
+        self.click_assistants_tab()
+        
         # Locate all elements with the ID 'dropName'
         drop_name_elements = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "dropName"))
@@ -326,7 +380,10 @@ class SummaryWithQuotationsTests(BaseTest):
     """Ensure the Summary with Quotations button in the Amplify Helpers folder can be clicked 
        on the Right Side Bar and the modal is interactable with bullet points"""
     
-    def test_summary_with_quotations_modal_is_interactable_bullet(self):                        
+    def test_summary_with_quotations_modal_is_interactable_bullet(self):   
+        
+        self.click_assistants_tab()
+                             
         # Locate all elements with the ID 'dropName'
         drop_name_elements = self.wait.until(EC.presence_of_all_elements_located(
             (By.ID, "dropName")
@@ -379,14 +436,9 @@ class SummaryWithQuotationsTests(BaseTest):
         summarization_options = self.wait.until(EC.presence_of_element_located((By.ID, "selectTool")))
         self.assertTrue(summarization_options.is_displayed(), "Summarization Select Button is visible")
         
-        # Open the model dropdown
-        summarization_options.click()
-        
-        time.sleep(1)
-
-        # Click the specific model by ID
-        bullet_option = self.wait.until(EC.presence_of_element_located((By.ID, "Use bullets for quotations")))
-        bullet_option.click()
+        # Use Selenium's Select class to pick by visible text or value
+        select = Select(summarization_options)
+        select.select_by_visible_text("Use numbers for quotations")
         
         time.sleep(1)
         
@@ -411,7 +463,10 @@ class SummaryWithQuotationsTests(BaseTest):
     """Ensure the Summary with Quotations button in the Amplify Helpers folder can be clicked 
        on the Right Side Bar and the modal is interactable with numbered list"""
     
-    def test_summary_with_quotations_modal_is_interactable_number(self):                        
+    def test_summary_with_quotations_modal_is_interactable_number(self):  
+        
+        self.click_assistants_tab()
+                              
         # Locate all elements with the ID 'dropName'
         drop_name_elements = self.wait.until(EC.presence_of_all_elements_located(
             (By.ID, "dropName")
@@ -466,14 +521,9 @@ class SummaryWithQuotationsTests(BaseTest):
         summarization_options = self.wait.until(EC.presence_of_element_located((By.ID, "selectTool")))
         self.assertTrue(summarization_options.is_displayed(), "Summarization Select Button is visible")
         
-        # Open the model dropdown
-        summarization_options.click()
-        
-        time.sleep(1)
-
-        # Click the specific model by ID
-        bullet_option = self.wait.until(EC.presence_of_element_located((By.ID, "Use numbers for quotations")))
-        bullet_option.click()
+        # Use Selenium's Select class to pick by visible text or value
+        select = Select(summarization_options)
+        select.select_by_visible_text("Use numbers for quotations")
         
         time.sleep(1)
         

@@ -8,7 +8,7 @@ interface Props {
 export const Conversations = ({ conversations }: Props) => {
 
   return (
-    <div className="mt-2 flex w-full flex-col gap-0.5">
+    <div className="mt-2 flex w-full flex-col gap-0.5 mb-20">
       {conversations
         .slice()
         .reverse()

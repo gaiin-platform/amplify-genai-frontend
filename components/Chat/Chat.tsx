@@ -4,6 +4,9 @@ import {
     IconShare,
     IconDownload,
     IconRocket,
+    IconBoxAlignTopFilled,
+    IconBoxAlignTopRightFilled,
+    IconChevronRight,
 } from '@tabler/icons-react';
 import {
     MutableRefObject,
@@ -23,7 +26,7 @@ import {throttle} from '@/utils/data/throttle';
 import {Conversation, DataSource, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin} from '@/types/plugin';
 
-import HomeContext from '@/components/Home/Home.context';
+import HomeContext from '@/pages/api/home/home.context';
 
 import Spinner from '../Spinner';
 import {ChatInput} from './ChatInput';
@@ -48,6 +51,7 @@ import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/as
 import {ChatRequest, useSendService} from "@/hooks/useChatSendService";
 import {CloudStorage} from './CloudStorage';
 import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
+import { getFullTimestamp } from '@/utils/app/date';
 import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
 import { GroupTypeSelector } from './GroupTypeSelector';
 import { Artifacts } from '../Artifacts/Artifacts';
@@ -55,7 +59,6 @@ import { downloadDataSourceFile } from '@/utils/app/files';
 import { ArtifactsSaved } from './ArtifactsSaved';
 import React from 'react';
 import { PromptHighlightedText } from './PromptHighlightedText';
-import { AccountDialog } from '../Settings/AccountComponents/AccountDialog';
 import { getSettings } from '@/utils/app/settings';
 import { checkAvailableModelId, filterModels } from '@/utils/app/models';
 import { promptForData } from '@/utils/app/llm';
@@ -67,6 +70,7 @@ import { Settings } from '@/types/settings';
 import { IntegrationsDialog } from '../Integrations/IntegrationsDialog';
 import { TemperatureSlider } from './Sliders/Temperature';
 import { ResponseTokensSlider } from './Sliders/ResponseTokens';
+import { storageRemove } from '@/utils/app/storage';
 
 
 interface Props {
@@ -94,7 +98,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 messageIsStreaming,
                 chatEndpoint,
                 folders,
-                extractedFacts
+                extractedFacts,
+                defaultAccount,
+                isStandalonePromptCreation
             },
             setLoadingMessage,
             handleUpdateConversation,
@@ -153,17 +159,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             const id =  initSelectedAstModel || selectedConversation?.model?.id || defaultModelId || getDefaultModelIdFromLocalStorage();
             if (id && filteredModels.find((m: Model) => m.id == id)) return id;
 
-            // if (filteredModels.length > 0 && selectedConversation) {
-            //     const updatedModel = filteredModels[0];
-            //     handleUpdateSelectedConversation({...selectedConversation, model: updatedModel});
-            //     // return updatedModel.id;
-            // }
 
             return undefined;
         }
 
         const getSelectModel = () => {
-            const model: Model | undefined = (Object.values(availableModels) as Model[])
+            const model: Model | undefined = Object.values(availableModels)
                                                    .find((model: Model) => model.id === selectedModelId);
             return model;
         }
@@ -185,6 +186,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             const initialSliderValue = Math.max(0, Math.min(6, sliderValue));
             return Math.round(initialSliderValue * 10) / 10; // Round to the nearest 0.1
         };
+
+        const getIsBarSticky = () => {
+            return localStorage.getItem('stickyChatbar') === 'true';
+        }
+
         
         const [plugins, setPlugins] = useState<Plugin[] | null>(null);
         const {handleSend:handleSendService} = useSendService();
@@ -202,6 +208,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [showScrollDownButton, setShowScrollDownButton] = useState<boolean>(false);
         const [promptTemplate, setPromptTemplate] = useState<Prompt | null>(null);
         const [mtdCost, setMtdCost] = useState<string>('Loading...'); // MTDCOST
+
+        const [isBarSticky, setIsBarSticky] = useState(getIsBarSticky());
+        const [isPillExpanded, setIsPillExpanded] = useState(false);
 
         const messagesEndRef = useRef<HTMLDivElement>(null);
         const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -229,10 +238,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 if (selectedConversation) {
                     let updatedConversation = {...selectedConversation}
 
-                    const promptMessages = cloneDeep(updatedConversation.messages);
+                    const promptMessages = cloneDeep(updatedConversation.messages)
+                        .map(m => {return {...m, data:{}, configuredTools:[]};}); // Must zero out everything in DATA!
                     promptMessages[0].content = `Look at the following prompt: "${promptMessages[0].content}" \n\nYour task: As an AI proficient in summarization, create a short concise title for the given prompt. Ensure the title is under 30 characters.`
-                    
-                    promptForData(chatEndpoint || '', promptMessages.slice(0,1), getDefaultModel(DefaultModels.CHEAPEST), "Respond with only the title name and nothing else.", statsService, 10)
+
+                    promptForData(chatEndpoint || '', promptMessages.slice(0,1), getDefaultModel(DefaultModels.CHEAPEST), "Respond with only the title name and nothing else.", defaultAccount, statsService, 10)
                                  .then(customName => {
                                     let updatedName: string = customName ?? '';
                                     if (!customName) {
@@ -281,7 +291,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }, []);
 
         useEffect(() => {
-            if (!plugins && settingRef.current) setPlugins(getActivePlugins(settingRef.current));
+            if (!plugins && settingRef.current) setPlugins(getActivePlugins(settingRef.current, featureFlags));
         }, [featureFlags]);
 
 
@@ -290,7 +300,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
             if (astModel && selectedModelId !== astModel) setSelectedModelId(astModel);
             if (astModel && selectedConversation && selectedConversation.model?.id !== astModel) {
-                const model:Model | undefined = (Object.values(availableModels) as Model[]).find(
+                const model:Model | undefined = Object.values(availableModels).find(
                                                           (model: Model) => model.id === astModel,
                                                    );
                 if (model) handleUpdateSelectedConversation({...selectedConversation, model: model});
@@ -797,10 +807,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         };
         
 
-        const handleSettings = () => {
-            setShowSettings(!showSettings);
-        };
-
         const onClearAll = () => {
             if (
                 confirm(t<string>('Are you sure you want to clear all messages?')) &&
@@ -857,11 +863,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         prompt: DEFAULT_SYSTEM_PROMPT,
                         temperature: DEFAULT_TEMPERATURE,
                         folderId: null,
-                        isLocal: getIsLocalStorageSelection(storageSelection)
+                        isLocal: getIsLocalStorageSelection(storageSelection),
+                        date: getFullTimestamp()
                     },
                 });
-
-                localStorage.removeItem('selectedConversation');
+                storageRemove('selectedConversation');
             }
         };
 
@@ -875,7 +881,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }
 
         useEffect(() => {
-            if (selectedConversation
+            if (!isStandalonePromptCreation && selectedConversation
                 && selectedConversation.promptTemplate
                 && isAssistant(selectedConversation.promptTemplate)
                 && selectedConversation.messages?.length == 0) {
@@ -886,7 +892,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     if (prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
             }
-            else if (selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages?.length == 0) {
+            else if (!isStandalonePromptCreation && selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages?.length == 0) {
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
                     // make sure assistant hasnt been deleted 
@@ -895,7 +901,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
                 setIsPromptTemplateDialogVisible(true);
-            } else if (selectedConversation && selectedConversation.workflowDefinition && selectedConversation.messages?.length == 0) {
+            } else if (!isStandalonePromptCreation && selectedConversation && selectedConversation.workflowDefinition && selectedConversation.messages?.length == 0) {
                 //alert("Prompt Template");
                 const workflowVariables = Object.entries(selectedConversation.workflowDefinition.inputs.parameters)
                     .map(([k, v]) => k);
@@ -903,7 +909,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 setVariables(workflowVariables);
                 setIsPromptTemplateDialogVisible(true);
             } 
-        }, [selectedConversation, prompts]);
+        }, [selectedConversation, prompts, isStandalonePromptCreation]);
 
         useEffect(() => {
             const observer = new IntersectionObserver(
@@ -973,18 +979,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 }} 
                 />
             }
-            <div className="relative flex-1 overflow-hidden bg-neutral-100 dark:bg-[#343541]">
-                { modelError ? (
-                    <ErrorMessageDiv error={modelError}/>  
-                ) : (
-                    <> 
-                        <div
-                            id="chatScrollWindow"
-                            className="chatcontainer max-h-full overflow-x-hidden" style={{height: windowInnerDims.height * 0.94}}
-                            ref={chatContainerRef}
-                            onScroll={handleScroll}
-                        >
-                            {selectedConversation && selectedConversation.messages?.length === 0 && filteredModels ? (
+            
+            {/* Main container with CSS Grid for strict 50/50 split when artifacts are open */}
+            <div className={`flex h-full ${featureFlags.artifacts && isArtifactOpen ? 'grid grid-cols-2 gap-0' : ' w-full'}`}>
+                
+                {/* Chat Area */}
+                <div className={`relative ${featureFlags.artifacts && isArtifactOpen ? 'overflow-hidden' : 'flex-1'} bg-neutral-100 dark:bg-[#343541]`}>
+                    { modelError ? (
+                        <ErrorMessageDiv error={modelError}/>  
+                    ) : (
+                        <> 
+                            <div
+                                id="chatScrollWindow"
+                                className="chatcontainer max-h-full overflow-x-hidden" style={{height: windowInnerDims.height * 0.94}}
+                                ref={chatContainerRef}
+                                onScroll={handleScroll}
+                            >
+                            {selectedConversation &&(!selectedConversation.messages || selectedConversation.messages?.length === 0) && filteredModels ? (
                                 <div id="overflowScroll" className='overflow-y-auto' style={{height: windowInnerDims.height - 200}}>
                                     <div
                                         className="mx-auto flex flex-col space-y-1 md:space-y-8 px-3 pt-5 md:pt-10" 
@@ -1134,111 +1145,204 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     )}
 
                                     
-                                    <AccountDialog open={isAccountDialogVisible} onClose={() => setIsAccountDialogVisible(false)} />
+                                    {/* <AccountDialog open={isAccountDialogVisible} onClose={() => setIsAccountDialogVisible(false)} /> */}
                                     {featureFlags.integrations && <IntegrationsDialog open={isIntegrationsOpen} onClose={()=>{setIsIntegrationsOpen(false)}}/>}
 
                                     <div
-                                       id="chatUpperMenu"
-                                       className="items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100  text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
-                                        {featureFlags.mtdCost  && (
+                                       className={isBarSticky ? 
+                                           "items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100 text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200 text-gray-800 dark:text-gray-200" :
+                                           "sticky top-4 mt-4 flex justify-center items-center z-10"
+                                       }>
+                                       
+                                        {isBarSticky ? (
+                                            // Sticky bar content
                                             <>
+                                                {featureFlags.mtdCost && (
+                                                    <button
+                                                        className="ml-2 mr-1 cursor-pointer hover:opacity-50 flex flex-row items-center"
+                                                        disabled={messageIsStreaming}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            setIsAccountDialogVisible(true);
+                                                        }}
+                                                        title="Month-To-Date Cost"
+                                                        id="month-to-date-cost"
+                                                    >
+                                                        <div className={`text-[0.93rem] ${chat_button_blue_color} mr-1`}>
+                                                            <div className="ml-1">MTD Cost: {mtdCost}</div>
+                                                        </div> {"|"}
+                                                    </button>
+                                                )}          
                                                 <button
-                                                    className="ml-2 mr-2 cursor-pointer hover:opacity-50"
-                                                    disabled={messageIsStreaming}
+                                                    className="font-medium mx-1 cursor-pointer hover:opacity-50 flex flex-row items-center"
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();
-                                                        setIsAccountDialogVisible(true);
+                                                        setShowSettings(true);
+                                                        if (!messageIsStreaming) handleScrollUp();
+                                                        
                                                     }}
-                                                    title="Month-To-Date Cost"
-                                                    id="month-to-date-cost"
                                                 >
-                                                    <div className={`text-[0.93rem] ${chat_button_blue_color}`}>
-                                                        <div className="ml-1">MTD Cost: {mtdCost}</div>
-                                                    </div>
+                                                    {selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
+                                                                        ? Object.values(availableModels).find(m => m.id === selectedAssistant.definition?.data?.model)?.name 
+                                                                        : selectedConversation?.model?.name || ''}
+                                                    {' | '}
+                                                                        
                                                 </button>
-                                                |
-                                            </>
-                                        )}               
-                                        {` `}{selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
-                                                                ? (Object.values(availableModels) as Model[]).find(m => m.id === selectedAssistant.definition?.data?.model)?.name 
-                                                                : selectedConversation?.model?.name || ''} | {t('Temp')} : {selectedConversation?.temperature} |
-                                        <button
-                                            className="ml-2 cursor-pointer hover:opacity-50"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                handleSettings();
 
-                                                if (!messageIsStreaming) handleScrollUp();
+                                                <div className='flex flex-row'>
+                                                    {t('Temp')} : {`${selectedConversation?.temperature} | `}
                                                 
-                                            }}
-                                            title="Chat Settings"
-                                            id="chatSettings"
-                                        >
-                                            <IconSettings size={18}/>
-                                        </button>
-                                        
-                                        <button
-                                            className="ml-2 cursor-pointer hover:opacity-50"
-                                            disabled={messageIsStreaming}
-                                            onClick={onClearAll}
-                                            title="Clear Messages"
-                                            id="clearMessages"
-                                        >
-                                            <IconClearAll size={18}/>
-                                        </button>
-                                        <button
-                                            className="ml-2 cursor-pointer hover:opacity-50"
-                                            disabled={messageIsStreaming}
-                                            onClick={() => setIsShareDialogVisible(true)}
-                                            title="Share"
-                                            id="shareChatUpper"
-                                        >
-                                            <IconShare size={18}/>
-                                        </button>
-                                        <button
-                                            className="ml-2 cursor-pointer hover:opacity-50"
-                                            disabled={messageIsStreaming}
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                setIsDownloadDialogVisible(true)
+                                                    <button
+                                                        className="ml-2 cursor-pointer hover:opacity-50"
+                                                        disabled={messageIsStreaming}
+                                                        onClick={onClearAll}
+                                                        title="Clear Messages"
+                                                        id="clearMessages"
+                                                    >
+                                                        <IconClearAll size={18}/>
+                                                    </button>
+                                                    <button
+                                                        className="ml-2 cursor-pointer hover:opacity-50"
+                                                        disabled={messageIsStreaming}
+                                                        onClick={() => setIsShareDialogVisible(true)}
+                                                        title="Share"
+                                                        id="shareChatUpper"
+                                                    >
+                                                        <IconShare size={18}/>
+                                                    </button>
+                                                    <button
+                                                        className="ml-2 cursor-pointer hover:opacity-50"
+                                                        disabled={messageIsStreaming}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            setIsDownloadDialogVisible(true)
 
-                                            }}
-                                            title="Download"
-                                            id="downloadUpper"
-                                        >
-                                            <IconDownload size={18}/>
-                                        </button>
+                                                        }}
+                                                        title="Download"
+                                                        id="downloadUpper"
+                                                    >
+                                                        <IconDownload size={18}/>
+                                                    </button>
 
-                                        {featureFlags.artifacts && 
-                                        <ArtifactsSaved iconSize={18} isArtifactsOpen={isArtifactOpen}/>}
-                                        
-                                        {featureFlags.storeCloudConversations &&
-                                        <CloudStorage iconSize={18} />
-                                        }
-                                        {!isArtifactOpen  &&
-                                            <>
-                                            |
-                                            <button
-                                                className="ml-2 mr-2 cursor-pointer hover:opacity-50"
-                                                disabled={messageIsStreaming}
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    homeDispatch({field: 'page', value: 'home'});
-                                                }}
-                                                title="Data Sources"
-                                                id="dateSources"
-                                            >
-                                                <div className={`text-[0.9rem] flex flex-row items-center ${chat_button_blue_color}`}>
-                                                    <div><IconRocket size={18}/></div>
-                                                    <div className="ml-1">Data Sources </div>
+                                                    {featureFlags.artifacts && 
+                                                    <ArtifactsSaved iconSize={18} isArtifactsOpen={isArtifactOpen}/>}
+                                                    
+                                                    {featureFlags.storeCloudConversations &&
+                                                    <CloudStorage iconSize={18} />
+                                                    }
+
+                                                    <button
+                                                        className="ml-2 cursor-pointer hover:opacity-50"
+                                                        onClick={() => {
+                                                            const updatedIsBarSticky = !isBarSticky;
+                                                            setIsBarSticky(updatedIsBarSticky);
+                                                            localStorage.setItem('stickyChatbar', updatedIsBarSticky.toString());
+                                                        }}
+                                                        title={isBarSticky ? "Unpin Chatbar" : "Pin Chatbar"}
+                                                    >
+                                                        {isBarSticky ?  <IconBoxAlignTopRightFilled size={18}/> : <IconBoxAlignTopFilled size={18}/>}
+                                                    </button>
                                                 </div>
-                                            </button> 
                                             </>
-                                        }
+                                        ) : (
+                                            // Floating pill
+                                            <div 
+                                                className={`
+                                                    relative flex items-center transition-all duration-300 ease-in-out cursor-pointer
+                                                    rounded-full bg-white dark:bg-[#454757] shadow-lg hover:shadow-xl
+                                                    border border-gray-200 dark:border-gray-600 h-10 text-gray-800 dark:text-gray-200
+                                                    ${isPillExpanded ? 'px-6' : 'px-3'}
+                                                `}
+                                                id="chatUpperMenu"
+                                                onMouseEnter={() => setIsPillExpanded(true)}
+                                                onMouseLeave={() => setIsPillExpanded(false)}
+                                            >
+                                                {/* Always visible - Model name and expand indicator */}
+                                                <button
+                                                    className="font-medium cursor-pointer hover:opacity-50 flex flex-row items-center"
+                                                    id="modelChatSettings"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        setShowSettings(true);
+                                                        if (!messageIsStreaming) handleScrollUp();
+                                                        
+                                                    }}
+                                                >
+                                                    {selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
+                                                                        ? Object.values(availableModels).find(m => m.id === selectedAssistant.definition?.data?.model)?.name 
+                                                                        : selectedConversation?.model?.name || ''}
+                                                    <IconChevronRight 
+                                                        size={16} 
+                                                        className={`ml-2 transition-transform duration-300 ${isPillExpanded ? 'rotate-90' : ''} text-gray-500`}
+                                                    />
+                                                                        
+                                                </button>
+
+                                                {/* Expanded content - appears on hover */}
+                                                <div className={`flex flex-row gap-2 items-center transition-all duration-300 overflow-hidden
+                                                        ${isPillExpanded ? 'max-w-[600px] opacity-100 ml-4' : 'max-w-0 opacity-0 ml-0'}
+                                                    `}>
+
+                                                    {t('Temp')} : {selectedConversation?.temperature}
+                                                
+                                                    <button
+                                                        className="ml-2 cursor-pointer hover:opacity-50"
+                                                        disabled={messageIsStreaming}
+                                                        onClick={onClearAll}
+                                                        title="Clear Messages"
+                                                        id="clearMessages"
+                                                    >
+                                                        <IconClearAll size={18}/>
+                                                    </button>
+                                                    <button
+                                                        className="ml-2 cursor-pointer hover:opacity-50"
+                                                        disabled={messageIsStreaming}
+                                                        onClick={() => setIsShareDialogVisible(true)}
+                                                        title="Share"
+                                                        id="shareChatUpper"
+                                                    >
+                                                        <IconShare size={18}/>
+                                                    </button>
+                                                    <button
+                                                        className="ml-2 cursor-pointer hover:opacity-50"
+                                                        disabled={messageIsStreaming}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            setIsDownloadDialogVisible(true)
+
+                                                        }}
+                                                        title="Download"
+                                                        id="downloadUpper"
+                                                    >
+                                                        <IconDownload size={18}/>
+                                                    </button>
+
+                                                    {featureFlags.artifacts && 
+                                                    <ArtifactsSaved iconSize={18} isArtifactsOpen={isArtifactOpen}/>}
+                                                    
+                                                    {featureFlags.storeCloudConversations &&
+                                                    <CloudStorage iconSize={18} />
+                                                    }
+
+                                                    <button
+                                                        className="ml-2 cursor-pointer hover:opacity-50"
+                                                        onClick={() => {
+                                                            const updatedIsBarSticky = !isBarSticky;
+                                                            setIsBarSticky(updatedIsBarSticky);
+                                                            localStorage.setItem('stickyChatbar', updatedIsBarSticky.toString());
+                                                        }}
+                                                        title={isBarSticky ? "Unpin Chatbar" : "Pin Chatbar"}
+                                                    >
+                                                        {isBarSticky ?  <IconBoxAlignTopRightFilled size={18}/> : <IconBoxAlignTopFilled size={18}/>}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                     <div ref={modelSelectRef}></div>
                                     
@@ -1250,7 +1354,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     <ModelSelect modelId={selectedModelId}/>
                                                 </div>
                                             }
-                                            <div
+                                            {/* <div
                                                 id="tagListInChat"
                                                 className="border-b border-neutral-200 p-2 dark:border-neutral-600 md:rounded-lg md:border shadow-[0_2px_2px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_2px_rgba(0,0,0,0.3)]">
                                                 <TagsList tags={selectedConversation?.tags || []} setTags={
@@ -1264,7 +1368,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         }
                                                     }
                                             }/>
-                                        </div>
+                                        </div> */}
                                         </div>
                                     
 
@@ -1305,7 +1409,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     {loading && <ChatLoader/>}
 
                                     <div
-                                        className="h-[162px] bg-white dark:bg-[#343541]"
+                                        className="h-[300px] bg-white dark:bg-[#343541]"
                                         ref={messagesEndRef}
                                     />
 
@@ -1378,12 +1482,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 )}
             </div>
 
-            {/* Artifacts */}
+            {/* Artifacts Panel - only show when artifacts are open */}
             {(featureFlags.artifacts && isArtifactOpen) &&  (
                 <Artifacts 
                     artifactIndex={artifactIndex}    
                 />
             )}
+
+            </div>
 
             </>
         );

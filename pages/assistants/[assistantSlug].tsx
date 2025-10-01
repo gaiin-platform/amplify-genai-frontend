@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { getSession, useSession, signIn } from 'next-auth/react';
 import { useTranslation } from 'next-i18next';
-import { IconMessage, IconSend, IconInfoCircle, IconCamera, IconCameraOff, IconCurrencyDollar, IconBaselineDensitySmall, IconBaselineDensityMedium, IconBaselineDensityLarge, IconChevronUp, IconChevronDown, IconSquare, Icon3dCubeSphere } from '@tabler/icons-react';
+import { IconMessage, IconSend, IconChevronUp, IconChevronDown, IconSquare, Icon3dCubeSphere, IconLoader2 } from '@tabler/icons-react';
 import { getAvailableModels } from '@/services/adminService';
 import { sendDirectAssistantMessage, lookupAssistant } from '@/services/assistantService';
 import { getSettings } from '@/utils/app/settings';
@@ -18,7 +18,6 @@ import { ModelSelect } from '@/components/Chat/ModelSelect';
 import { AssistantDefinition } from '@/types/assistant';
 import { GroupTypeSelector } from '@/components/Chat/GroupTypeSelector';
 import AssistantContentBlock from '@/components/StandAloneAssistant/AssistantContentBlock';
-import { isMemberOfAstAdminGroup } from '@/services/groupsService';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
 import { 
   IconCopy, 
@@ -28,6 +27,12 @@ import {
   IconMail
 } from '@tabler/icons-react';
 import styled from 'styled-components';
+import { Account, noCoaAccount } from '@/types/accounts';
+import { noRateLimit } from '@/types/rateLimit';
+import { getAccounts } from '@/services/accountService';
+import { AttachedDocument } from '@/types/attacheddocument';
+import { getFileDownloadUrl } from '@/services/fileService';
+import { fetchImageFromPresignedUrl } from '@/utils/app/files';
 
 // Extend the Model type to include isDefault property
 interface Model extends BaseModel {
@@ -50,7 +55,6 @@ const AssistantPage = ({
   assistantSlug,
 }: Props) => {
   const { t } = useTranslation('chat');
-  const router = useRouter();
   const { data: session } = useSession();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -61,7 +65,7 @@ const AssistantPage = ({
   const [inputMessage, setInputMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [assistantId, setAssistantId] = useState('');
-  const [assistantName, setAssistantName] = useState('Assistant');
+  const [assistantName, setAssistantName] = useState('Loading Assistant...');
   const [assistantDefinition, setAssistantDefinition] = useState<AssistantDefinition | undefined>(undefined);
   const [lightMode, setLightMode] = useState<Theme>('dark');
   const [defaultModel, setDefaultModel] = useState<any>(null);
@@ -80,6 +84,8 @@ const AssistantPage = ({
   const [editing, setEditing] = useState<number | null>(null);
   const [editedContent, setEditedContent] = useState("");
   const [abortController, setAbortController] = useState<AbortController>(new AbortController());
+  const [defaultAccount, setDefaultAccount] = useState<Account | null>(null);
+  const [astIconUrl, setAstIconUrl] = useState<string | null>(null);
 
   // Add the shimmer animation useEffect here with the other hooks
   useEffect(() => {
@@ -134,6 +140,15 @@ const AssistantPage = ({
       document.head.removeChild(style);
     };
   }, []);
+
+  // Cleanup object URL when component unmounts or astIconUrl changes
+  useEffect(() => {
+    return () => {
+      if (astIconUrl && astIconUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(astIconUrl);
+      }
+    };
+  }, [astIconUrl]);
 
   // Get the current active model (selected or default)
   const activeModel = selectedModel || defaultModel;
@@ -237,15 +252,41 @@ const AssistantPage = ({
         } else {
           console.error('Failed to load models:', modelsResponse.error);
         }
+
+        setLoadingMessage('Loading account...');
+        const accountResponse = await getAccounts();
+        if (accountResponse.success) {
+            const defaultAccount = accountResponse.data.find((account: any) => account.isDefault);
+            if (defaultAccount && !defaultAccount.rateLimit) defaultAccount.rateLimit = noRateLimit; 
+            setDefaultAccount(defaultAccount || noCoaAccount);
+        } else {
+            console.log("Failed to fetch accounts.");
+        }
+
         
-        // Look up the assistant by path
         setLoadingMessage('Finding assistant...');
+        
+        if (!assistantSlug || assistantSlug.trim() === '') {
+          throw new Error('No assistant slug provided');
+        }
         
         // lookupAssistant takes only the path as argument
         const assistantResult = await lookupAssistant(assistantSlug);
+        console.log("assistantResult", assistantResult);
+        
+        if (!assistantResult) {
+          throw new Error('No response from assistant lookup service');
+        }
         
         if (assistantResult.success) {
           const { assistantId, definition } = assistantResult;
+          
+          if (!assistantId) {
+            throw new Error('Assistant lookup succeeded but no assistant ID was returned');
+          }
+          
+          // console.log("definition", definition); 
+          handleGetAstIcon(definition?.data?.astIcon);
           setAssistantDefinition(definition as AssistantDefinition);
 
           if (Object.keys(definition?.data?.groupTypeData || {}).length > 0) {
@@ -254,33 +295,29 @@ const AssistantPage = ({
 
           setLoadingMessage('Finalizing assistant...');
 
-          if (assistantId) {
-            setAssistantId(assistantId);
-            const astName = assistantResult.name || assistantResult.data?.name || definition?.name
-            if (astName) {
-              setAssistantName(astName);
-            } else { // FALLBACK: derive name from the slug
-              // Convert dash/slash separated slug to space-separated title case
-              const derivedName = assistantSlug
-                .split(/[-_/]/)  // Split on dashes, underscores, or slashes
-                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())  // Title case each word
-                .join(' ');
-              
-              setAssistantName(derivedName);
-            }
-            setLoading(false);
-          } else {
-            console.error('Assistant ID not found in lookup result');
-            setError('Could not find the assistant');
+          setAssistantId(assistantId);
+          const astName = assistantResult.name || assistantResult.data?.name || definition?.name
+          if (astName) {
+            setAssistantName(astName);
+          } else { // FALLBACK: derive name from the slug
+            // Convert dash/slash separated slug to space-separated title case
+            const derivedName = assistantSlug
+              .split(/[-_/]/)  // Split on dashes, underscores, or slashes
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())  // Title case each word
+              .join(' ');
+            
+            setAssistantName(derivedName);
           }
+          setLoading(false);
         } else {
-          console.error('Assistant lookup failed:', assistantResult.message);
-          setError(`Assistant not available at path "${assistantSlug}"`);
+          const errorMsg = assistantResult.message || `Assistant not found at path "${assistantSlug}"`;
+          console.error('Assistant lookup failed:', errorMsg);
+          throw new Error(errorMsg);
         }
       } catch (error) {
         console.error('Failed to initialize page:', error);
-        setError('Failed to load assistant: ' + (error instanceof Error ? error.message : 'Unknown error'));
-      } finally {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        setError(`Failed to load assistant: ${errorMessage}`);
         setLoading(false);
       }
     };
@@ -319,7 +356,9 @@ const AssistantPage = ({
         console.error('Model is missing id:', activeModel);
         throw new Error("The selected model is invalid. Please select a different model.");
       }
-      const options = {groupType:  requiredGroupType ? groupType : undefined, groupId: assistantDefinition?.data?.groupId};
+      const options = {groupType:  requiredGroupType ? groupType : undefined, groupId: assistantDefinition?.data?.groupId, 
+                       accountId: defaultAccount?.id, rateLimit: defaultAccount?.rateLimit
+                      };
       // Send the message to the assistant with conversation history and selected model
       const result = await sendDirectAssistantMessage(
         chatEndpoint,
@@ -480,10 +519,17 @@ const AssistantPage = ({
     }
   };
 
+  const isSendDisabled = () => {
+    return !inputMessage.trim() || isProcessing || (requiredGroupType && !groupType) || !assistantDefinition?.assistantId;
+  }
+
   // Handle key press (submit on Enter, new line on Shift+Enter)
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      
+      if (isSendDisabled()) return; // Don't send if validation fails
+      
       handleSendMessage(inputMessage);
     }
   };
@@ -515,29 +561,72 @@ const AssistantPage = ({
     setMessageState({ ...messageState, [messageIndex]: state });
   }
 
+  const handleGetAstIcon = async (dataSource: AttachedDocument | undefined) => {
+    if (astIconUrl !== null || !dataSource || !dataSource.key) return;
+    setAstIconUrl(''); // will trigger loading 
+
+    try {
+        const response = await getFileDownloadUrl(dataSource.key, dataSource.groupId);
+        if (!response.success) {
+            console.error("Error getting file download URL");
+            setAstIconUrl(null);
+            return;
+        }
+        
+        const blob = await fetchImageFromPresignedUrl(response.downloadUrl, dataSource.type || '');
+        if (!blob) {
+          setAstIconUrl(null);
+            return;
+        }
+        
+        // Convert blob to URL
+        const imageUrl = URL.createObjectURL(blob);
+        setAstIconUrl(imageUrl);
+    } catch (error) {
+        console.error("Error loading image:", error);
+        setAstIconUrl(null);
+    } 
+  }
+
+  const getAstIcon = () => { 
+    switch (astIconUrl) {
+      case null:
+        return <IconMessage className="text-blue-600 dark:text-blue-300" size={26} />;
+      case '':
+        return <IconLoader2 className="text-blue-600 dark:text-blue-300 animate-spin" size={30} />;
+      case astIconUrl:
+        return astIconUrl && (
+          <img 
+            src={astIconUrl} 
+            alt="Assistant icon" 
+            className="w-[54px] h-[54px] object-cover rounded"
+            onError={() => setAstIconUrl(null)}
+          />
+        );
+    }
+  }
+
+
   // Content for header
   const headerContent = (
     <div className="flex items-center gap-3 w-full">
-      <div className="flex-shrink-0 bg-blue-100 dark:bg-blue-900 p-2 rounded-full flex items-center justify-center">
-        <IconMessage className="text-blue-600 dark:text-blue-300" size={22} />
+      <div className={`flex-shrink-0 rounded-full flex items-center justify-center ${astIconUrl ? '' : 'bg-blue-100 dark:bg-blue-900 p-2'}`}>
+        {getAstIcon()}
       </div>
+
       <div className="group relative flex items-center">
-        <h1 className="text-xl font-bold text-neutral-800 dark:text-neutral-100 leading-none py-1">
-          {assistantName}
-        </h1>
-        <div className="absolute left-0 top-full mt-1 hidden rounded-md bg-gray-800 p-3 text-xs text-white shadow-lg group-hover:block z-10 max-w-[350px] w-max">
-          <p className="mb-1 break-all"><span className="font-bold">ID:</span> {assistantId}</p>
-          <p className="break-words"><span className="font-bold">Description:</span> {assistantDefinition?.description || 'Not provided'}</p>
+          <h1 id="assistantNameTitle" className="text-[1.4rem] mt-auto h-full font-bold text-neutral-800 dark:text-neutral-100 leading-none">
+            {assistantName}
+          </h1>
+          <div id="hoverIDDescriptionBlock" className="absolute left-0 top-full mt-1 hidden rounded-md bg-gray-800 p-3 text-xs text-white shadow-lg group-hover:block z-10 max-w-[350px] w-max">
+            <p className="mb-1 break-all"><span className="font-bold">ID:</span> {assistantId}</p>
+            <p className="break-words"><span className="font-bold">Description:</span> {assistantDefinition?.description || 'Not provided'}</p>
+          </div>
         </div>
-      </div>
-      {groupType && <div className="ml-auto text-xl font-bold text-neutral-800 dark:text-neutral-100  py-1">{groupType}</div>}
+        {groupType && <div className="absolute right-10 text-xl font-bold text-neutral-800 dark:text-neutral-100">{groupType}</div>}
     </div>
   );
 
-  // Log assistant name whenever it changes - for debugging
-  useEffect(() => {
-    // Removed debug logging
-  }, [assistantName]);
 
  
   const filterMessages = () => {
@@ -556,7 +645,8 @@ const AssistantPage = ({
     
       updatedMessages[editing] = {
         ...updatedMessages[editing],
-        content: editedContent
+        content: editedContent,
+        role: 'user'
       };
       setMessages(updatedMessages);
       setEditing(null);
@@ -625,10 +715,10 @@ const AssistantPage = ({
   }
 
   // Error state
-  if (error || !session) {
+  if (!session) {
     return (
       <MainLayout
-        title="Error"
+        title="Login Required"
         description={`Chat with ${assistantName}`}
         theme={lightMode}
         showLeftSidebar={false}
@@ -664,9 +754,55 @@ const AssistantPage = ({
     );
   }
 
+  // Error state (separate from authentication)
+  if (error) {
+    return (
+      <MainLayout
+        title="Error"
+        description={`Chat with ${assistantName}`}
+        theme={lightMode}
+        showLeftSidebar={false}
+        showRightSidebar={false}
+      >
+        <div className="flex h-screen w-screen flex-col items-center justify-center text-center bg-white dark:bg-[#343541]">
+          <div className="max-w-md mx-auto p-6">
+            <div className="mb-6 flex justify-center">
+              <LoadingIcon />
+            </div>
+            <h1 className="mb-4 text-2xl font-bold text-red-600 dark:text-red-400">
+              Assistant Error
+            </h1>
+            <p className="mb-6 text-gray-700 dark:text-gray-300 break-words">
+              {error}
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => window.location.reload()}
+                className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={() => {
+                  const currentUrl = window.location.href;
+                  const baseUrl = currentUrl.split('/assistants')[0];
+                  window.location.href = baseUrl;
+                }}
+                className="w-full px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+              >
+                Go to Amplify
+              </button>
+            </div>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
   // Empty sidebars - just for structure
   const leftSidebarContent = null; //<SimpleSidebar side="left" />;
   const rightSidebarContent = null; // <SimpleSidebar side="right" />;
+
 
   return (
     <MainLayout
@@ -688,6 +824,7 @@ const AssistantPage = ({
                               handleModelChange={handleModelChange}
                               models={models}
                               defaultModelId={defaultModel?.id}
+                              showPricingBreakdown={false}
                   />
               </div>
             </div>
@@ -699,6 +836,7 @@ const AssistantPage = ({
              onMouseLeave={() => setIsHoveringSettings(false)}>
           <button 
             title={showSettings ? 'Hide Settings' : 'Show Settings'}
+            id="hideSettings"
             onClick={() => {
               setShowSettings(!showSettings);
               setTimeout(() => {
@@ -731,10 +869,10 @@ const AssistantPage = ({
                 
             </div> }
  
-              <div className="mt-20 text-center text-neutral-500 dark:text-neutral-400">
-              <p className="mb-2">{t('Start a conversation with the assistant')}</p>
-              <p className="text-sm">{assistantName} can help answer your questions</p>
-            </div>
+              {assistantName !== 'Loading Assistant...' && <div className="mt-20 text-center text-neutral-500 dark:text-neutral-400">
+                <p className="mb-2">{t('Start a conversation with the assistant')}</p>
+                <p className="text-sm">{assistantName} can help answer your questions</p>
+              </div>}
             
           </div>
         ) : (
@@ -744,12 +882,13 @@ const AssistantPage = ({
                 {message.role === 'user' ? (
                   <>
                     <div className="flex justify-end">
-                      <div className="amplify-user-message amplify-message-container">
+                      <div id={`userMessage${index}`} className="amplify-user-message amplify-message-container">
                         {editing === index ? (
                           <>
                           <textarea
                             className="w-full p-3 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-[#40414f] text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all resize-none"
                             value={editedContent}
+                            id="editUserMessage"
                             onChange={(e) => setEditedContent(e.target.value)}
                             rows={4}
                             placeholder="Edit your message..."
@@ -758,12 +897,14 @@ const AssistantPage = ({
                           <div className="flex justify-end mt-3 space-x-2">
                           <button
                             className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 rounded-md text-xs font-medium transition-colors duration-200 flex items-center border border-transparent dark:border-gray-700"
+                            id="cancelEdit"
                             onClick={() => setEditing(null)}
                           >
                             Cancel
                           </button>
                           <button
                             className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:hover:bg-blue-800/60 dark:text-blue-200 rounded-md text-xs font-medium transition-colors duration-200 flex items-center border border-blue-200 dark:border-blue-800"
+                            id="saveEdit"
                             onClick={handleSaveEdit}
                           >
                             Save changes
@@ -894,6 +1035,7 @@ const AssistantPage = ({
                 maxHeight: '200px',
               }}
               rows={1}
+              id="assistantChatInput"
               placeholder={t('Type your message here...') || 'Type your message here...'}
               value={inputMessage}
               onChange={handleTextareaChange}
@@ -903,12 +1045,12 @@ const AssistantPage = ({
             <div className="absolute inset-y-0 right-0 flex items-center pr-3">
               <button
                 className={`text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-100 ${
-                  !inputMessage.trim() || isProcessing || (requiredGroupType && !groupType)
-                    ? 'opacity-40 cursor-not-allowed'
-                    : 'hover:bg-neutral-200 dark:hover:bg-neutral-600'
+                  isSendDisabled() ? 'opacity-40 cursor-not-allowed' : 'hover:bg-neutral-200 dark:hover:bg-neutral-600'
                 } p-1.5 rounded-md`}
                 onClick={() => handleSendMessage(inputMessage)}
-                disabled={!inputMessage.trim() || isProcessing || (requiredGroupType && !groupType)}
+                disabled={isSendDisabled()}
+                title={!assistantDefinition?.assistantId ? "No Assistant Found - Chat is disabled" : ""}
+                id="sendMessageButton"
                 aria-label="Send message"
               >
                 <IconSend size={20} />

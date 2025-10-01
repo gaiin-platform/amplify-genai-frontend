@@ -26,12 +26,13 @@ const ExpansionComponent: React.FC<ExpansionProps> = ({ title, content, openWidg
     return (
         <>
             <button onClick={handleToggle} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+            className="group"
             title={isOpen ? "Collapse" : "Expand"}
             id="expandComponent"
             >
                 {isOpen ?
                     ((openWidget) ? openWidget : <IconCaretDown size={18} />) :
-                    ((closedWidget) ? closedWidget : <IconCaretRight size={18} />)
+                    <div className="icon-pop-group">{(closedWidget) ? closedWidget : <IconCaretRight size={18} />}</div>
                 }
                 <span style={{marginLeft: '10px'}}>
           {title}

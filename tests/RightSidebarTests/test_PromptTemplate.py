@@ -15,11 +15,21 @@ class PromptTemplateTests(BaseTest):
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
         super().setUp(headless=True)
+        
+    def click_assistants_tab(self):
+        time.sleep(5)
+        tab_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
+        assistants_button = next((btn for btn in tab_buttons if "Assistants" in btn.get_attribute("title")), None)
+        self.assertIsNotNone(assistants_button, "'Assistants' tab button not found")
+        assistants_button.click()
+        time.sleep(5)
 
     # ----------------- Prompt created, saved, and appeared in list -----------------
     """This test goes through to create a prompt and ensure that it appears in the list below."""
 
     def test_add_prompt_in_dropdown(self):
+        
+        self.click_assistants_tab()
 
         prompt_buttons = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "promptButton"))
@@ -82,6 +92,8 @@ class PromptTemplateTests(BaseTest):
        in the list below is clickable and displays the necessary prompt window."""
 
     def test_prompt_is_interactable(self):
+        
+        self.click_assistants_tab()
 
         prompt_buttons = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "promptButton"))
@@ -173,6 +185,8 @@ class PromptTemplateTests(BaseTest):
        present."""
 
     def test_with_multiple_prompts(self):
+        
+        self.click_assistants_tab()
 
         prompt_buttons = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "promptButton"))
@@ -285,6 +299,9 @@ class PromptTemplateTests(BaseTest):
        duplicated prompt."""
 
     def test_duplicate_button(self):
+        
+        self.click_assistants_tab()
+        
         # Locate the Prompt Add button
         prompt_buttons = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "promptButton"))
@@ -378,6 +395,9 @@ class PromptTemplateTests(BaseTest):
        pops up as intended."""
 
     def test_edit_button(self):
+        
+        self.click_assistants_tab()
+        
         # Locate the Prompt Add button
         prompt_buttons = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "promptButton"))
@@ -461,7 +481,7 @@ class PromptTemplateTests(BaseTest):
             EC.presence_of_element_located((By.ID, "modalTitle"))
         )
         self.assertTrue(
-            edit_window_element.is_displayed(), "Edit window element is visible"
+            edit_window_element, "Edit window element is visible"
         )
 
         # Extract the text from the element
@@ -478,6 +498,9 @@ class PromptTemplateTests(BaseTest):
        pops up as intended."""
 
     def test_share_button(self):
+        
+        self.click_assistants_tab()
+        
         # Locate the Prompt Add button
         prompt_buttons = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "promptButton"))
@@ -580,6 +603,9 @@ class PromptTemplateTests(BaseTest):
        to ensure the prompts are deleted and remain visible as intended."""
 
     def test_delete_button(self):
+        
+        self.click_assistants_tab()
+        
         # Locate the Prompt Add button
         prompt_buttons = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "promptButton"))

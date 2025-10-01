@@ -4,19 +4,25 @@ import { SessionProvider } from "next-auth/react"
 import {appWithTranslation} from 'next-i18next';
 import type {AppProps} from 'next/app';
 import {Inter} from 'next/font/google';
-import { initializeHasOwnPropertyFix } from '@/utils/app/hasOwnPropertyFix';
+import { useEffect } from 'react';
 
 import '@/styles/globals.css';
-
-// Initialize hasOwnProperty fix on app load
-if (typeof window !== 'undefined') {
-  initializeHasOwnPropertyFix();
-}
 
 const inter = Inter({subsets: ['latin']});
 
 function App({ Component, pageProps }: AppProps) {
     const queryClient = new QueryClient();
+
+    // Initialize chat color palette on app load
+    useEffect(() => {
+        const savedPalette = localStorage.getItem('chatColorPalette');
+        if (savedPalette) {
+            document.body.setAttribute('data-chat-palette', savedPalette);
+        } else {
+            // Set default palette
+            document.body.setAttribute('data-chat-palette', 'warm-browns');
+        }
+    }, []);
 
     return (
         <SessionProvider

@@ -22,7 +22,7 @@ interface PromptStatusProps {
 }
 
 export const PromptStatus: React.FC<PromptStatusProps> = ({ status }) => {
-    const [detailsOpen, setDetailsOpen] = useState(false);
+    const [detailsOpen, setDetailsOpen] = useState(true);
     const [animationFrame, setAnimationFrame] = useState(0);
 
     //status.animated = true;
@@ -91,17 +91,6 @@ export const PromptStatus: React.FC<PromptStatusProps> = ({ status }) => {
 
         return (
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              {/* Animated dots*/}
-              {/* {Array(6).fill(null).map((_, i) => (
-                <div
-                  key={`dot-${i}`}
-                  className="absolute w-2 h-2 bg-blue-500 rounded-full opacity-0"
-                  style={{
-                      left: `${10 + i * 20}%`,
-                      animation: `promptStatusPulse 1.5s ease-in-out ${i * 0.2}s infinite`
-                  }}
-                />
-              ))} */}
 
               {/* Animated wave */}
               {Array(8).fill(null).map((_, i) => (

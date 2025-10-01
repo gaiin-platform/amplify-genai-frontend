@@ -1,6 +1,6 @@
-import { FC, useState } from "react";
+import { FC, useState, useCallback } from "react";
 import { EmailsAutoComplete } from "./EmailsAutoComplete";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPlus, IconTrash, IconCheck, IconX } from "@tabler/icons-react";
 
 interface AddEmailsProps {
     id: String;
@@ -15,13 +15,89 @@ export const AddEmailWithAutoComplete: FC<AddEmailsProps> = ({ id, emails, allEm
     const [hoveredUser, setHoveredUser] = useState<string | null>(null);
     const [input, setInput] = useState<string>('');
 
-    const handleAddEmails = () => {
-        const entries = input.split(',').map(email => email.trim()).filter(email => email);
-
-        const newEmails = entries.filter(email => /^\S+@\S+\.\S+$/.test(email) && !emails.includes(email));
-        if (newEmails.length > 0) handleUpdateEmails([...emails, ...newEmails]);
-        setInput('');
+    // Flexible validation for usernames/systemIds/emails
+    const isValidEntry = (entry: string): boolean => {
+        const trimmed = entry.trim();
+        return trimmed.length > 0 && 
+               !trimmed.includes(' ') && // No spaces
+               trimmed.length >= 2;      // Minimum length
     };
+
+    // Get validation state for current input
+    const getValidationState = (currentInput: string): 'valid' | 'invalid' | 'neutral' => {
+        const trimmed = currentInput.trim();
+        if (!trimmed) return 'neutral';
+        
+        if (trimmed.includes(',')) {
+            const parts = trimmed.split(',').map(p => p.trim()).filter(p => p);
+            if (parts.some(part => isValidEntry(part) && !emails.includes(part))) return 'valid';
+        }
+        
+        if (emails.includes(trimmed)) return 'invalid'; // Duplicate
+        return isValidEntry(trimmed) ? 'valid' : 'invalid';
+    };
+
+    // Process and add entries from input
+    const processEntries = useCallback((inputValue: string, clearInput: boolean = true) => {
+        const entries = inputValue.split(',')
+            .map(entry => entry.trim())
+            .filter(entry => entry);
+
+        const validEntries = entries.filter(entry => 
+            isValidEntry(entry) && !emails.includes(entry)
+        );
+        
+        if (validEntries.length > 0) {
+            handleUpdateEmails([...emails, ...validEntries]);
+        }
+        
+        if (clearInput) {
+            setInput('');
+        }
+    }, [emails, handleUpdateEmails]);
+
+    // Handle manual add button click
+    const handleAddEmails = () => {
+        processEntries(input, true);
+    };
+
+    // Remove comma detection - let users type commas naturally
+
+    // Handle Enter key
+    const handleEnterAdd = useCallback(() => {
+        processEntries(input, true);
+    }, [input, processEntries]);
+
+    // Handle input blur
+    const handleBlurAdd = useCallback(() => {
+        if (input.trim()) {
+            processEntries(input, true);
+        }
+    }, [input, processEntries]);
+
+    // Handle paste event with multiple entries
+    const handlePaste = useCallback((pastedText: string) => {
+        if (pastedText.includes(',') || pastedText.includes(';') || pastedText.includes('\n')) {
+            const entries = pastedText
+                .replace(/[;\n]/g, ',') // Replace semicolons and newlines with commas
+                .split(',')
+                .map(entry => entry.trim())
+                .filter(entry => entry);
+            
+            const validEntries = entries.filter(entry => 
+                isValidEntry(entry) && !emails.includes(entry)
+            );
+            
+            if (validEntries.length > 0) {
+                handleUpdateEmails([...emails, ...validEntries]);
+                setInput('');
+                return true; // Prevent default paste
+            }
+        }
+        return false; // Allow default paste
+    }, [emails, handleUpdateEmails]);
+
+    const validationState = getValidationState(input);
 
     return ( 
         <>
@@ -29,17 +105,62 @@ export const AddEmailWithAutoComplete: FC<AddEmailsProps> = ({ id, emails, allEm
        <div className='flex flex-row gap-2' key={JSON.stringify(id)}>
             <div className='w-full relative'>
                 <EmailsAutoComplete
-                    input = {input}
-                    setInput =  {setInput}
-                    allEmails = {allEmails.filter((e:string) => !emails.includes(e))}
-                    alreadyAddedEmails = {emails}
+                    input={input}
+                    setInput={setInput}
+                    allEmails={allEmails.filter((e:string) => !emails.includes(e))}
+                    alreadyAddedEmails={emails}
+                    onEnterPressed={handleEnterAdd}
+                    onBlur={handleBlurAdd}
+                    onPaste={handlePaste}
+                    onSuggestionSelected={(suggestion: string) => {
+                        // Parse existing input for complete entries
+                        const existingEntries = input.split(',')
+                            .map(entry => entry.trim())
+                            .filter(entry => entry && isValidEntry(entry) && !emails.includes(entry));
+                        
+                        // Combine existing entries with the suggestion
+                        const allNewEntries = [...existingEntries];
+                        if (!emails.includes(suggestion) && !allNewEntries.includes(suggestion)) {
+                            allNewEntries.push(suggestion);
+                        }
+                        
+                        // Add all entries in a single update
+                        if (allNewEntries.length > 0) {
+                            handleUpdateEmails([...emails, ...allNewEntries]);
+                        }
+                        
+                        // Clear input
+                        setInput('');
+                    }}
+                    validationState={validationState}
                 /> 
             </div>
+            
+            {/* Visual validation indicator */}
+            <div className="flex-shrink-0 flex items-center">
+                {validationState === 'valid' && (
+                    <div className="p-1 text-green-500" title="Valid entry">
+                        <IconCheck size={16} />
+                    </div>
+                )}
+                {validationState === 'invalid' && (
+                    <div className="p-1 text-red-500" title="Invalid or duplicate entry">
+                        <IconX size={16} />
+                    </div>
+                )}
+            </div>
+
+            {/* Manual add button - now optional since we have auto-add */}
             <div className="flex-shrink-0 ml-[-6px]">
-                <button type="button" title="Add User"
-                    className="ml-2 mt-0.5 p-2 rounded-md border border-neutral-300 dark:border-white/20 transition-colors duration-200 cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10 "
+                <button 
+                    type="button" 
+                    title="Add Users (Auto-adds on Enter or blur)" 
+                    id="addUserButton"
+                    className="ml-2 mt-0.5 p-2 rounded-md border border-neutral-300 dark:border-white/20 transition-colors duration-200 cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={handleAddEmails}
-                > <IconPlus size={18} />
+                    disabled={!input.trim() || validationState === 'invalid'}
+                > 
+                    <IconPlus size={18} />
                 </button>
             </div>
         

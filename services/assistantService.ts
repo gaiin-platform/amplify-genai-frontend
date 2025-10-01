@@ -43,12 +43,14 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
 
         try {
             const result = await doRequestOp(op);
+            // console.log("result", result);
 
             return {
                 id: result.data.id,
                 assistantId: result.data.assistantId,
                 provider: AssistantProviderID.AMPLIFY,
-                dataSources: assistantDefinition.fileKeys || [],
+                data_sources: result.data.data_sources,
+                ast_data: result.data.ast_data,
                 name: assistantDefinition.name || "Unnamed Assistant",
                 description: assistantDefinition.description || "No description provided",
                 instructions: assistantDefinition.instructions || assistantDefinition.description,
@@ -68,7 +70,8 @@ export const createAssistant = async (assistantDefinition: AssistantDefinition, 
     return {
         assistantId: uuidv4(),
         provider: AssistantProviderID.AMPLIFY,
-        dataSources: assistantDefinition.fileKeys || [],
+        dataSources: assistantDefinition.dataSources || [],
+        ast_data: assistantDefinition.data,
         name: assistantDefinition.name || "Unnamed Assistant",
         description: assistantDefinition.description || "No description provided",
         instructions: assistantDefinition.instructions || assistantDefinition.description,
@@ -314,4 +317,45 @@ export const lookupAssistant = async (astPath: string) => {
       message: `Error looking up path: ${error instanceof Error ? error.message : String(error)}` 
     };
   }
+};
+
+/**
+ * Rescan websites associated with an assistant
+ * @param assistantId The ID of the assistant to update website content for
+ * @param forceRescan If true, will force a rescan of all websites regardless of scan frequency
+ * @returns Success status and any relevant data from the rescan operation
+ */
+export const rescanWebsites = async (assistantId: string, forceRescan: boolean = false) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/rescan_websites",
+        data: { 
+            assistantId,
+            forceRescan
+        },
+        service: SERVICE_NAME
+    };
+    
+    const result = await doRequestOp(op);
+    return result;
+};
+
+
+export const getSiteMapUrls = async (sitemap: string, maxPages?: number) => {
+  const data: { sitemap: string, maxPages?: number } = { sitemap }
+  if (maxPages) {
+    data.maxPages = maxPages;
+  }
+  console.log("data", data);
+  const op = {
+      method: 'POST',
+      path: URL_PATH,
+      op: "/extract_sitemap_urls",
+      data: data,
+      service: SERVICE_NAME
+  };
+  
+  const result = await doRequestOp(op);
+  return result;
 };

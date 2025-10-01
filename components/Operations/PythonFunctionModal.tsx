@@ -31,13 +31,13 @@ import { Model } from "@/types/model";
 
 
 
-import HomeContext from "@/components/Home/Home.context";
+import HomeContext from "@/pages/api/home/home.context";
 
 
 
 import PromptTextArea from "@/components/PromptTextArea/PromptTextArea";
 import {getSession} from "next-auth/react";
-import { getClientJWT } from '@/utils/client/getClientJWT';
+import toast from 'react-hot-toast';
 
 
 interface Props {
@@ -116,7 +116,7 @@ export const PythonFunctionModal: FC<Props> = ({
                                                    onCancel,
                                                    title = 'Manage Custom APIs',
                                                    width = '900px',
-                                                   height = '80vh',
+                                                   height = '76vh',
                                                    blackoutBackground = true,
                                                    translateY
                                                }) => {
@@ -308,8 +308,9 @@ if __name__ == "__main__":
     const [dependencies, setDependencies] = useState('');
 
     useEffect(() => {
-        getClientJWT().then((token) => {
-            setAccessToken(token);
+        getSession().then((session) => {
+            // @ts-ignore
+            setAccessToken(session.accessToken || null);
         });
     }, []);
 
@@ -646,7 +647,7 @@ if __name__ == "__main__":
                         style={{ transform: translateY ? `translateY(${translateY})` : '0', width }}
                     >
                         <div className="flex items-center justify-between px-6 pb-2">
-                          <div className="text-xl font-semibold">{title}</div>
+                          <div id="pythonFunctionModalTitle" className="text-xl font-semibold">{title}</div>
                           <button
                             onClick={onCancel}
                             className="text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white"
@@ -1784,7 +1785,7 @@ Output only a markdown code block like this:
 
                                                     await handleSave();
 
-                                                    alert("Function published successfully.");
+                                                    toast("Function published successfully.");
                                                 }
                                                 else {
                                                     alert("Failed to publish function: "+ pubinfo.message);

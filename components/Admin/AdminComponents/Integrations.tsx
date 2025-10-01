@@ -25,8 +25,6 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
     const [secretsHasChanges, setSecretsHasChanges] = useState<string[]>([]);
     const [isRegisteringSecrets, setIsRegisteringSecrets] = useState<string>('');
 
-    
-
     const handleUpdateIntegrations = (integrationsMap: IntegrationsMap) => {
         setIntegrations(integrationsMap);
         updateUnsavedConfigs(AdminConfigTypes.INTEGRATIONS);
@@ -75,8 +73,14 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
         return secrets ? secrets[key] ?? "" : "";    
     }
 
-    return <>
-        {titleLabel('Integrations')}
+    return <div className="admin-style-settings-card">
+        <div className="admin-style-settings-card-header">
+            <div className="flex flex-row items-center gap-3 mb-2">
+                <h3 className="admin-style-settings-card-title">Integrations</h3>
+            </div>
+            <p className="admin-style-settings-card-description">Configure and manage third-party integrations</p>
+        </div>
+
         {Object.entries(integrations).map(([name, integrationList]: [string, Integration[]]) => 
             <div key={name} className={`ml-4 flex flex-col gap-2 mr-8`}>
                 <br></br>
@@ -117,13 +121,13 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
                     </div> 
                     
                     { integrationList.map((integration: Integration) =>
-                        <div key={integration.id} className={`ml-4 flex flex-row gap-2 `}>  {/* hover:bg-gray-200 dark:hover:bg-[#40414F] */}
+                        <div id={integration.id} key={integration.id} className={`ml-4 flex flex-row gap-2 `}>  {/* hover:bg-gray-200 dark:hover:bg-[#40414F] */}
                             <div className="mr-4 ">
                                 <div className="flex items-center mb-2">
                                 {integration.isAvailable && (<IconCheck className="w-5 h-5 mr-2 text-green-500" /> )}
-                                {translateIntegrationIcon(integration.icon)}
+                                {translateIntegrationIcon(integration.icon)} 
                                 <span className="text-black dark:text-white font-semibold">{`${getLabel(name)} ${integration.name}`}</span>
-                                </div>
+                                </div> 
                                 <p className="text-sm text-gray-600 dark:text-gray-300">{integration.description}</p>
                             </div>
 
@@ -147,6 +151,6 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
                 <br className="mb-4"></br>
             </div>
         )}
-    </>
+    </div>
 
 }

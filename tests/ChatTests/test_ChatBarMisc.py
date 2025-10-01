@@ -19,10 +19,37 @@ class ChatBarMiscTests(BaseTest):
 
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
-        super().setUp(headless=True)
+        super().setUp(headless=False)
+        
+    def sidebar_press(self):
+        time.sleep(1)  # Optional; remove if not strictly necessary
+
+        try:
+            # If the collapseSidebar is found and visible, sidebar is already open
+            collapse_sidebar = self.driver.find_element(By.ID, "collapseSidebar")
+            if collapse_sidebar.is_displayed():
+                # Sidebar is open; do nothing
+                return
+        except:
+            # Element not found, which means sidebar is likely closed — expand it
+            expand_sidebar_button = self.wait.until(
+                EC.presence_of_element_located((By.ID, "expandSidebar"))
+            )
+            self.assertTrue(expand_sidebar_button.is_displayed(), "Expand Sidebar Button is visible")
+            expand_sidebar_button.click()
+        
+    def click_assistants_tab(self):
+        time.sleep(5)
+        tab_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
+        assistants_button = next((btn for btn in tab_buttons if "Assistants" in btn.get_attribute("title")), None)
+        self.assertIsNotNone(assistants_button, "'Assistants' tab button not found")
+        assistants_button.click()
+
+        time.sleep(2)
         
     # ----------------- Setup Test Data ------------------  
     def create_assistant(self, assistant_name):
+        self.click_assistants_tab()
         assistant_add_button = self.wait.until(EC.element_to_be_clickable((By.ID, "addAssistantButton")))
         self.assertIsNotNone(assistant_add_button, "Add Assistant button should be initialized and clickable")
         assistant_add_button.click()
@@ -32,9 +59,9 @@ class ChatBarMiscTests(BaseTest):
         assistant_name_input.clear()
         assistant_name_input.send_keys(assistant_name)
         
-        assistant_save_button = self.wait.until(EC.element_to_be_clickable((By.ID, "saveButton")))
+        assistant_save_button = self.wait.until(EC.presence_of_all_elements_located((By.ID, "confirmationButton")))
         self.assertIsNotNone(assistant_save_button, "Save button should be initialized and clickable")
-        assistant_save_button.click()
+        assistant_save_button[-1].click()
         
         time.sleep(5)
         drop_name_elements = self.wait.until(EC.presence_of_all_elements_located((By.ID, "dropName")))
@@ -60,6 +87,8 @@ class ChatBarMiscTests(BaseTest):
     def test_upload_files_visible(self):
         # A little more time to load
         time.sleep(3)
+    
+        self.sidebar_press()
         
         # Find the Select Enabled Features Button
         upload_files_button = self.wait.until(EC.presence_of_element_located((By.ID, "uploadFile")))
@@ -77,6 +106,7 @@ class ChatBarMiscTests(BaseTest):
     
     def test_select_assistants(self):
         
+        self.sidebar_press()
         self.create_assistant("Ninji")
         
         # A little more time to load
@@ -123,6 +153,9 @@ class ChatBarMiscTests(BaseTest):
     """This test ensures that the left sidebar can be collapsed"""
     
     def test_collapse_left_sidebar(self):
+        
+        self.sidebar_press()
+        
         # A little more time to load
         time.sleep(3)
         
@@ -138,12 +171,17 @@ class ChatBarMiscTests(BaseTest):
         # id="tabSelection" is not visible
         tab_selection = self.wait.until(EC.invisibility_of_element_located((By.ID, "tabSelection")))
         self.assertTrue(tab_selection, "tabSelection should not be visible after collapsing sidebar")
+        
+        self.sidebar_press()
 
     # ----------------- Test Collapse Right Sidebar -----------------
     """This test ensures that the right sidebar can be collapsed"""
     
     def test_collapse_right_sidebar(self):
-        # A little more time to load
+        
+        self.sidebar_press()
+        self.click_assistants_tab()
+        
         time.sleep(3)
         
         # Find the Select Collapse Right Sidebar Button
@@ -158,6 +196,8 @@ class ChatBarMiscTests(BaseTest):
         # id="addAssistantButton" is not visible
         add_assistant_selection = self.wait.until(EC.invisibility_of_element_located((By.ID, "addAssistantButton")))
         self.assertTrue(add_assistant_selection, "addAssistantButton should not be visible after collapsing sidebar")
+        
+        self.sidebar_press()
         
 
 if __name__ == "__main__":

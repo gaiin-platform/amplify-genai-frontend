@@ -33,7 +33,7 @@ const FeaturePlugin = ({ plugins, setPlugins }: Props) => {
 
 
     useEffect(() => {
-        const events = ['openAstAdminInterfaceTrigger','openAdminInterfaceTrigger', 'openArtifactsTrigger'];
+        const events = ['openFullScreenPanel'];
         const handleEvent = (event:any) => {
             const isInterfaceOpen = event.detail.isOpen;
             setHide(isInterfaceOpen);
@@ -137,7 +137,7 @@ const FeaturePlugin = ({ plugins, setPlugins }: Props) => {
 
     return ( hide ? <></> :
         <>
-            <div className="`relative inline-block z-20 max-h-full" 
+            <div className="relative inline-block z-20 max-h-full" 
                 id="selectEnabledFeaturesDrag"
                 draggable="true"
                 onMouseDown={startDragging}

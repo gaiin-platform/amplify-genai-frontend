@@ -23,10 +23,11 @@ import {FolderInterface, SortType} from "@/types/folder";
 import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
 import { deleteRemoteConversation } from '@/services/remoteConversationService';
 import { uncompressMessages } from '@/utils/app/messages';
-import { getDateName } from '@/utils/app/date';
+import { getFullTimestamp, getDateName } from '@/utils/app/date';
 import React from 'react';
 import Sidebar from '../Sidebar/Sidebar';
 import { DefaultModels } from '@/types/model';
+import { getArchiveNumOfDays } from '@/utils/app/folders';
 
 
 export const Chatbar = () => {
@@ -121,7 +122,8 @@ export const Chatbar = () => {
           prompt: DEFAULT_SYSTEM_PROMPT,
           temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
           folderId: folder.id,
-          promptTemplate: null
+          promptTemplate: null,
+          date: getFullTimestamp()
         };
         updatedConversations.push(newConversation)
         selectedConversation = {...newConversation}
@@ -140,7 +142,8 @@ export const Chatbar = () => {
               prompt: DEFAULT_SYSTEM_PROMPT,
               temperature: conversation.temperature,
               folderId: null,
-              isLocal: getIsLocalStorageSelection(storageSelection) 
+              isLocal: getIsLocalStorageSelection(storageSelection),
+              date: getFullTimestamp()
           },
       });
 
@@ -204,6 +207,47 @@ export const Chatbar = () => {
              !foldersRef.current.find((f: FolderInterface) => f.id === conversation.folderId));
   }
 
+  // Archive indicator component
+  const ArchiveIndicator = () => {
+    const [archiveDays, setArchiveDays] = useState(getArchiveNumOfDays());
+    
+    // console.log('ArchiveIndicator rendering, archiveDays:', archiveDays);
+    
+    useEffect(() => {
+      const handleArchiveUpdate = (event: CustomEvent) => {
+        setArchiveDays(event.detail.threshold);
+      };
+      
+      window.addEventListener('updateArchiveThreshold', handleArchiveUpdate as EventListener);
+      return () => window.removeEventListener('updateArchiveThreshold', handleArchiveUpdate as EventListener);
+    }, []);
+
+    const handleClick = () => {
+      console.log('ArchiveIndicator clicked - opening kebab menu to Folders > Archive');
+      // Dispatch event to open kebab menu with specific navigation
+      window.dispatchEvent(new CustomEvent('openKebabMenu', { 
+        detail: { 
+          section: 'Folders', 
+          subsection: 'Archive',
+        } 
+      }));
+    };
+
+    if (archiveDays <= 0) return null;
+
+    return (
+      <div 
+        onClick={handleClick}
+        title="Click to manage archive settings (Kebab Menu → Folders → Archive)"
+        className="border-t border-b border-neutral-300 dark:border-neutral-600 py-1 px-3 cursor-pointer hover:opacity-80 transition-colors"
+      >
+        <div className="text-xs text-gray-500 dark:text-gray-500 text-center">
+          Conversations past {archiveDays} days are archived
+        </div>
+      </div>
+    );
+  };
+
   return (
     <ChatbarContext.Provider
       value={{
@@ -224,7 +268,6 @@ export const Chatbar = () => {
         items={filteredConversations}
         searchTerm={searchTerm}
         handleSearchTerm={(searchTerm: string) => chatDispatch({ field: 'searchTerm', value: searchTerm })}
-        toggleOpen={handleToggleChatbar}
         handleCreateItem={() => {
           window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false}} ));
           handleNewConversation({});
@@ -234,7 +277,7 @@ export const Chatbar = () => {
           handleCreateFolder(name || "New Folder", 'chat');
         } }
         handleDrop={handleDrop}
-        footerComponent={<> </>} 
+        footerComponent={<ArchiveIndicator />} 
         handleCreateAssistantItem={() => {}} 
         setFolderSort={setFolderSort} 
         />

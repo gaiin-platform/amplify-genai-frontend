@@ -100,7 +100,7 @@ const HIGHLIGHT_BACKGROUND = 'rgba(129, 192, 255, 0.4)';
 
 export const PromptHighlightedText: React.FC<Props> = ({onSend}) => {
     const {state:{statsService, selectedConversation, selectedAssistant, selectedArtifacts, messageIsStreaming, artifactIsStreaming, 
-                  chatEndpoint, currentRequestId, conversations},  
+                  chatEndpoint, defaultAccount},  
            dispatch:homeDispatch, handleUpdateSelectedConversation, getDefaultModel} = useContext(HomeContext);
     
     const [showComponent, setShowComponent] = useState<boolean>(false);
@@ -1012,7 +1012,9 @@ const handleParagraphSelection = (range: Range) => {
             temperature: 0.5,
             maxTokens: 4000,
             skipRag: true,
-            skipCodeInterpreter: true
+            skipCodeInterpreter: true,
+            accountId: defaultAccount?.id,
+            rateLimit: defaultAccount?.rateLimit
         };
 
         statsService.sendChatEvent(chatBody);

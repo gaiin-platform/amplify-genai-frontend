@@ -5,7 +5,7 @@ import { useTranslation } from 'next-i18next';
 
 import { Model } from '@/types/model';
 
-import HomeContext from '@/components/Home/Home.context';
+import HomeContext from '@/pages/api/home/home.context';
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
 import React from 'react';
@@ -21,6 +21,7 @@ interface Props {
   models?: Model[];
   defaultModelId?: string;
   outlineColor?: string;
+  showPricingBreakdown?: boolean;
 }
 
 export const ModelSelect: React.FC<Props> = ({
@@ -31,7 +32,7 @@ export const ModelSelect: React.FC<Props> = ({
   applyModelFilter = true,
   disableMessage = 'Model has been predetermined and cannot be changed',
   models: presetModels, defaultModelId: backupDefaultModelId,
-  outlineColor
+  outlineColor, showPricingBreakdown = true
 }) => {
   const { t } = useTranslation('chat');
 
@@ -75,7 +76,7 @@ export const ModelSelect: React.FC<Props> = ({
 
   const models = presetModels ? presetModels : 
              applyModelFilter ? filterModels(availableModels, getSettings(featureFlags).hiddenModelIds)
-                              : (Object.values(availableModels) as Model[]);
+                              : Object.values(availableModels);
 
 
   useEffect(() => {
@@ -122,26 +123,8 @@ export const ModelSelect: React.FC<Props> = ({
     </>
   }
   
-const getProviderBadge = (provider: string) => {
-  const providerColors: { [key: string]: string } = {
-    'bedrock': 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-    'openai': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-    'gemini': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    'azure': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-  };
-  
-  const color = providerColors[provider.toLowerCase()] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
-  
-  return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${color} mr-2`}>
-      {provider.toUpperCase()}
-    </span>
-  );
-};
-
 const getIcons = (model: Model) => {
   return <div className="ml-auto flex flex-row gap-1 opacity-70">
-          {getProviderBadge(model.provider)}
           <div title={model.supportsImages ? "Supports Images in Prompts": "Does Not Support Images in Prompts"}>
            {model.supportsImages ? <IconCamera size={18}/> : <IconCameraOff size={18}/>}
          </div>
@@ -159,7 +142,7 @@ const getIcons = (model: Model) => {
           </label>
           <div id="legendHover" className='ml-auto' onMouseEnter={() => setShowLegend(true) } onMouseLeave={() => setShowLegend(false)}>
             <IconInfoCircle size={19} className='mr-1 mt-[-4px] flex-shrink-0 text-gray-600 dark:text-gray-300' />
-            {showLegend && legend()}
+            {showLegend && legend(showPricingBreakdown, featureFlags)}
           </div>
         </div>
       )}
@@ -186,53 +169,23 @@ const getIcons = (model: Model) => {
           
         </button>
         {isOpen && (
-          <ul id="modelList" className="absolute z-10 mt-1 w-full overflow-auto rounded-lg border border-neutral-200 bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-[#343541] sm:text-sm"
-              style={{maxHeight: window.innerHeight * 0.55}}>
-            {(() => {
-              // Group models by provider
-              const groupedModels = models.reduce((acc: { [key: string]: Model[] }, model: Model) => {
-                const provider = model.provider || 'Other';
-                if (!acc[provider]) acc[provider] = [];
-                acc[provider].push(model);
-                return acc;
-              }, {});
-              
-              // Sort providers
-              const sortedProviders = Object.keys(groupedModels).sort();
-              
-              return sortedProviders.map((provider, providerIndex) => (
-                <React.Fragment key={provider}>
-                  {providerIndex > 0 && (
-                    <div className="my-1 border-t border-neutral-200 dark:border-neutral-600" />
-                  )}
-                  <div className="px-4 py-1 text-xs font-semibold text-neutral-500 dark:text-neutral-400">
-                    {provider.toUpperCase()}
-                  </div>
-                  {groupedModels[provider]
-                    .sort((a, b) => a.name.localeCompare(b.name))
+          <ul id="modelList" className="absolute mt-1 w-full overflow-auto rounded-lg border border-neutral-200 bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-[#343541] sm:text-sm"
+              style={{maxHeight: window.innerHeight * 0.55, zIndex: 20}}>
+            {models.sort((a, b) => a.name.localeCompare(b.name))
                     .map((model: Model) => (
-                      <li
-                        key={model.id}
-                        id={model.id}
-                        onClick={() => handleOptionClick(model.id)}
-                        className="flex cursor-pointer items-center justify-between px-4 py-2 text-neutral-900 hover:bg-neutral-100 dark:text-white dark:hover:bg-neutral-600"
-                        title={model.description}
-                      >
-                        <span>
-                          {model.id === defaultModelId ? defaultModelLabel(model.name) : model.name}
-                        </span>
-                        <div className="ml-auto flex flex-row gap-1 opacity-70">
-                          <div title={model.supportsImages ? "Supports Images in Prompts": "Does Not Support Images in Prompts"}>
-                            {model.supportsImages ? <IconCamera size={18}/> : <IconCameraOff size={18}/>}
-                          </div>
-                          {getCostIcon(model.inputTokenCost, model.outputTokenCost)}
-                          {getOutputLimitIcon(model.outputTokenLimit)}
-                        </div>
-                      </li>
-                    ))}
-                </React.Fragment>
-              ));
-            })()}
+              <li
+                key={model.id}
+                id={model.id}
+                onClick={() => handleOptionClick(model.id)}
+                className="flex cursor-pointer items-center justify-between px-4 py-2 text-neutral-900 hover:bg-neutral-100 dark:text-white dark:hover:bg-neutral-600"
+                title={model.description}
+              >
+                <span>
+                  {model.id === defaultModelId ? defaultModelLabel(model.name) : model.name}
+                </span>
+                {getIcons(model)}
+              </li>
+            ))}
           </ul>
         )}
       </div>
@@ -249,7 +202,7 @@ const legendItem = (icon: JSX.Element, message: string) => {
   );
 };
 
-const legend = () => {
+const legend = (showPricingBreakdown: boolean, featureFlags: any) => {
   return (
     <div className='text-black dark:text-white absolute mt-1 w-[260px] rounded-lg border border-neutral-200 bg-white p-4 text-sm shadow-lg z-20 dark:border-neutral-600 dark:bg-[#343541]'
          style={{transform: 'translateX(-85%)'}}>
@@ -264,15 +217,14 @@ const legend = () => {
       {legendItem( <IconBaselineDensitySmall size={16} />, 'Large Output Token Limit : ≥ 100,000 tokens')}
       {legendItem( <IconBaselineDensityMedium size={16} />, 'Average Output Token Limit : 4,096 - 100,000 tokens' )}
       {legendItem(<IconBaselineDensityLarge size={16} />, 'Less than Average Output Token Limit : < 4,096 tokens' )}
+      {showPricingBreakdown && featureFlags.modelPricing && 
       <div className='mt-2 text-sm text-gray-500 dark:text-gray-400'>
-       View the full pricing breakdown: Click on the gear icon on the left sidebar, go to <strong>Settings</strong>, and click on the 
+       View the full pricing breakdown: Click on the gear icon on the left sidebar, go to <strong>Settings</strong>, and scroll down to  
        <strong className='text-blue-500 dark:text-blue-400 cursor-pointer hover:underline'
-       onClick={() => window.dispatchEvent(new CustomEvent('homeChatBarTabSwitch', 
-                     { detail: { tab: "Settings" , side: "left", action: () => {
-                      window.dispatchEvent(new CustomEvent('openSettingsTrigger', {detail: {openToTab: "Model Pricing"}}));
-                     }} } ))}>{" Model Pricing"}
+       onClick={() => {window.dispatchEvent(new CustomEvent('openSettingsTrigger', {detail: {openToTab: "Configurations"}}));
+                     }}>{" View Model Pricing"}
        </strong> tab.
-      </div>
+      </div>}
     </div>
   );
 };

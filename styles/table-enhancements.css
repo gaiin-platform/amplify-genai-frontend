@@ -1,0 +1,688 @@
+/* Enhanced Table Base Styles */
+.sleek-table-container {
+  border-radius: 16px;
+  overflow: hidden;
+  background: white;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sleek-table-container:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+.sleek-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Refined Table Headers */
+.sleek-table thead th {
+  background: linear-gradient(135deg, #d8e0ea 0%, #f0f3fa 100%);
+  color: #475569;
+  font-weight: 600;
+  text-align: left;
+  padding: 8px 16px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  position: relative;
+  user-select: none;
+  text-align: center;
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+}
+
+/* Add rounded corners to first header row */
+.sleek-table thead tr:first-child th:first-child {
+  border-top-left-radius: 16px;
+}
+
+.sleek-table thead tr:first-child th:last-child {
+  border-top-right-radius: 16px;
+}
+
+/* Apply gradient header effect to sleek-table when using gradient-header class */
+.sleek-table thead .gradient-header th,
+.sleek-table .gradient-header th {
+  background: linear-gradient(-45deg, #f1f5f9, #f8fafc, #e2e8f0, #f1f5f9);
+  background-size: 400% 400%;
+  animation: gradientShift 4s ease infinite;
+  position: relative;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  font-size: 0.825rem;
+  text-transform: none;
+  color: #475569 !important;
+}
+
+/* Dark mode gradient header for sleek-table */
+.dark .sleek-table thead .gradient-header th,
+.dark .sleek-table .gradient-header th {
+  background: linear-gradient(-45deg, #334155, #475569, #3b4553, #334155);
+  background-size: 400% 400%;
+  animation: gradientShift 4s ease infinite;
+  color: #e2e8f0 !important;
+}
+
+/* Gradient animation keyframes */
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Focus states for accessibility */
+.sleek-table thead th:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+}
+
+/* Improved Table Body */
+.sleek-table tbody td {
+  padding: 16px 20px;
+  color: #475569;
+  font-weight: 400;
+  vertical-align: middle;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sleek-table tbody tr {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sleek-table tbody tr:hover {
+  background: #f8fafc;
+  transform: scale(1.002);
+}
+
+.sleek-table tbody tr:hover td {
+  color: #334155;
+}
+
+/* Subtle alternating row colors */
+.sleek-table tbody tr:nth-child(even) {
+  background: #f1f5f9;
+}
+
+.sleek-table tbody tr:nth-child(even):hover {
+  background: #e2e8f0;
+}
+
+
+.sleek-table tbody tr:last-child td:first-child {
+  border-bottom-left-radius: 16px;
+}
+
+.sleek-table tbody tr:last-child td:last-child {
+  border-bottom-right-radius: 16px;
+}
+
+/* Improved cell content hierarchy */
+.sleek-table .cell-primary {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 0.9rem;
+}
+
+.sleek-table .cell-secondary {
+  color: #5e718a;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.sleek-table .cell-accent {
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+.sleek-table .cell-muted {
+  color: #94a3b8;
+  font-size: 0.8rem;
+}
+
+/* Enhanced Action Buttons */
+.sleek-table .action-btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  position: relative;
+  overflow: hidden;
+}
+
+.sleek-table .action-btn:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.sleek-table .action-btn-primary {
+  background: #475569;
+  color: white;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.sleek-table .action-btn-primary:hover {
+  background: #334155;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.sleek-table .action-btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.sleek-table .action-btn-secondary {
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.sleek-table .action-btn-secondary:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.sleek-table .action-btn-secondary:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Refined Status Badges */
+.sleek-table .status-badge {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  display: inline-flex;
+  align-items: center;
+  min-width: 60px;
+  justify-content: center;
+}
+
+.sleek-table .status-active {
+  background: #f0f9f0;
+  color: #166534;
+  border: 1px solid #dcfce7;
+}
+
+.sleek-table .status-inactive {
+  background: #fef7f7;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.sleek-table .status-pending {
+  background: #fefbf0;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.sleek-table .status-neutral {
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+/* Enhanced Dark Mode */
+.dark .sleek-table-container {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.dark .sleek-table-container:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.dark .sleek-table thead th {
+  background: linear-gradient(135deg, #2c384a 0%, #3b4553 100%);
+  color: #e2e8f0;
+  border-bottom-color: #475569;
+}
+
+
+.dark .sleek-table tbody td {
+  border-bottom-color: #334155;
+  color: #cbd5e1;
+}
+
+.dark .sleek-table tbody tr:nth-child(even) {
+  background: #1c2b3f;
+}
+
+.dark .sleek-table tbody tr:hover {
+  background: #334155;
+}
+
+.dark .sleek-table tbody tr:hover td {
+  color: #e2e8f0;
+}
+
+.dark .sleek-table .cell-primary {
+  color: #f1f5f9;
+}
+
+.dark .sleek-table .cell-secondary {
+  color: #94a3b8;
+}
+
+.dark .sleek-table .cell-accent {
+  color: #60a5fa;
+}
+
+.dark .sleek-table .cell-muted {
+  color: #64748b;
+}
+
+.dark .sleek-table .action-btn-primary {
+  background: #3b82f6;
+  color: white;
+}
+
+.dark .sleek-table .action-btn-primary:hover {
+  background: #2563eb;
+}
+
+.dark .sleek-table .action-btn-secondary {
+  background: #334155;
+  color: #e2e8f0;
+  border-color: #475569;
+}
+
+.dark .sleek-table .action-btn-secondary:hover {
+  background: #475569;
+  border-color: #64748b;
+}
+
+.dark .sleek-table .status-active {
+  background: #064e3b;
+  color: #6ee7b7;
+  border-color: #065f46;
+}
+
+.dark .sleek-table .status-inactive {
+  background: #7f1d1d;
+  color: #fca5a5;
+  border-color: #991b1b;
+}
+
+.dark .sleek-table .status-pending {
+  background: #78350f;
+  color: #fcd34d;
+  border-color: #92400e;
+}
+
+.dark .sleek-table .status-neutral {
+  background: #334155;
+  color: #cbd5e1;
+  border-color: #475569;
+}
+
+/* Enhanced Responsive Design */
+@media (max-width: 768px) {
+  .sleek-table-container {
+    margin: 16px 0;
+    border-radius: 12px;
+  }
+  
+  .sleek-table thead th,
+  .sleek-table tbody td {
+    padding: 12px 16px;
+    font-size: 0.8rem;
+  }
+  
+  .sleek-table thead th {
+    font-size: 0.75rem;
+  }
+  
+  .sleek-table .action-btn {
+    padding: 6px 10px;
+    font-size: 0.7rem;
+    min-height: 28px;
+  }
+  
+  .sleek-table .status-badge {
+    font-size: 0.65rem;
+    padding: 3px 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .sleek-table thead th,
+  .sleek-table tbody td {
+    padding: 10px 12px;
+    font-size: 0.75rem;
+  }
+  
+  .sleek-table .action-btn {
+    padding: 4px 8px;
+    font-size: 0.65rem;
+    min-height: 24px;
+  }
+}
+
+/* Extra Compact Variant - Enhanced */
+.sleek-table.extra-compact thead th,
+.sleek-table.extra-compact tbody td {
+  padding: 10px 14px;
+  font-size: 0.8rem;
+}
+
+.sleek-table.extra-compact thead th {
+  font-size: 0.75rem;
+}
+
+.sleek-table.extra-compact .action-btn {
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  min-height: 24px;
+}
+
+/* Loading State */
+.sleek-table.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.sleek-table.loading tbody tr {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Empty State */
+.sleek-table .empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: #64748b;
+}
+
+.sleek-table .empty-state h3 {
+  font-size: 1rem;
+  font-weight: 500;
+  margin: 0 0 8px 0;
+  color: #475569;
+}
+
+.sleek-table .empty-state p {
+  font-size: 0.875rem;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.dark .sleek-table .empty-state {
+  color: #94a3b8;
+}
+
+.dark .sleek-table .empty-state h3 {
+  color: #cbd5e1;
+}
+
+/* Modern Table Styling - Rounded Corners & Contemporary Effects */
+.modern-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.2s ease-in-out;
+}
+
+/* Animated Gradient Header for Tables */
+.gradient-header {
+  background: linear-gradient(to right, rgb(226, 232, 240), rgb(235, 238, 245), rgb(226, 232, 240));
+  animation: pulse 12s infinite;
+}
+
+/* Move top-right corner rounding to second-to-last column header */
+.gradient-header.hide-last-column th:nth-last-child(1) {
+  border-top-right-radius: 12px;
+}
+
+.dark .gradient-header {
+  background: linear-gradient(to right, rgb(51, 65, 85), rgb(71, 85, 105), rgb(51, 65, 85));
+}
+
+.modern-table:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+/* Refined Professional Header Styling */
+.modern-table thead th {
+  position: relative;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  font-size: 0.825rem;
+  text-transform: none;
+  background: linear-gradient(180deg, rgba(0,0,0,0.03) 0%, rgba(0,0,0,0.01) 100%);
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+}
+
+/* Header corner rounding - fixed to target correct column */
+.modern-table thead tr:first-child th:first-child {
+  border-top-left-radius: 12px;
+}
+
+.modern-table thead tr:first-child th:nth-last-child(1) {
+  border-top-right-radius: 12px;
+}
+
+
+/* Remove any border shadows from last column */
+.modern-table tbody td:last-child {
+  box-shadow: none;
+  border-right: none;
+}
+
+/* Body corner rounding - fixed to target correct column */
+.modern-table tbody tr:last-child td:first-child {
+  border-bottom-left-radius: 12px;
+}
+
+
+
+/* Subtle hover effects */
+.modern-table tbody tr {
+  transition: transform 0.15s ease-in-out;
+}
+
+
+/* Dark mode enhancements */
+.dark .modern-table {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.dark .modern-table:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.dark .modern-table thead th {
+  background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.015) 100%);
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .modern-table {
+    border-radius: 8px;
+  }
+  
+  .modern-table thead tr:first-child th:first-child {
+    border-top-left-radius: 8px;
+  }
+
+  .modern-table thead tr:first-child th:nth-last-child(1) {
+    border-top-right-radius: 8px;
+  }
+
+  .modern-table tbody tr:last-child td:first-child {
+    border-bottom-left-radius: 8px;
+  }
+
+  .modern-table tbody tr:last-child td:nth-last-child(1) {
+    border-bottom-right-radius: 8px;
+  }
+}
+
+
+/* Base modern table with rounded corners */
+.modern-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid #4b5563;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Header cells */
+.modern-table thead th {
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  font-size: 0.825rem;
+  background: linear-gradient(180deg, rgba(0,0,0,0.03) 0%, rgba(0,0,0,0.01) 100%);
+  border-bottom: 1px solid #4b5563;
+  border-right: 1px solid #4b5563;
+  padding: 12px;
+}
+
+
+
+/* Body cells */
+.modern-table tbody td {
+  border-bottom: 1px solid #4b5563;
+  border-right: 1px solid #4b5563;
+}
+
+/* Remove right border from last cell in each row */
+.modern-table tbody td:last-child {
+  border-right: none;
+}
+
+/* Remove bottom border from last row */
+.modern-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Dark mode adjustments */
+.dark .modern-table,
+.dark .modern-table th,
+.dark .modern-table td {
+  border-color: #6b7280;
+}
+
+
+
+
+/* ===== HIDE LAST COLUMN MODIFIER ===== */
+
+/* Remove right border from table container */
+.modern-table.hide-last-column {
+  border: none;
+}
+
+
+.modern-table.hide-last-column tbody td:last-child {
+  background: transparent !important;
+  border: none !important;
+  color: transparent;
+  padding: 0;
+}
+
+
+.modern-table.hide-last-column tbody td:last-child * {
+  visibility: visible !important; /* Keep the content visible (like trash icons) */
+  color: initial !important;
+}
+
+/* Ensure last row keeps bottom border except for last column */
+.modern-table.hide-last-column tbody tr:last-child td:not(:last-child) {
+  border-bottom: 1px solid #4b5563;
+}
+
+.dark .modern-table.hide-last-column tbody tr:last-child td:not(:last-child) {
+  border-bottom: 1px solid #6b7280;
+}
+
+.modern-table.hide-last-column thead th:last-child {
+  border-right: 1px solid #4b5563;
+}
+
+.dark .modern-table.hide-last-column thead th:last-child {
+  border-right: 1px solid #6b7280;
+}
+
+.modern-table.hide-last-column thead th {
+  border-top: 1px solid #4b5563;
+}
+
+.dark .modern-table.hide-last-column thead th {
+  border-top: 1px solid #6b7280;
+}
+
+.dark .modern-table.hide-last-column thead th {
+  border-left: 1px solid #6b7280;
+}
+
+.modern-table.hide-last-column thead th:first-child {
+  border-left: 1px solid #4b5563;
+}
+
+.dark .modern-table.hide-last-column thead th:first-child {
+  border-left: 1px solid #6b7280;
+}
+
+/* Make second-to-last column act like the visual end */
+.modern-table.hide-last-column tbody td:nth-last-child(1) {
+  border-right: none;
+}
+
+.modern-table.hide-last-column tbody td:first-child {
+  border-left: 1px solid #4b5563;
+}
+
+.dark .modern-table.hide-last-column tbody td:first-child {
+  border-left: 1px solid #6b7280;
+}
+
+
+/* Move top-right corner rounding to second-to-last column header */
+.modern-table.hide-last-column thead tr:first-child th:nth-last-child(1) {
+  border-top-right-radius: 12px;
+}
+
+/* Move bottom-right corner rounding to second-to-last column */
+.modern-table.hide-last-column tbody tr:last-child td:nth-last-child(2) {
+  border-bottom-right-radius: 12px;
+}

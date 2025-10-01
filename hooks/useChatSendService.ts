@@ -26,15 +26,17 @@ import { doReadMemoryOp } from '@/services/memoryService';
 import {
     ExtractedFact,
     Memory,
-    MemoryOperationResponse
 } from '@/types/memory';
 import { getSettings } from '@/utils/app/settings';
+import { isBasePrompt } from '@/utils/app/basePrompts';
 import { promptForData } from '@/utils/app/llm';
 import {
     buildExtractFactsPrompt,
     getRelevantMemories,
     buildMemoryContextPrompt
 } from '@/utils/app/memory';
+import { handleAgentRun, handleAgentRunResult, isWaitingForAgentResponse } from '@/utils/app/agent';
+import { lzwCompress } from '@/utils/app/lzwCompression';
 
 export type ChatRequest = {
     message: Message;
@@ -53,16 +55,19 @@ export type ChatRequest = {
 
 export function useSendService() {
     const {
-        state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts, memoryExtractionEnabled },
-        getDefaultModel,
+        state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts, memoryExtractionEnabled, defaultAccount },
+        getDefaultModel, handleUpdateSelectedConversation,
         postProcessingCallbacks,
         dispatch: homeDispatch,
     } = useContext(HomeContext);
 
     const { data: session } = useSession();
-    const user = session?.user;
 
     const conversationsRef = useRef(conversations);
+    const messageTimestampRef = useRef<string | undefined>(undefined);
+    
+    // Add ref to track running agent sessions
+    const runningAgentSessions = useRef<Set<string>>(new Set());
 
     useEffect(() => {
         conversationsRef.current = conversations;
@@ -73,6 +78,12 @@ export function useSendService() {
     useEffect(() => {
         foldersRef.current = folders;
     }, [folders]);
+
+    const cleanupHomeState = () => {
+        homeDispatch({ field: 'messageIsStreaming', value: false });
+        homeDispatch({ field: 'loading', value: false });
+        homeDispatch({ field: 'status', value: [] });
+    }
 
     const {
         sendChatRequest,
@@ -125,6 +136,49 @@ export function useSendService() {
     //     };
     // }
 
+    useEffect(() => {
+        const awaitAgentRun = async (sessionId: string) => {
+            // Check if this session is already running
+            if (runningAgentSessions.current.has(sessionId)) {
+                console.log(`Agent run for session ${sessionId} is already in progress`);
+                return;
+            }
+            
+            // Mark this session as running
+            runningAgentSessions.current.add(sessionId);
+            
+            try {
+                homeDispatch({field: 'messageIsStreaming', value: true}); 
+                const agentResult = await handleAgentRun(sessionId, (status: any) => homeDispatch({ field: "status", value: [newStatus(status)] }));
+                if (agentResult && selectedConversation) {
+                    const lastIndex = selectedConversation.messages.length - 1;
+                    selectedConversation.messages[lastIndex].data.state.agentLog = lzwCompress(JSON.stringify(agentResult));
+                    const updatedConversation = await handleAgentRunResult(agentResult, selectedConversation, getDefaultModel(DefaultModels.CHEAPEST), defaultAccount, homeDispatch, statsService, chatEndpoint || '');
+                    handleUpdateSelectedConversation(updatedConversation);
+                } else {
+                    console.error("Agent run failed");
+                    const updatedMessages = selectedConversation?.messages;
+                    if (updatedMessages) {
+                        const lastMsgIndex = updatedMessages.length - 1;
+                        updatedMessages[lastMsgIndex].content = "No response from the agent. Please try again later.";
+                        updatedMessages[lastMsgIndex].data.state.agentRun.endTime = new Date();
+                        handleUpdateSelectedConversation({...selectedConversation, messages: updatedMessages});
+                    }
+                }
+            } finally {
+                // Always remove the session from running set when done
+                runningAgentSessions.current.delete(sessionId);
+                cleanupHomeState();
+            }
+        }
+
+        if (selectedConversation) {
+            const agentRunData =  isWaitingForAgentResponse(selectedConversation);
+            if (agentRunData?.sessionId) awaitAgentRun(agentRunData.sessionId);
+        }
+    }, [selectedConversation?.messages]);
+    
+
     const handleSend = useCallback(
         async (request: ChatRequest, shouldAbort: () => boolean) => {
             return new Promise(async (resolve, reject) => {
@@ -141,6 +195,7 @@ export function useSendService() {
                         options,
                         conversationId
                     } = request;
+                    messageTimestampRef.current = new Date().toISOString();
 
                     const featureOptions = getSettings(featureFlags).featureOptions;
                     const pluginActive = featureOptions.includePluginSelector;
@@ -207,8 +262,13 @@ export function useSendService() {
 
                     let isArtifactsOn = featureFlags.artifacts && featureOptions.includeArtifacts &&
                         // we only consider whats in the plugins if we have the feature option for it on.
-                        (!pluginIds || (pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER)));
+                        (!pluginIds || (pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER))) &&
+                        // turn off artifacts for base prompt templates
+                        !(selectedConversation?.promptTemplate && isBasePrompt(selectedConversation.promptTemplate.id));
                     console.log("Artifacts on: ", isArtifactsOn)
+                    if (selectedConversation?.promptTemplate && isBasePrompt(selectedConversation.promptTemplate.id)) {
+                        console.log("Artifacts disabled for base prompt template: ", selectedConversation.promptTemplate.name);
+                    }
                     const isSmartMessagesOn = featureOptions.includeFocusedMessages && (!pluginIds || (pluginIds.includes(PluginID.SMART_MESSAGES)));
                     console.log("Smart Messageson: ", isSmartMessagesOn)
 
@@ -217,8 +277,7 @@ export function useSendService() {
 
                     // if both artifact and smart messages is off then it returnes with the messages right away 
                     const {focusedMessages, includeArtifactInstr} = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService,
-                        isArtifactsOn, isSmartMessagesOn, homeDispatch,
-                        getDefaultModel(DefaultModels.ADVANCED), getDefaultModel(DefaultModels.CHEAPEST));
+                        isArtifactsOn, isSmartMessagesOn, homeDispatch, getDefaultModel(DefaultModels.ADVANCED), getDefaultModel(DefaultModels.CHEAPEST), defaultAccount);
 
                     if (isArtifactsOn && !includeArtifactInstr) {
                         isArtifactsOn = false;
@@ -307,9 +366,14 @@ export function useSendService() {
                     //PLUGINS before options is assigned
                     //in case no plugins are defined, we want to keep the default behavior
                     if (!featureFlags.ragEnabled || (plugins && pluginActive && !pluginIds?.includes(PluginID.RAG))) {
-                        options = { ...(options || {}), skipRag: true, ragEvaluation: false };
+                        options = { ...(options || {}), skipRag: true, ragOnly: false, ragEvaluation: false };
+                        console.log('skipping rag');
                     } else if (featureFlags.ragEnabled && featureFlags.ragEvaluation && (pluginIds?.includes(PluginID.RAG) && pluginIds?.includes(PluginID.RAG_EVAL))) {
                         options = { ...(options || {}), ragEvaluation: true };
+                    }
+                                                      // Advanced Rag is default off for assistant use 
+                    if (!featureFlags.cachedDocuments || options?.assistantId || options?.groupId) {
+                        options = { ...(options || {}), skipDocumentCache : true};
                     }
 
 
@@ -417,11 +481,14 @@ export function useSendService() {
                         }
 
                         let outOfOrder = false;
-                        let currentState = {};
+                        let currentState: any = {};
+                        let reasoningText = "";
+                        let reasoningMode = false; // support gemini reasoning
 
                         const metaHandler: MetaHandler = {
                             status: (meta: any) => {
-                                //console.log("Chat-Status: ", meta);
+                                //capture reasoning to compress and save in state at the end of the astresponse
+                                if (meta.id === "reasoning") reasoningText += meta.message;
                                 homeDispatch({ type: "append", field: "status", value: newStatus(meta) })
                             },
                             mode: (modeName: string) => {
@@ -454,8 +521,7 @@ export function useSendService() {
 
 
                         if (!response || !response.ok) {
-                            homeDispatch({ field: 'loading', value: false });
-                            homeDispatch({ field: 'messageIsStreaming', value: false });
+                            cleanupHomeState();
                             toast.error(response.statusText);
                             try {
                                 // Clone the response to read the body (streams can only be read once)
@@ -470,15 +536,13 @@ export function useSendService() {
                         }
                         const data = response.body;
                         if (!data) {
-                            homeDispatch({ field: 'loading', value: false });
-                            homeDispatch({ field: 'messageIsStreaming', value: false });
+                            cleanupHomeState();
                             return;
                         }
                         homeDispatch({ field: 'loading', value: false });
                         const reader = data.getReader();
                         const decoder = new TextDecoder();
                         let done = false;
-                        let isFirst = true;
                         let text = '';
 
                         // Reset the status display
@@ -532,8 +596,27 @@ export function useSendService() {
                                         //move onto the next iteration
                                         continue;
                                     }
+                                    if (text.includes("<thought>")) reasoningMode = true;
+                        
+                                    // Split by reasoning tags and process alternately
+                                    const parts = chunkValue.split(/(<\/?thought>)/);
+                                    
+                                    for (const part of parts) {
+                                        if (part === '<thought>') {
+                                            reasoningMode = true;
+                                        } else if (part === '</thought>') {
+                                            reasoningMode = false;
+                                        } else if (part) {
+                                            if (reasoningMode) {
+                                                reasoningText += part;
+                                                homeDispatch({ type: "append", field: "status", value: newStatus({id: "reasoning", summary: "Thinking Details:", message: part, icon: "bolt", inProgress: true, animated: true}) });
+                                            } else {
+                                                text += part;
+                                            }
+                                        }
+                                    }
 
-                                    text += chunkValue;
+                                    if (text.includes("</thought>")) reasoningMode = false;
                                 } else {
                                     let event = { s: "0", d: chunkValue };
                                     try {
@@ -593,13 +676,11 @@ export function useSendService() {
                                         saveConversations(updatedConversations);
                                     }
                                 }
-                                homeDispatch({ field: 'messageIsStreaming', value: false });
-                                homeDispatch({ field: 'loading', value: false });
-                                homeDispatch({ field: 'status', value: [] });
+                                cleanupHomeState();
                                 return;
                             }
                         }
-                        // }
+                      
 
                         //console.log("Dispatching post procs: " + postProcessingCallbacks.length);
                         postProcessingCallbacks.forEach(callback => callback({
@@ -619,7 +700,8 @@ export function useSendService() {
                                     if (index === updatedConversation.messages.length - 1) {
                                         const disclaimer = message.data.state.currentAssistantDisclaimer;
                                         let astMsg = updatedText;
-                                        if (disclaimer) astMsg += "\n\n" + disclaimer
+                                        if (disclaimer) astMsg += "\n\n" + disclaimer;
+                                        if (reasoningText) message.data.state.reasoning = lzwCompress(reasoningText);
 
                                         return {
                                             ...message,
@@ -661,8 +743,8 @@ export function useSendService() {
                                 saveConversations(updatedConversations);
                             }
                         }
-
-                        homeDispatch({ field: 'messageIsStreaming', value: false });
+            
+                        if (!isWaitingForAgentResponse(updatedConversation)) homeDispatch({ field: 'messageIsStreaming', value: false });
 
                         // Run memory extraction after main response is processed
                         if (isMemoryOn && memoryExtractionEnabled) {
@@ -672,7 +754,7 @@ export function useSendService() {
                                     // get the last user message
                                     const userInput = updatedConversation.messages[updatedConversation.messages.length - 2]?.content || '';
 
-                                    console.log("User input: ", userInput);
+                                    // console.log("User input: ", userInput);
 
                                     // Fetch existing memories for fact extraction
                                     const memoriesResponse = await doReadMemoryOp({});
@@ -688,13 +770,14 @@ export function useSendService() {
                                     // Build and send fact extraction prompt
                                     const extractFactsPrompt = buildExtractFactsPrompt(userInput, existingMemories);
 
-                                    console.log("Extract facts prompt: ", extractFactsPrompt);
+                                    // console.log("Extract facts prompt: ", extractFactsPrompt);
 
                                     const extractFactsResult = await promptForData(
                                         chatEndpoint || '',
                                         [], // Send empty array instead of conversation messages
                                         getDefaultModel(DefaultModels.CHEAPEST),
                                         extractFactsPrompt,
+                                        defaultAccount,
                                         statsService
                                     );
 
@@ -751,24 +834,22 @@ export function useSendService() {
                         resolve(text);
 
                     } catch (error: any) {
-                        homeDispatch({ field: 'loading', value: false });
-                        homeDispatch({ field: 'messageIsStreaming', value: false });
-                        homeDispatch({
-                            field: 'status',
-                            value: [],
-                        });
+                        cleanupHomeState();
                         return;
                         //reject(error);
                         // Handle any other errors, as required.
                     } finally {
                         window.removeEventListener('killChatRequest', handleStopGenerationEvent);
                     }
-
-                    //Reset the status display
-                    homeDispatch({
-                        field: 'status',
-                        value: [],
-                    });
+                    
+                    if (!isWaitingForAgentResponse(updatedConversation))  {
+                        //Reset the status display
+                        homeDispatch({
+                            field: 'status',
+                            value: [],
+                        });   
+                    }
+                   
                 }
             });
         },

@@ -1,7 +1,7 @@
 import {FC, useContext, useEffect, useRef, useState} from 'react';
 
 import {useTranslation} from 'next-i18next';
-import {IconFiles, IconTags, IconFileDescription, IconDatabase, IconSlideshow, IconLoader2, IconBrandGoogleDrive} from "@tabler/icons-react";
+import {IconFiles, IconTags, IconFileDescription, IconSlideshow, IconLoader2} from "@tabler/icons-react";
 import {DataSource} from "@/types/chat";
 import DataSourcesTableScrolling from "@/components/DataSources/DataSourcesTableScrolling";
 import {UserTagsList} from "@/components/UserTags/UserTagsList";
@@ -9,6 +9,7 @@ import { getConnectedIntegrations } from '@/services/oauthIntegrationsService';
 import HomeContext from '@/components/Home/Home.context';
 import { capitalize } from '@/utils/app/data';
 import DataSourcesTableScrollingIntegrations from './DataSourcesTableScrollingIntegrations';
+import { translateIntegrationIcon } from '../Integrations/IntegrationsDialog';
 
 interface Props {
     onDataSourceSelected: (dataSource: DataSource) => void;
@@ -70,7 +71,7 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
 
     const pageClasses = (page: string) => {
         return `inline-flex items-center px-4 py-3 rounded-lg hover:text-gray-900 hover:bg-blue-100 w-full dark:hover:bg-gray-700 dark:hover:text-white
-                        ${selectedPage === page ? "text-white bg-blue-500 dark:bg-blue-600" : "bg-gray-100 dark:bg-gray-800"}`;
+                        ${selectedPage === page ? "text-white bg-blue-400 dark:bg-blue-700" : "bg-gray-100 dark:bg-gray-800"}`;
     }
 
     return (
@@ -80,12 +81,11 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                     <a href="#"
                        id="fileSection"
                        className={pageClasses("files")}
+                       onClick={swapPage("files")}
                        aria-current="page">
-                        <div className="flex flex-row items-center pointer"
-                             onClick={swapPage("files")}
-                        >
+                        <div className="group flex flex-row items-center pointer">
                             <div>
-                                <IconFiles/>
+                                <IconFiles className="icon-pop-group"/>
                             </div>
                             <div className="ml-1">
                                 Files
@@ -99,11 +99,13 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                        className={pageClasses("tags")}
                        onClick={swapPage("tags")}
                     >
-                        <div>
-                            <IconTags/>
-                        </div>
-                        <div className="ml-1">
-                            Tags
+                        <div className="group flex flex-row items-center pointer">
+                            <div>
+                                <IconTags className="icon-pop-group"/>
+                            </div>
+                            <div className="ml-1">
+                                Tags
+                            </div>
                         </div>
                     </a>
                 </li>
@@ -113,11 +115,13 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                        className={pageClasses("docs")}
                        onClick={swapPage("docs")}
                     >
-                        <div>
-                            <IconFileDescription/>
-                        </div>
-                        <div className="ml-1">
-                            Docs
+                        <div className="group flex flex-row items-center pointer">
+                            <div>
+                                <IconFileDescription className="icon-pop-group"/>
+                            </div>
+                            <div className="ml-1">
+                                Docs
+                            </div>
                         </div>
                     </a>
                 </li>
@@ -127,11 +131,13 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                        className={pageClasses("slides")}
                        onClick={swapPage("slides")}
                     >
-                        <div>
-                            <IconSlideshow/>
-                        </div>
-                        <div className="ml-1">
-                            Slides
+                        <div className="group flex flex-row items-center pointer">
+                            <div>
+                                <IconSlideshow className="icon-pop-group"/>
+                            </div>
+                            <div className="ml-1">
+                                Slides
+                            </div>
                         </div>
                     </a>
                 </li>
@@ -148,11 +154,11 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                         <a href="#"
                             className={pageClasses(key)}
                             onClick={swapPage(key)}>
-                            <div className="flex flex-row items-center pointer">
+                            <div className="group flex flex-row items-center pointer">
                                 <div>
-                                    <IconBrandGoogleDrive/>
+                                    {translateIntegrationIcon(key)}
                                 </div>
-                                <div className="ml-1">
+                                <div className="ml-2">
                                     {capitalize(key.split('_')[0])}
                                 </div>
                             </div>
@@ -191,8 +197,8 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                 {selectedPage === "files" && (
                     <DataSourcesTableScrolling
                         height={height}
-                        visibleColumns={ showActionButtons ? ["name", "id", "createdAt", "commonType", "delete", "re-embed"] 
-                                                           : ["name", "createdAt", "commonType"]}
+                        visibleColumns={ showActionButtons ? ["name", "id", "createdAt", "commonType", "embeddingStatus", "delete", "re-embed"] 
+                                                           : ["name", "createdAt", "commonType", "embeddingStatus"]}
                         onDataSourceSelected={onDataSourceSelected}
                         tableParams={{
                             enableGlobalFilter: false,

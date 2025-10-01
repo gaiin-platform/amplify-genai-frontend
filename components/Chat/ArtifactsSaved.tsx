@@ -2,8 +2,8 @@ import { IconLibrary,  IconTrash } from '@tabler/icons-react';
 
 import { FC, useContext, useEffect, useRef, useState } from 'react';
 
-import HomeContext from '@/components/Home/Home.context';
-import { Conversation } from '@/types/chat';
+import HomeContext from '@/pages/api/home/home.context';
+import { Conversation, Message, MessageType, newMessage } from '@/types/chat';
 import { Artifact, ArtifactBlockDetail } from '@/types/artifacts';
 import { deleteArtifact, getArtifact } from '@/services/artifactsService';
 import toast from 'react-hot-toast';
@@ -46,7 +46,7 @@ export const ArtifactsSaved: FC<Props> = ({
       foldersRef.current = folders;
   }, [folders]);
 
-  const [artifactList, setSetArtifactList] = useState<Artifact[]>(artifacts);
+  const [artifactList, setSetArtifactList] = useState<any>(artifacts);
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [hoveredItem, setHoveredItem] = useState<number>(-1);
   const [loadingItem, setLoadingItem] = useState<number>(-1);
@@ -83,7 +83,12 @@ const handleUpdateConversation = (updatedConversation: Conversation, artifact: A
     }
 
     updatedConversation.artifacts = {...conversationArtifacts, [artifact.artifactId]: artifactList };
-    
+    if (updatedConversation.messages.length === 0 || 
+               updatedConversation.messages.slice(-1)[0].role !== 'assistant') {
+      console.log("Adding assistant message for artifact display");
+      let msg:Message = newMessage({role: "assistant", content: `Artifact Attached`, data: {artifacts: []}});
+      updatedConversation.messages.push(msg);
+    }
     const lastMessageData = updatedConversation.messages.slice(-1)[0].data;
     updatedConversation.messages.slice(-1)[0].data.artifacts = [...(lastMessageData.artifacts ?? []), {artifactId: artifact.artifactId, name: artifact.name, createdAt:  artifact.createdAt, description: artifact.description, version: artifact.version === 1 ? undefined : artifact.version} as ArtifactBlockDetail];
 
@@ -96,6 +101,7 @@ const handleAddArtifactToConversation = async (key: string, index:number) => {
     setLoadingItem(index);
     statsService.bringArtifactToAnotherConversationEvent(key);
     const result = await getArtifact(key);
+
     if (result.success) {
       const artifact:Artifact = result.data;
       if (selectedConversation)  handleUpdateConversation({...selectedConversation}, artifact);
@@ -144,10 +150,10 @@ return (
             style={{maxHeight: `200px`, top: 40, transform: isArtifactsOpen ? 'translateX(-90%)' : 'translateX(0)' , 
             }}>
                 <ul id="artifactsList" className="suggestions-list ">
-                {artifactList.map((artifact, index) => (
-                    <li key={index} onClick={() => { if (loadingItem === -1 ) handleAddArtifactToConversation(artifact.artifactId, index)}} 
+                {artifacts.map((artifact, index) => (
+                    <li key={index} onClick={() => { if (loadingItem === -1 ) handleAddArtifactToConversation(artifact.key, index)}} 
                     onMouseEnter={() => setHoveredItem(index)} onMouseLeave={() => setHoveredItem(-1)}
-                    title={`${artifact.description}\n - Created: ${artifact.createdAt}`}
+                    title={`${artifact.description}\n - ${artifact.sharedBy ? `Shared by: ${artifact.sharedBy}` : artifact.createdAt}`}
                     id="artifactInList"
                     className="p-2.5 border-b border-neutral-300 dark:border-b-neutral-600 hover:bg-neutral-200 dark:hover:bg-[#343541]/90 flex flex-row gap-2">
                       <label className='truncate flex-grow' style={{maxWidth: hoveredItem === index || loadingItem === index ? '200px' : '224px', cursor: loadingItem === index ? 'default': 'pointer'}}> {artifact.name}</label>
@@ -162,7 +168,7 @@ return (
                           className={` ml-auto text-sm  rounded  text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100`}
                           onClick={(e) => {
                             e.stopPropagation(); // Prevents triggering the li click event
-                            handleDeleteArtifact(artifact.artifactId, index);
+                            handleDeleteArtifact(artifact.key, index);
                           }}
                       >
                           <IconTrash size={16} />

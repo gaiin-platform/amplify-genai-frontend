@@ -4,7 +4,8 @@ import { snakeCaseToTitleCase } from "@/utils/app/data";
 import { IconPlus } from "@tabler/icons-react";
 import { useContext, useEffect, useState } from "react";
 import { AssistantWorkflowBuilder } from "./AssistantWorkflowBuilder";
-import HomeContext from "@/components/Home/Home.context";
+import HomeContext from "@/pages/api/home/home.context";
+import { useSession } from "next-auth/react";
 
 
 interface Props {
@@ -19,6 +20,9 @@ export const AssistantWorkflowSelector: React.FC<Props> = ({
     disabled
   }) => {
 
+    const { data: session } = useSession();
+    const userEmail = session?.user?.email;
+
     const [workflowTemplates, setWorkflowTemplates] = useState<AstWorkflow[] | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const { state: {featureFlags} } = useContext(HomeContext);
@@ -26,7 +30,7 @@ export const AssistantWorkflowSelector: React.FC<Props> = ({
     const allowWorkflowCreation = featureFlags.createAssistantWorkflows;
 
     const fetchAstWorkflowTemplates = async () => {      
-            const response = await listAstWorkflowTemplates(true);
+            const response = await listAstWorkflowTemplates(true, true);
             const baseTemplates = response.success ? response.data?.templates ?? [] : [];
             // console.log("templates", templates);
             setWorkflowTemplates(baseTemplates);
@@ -53,9 +57,9 @@ export const AssistantWorkflowSelector: React.FC<Props> = ({
                         onTemplateChange(templateId);
                     }}
                 > 
-                    {workflowTemplates && workflowTemplates.map((template: AstWorkflow) => (
-                        <option key={template.templateId} value={template.templateId}
-                                title={template.description}>
+                    {workflowTemplates && workflowTemplates.map((template: AstWorkflow, index: number) => (
+                        <option key={`${template.templateId}-${index}`} value={template.templateId}
+                                title={`${template.description} ${template.user && template.user != userEmail ? `Provided by ${template.user}` : ""}`}>
                             {snakeCaseToTitleCase(template.name)}
                         </option>
                     ))}
@@ -71,6 +75,7 @@ export const AssistantWorkflowSelector: React.FC<Props> = ({
                     <button type="button" title='Add Workflow Template' style={{transform: "translateY(-3px)"}}
                         className="px-2 my-1 rounded-md border border-neutral-300 dark:border-white/20 transition-colors duration-200 cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10 "
                         onClick={() => setIsModalOpen(true)}
+                        id="baseAssistantWorkflowTemplateAdd"
                         disabled={disabled}
                     > <IconPlus size={18} />
                     </button>}

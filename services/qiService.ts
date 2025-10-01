@@ -5,6 +5,8 @@ import { getSession } from "next-auth/react"
 import { sendChatRequestWithDocuments } from "./chatService";
 import { getClientJWT } from '@/utils/client/getClientJWT';
 import { doRequestOp } from "./doRequestOp";
+import { Account } from "@/types/accounts";
+import { scrubMessages } from "@/utils/app/messages";
 
 const URL_PATH = "/qi";
 const SERVICE_NAME = "qi";
@@ -26,7 +28,7 @@ const qiConversationPrompt =
     /PURPOSE_START [Purpose and use case here] /PURPOSE_END
     `
 
-export const createQiSummary = async (chatEndpoint: string, model: Model, data: any, type: QiSummaryType, statsService: any) => {
+export const createQiSummary = async (chatEndpoint: string, model: Model, data: any, type: QiSummaryType, statsService: any, account: Account | undefined) => {
     const controller = new AbortController();
 
     const accessToken = await getClientJWT();
@@ -37,13 +39,15 @@ export const createQiSummary = async (chatEndpoint: string, model: Model, data: 
     try {
         const chatBody = {
             model: model,
-            messages: [...data.messages, { role: 'user', content: getPrompt(type) } as Message],
+            messages: scrubMessages([...data.messages, { role: 'user', content: getPrompt(type) } as Message]),
             key: accessToken,
             prompt: "Ensure to follow the instructions exactly.",
             temperature: 0.5,
             maxTokens: 500,
             skipRag: true,
-            skipCodeInterpreter: true
+            skipCodeInterpreter: true,
+            accountId: account?.id,
+            rateLimit: account?.rateLimit
         };
 
         statsService.sendChatEvent(chatBody);
