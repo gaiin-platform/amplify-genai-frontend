@@ -187,9 +187,12 @@ const requestOp =
         
         // Check if this is a call to the Lambda backend
         // Temporarily use mock responses until backend auth is fixed
-        if (apiUrl.includes('qfgrhljoh0.execute-api.us-east-1.amazonaws.com') || 
-            apiUrl.includes('1y2q5khrvc.execute-api.us-east-1.amazonaws.com') ||
-            apiUrl.includes('hdviynn2m4.execute-api.us-east-1.amazonaws.com')) {
+        // Check if we should use mock responses (for any API Gateway URL)
+        const useBackendMocks = process.env.USE_BACKEND_MOCKS === 'true' || 
+                               process.env.NODE_ENV === 'development' ||
+                               apiUrl.includes('.execute-api.') ||
+                               apiUrl.includes('amazonaws.com');
+        if (useBackendMocks && apiUrl.includes('/available_models')) {
             console.log(`Using mock response for: ${apiUrl}`);
             const mockResponse = getMockResponse(apiUrl);
             const encodedResponse = transformPayload.encode(mockResponse);
