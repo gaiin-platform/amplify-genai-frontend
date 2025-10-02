@@ -190,32 +190,22 @@ export const ChatInput = ({
         !artifactIsStreaming;
 
     useEffect(() => {
-        let timeoutId: NodeJS.Timeout;
-        
-        const debouncedUpdateWidth = () => {
-            clearTimeout(timeoutId);
-            timeoutId = setTimeout(() => {
-                if (!messageIsStreaming && !artifactIsStreaming) {
-                    setChatContainerWidth(updateSize());
-                }
-            }, 150); // Debounce updates
-        };
+       const updateWidth = () => {
+            if (!messageIsStreaming && !artifactIsStreaming) setChatContainerWidth(updateSize());
+        }
+        window.addEventListener('resize', updateWidth);
+        window.addEventListener('orientationchange', updateWidth);
+        window.addEventListener('pageshow', updateWidth);
+        window.addEventListener('pagehide', updateWidth);
+        const observer = new MutationObserver(updateWidth);
+        observer.observe(document, { childList: true, subtree: true, attributes: true });
 
-        window.addEventListener('resize', debouncedUpdateWidth);
-        window.addEventListener('orientationchange', debouncedUpdateWidth);
-        window.addEventListener('pageshow', debouncedUpdateWidth);
-        window.addEventListener('pagehide', debouncedUpdateWidth);
-        
-        // Remove the MutationObserver to prevent infinite loop
-        // const observer = new MutationObserver(debouncedUpdateWidth);
-        // observer.observe(document, { childList: true, subtree: true, attributes: true });
-        
         return () => {
-            clearTimeout(timeoutId);
-            window.removeEventListener('resize', debouncedUpdateWidth);
-            window.removeEventListener('orientationchange', debouncedUpdateWidth);
-            window.removeEventListener('pageshow', debouncedUpdateWidth);
-            window.removeEventListener('pagehide', debouncedUpdateWidth);
+            window.removeEventListener('resize', updateWidth);
+            window.removeEventListener('orientationchange', updateWidth);
+            window.removeEventListener('pageshow', updateWidth);
+            window.removeEventListener('pagehide', updateWidth);
+            observer.disconnect();
         };
     }, [messageIsStreaming, artifactIsStreaming]);
 
