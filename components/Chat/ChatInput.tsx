@@ -390,6 +390,7 @@ export const ChatInput = ({
         }
 
         // Skip placeholder deletion logic when in edit mode
+        let finalContent = value;
         if (!editMode.isEditing) {
             // Check for deleted placeholder characters and remove corresponding blocks
             const blocksToRemove = largeTextBlocks.filter((block) => 
@@ -402,13 +403,12 @@ export const ChatInput = ({
                 blocksToRemove.forEach((block) => {
                     updatedContent = removeLargeTextBlockFromHook(block.id, updatedContent);
                 });
-                // Update value to use the content with all blocks removed
-                value = updatedContent;
+                finalContent = updatedContent;
             }
         }
 
-        setContent(value);
-        updatePromptListVisibility(value);
+        setContent(finalContent);
+        updatePromptListVisibility(finalContent);
     };
 
     const addDocument = (document: AttachedDocument) => {
