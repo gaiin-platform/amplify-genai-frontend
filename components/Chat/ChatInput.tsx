@@ -392,12 +392,19 @@ export const ChatInput = ({
         // Skip placeholder deletion logic when in edit mode
         if (!editMode.isEditing) {
             // Check for deleted placeholder characters and remove corresponding blocks
-            largeTextBlocks.forEach((block) => {
-                if (!value.includes(block.placeholderChar)) {
-                    // Placeholder character was deleted → remove the entire block
-                    handleRemoveLargeTextBlock(block.id);
-                }
-            });
+            const blocksToRemove = largeTextBlocks.filter((block) => 
+                !value.includes(block.placeholderChar)
+            );
+            
+            if (blocksToRemove.length > 0) {
+                // Remove all deleted blocks at once to avoid state batching issues
+                let updatedContent = value;
+                blocksToRemove.forEach((block) => {
+                    updatedContent = removeLargeTextBlockFromHook(block.id, updatedContent);
+                });
+                // Update value to use the content with all blocks removed
+                value = updatedContent;
+            }
         }
 
         setContent(value);
