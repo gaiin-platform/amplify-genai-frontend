@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { IconChevronDown, IconChevronUp, IconX, IconClipboard } from '@tabler/icons-react';
-import { LargeTextData, generateSummaryText, generatePreviewText, extractNumberFromParenthesizedChar } from '@/utils/app/largeText';
+import { LargeTextData, generateSummaryText, generatePreviewText, extractNumberFromBracketedText } from '@/utils/app/largeText';
 import { Message } from '@/types/chat';
 import { ExpandedTextDisplay } from './ExpandedTextDisplay';
 
@@ -59,10 +59,10 @@ export const LargeTextDisplay: React.FC<LargeTextDisplayProps> = ({
   const fullText = extractLargeText();
 
   // Get placeholder character for header display
-  const placeholderChar = data?.placeholderChar || message?.data?.largeTextData?.placeholderChar || '⑴';
+  const placeholderChar = data?.placeholderChar || message?.data?.largeTextData?.placeholderChar || '[TEXT_1]';
   
   // Extract number from placeholder character for display using centralized function
-  const numberText = extractNumberFromParenthesizedChar(placeholderChar);
+  const numberText = extractNumberFromBracketedText(placeholderChar);
   const customDisplayName = `Input Text (${numberText})`;
 
   // Generate display text using utility functions  

@@ -5,7 +5,7 @@ import 'react-circular-progressbar/dist/styles.css';
 import styled, { keyframes } from "styled-components";
 import { FiCommand } from "react-icons/fi";
 
-import { LargeTextBlock, extractNumberFromParenthesizedChar } from '@/utils/app/largeText';
+import { LargeTextBlock, extractNumberFromBracketedText } from '@/utils/app/largeText';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { Assistant, DEFAULT_ASSISTANT } from '@/types/assistant';
 
@@ -107,7 +107,7 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
 
   // Helper functions for large text blocks
   const getTextBlockLabel = (block: LargeTextBlock): string => {
-    const numberText = extractNumberFromParenthesizedChar(block.placeholderChar);
+    const numberText = extractNumberFromBracketedText(block.placeholderChar);
     return `${numberText}. Input Text`;
   };
 
@@ -154,7 +154,7 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
 
   // Add text blocks
   largeTextBlocks.forEach((block) => {
-    const numberText = extractNumberFromParenthesizedChar(block.placeholderChar);
+    const numberText = extractNumberFromBracketedText(block.placeholderChar);
     allAttachments.push({
       id: `text-${block.id}`,
       type: 'text',

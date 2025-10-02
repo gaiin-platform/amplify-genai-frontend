@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { IconCircleX, IconFileText, IconEdit, IconCheck, IconX } from '@tabler/icons-react';
-import { LargeTextBlock, extractNumberFromParenthesizedChar } from '@/utils/app/largeText';
+import { LargeTextBlock, extractNumberFromBracketedText } from '@/utils/app/largeText';
 
 interface LargeTextTabsProps {
   largeTextBlocks: LargeTextBlock[];
@@ -20,7 +20,7 @@ export const LargeTextTabs: React.FC<LargeTextTabsProps> = ({
   const [hoveredBlock, setHoveredBlock] = useState<string>('');
 
   const getTabLabel = (block: LargeTextBlock): string => {
-    const numberText = extractNumberFromParenthesizedChar(block.placeholderChar);
+    const numberText = extractNumberFromBracketedText(block.placeholderChar);
     const sizeText = block.charCount > 1000 
       ? `${Math.round(block.charCount / 1000)}k chars`
       : `${block.charCount} chars`;
@@ -28,7 +28,7 @@ export const LargeTextTabs: React.FC<LargeTextTabsProps> = ({
   };
 
   const getShortLabel = (block: LargeTextBlock): string => {
-    const numberText = extractNumberFromParenthesizedChar(block.placeholderChar);
+    const numberText = extractNumberFromBracketedText(block.placeholderChar);
     return `${numberText}. Input Text`;
   };
 
