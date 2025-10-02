@@ -47,7 +47,7 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, largeTex
     
     7. **Strategic Placeholders**: Use {{PLACEHOLDER}} format for external information that users need to provide.
     
-    8. **Citation Symbol Preservation**: If you see citation symbols like ⑴, ⑵, ⑶ in the prompt, preserve them EXACTLY as they appear. These represent large text blocks that will be automatically substituted when the prompt is used.
+    8. **Citation Symbol Preservation**: If you see citation symbols like [TEXT_1], [TEXT_2], [TEXT_3] in the prompt, preserve them EXACTLY as they appear. These represent large text blocks that will be automatically substituted when the prompt is used.
     
     9. **Constraints and Guardrails**: Explicitly state limitations, restrictions, or ethical boundaries.
     
@@ -68,7 +68,7 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, largeTex
     
     3. When creating sections that require the LLM to fill in content, use the format <Insert XYZ> as placeholders.
     
-    4. IMPORTANT: If the prompt contains citation symbols like ⑴, ⑵, ⑶, preserve them exactly in your optimized version. Do not replace them with generic placeholders.
+    4. IMPORTANT: If the prompt contains citation symbols like [TEXT_1], [TEXT_2], [TEXT_3], preserve them exactly in your optimized version. Do not replace them with generic placeholders.
     
     5. Create a list of specific optimizations you made and why they will improve the prompt's effectiveness.
     

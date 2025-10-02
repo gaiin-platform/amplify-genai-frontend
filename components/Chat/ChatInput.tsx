@@ -8,7 +8,9 @@ import {
     IconBulb,
     IconScale, 
     IconSettingsAutomation,
-    IconUpload
+    IconUpload,
+    IconCheck,
+    IconX
 } from '@tabler/icons-react';
 import SaveActionsModal from './SaveActionsModal';
 import {
@@ -65,9 +67,12 @@ import { resolveRagEnabled } from '@/types/features';
 import { OpBindings } from '@/types/op';
 import { 
     LargeTextBlock, 
-    replacePlaceholdersWithText
+    replacePlaceholdersWithText,
+    removeLargeTextBlockFromContent
 } from '@/utils/app/largeText';
 import { LargeTextDisplay } from '@/components/Chat/LargeTextDisplay';
+import { LargeTextTabs } from '@/components/Chat/LargeTextTabs';
+import { AttachmentDisplay } from '@/components/Chat/AttachmentDisplay';
 import { useLargeTextManager } from '@/hooks/useLargeTextManager';
 
 
@@ -282,8 +287,18 @@ export const ChatInput = ({
         hasLargeTextBlocks,
         handleLargeTextPaste, 
         removeLargeTextBlock: removeLargeTextBlockFromHook,
-        clearLargeText 
+        removeMultipleLargeTextBlocks,
+        clearLargeText,
+        setLargeTextBlocks
     } = useLargeTextManager();
+    
+    // Edit mode state for large text blocks
+    const [editMode, setEditMode] = useState<{
+        isEditing: boolean;
+        blockId: string | null;
+        originalConversationContent: string; // The original conversation content before any editing
+        editContent: string;
+    }>({ isEditing: false, blockId: null, originalConversationContent: '', editContent: '' });
     const [showAssistantSelect, setShowAssistantSelect] = useState(false);
     const [documents, setDocuments] = useState<AttachedDocument[]>();
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>({});
@@ -376,16 +391,23 @@ export const ChatInput = ({
             return;
         }
 
-        // Check for deleted placeholder characters and remove corresponding blocks
-        largeTextBlocks.forEach((block) => {
-            if (!value.includes(block.placeholderChar)) {
-                // Placeholder character was deleted → remove the entire block
-                handleRemoveLargeTextBlock(block.id);
+        // Skip placeholder deletion logic when in edit mode
+        let finalContent = value;
+        if (!editMode.isEditing) {
+            // Check for deleted placeholder characters and remove corresponding blocks
+            const blocksToRemove = largeTextBlocks.filter((block) => 
+                !value.includes(block.placeholderChar)
+            );
+            
+            if (blocksToRemove.length > 0) {
+                // Remove all deleted blocks at once using the multi-remove function
+                const blockIdsToRemove = blocksToRemove.map(block => block.id);
+                finalContent = removeMultipleLargeTextBlocks(blockIdsToRemove, value);
             }
-        });
+        }
 
-        setContent(value);
-        updatePromptListVisibility(value);
+        setContent(finalContent);
+        updatePromptListVisibility(finalContent);
     };
 
     const addDocument = (document: AttachedDocument) => {
@@ -910,11 +932,90 @@ export const ChatInput = ({
 
     // Handle individual large text block removal using hook
     const handleRemoveLargeTextBlock = useCallback((blockId: string) => {
-        if (content) {
-            const updatedContent = removeLargeTextBlockFromHook(blockId, content);
+        // If we're editing this block, exit edit mode first
+        if (editMode.isEditing && editMode.blockId === blockId) {
+            setEditMode({ isEditing: false, blockId: null, originalConversationContent: '', editContent: '' });
+        }
+        
+        // Use the original conversation content if we were editing, otherwise use current content
+        const contentToUse = (editMode.isEditing && editMode.blockId === blockId) 
+            ? editMode.originalConversationContent 
+            : (content || '');
+            
+        if (contentToUse) {
+            const updatedContent = removeLargeTextBlockFromHook(blockId, contentToUse);
             setContent(updatedContent);
         }
-    }, [content, removeLargeTextBlockFromHook]);
+    }, [content, removeLargeTextBlockFromHook, editMode]);
+    
+    // Handle entering edit mode for a large text block
+    const handleEditLargeTextBlock = useCallback((blockId: string) => {
+        const block = largeTextBlocks.find(b => b.id === blockId);
+        if (!block) return;
+        
+        // Save the original conversation content only if not already editing
+        // This preserves the true original state across multiple edit sessions
+        const originalConversationContent = editMode.isEditing 
+            ? editMode.originalConversationContent 
+            : (content || '');
+        
+        setEditMode({
+            isEditing: true,
+            blockId,
+            originalConversationContent,
+            editContent: block.originalText
+        });
+        
+        // Set textarea content to the block's text for editing
+        setContent(block.originalText);
+        
+        // Focus textarea
+        setTimeout(() => {
+            if (textareaRef.current) {
+                textareaRef.current.focus();
+                textareaRef.current.setSelectionRange(0, 0);
+            }
+        }, 0);
+    }, [largeTextBlocks, content, editMode]);
+    
+    // Handle saving edited text block
+    const handleSaveEditedBlock = useCallback(() => {
+        if (!editMode.isEditing || !editMode.blockId) return;
+        
+        const currentEditContent = content || '';
+        const block = largeTextBlocks.find(b => b.id === editMode.blockId);
+        if (!block) return;
+        
+        // Update the block with new content
+        const updatedBlocks = largeTextBlocks.map(b => 
+            b.id === editMode.blockId 
+                ? { ...b, originalText: currentEditContent, 
+                    charCount: currentEditContent.length,
+                    lineCount: currentEditContent.split('\n').length,
+                    wordCount: currentEditContent.trim().split(/\s+/).filter(word => word.length > 0).length
+                  }
+                : b
+        );
+        
+        setLargeTextBlocks(updatedBlocks);
+        
+        // Restore original conversation content with placeholder
+        setContent(editMode.originalConversationContent);
+        
+        // Exit edit mode
+        setEditMode({ isEditing: false, blockId: null, originalConversationContent: '', editContent: '' });
+    }, [editMode, content, largeTextBlocks, setLargeTextBlocks]);
+    
+    // Handle canceling edit mode
+    const handleCancelEdit = useCallback(() => {
+        if (!editMode.isEditing) return;
+        
+        // Restore original conversation content
+        setContent(editMode.originalConversationContent);
+        
+        // Exit edit mode
+        setEditMode({ isEditing: false, blockId: null, originalConversationContent: '', editContent: '' });
+    }, [editMode]);
 
 
     ////// Plugin Dependencies //////
@@ -1169,16 +1270,19 @@ export const ChatInput = ({
 
                     <div className="relative mx-2 flex w-full flex-grow sm:mx-4 bg-neutral-100 dark:bg-[#3d3e4c] rounded-md" style={{transform: 'translateY(24px)'}}>
 
-                        <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
-                            if(asts.length === 0){
-                                //setAssistant(DEFAULT_ASSISTANT);
-                                homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
-                            }
-                            else {
-                                //setAssistant(asts[0]);
-                                homeDispatch({field: 'selectedAssistant', value: asts[0]});
-                            }
-                        }}/>
+                        {/* Only show AssistantsInUse when AttachmentDisplay is NOT shown */}
+                        {!((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || editMode.isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
+                            <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
+                                if(asts.length === 0){
+                                    //setAssistant(DEFAULT_ASSISTANT);
+                                    homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
+                                }
+                                else {
+                                    //setAssistant(asts[0]);
+                                    homeDispatch({field: 'selectedAssistant', value: asts[0]});
+                                }
+                            }}/>
+                        )}
 
                         {//TODO: feature flag this
                         }
@@ -1189,36 +1293,22 @@ export const ChatInput = ({
                             setSelectedProject(project);
                             setShowProjectList(false);
                         }}/>} */}
-                     {documents && documents.length > 0 && 
-                        <div  style={{transform: 'translateY(-4px)'}}>
-                            <FileList documents={documents}
-                                    documentStates={documentState}
-                                    onCancelUpload={onCancelUpload}
-                                    setDocuments={setDocuments}/>
-                        </div>
-                     }
-                     
-                     {/* Large Text Summary Display - Multiple Blocks */}
-                     {largeTextBlocks.length > 0 && showLargeTextPreview && (
+                     {/* Unified Attachment Display - Files, Large Text, and Assistant */}
+                     {((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || editMode.isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
                         <div style={{transform: 'translateY(-4px)'}}>
-                            {largeTextBlocks.map((block) => (
-                                <LargeTextDisplay 
-                                    key={block.id}
-                                    data={{
-                                        originalText: block.originalText,
-                                        charCount: block.charCount,
-                                        lineCount: block.lineCount,
-                                        wordCount: block.wordCount,
-                                        preview: block.preview,
-                                        placeholderChar: block.placeholderChar,
-                                        isLarge: true
-                                    }}
-                                    blockId={block.id}
-                                    displayName={block.displayName}
-                                    showRemoveButton={true}
-                                    onRemove={() => handleRemoveLargeTextBlock(block.id)}
-                                />
-                            ))}
+                            <AttachmentDisplay
+                                documents={documents}
+                                documentStates={documentState}
+                                onCancelUpload={onCancelUpload}
+                                setDocuments={setDocuments}
+                                largeTextBlocks={largeTextBlocks}
+                                onRemoveBlock={handleRemoveLargeTextBlock}
+                                onEditBlock={handleEditLargeTextBlock}
+                                currentlyEditingId={editMode.isEditing ? editMode.blockId || undefined : undefined}
+                                showLargeTextPreview={showLargeTextPreview || editMode.isEditing}
+                                selectedAssistant={selectedAssistant || undefined}
+                                onRemoveAssistant={() => homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT})}
+                            />
                         </div>
                      )}
 
@@ -1308,7 +1398,7 @@ export const ChatInput = ({
                         <div className="px-2 flex items-center">
 
 
-                            {featureFlags.promptOptimizer && isInputInFocus && (
+                            {featureFlags.promptOptimizer && isInputInFocus && !editMode.isEditing && (
                                 <div className='relative mr-[-32px]'>
                                     <PromptOptimizerButton
                                         prompt={content || ""}
@@ -1369,34 +1459,76 @@ export const ChatInput = ({
                                     }`,
                                 }}
                                 placeholder={
-                                    // t('Type a message or type "/" to select a prompt...') || ''
-                                    "Type a message to chat with Amplify..."
+                                    editMode.isEditing 
+                                        ? `Editing large text block - ESC to cancel, Ctrl+Enter to save`
+                                        : "Type a message to chat with Amplify..."
                                 }
                                 value={content}
                                 rows={1}
                                 onCompositionStart={() => setIsTyping(true)}
                                 onCompositionEnd={() => setIsTyping(false)}
                                 onChange={handleChange}
-                                onKeyDown={handleKeyDown}
+                                onKeyDown={(e) => {
+                                    // Handle edit mode shortcuts
+                                    if (editMode.isEditing) {
+                                        if (e.key === 'Escape') {
+                                            e.preventDefault();
+                                            handleCancelEdit();
+                                            return;
+                                        }
+                                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                            e.preventDefault();
+                                            handleSaveEditedBlock();
+                                            return;
+                                        }
+                                    }
+                                    
+                                    // Normal key handling
+                                    handleKeyDown(e);
+                                }}
                             />
 
-                            <button
-                                id="sendMessage"
-                                className={`chat-input-button left-1 rounded-sm p-1 text-neutral-800 opacity-60  mx-1 
-                                ${messageIsDisabled || !content? 'cursor-not-allowed ' : 'hover:bg-neutral-200 hover:text-black dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-white'} 
-                                dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
-                                onClick={handleSend}
-                                title={messageIsDisabled ? "Please address missing information to enable chat"
-                                    : !content ? "Enter a message to start chatting" : "Send Prompt"}
-                                disabled={messageIsDisabled || !content }
-                            >
-                                {messageIsStreaming || artifactIsStreaming ? (
-                                    <div
-                                        className="h-4 w-4 animate-spin rounded-full border-t-2 border-neutral-800 opacity-60 dark:border-neutral-100"></div>
-                                ) : (
-                                    <IconSend size={18}/>
-                                )}
-                            </button>
+                            {/* Edit Mode Controls - positioned inline */}
+                            {editMode.isEditing && (
+                                <div className="flex items-center gap-2 ml-2">
+                                    <button
+                                        className="px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded transition-colors flex items-center gap-1"
+                                        onClick={handleSaveEditedBlock}
+                                        title="Save changes (Ctrl+Enter)"
+                                    >
+                                        <IconCheck size={14} />
+                                        Save
+                                    </button>
+                                    <button
+                                        className="px-2 py-1 text-xs bg-gray-500 hover:bg-gray-600 text-white rounded transition-colors flex items-center gap-1"
+                                        onClick={handleCancelEdit}
+                                        title="Cancel editing (Escape)"
+                                    >
+                                        <IconX size={14} />
+                                        Cancel
+                                    </button>
+                                </div>
+                            )}
+
+                            {!editMode.isEditing && (
+                                <button
+                                    id="sendMessage"
+                                    className={`chat-input-button left-1 rounded-sm p-1 text-neutral-800 opacity-60  mx-1 
+                                    ${messageIsDisabled || !content? 'cursor-not-allowed ' : 'hover:bg-neutral-200 hover:text-black dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-white'} 
+                                    dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
+                                    onClick={handleSend}
+                                    title={messageIsDisabled ? "Please address missing information to enable chat"
+                                        : !content ? "Enter a message to start chatting" : "Send Prompt"}
+                                    disabled={messageIsDisabled || !content }
+                                >
+                                    {messageIsStreaming || artifactIsStreaming ? (
+                                        <div
+                                            className="h-4 w-4 animate-spin rounded-full border-t-2 border-neutral-800 opacity-60 dark:border-neutral-100"></div>
+                                    ) : (
+                                        <IconSend size={18}/>
+                                    )}
+                                </button>
+                            )}
 
 
                             {showScrollDownButton && (

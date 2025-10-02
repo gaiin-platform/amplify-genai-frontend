@@ -218,7 +218,7 @@ export function createLargeTextBlock(
 ): LargeTextBlock {
   const id = generateLargeTextId(counter);
   const displayName = generateDisplayName(id);
-  const placeholderChar = getParenthesizedNumber(counter);
+  const placeholderChar = getBracketedTextPlaceholder(counter);
   
   return {
     id,
@@ -234,31 +234,23 @@ export function createLargeTextBlock(
 }
 
 /**
- * Generate parenthesized number characters for placeholders
+ * Generate bracketed text placeholder for given counter (0-based)
  */
-const PARENTHESIZED_NUMBERS = ['⑴', '⑵', '⑶', '⑷', '⑸', '⑹', '⑺', '⑻', '⑼', '⑽'];
-
-/**
- * Get parenthesized number character for given counter (0-based)
- */
-export function getParenthesizedNumber(counter: number): string {
-  if (counter < PARENTHESIZED_NUMBERS.length) {
-    return PARENTHESIZED_NUMBERS[counter];
-  }
-  // Fallback for numbers > 10 (unlikely but safe)
-  return `(${counter + 1})`;
+export function getBracketedTextPlaceholder(counter: number): string {
+  return `[TEXT_${counter + 1}]`;
 }
 
 /**
- * Extract number from parenthesized character (reverse of getParenthesizedNumber)
+ * Extract number from bracketed text placeholder (reverse of getBracketedTextPlaceholder)
  */
-export function extractNumberFromParenthesizedChar(char: string): string {
-  const charCode = char.charCodeAt(0);
-  if (charCode >= 0x2474 && charCode <= 0x247D) {
-    // ⑴ ⑵ ⑶ ... ⑽ (Unicode range)
-    return (charCode - 0x2473).toString();
+export function extractNumberFromBracketedText(placeholder: string): string {
+  // Handle [TEXT_N] format
+  const match = placeholder.match(/\[TEXT_(\d+)\]/);
+  if (match && match[1]) {
+    return match[1];
   }
-  return '1'; // fallback
+  
+  return '1'; // ultimate fallback
 }
 
 /**
@@ -335,15 +327,18 @@ export function generateCitationContext(largeTextBlocks: LargeTextBlock[]): stri
     return '';
   }
   
+  const symbols = largeTextBlocks.map((_, index) => getBracketedTextPlaceholder(index));
+  
   const contextLines = largeTextBlocks.map((block, index) => {
-    const citation = getParenthesizedNumber(index);
-    // Create a simple 60-character summary of the content
-    const truncatedText = block.originalText.length > 60 
-      ? block.originalText.substring(0, 60).trim() + '...' 
-      : block.originalText;
-    const size = block.originalText.length;
-    return `${citation} = ${truncatedText} (${size} characters)`;
+    const number = index + 1;
+    return `Block ${number}: ${block.charCount.toLocaleString()} characters, ${block.lineCount} lines`;
   });
   
-  return `\n\nCitation Context:\n${contextLines.join('\n')}`;
+  return `
+
+PRESERVE THESE SYMBOLS EXACTLY: ${symbols.join(', ')}
+(Do not replace with placeholder text - they will expand automatically when prompt is used)
+
+For context only - the referenced blocks contain:
+${contextLines.join('\n')}`;
 }
