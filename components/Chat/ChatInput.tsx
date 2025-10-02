@@ -242,7 +242,6 @@ export const ChatInput = ({
     const [promptInputValue, setPromptInputValue] = useState('');
     const [variables, setVariables] = useState<string[]>([]);
     const [isModalVisible, setIsModalVisible] = useState(false);
-    const [promptWasOptimized, setPromptWasOptimized] = useState(false);
     const [showMessageSelectDialog, setShowMessageSelectDialog] = useState(false);
     const [croppedConversation, setCroppedConversation] = useState<Conversation | null>(null);
 
@@ -403,11 +402,6 @@ export const ChatInput = ({
 
         setContent(value);
         updatePromptListVisibility(value);
-        
-        // Reset optimization flag if content is cleared
-        if (!value || value.trim() === '') {
-            setPromptWasOptimized(false);
-        }
     };
 
     const addDocument = (document: AttachedDocument) => {
@@ -477,10 +471,8 @@ export const ChatInput = ({
         let messageData: any = {};
         
         if (largeTextBlocks.length > 0) {
-            // Only expand placeholders if prompt wasn't optimized (preserve symbols in optimized prompts)
-            if (!promptWasOptimized) {
-                messageContent = replacePlaceholdersWithText(messageContent, largeTextBlocks);
-            }
+            // Replace all placeholders in content with actual large text for sending to model
+            messageContent = replacePlaceholdersWithText(messageContent, largeTextBlocks);
             
             // Keep the label as is for display purposes (with placeholders)
             messageLabel = messageLabel;
@@ -557,9 +549,6 @@ export const ChatInput = ({
         
         // Clear large text state using hook
         clearLargeText();
-        
-        // Reset optimization flag after sending
-        setPromptWasOptimized(false);
         
         // Keep the actions list after sending - removed setAddedActions([])
 
@@ -1410,7 +1399,6 @@ export const ChatInput = ({
                                         largeTextBlocks={largeTextBlocks}
                                         onOptimized={(optimizedPrompt:string) => {
                                             setContent(optimizedPrompt);
-                                            setPromptWasOptimized(true);
                                             textareaRef.current?.focus();
                                         }}
                                     />
