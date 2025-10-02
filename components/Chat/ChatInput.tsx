@@ -1264,16 +1264,19 @@ export const ChatInput = ({
 
                     <div className="relative mx-2 flex w-full flex-grow sm:mx-4 bg-neutral-100 dark:bg-[#3d3e4c] rounded-md" style={{transform: 'translateY(24px)'}}>
 
-                        <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
-                            if(asts.length === 0){
-                                //setAssistant(DEFAULT_ASSISTANT);
-                                homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
-                            }
-                            else {
-                                //setAssistant(asts[0]);
-                                homeDispatch({field: 'selectedAssistant', value: asts[0]});
-                            }
-                        }}/>
+                        {/* Only show AssistantsInUse when AttachmentDisplay is NOT shown */}
+                        {!((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || editMode.isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
+                            <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
+                                if(asts.length === 0){
+                                    //setAssistant(DEFAULT_ASSISTANT);
+                                    homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
+                                }
+                                else {
+                                    //setAssistant(asts[0]);
+                                    homeDispatch({field: 'selectedAssistant', value: asts[0]});
+                                }
+                            }}/>
+                        )}
 
                         {//TODO: feature flag this
                         }
@@ -1284,8 +1287,8 @@ export const ChatInput = ({
                             setSelectedProject(project);
                             setShowProjectList(false);
                         }}/>} */}
-                     {/* Unified Attachment Display - Files and Large Text */}
-                     {((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || editMode.isEditing))) && (
+                     {/* Unified Attachment Display - Files, Large Text, and Assistant */}
+                     {((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || editMode.isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
                         <div style={{transform: 'translateY(-4px)'}}>
                             <AttachmentDisplay
                                 documents={documents}
@@ -1297,6 +1300,8 @@ export const ChatInput = ({
                                 onEditBlock={handleEditLargeTextBlock}
                                 currentlyEditingId={editMode.isEditing ? editMode.blockId || undefined : undefined}
                                 showLargeTextPreview={showLargeTextPreview || editMode.isEditing}
+                                selectedAssistant={selectedAssistant}
+                                onRemoveAssistant={() => homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT})}
                             />
                         </div>
                      )}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { IconCircleX, IconFileText, IconEdit, IconCheck, IconWorld, IconSitemap } from '@tabler/icons-react';
+import { IconCircleX, IconFileText, IconEdit, IconCheck, IconWorld, IconSitemap, IconRobot, IconX } from '@tabler/icons-react';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
 import styled, { keyframes } from "styled-components";
@@ -7,6 +7,7 @@ import { FiCommand } from "react-icons/fi";
 
 import { LargeTextBlock, extractNumberFromParenthesizedChar } from '@/utils/app/largeText';
 import { AttachedDocument } from '@/types/attacheddocument';
+import { Assistant, DEFAULT_ASSISTANT } from '@/types/assistant';
 
 interface AttachmentDisplayProps {
   // File attachments
@@ -21,6 +22,10 @@ interface AttachmentDisplayProps {
   onEditBlock?: (blockId: string) => void;
   currentlyEditingId?: string;
   showLargeTextPreview?: boolean;
+  
+  // Assistant
+  selectedAssistant?: Assistant;
+  onRemoveAssistant?: () => void;
 }
 
 const animate = keyframes`
@@ -48,7 +53,9 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
   onRemoveBlock,
   onEditBlock,
   currentlyEditingId,
-  showLargeTextPreview = true
+  showLargeTextPreview = true,
+  selectedAssistant,
+  onRemoveAssistant
 }) => {
   const [hoveredItem, setHoveredItem] = useState<string>('');
 
@@ -111,18 +118,29 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
   // Check if we have any content to display
   const hasFiles = documents.length > 0;
   const hasTextBlocks = largeTextBlocks.length > 0 && showLargeTextPreview;
+  const hasAssistant = selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id;
   
-  if (!hasFiles && !hasTextBlocks) {
+  if (!hasFiles && !hasTextBlocks && !hasAssistant) {
     return null;
   }
 
   // Create a unified list of all attachments
   const allAttachments: Array<{
     id: string;
-    type: 'file' | 'text';
+    type: 'file' | 'text' | 'assistant';
     index: number;
-    data: AttachedDocument | LargeTextBlock;
+    data: AttachedDocument | LargeTextBlock | Assistant;
   }> = [];
+
+  // Add assistant (if present, add it first)
+  if (hasAssistant && selectedAssistant) {
+    allAttachments.push({
+      id: 'assistant',
+      type: 'assistant',
+      index: 0,
+      data: selectedAssistant
+    });
+  }
 
   // Add files
   documents.forEach((doc, index) => {
@@ -185,6 +203,42 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
                 }}
               >
                 <IconCircleX />
+              </button>
+            </div>
+          );
+        } else if (attachment.type === 'assistant') {
+          // Assistant
+          const assistant = attachment.data as Assistant;
+          const getAssistantLabel = () => {
+            if (!assistant.definition.name) { return 'Untitled Assistant'; }
+            return assistant.definition.name.length > 30 ? assistant.definition.name.slice(0, 30) + '...' : assistant.definition.name;
+          };
+          
+          return (
+            <div
+              key={attachment.id}
+              className="relative enhanced-assistant-badge flex flex-row items-center justify-between rounded-full px-3 py-1.5"
+              style={{ maxWidth: '300px' }}
+              onMouseEnter={() => setHoveredItem(attachment.id)}
+              onMouseLeave={() => setHoveredItem('')}
+            >
+              <div className="flex flex-row items-center gap-1.5">
+                <IconRobot size="16" className="text-white/90"/>
+                <div className="truncate font-medium text-sm text-white leading-normal pr-2 mr-2"
+                     style={{ maxWidth: '250px' }}>
+                  {getAssistantLabel()}
+                </div>
+              </div>
+              
+              <button
+                className="absolute right-2 text-white/70 hover:text-white transition-all"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onRemoveAssistant && onRemoveAssistant();
+                }}
+              >
+                <IconX size="16"/>
               </button>
             </div>
           );
