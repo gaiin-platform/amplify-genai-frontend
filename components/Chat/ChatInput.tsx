@@ -1387,7 +1387,7 @@ export const ChatInput = ({
                         <div className="px-2 flex items-center">
 
 
-                            {featureFlags.promptOptimizer && isInputInFocus && (
+                            {featureFlags.promptOptimizer && isInputInFocus && !editMode.isEditing && (
                                 <div className='relative mr-[-32px]'>
                                     <PromptOptimizerButton
                                         prompt={content || ""}
@@ -1499,23 +1499,25 @@ export const ChatInput = ({
                                 </div>
                             )}
 
-                            <button
-                                id="sendMessage"
-                                className={`chat-input-button left-1 rounded-sm p-1 text-neutral-800 opacity-60  mx-1 
-                                ${messageIsDisabled || !content? 'cursor-not-allowed ' : 'hover:bg-neutral-200 hover:text-black dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-white'} 
-                                dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
-                                onClick={handleSend}
-                                title={messageIsDisabled ? "Please address missing information to enable chat"
-                                    : !content ? "Enter a message to start chatting" : "Send Prompt"}
-                                disabled={messageIsDisabled || !content }
-                            >
-                                {messageIsStreaming || artifactIsStreaming ? (
-                                    <div
-                                        className="h-4 w-4 animate-spin rounded-full border-t-2 border-neutral-800 opacity-60 dark:border-neutral-100"></div>
-                                ) : (
-                                    <IconSend size={18}/>
-                                )}
-                            </button>
+                            {!editMode.isEditing && (
+                                <button
+                                    id="sendMessage"
+                                    className={`chat-input-button left-1 rounded-sm p-1 text-neutral-800 opacity-60  mx-1 
+                                    ${messageIsDisabled || !content? 'cursor-not-allowed ' : 'hover:bg-neutral-200 hover:text-black dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-white'} 
+                                    dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
+                                    onClick={handleSend}
+                                    title={messageIsDisabled ? "Please address missing information to enable chat"
+                                        : !content ? "Enter a message to start chatting" : "Send Prompt"}
+                                    disabled={messageIsDisabled || !content }
+                                >
+                                    {messageIsStreaming || artifactIsStreaming ? (
+                                        <div
+                                            className="h-4 w-4 animate-spin rounded-full border-t-2 border-neutral-800 opacity-60 dark:border-neutral-100"></div>
+                                    ) : (
+                                        <IconSend size={18}/>
+                                    )}
+                                </button>
+                            )}
 
 
                             {showScrollDownButton && (
