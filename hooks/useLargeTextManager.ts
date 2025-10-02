@@ -89,6 +89,41 @@ export function useLargeTextManager() {
   }, [largeTextBlocks]);
 
   /**
+   * Remove multiple large text blocks in a single operation
+   */
+  const removeMultipleLargeTextBlocks = useCallback((
+    blockIds: string[],
+    currentContent: string
+  ): string => {
+    if (blockIds.length === 0) {
+      return currentContent;
+    }
+
+    // Find all blocks to remove
+    const blocksToRemove = largeTextBlocks.filter(block => blockIds.includes(block.id));
+    if (blocksToRemove.length === 0) {
+      return currentContent;
+    }
+
+    // Remove all placeholders from content in sequence
+    let updatedContent = currentContent;
+    blocksToRemove.forEach(block => {
+      updatedContent = removeLargeTextBlockFromContent(updatedContent, block);
+    });
+    
+    // Remove all blocks from array in a single operation
+    const updatedBlocks = largeTextBlocks.filter(block => !blockIds.includes(block.id));
+    setLargeTextBlocks(updatedBlocks);
+    
+    // Hide preview if no blocks remain
+    if (updatedBlocks.length === 0) {
+      setShowLargeTextPreview(false);
+    }
+    
+    return updatedContent;
+  }, [largeTextBlocks]);
+
+  /**
    * Clear all large text blocks and reset state
    */
   const clearLargeText = useCallback(() => {
@@ -111,6 +146,7 @@ export function useLargeTextManager() {
     // Actions
     handleLargeTextPaste,
     removeLargeTextBlock,
+    removeMultipleLargeTextBlocks,
     clearLargeText,
     
     // Direct state setters (for edge cases)

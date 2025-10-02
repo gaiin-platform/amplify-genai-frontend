@@ -67,7 +67,8 @@ import { resolveRagEnabled } from '@/types/features';
 import { OpBindings } from '@/types/op';
 import { 
     LargeTextBlock, 
-    replacePlaceholdersWithText
+    replacePlaceholdersWithText,
+    removeLargeTextBlockFromContent
 } from '@/utils/app/largeText';
 import { LargeTextDisplay } from '@/components/Chat/LargeTextDisplay';
 import { LargeTextTabs } from '@/components/Chat/LargeTextTabs';
@@ -286,6 +287,7 @@ export const ChatInput = ({
         hasLargeTextBlocks,
         handleLargeTextPaste, 
         removeLargeTextBlock: removeLargeTextBlockFromHook,
+        removeMultipleLargeTextBlocks,
         clearLargeText,
         setLargeTextBlocks
     } = useLargeTextManager();
@@ -398,12 +400,9 @@ export const ChatInput = ({
             );
             
             if (blocksToRemove.length > 0) {
-                // Remove all deleted blocks at once to avoid state batching issues
-                let updatedContent = value;
-                blocksToRemove.forEach((block) => {
-                    updatedContent = removeLargeTextBlockFromHook(block.id, updatedContent);
-                });
-                finalContent = updatedContent;
+                // Remove all deleted blocks at once using the multi-remove function
+                const blockIdsToRemove = blocksToRemove.map(block => block.id);
+                finalContent = removeMultipleLargeTextBlocks(blockIdsToRemove, value);
             }
         }
 
@@ -1307,7 +1306,7 @@ export const ChatInput = ({
                                 onEditBlock={handleEditLargeTextBlock}
                                 currentlyEditingId={editMode.isEditing ? editMode.blockId || undefined : undefined}
                                 showLargeTextPreview={showLargeTextPreview || editMode.isEditing}
-                                selectedAssistant={selectedAssistant}
+                                selectedAssistant={selectedAssistant || undefined}
                                 onRemoveAssistant={() => homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT})}
                             />
                         </div>
