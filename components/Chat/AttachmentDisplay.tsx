@@ -8,6 +8,7 @@ import { FiCommand } from "react-icons/fi";
 import { LargeTextBlock, extractNumberFromBracketedText } from '@/utils/app/largeText';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { Assistant, DEFAULT_ASSISTANT } from '@/types/assistant';
+import { DISPLAY_CONFIG, UI_CONFIG } from '@/constants/largeText';
 
 interface AttachmentDisplayProps {
   // File attachments
@@ -89,7 +90,9 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
 
   const getFileLabel = (document: AttachedDocument) => {
     if (!document.name) { return 'Untitled Document'; }
-    return document.name.length > 12 ? document.name.slice(0, 12) + '...' : document.name;
+    return document.name.length > DISPLAY_CONFIG.MAX_FILENAME_LENGTH ? 
+           document.name.slice(0, DISPLAY_CONFIG.MAX_FILENAME_LENGTH) + '...' : 
+           document.name;
   };
 
   const getFileIcon = (document: AttachedDocument) => {
@@ -176,7 +179,7 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
             <div
               key={attachment.id}
               className={`${isComplete ? 'bg-white' : 'bg-yellow-400'} flex flex-row items-center justify-between border bg-white rounded-md px-1 py-1 shadow-md dark:shadow-lg`}
-              style={{ maxWidth: '220px' }}
+              style={{ maxWidth: DISPLAY_CONFIG.MAX_ATTACHMENT_WIDTH }}
               onMouseEnter={() => setHoveredItem(attachment.id)}
               onMouseLeave={() => setHoveredItem('')}
             >
@@ -211,14 +214,16 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
           const assistant = attachment.data as Assistant;
           const getAssistantLabel = () => {
             if (!assistant.definition.name) { return 'Untitled Assistant'; }
-            return assistant.definition.name.length > 30 ? assistant.definition.name.slice(0, 30) + '...' : assistant.definition.name;
+            return assistant.definition.name.length > DISPLAY_CONFIG.MAX_ASSISTANT_NAME_LENGTH ? 
+                   assistant.definition.name.slice(0, DISPLAY_CONFIG.MAX_ASSISTANT_NAME_LENGTH) + '...' : 
+                   assistant.definition.name;
           };
           
           return (
             <div
               key={attachment.id}
               className="relative enhanced-assistant-badge flex flex-row items-center justify-between rounded-full px-3 py-1.5"
-              style={{ maxWidth: '300px' }}
+              style={{ maxWidth: UI_CONFIG.ASSISTANT_MAX_WIDTH + 'px' }}
               onMouseEnter={() => setHoveredItem(attachment.id)}
               onMouseLeave={() => setHoveredItem('')}
             >
@@ -259,7 +264,7 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
                 ${!isEditing && isHovered ? 'hover:bg-gray-50 dark:hover:bg-gray-600' : ''}
                 transition-colors cursor-pointer
               `}
-              style={{ maxWidth: '220px', minWidth: '160px' }}
+              style={{ maxWidth: DISPLAY_CONFIG.MAX_ATTACHMENT_WIDTH, minWidth: DISPLAY_CONFIG.MIN_ATTACHMENT_WIDTH }}
               onMouseEnter={() => setHoveredItem(attachment.id)}
               onMouseLeave={() => setHoveredItem('')}
               onClick={() => !isEditing && onEditBlock && onEditBlock(block.id)}

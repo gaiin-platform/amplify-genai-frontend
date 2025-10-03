@@ -19,6 +19,7 @@ import {
     useCallback,
     useContext,
     useEffect,
+    useMemo,
     useRef,
     useState,
 } from 'react';
@@ -70,10 +71,12 @@ import {
     replacePlaceholdersWithText,
     removeLargeTextBlockFromContent
 } from '@/utils/app/largeText';
+import { UI_CONFIG } from '@/constants/largeText';
 import { LargeTextDisplay } from '@/components/Chat/LargeTextDisplay';
 import { LargeTextTabs } from '@/components/Chat/LargeTextTabs';
 import { AttachmentDisplay } from '@/components/Chat/AttachmentDisplay';
 import { useLargeTextManager } from '@/hooks/useLargeTextManager';
+import { useTextBlockEditor } from '@/hooks/useTextBlockEditor';
 
 
 
@@ -282,13 +285,22 @@ export const ChatInput = ({
         setLargeTextBlocks
     } = useLargeTextManager();
     
-    // Edit mode state for large text blocks
-    const [editMode, setEditMode] = useState<{
-        isEditing: boolean;
-        blockId: string | null;
-        originalConversationContent: string; // The original conversation content before any editing
-        editContent: string;
-    }>({ isEditing: false, blockId: null, originalConversationContent: '', editContent: '' });
+    // Text block editing - using custom hook for edit mode management
+    const {
+        editMode,
+        isEditing,
+        editingBlockId,
+        handleEditBlock,
+        handleSaveEdit,
+        handleCancelEdit,
+        shouldSkipPlaceholderDeletion
+    } = useTextBlockEditor({
+        largeTextBlocks,
+        setLargeTextBlocks,
+        content: content || '',
+        setContent,
+        textareaRef
+    });
     const [showAssistantSelect, setShowAssistantSelect] = useState(false);
     const [documents, setDocuments] = useState<AttachedDocument[]>();
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>({});
@@ -310,8 +322,10 @@ export const ChatInput = ({
 
     const extractDocumentsLocally = featureFlags.extractDocumentsLocally;
 
-    const filteredPrompts =  promptsRef.current.filter((prompt:Prompt) =>
-        prompt.name.toLowerCase().includes(promptInputValue.toLowerCase()),
+    const filteredPrompts = useMemo(() => 
+        promptsRef.current.filter((prompt:Prompt) =>
+            prompt.name.toLowerCase().includes(promptInputValue.toLowerCase())
+        ), [promptInputValue, prompts]
     );
 
     const handleShowAssistantSelector = () => {
@@ -325,7 +339,7 @@ export const ChatInput = ({
     //     setShowAssistantSelect(false);
     // };
 
-    const allDocumentsDoneUploading = () => {
+    const allDocumentsDoneUploading = useMemo(() => {
         if (!documents || documents.length == 0) {
             return true;
         }
@@ -335,7 +349,7 @@ export const ChatInput = ({
         }
 
         return documents?.every(isComplete);
-    }
+    }, [documents, documentState]);
 
 
 
@@ -383,7 +397,7 @@ export const ChatInput = ({
 
         // Skip placeholder deletion logic when in edit mode
         let finalContent = value;
-        if (!editMode.isEditing) {
+        if (!shouldSkipPlaceholderDeletion) {
             // Check for deleted placeholder characters and remove corresponding blocks
             const blocksToRemove = largeTextBlocks.filter((block) => 
                 !value.includes(block.placeholderChar)
@@ -442,7 +456,7 @@ export const ChatInput = ({
             return;
         }
 
-        if (!allDocumentsDoneUploading()) {
+        if (!allDocumentsDoneUploading) {
             alert(t('Please wait for all documents to finish uploading or remove them from the prompt.'));
             return;
         }
@@ -697,7 +711,7 @@ export const ChatInput = ({
             textareaRef.current.style.height = 'inherit';
             textareaRef.current.style.height = `${textareaRef.current?.scrollHeight}px`;
             textareaRef.current.style.overflow = `${
-                textareaRef?.current?.scrollHeight > 400 ? 'auto' : 'hidden'
+                textareaRef?.current?.scrollHeight > UI_CONFIG.TEXTAREA_MAX_HEIGHT ? 'auto' : 'hidden'
             }`;
         }
 
@@ -794,11 +808,11 @@ export const ChatInput = ({
         setIsQiLoading(false);
     }
 
-    const getDisallowedFileExtensions = () => {
+    const disallowedFileExtensions = useMemo(() => {
         return [ ...COMMON_DISALLOWED_FILE_EXTENSIONS,
             ...(selectedConversation?.model?.supportsImages
-                ? [] : IMAGE_FILE_EXTENSIONS ) ]
-    }
+                ? [] : IMAGE_FILE_EXTENSIONS ) ];
+    }, [selectedConversation?.model?.supportsImages]);
 
     const handleCloseAllPopups = () => {
         setShowOpsPopup(false);
@@ -856,7 +870,7 @@ export const ChatInput = ({
 
         // Process dropped files using centralized file processor
         processDragDropFiles(files, {
-            disallowedExtensions: getDisallowedFileExtensions(),
+            disallowedExtensions: disallowedFileExtensions,
             onAttach: addDocument,
             onUploadProgress: handleDocumentState,
             onSetKey: handleSetKey,
@@ -869,7 +883,7 @@ export const ChatInput = ({
             groupId: undefined,
             props: {}
         });
-    }, [featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
+    }, [disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
 
     // Clipboard paste handler
     const handlePaste = useCallback((e: React.ClipboardEvent) => {
@@ -881,7 +895,7 @@ export const ChatInput = ({
             e.preventDefault();
             // Process pasted files using centralized file processor
             processPastedFiles(files, {
-                disallowedExtensions: getDisallowedFileExtensions(),
+                disallowedExtensions: disallowedFileExtensions,
                 onAttach: addDocument,
                 onUploadProgress: handleDocumentState,
                 onSetKey: handleSetKey,
@@ -918,94 +932,29 @@ export const ChatInput = ({
             }
             // If text is not large, let the default paste behavior handle it
         }
-    }, [content, handleLargeTextPaste, featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
+    }, [content, handleLargeTextPaste, disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
 
     // Handle individual large text block removal using hook
     const handleRemoveLargeTextBlock = useCallback((blockId: string) => {
-        // If we're editing this block, exit edit mode first
-        if (editMode.isEditing && editMode.blockId === blockId) {
-            setEditMode({ isEditing: false, blockId: null, originalConversationContent: '', editContent: '' });
-        }
-        
-        // Use the original conversation content if we were editing, otherwise use current content
-        const contentToUse = (editMode.isEditing && editMode.blockId === blockId) 
+        // Determine content to use based on edit state
+        const contentToUse = (isEditing && editingBlockId === blockId) 
             ? editMode.originalConversationContent 
             : (content || '');
             
         if (contentToUse) {
-            const updatedContent = removeLargeTextBlockFromHook(blockId, contentToUse);
+            const updatedContent = removeLargeTextBlockFromHook(
+                blockId, 
+                contentToUse,
+                // Callback to handle edit mode cleanup if the removed block was being edited
+                (removedBlockId) => {
+                    if (isEditing && editingBlockId === removedBlockId) {
+                        handleCancelEdit();
+                    }
+                }
+            );
             setContent(updatedContent);
         }
-    }, [content, removeLargeTextBlockFromHook, editMode]);
-    
-    // Handle entering edit mode for a large text block
-    const handleEditLargeTextBlock = useCallback((blockId: string) => {
-        const block = largeTextBlocks.find(b => b.id === blockId);
-        if (!block) return;
-        
-        // Save the original conversation content only if not already editing
-        // This preserves the true original state across multiple edit sessions
-        const originalConversationContent = editMode.isEditing 
-            ? editMode.originalConversationContent 
-            : (content || '');
-        
-        setEditMode({
-            isEditing: true,
-            blockId,
-            originalConversationContent,
-            editContent: block.originalText
-        });
-        
-        // Set textarea content to the block's text for editing
-        setContent(block.originalText);
-        
-        // Focus textarea
-        setTimeout(() => {
-            if (textareaRef.current) {
-                textareaRef.current.focus();
-                textareaRef.current.setSelectionRange(0, 0);
-            }
-        }, 0);
-    }, [largeTextBlocks, content, editMode]);
-    
-    // Handle saving edited text block
-    const handleSaveEditedBlock = useCallback(() => {
-        if (!editMode.isEditing || !editMode.blockId) return;
-        
-        const currentEditContent = content || '';
-        const block = largeTextBlocks.find(b => b.id === editMode.blockId);
-        if (!block) return;
-        
-        // Update the block with new content
-        const updatedBlocks = largeTextBlocks.map(b => 
-            b.id === editMode.blockId 
-                ? { ...b, originalText: currentEditContent, 
-                    charCount: currentEditContent.length,
-                    lineCount: currentEditContent.split('\n').length,
-                    wordCount: currentEditContent.trim().split(/\s+/).filter(word => word.length > 0).length
-                  }
-                : b
-        );
-        
-        setLargeTextBlocks(updatedBlocks);
-        
-        // Restore original conversation content with placeholder
-        setContent(editMode.originalConversationContent);
-        
-        // Exit edit mode
-        setEditMode({ isEditing: false, blockId: null, originalConversationContent: '', editContent: '' });
-    }, [editMode, content, largeTextBlocks, setLargeTextBlocks]);
-    
-    // Handle canceling edit mode
-    const handleCancelEdit = useCallback(() => {
-        if (!editMode.isEditing) return;
-        
-        // Restore original conversation content
-        setContent(editMode.originalConversationContent);
-        
-        // Exit edit mode
-        setEditMode({ isEditing: false, blockId: null, originalConversationContent: '', editContent: '' });
-    }, [editMode]);
+    }, [content, removeLargeTextBlockFromHook, isEditing, editingBlockId, editMode.originalConversationContent, handleCancelEdit]);
 
 
     ////// Plugin Dependencies //////
@@ -1150,7 +1099,7 @@ export const ChatInput = ({
                         <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-[#343541]"
                              style={{transform: 'translateY(70px)'}}>
                             <DataSourceSelector
-                                disallowedFileExtensions={getDisallowedFileExtensions()}
+                                disallowedFileExtensions={disallowedFileExtensions}
                                 onDataSourceSelected={(d) => {
                                     const doc = {
                                         id: d.id,
@@ -1261,7 +1210,7 @@ export const ChatInput = ({
                     <div className="relative mx-2 flex w-full flex-grow sm:mx-4 bg-neutral-100 dark:bg-[#3d3e4c] rounded-md" style={{transform: 'translateY(24px)'}}>
 
                         {/* Only show AssistantsInUse when AttachmentDisplay is NOT shown */}
-                        {!((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || editMode.isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
+                        {!((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
                             <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
                                 if(asts.length === 0){
                                     //setAssistant(DEFAULT_ASSISTANT);
@@ -1284,7 +1233,7 @@ export const ChatInput = ({
                             setShowProjectList(false);
                         }}/>} */}
                      {/* Unified Attachment Display - Files, Large Text, and Assistant */}
-                     {((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || editMode.isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
+                     {((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
                         <div style={{transform: 'translateY(-4px)'}}>
                             <AttachmentDisplay
                                 documents={documents}
@@ -1293,9 +1242,9 @@ export const ChatInput = ({
                                 setDocuments={setDocuments}
                                 largeTextBlocks={largeTextBlocks}
                                 onRemoveBlock={handleRemoveLargeTextBlock}
-                                onEditBlock={handleEditLargeTextBlock}
-                                currentlyEditingId={editMode.isEditing ? editMode.blockId || undefined : undefined}
-                                showLargeTextPreview={showLargeTextPreview || editMode.isEditing}
+                                onEditBlock={handleEditBlock}
+                                currentlyEditingId={editingBlockId || undefined}
+                                showLargeTextPreview={showLargeTextPreview || isEditing}
                                 selectedAssistant={selectedAssistant || undefined}
                                 onRemoveAssistant={() => homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT})}
                             />
@@ -1388,7 +1337,7 @@ export const ChatInput = ({
                         <div className="px-2 flex items-center">
 
 
-                            {featureFlags.promptOptimizer && isInputInFocus && !editMode.isEditing && (
+                            {featureFlags.promptOptimizer && isInputInFocus && !isEditing && (
                                 <div className='relative mr-[-32px]'>
                                     <PromptOptimizerButton
                                         prompt={content || ""}
@@ -1441,15 +1390,15 @@ export const ChatInput = ({
                                 style={{
                                     resize: 'none',
                                     bottom: `${textareaRef?.current?.scrollHeight}px`,
-                                    maxHeight: '400px',
+                                    maxHeight: `${UI_CONFIG.TEXTAREA_MAX_HEIGHT}px`,
                                     overflow: `${
-                                        textareaRef.current && textareaRef.current.scrollHeight > 400
+                                        textareaRef.current && textareaRef.current.scrollHeight > UI_CONFIG.TEXTAREA_MAX_HEIGHT
                                             ? 'auto'
                                             : 'hidden'
                                     }`,
                                 }}
                                 placeholder={
-                                    editMode.isEditing 
+                                    isEditing 
                                         ? `Editing large text block - ESC to cancel, Ctrl+Enter to save`
                                         : "Type a message to chat with Amplify..."
                                 }
@@ -1460,7 +1409,7 @@ export const ChatInput = ({
                                 onChange={handleChange}
                                 onKeyDown={(e) => {
                                     // Handle edit mode shortcuts
-                                    if (editMode.isEditing) {
+                                    if (isEditing) {
                                         if (e.key === 'Escape') {
                                             e.preventDefault();
                                             handleCancelEdit();
@@ -1468,7 +1417,7 @@ export const ChatInput = ({
                                         }
                                         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                                             e.preventDefault();
-                                            handleSaveEditedBlock();
+                                            handleSaveEdit();
                                             return;
                                         }
                                     }
@@ -1479,11 +1428,11 @@ export const ChatInput = ({
                             />
 
                             {/* Edit Mode Controls - positioned inline */}
-                            {editMode.isEditing && (
+                            {isEditing && (
                                 <div className="flex items-center gap-2 ml-2">
                                     <button
                                         className="px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded transition-colors flex items-center gap-1"
-                                        onClick={handleSaveEditedBlock}
+                                        onClick={handleSaveEdit}
                                         title="Save changes (Ctrl+Enter)"
                                     >
                                         <IconCheck size={14} />
@@ -1500,7 +1449,7 @@ export const ChatInput = ({
                                 </div>
                             )}
 
-                            {!editMode.isEditing && (
+                            {!isEditing && (
                                 <button
                                     id="sendMessage"
                                     className={`chat-input-button left-1 rounded-sm p-1 text-neutral-800 opacity-60  mx-1 
@@ -1587,7 +1536,7 @@ export const ChatInput = ({
                         { featureFlags.uploadDocuments &&
                         <div style={{transform: 'translateX(-10px)'}}>
                             <AttachFile id="__attachFile"
-                                        disallowedFileExtensions={getDisallowedFileExtensions()}
+                                        disallowedFileExtensions={disallowedFileExtensions}
                                         onAttach={addDocument}
                                         onSetMetadata={handleSetMetadata}
                                         onSetKey={handleSetKey}

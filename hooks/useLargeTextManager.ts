@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   LargeTextBlock,
   processLargeText,
@@ -17,6 +17,13 @@ export function useLargeTextManager() {
   const [largeTextCounter, setLargeTextCounter] = useState(0);
 
   /**
+   * Memoized text processing for performance optimization
+   */
+  const memoizedProcessText = useCallback((text: string) => {
+    return processLargeText(text);
+  }, []);
+
+  /**
    * Handle pasting large text - creates new block and updates content
    */
   const handleLargeTextPaste = useCallback((
@@ -25,7 +32,7 @@ export function useLargeTextManager() {
     cursorPosition: number,
     textareaRef: React.RefObject<HTMLTextAreaElement>
   ): { newContent: string; hasLargeText: boolean } => {
-    const processedText = processLargeText(pastedText);
+    const processedText = memoizedProcessText(pastedText);
     
     if (!processedText.isLarge) {
       return { newContent: currentContent, hasLargeText: false };
@@ -59,14 +66,15 @@ export function useLargeTextManager() {
     }
     
     return { newContent, hasLargeText: true };
-  }, [largeTextBlocks, largeTextCounter]);
+  }, [largeTextBlocks, largeTextCounter, memoizedProcessText]);
 
   /**
    * Remove a specific large text block
    */
   const removeLargeTextBlock = useCallback((
     blockId: string,
-    currentContent: string
+    currentContent: string,
+    onBlockRemoved?: (blockId: string) => void
   ): string => {
     const blockToRemove = largeTextBlocks.find(block => block.id === blockId);
     if (!blockToRemove) {
@@ -83,6 +91,11 @@ export function useLargeTextManager() {
     // Hide preview if no blocks remain
     if (updatedBlocks.length === 0) {
       setShowLargeTextPreview(false);
+    }
+    
+    // Notify that block was removed (for edit mode cleanup)
+    if (onBlockRemoved) {
+      onBlockRemoved(blockId);
     }
     
     return updatedContent;
@@ -133,9 +146,9 @@ export function useLargeTextManager() {
   }, []);
 
   /**
-   * Check if there are any large text blocks
+   * Memoized check if there are any large text blocks
    */
-  const hasLargeTextBlocks = largeTextBlocks.length > 0;
+  const hasLargeTextBlocks = useMemo(() => largeTextBlocks.length > 0, [largeTextBlocks.length]);
 
   return {
     // State

@@ -2,6 +2,17 @@
  * Utilities for handling large text pastes in the chat interface
  */
 
+import {
+  LARGE_TEXT_THRESHOLDS,
+  PREVIEW_CONFIG,
+  PLACEHOLDER_CONFIG,
+  DISPLAY_CONFIG,
+  TEXT_PROCESSING_CONFIG,
+  DEFAULT_LARGE_TEXT_THRESHOLD,
+  createPlaceholderText,
+  extractPlaceholderNumber
+} from '@/constants/largeText';
+
 export interface LargeTextData {
   originalText: string;
   charCount: number;
@@ -35,13 +46,8 @@ export interface LargeTextThresholds {
   lines?: number;
 }
 
-/**
- * Default threshold for what constitutes "large text"
- */
-export const DEFAULT_LARGE_TEXT_THRESHOLD: LargeTextThresholds = {
-  characters: 500,
-  lines: 20 // Optional secondary threshold
-};
+// Re-export for backward compatibility
+export { DEFAULT_LARGE_TEXT_THRESHOLD } from '@/constants/largeText';
 
 /**
  * Check if text exceeds the large text threshold
@@ -61,8 +67,8 @@ export function isLargeText(
  * Count various text metrics
  */
 export function getTextMetrics(text: string) {
-  const lines = text.split('\n');
-  const words = text.trim().split(/\s+/).filter(word => word.length > 0);
+  const lines = text.split(TEXT_PROCESSING_CONFIG.LINE_BREAK);
+  const words = text.trim().split(TEXT_PROCESSING_CONFIG.WORD_SPLIT_PATTERN).filter(word => word.length > 0);
   
   return {
     charCount: text.length,
@@ -76,7 +82,7 @@ export function getTextMetrics(text: string) {
  */
 export function generateSmartPreview(
   text: string, 
-  maxPreviewLength: number = 100
+  maxPreviewLength: number = PREVIEW_CONFIG.MAX_LENGTH
 ): { start: string; end: string } {
   // If text is short enough, just return it as the start
   if (text.length <= maxPreviewLength * 2) {
@@ -86,7 +92,7 @@ export function generateSmartPreview(
     };
   }
 
-  const lines = text.split('\n');
+  const lines = text.split(TEXT_PROCESSING_CONFIG.LINE_BREAK);
   
   // Strategy 1: Try to get meaningful first and last lines
   if (lines.length > 1) {
@@ -94,10 +100,10 @@ export function generateSmartPreview(
     const lastLine = lines[lines.length - 1]?.trim() || '';
     
     // If first line is reasonable length, use it
-    if (firstLine.length > 10 && firstLine.length <= maxPreviewLength) {
-      const endPreview = lastLine.length > 10 && lastLine.length <= maxPreviewLength 
+    if (firstLine.length > PREVIEW_CONFIG.MIN_MEANINGFUL_LINE_LENGTH && firstLine.length <= maxPreviewLength) {
+      const endPreview = lastLine.length > PREVIEW_CONFIG.MIN_MEANINGFUL_LINE_LENGTH && lastLine.length <= maxPreviewLength 
         ? lastLine 
-        : text.substring(text.length - 50).trim();
+        : text.substring(text.length - (maxPreviewLength / 2)).trim();
       
       return {
         start: firstLine,
@@ -205,7 +211,7 @@ export function generateLargeTextId(counter: number): string {
 export function generateDisplayName(id: string): string {
   const match = id.match(/input_text_(\d+)/);
   const number = match ? match[1] : '1';
-  return `Input Text ${number}`;
+  return `${DISPLAY_CONFIG.DEFAULT_NAME_PREFIX} ${number}`;
 }
 
 /**
@@ -237,20 +243,15 @@ export function createLargeTextBlock(
  * Generate bracketed text placeholder for given counter (0-based)
  */
 export function getBracketedTextPlaceholder(counter: number): string {
-  return `[TEXT_${counter + 1}]`;
+  return createPlaceholderText(counter + 1);
 }
 
 /**
  * Extract number from bracketed text placeholder (reverse of getBracketedTextPlaceholder)
  */
 export function extractNumberFromBracketedText(placeholder: string): string {
-  // Handle [TEXT_N] format
-  const match = placeholder.match(/\[TEXT_(\d+)\]/);
-  if (match && match[1]) {
-    return match[1];
-  }
-  
-  return '1'; // ultimate fallback
+  const number = extractPlaceholderNumber(placeholder);
+  return number.toString();
 }
 
 /**
