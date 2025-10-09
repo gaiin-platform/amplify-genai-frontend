@@ -4,21 +4,30 @@ import HomeContext from "@/pages/api/home/home.context";
 import { Message, MessageType, newMessage } from "@/types/chat";
 import { DefaultModels } from "@/types/model";
 import { promptForData } from "@/utils/app/llm";
+import { LargeTextBlock, generateCitationContext } from "@/utils/app/largeText";
 import {IconWand} from "@tabler/icons-react";
-import {useContext, useState} from "react";
+import {useContext} from "react";
 
 
 interface PromptOptimzierProps {
     prompt: string,
+    largeTextBlocks: LargeTextBlock[],
     onOptimized: (optimizedPrompt:string) => void
 }
 
 
-const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, onOptimized}) => {
+const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, largeTextBlocks, onOptimized}) => {
 
     const { state: { prompts, chatEndpoint, defaultAccount}, setLoadingMessage, getDefaultModel} = useContext(HomeContext);
 
-    const promptInstructions = `
+
+    const optimizePrompt = async (promptValue: string) => {
+        setLoadingMessage("Optimizing Prompt...");
+
+        // Generate citation context if large text blocks are present
+        const citationContext = generateCitationContext(largeTextBlocks);
+        
+        const promptInstructions = `
     You will be provide with a users prompt labeled as "Original Prompt".
     Analyze the provided prompt and create an optimized version that will produce better results from an LLM.
     
@@ -38,11 +47,13 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, onOptimi
     
     7. **Strategic Placeholders**: Use {{PLACEHOLDER}} format for external information that users need to provide.
     
-    8. **Constraints and Guardrails**: Explicitly state limitations, restrictions, or ethical boundaries.
+    8. **Citation Symbol Preservation**: If you see citation symbols like [TEXT_1], [TEXT_2], [TEXT_3] in the prompt, preserve them EXACTLY as they appear. These represent large text blocks that will be automatically substituted when the prompt is used.
     
-    9. **Thinking Prompts**: Include phrases like "Think step by step" or "Let's work through this systematically."
+    9. **Constraints and Guardrails**: Explicitly state limitations, restrictions, or ethical boundaries.
     
-    10. **Multi-perspective Approach**: Encourage exploring multiple angles or solutions to a problem.
+    10. **Thinking Prompts**: Include phrases like "Think step by step" or "Let's work through this systematically."
+    
+    11. **Multi-perspective Approach**: Encourage exploring multiple angles or solutions to a problem.
     
     ## Your Optimization Task
     
@@ -53,13 +64,15 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, onOptimi
        - Insufficient guidance on output format
        - Lack of context or examples
     
-    2. Rewrite the prompt to incorporate the principles above while preserving the original intent.
+    2. Rewrite the prompt to incorporate the principles above while preserving the original intent and any citation symbols.
     
     3. When creating sections that require the LLM to fill in content, use the format <Insert XYZ> as placeholders.
     
-    4. Create a list of specific optimizations you made and why they will improve the prompt's effectiveness.
+    4. IMPORTANT: If the prompt contains citation symbols like [TEXT_1], [TEXT_2], [TEXT_3], preserve them exactly in your optimized version. Do not replace them with generic placeholders.
     
-    5. Insert your final improved prompt within the format defined below
+    5. Create a list of specific optimizations you made and why they will improve the prompt's effectiveness.
+    
+    6. Insert your final improved prompt within the format defined below
 
     Example response: 
     You determined the improved prompt is: This is a much improved prompt.
@@ -69,15 +82,38 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, onOptimi
         This is a much improved prompt.
     /OPTIMIZE_PROMPT_END`;
 
-    const optimizePrompt = async (promptValue: string) => {
-        setLoadingMessage("Optimizing Prompt...");
-
-        console.log("Calling prompt optimizer...");
-        const messages: Message[] = [newMessage({role: 'user', content : `${promptInstructions}:\n\n\nOriginal Prompt: ${promptValue}`, type: MessageType.PROMPT})];
+        const messageContent = `${promptInstructions}:\n\n\nOriginal Prompt: ${promptValue}${citationContext}`;
+        
+        const messages: Message[] = [newMessage({role: 'user', content: messageContent, type: MessageType.PROMPT})];
         const model = getDefaultModel(DefaultModels.ADVANCED);
+        
+        
         try {
-            const result = await promptForData(chatEndpoint ?? '', messages, model, "Improve the users prompt, NO COMMENTS, PLEASANTRIES, PREAMBLES ALLOWED", defaultAccount, null, 1000);
-            // console.log("Optimization result: ", result);
+            if (!chatEndpoint) {
+                alert("Chat endpoint not configured. Please check your settings.");
+                return;
+            }
+            
+            if (!model) {
+                alert("No model available. Please check your model configuration.");
+                return;
+            }
+            
+            const maxTokens = 1000;
+            
+            const result = await promptForData(chatEndpoint, messages, model, "Improve the users prompt, NO COMMENTS, PLEASANTRIES, PREAMBLES ALLOWED", defaultAccount, null, maxTokens);
+            
+            if (!result) {
+                alert("Failed to get response from AI service. This appears to be a backend service issue.");
+                return;
+            }
+            
+            // Check for backend error messages
+            if (result.includes("Error retrieving response")) {
+                alert("Backend AI service error. Please contact your administrator or try again later.");
+                return;
+            }
+            
             const extractedPrompt = result?.match(/\/OPTIMIZE_PROMPT_START\s*([\s\S]*?)\s*\/OPTIMIZE_PROMPT_END/);
             if (extractedPrompt && extractedPrompt[1]) {
                 onOptimized(extractedPrompt[1].trim());

@@ -306,10 +306,10 @@ const Promptbar = () => {
           promptDispatch({ field: 'searchTerm', value: searchTerm })
         }
         handleCreateItem={handleCreatePrompt}
-        handleCreateFolder={() => {
-          const name = window.prompt("Folder name:");
-          handleCreateFolder(name || "New Folder", 'prompt')
-        }}
+        // handleCreateFolder={() => {
+        //   const name = window.prompt("Folder name:");
+        //   handleCreateFolder(name || "New Folder", 'prompt')
+        // }}
         handleDrop={handleDrop}
         handleCreateAssistantItem={handleCreateAssistant}
         setFolderSort={setFolderSort}
