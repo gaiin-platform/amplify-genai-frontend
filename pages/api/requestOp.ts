@@ -3,7 +3,6 @@ import {getServerSession} from "next-auth/next";
 import {authOptions} from "@/pages/api/auth/[...nextauth]";
 import { transformPayload } from "@/utils/app/data";
 import { lzwCompress } from "@/utils/app/lzwCompression";
-import { lzwCompress } from "@/utils/app/lzwCompression";
 
 interface reqPayload {
     method: any, 
@@ -29,7 +28,6 @@ const requestOp =
         const reqData = req.body.data || {};
 
         const method = reqData.method || null;
-        let payload = reqData.data ? transformPayload.decode(reqData.data) : null;
         let payload = reqData.data ? transformPayload.decode(reqData.data) : null;
 
         const apiUrl = constructUrl(reqData);
