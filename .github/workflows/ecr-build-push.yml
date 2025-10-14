@@ -4,7 +4,7 @@ on:
   push:
     branches: [dev]
   pull_request:
-    branches: [main, dev]
+    branches: [dev]
   workflow_dispatch:
     inputs:
       enable_ecr_workflow:
