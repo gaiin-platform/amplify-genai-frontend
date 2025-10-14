@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import { IconPlus, IconTrash, IconLoader2, IconInfoCircle, IconNotes, IconBulb, IconExclamationCircle, IconSettingsAutomation, IconAlarm, IconChevronDown, IconChevronUp, IconPlayerPlay, IconRefresh } from '@tabler/icons-react';
-import { IconPlus, IconTrash, IconLoader2, IconInfoCircle, IconNotes, IconBulb, IconExclamationCircle, IconSettingsAutomation, IconAlarm, IconChevronDown, IconChevronUp, IconPlayerPlay, IconRefresh } from '@tabler/icons-react';
 import cloneDeep from 'lodash/cloneDeep';
 import toast from 'react-hot-toast';
 import { ScheduleDateRange, ScheduledTask, ScheduledTaskType, TASK_TYPE_MAP, TaskExecutionRecord } from '@/types/scheduledTasks';
