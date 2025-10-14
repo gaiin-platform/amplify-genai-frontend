@@ -231,7 +231,6 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
     setIsViewingLogs(true);
     setIsTestingTask(true);
     const startTime = new Date().toISOString();
-    const startTime = new Date().toISOString();
 
     try {
       const taskResult = await executeTask(taskId);
