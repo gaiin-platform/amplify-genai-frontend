@@ -43,9 +43,6 @@ interface Props {
     aiEmailDomain: string;
     setAiEmailDomain?: (d: string) => void;
 
-    aiEmailDomain: string;
-    setAiEmailDomain?: (d: string) => void;
-
     allEmails: Array<string> | null;
 
     admin_text: string;
