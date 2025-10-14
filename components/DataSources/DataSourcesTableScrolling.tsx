@@ -1,6 +1,5 @@
 import React, {FC, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
 import {IconDownload, IconRefresh, IconTrash, IconLoader2} from "@tabler/icons-react";
-import {IconDownload, IconRefresh, IconTrash, IconLoader2} from "@tabler/icons-react";
 import {
     MantineReactTable,
     useMantineReactTable,
