@@ -2,6 +2,7 @@ import { doRequestOp } from "./doRequestOp";
 
 const URL_PATH = "/amplifymin";
 const EMBEDDINGS_URL_PATH = "/embedding";
+const EMBEDDINGS_URL_PATH = "/embedding";
 const SERVICE_NAME = "admin";
 const EMBEDDINGS_SERVICE_NAME = "embeddings";
 

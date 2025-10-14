@@ -351,4 +351,3 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
     </div>);
 
 };
-

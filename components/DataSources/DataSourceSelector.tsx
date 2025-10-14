@@ -2,6 +2,7 @@ import {FC, useContext, useEffect, useRef, useState} from 'react';
 
 import {useTranslation} from 'next-i18next';
 import {IconFiles, IconTags, IconFileDescription, IconSlideshow, IconLoader2} from "@tabler/icons-react";
+import {IconFiles, IconTags, IconFileDescription, IconSlideshow, IconLoader2} from "@tabler/icons-react";
 import {DataSource} from "@/types/chat";
 import DataSourcesTableScrolling from "@/components/DataSources/DataSourcesTableScrolling";
 import {UserTagsList} from "@/components/UserTags/UserTagsList";
