@@ -1514,10 +1514,16 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     content={
                                     <AddEmailWithAutoComplete
                                         id={`allowedSenders`}
-                                        emails={curAllowedSenders}
-                                        allEmails={amplifyUsers.filter((user: string) => user !== userEmail)}
+                                        emails={curAllowedSenders.map(username => amplifyUsers[username] || username)}
+                                        allEmails={Object.values(amplifyUsers).filter((email: string) => email !== userEmail)}
                                         handleUpdateEmails={(updatedEmails: Array<string>) => {
-                                            setCurAllowedSenders(updatedEmails);
+                                            // For email events, we likely need actual emails, not usernames
+                                            // But let's convert to usernames for consistency with backend
+                                            const usernames = updatedEmails.map(email => {
+                                                const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
+                                                return username || email; // Fallback to email if no mapping found
+                                            });
+                                            setCurAllowedSenders(usernames);
                                         }}
                                         displayEmails={true}
                                     />} 

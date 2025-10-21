@@ -369,10 +369,15 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                         Allow access to individual users
                         <AddEmailWithAutoComplete
                             id={`assistant-path`}
-                            emails={astPathData.accessTo.users ?? []}
-                            allEmails={amplifyUsers.filter((user: string) => user !== userEmail)}
+                            emails={(astPathData.accessTo.users ?? []).map(username => amplifyUsers[username] || username)}
+                            allEmails={Object.values(amplifyUsers).filter((email: string) => email !== userEmail)}
                             handleUpdateEmails={(updatedEmails: Array<string>) => {
-                                const updateAccessTo = {...astPathData.accessTo, users: updatedEmails};
+                                // Convert emails back to usernames for backend
+                                const usernames = updatedEmails.map(email => {
+                                    const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
+                                    return username || email; // Fallback to email if no mapping found
+                                });
+                                const updateAccessTo = {...astPathData.accessTo, users: usernames};
                                 setAstPathData({...astPathData, accessTo: updateAccessTo});
                             }}
                             displayEmails={true}

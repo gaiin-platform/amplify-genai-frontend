@@ -108,7 +108,7 @@ export const EmailsList: FC<Props> = ({
 
     useEffect(() => {
         const fetchEmails = async () => {
-            const emailSuggestions =  amplifyUsers;
+            const emailSuggestions = Object.values(amplifyUsers); // Extract email values for display
             //  API sytem users
             const apiSysIds = await fetchAllSystemIds();
             const sysIds = apiSysIds.map((k: any) => k.systemId).filter((k: any) => k);

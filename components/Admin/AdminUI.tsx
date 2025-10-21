@@ -203,7 +203,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         if (open && loadData) getConfigs();
 
         const fetchEmails = async () => {
-            setAllEmails(amplifyUsers);
+            setAllEmails(Object.values(amplifyUsers)); // Extract email values for display
         };
         if (!allEmails) fetchEmails();
       

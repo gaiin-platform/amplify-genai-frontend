@@ -194,7 +194,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
 
     useEffect(() => {
         const fetchEmails = async () => {
-            const emailSuggestions =  amplifyUsers;
+            const emailSuggestions = Object.values(amplifyUsers); // Extract email values for display
             // add groups  #groupName
             const groupForMembers = groups.map((group:Group) => `#${group.name}`);
             setAllEmails(emailSuggestions ? [...emailSuggestions,

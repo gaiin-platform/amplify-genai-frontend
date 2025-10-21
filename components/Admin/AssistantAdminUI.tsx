@@ -138,7 +138,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
     const [showCreateGroupAssistant, setShowCreateGroupAssistant] = useState<string | null>(null);
 
     const fetchEmails = () => {
-        const emailSuggestions = amplifyUsers;
+        const emailSuggestions = Object.values(amplifyUsers); // Extract email values for display
         // add groups  #groupName
         const groupForMembers = groups.map((group: Group) => `#${group.name}`);
         return (emailSuggestions ? [...emailSuggestions,

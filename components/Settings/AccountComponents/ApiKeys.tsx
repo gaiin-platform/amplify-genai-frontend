@@ -253,7 +253,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
 
     useEffect(() => {
         const fetchEmails = async () => {
-            const emailSuggestions =  amplifyUsers;
+            const emailSuggestions = Object.values(amplifyUsers); // Extract email values for display
             setAllEmails(emailSuggestions ? emailSuggestions.filter((e: string) => e !== user) : []);
         };
         if (!allEmails) fetchEmails();
