@@ -12,6 +12,8 @@ interface Props {
     setFeatures: (f: FeatureFlagConfig) => void;
 
     ampGroups: Amplify_Groups;
+    
+    amplifyUsers: { [key: string]: string };
 
     allEmails: Array<string> | null;
 
@@ -20,7 +22,7 @@ interface Props {
      
 }
 
-export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, allEmails, admin_text, updateUnsavedConfigs}) => {
+export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, amplifyUsers, allEmails, admin_text, updateUnsavedConfigs}) => {
 
     const [hoveredException, setHoveredException] = useState<{ feature: string; username: string } | null>(null);
     const [addingExceptionTo, setAddingExceptionTo] = useState<string | null>(null);
@@ -129,10 +131,15 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                 <div className="ml-4 flex-grow flex flex-col mt-[-32px] max-w-[40%]">
                     <AddEmailWithAutoComplete
                         id={`${String(AdminConfigTypes.FEATURE_FLAGS)}_ADD`}
-                        emails={isAddingFeature.featureData.userExceptions ?? []}
+                        emails={(isAddingFeature.featureData.userExceptions ?? []).map(username => amplifyUsers[username] || username)}
                         allEmails={allEmails ?? []}
                         handleUpdateEmails={(updatedEmails: Array<string>) => {
-                            const updatedData = {...isAddingFeature.featureData, userExceptions: updatedEmails};
+                            // Convert emails back to usernames for storage
+                            const usernames = updatedEmails.map(email => {
+                                const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
+                                return username || email;
+                            });
+                            const updatedData = {...isAddingFeature.featureData, userExceptions: usernames};
                             setIsAddingFeature({...isAddingFeature, featureData: updatedData});
                         }}
                     />
@@ -140,7 +147,7 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                     {isAddingFeature.featureData.userExceptions?.map((user, idx) => (
                         <div key={idx} className="flex items-center gap-1 mr-1">
                             <span className="flex flex-row gap-4 py-2 mr-4"> 
-                                {user} 
+                                {amplifyUsers[user] || user} 
                                 <button
                                 className={`text-red-500 hover:text-red-800 `}
                                 onClick={() => {
@@ -274,7 +281,7 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                                                 <IconTrash size={16} />
                                                 </button> : <div className="w-[16px]"></div>}
 
-                                                {user} 
+                                                {amplifyUsers[user] || user} 
                                             </span>
                                         </div>
                                         ))}
@@ -292,12 +299,17 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, al
                                         
                                         <div className="flex-grow"> <AddEmailWithAutoComplete
                                             id={String(AdminConfigTypes.FEATURE_FLAGS)}
-                                            emails={featureData.userExceptions ?? []}
+                                            emails={(featureData.userExceptions ?? []).map(username => amplifyUsers[username] || username)}
                                             allEmails={allEmails ?? []}
-                                            handleUpdateEmails={(updatedExceptions: Array<string>) => {
+                                            handleUpdateEmails={(updatedEmails: Array<string>) => {
+                                            // Convert emails back to usernames for storage
+                                            const usernames = updatedEmails.map(email => {
+                                                const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
+                                                return username || email;
+                                            });
                                             handleUpdateFeatureFlags(featureName, {
                                                 ...featureData,
-                                                userExceptions: updatedExceptions,
+                                                userExceptions: usernames,
                                             });
                                             }}
                                         /> </div>

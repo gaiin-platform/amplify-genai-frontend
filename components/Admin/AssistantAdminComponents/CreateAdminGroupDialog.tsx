@@ -17,13 +17,16 @@ interface CreateProps {
     message: string;
     amplifyGroups: string[];
     systemUsers: string[];
+    amplifyUsers: { [key: string]: string };
 }
 
 
-export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEmails, message, amplifyGroups, systemUsers }) => {
+export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEmails, message, amplifyGroups, systemUsers, amplifyUsers }) => {
     const { state: { statsService, groups }, dispatch: homeDispatch } = useContext(HomeContext);
     const { data: session } = useSession();
-    const user = session?.user?.email;
+    const userEmail = session?.user?.email;
+    // Convert current user's email to username
+    const user = userEmail ? Object.keys(amplifyUsers).find(key => amplifyUsers[key] === userEmail) || userEmail : '';
 
 
     const [groupName, setGroupName] = useState<string>('');
@@ -53,7 +56,9 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
                     ...Object.keys(group.members).filter((member: string) => member !== user)];
                 }
             } else {
-                entriesWithGroupMembers.push(e);
+                // Convert email to username for storage
+                const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === e);
+                entriesWithGroupMembers.push(username || e);
             }
         });
 
@@ -118,6 +123,7 @@ export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEm
                                 setGroupMembers={setGroupMembers}
                                 allEmails={allEmails}
                                 processEmailEntries={processEmailEntries}
+                                amplifyUsers={amplifyUsers}
                             />
                         </div>
                         <AmpGroupsSysUsersSelection
@@ -292,6 +298,7 @@ interface MemberAccessProps {
     setGroupMembers: (m: Members) => void;
     allEmails: Array<string> | null;
     processEmailEntries: (entries: string[]) => void;
+    amplifyUsers?: { [key: string]: string };
     width?: string;
 }
 
@@ -308,12 +315,12 @@ export const accessInfoBox = <InfoBox color='#085bd6' content={
     </span>}
 />
 
-export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupMembers, allEmails, processEmailEntries, width = '500px' }) => {
+export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupMembers, allEmails, processEmailEntries, amplifyUsers = {}, width = '500px' }) => {
     const [hoveredUser, setHoveredUser] = useState<string | null>(null);
 
-    const handleRemoveUser = (email: string) => {
+    const handleRemoveUser = (username: string) => {
         const updatedMembers = { ...groupMembers };
-        delete updatedMembers[email];
+        delete updatedMembers[username];
         setGroupMembers(updatedMembers);
     }
 
@@ -354,23 +361,23 @@ export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupM
                     </thead>
                     <tbody>
 
-                        {Object.entries(groupMembers).map(([email, access]) => (
-                            <tr key={email}>
+                        {Object.entries(groupMembers).map(([username, access]) => (
+                            <tr key={username}>
                                 <td className="border px-4 py-2 " style={{ width: width }}>
                                     <div className='flex items-center  '
                                         onMouseEnter={() => {
-                                            setHoveredUser(email)
+                                            setHoveredUser(username)
                                         }}
                                         onMouseLeave={() => {
                                             setHoveredUser(null)
                                         }}
                                     >
-                                        {email}
-                                        {hoveredUser === email &&
+                                        {amplifyUsers[username] || username}
+                                        {hoveredUser === username &&
                                             <button
                                                 type="button"
                                                 className={`ml-auto p-0.5 text-sm bg-neutral-500 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500`}
-                                                onClick={() => handleRemoveUser(email)}
+                                                onClick={() => handleRemoveUser(username)}
                                             >
                                                 <IconTrashX size={16} />
                                             </button>}
@@ -382,7 +389,7 @@ export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupM
                                     <AccessSelect
                                         access={access}
                                         setAccess={(newAccessLevel: GroupAccessType) => {
-                                            setGroupMembers({ ...groupMembers, [email]: newAccessLevel })
+                                            setGroupMembers({ ...groupMembers, [username]: newAccessLevel })
                                         }} />
                                 }</td>
                             </tr>

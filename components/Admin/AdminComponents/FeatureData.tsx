@@ -28,6 +28,7 @@ interface Props {
 
     admins: string[];
     ampGroups: Amplify_Groups;
+    amplifyUsers: { [key: string]: string };
 
     astGroups: Ast_Group_Data[];
     setAstGroups: (g: Ast_Group_Data[]) => void;
@@ -48,7 +49,7 @@ interface Props {
     updateUnsavedConfigs: (t: AdminConfigTypes) => void;
 }
 
-export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId, setAmplifyAstGroupId,
+export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyUsers, amplifyAstGroupId, setAmplifyAstGroupId,
                                            astGroups, setAstGroups, changedAstGroups, setChangedAstGroups, 
                                            templates, setTemplates, changedTemplates, setChangedTemplates,
                                            stillLoadingData, isAvailableCheck, admin_text, updateUnsavedConfigs}) => {
@@ -513,7 +514,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
                                                 {group.groupName}
                                             </td>
                                             <td className="text-center border border-neutral-500 p-2 break-words max-w-[200px]">
-                                                {group.createdBy}
+                                                {amplifyUsers[group.createdBy] || group.createdBy}
                                             </td>
 
                                             <td className="w-[164px] border border-neutral-500 px-4 py-2"

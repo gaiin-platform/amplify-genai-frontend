@@ -142,7 +142,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         // add groups  #groupName
         const groupForMembers = groups.map((group: Group) => `#${group.name}`);
         return (emailSuggestions ? [...emailSuggestions,
-        ...groupForMembers].filter((e: string) => e !== user) : []);
+        ...groupForMembers].filter((e: string) => e !== "user") : []);
     };
 
     const allEmails: Array<string> = (fetchEmails());
@@ -279,7 +279,6 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
 
     const groupCreate = async (group: any) => {
-        // console.log(group);
         if (!group.group_name) {
             alert("Group name is required. Please add a group name to create the group.");
             return;
@@ -564,10 +563,15 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                     selectedGroup={selectedGroup}
                     setSelectedGroup={setSelectedGroup}
                     members={selectedGroup?.members ?? {}}
-                    allEmails={allEmails?.filter((e: string) => e !== `#${selectedGroup.name}` && !Object.keys(selectedGroup.members).includes(e)) || []}
+                    allEmails={allEmails?.filter((e: string) => {
+                        // Check if this email corresponds to a username that's already a member
+                        const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === e);
+                        return e !== `#${selectedGroup.name}` && !Object.keys(selectedGroup.members).includes("username" );
+                    }) || []}
                     setLoadingActionMessage={setLoadingActionMessage}
                     adminGroups={adminGroups}
                     setAdminGroups={setAdminGroups}
+                    amplifyUsers={amplifyUsers}
                     amplifyGroups={amplifyGroups ?? []}
                     systemUsers={systemUsers ?? []}
                 />
@@ -588,6 +592,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                 message={adminGroups.length === 0 ? "You currently do not have admin access to any groups." : ""}
                 amplifyGroups={amplifyGroups ?? []}
                 systemUsers={systemUsers ?? []}
+                amplifyUsers={amplifyUsers}
             />
         ) :
         // User has groups 

@@ -138,7 +138,6 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
        
         const getConfigs = async () => {
             setLoadData(false);
-                //   statsService.openSettingsEvent(); 
             setLoadingMessage("Loading Admin Interface...");
             setStillLoadingData(true);
             const nonlazyReq = getAdminConfigs(); // start longer call
@@ -461,9 +460,6 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         }
         const collectUpdateData =  Array.from(unsavedConfigs).map((type: AdminConfigTypes) => ({type: type, data: getConfigTypeData(type)}));
         console.log("Saving...", collectUpdateData);
-        
-        // Enhanced logging for admin data
-        const adminData = collectUpdateData.find(item => item.type === AdminConfigTypes.ADMINS);
 
         if (!validateSavedData()) return;
         // console.log(" testing: ", testEndpointsRef.current);
@@ -485,48 +481,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             if (result.data && result.data[AdminConfigTypes.ADMINS]) {
                 const adminResult = result.data[AdminConfigTypes.ADMINS];
                 
-                if (adminResult.success) {
-                    
-                    // VERIFY WHAT ACTUALLY GOT SAVED
-                    if (adminData && adminData.data.length > 0) {
-                        // Delay to allow backend processing to complete
-                        setTimeout(async () => {
-                            try {
-                                // Fetch current admin configurations to see what's actually saved
-                                const response = await getAdminConfigs(true); // Use existing service
-                                
-                                if (response.success && response.data) {
-                                    const actualSavedAdmins = response.data[AdminConfigTypes.ADMINS] || [];
-                                    
-                                    // Compare what was sent vs what's actually saved
-                                    const sentSet = new Set(adminData.data);
-                                    const savedSet = new Set(actualSavedAdmins);
-                                    
-                                    const notSaved = adminData.data.filter((admin: string) => !savedSet.has(admin));
-                                    const unexpectedlyAdded = actualSavedAdmins.filter((admin: string) => !sentSet.has(admin));
-                                    
-                                    if (notSaved.length > 0) {
-                                        toast(`⚠️ ${notSaved.length} admin(s) were rejected: ${notSaved.join(', ')}`, {
-                                            icon: '⚠️',
-                                            duration: 8000
-                                        });
-                                    }
-                                    
-                                    // Update local state to match what's actually in the database
-                                    if (actualSavedAdmins.length !== adminData.data.length) {
-                                        setAdmins(actualSavedAdmins);
-                                    }
-                                } else {
-                                    console.error("❌ Failed to fetch current admin configs for verification:", response);
-                                }
-                            } catch (error) {
-                                console.error("❌ Verification error:", error);
-                            }
-                        }, 1000); // 1 second delay
-                    }
-                } else {
-                    console.warn("⚠️ Admin validation issues:", adminResult);
-                    toast(`Admin save completed with warnings. Check console for details.`, {
+                if (!adminResult.success && adminResult.error) {
+                    toast(`Admin configuration warning: ${adminResult.error}`, {
                         icon: '⚠️',
                         duration: 5000
                     });
@@ -539,36 +495,16 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             setUnsavedConfigs(new Set());
             testEndpointsRef.current = [];
         } else {
-            // Enhanced error logging
-            console.error("❌ Save failed. Full response:", result);
-            
-            if (adminData) {
-                console.error("❌ Failed to save admin emails:", adminData.data);
-            }
-            
             if (result.data && Object.keys(result.data).length !== unsavedConfigs.size) {
                 const unsucessful: AdminConfigTypes[] = [];
                 Array.from(unsavedConfigs).forEach(key => {
                     if ((!(key in result.data)) || (!result.data[key].success)) {
                         unsucessful.push(key);
-                        
-                        // Log specific failure details for admins
-                        if (key === AdminConfigTypes.ADMINS && result.data[key]) {
-                            console.error("❌ Admin save failure details:", result.data[key]);
-                            if (result.data[key].error) {
-                                console.error("📝 Admin validation error:", result.data[key].error);
-                            }
-                            if (result.data[key].message) {
-                                console.error("💬 Admin save message:", result.data[key].message);
-                            }
-                        }
                     }
                 });
                 
-                // should always be true
                 if (unsucessful.length > 0) {
                     const errorMsg = `The following configurations were unable to be saved: \n${unsucessful.join(', ')}`;
-                    console.error("❌ Unsuccessful saves:", errorMsg);
                     alert(errorMsg);
                     
                     // Additional admin-specific error display
@@ -675,6 +611,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     setAdmins={setAdmins}
                     ampGroups={ampGroups}
                     setAmpGroups={setAmpGroups}
+                    amplifyUsers={amplifyUsers}
                     rateLimit={rateLimit}
                     setRateLimit={setRateLimit}
                     promptCostAlert={promptCostAlert}
@@ -791,6 +728,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     features={features}
                     setFeatures={setFeatures}
                     ampGroups={ampGroups}
+                    amplifyUsers={amplifyUsers}
                     allEmails={allEmails}
                     admin_text={admin_text}
                     updateUnsavedConfigs={updateUnsavedConfigs}
@@ -806,6 +744,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     stillLoadingData={stillLoadingData}
                     admins={admins}
                     ampGroups={ampGroups}
+                    amplifyUsers={amplifyUsers}
                     astGroups={astGroups}
                     setAstGroups={setAstGroups}
                     amplifyAstGroupId={amplifyAstGroupId}

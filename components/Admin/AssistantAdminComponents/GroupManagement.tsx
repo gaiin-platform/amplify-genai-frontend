@@ -9,13 +9,12 @@ import { IconCheck, IconTrashX, IconX } from "@tabler/icons-react";
 import toast from "react-hot-toast";
 import { Prompt } from "@/types/prompt";
 import { FolderInterface } from "@/types/folder";
-import { getDateName } from '@/utils/app/date';
 import { GroupTypesAst } from "../AssistantAdminUI";
 import { Checkbox } from '../../ReusableComponents/CheckBox';
 
 interface User {
-    name: string;
-    // dateAdded: string;
+    name: string;  // username (key) for backend operations
+    displayName: string;  // email (value) for display
     accessLevel: GroupAccessType;
 }
 
@@ -27,18 +26,21 @@ interface ManagementProps {
     setLoadingActionMessage: (s: string) => void;
     adminGroups: Group[];
     setAdminGroups: (groups: Group[]) => void;
+    amplifyUsers: { [key: string]: string };
     amplifyGroups: string[];
     systemUsers: string[];
 }
 
 
 export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelectedGroup, members, allEmails, setLoadingActionMessage,
-    adminGroups, setAdminGroups, amplifyGroups, systemUsers }) => {
+    adminGroups, setAdminGroups, amplifyUsers, amplifyGroups, systemUsers }) => {
     const { state: { groups, prompts, folders, statsService }, dispatch: homeDispatch } = useContext(HomeContext);
     const { data: session } = useSession();
     const userEmail = session?.user?.email;
+    // Convert current user's email to username for all comparisons
+    const currentUsername = userEmail ? Object.keys(amplifyUsers).find(key => amplifyUsers[key] === userEmail) || userEmail : '';
 
-    const [hasAdminAccess, setHasAdminAccess] = useState<boolean>((userEmail && selectedGroup.members[userEmail] === GroupAccessType.ADMIN) || false);
+    const [hasAdminAccess, setHasAdminAccess] = useState<boolean>((currentUsername && selectedGroup.members[currentUsername] === GroupAccessType.ADMIN) || false);
     const [groupTypes, setGroupTypes] = useState<string[]>(selectedGroup.groupTypes);
     const [groupAmpGroups, setGroupAmpGroups] = useState<string[]>(selectedGroup.amplifyGroups ?? []);
     const [groupSystemUsers, setGroupSystemUsers] = useState<string[]>(selectedGroup.systemUsers ?? []);
@@ -79,16 +81,16 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
     }, [selectedGroup]);
 
     const usersmap = Object.entries(members)
-        .map(([email, accessLevel]) => ({
-            name: email,
-            dateAdded: '2023-01-15',
+        .map(([username, accessLevel]) => ({
+            name: username,  // Store username (key) for backend operations
+            displayName: amplifyUsers[username] || username,  // Display email (value) to users
             accessLevel: accessLevel,
         }))
         .sort((a, b) => {
-            if (a.name === userEmail) {
+            if (a.name === currentUsername) {
                 return -1; // Move a to the top if it matches userEmail
             }
-            if (b.name === userEmail) {
+            if (b.name === currentUsername) {
                 return 1; // Move b to the top if it matches userEmail
             }
             // Otherwise, sort alphabetically by name
@@ -254,10 +256,12 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
                 const group = groups.find((g: Group) => g.name === e.slice(1));
                 if (group) {
                     entriesWithGroupMembers = [...entriesWithGroupMembers,
-                    ...Object.keys(group.members).filter((member: string) => member !== userEmail)];
+                    ...Object.keys(group.members).filter((member: string) => member !== currentUsername)];
                 }
             } else {
-                entriesWithGroupMembers.push(e);
+                // Convert email to username for storage
+                const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === e);
+                entriesWithGroupMembers.push(username || e);
             }
         });
 
@@ -303,9 +307,9 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
         const result = await updateGroupMembers(updateData);
         if (result) {
             setIsAddingUsers(false);
-            const newUserEntries = Object.entries(newGroupMembers).map(([email, accessLevel]) => ({
-                name: email,
-                dateAdded: getDateName(),
+            const newUserEntries = Object.entries(newGroupMembers).map(([username, accessLevel]) => ({
+                name: username,
+                displayName: amplifyUsers[username] || username,
                 accessLevel: accessLevel,
             }))
             setUsers([...users, ...newUserEntries]);
@@ -333,7 +337,7 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
             alert("You are not authorized to delete users from the group.");
             return;
         }
-        const removingSelfFromGroup = userEmail && deleteUsersList.includes(userEmail);
+        const removingSelfFromGroup = currentUsername && deleteUsersList.includes(currentUsername);
         if (removingSelfFromGroup) {
             if (!confirm("Are you sure you want to remove yourself from the group? You will no longer have access to the admin interface or group assistants. You will not be able to undo this change.\n\nWould you like to continue?")) return;
             removeUserFromGroup(selectedGroup.id);
@@ -386,11 +390,11 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
 
     };
 
-    const isSoleAdmin = (userEmail: string, privileges: Members) => {
+    const isSoleAdmin = (username: string, privileges: Members) => {
         // Count the number of 'admin' users
         const adminCount = Object.values(privileges).filter(priv => priv === 'admin').length;
-        // Return true if the count is exactly 1
-        return adminCount === 0;
+        // Return true if the user is the only admin
+        return adminCount === 1 && privileges[username] === 'admin';
     }
 
     const editUsersAccess = async () => {
@@ -400,9 +404,9 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
         }
         let removingAdminInterfaceAccess = false;
         let removingAdminAceesToWrite = false;
-        if (userEmail) {
-            removingAdminInterfaceAccess = editAccessMap[userEmail] === GroupAccessType.READ;
-            removingAdminAceesToWrite = editAccessMap[userEmail] === GroupAccessType.WRITE;
+        if (currentUsername) {
+            removingAdminInterfaceAccess = editAccessMap[currentUsername] === GroupAccessType.READ;
+            removingAdminAceesToWrite = editAccessMap[currentUsername] === GroupAccessType.WRITE;
 
             const mergedMemberPerms = {} as Members;
             Object.keys(selectedGroup.members)
@@ -414,13 +418,13 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
                     }
 
                 });
-            if ((removingAdminInterfaceAccess || removingAdminAceesToWrite) && isSoleAdmin(userEmail, mergedMemberPerms)) {
+            if ((removingAdminInterfaceAccess || removingAdminAceesToWrite) && isSoleAdmin(currentUsername, mergedMemberPerms)) {
                 alert("You are currently the only admin in the group, your admin access will be unchanged at this time. Please confirm updated user access changes again.");
-                const { [userEmail]: _, ...newEditAccessMap } = editAccessMap;
+                const { [currentUsername]: _, ...newEditAccessMap } = editAccessMap;
                 setEditAccessMap(newEditAccessMap);
                 setUsers(prevUsers =>
                     prevUsers.map((u, i) =>
-                        u.name === userEmail ? { ...u, accessLevel: GroupAccessType.ADMIN } : u
+                        u.name === currentUsername ? { ...u, accessLevel: GroupAccessType.ADMIN } : u
                     )
                 );
                 return;
@@ -436,7 +440,7 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
                 })
                 homeDispatch({ field: 'prompts', value: updatedPrompts });
 
-            } else if (removingAdminAceesToWrite && selectedGroup.members[userEmail] === GroupAccessType.ADMIN) {
+            } else if (removingAdminAceesToWrite && selectedGroup.members[currentUsername] === GroupAccessType.ADMIN) {
                 // if you are changing from admin to write but are not the only admin in the group.
                 if (!confirm("Please note, by setting your group access permissions to 'write', you will no longer be able to make changes to the group itself; however, you will retain the ability to modify the group's assistants.\n\n Would you like to continue?")) return;
                 setHasAdminAccess(false);
@@ -505,6 +509,7 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
                         setGroupMembers={setNewGroupMembers}
                         allEmails={allGroupEmails}
                         processEmailEntries={handleUpdateEmails}
+                        amplifyUsers={amplifyUsers}
                         width='840px'
                     />
                 }
@@ -516,7 +521,7 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
                         searchTerm={searchTerm}
                         onSearch={(searchTerm: string) => {
                             setSearchTerm(searchTerm);
-                            setUsers(users.filter((u: User) => u.name.startsWith(searchTerm)))
+                            setUsers(users.filter((u: User) => u.displayName.toLowerCase().startsWith(searchTerm.toLowerCase())))
                         }
                         }
                         disabled={isDeleting}
@@ -638,7 +643,7 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
                                             <td className="py-2 px-3">
                                                 <Checkbox
                                                     id={`user-${index}`}
-                                                    label={`${user.name} ${userEmail === user.name ? '   (You)' : ''}`}
+                                                    label={`${user.displayName} ${currentUsername === user.name ? '   (You)' : ''}`}
                                                     checked={deleteUsersList.includes(user.name)}
                                                     onChange={(checked) => {
                                                         if (checked) {
@@ -649,11 +654,10 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
                                                     }}
                                                 />
                                             </td> :
-                                            <td className="border px-4 py-2">{user.name}
-                                                <label className='ml-2 opacity-50'>{`${userEmail === user.name ? ' (You)' : ''}`}</label>
+                                            <td className="border px-4 py-2">{user.displayName}
+                                                <label className='ml-2 opacity-50'>{`${currentUsername === user.name ? ' (You)' : ''}`}</label>
                                             </td>
                                         }
-                                        {/* <td className="border px-4 py-2">{user.dateAdded}</td> */}
                                         <td className={`border ${isEditingAccess ? '' : 'px-4 py-2'}`}>{
                                             isEditingAccess ? <AccessSelect
                                                 access={user.accessLevel}

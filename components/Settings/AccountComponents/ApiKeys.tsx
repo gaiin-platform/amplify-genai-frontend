@@ -279,7 +279,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
         const data = {
             'owner' : user,
             'account' : selectedAccount,
-            'delegate': delegateInput.length > 0 ? delegateInput : null,
+            'delegate': delegateInput.length > 0 ? (Object.keys(amplifyUsers).find(key => amplifyUsers[key] === delegateInput) || delegateInput) : null,
             'appName' : appName,
             'appDescription' : appDescription,
             'rateLimit' : rateLimitObj(rateLimitPeriod, rateLimitRate),

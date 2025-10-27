@@ -30,7 +30,6 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const suggestionRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
-    const justSelectedSuggestion = useRef(false);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -49,11 +48,10 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({
 
     const handleSuggestionClick = (suggestion: string) => {
         setSuggestions([]);
-        justSelectedSuggestion.current = true;
 
         // Use the new direct suggestion callback if available
         if (onSuggestionSelected && addMultipleUsers) {
-            // Call parent callback and clear input immediately
+            // Call parent callback with the suggestion
             onSuggestionSelected(suggestion);
             setInput('');
             
@@ -77,11 +75,6 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({
                 setInput(suggestion);
             }
         }
-        
-        // Reset flag after a short delay
-        setTimeout(() => {
-            justSelectedSuggestion.current = false;
-        }, 100);
     };
 
 
@@ -113,9 +106,6 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({
                     const newValue = e.target.value.toLowerCase();
                     setInput(newValue);
                     
-                    // Reset the suggestion selection flag when user types
-                    justSelectedSuggestion.current = false;
-                    
                     // Let commas stay in input - we'll process on blur
                 }}
 
@@ -138,11 +128,6 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({
                 }}
 
                 onBlur={() => {
-                    // Don't process blur if we just selected a suggestion
-                    if (justSelectedSuggestion.current) {
-                        return;
-                    }
-                    
                     if (onBlur) {
                         onBlur();
                     }
@@ -163,11 +148,17 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({
             />
             {suggestions.length > 0 && (
                 <div ref={suggestionRef}  
-                className="sm:w-full sm:max-w-[440px] absolute z-50 border border-neutral-300 rounded overflow-y-auto bg-white dark:border-neutral-600 bg-neutral-100 dark:bg-[#202123]"
-                style={{ height: `${calculateHeight(suggestions.length)}px`}}>
+                className="sm:w-full sm:max-w-[440px] absolute z-[9999] border border-neutral-300 rounded overflow-y-auto bg-white dark:border-neutral-600 bg-neutral-100 dark:bg-[#202123]"
+                style={{ height: `${calculateHeight(suggestions.length)}px`}}
+                onMouseDown={(e) => e.stopPropagation()}>
                     <ul className="suggestions-list">
                     {suggestions.map((suggestion, index) => (
-                        <li key={index} onClick={() => handleSuggestionClick(suggestion)}
+                        <li key={index} 
+                        onMouseDown={(e) => {
+                            e.preventDefault(); // Prevent blur from firing
+                            e.stopPropagation(); // Prevent event from bubbling to modal backdrop
+                            handleSuggestionClick(suggestion);
+                        }}
                         className="cursor-pointer p-1 border-b border-neutral-300 dark:border-b-neutral-600 hover:bg-neutral-200 dark:hover:bg-[#343541]/90">
 
                             {suggestion}

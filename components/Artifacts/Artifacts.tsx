@@ -233,14 +233,18 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
                     ...Object.keys(group.members).filter((member: string) => member !== user)];
                 }
             } else {
-                entriesWithGroupMembers.push(e);
+                // Convert email to username for storage
+                const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === e);
+                entriesWithGroupMembers.push(username || e);
             }
         });
 
-        // Filter valid emails and avoid duplicates
-        const newEmails = entriesWithGroupMembers.filter(email => 
-            /^\S+@\S+\.\S+$/.test(email) && !shareWith.includes(email)
-        );
+        // Filter valid entries (emails or usernames) and avoid duplicates
+        const newEmails = entriesWithGroupMembers.filter(entry => {
+            const isEmail = /^\S+@\S+\.\S+$/.test(entry);
+            const isValidUsername = Object.keys(amplifyUsers).includes(entry);
+            return (isEmail || isValidUsername) && !shareWith.includes(entry);
+        });
         
         if (newEmails.length > 0) {
             setShareWith([...shareWith, ...newEmails]);
@@ -249,19 +253,22 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
 
     // Handle both adding and removing emails
     const handleUpdateEmails = (updatedEmails: string[]) => {
-        // Check if we're adding or removing emails
-        if (updatedEmails.length > shareWith.length) {
-            // Adding emails - find newly added ones
-            const addedEmails = updatedEmails.filter(email => !shareWith.includes(email));
-            if (addedEmails.length > 0) {
-                processEmailEntries(addedEmails);
+        // Convert emails back to usernames for storage
+        const usernames = updatedEmails.map(email => {
+            const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
+            return username || email;
+        });
+        
+        // Check if we're adding or removing
+        if (usernames.length > shareWith.length) {
+            // Adding - find newly added ones
+            const addedUsernames = usernames.filter(username => !shareWith.includes(username));
+            if (addedUsernames.length > 0) {
+                processEmailEntries(addedUsernames);
             }
-        } else if (updatedEmails.length < shareWith.length) {
-            // Removing emails - directly update shareWith
-            setShareWith(updatedEmails);
-        } else if (updatedEmails.length === shareWith.length) {
-            // Same length - might be a replacement, update directly
-            setShareWith(updatedEmails);
+        } else {
+            // Removing or replacing - directly update
+            setShareWith(usernames);
         }
     };
 
@@ -540,7 +547,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                         
                         <AddEmailWithAutoComplete
                             id="artifactShare"
-                            emails={shareWith}
+                            emails={shareWith.map(username => amplifyUsers[username] || username)}
                             allEmails={allEmails || []}
                             handleUpdateEmails={handleUpdateEmails}
                             displayEmails={true}

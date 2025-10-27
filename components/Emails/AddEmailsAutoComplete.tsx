@@ -18,9 +18,12 @@ export const AddEmailWithAutoComplete: FC<AddEmailsProps> = ({ id, emails, allEm
     // Flexible validation for usernames/systemIds/emails
     const isValidEntry = (entry: string): boolean => {
         const trimmed = entry.trim();
-        return trimmed.length > 0 && 
-               !trimmed.includes(' ') && // No spaces
-               trimmed.length >= 2;      // Minimum length
+        // Accept emails, system IDs, or any valid username (2+ chars, no spaces)
+        const isEmail = /^\S+@\S+\.\S+$/.test(trimmed);
+        const isSystemId = /^[a-zA-Z0-9-]+-\d{6}$/.test(trimmed);
+        const isValidUsername = trimmed.length >= 2 && !trimmed.includes(' ');
+        
+        return isEmail || isSystemId || isValidUsername;
     };
 
     // Get validation state for current input
@@ -70,6 +73,7 @@ export const AddEmailWithAutoComplete: FC<AddEmailsProps> = ({ id, emails, allEm
 
     // Handle input blur
     const handleBlurAdd = useCallback(() => {
+        // Process any remaining input on blur
         if (input.trim()) {
             processEntries(input, true);
         }
@@ -113,20 +117,10 @@ export const AddEmailWithAutoComplete: FC<AddEmailsProps> = ({ id, emails, allEm
                     onBlur={handleBlurAdd}
                     onPaste={handlePaste}
                     onSuggestionSelected={(suggestion: string) => {
-                        // Parse existing input for complete entries
-                        const existingEntries = input.split(',')
-                            .map(entry => entry.trim())
-                            .filter(entry => entry && isValidEntry(entry) && !emails.includes(entry));
-                        
-                        // Combine existing entries with the suggestion
-                        const allNewEntries = [...existingEntries];
-                        if (!emails.includes(suggestion) && !allNewEntries.includes(suggestion)) {
-                            allNewEntries.push(suggestion);
-                        }
-                        
-                        // Add all entries in a single update
-                        if (allNewEntries.length > 0) {
-                            handleUpdateEmails([...emails, ...allNewEntries]);
+                        // When a suggestion is selected, only add the suggestion itself
+                        // The partial input should be replaced, not added as a separate entry
+                        if (!emails.includes(suggestion)) {
+                            handleUpdateEmails([...emails, suggestion]);
                         }
                         
                         // Clear input

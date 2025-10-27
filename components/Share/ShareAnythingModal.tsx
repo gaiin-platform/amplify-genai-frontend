@@ -55,7 +55,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
         selectedFolders = []
     }) => {
     const {
-        state: {prompts, conversations, folders, statsService},
+        state: {prompts, conversations, folders, statsService, amplifyUsers},
     } = useContext(HomeContext);
 
     const promptsRef = useRef(prompts);
@@ -126,7 +126,11 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
             }),
              ...rootPromptsToAdd], "share", false);
         
-        const sharedWith = [...selectedPeople];
+        // Convert emails back to usernames for backend
+        const sharedWith = selectedPeople.map(email => {
+            const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
+            return username || email; // Fallback to email if no mapping found
+        });
         const sharedBy = user?.email ? user.email.toLowerCase() : undefined;
 
 

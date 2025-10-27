@@ -27,6 +27,8 @@ interface Props {
 
     ampGroups: Amplify_Groups;
     setAmpGroups: (g: Amplify_Groups) => void;
+    
+    amplifyUsers: { [key: string]: string };
 
     rateLimit: {period: PeriodType, rate: string};
     setRateLimit: (l: {period: PeriodType, rate: string}) => void;
@@ -50,7 +52,7 @@ interface Props {
     onModalStateChange?: (hasOpenModal: boolean) => void;   
 }
 
-export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setAmpGroups, allEmails,
+export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setAmpGroups, amplifyUsers, allEmails,
                                               rateLimit, setRateLimit, promptCostAlert, setPromptCostAlert,
                                               defaultConversationStorage, setDefaultConversationStorage,
                                               emailSupport, setEmailSupport, aiEmailDomain, setAiEmailDomain,
@@ -227,9 +229,16 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                             <div className="w-full mb-4">
                                 <AddEmailWithAutoComplete
                                     id={String(AdminConfigTypes.ADMINS)}
-                                    emails={admins}
+                                    emails={admins.map(username => amplifyUsers[username] || username)}
                                     allEmails={allEmails ?? []}
-                                    handleUpdateEmails={(updatedAdmins: Array<string>) => handleUpdateAdmins(updatedAdmins)}
+                                    handleUpdateEmails={(updatedEmails: Array<string>) => {
+                                        // Convert emails back to usernames for storage
+                                        const usernames = updatedEmails.map(email => {
+                                            const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
+                                            return username || email;
+                                        });
+                                        handleUpdateAdmins(usernames);
+                                    }}
                                 />
                             </div>
                         )}
@@ -280,7 +289,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                     </div>
                                     )}
                                 </div>
-                                <span className="truncate pr-8 py-2 mr-1">{user}</span>
+                                <span className="truncate pr-8 py-2 mr-1">{amplifyUsers[user] || user}</span>
                             
                                 </div>
                             </div>
@@ -515,17 +524,22 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                         <div className="ml-4 flex-grow flex flex-col mt-[-32px] max-w-[40%]">
                             <AddEmailWithAutoComplete
                                 id={`${String(AdminConfigTypes.AMPLIFY_GROUPS)}_ADD`}
-                                emails={isAddingAmpGroups.members}
+                                emails={isAddingAmpGroups.members.map(username => amplifyUsers[username] || username)}
                                 allEmails={allEmails ?? []}
-                                handleUpdateEmails={(updatedEmails: Array<string>) => 
-                                    setIsAddingAmpGroups({...isAddingAmpGroups, members : updatedEmails})
-                                }
+                                handleUpdateEmails={(updatedEmails: Array<string>) => {
+                                    // Convert emails back to usernames for storage
+                                    const usernames = updatedEmails.map(email => {
+                                        const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
+                                        return username || email;
+                                    });
+                                    setIsAddingAmpGroups({...isAddingAmpGroups, members : usernames});
+                                }}
                             />
                             <div className="h-[40px] rounded-r border border-neutral-500 pl-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 overflow-x-auto">
                             {isAddingAmpGroups.members.map((user, idx) => (
                                 <div key={idx} className="flex items-center gap-1 mr-1">
                                     <span className="flex flex-row gap-4 py-2 mr-4"> 
-                                        {user} 
+                                        {amplifyUsers[user] || user} 
                                         <button
                                         className={`text-red-500 hover:text-red-800 `}
                                         onClick={() => {
@@ -627,7 +641,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                                         }} >
                                                         <IconTrash size={16} />
                                                         </button> : <div className="w-[16px]"></div>}
-                                                        {user} 
+                                                        {amplifyUsers[user] || user} 
                                                     </span>
                                                 </div>
                                                 ))}
@@ -645,10 +659,15 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                                 
                                                 <div className=""> <AddEmailWithAutoComplete
                                                     id={`${String(AdminConfigTypes.AMPLIFY_GROUPS)}_EDIT`}
-                                                    emails={group.members ?? []}
+                                                    emails={(group.members ?? []).map(username => amplifyUsers[username] || username)}
                                                     allEmails={allEmails ?? []}
-                                                    handleUpdateEmails={(updatedMembers: Array<string>) => {
-                                                        const updatedGroup = {...group, members: updatedMembers}
+                                                    handleUpdateEmails={(updatedEmails: Array<string>) => {
+                                                        // Convert emails back to usernames for storage
+                                                        const usernames = updatedEmails.map(email => {
+                                                            const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
+                                                            return username || email;
+                                                        });
+                                                        const updatedGroup = {...group, members: usernames}
                                                         handleUpdateAmpGroups({...ampGroups, [groupName] : updatedGroup});
                                                     }}
                                                 /> </div>
