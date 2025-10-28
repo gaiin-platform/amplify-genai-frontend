@@ -609,8 +609,11 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
               onClick={() => handleLoadTemplate(template.templateId)}
               title="Click to preview this workflow template, click again to deselect">
               <div className="flex flex-col truncate">
-                <div className="font-medium text-neutral-800 dark:text-neutral-200">
+                <div className="font-medium text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
                   {template.name}
+                  {loadingSelectedWorkflow && selectedWorkflowId === template.templateId && (
+                    <IconLoader2 size={14} className="animate-spin text-blue-400" />
+                  )}
                 </div>
                 {template.description && (
                   <div className="text-xs text-neutral-600 dark:text-neutral-400 truncate">
