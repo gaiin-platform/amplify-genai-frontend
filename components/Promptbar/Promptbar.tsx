@@ -20,7 +20,6 @@ import {FolderInterface, SortType} from "@/types/folder";
 import { AssistantModal } from '../Promptbar/components/AssistantModal';
 import { getAssistants, handleUpdateAssistantPrompt, isAssistant} from '@/utils/app/assistants';
 import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
-import { useSession } from 'next-auth/react';
 import Sidebar from '../Sidebar/Sidebar';
 import toast from 'react-hot-toast';
 
@@ -29,8 +28,6 @@ import toast from 'react-hot-toast';
 
 const Promptbar = () => {
   const { t } = useTranslation('promptbar');
-  const { data: session } = useSession();
-
 
   const promptBarContextValue = useCreateReducer<PromptbarInitialState>({
     initialState,

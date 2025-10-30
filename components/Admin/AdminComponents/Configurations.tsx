@@ -14,7 +14,7 @@ import { useSession } from "next-auth/react";
 import InputsMap from "@/components/ReusableComponents/InputMap";
 import { AddEmailWithAutoComplete } from "@/components/Emails/AddEmailsAutoComplete";
 import { ConversationStorage } from "@/types/conversationStorage";
-import { capitalize } from "@/utils/app/data";
+import { capitalize, getUserIdentifier } from "@/utils/app/data";
 import { CsvUpload } from "@/components/ReusableComponents/CsvUpload";
 import { CsvPreviewModal } from "@/components/ReusableComponents/CsvPreviewModal";
 import { useCsvUpload } from "@/hooks/useCsvUpload";
@@ -59,7 +59,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                               admin_text, updateUnsavedConfigs, onModalStateChange}) => {
 
     const { data: session } = useSession();
-    const userEmail = session?.user?.email;
+    const userEmail = getUserIdentifier(session?.user);
 
     const [isDeleting, setIsDeleting] = useState<boolean>(false);
     const [deleteUsersList, setDeleteUsersList] = useState<string[]>([]);
@@ -799,7 +799,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                             </td>
 
                                             <td className="text-center border border-neutral-500 px-4 py-2 break-words max-w-[300px]">
-                                                {group.createdBy}
+                                                {amplifyUsers[group.createdBy] || group.createdBy}
                                             </td>
 
                                             <td className="">

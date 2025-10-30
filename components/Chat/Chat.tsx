@@ -63,7 +63,6 @@ import { getSettings } from '@/utils/app/settings';
 import { checkAvailableModelId, filterModels } from '@/utils/app/models';
 import { promptForData } from '@/utils/app/llm';
 import cloneDeep from 'lodash/cloneDeep';
-import { useSession } from 'next-auth/react';
 import { ConfirmModal } from '../ReusableComponents/ConfirmModal';
 import { getActivePlugins } from '@/utils/app/plugin';
 import { Settings } from '@/types/settings';
@@ -108,9 +107,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             handleUpdateSelectedConversation,
             getDefaultModel, handleForkConversation
         } = useContext(HomeContext);
-
-        const { data: session } = useSession();
-        const userEmail = session?.user?.email;
 
         // there should be a model id now since on fetchModels, I set it
         const getDefaultModelIdFromLocalStorage = () => {
@@ -1032,7 +1028,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     isFetching = true;
 
                     try {
-                        const result = await doMtdCostOp(userEmail ?? '');
+                        const result = await doMtdCostOp();
                         if (result && "MTD Cost" in result && result["MTD Cost"] !== undefined) {
                             setMtdCost(`$${result["MTD Cost"].toFixed(2)}`);
                         } else {

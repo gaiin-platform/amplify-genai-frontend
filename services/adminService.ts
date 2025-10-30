@@ -75,6 +75,7 @@ export const embeddingDocumentStaus = async (dataSources: {key: string, type: st
         op: '/status',
         service: EMBEDDINGS_SERVICE_NAME
     };
+    
     return await doRequestOp(op);
 }
 

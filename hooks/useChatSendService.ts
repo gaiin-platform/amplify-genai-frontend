@@ -5,7 +5,6 @@ import { killRequest as killReq, MetaHandler } from '../services/chatService';
 import { ChatBody, Conversation, CustomFunction, JsonSchema, Message, newMessage } from "@/types/chat";
 import { ColumnsSpec, } from "@/utils/app/csv";
 import { Plugin, PluginID } from '@/types/plugin';
-import { useSession } from "next-auth/react"
 import json5 from "json5";
 import { DefaultModels, Model } from "@/types/model";
 import { newStatus } from "@/types/workflow";
@@ -61,7 +60,6 @@ export function useSendService() {
         dispatch: homeDispatch,
     } = useContext(HomeContext);
 
-    const { data: session } = useSession();
 
     const conversationsRef = useRef(conversations);
     const messageTimestampRef = useRef<string | undefined>(undefined);

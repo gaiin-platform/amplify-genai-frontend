@@ -151,7 +151,7 @@ const sanitizedUrl = (source: any) => {
 const ChatSourceBlock: React.FC<Props> = (
     {source, index, name}) => {
     const { data: session } = useSession();
-    const user = session?.user?.email;
+    const user: any = session?.user;
 
     const { state: {}, setLoadingMessage
     } = useContext(HomeContext);
@@ -193,7 +193,7 @@ const ChatSourceBlock: React.FC<Props> = (
                 { source.url ? sanitizedUrl(source) :
                 <>
                 {source.name && (
-                    (source.contentKey && !source.contentKey.includes("global/") &&  (source.contentKey.includes(user) ||  source.groupId))  ? 
+                    (source.contentKey && !source.contentKey.includes("global/") &&  (source.contentKey.includes(user?.email) || source.contentKey.includes(user?.username) ||  source.groupId))  ? 
                         <button id="sourceName" className="mr-auto text-start text-[#5495ff] cursor-pointer hover:underline" title='Download File'
                             onClick={() => downloadFile({id: source.contentKey, name: source.name, type: source.type}, source.groupId)}>
                             {source.name}

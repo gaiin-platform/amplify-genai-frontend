@@ -13,6 +13,7 @@ import {ImportAnythingModal} from "@/components/Share/ImportAnythingModal";
 import HomeContext from "@/pages/api/home/home.context";
 import {useSession} from "next-auth/react";
 import ActionButton from '../ReusableComponents/ActionButton';
+import { getUserIdentifier } from '@/utils/app/data';
 
 const SharedItemsList: FC<{}> = () => {
 
@@ -36,10 +37,10 @@ const SharedItemsList: FC<{}> = () => {
     const [isButtonHover, setIsButtonHover] = useState<boolean>(false);
 
     const { data: session } = useSession();
-    const user = session?.user;
+    const user = getUserIdentifier(session?.user) ?? "";
 
     useEffect( () => {
-        const name = user?.email;
+        const name = user;
         if (name) {
             statsService.openSharedItemsEvent();
             if (allItems.length === 0) fetchSWYData(name);
@@ -53,7 +54,7 @@ const SharedItemsList: FC<{}> = () => {
                     const result = await getSharedItems();
                     if (result.success) {
                         const shared = result.items.filter((item: { sharedBy: string; }) => {
-                            return item.sharedBy !== user?.email;
+                            return item.sharedBy !== user;
                         });
                         // Sort by sharedAt timestamp, newest first
                         const sortedItems = shared.sort((a: ShareItem, b: ShareItem) => {
@@ -148,9 +149,9 @@ const SharedItemsList: FC<{}> = () => {
                         disabled={isLoading}
                         className={`group relative overflow-hidden bg-white dark:bg-neutral-800 border-2 border-neutral-200 dark:border-neutral-600 hover:border-blue-300 dark:hover:border-blue-600 text-neutral-700 dark:text-neutral-300 font-medium py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 ${!isLoading ? "cursor-pointer" : "opacity-50 cursor-not-allowed"}`}
                         onClick={async () => {
-                        if (user?.email && !isLoading) {
+                        if (user && !isLoading) {
                            setIsLoading(true);
-                           await fetchSWYData(user?.email);
+                           await fetchSWYData(user);
                         }}
                         }
                     >

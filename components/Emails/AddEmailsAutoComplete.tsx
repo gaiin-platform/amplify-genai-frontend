@@ -1,6 +1,7 @@
-import { FC, useState, useCallback } from "react";
+import { FC, useState, useCallback, useContext } from "react";
 import { EmailsAutoComplete } from "./EmailsAutoComplete";
 import { IconPlus, IconTrash, IconCheck, IconX } from "@tabler/icons-react";
+import HomeContext from "@/pages/api/home/home.context";
 
 interface AddEmailsProps {
     id: String;
@@ -12,6 +13,7 @@ interface AddEmailsProps {
 }
 
 export const AddEmailWithAutoComplete: FC<AddEmailsProps> = ({ id, emails, allEmails, handleUpdateEmails, displayEmails = false, disableEdit = false}) => {
+    const { state: { amplifyUsers }, dispatch: homeDispatch } = useContext(HomeContext);
     const [hoveredUser, setHoveredUser] = useState<string | null>(null);
     const [input, setInput] = useState<string>('');
 
@@ -73,11 +75,20 @@ export const AddEmailWithAutoComplete: FC<AddEmailsProps> = ({ id, emails, allEm
 
     // Handle input blur
     const handleBlurAdd = useCallback(() => {
-        // Process any remaining input on blur
-        if (input.trim()) {
-            processEntries(input, true);
+        const trimmed = input.trim();
+        if (!trimmed) return;
+        
+        // Only auto-add on blur if the input matches a known user in amplifyUsers
+        const isKnownUser = amplifyUsers && (
+            // Check if input matches a username (key) or email (value) in amplifyUsers
+            Object.keys(amplifyUsers).includes(trimmed) || 
+            Object.values(amplifyUsers).includes(trimmed)
+        );
+        
+        if (isKnownUser && !emails.includes(trimmed)) {
+            processEntries(trimmed, true);
         }
-    }, [input, processEntries]);
+    }, [input, processEntries, amplifyUsers, emails]);
 
     // Handle paste event with multiple entries
     const handlePaste = useCallback((pastedText: string) => {

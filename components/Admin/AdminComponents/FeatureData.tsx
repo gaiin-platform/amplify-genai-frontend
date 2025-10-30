@@ -21,6 +21,7 @@ import Checkbox from "@/components/ReusableComponents/CheckBox";
 import Search from "@/components/Search";
 import { useSession } from "next-auth/react";
 import { amplifyAssistants } from "@/utils/app/amplifyAssistants";
+import { getUserIdentifier } from "@/utils/app/data";
 
 
 interface Props {
@@ -55,7 +56,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyUsers, ampl
                                            stillLoadingData, isAvailableCheck, admin_text, updateUnsavedConfigs}) => {
     const { state: { statsService }, setLoadingMessage } = useContext(HomeContext);
     const { data: session } = useSession();
-    const userEmail = session?.user?.email;
+    const userEmail = getUserIdentifier(session?.user) ?? "Unknown";
 
     const [hoveredAstGroup, setHoveredAstGroup] = useState<string>('');  
     const [keyReplacementLoading, setKeyReplacementLoading] = useState<string>(''); 

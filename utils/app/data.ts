@@ -518,3 +518,8 @@ export const formatCurrency = (amount: number) => {
     }).format(amount);
 };
 
+export const getUserIdentifier = (user: any): string | null => {
+    if (!user) return null;
+    return user?.username || user?.email;
+};
+

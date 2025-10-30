@@ -14,6 +14,7 @@ import { ItemSelect } from "../ReusableComponents/ItemsSelect";
 import { baseAssistantFolder, isBaseFolder, isBasePrompt } from "@/utils/app/basePrompts";
 import { Modal } from "../ReusableComponents/Modal";
 import { IconNote } from "@tabler/icons-react";
+import { getUserIdentifier } from "@/utils/app/data";
 
 export interface SharingModalProps {
     open: boolean;
@@ -66,7 +67,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
 
 
     const { data: session } = useSession();
-    const user = session?.user;
+    const sharedBy = getUserIdentifier(session?.user) ?? "Unknown";
 
     // Individual states for selected prompts, conversations, and folders
     const [isSharing, setIsSharing] = useState(false);
@@ -131,8 +132,6 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
             const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
             return username || email; // Fallback to email if no mapping found
         });
-        const sharedBy = user?.email ? user.email.toLowerCase() : undefined;
-
 
         if (sharedBy && sharingNote) {
             try {

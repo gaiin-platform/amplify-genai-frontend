@@ -11,6 +11,7 @@ import { Prompt } from "@/types/prompt";
 import { FolderInterface } from "@/types/folder";
 import { GroupTypesAst } from "../AssistantAdminUI";
 import { Checkbox } from '../../ReusableComponents/CheckBox';
+import { getUserIdentifier } from "@/utils/app/data";
 
 interface User {
     name: string;  // username (key) for backend operations
@@ -36,9 +37,7 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
     adminGroups, setAdminGroups, amplifyUsers, amplifyGroups, systemUsers }) => {
     const { state: { groups, prompts, folders, statsService }, dispatch: homeDispatch } = useContext(HomeContext);
     const { data: session } = useSession();
-    const userEmail = session?.user?.email;
-    // Convert current user's email to username for all comparisons
-    const currentUsername = userEmail ? Object.keys(amplifyUsers).find(key => amplifyUsers[key] === userEmail) || userEmail : '';
+    const currentUsername = getUserIdentifier(session?.user);
 
     const [hasAdminAccess, setHasAdminAccess] = useState<boolean>((currentUsername && selectedGroup.members[currentUsername] === GroupAccessType.ADMIN) || false);
     const [groupTypes, setGroupTypes] = useState<string[]>(selectedGroup.groupTypes);

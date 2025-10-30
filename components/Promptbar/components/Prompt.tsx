@@ -30,7 +30,6 @@ import { v4 as uuidv4 } from "uuid";
 import {
     handleStartConversationWithPrompt,
 } from "@/utils/app/prompts";
-import { useSession } from "next-auth/react";
 import {getAssistant, handleUpdateAssistantPrompt, isAssistant} from "@/utils/app/assistants";
 import {AssistantModal} from "@/components/Promptbar/components/AssistantModal";
 import {deleteAssistant} from "@/services/assistantService";
@@ -67,8 +66,7 @@ export const PromptComponent = ({ prompt }: Props) => {
         promptsRef.current = prompts;
       }, [prompts]);
 
-    const { data: session } = useSession();
-    const user = session?.user;
+
     // const isReserved = (isAssistant(prompt) && prompt?.data?.assistant?.definition?.tags?.includes(ReservedTags.SYSTEM));
     const isBase = isBasePrompt(prompt.id);
     const groupId = prompt.groupId;

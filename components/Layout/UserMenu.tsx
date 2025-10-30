@@ -16,6 +16,7 @@ import SharingDialog from '../Share/SharingDialog';
 interface UserMenuProps {
   email: string | null | undefined;
   name?: string | null;
+  username?: string | null;
   cognitoDomain?: string;
   cognitoClientId?: string;
 }
@@ -23,6 +24,7 @@ interface UserMenuProps {
 export const UserMenu: React.FC<UserMenuProps> = ({ 
   email, 
   name,
+  username,
   cognitoDomain,
   cognitoClientId,
 }) => {
@@ -159,7 +161,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
         isFetching = true;
 
         try {
-          const result = await doMtdCostOp(email || '');
+          const result = await doMtdCostOp();
           if (result && "MTD Cost" in result && result["MTD Cost"] !== undefined) {
             setMtdCost(`$${result["MTD Cost"].toFixed(2)}`);
           } else {
@@ -195,7 +197,15 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   // Get user initials for avatar
   const getUserInitials = () => {
     if (name) {
-      return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+      let processedName = name;
+      // If name contains comma, flip the parts (Last, First -> First Last)
+      if (name.includes(',')) {
+        const parts = name.split(',').map(part => part.trim());
+        if (parts.length === 2) {
+          processedName = `${parts[1]} ${parts[0]}`;
+        }
+      }
+      return processedName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
     }
     return email?.charAt(0).toUpperCase() || 'U';
   };
@@ -405,6 +415,12 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 
             <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-600/50 pr-10">
               <div className="sidebar-title truncate text-neutral-800 dark:text-neutral-100 mb-0.5">{displayName}</div>
+              {username && (
+                <div className="flex items-center gap-1 truncate text-neutral-600 dark:text-neutral-300 text-xs font-medium mb-0.5">
+                  <IconUser size={12} className="text-neutral-500 dark:text-neutral-400" />
+                  <span className="truncate">{username}</span>
+                </div>
+              )}
               <div className="truncate text-neutral-500 dark:text-neutral-400 text-xs font-medium">{email}</div>
             </div>
 

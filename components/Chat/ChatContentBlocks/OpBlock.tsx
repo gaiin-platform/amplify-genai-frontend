@@ -11,6 +11,7 @@ import {resolveServerHandler} from "@/utils/app/ops";
 import JsonForm from "@/components/JsonForm/JsonForm";
 import React from "react";
 import { DefaultModels } from "@/types/model";
+import { getUserIdentifier } from "@/utils/app/data";
 
 
 
@@ -75,7 +76,7 @@ const OpBlock: React.FC<OpProps> = ({definition, message}) => {
 
     const {state:{messageIsStreaming, selectedConversation, selectedAssistant, chatEndpoint, defaultAccount}, dispatch:homeDispatch, getDefaultModel} = useContext(HomeContext);
     const { data: session } = useSession();
-    const user = session?.user;
+    const user = getUserIdentifier(session?.user);
 
     const {getOp, executeOp} = useOpsService();
     const {handleSend} = useSendService();
@@ -150,7 +151,7 @@ const OpBlock: React.FC<OpProps> = ({definition, message}) => {
 
     const handleDoOp = async () => {
 
-        if(user?.email && op && selectedConversation) {
+        if(user && op && selectedConversation) {
 
             setLoadingMessage("Working on it...");
             setIsLoading(true);

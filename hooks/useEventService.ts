@@ -9,7 +9,7 @@ import {useSession} from "next-auth/react";
 import { uncompressMessages } from "@/utils/app/messages";
 import { ApiKey } from "@/types/apikeys";
 import { Settings } from "@/types/settings";
-import { capitalize } from "@/utils/app/data";
+import { capitalize, getUserIdentifier } from "@/utils/app/data";
 
 let eventServiceReady = false;
 
@@ -17,12 +17,12 @@ const useEventService = (mixPanelToken:string) => {
 
     const {data: session} = useSession();
 
-    const user = session?.user;
+    const user =  getUserIdentifier(session?.user);
 
-    if(!eventServiceReady && mixPanelToken && user?.email) {
+    if(!eventServiceReady && mixPanelToken && user) {
         try {
             mixpanel.init(mixPanelToken, {debug: false, track_pageview: true, persistence: 'localStorage'});
-            mixpanel.identify(user.email);
+            mixpanel.identify(user);
             eventServiceReady = true;
         } catch (e) {
             console.error("Error initializing mixpanel", e);

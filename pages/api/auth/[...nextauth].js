@@ -24,16 +24,13 @@ export const authOptions = {
         // newUser: '/auth/new-user' // New users will be directed here on first sign in (leave the property out if not of interest)
     },
     callbacks: {
-        // This ensures that any user trying to login has an 'immutable_id' attribute
-        // TODO(Karely): we may wish to move this to check the token rather than the profile
         async signIn({ account, profile }) {
-            if (profile && profile['custom:immutable_id']) {
-                return true;
-            } else {
-                return false;
-            }
+            return true;
         },
         async jwt({ token, profile, account }) {
+            if (profile && profile['custom:immutable_id']) {
+                token.immutableId = profile['custom:immutable_id'];
+            }
             // Persist the OAuth access_token to the token right after signin
             if (account) {
                 // New token
@@ -90,10 +87,11 @@ export const authOptions = {
 
         async session({ session, token, user }) {
             // Send properties to the client, like an access_token from a provider.
-            session.accessToken = token.accessToken
-            session.error = token.error
+            session.accessToken = token.accessToken;
+            session.error = token.error;
             session.upgradedOrCreated = !!token.upgradedOrCreated;
-            return session
+            session.user.username = token.immutableId;
+            return session;
         }
     },
     secret: process.env.NEXTAUTH_SECRET,

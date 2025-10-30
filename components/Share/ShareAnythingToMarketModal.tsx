@@ -9,7 +9,6 @@ import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import {getCategories, getCategory, publish} from "@/services/marketService";
 import {v4} from "uuid";
-import {useSession} from "next-auth/react";
 import { getDate } from "@/utils/app/date";
 import toast from "react-hot-toast";
 
@@ -78,9 +77,6 @@ export const ShareAnythingToMarketModal: FC<SharingModalProps> = (
 
 
 
-
-    const { data: session } = useSession();
-    const user = session?.user;
 
     // Individual states for selected prompts, conversations, and folders
     const [isPublishing, setIsPublishing] = useState(false);

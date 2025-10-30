@@ -1,7 +1,6 @@
 import HomeContext from "@/pages/api/home/home.context";
 import {Conversation, Message} from "@/types/chat";
 import React, {FC, useContext, useEffect, useRef, useState} from "react";
-import { useSession } from "next-auth/react"
 import {IconDownload} from '@tabler/icons-react';
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
@@ -51,8 +50,6 @@ export const DownloadModal: FC<DownloadModalProps> = (
         state: {prompts, conversations, folders, statsService, selectedConversation, powerPointTemplateOptions},
     } = useContext(HomeContext);
 
-    const { data: session } = useSession();
-    const user = session?.user;
 
     // Individual states for selected prompts, conversations, and folders
     const [isDownloading, setIsDownloading] = useState(false);

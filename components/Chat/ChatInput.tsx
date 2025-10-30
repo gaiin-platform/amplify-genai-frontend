@@ -57,7 +57,6 @@ import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
 import { MemoryPresenter } from "@/components/Chat/MemoryPresenter";
 // import { ProjectList } from './ProjectList';
-import { useSession } from 'next-auth/react';
 import {  } from '../../services/memoryService';
 import { Settings } from '@/types/settings';
 import { ToggleOptionButtons } from '../ReusableComponents/ToggleOptionButtons';
@@ -157,7 +156,6 @@ export const ChatInput = ({
     const [isFactsVisible, setIsFactsVisible] = useState(false);
     // const [showProjectList, setShowProjectList] = useState(false);
     // const projectListRef = useRef<HTMLDivElement | null>(null);
-    const { data: session } = useSession();
     // const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     // const [projects, setProjects] = useState<Project[]>([]);
 
@@ -317,8 +315,7 @@ export const ChatInput = ({
     // const [factTypes, setFactTypes] = useState<{ [key: string]: string }>({});
     // const [selectedProjects, setSelectedProjects] = useState<{ [key: string]: string }>({});
 
-    // const { data: session } = useSession();
-    // const userEmail = session?.user?.email;
+
 
     const extractDocumentsLocally = featureFlags.extractDocumentsLocally;
 

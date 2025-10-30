@@ -9,6 +9,7 @@ import { GroupTypesAst } from "../AssistantAdminUI";
 import { IconCheck, IconPlus, IconTrashX, IconX } from "@tabler/icons-react";
 import { includeGroupInfoBox } from "@/components/Emails/EmailsList";
 import { AddEmailWithAutoComplete } from "@/components/Emails/AddEmailsAutoComplete";
+import { getUserIdentifier } from "@/utils/app/data";
 
 interface CreateProps {
     createGroup: (groupData: any) => void;
@@ -22,11 +23,10 @@ interface CreateProps {
 
 
 export const CreateAdminDialog: FC<CreateProps> = ({ createGroup, onClose, allEmails, message, amplifyGroups, systemUsers, amplifyUsers }) => {
-    const { state: { statsService, groups }, dispatch: homeDispatch } = useContext(HomeContext);
+    const { state: { groups }, dispatch: homeDispatch } = useContext(HomeContext);
     const { data: session } = useSession();
-    const userEmail = session?.user?.email;
     // Convert current user's email to username
-    const user = userEmail ? Object.keys(amplifyUsers).find(key => amplifyUsers[key] === userEmail) || userEmail : '';
+    const user = getUserIdentifier(session?.user);
 
 
     const [groupName, setGroupName] = useState<string>('');

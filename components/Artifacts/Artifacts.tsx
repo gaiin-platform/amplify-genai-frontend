@@ -41,6 +41,7 @@ import { CodeBlockDetails, extractCodeBlocksAndText } from "@/utils/app/codebloc
 import ActionButton from "../ReusableComponents/ActionButton";
 import { getDateName } from "@/utils/app/date";
 import { resolveRagEnabled } from "@/types/features";
+import { getUserIdentifier } from "@/utils/app/data";
 
   interface Props {
     artifactIndex: number;
@@ -185,7 +186,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
     const [allEmails, setAllEmails] = useState<Array<string> | null>(null);
     const [shareWith, setShareWith] = useState<string[]>([]);
     const { data: session } = useSession();
-    const user = session?.user?.email;
+    const user = session?.user; // Needed as email since sharing shows emails not usernames
 
     const [messagedCopied, setMessageCopied] = useState(false);
     const [innerHeight, setInnerHeight] = useState(window.innerHeight);
@@ -198,7 +199,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
             // add groups  #groupName
             const groupForMembers = groups.map((group:Group) => `#${group.name}`);
             setAllEmails(emailSuggestions ? [...emailSuggestions,
-                                             ...groupForMembers].filter((e: string) => e !== user) : []);
+                                             ...groupForMembers].filter((e: string) => e !== user?.email) : []);
         };
         if (!allEmails) fetchEmails();
     }, [open]);
@@ -230,7 +231,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
                 const group = groups.find((g: Group) => g.name === e.slice(1));
                 if (group) {
                     entriesWithGroupMembers = [...entriesWithGroupMembers,
-                    ...Object.keys(group.members).filter((member: string) => member !== user)];
+                    ...Object.keys(group.members).filter((member: string) => member !== getUserIdentifier(user))];
                 }
             } else {
                 // Convert email to username for storage

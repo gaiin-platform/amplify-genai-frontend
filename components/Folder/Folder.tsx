@@ -35,6 +35,7 @@ import { folder } from 'jszip';
 import { useSession } from 'next-auth/react';
 import { getSettings } from '@/utils/app/settings';
 import { getDateName } from '@/utils/app/date';
+import { getUserIdentifier } from '@/utils/app/data';
 
 interface Props {
   currentFolder: FolderInterface;
@@ -54,7 +55,7 @@ const Folder = ({
           dispatch: homeDispatch,} = useContext(HomeContext);
 
   const { data: session } = useSession();
-  const user = session?.user?.email;
+  const user = getUserIdentifier(session?.user);
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);

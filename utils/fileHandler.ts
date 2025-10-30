@@ -115,11 +115,10 @@ export function validateFileByName(
         ...customErrorMessages
     };
 
-    // Check for empty extension
+    // Allow files without extensions - they will be handled as octet-stream
     if (extension === '') {
         return {
-            isValid: false,
-            errorMessage: errorMessages.unsupportedType,
+            isValid: true,
             extension
         };
     }

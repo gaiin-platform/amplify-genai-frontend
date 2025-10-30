@@ -14,6 +14,7 @@ import { conversationWithCompressedMessages, conversationWithUncompressedMessage
 import { saveFolders } from "@/utils/app/folders";
 import { savePrompts } from "@/utils/app/prompts";
 import { DefaultModels } from "@/types/model";
+import { getUserIdentifier } from "@/utils/app/data";
 
 export interface ImportModalProps {
     onImport: (importData: ExportFormatV4) => void;
@@ -83,7 +84,7 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
     };
 
     const { data: session } = useSession();
-    const user = session?.user;
+    const user =  getUserIdentifier(session?.user);
 
     // Individual states for selected prompts, conversations, and folders
     const [isImporting, setIsImporting] = useState(true);
@@ -303,7 +304,7 @@ export const ImportWorkspaceModal: FC<ImportModalProps> = (
         const fetchData = async () => {
 
 
-            if (user && user.email) {
+            if (user) {
 
                 const result = await loadSharedItem(importKey);
 

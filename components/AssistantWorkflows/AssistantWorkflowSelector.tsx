@@ -1,6 +1,6 @@
 import { listAstWorkflowTemplates } from "@/services/assistantWorkflowService";
 import { AstWorkflow } from "@/types/assistantWorkflows";
-import { snakeCaseToTitleCase } from "@/utils/app/data";
+import { getUserIdentifier, snakeCaseToTitleCase } from "@/utils/app/data";
 import { IconPlus } from "@tabler/icons-react";
 import { useContext, useEffect, useState } from "react";
 import { AssistantWorkflowBuilder } from "./AssistantWorkflowBuilder";
@@ -21,7 +21,7 @@ export const AssistantWorkflowSelector: React.FC<Props> = ({
   }) => {
 
     const { data: session } = useSession();
-    const userEmail = session?.user?.email;
+    const user = getUserIdentifier(session?.user);
 
     const [workflowTemplates, setWorkflowTemplates] = useState<AstWorkflow[] | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -59,7 +59,7 @@ export const AssistantWorkflowSelector: React.FC<Props> = ({
                 > 
                     {workflowTemplates && workflowTemplates.map((template: AstWorkflow, index: number) => (
                         <option key={`${template.templateId}-${index}`} value={template.templateId}
-                                title={`${template.description} ${template.user && template.user != userEmail ? `Provided by ${template.user}` : ""}`}>
+                                title={`${template.description} ${template.user && template.user != user ? `Provided by ${template.user}` : ""}`}>
                             {snakeCaseToTitleCase(template.name)}
                         </option>
                     ))}

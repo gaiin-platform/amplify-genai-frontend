@@ -11,6 +11,7 @@ import {
     MemoryType,
     MemoryDialogProps
 } from '@/types/memory';
+import { getUserIdentifier } from '@/utils/app/data';
 
 const LoadingSpinner = () => (
     <div className="flex justify-center py-4">
@@ -35,7 +36,7 @@ export const MemoryDialog: FC<MemoryDialogProps> = ({ open, onClose }) => {
     const [processingMemoryId, setProcessingMemoryId] = useState<string | null>(null);
 
     const { data: session } = useSession();
-    const userEmail = session?.user?.email;
+    const userEmail = getUserIdentifier(session?.user);
 
     const handleToggleMemoryExtraction = (enabled: boolean) => {
         homeDispatch({

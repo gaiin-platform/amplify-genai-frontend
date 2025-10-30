@@ -5,7 +5,6 @@ import {useSendService} from "@/hooks/useChatSendService";
 import {Conversation, Message, newMessage} from "@/types/chat";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {getOpsForUser} from "@/services/opsService";
-import {useSession} from "next-auth/react";
 import {getDbsForUser} from "@/services/pdbService";
 import {
     getApiCalls,
@@ -84,8 +83,6 @@ const AutonomousBlock: React.FC<Props> = (
         foldersRef.current = folders;
     }, [folders]);
 
-
-    const { data: session, status } = useSession();
 
     const {handleSend} = useSendService();
 

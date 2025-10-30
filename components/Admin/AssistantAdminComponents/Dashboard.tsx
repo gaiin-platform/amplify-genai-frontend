@@ -95,6 +95,7 @@ const SimplePieList: FC<{ data: DataPoint[] }> = ({ data }) => {
 export const Dashboard: FC<{ metrics: DashboardMetrics, supportConvAnalysis: boolean }> = ({ metrics, supportConvAnalysis }) => {
     // Transform object data into array format for visualization
     console.log("supportConvAnalysis:", supportConvAnalysis);
+    console.log("metrics:", metrics);
 
     const transformDistributionData = (data: { [key: string]: number }): DataPoint[] => {
         return Object.entries(data).map(([name, value]) => ({ name, value }));

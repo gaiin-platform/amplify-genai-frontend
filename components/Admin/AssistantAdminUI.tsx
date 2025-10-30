@@ -38,6 +38,7 @@ import ActionButton from '../ReusableComponents/ActionButton';
 import { contructGroupData } from '@/utils/app/groups';
 import { getHiddenGroupFolders, saveFolders } from '@/utils/app/folders';
 import { filterAstsByFeatureFlags } from '@/utils/app/assistants';
+import { getUserIdentifier } from '@/utils/app/data';
 
 
 const subTabs = ['dashboard', 'conversations', 'edit_assistant', 'group'] as const;
@@ -52,7 +53,7 @@ interface Props {
 export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant }) => {
     const { state: { featureFlags, statsService, groups, prompts, folders, syncingPrompts, amplifyUsers }, dispatch: homeDispatch } = useContext(HomeContext);
     const { data: session } = useSession();
-    const user = session?.user?.email ?? "";
+    const user = getUserIdentifier(session?.user) ?? "";
 
     const foldersRef = useRef(folders);
 
@@ -484,9 +485,11 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                             metrics={dashboardMetrics}
                             supportConvAnalysis={!!selectedGroup?.supportConvAnalysis && !!selectedAssistant?.data?.supportConvAnalysis}
                         /> :
-                        <div className="text-black dark:text-white">
-                            No dashboard data available for {selectedAssistant?.name}
+                        <div className="text-black dark:text-white text-center">
+                            No dashboard data available for  {selectedAssistant?.name}
                             (Assistant ID: {selectedAssistant?.data?.assistant?.definition.assistantId})
+                            <br className='mb-2'></br>
+                            Enable conversation analysis in the Edit Assistant tab with categories, then user conversations will generate dashboard data.
                         </div>
                 );
 

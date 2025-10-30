@@ -40,7 +40,7 @@ interface ApiItemProps {
 
     const { state: { aiEmailDomain, featureFlags }} = useContext(HomeContext);
     const { data: session } = useSession();
-    const userEmail = session?.user?.email ?? '';
+    const userEmail = session?.user?.email ?? ''; // Kept as email to avoid breaking changes, updates in the backend handle username translation
 
     // Use fallback function if the imported one fails
     const isPresetCheck = typeof isPresetEmailEventTag === 'function' ? isPresetEmailEventTag : isPresetEmailEventTagFallback;

@@ -54,7 +54,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
 }) => {
     const { state: { featureFlags, chatEndpoint, statsService, amplifyUsers, defaultAccount }, getDefaultModel} = useContext(HomeContext);
     const { data: session } = useSession();
-    const userEmail = session?.user?.email;
+    const userEmail = session?.user?.email; // Needed as email since listing users shows emails not usernames
     
     const [pathError, setPathError] = useState<string | null>(null);
     const featureEnabled = !!featureFlags?.assistantPathPublishing;

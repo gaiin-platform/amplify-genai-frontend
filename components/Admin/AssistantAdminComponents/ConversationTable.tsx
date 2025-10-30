@@ -86,6 +86,7 @@ export const ConversationTable: FC<{ conversations: AstUserConversation[], suppo
     }, [searchTerm, conversations, supportConvAnalysis]);
 
     const openPopup = (conversation: AstUserConversation) => {
+        console.log("conversation", conversation);
         setSelectedConversation(conversation);
     };
 
@@ -400,6 +401,7 @@ const ConversationPopup: FC<{ conversation: AstUserConversation; onClose: () => 
                 setIsLoading(true);
                 statsService.getGroupConversationDataEvent(conversation.assistantId, conversation.conversationId);
                 const result = await getGroupConversationData(conversation.assistantId, conversation.conversationId);
+                console.log("result", result);
                 if (result.success) {
                     const formattedContent = result.data.content.replace(/\\n/g, '\n').replace(/#dataSource:/g, '');
                     setContent(formattedContent);

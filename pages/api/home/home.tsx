@@ -62,7 +62,6 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { WorkflowDefinition } from "@/types/workflow";
 import { saveWorkflowDefinitions } from "@/utils/app/workflows";
-import SharedItemsList from "@/components/Share/SharedItemList";
 // import { Market } from "@/components/Market/Market";
 import { useSession, signIn, signOut, getSession } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
@@ -73,7 +72,6 @@ import { deleteAssistant, listAssistants } from '@/services/assistantService';
 import { filterAstsByFeatureFlags, getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
 import { fetchAllRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import {killRequest as killReq} from "@/services/chatService";
-import { DefaultUser } from 'next-auth';
 import { addDateAttribute, getFullTimestamp, getDateName } from '@/utils/app/date';
 import HomeContext, {  ClickContext, Processor } from './home.context';
 import { ReservedTags } from '@/types/tags';
@@ -129,7 +127,7 @@ const Home = ({
     const [hasAcceptedDataDisclosure, sethasAcceptedDataDisclosure] = useState<boolean | null> (null);
 
     const { data: session, status } = useSession();
-    const [user, setUser] = useState<DefaultUser | null>(null);
+    const [user, setUser] = useState<any>(null);
 
     const isLoading = status === "loading";
     const userError = null;
@@ -678,7 +676,7 @@ const Home = ({
 
 
     useEffect (() => {
-        if (!user && session?.user) setUser(session.user as DefaultUser);
+        if (!user && session?.user) setUser(session.user);
     }, [session])
 
 
@@ -1460,6 +1458,8 @@ const Home = ({
                             <UserMenu
                                 email={user?.email}
                                 name={session?.user?.name}
+                                username={(session?.user as any)?.username}
+
                             />
 
 

@@ -52,8 +52,8 @@ export const handleFile = async (file:any,
         let type:string = file.type;
         const extension = file.name.split('.').pop()?.toLowerCase();
 
-      if (!type && ((extension === 'ts' || extension === 'tsx') || (extension === 'ps1'))) {
-            type = 'application/octet-stream'; // AWS S3 expects typescript files to be this type
+      if (!type && ((extension === 'ts' || extension === 'tsx') || (extension === 'ps1') || !extension)) {
+            type = 'application/octet-stream'; // AWS S3 expects typescript files and files without extensions to be this type
         }
 
         let size = file.size;
