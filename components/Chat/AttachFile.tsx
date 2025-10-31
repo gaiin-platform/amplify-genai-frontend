@@ -45,7 +45,8 @@ export const handleFile = async (file:any,
                         //   extractDocumentsLocally:boolean,
                         groupId:string | undefined, 
                         ragEnabled:boolean,
-                        props:any = {}
+                        props:any = {},
+                        tags:string[] = []
                       ) => {
 
     try {
@@ -104,7 +105,7 @@ export const handleFile = async (file:any,
                         else if (onUploadProgress && progress >= 95) {
                             onUploadProgress(document, 95);
                         }
-                    }, ragEnabled);
+                    }, ragEnabled, tags);
                 docKey = key;
                 if (onSetAbortController) onSetAbortController(document, () => {
                                             abortController?.abort()                                    

@@ -296,6 +296,8 @@ export async function processZipFileAsync(
                         fileOptions.ragOn || false, 
                         fileOptions.disableRag
                     );
+                    const zipFileName = zipFile.name.replace(/\.zip$/i, '');
+                    const tags = [zipFileName];
                     // Process the extracted file (this will call onAttach for each individual file)
                     handleFile(
                         extractedFile,
@@ -307,7 +309,8 @@ export async function processZipFileAsync(
                         fileOptions.uploadDocuments,
                         fileOptions.groupId,
                         ragEnabled,
-                        fileOptions.props || {}
+                        fileOptions.props || {},
+                        tags
                     );
                     
                     processedCount++;
@@ -416,7 +419,8 @@ export function processSingleFile(
         uploadDocuments,
         groupId,
         ragEnabled,
-        props
+        props,
+        []
     );
 }
 /**
