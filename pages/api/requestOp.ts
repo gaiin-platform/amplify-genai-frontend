@@ -67,7 +67,7 @@ const requestOp =
         }
         if (payload) {
             const shouldCompress = !NO_COMPRESSION_PATHS.includes(reqData.path);
-
+            
             if (shouldCompress) {
                 try {
                     if (typeof payload === 'object') {
@@ -86,6 +86,7 @@ const requestOp =
                 console.log(`Skipping compression for path: ${reqData.path}`);
             }
             reqPayload.body = JSON.stringify( { data: payload });
+
         }
 
         try {
