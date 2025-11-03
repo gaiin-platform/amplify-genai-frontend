@@ -250,7 +250,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
       const taskResult = await executeTask(taskId);
       if (taskResult.success) {
         toast.success("Task execution started.");
-
+        
         let attempts = 0;
         const maxAttempts = 80; // Reduced from 200
         let trackedExecutionId: string | null = null;
@@ -371,7 +371,8 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           }
         };
 
-        setTimeout(pollForLogs, 1000); // Start polling after 1 second
+        // Start polling after 1 second
+        setTimeout(pollForLogs, 1000);
 
       } else {
         toast.error("Failed to run task: " + (taskResult.message || "Unknown error"));

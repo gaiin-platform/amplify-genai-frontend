@@ -65,6 +65,29 @@ const requestOp =
             reqPayload.body = JSON.stringify( { data: payload });
 
         }
+        if (payload) {
+            const shouldCompress = !NO_COMPRESSION_PATHS.includes(reqData.path);
+            
+            if (shouldCompress) {
+                try {
+                    if (typeof payload === 'object') {
+                        payload = lzwCompress(JSON.stringify(payload));   
+                        console.log("Compressed payload");
+                    } else if (typeof payload === 'string' && payload.length > 1000) {
+                        // Compress large strings
+                        payload = lzwCompress(payload);
+                        console.log("Compressed payload");
+                    }
+                } catch (e) {
+                    console.error("Error in requestOp: ", e);
+                    console.log("Sending uncompressed payload");
+                }
+            } else {
+                console.log(`Skipping compression for path: ${reqData.path}`);
+            }
+            reqPayload.body = JSON.stringify( { data: payload });
+
+        }
 
         try {
 

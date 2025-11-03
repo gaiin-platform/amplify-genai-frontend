@@ -183,6 +183,7 @@ const getIcons = (model: Model) => {
           <div id="legendHover" className='ml-auto relative' onMouseEnter={() => setShowLegend(true) } onMouseLeave={() => setShowLegend(false)}>
             <IconInfoCircle size={19} className='mr-1 mt-[-4px] flex-shrink-0 text-gray-600 dark:text-gray-300' />
             {showLegend && legend(showPricingBreakdown, featureFlags)}
+            {showLegend && legend(showPricingBreakdown, featureFlags)}
           </div>
         </div>
       )}
