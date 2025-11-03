@@ -274,7 +274,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [isLoading, setIsLoading] = useState(false);
     const [name, setName] = useState(definition.name);
     const [description, setDescription] = useState(definition.description);
-    const [opsLanguageVersion, setOpsLanguageVersion] = useState(definition.data?.opsLanguageVersion || "v1");
+    const [opsLanguageVersion, setOpsLanguageVersion] = useState(() => {
+        const loadedVersion = definition.data?.opsLanguageVersion || "v1";
+        return loadedVersion;
+    });
     const [content, setContent] = useState(definition.instructions);
     const [disclaimer, setDisclaimer] = useState(definition.disclaimer ?? "");
     const [dataSources, setDataSources] = useState(initialDs);
@@ -414,8 +417,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     useEffect(() => {
         if (baseWorkflowTemplateId) {
             setOpsLanguageVersion("v4");
-        } else {
-            setOpsLanguageVersion("v1");
         }
     }, [baseWorkflowTemplateId]);
 
@@ -756,7 +757,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                     newAssistant.data.workflowTemplateId = response.data.templateId;
                     newAssistant.data.baseWorkflowTemplateId = baseWorkflowTemplateId;
                     setLoadingMessage(loadingMessage);
-                    newAssistant.data.opsLanguageVersion = "v4";
+                    // Only set to v4 if user hasn't already selected Agent
+                    if (opsLanguageVersion !== "v4") {
+                        newAssistant.data.opsLanguageVersion = "v4";
+                    }
                 } else {
                     alert("Unable to register assistant workflow template, please try again later...");
                     setIsLoading(false);
@@ -767,7 +771,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 console.log("--Workflow no changes--")
                 newAssistant.data.baseWorkflowTemplateId = baseWorkflowTemplateId;
                 newAssistant.data.workflowTemplateId = astWorkflowTemplateId;
-                if (astWorkflowTemplateId) newAssistant.data.opsLanguageVersion = "v4";
+                // Only force v4 if user hasn't already selected Agent and there's a workflow template that requires it
+                if (astWorkflowTemplateId && opsLanguageVersion !== "v4") newAssistant.data.opsLanguageVersion = "v4";
             }
             
             // Email Events

@@ -9,6 +9,7 @@ import JSZip from "jszip";
 import { v4 as uuidv4 } from 'uuid';
 import {AttachedDocument, AttachedDocumentMetadata} from '@/types/attacheddocument';
 import {addFile, checkContentReady, deleteFile} from "@/services/fileService";
+import { getMimeTypeFromExtension } from '@/utils/app/fileTypeTranslations';
 import HomeContext from "@/pages/api/home/home.context";
 import React from 'react';
 import { resolveRagEnabled } from '@/types/features';
@@ -51,15 +52,20 @@ export const handleFile = async (file:any,
     try {
         let type:string = file.type;
         const extension = file.name.split('.').pop()?.toLowerCase();
+        
+        console.log(`[FILE UPLOAD DEBUG] Initial file.type: "${file.type}", extension: "${extension}", fileName: "${file.name}"`);
 
-      if (!type && ((extension === 'ts' || extension === 'tsx') || (extension === 'ps1') || !extension)) {
-            type = 'application/octet-stream'; // AWS S3 expects typescript files and files without extensions to be this type
+      // If no type is detected, try to infer it from the file extension
+      if (!type) {
+            type = getMimeTypeFromExtension(extension || '');
+            console.log(`[FILE UPLOAD DEBUG] Inferred type from extension: "${type}"`);
         }
 
         let size = file.size;
         const fileName = file.name.replace(/[_\s]+/g, '_');;
 
-        let document:AttachedDocument = {id:uuidv4(), name: fileName, type:file.type, raw:"", data: props, groupId};
+        let document:AttachedDocument = {id:uuidv4(), name: fileName, type: type, raw:"", data: props, groupId};
+        console.log(`document.type: "${document.type}"`);
         console.log("document", document);
         console.log("file", file);
 
