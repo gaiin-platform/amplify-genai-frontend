@@ -1,4 +1,4 @@
-import { FC, useEffect, useState, useCallback } from "react";
+import { FC, useEffect, useState, useCallback, useContext } from "react";
 import { Modal } from "../ReusableComponents/Modal";
 import { ActiveTabs, Tabs } from "../ReusableComponents/ActiveTabs";
 import { getAllUserMtdCosts, getBillingGroupsCosts } from "@/services/mtdCostService";
@@ -8,6 +8,7 @@ import { InfoBox } from "../ReusableComponents/InfoBox";
 import React from "react";
 import Search from "../Search/Search";
 import { formatCurrency } from "@/utils/app/data";
+import HomeContext from "@/pages/api/home/home.context";
 
 interface AccountData {
   accountInfo: string;
@@ -86,6 +87,7 @@ interface Props {
 const MTD_USAGE_LIMITS = [25, 50, 100, 250, 500];
 
 export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
+  const { state: {amplifyUsers}, dispatch: homeDispatch } = useContext(HomeContext);
   const [activeTab, setActiveTab] = useState(0);
   
   // All Users tab state
@@ -217,14 +219,26 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     return systemUserPattern.test(email);
   };
 
+  // Function to get display name from amplifyUsers mapping
+  const getUserDisplayName = (email: string) => {
+    // If email exists in amplifyUsers mapping, return the mapped value
+    if (amplifyUsers && amplifyUsers[email]) {
+      return amplifyUsers[email];
+    }
+    // Otherwise return the original email
+    return email;
+  };
+
   // Filter users based on search term
   const filteredUsers = userCosts.filter((user) => {
     if (!userSearchTerm.trim()) return true;
     const searchLower = userSearchTerm.toLowerCase();
     const emailInfo = cleanEmailDisplay(user.email);
+    const displayName = getUserDisplayName(user.email);
     return (
       user.email.toLowerCase().includes(searchLower) ||
-      emailInfo.displayName.toLowerCase().includes(searchLower)
+      emailInfo.displayName.toLowerCase().includes(searchLower) ||
+      displayName.toLowerCase().includes(searchLower)
     );
   });
 
@@ -425,7 +439,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-2 flex-1 min-w-0">
             <span className="text-gray-900 dark:text-white break-all">
-              {user.email}
+              {getUserDisplayName(user.email)}
             </span>
             {isDuplicate && (
               <div className="flex items-center space-x-1 flex-shrink-0">
@@ -460,7 +474,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
           <div className="flex items-center space-x-2 flex-1 min-w-0">
             {isDuplicate && <IconAlertTriangle size={12} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />}
             <span className="text-gray-900 dark:text-white break-all">
-              {user.email}
+              {getUserDisplayName(user.email)}
             </span>
           </div>
           <span className="font-semibold text-gray-900 dark:text-white flex-shrink-0 ml-2">
@@ -481,7 +495,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-2 flex-1 min-w-0">
             <span className="text-gray-900 dark:text-white break-all">
-              {user.email}
+              {getUserDisplayName(user.email)}
             </span>
             {isDuplicate && (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 flex-shrink-0">
@@ -512,7 +526,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
       >
         <div className="flex justify-between items-center">
           <span className="text-gray-900 dark:text-white break-all flex-1 min-w-0">
-            {user.email}
+            {getUserDisplayName(user.email)}
           </span>
           <span className="font-semibold text-gray-900 dark:text-white flex-shrink-0 ml-2">
             {formatCurrency(user.totalCost)}
@@ -536,7 +550,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-2 flex-1 min-w-0">
             <span className="text-gray-900 dark:text-white break-all">
-              {user.email}
+              {getUserDisplayName(user.email)}
             </span>
             {isDuplicate && (
               <IconInfoCircle size={12} className="text-blue-500 dark:text-blue-400 flex-shrink-0" />
@@ -632,7 +646,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                         <IconUserCog size={14} className="text-orange-600 dark:text-orange-400 flex-shrink-0" />
                       )}
                       <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                        {emailInfo.isGroup ? emailInfo.displayName : emailInfo.displayName.split('@')[0]}
+                        {emailInfo.isGroup ? emailInfo.displayName : getUserDisplayName(usersSummary.topSpender.email).split('@')[0]}
                       </p>
                     </>
                   );
@@ -749,7 +763,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                   <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        User Email
+                        User
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         Today&apos;s Cost
@@ -783,7 +797,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                                     {isSystem && (
                                       <IconUserCog size={16} className="text-orange-600 dark:text-orange-400" />
                                     )}
-                                    <span>{emailInfo.displayName}</span>
+                                    <span>{getUserDisplayName(user.email)}</span>
                                   </div>
                                 );
                               })()}
@@ -1142,7 +1156,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                               </span>
                               <div className="flex-1 min-w-0">
                                 <div className="text-gray-900 dark:text-white break-all">
-                                  {user.email}
+                                  {getUserDisplayName(user.email)}
                                 </div>
                                 <div className="text-gray-500 dark:text-gray-400 text-xs">
                                   {user.membershipType} • {formatCurrency(user.totalCost)}
