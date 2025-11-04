@@ -249,7 +249,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         (sanitizedModel as any)[field] = value;
                     });
                     
-                    const floatFields = ["outputTokenCost", "inputTokenCost", "cachedTokenCost"] as const;
+                    const floatFields = ["outputTokenCost", "inputTokenCost", "inputCachedTokenCost", "outputCachedTokenCost"] as const;
                     floatFields.forEach((field) => {
                         const value = typeof model[field] === 'string' 
                             ? parseFloat(String(model[field])) || 0.0 

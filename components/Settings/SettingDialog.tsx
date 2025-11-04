@@ -583,7 +583,8 @@ const renderModelPricing = (availableModels: Record<ModelKey, any[]>) => {
                       >
                         <label className="px-2">{model.name}</label>
                       </td>
-                      {["inputTokenCost", "outputTokenCost", "cachedTokenCost"].map((s: string, idx: number) => (
+                      {["inputTokenCost", "outputTokenCost", "inputCachedTokenCost", "outputCachedTokenCost"]
+                        .map((s: string, idx: number) => (
                         <td
                           key={idx}
                           className="border border-neutral-500 py-2"

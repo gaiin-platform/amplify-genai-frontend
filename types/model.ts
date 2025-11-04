@@ -10,7 +10,8 @@ export interface Model {
   provider: string;
   inputTokenCost: number;
   outputTokenCost: number;
-  cachedTokenCost: number;
+  inputCachedTokenCost: number;
+  outputCachedTokenCost: number;
 }
 
 export interface Models {

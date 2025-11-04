@@ -75,6 +75,8 @@ export const fileExtensionToType: { [key: string]: string } = {
     'cpp': 'C++',
     'cs': 'C#',
     'ts': 'TypeScript',
+    'jsx': 'JavaScript',
+    'tsx': 'TypeScript',
     'html': 'HTML',
     'css': 'CSS',
     'json': 'JSON',
@@ -258,6 +260,7 @@ export const getMimeTypeFromExtension = (extension: string): string => {
         'png image': 'image/png',
         'gif image': 'image/gif',
         'svg image': 'image/svg+xml',
+        'webp image': 'image/webp',
         'zip archive': 'application/zip'
     };
     

@@ -1,4 +1,5 @@
 import { COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS } from './app/const';
+import { getMimeTypeFromExtension } from './app/fileTypeTranslations';
 import { handleFile } from '@/components/Chat/AttachFile';
 import { resolveRagEnabled } from '@/types/features';
 import { AttachedDocument } from '@/types/attacheddocument';
@@ -199,37 +200,6 @@ export async function extractZipFiles(zipFile: File): Promise<File[]> {
         console.error('Failed to extract ZIP file:', error);
         throw new Error('Failed to extract ZIP file. Please ensure it\'s a valid ZIP archive.');
     }
-}
-/**
- * Get MIME type from file extension
- */
-function getMimeTypeFromExtension(extension: string): string | null {
-    const mimeTypes: { [key: string]: string } = {
-        'txt': 'text/plain',
-        'md': 'text/markdown',
-        'json': 'application/json',
-        'js': 'text/javascript',
-        'ts': 'text/typescript',
-        'jsx': 'text/javascript',
-        'tsx': 'text/typescript',
-        'html': 'text/html',
-        'css': 'text/css',
-        'pdf': 'application/pdf',
-        'doc': 'application/msword',
-        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'xls': 'application/vnd.ms-excel',
-        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'ppt': 'application/vnd.ms-powerpoint',
-        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        'jpg': 'image/jpeg',
-        'jpeg': 'image/jpeg',
-        'png': 'image/png',
-        'gif': 'image/gif',
-        'webp': 'image/webp',
-        'svg': 'image/svg+xml'
-    };
-    
-    return mimeTypes[extension.toLowerCase()] || null;
 }
 /**
  * Process a ZIP file asynchronously and attach the extracted files (not the ZIP itself)
