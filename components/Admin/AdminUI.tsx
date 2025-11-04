@@ -873,7 +873,7 @@ interface AmplifyGroupSelectProps {
   }
   
 export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, selected, setSelected, isDisabled = false, label = 'Amplify Groups'}) => {
-    console.log('AmplifyGroupSelect selected:', selected, 'type:', typeof selected, 'isArray:', Array.isArray(selected));
+
     const [isOpen, setIsOpen] = useState(false);
     const [selectedGroups, setSelectedGroups] = useState<string[]>(selected);
     const [dropdownDirection, setDropdownDirection] = useState<'down' | 'up'>('down');
