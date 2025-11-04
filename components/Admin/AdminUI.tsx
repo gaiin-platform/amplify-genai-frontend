@@ -249,7 +249,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         (sanitizedModel as any)[field] = value;
                     });
                     
-                    const floatFields = ["outputTokenCost", "inputTokenCost", "inputCachedTokenCost", "outputCachedTokenCost"] as const;
+                    const floatFields = ["outputTokenCost", "inputTokenCost", "inputCachedTokenCost", "inputWriteCachedTokenCost"] as const;
                     floatFields.forEach((field) => {
                         const value = typeof model[field] === 'string' 
                             ? parseFloat(String(model[field])) || 0.0 
@@ -873,6 +873,7 @@ interface AmplifyGroupSelectProps {
   }
   
 export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, selected, setSelected, isDisabled = false, label = 'Amplify Groups'}) => {
+    console.log('AmplifyGroupSelect selected:', selected, 'type:', typeof selected, 'isArray:', Array.isArray(selected));
     const [isOpen, setIsOpen] = useState(false);
     const [selectedGroups, setSelectedGroups] = useState<string[]>(selected);
     const [dropdownDirection, setDropdownDirection] = useState<'down' | 'up'>('down');

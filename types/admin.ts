@@ -141,7 +141,7 @@ export interface EmbeddingsConfig  {
     outputTokenCost: number;
     inputTokenCost: number;
     inputCachedTokenCost: number;
-    outputCachedTokenCost: number;
+    inputWriteCachedTokenCost: number;
     description: string;
     exclusiveGroupAvailability: string[];
     supportsImages: boolean;

@@ -11,7 +11,7 @@ export interface Model {
   inputTokenCost: number;
   outputTokenCost: number;
   inputCachedTokenCost: number;
-  outputCachedTokenCost: number;
+  inputWriteCachedTokenCost: number;
 }
 
 export interface Models {

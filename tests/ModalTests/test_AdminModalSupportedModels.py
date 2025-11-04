@@ -213,12 +213,12 @@ class AccountModalTests(BaseTest):
         
         time.sleep(2)
 
-        # Enter number and confirm id="outputCachedTokenCostInput" exists
-        output_cached_token_cost = self.wait.until(
-            EC.presence_of_element_located((By.ID, "outputCachedTokenCostInput"))
+        # Enter number and confirm id="inputWriteCachedTokenCost" exists
+        input_write_cached_token_cost = self.wait.until(
+            EC.presence_of_element_located((By.ID, "inputWriteCachedTokenCost"))
         )
-        output_cached_token_cost.clear()
-        output_cached_token_cost.send_keys(1)
+        input_write_cached_token_cost.clear()
+        input_write_cached_token_cost.send_keys(1)
         
         time.sleep(2)
         
