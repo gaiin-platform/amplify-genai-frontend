@@ -23,11 +23,11 @@ export const downloadArtifacts = (artifactName: string, textContent: string, cod
 
 
     if (!hasCodeBlocks) {
-        // If only text and no code blocks, make it a .docx file
+        // If only text and no code blocks, make it a .txt file. Word documents must go through the backend.
         files.push({
-            name: `${artifactName}.docx`,
+            name: `${artifactName}.txt`,
             content: textContent,
-            type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            type: 'text/plain'
         });
     } else {
         // Handle code blocks
