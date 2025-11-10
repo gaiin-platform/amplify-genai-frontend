@@ -780,7 +780,13 @@ const Home = ({
             try {
                 const response = await fetchEmailSuggestions("*");
                 if (response && response.user_email_map) {
-                    dispatch({ field: 'amplifyUsers', value: response.user_email_map});  
+                    const updatedUserEmailMap = Object.fromEntries(
+                        Object.entries(response.user_email_map).map(([key, value]) => [
+                            key, 
+                            value && value !== '' ? value : key
+                        ])
+                    );
+                    dispatch({ field: 'amplifyUsers', value: updatedUserEmailMap});  
                 } else {
                     console.log("Failed to fetch amplify users.");
                 }
