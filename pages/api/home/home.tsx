@@ -779,8 +779,8 @@ const Home = ({
             console.log("Fetching Amplify Users...");
             try {
                 const response = await fetchEmailSuggestions("*");
-                if (response && (response.emails || response.user_email_map)) {
-                    dispatch({ field: 'amplifyUsers', value: response.user_email_map || {}});  
+                if (response && response.user_email_map) {
+                    dispatch({ field: 'amplifyUsers', value: response.user_email_map});  
                 } else {
                     console.log("Failed to fetch amplify users.");
                 }
