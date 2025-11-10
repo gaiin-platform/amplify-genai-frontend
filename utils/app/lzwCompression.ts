@@ -73,3 +73,8 @@ export function lzwUncompress(compressedData: number[]): string {
 
     return output;
 }
+
+
+export function isLzwCompressed(data: any): data is number[] {
+    return Array.isArray(data) && data.length > 0 && data.every(item => typeof item === 'number');
+}

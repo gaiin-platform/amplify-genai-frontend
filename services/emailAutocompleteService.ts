@@ -1,4 +1,6 @@
 import { doRequestOp } from "./doRequestOp";
+import { lzwUncompress, isLzwCompressed } from "@/utils/app/lzwCompression";
+
 
 const URL_PATH = "/utilities";
 const SERVICE_NAME = "emailAutocomplete";
@@ -14,7 +16,8 @@ export const fetchEmailSuggestions = async (queryInput: string) => {
     };
     const result = await doRequestOp(op);
     try {
-        return JSON.parse(result.body);
+        let body = result.body && isLzwCompressed(result.body) ? lzwUncompress(result.body) : result.body;
+        return JSON.parse(body);
     } catch {
         return null;
     }
