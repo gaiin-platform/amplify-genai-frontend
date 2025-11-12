@@ -34,6 +34,7 @@ import { AstUserConversation, ConversationTable } from './AssistantAdminComponen
 import { Dashboard, DashboardMetrics } from './AssistantAdminComponents/Dashboard';
 import { GroupManagement } from './AssistantAdminComponents/GroupManagement';
 import { CreateAdminDialog } from './AssistantAdminComponents/CreateAdminGroupDialog';
+import { AssistantSharedExchangeInbox, SharedExchangeMailbox } from './AssistantAdminComponents/AssistantSharedExchangeInbox';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { contructGroupData } from '@/utils/app/groups';
 import { getHiddenGroupFolders, saveFolders } from '@/utils/app/folders';
@@ -830,7 +831,7 @@ interface AssistantModalProps {
 // To add more configuarations to the assistant, add components here and ensure the change is set in additionalGroupData
 export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId, astData = {}, groupTypes = [], additionalGroupData, setAdditionalGroupData, groupConvAnalysisSupport }) => {
     const {
-        state: { availableModels }
+        state: { availableModels, featureFlags }
     } = useContext(HomeContext);
     const [isPublished, setIsPublished] = useState<boolean>(astData.isPublished ?? false);
     const [enforceModel, setEnforceModel] = useState<boolean>(!!astData.model);
@@ -838,6 +839,8 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
     const [showTrackingRequiredMessage, setShowTrackingRequiredMessage] = useState<boolean>(false);
     const [astSupportConvAnalysis, setAstSupportConvAnalysis] = useState<boolean>(astData.supportConvAnalysis ?? false);
     const [analysisCategories, setAnalysisCategories] = useState<string[]>(astData.analysisCategories ?? []);
+    const [selectedSharedMailboxes, setSelectedSharedMailboxes] = useState<SharedExchangeMailbox[]>(astData.sharedMailboxes ?? []);
+    const [enableSharedExchange, setEnableSharedExchange] = useState<boolean>(astData.enableSharedExchange ?? false);
 
     // Hide the message after 3 seconds when it's shown
     useEffect(() => {
@@ -978,6 +981,29 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
                 />
             </div>
         </>}
+        
+        {featureFlags.assistantEmailEvents && (
+            <>
+                <br className='mb-1'></br>
+                <AssistantSharedExchangeInbox
+                    groupId={groupId}
+                    assistantDefinition={astData}
+                    selectedSharedMailboxes={selectedSharedMailboxes}
+                    onSelectedMailboxesChange={(mailboxes: SharedExchangeMailbox[]) => {
+                        setSelectedSharedMailboxes(mailboxes);
+                        setAdditionalGroupData({ ...additionalGroupData, sharedMailboxes: mailboxes });
+                    }}
+                    enableSharedExchange={enableSharedExchange}
+                    setEnableSharedExchange={(enabled: boolean) => {
+                        setEnableSharedExchange(enabled);
+                        setAdditionalGroupData({ ...additionalGroupData, enableSharedExchange: enabled });
+                    }}
+                    disabled={false}
+                    aiEmailDomain={process.env.NEXT_PUBLIC_AI_EMAIL_DOMAIN || 'vanderbilt.ai'}
+                />
+            </>
+        )}
+        
         <br className='mb-1'></br>
         <GroupTypesAstData
             groupId={groupId}
