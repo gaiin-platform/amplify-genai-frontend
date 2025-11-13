@@ -1,7 +1,7 @@
 import { FC, useEffect, useState, useCallback, useContext } from "react";
 import { Modal } from "../ReusableComponents/Modal";
 import { ActiveTabs, Tabs } from "../ReusableComponents/ActiveTabs";
-import { getAllUserMtdCosts, getBillingGroupsCosts, getAllUserMtdCostsRecursive, AutoLoadProgress } from "@/services/mtdCostService";
+import { getAllUserMtdCosts, getBillingGroupsCosts, getAllUserMtdCostsRecursive, AutoLoadProgress, getUserCostHistory, UserCostHistory, MonthlyHistoryData } from "@/services/mtdCostService";
 import { LoadingIcon } from "../Loader/LoadingIcon";
 import { IconRefresh, IconDownload, IconUsers, IconBuilding, IconLink, IconAlertTriangle, IconInfoCircle, IconKey, IconUserCog, IconBolt } from "@tabler/icons-react";
 import { InfoBox } from "../ReusableComponents/InfoBox";
@@ -111,6 +111,12 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     hasMore: false
   });
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  
+  // History state
+  const [userHistory, setUserHistory] = useState<Record<string, UserCostHistory>>({});
+  const [loadingHistory, setLoadingHistory] = useState<Record<string, boolean>>({});
+  const [expandedMonth, setExpandedMonth] = useState<Record<string, string | null>>({});
+  const [showHistory, setShowHistory] = useState<Record<string, boolean>>({});
   
   // Search state
   const [userSearchTerm, setUserSearchTerm] = useState<string>('');
@@ -362,7 +368,27 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
   };
 
   const toggleUserExpansion = (email: string) => {
-    setExpandedUser(expandedUser === email ? null : email);
+    const wasExpanded = expandedUser === email;
+    setExpandedUser(wasExpanded ? null : email);
+  };
+  
+  const loadHistoryForUser = async (email: string) => {
+    if (userHistory[email]) {
+      // Already loaded, just toggle visibility
+      setShowHistory(prev => ({ ...prev, [email]: !prev[email] }));
+      return;
+    }
+    
+    setLoadingHistory(prev => ({ ...prev, [email]: true }));
+    setShowHistory(prev => ({ ...prev, [email]: true }));
+    
+    const result = await getUserCostHistory(email, 12);
+    
+    if (result.success && result.data) {
+      setUserHistory(prev => ({ ...prev, [email]: result.data }));
+    }
+    
+    setLoadingHistory(prev => ({ ...prev, [email]: false }));
   };
 
   const toggleGroupMembersExpansion = (groupName: string) => {
@@ -413,6 +439,55 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     const a = document.createElement('a');
     a.href = url;
     a.download = `billing-groups-costs-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const downloadUserHistoryCSV = (email: string, user: UserMtdData) => {
+    const history = userHistory[email];
+    if (!history) return;
+
+    const headers = ['Month', 'Account', 'Daily Cost', 'Monthly Cost', 'Total Cost'];
+    const rows: string[] = [headers.join(',')];
+
+    // Add current month data first
+    const currentMonth = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+    if (user.accounts && user.accounts.length > 0) {
+      user.accounts.forEach(account => {
+        // Clean account info for CSV (remove formatting characters)
+        const accountName = account.accountInfo.split('#')[0];
+        rows.push([
+          `"${currentMonth} (Current)"`,
+          `"${accountName}"`,
+          account.dailyCost.toFixed(2),
+          account.monthlyCost.toFixed(2),
+          account.totalCost.toFixed(2)
+        ].join(','));
+      });
+    }
+
+    // Add historical months data
+    if (history.history && history.history.length > 0) {
+      history.history.forEach(month => {
+        month.accounts.forEach(account => {
+          const accountName = account.accountInfo.split('#')[0];
+          rows.push([
+            `"${month.displayMonth}"`,
+            `"${accountName}"`,
+            '0.00', // Historical data doesn't split daily/monthly
+            '0.00',
+            account.cost.toFixed(2)
+          ].join(','));
+        });
+      });
+    }
+
+    const csvContent = rows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${email.split('@')[0]}-cost-history-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -902,41 +977,179 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                             </span>
                           </td>
                         </tr>
-                        {expandedUser === user.email && user.accounts && user.accounts.length > 0 && (
+                        {expandedUser === user.email && (
                           <tr key={`${user.email}-details`} className="bg-gray-50 dark:bg-gray-900">
                             <td colSpan={4} className="px-6 py-4">
-                              <div className="ml-6">
-                                <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Account Breakdown:</h4>
-                                <div className="overflow-x-auto">
-                                  <table className="min-w-full text-sm">
-                                    <thead>
-                                      <tr className="border-b border-gray-200 dark:border-gray-700">
-                                        <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Account Info</th>
-                                        <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Daily Cost</th>
-                                        <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Monthly Cost</th>
-                                        <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Total Cost</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {user.accounts.map((account, accountIndex) => (
-                                        <tr key={`${account.accountInfo}-${accountIndex}`} className="border-b border-gray-100 dark:border-gray-800">
-                                          <td className="py-2 px-4 text-gray-900 dark:text-white font-mono text-xs">
-                                            {formatAccountInfo(account.accountInfo)}
-                                          </td>
-                                          <td className="py-2 px-4 text-gray-900 dark:text-white">
-                                            {formatCurrency(account.dailyCost)}
-                                          </td>
-                                          <td className="py-2 px-4 text-gray-900 dark:text-white">
-                                            {formatCurrency(account.monthlyCost)}
-                                          </td>
-                                          <td className="py-2 px-4 text-gray-900 dark:text-white font-semibold">
-                                            {formatCurrency(account.totalCost)}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
+                              <div className="ml-6 space-y-4">
+                                {/* Current Month Account Breakdown - FIRST */}
+                                <div>
+                                  <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Current Month Account Breakdown</h4>
+                                  {user.accounts && user.accounts.length > 0 && (
+                                    <div className="overflow-x-auto">
+                                      <table className="min-w-full text-sm">
+                                        <thead>
+                                          <tr className="border-b border-gray-200 dark:border-gray-700">
+                                            <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Account Info</th>
+                                            <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Daily Cost</th>
+                                            <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Monthly Cost</th>
+                                            <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Total Cost</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {user.accounts.map((account, accountIndex) => (
+                                            <tr key={`${account.accountInfo}-${accountIndex}`} className="border-b border-gray-100 dark:border-gray-800">
+                                              <td className="py-2 px-4 text-gray-900 dark:text-white font-mono text-xs">
+                                                {formatAccountInfo(account.accountInfo)}
+                                              </td>
+                                              <td className="py-2 px-4 text-gray-900 dark:text-white">
+                                                {formatCurrency(account.dailyCost)}
+                                              </td>
+                                              <td className="py-2 px-4 text-gray-900 dark:text-white">
+                                                {formatCurrency(account.monthlyCost)}
+                                              </td>
+                                              <td className="py-2 px-4 text-gray-900 dark:text-white font-semibold">
+                                                {formatCurrency(account.totalCost)}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
                                 </div>
+
+                                {/* View History Button */}
+                                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                                  <button
+                                    onClick={() => loadHistoryForUser(user.email)}
+                                    disabled={loadingHistory[user.email]}
+                                    className="w-full px-4 py-3 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 hover:from-blue-100 hover:to-purple-100 dark:hover:from-blue-900/30 dark:hover:to-purple-900/30 border border-blue-200 dark:border-blue-800 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <div className="flex items-center justify-center space-x-2">
+                                      {loadingHistory[user.email] ? (
+                                        <>
+                                          <LoadingIcon style={{ width: '16px', height: '16px' }} />
+                                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Loading cost history...</span>
+                                        </>
+                                      ) : showHistory[user.email] ? (
+                                        <>
+                                          <span className="text-gray-400">▼</span>
+                                          <span className="text-sm font-medium text-gray-900 dark:text-white">📅 Hide Cost History</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <span className="text-gray-400">▶</span>
+                                          <span className="text-sm font-medium text-gray-900 dark:text-white">📅 View Cost History</span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </button>
+                                </div>
+
+                                {/* History Section - Only show when toggled */}
+                                {showHistory[user.email] && userHistory[user.email] && (
+                                  <div className="space-y-4 pt-4">
+                                    {userHistory[user.email].summary.monthCount > 0 && (
+                                      <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                                        <div className="flex items-center justify-between mb-3">
+                                          <h4 className="font-semibold text-gray-900 dark:text-white">📊 Cost History Overview</h4>
+                                          <button
+                                            onClick={() => downloadUserHistoryCSV(user.email, user)}
+                                            className="flex items-center space-x-1 px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-xs"
+                                            title="Download history CSV"
+                                          >
+                                            <IconDownload size={14} />
+                                            <span>CSV</span>
+                                          </button>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-4">
+                                          <div>
+                                            <p className="text-xs text-gray-600 dark:text-gray-400">Total ({userHistory[user.email].summary.monthCount} months)</p>
+                                            <p className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(userHistory[user.email].summary.totalSpendAllTime)}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-xs text-gray-600 dark:text-gray-400">Avg/Month</p>
+                                            <p className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(userHistory[user.email].summary.avgMonthlySpend)}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-xs text-gray-600 dark:text-gray-400">Trend</p>
+                                            <p className={`text-lg font-bold ${userHistory[user.email].summary.trend.direction === 'up' ? 'text-red-600 dark:text-red-400' : userHistory[user.email].summary.trend.direction === 'down' ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                                              {userHistory[user.email].summary.trend.direction === 'up' ? '↗' : userHistory[user.email].summary.trend.direction === 'down' ? '↘' : '→'} {userHistory[user.email].summary.trend.percentage.toFixed(1)}%
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                    
+                                    {userHistory[user.email].history.length > 0 ? (
+                                      <div>
+                                        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">📅 Monthly Breakdown</h4>
+                                        <div className="space-y-2">
+                                          {userHistory[user.email].history.map((month) => (
+                                            <div key={month.month} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                              <button
+                                                onClick={() => {
+                                                  setExpandedMonth(prev => ({
+                                                    ...prev,
+                                                    [user.email]: prev[user.email] === month.month ? null : month.month
+                                                  }));
+                                                }}
+                                                className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                              >
+                                                <div className="flex items-center space-x-3">
+                                                  <span className="text-gray-400">{expandedMonth[user.email] === month.month ? '▼' : '▶'}</span>
+                                                  <div className="text-left">
+                                                    <p className="font-medium text-gray-900 dark:text-white">{month.displayMonth}</p>
+                                                    
+                                                  </div>
+                                                </div>
+                                                
+                                                <div className="flex items-center space-x-4">
+                                                  <span className="font-bold text-lg text-gray-900 dark:text-white">{formatCurrency(month.totalCost)}</span>
+                                                  
+                                                  <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                                    <div 
+                                                      className="bg-blue-600 dark:bg-blue-400 h-full rounded-full transition-all"
+                                                      style={{ width: `${Math.min((month.totalCost / Math.max(...userHistory[user.email].history.map(h => h.totalCost))) * 100, 100)}%` }}
+                                                    />
+                                                  </div>
+                                                  
+                                                  <span className="text-xs text-gray-600 dark:text-gray-400">{month.accounts.length} accounts</span>
+                                                </div>
+                                              </button>
+
+                                              {expandedMonth[user.email] === month.month && (
+                                                <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                                                  <h5 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                                                    Account Breakdown ({month.accounts.length} accounts)
+                                                  </h5>
+                                                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                                                    {month.accounts.map((account, idx) => (
+                                                      <div key={idx} className="py-2 px-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
+                                                        <div className="flex justify-between items-start">
+                                                          <div className="text-gray-900 dark:text-white font-mono text-xs flex-1">
+                                                            {formatAccountInfo(account.accountInfo)}
+                                                          </div>
+                                                          <span className="font-semibold text-gray-900 dark:text-white text-sm ml-4">
+                                                            {formatCurrency(account.cost)}
+                                                          </span>
+                                                        </div>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                        No historical data available for this user
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </td>
                           </tr>

@@ -156,3 +156,58 @@ export const getBillingGroupsCosts = async () => {
     return { success: false, message: 'Failed to fetch billing groups costs' };
 }
 
+export interface MonthlyHistoryData {
+    month: string;
+    displayMonth: string;
+    totalCost: number;
+    dailyCostSum: number;
+    monthlyCostSum: number;
+    accounts: Array<{
+        accountInfo: string;
+        cost: number;
+    }>;
+    daysInMonth: number;
+    isCurrent: boolean;
+}
+
+export interface UserCostHistory {
+    email: string;
+    history: MonthlyHistoryData[];
+    summary: {
+        totalSpendAllTime: number;
+        avgMonthlySpend: number;
+        monthCount: number;
+        firstMonth: string | null;
+        lastMonth: string | null;
+        trend: {
+            direction: 'up' | 'down' | 'flat';
+            percentage: number;
+            comparison: string;
+        };
+    };
+}
+
+export const getUserCostHistory = async (email: string, monthsBack: number = 12) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/user-cost-history",
+        data: { 
+            email,
+            monthsBack 
+        },
+        service: SERVICE_NAME
+    };
+
+    try {
+        const result = await doRequestOp(op);
+        if (result && result.history) {
+            return { success: true, data: result as UserCostHistory };
+        }
+    } catch (error) {
+        console.error('Error fetching user cost history:', error);
+    }
+
+    return { success: false, message: 'Failed to fetch user cost history' };
+}
+
