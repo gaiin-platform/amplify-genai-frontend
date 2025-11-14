@@ -28,8 +28,9 @@ export const authOptions = {
             return true;
         },
         async jwt({ token, profile, account }) {
-            if (profile && profile['custom:immutable_id']) {
-                token.immutableId = profile['custom:immutable_id'];
+            const attr = process.env.IMMUTABLE_ID_ATTRIBUTE;
+            if (profile && attr && profile[attr]) {
+                token.immutableId = profile[attr];
             }
             // Persist the OAuth access_token to the token right after signin
             if (account) {
@@ -53,6 +54,7 @@ export const authOptions = {
 
             // check if the account needs to be upgraded/created
             try {
+                // if (!profile?.[attr]) return token;
                 const response = await fetch((process.env.API_BASE_URL || "") + '/user/create', {
                 // This is a hard coded value for local testing
                 // const response = await fetch('http://localhost:3015/dev/user/create', {
@@ -65,7 +67,8 @@ export const authOptions = {
                         data: {
                         token,
                         profile
-                        }
+                        },
+                        immutable_id_field: attr
                     }),
                     signal: null,
                 });
