@@ -1,9 +1,15 @@
 import React, {FC, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
-import {IconDownload, IconRefresh, IconTrash, IconLoader2} from "@tabler/icons-react";
+import {IconDownload, IconRefresh, IconTrash, IconLoader2, IconCheck, IconX} from "@tabler/icons-react";
+import toast from 'react-hot-toast';
+import {Checkbox} from '@/components/ReusableComponents/CheckBox';
 import {
     MantineReactTable,
     useMantineReactTable,
     type MRT_ColumnDef, MRT_SortingState, MRT_ColumnFiltersState, MRT_Cell, MRT_TableInstance,
+    MRT_ToggleGlobalFilterButton,
+    MRT_ToggleFiltersButton,
+    MRT_ShowHideColumnsButton,
+    MRT_ToggleDensePaddingButton,
 } from 'mantine-react-table';
 import {MantineProvider, ScrollArea} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
@@ -94,6 +100,11 @@ const DataSourcesTableScrolling: FC<Props> = ({
     const fetchedStatusKeys = useRef<Set<string>>(new Set());
     // Track files being reprocessed/polled
     const [pollingFiles, setPollingFiles] = useState<Set<string>>(new Set());
+    
+    // Multi-select delete state
+    const [isDeleteMode, setIsDeleteMode] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
     const getTypeFromCommonName = (commonName: string) => {
         const foundType = Object.entries(mimeTypeToCommonName)
@@ -419,6 +430,63 @@ const DataSourcesTableScrolling: FC<Props> = ({
             setLoadingMessage("");
         }
     }
+    
+    const deleteBatch = async () => {
+        if (selectedIds.size === 0) return;
+        
+        const totalFiles = selectedIds.size;
+        setLoadingMessage(`Deleting ${totalFiles} file(s)...`);
+        
+        try {
+            const results = await Promise.all(
+                Array.from(selectedIds).map(id => {
+                    const file = data.find(f => f.id === id);
+                    return deleteDatasourceFile({id, name: file?.name}, false);
+                })
+            );
+            
+            const failures = results.filter(r => !r.success);
+            const successCount = results.length - failures.length;
+            
+            if (failures.length === 0) {
+                toast.success(`Successfully deleted ${successCount} file(s)`);
+            } else if (successCount === 0) {
+                toast.error(`Failed to delete all ${failures.length} file(s)`);
+            } else {
+                toast.error(`Deleted ${successCount} file(s), but ${failures.length} failed: ${failures.map(f => f.fileName).join(', ')}`);
+            }
+            
+            setSelectedIds(new Set());
+            setShowDeleteConfirmation(false);
+            setIsDeleteMode(false);
+            setData([]);
+            setIsRefetching(true);
+            fetchFiles();
+        } catch (error) {
+            console.error('Error during batch delete:', error);
+            toast.error('An unexpected error occurred during batch deletion');
+        } finally {
+            setLoadingMessage("");
+        }
+    }
+    
+    const toggleSelectAll = () => {
+        if (selectedIds.size === data.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(data.map(file => file.id)));
+        }
+    }
+    
+    const toggleSelectId = (id: string) => {
+        const newSelected = new Set(selectedIds);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedIds(newSelected);
+    }
 
     const fileReprocessing = async (key: string) => {
         // Find the document that will be reprocessed to get its type
@@ -616,20 +684,38 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 enableSorting: false,
                 enableColumnActions: false,
                 enableColumnFilter: false,
-                Cell: ({cell}) => (
-                    <ActionButton
-                        title='Delete File'
-                        handleClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            deleteFile(cell.row.original.id);
-                        }}> 
-                        <IconTrash size={20}/>
-                    </ActionButton>
-                ),   
+                Cell: ({cell}) => {
+                    if (isDeleteMode) {
+                        return (
+                            <div onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                toggleSelectId(cell.row.original.id);
+                            }}>
+                                <Checkbox
+                                    id={`delete-checkbox-${cell.row.original.id}`}
+                                    label=""
+                                    checked={selectedIds.has(cell.row.original.id)}
+                                    onChange={() => toggleSelectId(cell.row.original.id)}
+                                />
+                            </div>
+                        );
+                    }
+                    return (
+                        <ActionButton
+                            title='Delete File'
+                            handleClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                deleteFile(cell.row.original.id);
+                            }}> 
+                            <IconTrash size={20}/>
+                        </ActionButton>
+                    );
+                },   
             },
         ],
-        [embeddingStatus, fetchedStatusKeys],
+        [embeddingStatus, fetchedStatusKeys, isDeleteMode, selectedIds, pollingFiles],
     );
 
     const columns = allColumns.filter(
@@ -671,6 +757,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
         onSortingChange: setSorting,
         enableStickyHeader: true,
         enableBottomToolbar: false,
+        enableTopToolbar: true,
         state: {
             columnFilters,
             globalFilter,
@@ -711,7 +798,97 @@ const DataSourcesTableScrolling: FC<Props> = ({
     });
 
     return (
-        <div>
+        <div className="relative">
+            {/* Delete Mode Controls - Positioned to appear in toolbar area */}
+            <div className="absolute right-2 z-10 flex items-center gap-2" style={{ transform: 'translateY(10px)' }}>
+                {!showDeleteConfirmation ? (
+                    <>  
+                        {isDeleteMode ? (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        toggleSelectAll();
+                                    }}
+                                    className="text-sm px-2 py-1.5 pr-[-2px] rounded hover:bg-gray-600 dark:hover:bg-black transition-colors"
+                                >
+                                    {selectedIds.size === data.length && data.length > 0 ? 'Deselect All' : 'Select All'}
+                                </button>
+                                <span className="text-sm text-gray-400">
+                                    {selectedIds.size} selected
+                                </span>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setShowDeleteConfirmation(true);
+                                    }}
+                                    disabled={selectedIds.size === 0}
+                                    className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors text-sm"
+                                >
+                                    Delete
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setIsDeleteMode(false);
+                                        setSelectedIds(new Set());
+                                    }}
+                                    className="p-1.5 rounded hover:bg-gray-600 dark:hover:bg-black transition-colors"
+                                    title="Cancel"
+                                >
+                                    <IconX size={18} />
+                                </button>
+                            </div>
+                        ) :
+                        <div style={{ transform: 'translateY(6px)' }}>
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setIsDeleteMode(true);
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded hover:bg-gray-600 dark:hover:bg-black transition-colors"
+                            >
+                                <IconTrash size={18} />
+                                <span className="text-sm text-neutral-200 font-bold">{'Delete Multiple'}</span>
+                            </button>
+                        </div>
+                        }
+                    </>
+                ) : (
+                    <div className="flex items-center gap-2 bg-red-500/10 px-3 py-2 rounded">
+                        <span className="text-sm">
+                            Delete {selectedIds.size} file(s)?
+                        </span>
+                        <button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                deleteBatch();
+                            }}
+                            className="rounded hover:bg-green-500/20 transition-colors"
+                            title="Confirm Delete"
+                        >
+                            <IconCheck size={18} className="text-green-500" />
+                        </button>
+                        <button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setShowDeleteConfirmation(false);
+                            }}
+                            className="rounded hover:bg-red-500/20 transition-colors"
+                            title="Cancel"
+                        >
+                            <IconX size={18} className="text-red-500" />
+                        </button>
+                    </div>
+                )}
+            </div>
+            
             <MantineProvider
                 theme={{
                     colorScheme: lightMode, // or 'light', depending on your preference or state
