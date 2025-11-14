@@ -8,6 +8,7 @@ import {
     MRT_ToggleDensePaddingButton,
     MRT_ToggleGlobalFilterButton,
     MRT_ToggleFiltersButton,
+    MRT_RowSelectionState
 } from 'mantine-react-table';
 import {MantineProvider} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
@@ -21,6 +22,7 @@ import { embeddingDocumentStaus } from '@/services/adminService';
 import { capitalize } from '@/utils/app/data';
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
+
 
 const animate = keyframes`
   0% {
@@ -74,7 +76,7 @@ const DataSourcesTable = () => {
     const [prevSorting, setPrevSorting] = useState<MRT_SortingState>([]);
 
     const [refreshKey, setRefreshKey] = useState(0);
-    
+    const [rowSelection, setRowSelection] = useState<MRT_RowSelectionState>({});
     // Embedding status state
     const [embeddingStatus, setEmbeddingStatus] = useState<{[key: string]: string} | null>(null);
     const [isLoadingStatus, setIsLoadingStatus] = useState(false);
@@ -350,6 +352,25 @@ const DataSourcesTable = () => {
         }
     }
 
+    const bulkDeleteFiles = async () => {
+        const selectedIds = Object.keys(rowSelection);
+        if (selectedIds.length === 0) return;
+        const confirmMessage = `Are you sure you want to delete ${selectedIds.length} file${selectedIds.length > 1 ? 's' : ''}?`;
+        if (!confirm(confirmMessage)) return;
+        setLoadingMessage(`Deleting ${selectedIds.length} file${selectedIds.length > 1 ? 's' : ''}...`);
+        try {
+            // Delete files in parallel for better performance
+            const deletePromises = selectedIds.map(id => deleteDatasourceFile({id}));
+            await Promise.all(deletePromises);
+            setRowSelection({}); // Clear selection
+            handleRefresh();
+        } catch (error) {
+            console.error('Error deleting files:', error);
+        } finally {
+            setLoadingMessage("");
+        }
+    }
+
     const fileReprocessing = async (key: string) => {
         // Find the document that will be reprocessed to get its type
         const reprocessedDoc = data.find(file => file.id === key);
@@ -558,8 +579,7 @@ const DataSourcesTable = () => {
         enableColumnResizing: true,
         editDisplayMode: 'cell',
         enableFullScreenToggle: false,
-        //enableRowSelection: true,
-        // @ts-ignore
+        enableRowSelection: true,
         getRowId: (row) => row.id,
         initialState: {showColumnFilters: true},
         manualFiltering: true,
@@ -570,6 +590,7 @@ const DataSourcesTable = () => {
         onGlobalFilterChange: setGlobalFilter,
         onPaginationChange: setPagination,
         onSortingChange: setSorting,
+        onRowSelectionChange: setRowSelection,
         enableStickyHeader: true,
         enableBottomToolbar: true,
         state: {
@@ -580,26 +601,39 @@ const DataSourcesTable = () => {
             showAlertBanner: isError,
             showProgressBars: isRefetching,
             sorting,
+            rowSelection
         },
         mantineTableContainerProps: {sx: {maxHeight: "70vh"}},
         mantineToolbarAlertBannerProps: isError
             ? {color: 'red', children: 'Error loading data'}
             : undefined,
-        renderToolbarInternalActions: ({ table }) => (
-            <> 
-             <div className="ml-[10px] rounded p-1 hover:bg-gray-600 dark:hover:bg-black">
-                <IconRefresh 
-                    
-                    onClick={handleRefresh}  
-                    style={{ cursor: 'pointer' }}  
-                />
-            </div>
-                <MRT_ToggleGlobalFilterButton table={table} />
-                <MRT_ToggleFiltersButton table={table} />
-                <MRT_ShowHideColumnsButton table={table} />
-                <MRT_ToggleDensePaddingButton table={table} />
-            </>
-        ),
+            renderToolbarInternalActions: ({ table }) => {
+                const selectedCount = Object.keys(rowSelection).length;
+                return (
+                    <>
+                        {selectedCount > 0 && (
+                            <button
+                                onClick={bulkDeleteFiles}
+                                className="ml-[10px] rounded p-1 px-3 bg-red-500 hover:bg-red-600 text-white flex items-center gap-2"
+                                title={`Delete ${selectedCount} selected file${selectedCount > 1 ? 's' : ''}`}
+                            >
+                                <IconTrash size={18} />
+                                <span>Delete {selectedCount}</span>
+                            </button>
+                        )}
+                        <div className="ml-[10px] rounded p-1 hover:bg-gray-600 dark:hover:bg-black">
+                            <IconRefresh
+                                onClick={handleRefresh}
+                                style={{ cursor: 'pointer' }}
+                            />
+                        </div>
+                        <MRT_ToggleGlobalFilterButton table={table} />
+                        <MRT_ToggleFiltersButton table={table} />
+                        <MRT_ShowHideColumnsButton table={table} />
+                        <MRT_ToggleDensePaddingButton table={table} />
+                    </>
+                );
+            },
     });
 
     return (
