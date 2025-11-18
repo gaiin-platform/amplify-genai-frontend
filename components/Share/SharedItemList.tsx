@@ -17,7 +17,7 @@ import { getUserIdentifier } from '@/utils/app/data';
 
 const SharedItemsList: FC<{}> = () => {
 
-    const {dispatch: homeDispatch, state:{statsService, featureFlags, prompts}} = useContext(HomeContext);
+    const {dispatch: homeDispatch, state:{statsService, featureFlags, prompts, amplifyUsers}} = useContext(HomeContext);
 
     const promptsRef = useRef(prompts);
 
@@ -75,6 +75,10 @@ const SharedItemsList: FC<{}> = () => {
         setSelectedKey(item.key);
         setSelectedNote(item.note);
         setImportModalOpen(true);
+    }
+
+    const getSharedByDisplayName = (sharedBy: string) => {
+        return amplifyUsers?.[sharedBy] || sharedBy;
     }
 
     const handleSWYDelete = async (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -235,7 +239,7 @@ const SharedItemsList: FC<{}> = () => {
                                         <div className="flex items-start justify-between mb-2">
                                             <div className="flex-1 min-w-0">
                                                 <h4 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors duration-200">
-                                                    {item.sharedBy.includes('@') ? item.sharedBy.split("@")[0] : item.sharedBy}
+                                                    {getSharedByDisplayName(item.sharedBy)}
                                                 </h4>
                                                 <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 truncate">
                                                     {item.note}
