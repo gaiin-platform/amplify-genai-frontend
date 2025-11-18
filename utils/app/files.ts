@@ -18,22 +18,28 @@ export const downloadDataSourceFile = async (dataSource: DataSource, groupId: st
     }
 }
 
-export const deleteDatasourceFile = async (dataSource: DataSource) => {
+export const deleteDatasourceFile = async (dataSource: DataSource, showToast: boolean = true) => {
   console.log("deleteDatasourceFile: ", dataSource)
   try {
       const response = await deleteFile(dataSource.id || 'none');
       if (!response.success) {  // Now correctly checking success
           console.error(`Failed to delete file: ${dataSource.id}`, response);
-          alert(`Error deleting file. Please try again.`);
-          return false;
+          if (showToast) {
+              alert(`Error deleting file. Please try again.`);
+          }
+          return { success: false, fileName: dataSource.name || dataSource.id || 'Unknown file' };
       }
-      toast(`File deleted successfully`);
+      if (showToast) {
+          toast(`File deleted successfully`);
+      }
       console.log(`File deleted successfully: ${dataSource.id}`);
-      return true;
+      return { success: true, fileName: dataSource.name || dataSource.id || 'Unknown file' };
   } catch (error) {
       console.error(`Error while deleting file: ${dataSource.id}`, error);
-      alert(`An unexpected error occurred while deleting "${dataSource.id}". Please try again later.`);
-      return false;
+      if (showToast) {
+          alert(`An unexpected error occurred while deleting "${dataSource.id}". Please try again later.`);
+      }
+      return { success: false, fileName: dataSource.name || dataSource.id || 'Unknown file' };
   }
 };
 

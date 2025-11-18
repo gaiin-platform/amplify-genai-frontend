@@ -415,12 +415,12 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 
             <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-600/50 pr-10">
               <div className="sidebar-title truncate text-neutral-800 dark:text-neutral-100 mb-0.5">{displayName}</div>
-              {username && (
+              {/* {username && (
                 <div className="flex items-center gap-1 truncate text-neutral-600 dark:text-neutral-300 text-xs font-medium mb-0.5">
                   <IconUser size={12} className="text-neutral-500 dark:text-neutral-400" />
                   <span className="truncate">{username}</span>
                 </div>
-              )}
+              )} */}
               <div className="truncate text-neutral-500 dark:text-neutral-400 text-xs font-medium">{email}</div>
             </div>
 
