@@ -8,7 +8,14 @@ module.exports = {
   ],
   darkMode: 'class',
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        brand: {
+          primary: process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR || '#48bb78',
+          hover: process.env.NEXT_PUBLIC_BRAND_HOVER_COLOR || '#38a169',
+        },
+      },
+    },
   },
   variants: {
     extend: {

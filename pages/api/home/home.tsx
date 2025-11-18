@@ -95,6 +95,8 @@ import { useRouter } from 'next/router';
 import { AdminConfigTypes } from '@/types/admin';
 import { ConversationStorage } from '@/types/conversationStorage';
 import UserMenu from '@/components/Layout/UserMenu';
+import { useBrandConfig } from '@/utils/app/branding';
+import Image from 'next/image';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -1515,15 +1517,23 @@ const Home = ({
                 </div>
             </main>);
     } else {
+        const brandConfig = useBrandConfig();
+        
         return (
             <main
                 className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`} 
                 style={{backgroundColor: lightMode === 'dark' ? 'black' : 'white'}}>
                 <div
                     className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white">
-                    <h1 className="mb-4 text-2xl font-bold">
-                        <LoadingIcon />
-                    </h1>
+                    <div className="mb-8">
+                        <Image 
+                            src={brandConfig.logo} 
+                            alt="Company Logo" 
+                            width={150} 
+                            height={150}
+                            priority
+                        />
+                    </div>
                     <button
                         onClick={() => signIn('cognito')}
                         id="loginButton"
@@ -1538,7 +1548,7 @@ const Home = ({
                             cursor: 'pointer',
                             transition: 'background-color 0.3s ease-in-out',
                         }}
-                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
+                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = brandConfig.primaryColor}
                         onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
                     >
                         Login

@@ -33,6 +33,8 @@ import { getAccounts } from '@/services/accountService';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { getFileDownloadUrl } from '@/services/fileService';
 import { fetchImageFromPresignedUrl } from '@/utils/app/files';
+import { useBrandConfig } from '@/utils/app/branding';
+import Image from 'next/image';
 
 // Extend the Model type to include isDefault property
 interface Model extends BaseModel {
@@ -717,6 +719,9 @@ const AssistantPage = ({
   // Error state
   if (!session) {
     return (
+      const brandConfig = useBrandConfig();
+      
+      return (
       <MainLayout
         title="Login Required"
         description={`Chat with ${assistantName}`}
@@ -726,9 +731,15 @@ const AssistantPage = ({
       >
         <div className="flex h-screen w-screen flex-col text-sm text-black dark:text-white">
           <div className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white">
-            <h1 className="mb-4 text-2xl font-bold">
-              <LoadingIcon />
-            </h1>
+            <div className="mb-8">
+              <Image 
+                src={brandConfig.logo} 
+                alt="Company Logo" 
+                width={150} 
+                height={150}
+                priority
+              />
+            </div>
             <button
               onClick={() => signIn('cognito')}
               id="loginButton"
@@ -743,7 +754,7 @@ const AssistantPage = ({
                 cursor: 'pointer',
                 transition: 'background-color 0.3s ease-in-out',
               }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = brandConfig.primaryColor}
               onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
             >
               Login
