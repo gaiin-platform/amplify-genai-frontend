@@ -641,6 +641,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
         <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Day of Week</label>
         <select
           value={presetConfig.dayOfWeek}
+          id="daySelect"
           onChange={(e) => setPresetConfig({ ...presetConfig, dayOfWeek: e.target.value })}
           className={selectClassName}
         >
@@ -654,6 +655,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
           <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Hour</label>
           <select
             value={presetConfig.hour}
+            id="hourSelect"
             onChange={(e) => setPresetConfig({ ...presetConfig, hour: e.target.value })}
             className={selectClassName}
           >
@@ -666,6 +668,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
           <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Minute</label>
           <select
             value={presetConfig.minute}
+            id="minuteSelect"
             onChange={(e) => setPresetConfig({ ...presetConfig, minute: e.target.value })}
             className={selectClassName}
           >
@@ -684,6 +687,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
         <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Day of Month</label>
         <select
           value={presetConfig.dayOfMonth}
+          id="dayOfMonthSelect"
           onChange={(e) => setPresetConfig({ ...presetConfig, dayOfMonth: e.target.value })}
           className={selectClassName}
         >
@@ -697,6 +701,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
           <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Hour</label>
           <select
             value={presetConfig.hour}
+            id="hourSelect"
             onChange={(e) => setPresetConfig({ ...presetConfig, hour: e.target.value })}
             className={selectClassName}
           >
@@ -709,6 +714,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
           <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Minute</label>
           <select
             value={presetConfig.minute}
+            id="minuteSelect"
             onChange={(e) => setPresetConfig({ ...presetConfig, minute: e.target.value })}
             className={selectClassName}
           >
@@ -728,6 +734,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
           <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Month</label>
           <select
             value={presetConfig.month}
+            id="monthSelect"
             onChange={(e) => setPresetConfig({ ...presetConfig, month: e.target.value })}
             className={selectClassName}
           >
@@ -754,6 +761,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
           <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Hour</label>
           <select
             value={presetConfig.hour}
+            id="hourSelect"
             onChange={(e) => setPresetConfig({ ...presetConfig, hour: e.target.value })}
             className={selectClassName}
           >
@@ -766,6 +774,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
           <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Minute</label>
           <select
             value={presetConfig.minute}
+            id="minuteSelect"
             onChange={(e) => setPresetConfig({ ...presetConfig, minute: e.target.value })}
             className={selectClassName}
           >
@@ -802,6 +811,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
           <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Hour</label>
           <select
             value={customSchedule.hour}
+            id="hourSelect"
             onChange={(e) => setCustomSchedule({ ...customSchedule, hour: e.target.value })}
             className={selectClassName}
           >
@@ -816,6 +826,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
           <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Minute</label>
           <select
             value={customSchedule.minute}
+            id="minuteSelect"
             onChange={(e) => setCustomSchedule({ ...customSchedule, minute: e.target.value })}
             className={selectClassName}
           >
@@ -832,6 +843,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
           <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Day of Week</label>
           <select
             value={customSchedule.dayOfWeek}
+            id="daySelect"
             onChange={(e) => {
               const newDayOfWeek = e.target.value;
               setCustomSchedule({
@@ -853,6 +865,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
           <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Month</label>
           <select
             value={customSchedule.month}
+            id="monthSelect"
             onChange={(e) => setCustomSchedule({ ...customSchedule, month: e.target.value })}
             className={selectClassName}
           >
@@ -868,6 +881,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
         <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Day of Month</label>
         <select
           value={customSchedule.dayOfMonth}
+          id="dayOfMonthSelect"
           onChange={(e) => {
             const newDayOfMonth = e.target.value;
             setCustomSchedule({

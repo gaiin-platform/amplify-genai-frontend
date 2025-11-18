@@ -292,6 +292,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   const renderRunTaskButton = () => (
       <button
         className={`px-2  ${buttonStyle}`}
+        id="runTaskClick"
         onClick={() => handleRunTask(selectedTask.taskId)}>
         {isTestingTask ? 
         <><IconLoader2 size={18} className='animate-spin' />Running Task...</> : 
@@ -346,7 +347,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           </div>
         ) : 
         !Array.isArray(allTasks) || allTasks.length === 0 ? (
-          <div className="text-center p-4 text-neutral-500 dark:text-neutral-400">
+          <div className="text-center p-4 text-neutral-500 dark:text-neutral-400" id="noTasksAvailable">
             No tasks available
           </div>
         ) : (
@@ -358,6 +359,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             <select 
               className="w-full px-2 py-1 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
               value={selectedTypeFilter}
+              id="filterTaskType"
               onChange={(e) => setSelectedTypeFilter(e.target.value)}
             >
               {availableTypes.map((type, i) => (
@@ -372,13 +374,14 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               .map(([type, tasks]) => (
                 <div key={type} className="space-y-2">
                   {selectedTypeFilter === "All" && (
-                    <div className="flex flex-row gap-2 text-sm font-semibold justify-center text-neutral-400 dark:text-neutral-500 capitalize border-b border-neutral-500 pb-1">
+                    <div id={`scheduled_${type}`} className="flex flex-row gap-2 text-sm font-semibold justify-center text-neutral-400 dark:text-neutral-500 capitalize border-b border-neutral-500 pb-1">
                       {type} {getIcon(type as keyof typeof TASK_TYPE_MAP)}
                     </div>
                   )}
                   {tasks.map((task, index) => (
                     <div
                       key={task.taskId}
+                      id={`task_${task.taskType}_${index}`}
                       className={`px-2 py-1 rounded-lg cursor-pointer flex flex-row ${
                         selectedTask.taskId === task.taskId
                           ? 'bg-blue-100 dark:bg-blue-900'
@@ -386,7 +389,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                       }`}
                       onClick={() => handleLoadTask(task.taskId)}>
                       <div className="flex flex-col truncate w-full">
-                        <div className="font-medium text-neutral-800 dark:text-neutral-200">
+                        <div id="taskName" className="font-medium text-neutral-800 dark:text-neutral-200">
                          {task.taskName}  
                         </div>
                         
@@ -404,6 +407,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                       
                       {selectedTask.taskId === task.taskId &&
                         <button className="ml-auto right-2 flex-shrink-0"
+                          id="deleteTask"
                           title="Delete Task"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -488,6 +492,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           <div className="flex flex-col mb-4 relative">
             <div 
               onClick={() => !isEnforced && setShowActionSetList(!showActionSetList)}
+              id="actionSetSelect"
               className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow flex justify-between items-center
               ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}
               ${isEnforced ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
@@ -514,6 +519,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         <div className="flex flex-col mb-4 relative">
           <div 
             onClick={() => !isEnforced && setShowApiToolList(!showApiToolList)}
+            id="apiToolSelect"
             className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow flex justify-between items-center
             ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}
             ${isEnforced ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
@@ -634,6 +640,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                 
                 <button
                   className={`px-1.5  ${buttonStyle}`}
+                  id="viewScheduledRunLogs"
                   onClick={() => setIsViewingLogs(true)}>
                   <IconNotes size={18} />
                   View Scheduled Run Logs
@@ -643,7 +650,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               </div>
           </div>
           {error && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            <div id="errorPresent" className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
               {error}
             </div>
           )}
@@ -909,7 +916,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
     return (
       <div className="flex-1 pl-4">
         <div className="relative mt-2">
-          <h2 className="text-lg font-semibold mb-4 truncate max-w-[48%]">Run Logs: {selectedTask.taskName}</h2>
+          <h2 id="taskLogsName" className="text-lg font-semibold mb-4 truncate max-w-[48%]">Run Logs: {selectedTask.taskName}</h2>
           <div className="absolute right-1 top-[-6px] flex flex-row gap-3">
             <>
             <button
@@ -927,6 +934,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             {renderRunTaskButton()}
             <button
               className={`px-2 mr-1.5 ${buttonStyle}`}
+              id="managedScheduledTasks"
               onClick={() => {
                 setIsViewingLogs(false);
                 setSelectedLogId(null);

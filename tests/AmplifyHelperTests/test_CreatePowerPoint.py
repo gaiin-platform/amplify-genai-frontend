@@ -40,7 +40,7 @@ class CreatePowerPointTests(BaseTest):
 
     # ----------------- Test Create PowerPoint can be clicked -----------------
     """Ensure the Create PowerPoint button in the Amplify Helpers folder can be clicked 
-       on the Right Side Bar"""
+       on the Assitants Side Bar"""
 
     def test_create_powerpoint_is_interactable(self):
         
@@ -112,7 +112,7 @@ class CreatePowerPointTests(BaseTest):
 
     # ----------------- Test Create PowerPoint with Shared window -----------------
     """Ensure the Share button on the Create PowerPoint button in the Amplify Helpers folder can be clicked 
-       on the Right Side Bar and that it makes the Share Modal appear"""
+       on the Assitants Side Bar and that it makes the Share Modal appear"""
 
     def test_share_button(self):
         
@@ -194,7 +194,7 @@ class CreatePowerPointTests(BaseTest):
 
     # ----------------- Test Create PowerPoint Duplicate Window -----------------
     """Ensure the Duplicate Button on the Create PowerPoint button in the Amplify Helpers folder can be clicked 
-       on the Right Side Bar and that it creates a duplicate in the prompts"""
+       on the Assitants Side Bar and that it creates a duplicate in the prompts"""
 
     def test_create_powerpoint_duplicate(self):
         
@@ -302,7 +302,7 @@ class CreatePowerPointTests(BaseTest):
 
     # ----------------- Create PowerPoint with Quotations Modal is interactable -----------------
     """Ensure the Create Diagram button in the Amplify Helpers folder can be clicked 
-       on the Right Side Bar and the modal is interactable"""
+       on the Assitants Side Bar and the modal is interactable"""
     
     def test_create_powerpoint_modal_is_interactable_bullet(self):  
         

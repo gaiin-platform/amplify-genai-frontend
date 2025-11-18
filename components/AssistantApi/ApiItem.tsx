@@ -98,6 +98,7 @@ const ApiItem: React.FC<ApiItemProps> = ({
   return (
     <div
       className="api-item border border-gray-400 dark:border-gray-500 bg-gradient-to-br from-gray-200 via-gray-100 to-gray-300 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 shadow-lg hover:shadow-xl transition-all duration-200 ease-in-out text-gray-800 dark:text-gray-100"
+      id="apiItem"
       style={{
         padding: '10px',
         margin: '10px 0',
@@ -106,6 +107,7 @@ const ApiItem: React.FC<ApiItemProps> = ({
     >
       <div 
         className={`flex flex-row ${onClick ? 'cursor-pointer hover:bg-gray-200/70 dark:hover:bg-gray-600/50 rounded-md transition-colors duration-150' : ''}`}
+        id="apiClick"
         onClick={handleMainClick}
       >
         { onChange ?
@@ -116,7 +118,7 @@ const ApiItem: React.FC<ApiItemProps> = ({
           onChange={(e) => onChange(api.id, e, api.bindings)}
           bold={true}
         /> : 
-        <span className={`flex flex-row gap-2 mt-[1px] font-bold`}>{
+        <span className={`flex flex-row gap-2 mt-[1px] font-bold`} id="apiName">{
               getIcon(api.name)} {camelCaseToTitle(api.name)}</span>}
         {/* Configuration button - only show if allowConfiguration and has parameters */}
         {allowConfiguration && hasConfiguration() && (

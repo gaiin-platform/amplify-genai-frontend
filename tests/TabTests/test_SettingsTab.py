@@ -25,7 +25,7 @@ class SettingsTabTests(BaseTest):
         super().setUp(headless=True)
 
     # ----------------- Test Manage Accounts -----------------
-    """Test the Manage Accounts button in the Settings tab on the Left Side Bar"""
+    """Test the Manage Accounts button in the Settings tab on the Chats Side Bar"""
 
     def test_settings_assistant_group_interface(self):
         # Extra sleep for extra loading
@@ -90,7 +90,7 @@ class SettingsTabTests(BaseTest):
         time.sleep(3)
 
     # ----------------- Test Import Conversations -----------------
-    """Test the Import Conversations button in the Settings tab on the Left Side Bar"""
+    """Test the Import Conversations button in the Settings tab on the Chats Side Bar"""
 
     def test_settings_import_conversations(self):
         # Extra sleep for extra loading
@@ -152,7 +152,7 @@ class SettingsTabTests(BaseTest):
         )
 
     # ----------------- Test Export Conversations -----------------
-    """Test the Export Conversations button in the Settings tab on the Left Side Bar"""
+    """Test the Export Conversations button in the Settings tab on the Chats Side Bar"""
 
     def test_settings_export_conversations(self):
         # Extra sleep for extra loading
@@ -236,7 +236,7 @@ class SettingsTabTests(BaseTest):
         )
 
     # ----------------- Test Assistant Worflow Tab -----------------
-    """Test the Assistant Worflow button in the Settings tab on the Left Side Bar"""
+    """Test the Assistant Worflow button in the Settings tab on the Chats Side Bar"""
 
     def test_settings_assistant_workflow(self):
         # Extra sleep for extra loading
@@ -302,7 +302,7 @@ class SettingsTabTests(BaseTest):
         self.assertEqual(modal_text, "Create Assistant Workflow Template", "Modal title should be 'Create Assistant Workflow Template'")
 
     # ----------------- Test Manage Custom APIs -----------------
-    """Test the Custom Function APIs button in the Settings tab on the Left Side Bar
+    """Test the Custom Function APIs button in the Settings tab on the Chats Side Bar
        This will cause the Manage Custom APIs modal to pop up"""
 
     def test_settings_manage_custom_apis(self):
@@ -371,7 +371,7 @@ class SettingsTabTests(BaseTest):
         self.assertEqual(modal_text, "Manage Custom APIs", "Modal title should be 'Manage Custom APIs'")
         
     # ----------------- Test Manage Scheduled Tasks -----------------
-    """Test the Scheduled Tasks button in the Settings tab on the Left Side Bar
+    """Test the Scheduled Tasks button in the Settings tab on the Chats Side Bar
        This will cause the Manage Scheduled Tasks modal to pop up"""
 
     def test_settings_manage_scheduled_tasks(self):

@@ -40,7 +40,7 @@ class VisualizationAssistantTests(BaseTest):
 
     # ----------------- Test Visualization Assistant can be clicked -----------------
     """Ensure the Visualization Assistant button in the Custom Instructions folder can be clicked 
-       on the Right Side Bar"""
+       on the Assitants Side Bar"""
 
     def test_visualization_assistant_is_interactable(self):
         
@@ -117,7 +117,7 @@ class VisualizationAssistantTests(BaseTest):
 
     # ----------------- Test Visualization Assistant with Shared window -----------------
     """Ensure the Share button on the Visualization Assistant button in the Custom Instructions folder can be clicked 
-       on the Right Side Bar and that it makes the Share Modal appear"""
+       on the Assitants Side Bar and that it makes the Share Modal appear"""
 
     def test_share_button(self):
         
@@ -202,7 +202,7 @@ class VisualizationAssistantTests(BaseTest):
 
     # ----------------- Test Visualization Assistant Duplicate Window -----------------
     """Ensure the Duplicate Button on the Visualization Assistant button in the Custom Instructions folder can be clicked 
-       on the Right Side Bar and that it creates a duplicate in the prompts"""
+       on the Assitants Side Bar and that it creates a duplicate in the prompts"""
 
     def test_visualization_assistant_duplicate(self):
         
@@ -313,7 +313,7 @@ class VisualizationAssistantTests(BaseTest):
 
     # ----------------- Visualization Assistant Modal is interactable -----------------
     """Ensure the Visualization Assistant button in the Visualization Assistant folder can be clicked 
-       on the Right Side Bar and the modal is interactable"""
+       on the Assitants Side Bar and the modal is interactable"""
     
     def test_visualization_assistant_modal_is_interactable(self): 
         

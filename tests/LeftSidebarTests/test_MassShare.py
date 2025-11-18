@@ -83,7 +83,7 @@ class MassShareTests(BaseTest):
 
     # ----------------- Test Share Chats -----------------
     """This test ensures multiple chats can be shared individually via the 
-    three dots handler on the Left Side Bar"""
+    three dots handler on the Chats Side Bar"""
 
     def test_share_individual_chats(self):
 
@@ -275,7 +275,7 @@ class MassShareTests(BaseTest):
 
     # ----------------- Test Mass Share Chats -----------------
     """This test ensures all chats can be shared via the 
-       three dots handler on the Left Side Bar"""
+       three dots handler on the Chats Side Bar"""
 
     def test_share_mass_chats(self):
 

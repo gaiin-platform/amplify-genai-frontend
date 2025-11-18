@@ -40,7 +40,7 @@ class DefaultInstructionsTests(BaseTest):
 
     # ----------------- Test Default Instructions can be clicked -----------------
     """Ensure the Default Instructions button in the Custom Instructions folder can be clicked 
-       on the Right Side Bar"""
+       on the Assitants Side Bar"""
 
     def test_default_instructions_is_interactable(self):
         
@@ -117,7 +117,7 @@ class DefaultInstructionsTests(BaseTest):
 
     # ----------------- Test Default Instructions with Shared window -----------------
     """Ensure the Share button on the Default Instructions button in the Custom Instructions folder can be clicked 
-       on the Right Side Bar and that it makes the Share Modal appear"""
+       on the Assitants Side Bar and that it makes the Share Modal appear"""
 
     def test_share_button(self):
         
@@ -202,7 +202,7 @@ class DefaultInstructionsTests(BaseTest):
 
     # ----------------- Test Default Instructions Duplicate Window -----------------
     """Ensure the Duplicate Button on the Default Instructions button in the Custom Instructions folder can be clicked 
-       on the Right Side Bar and that it creates a duplicate in the prompts"""
+       on the Assitants Side Bar and that it creates a duplicate in the prompts"""
 
     def test_default_instructions_duplicate(self):
         
@@ -313,7 +313,7 @@ class DefaultInstructionsTests(BaseTest):
 
     # ----------------- Default Instructions Modal is interactable -----------------
     """Ensure the Default Instructions button in the Custom Instructions folder can be clicked 
-       on the Right Side Bar and the modal is interactable"""
+       on the Assitants Side Bar and the modal is interactable"""
     
     def test_default_instructions_modal_is_interactable_bullet(self):  
         

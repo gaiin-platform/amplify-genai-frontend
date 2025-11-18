@@ -40,7 +40,7 @@ class CSVExtractorTests(BaseTest):
 
     # ----------------- Test CSV Extractor can be clicked -----------------
     """Ensure the CSV Extractor button in the Amplify Helpers folder can be clicked 
-       on the Right Side Bar"""
+       on the Assitants Side Bar"""
 
     def test_csv_extractor_is_interactable(self):
         
@@ -112,7 +112,7 @@ class CSVExtractorTests(BaseTest):
 
     # ----------------- Test CSV Extractor Shared window -----------------
     """Ensure the Share button on the CSV Extractor button in the Amplify Helpers folder can be clicked 
-       on the Right Side Bar and that it makes the Share Modal appear"""
+       on the Assitants Side Bar and that it makes the Share Modal appear"""
 
     def test_csv_extractor_shared(self):
         
@@ -194,7 +194,7 @@ class CSVExtractorTests(BaseTest):
 
     # ----------------- Test CSV Extractor Duplicate Window -----------------
     """Ensure the Duplicate Button on the CSV Extractor button in the Amplify Helpers folder can be clicked 
-       on the Right Side Bar and that it creates a duplicate in the prompts"""
+       on the Assitants Side Bar and that it creates a duplicate in the prompts"""
 
     def test_csv_extractor_duplicate(self):
         
@@ -297,7 +297,7 @@ class CSVExtractorTests(BaseTest):
 
     # ----------------- CSV Extractor with Quotations Modal is interactable -----------------
     """Ensure the CSV Extractor button in the Amplify Helpers folder can be clicked 
-       on the Right Side Bar and the modal is interactable"""
+       on the Assitants Side Bar and the modal is interactable"""
     
     def test_create_visualization_modal_is_interactable_bullet(self):  
         

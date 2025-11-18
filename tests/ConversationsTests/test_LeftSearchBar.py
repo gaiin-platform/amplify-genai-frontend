@@ -151,7 +151,7 @@ class SearchBarLeftTests(BaseTest):
         )
         self.assertTrue(side_bar_detection, "Expected multiple side bars")
 
-        # Use the left sidebar
+        # Use the chat sidebar
         left_panel = side_bar_detection
 
         # Locate all elements with the ID 'promptName'
@@ -196,7 +196,7 @@ class SearchBarLeftTests(BaseTest):
         )
         self.assertTrue(side_bar_detection, "Expected multiple side bars")
 
-        # Use the left sidebar
+        # Use the chat sidebar
         left_panel = side_bar_detection
 
         # Locate all elements with the ID 'chatName'

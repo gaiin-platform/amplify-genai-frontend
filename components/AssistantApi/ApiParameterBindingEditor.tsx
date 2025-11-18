@@ -47,9 +47,9 @@ export const ApiParameterBindingEditor: React.FC<ParameterBindingEditorProps> = 
       </h3>
 
       {Object.entries(paramSource.properties).map(([paramName, paramInfo]: [string, any]) => (
-        <div key={paramName} className="bg-gray-50 dark:bg-[#40414F] rounded-lg p-4 border border-gray-300 dark:border-neutral-600">
+        <div id="parameterItem" key={paramName} className="bg-gray-50 dark:bg-[#40414F] rounded-lg p-4 border border-gray-300 dark:border-neutral-600">
           <label className="flex items-center justify-between font-medium text-sm text-gray-900 dark:text-white mb-2">
-            <div className="flex items-center">
+            <div id="parameterName" className="flex items-center">
               {paramSource.required?.includes(paramName) ? (
                 <IconAsterisk size={16} stroke={1.5} className="text-red-500 mr-2" />
               ) : (
@@ -90,6 +90,7 @@ export const ApiParameterBindingEditor: React.FC<ParameterBindingEditorProps> = 
               type="text"
               value={paramValues[paramName] || ''}
               onChange={(e) => onParamValueChange(paramName, e.target.value)}
+              id="parameterInput"
               placeholder={paramModes[paramName] === 'manual' ? 
                           `Enter ${formatOperationName(paramName)} value...` : 
                           'AI value generation hints (optional)'}
@@ -100,7 +101,7 @@ export const ApiParameterBindingEditor: React.FC<ParameterBindingEditorProps> = 
           </div>
 
           {paramInfo.description && (
-            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic">
+            <p id="parameterDescription" className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic">
               {paramInfo.description}
             </p>
           )}

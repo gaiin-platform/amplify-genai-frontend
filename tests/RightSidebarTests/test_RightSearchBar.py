@@ -183,7 +183,7 @@ class SearchBarRightTests(BaseTest):
         )
         self.assertTrue(side_bar_detection, "Expected multiple side bars")
 
-        # Use the left sidebar
+        # Use the chat sidebar
         right_panel = side_bar_detection
 
         # Locate all elements with the ID 'promptName'
@@ -223,7 +223,7 @@ class SearchBarRightTests(BaseTest):
         )
         self.assertTrue(side_bar_detection, "Expected multiple side bars")
 
-        # Use the left sidebar
+        # Use the chat sidebar
         right_panel = side_bar_detection
 
         # Locate all elements with the ID 'promptName'
@@ -273,7 +273,7 @@ class SearchBarRightTests(BaseTest):
         )
         self.assertTrue(side_bar_detection, "Expected multiple side bars")
 
-        # Use the left sidebar
+        # Use the chat sidebar
         right_panel = side_bar_detection
 
         # Locate all elements with the ID 'promptName'
@@ -311,7 +311,7 @@ class SearchBarRightTests(BaseTest):
         )
         self.assertTrue(side_bar_detection, "Expected multiple side bars")
 
-        # Use the left sidebar
+        # Use the chat sidebar
         right_panel = side_bar_detection
 
         # Locate all elements with the ID 'promptName'

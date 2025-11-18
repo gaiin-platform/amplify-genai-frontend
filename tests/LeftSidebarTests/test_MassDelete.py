@@ -83,7 +83,7 @@ class MassDeleteTests(BaseTest):
 
     # ----------------- Test Delete Chats -----------------
     """This test ensures multiple chats can be deleted individually via the 
-       three dots handler on the Left Side Bar"""
+       three dots handler on the Chats Side Bar"""
 
     def test_delete_individual_chats(self):
 

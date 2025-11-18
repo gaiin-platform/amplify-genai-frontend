@@ -217,7 +217,7 @@ class MassDeleteTests(BaseTest):
 
     # ----------------- Test Delete Mass Assistants -----------------
     """This test ensures multiple assistants can be deleted individually via the 
-       three dots handler on the Right Side Bar"""
+       three dots handler on the Assitants Side Bar"""
 
     def test_delete_mass_assistants(self):
         
@@ -474,7 +474,7 @@ class MassDeleteTests(BaseTest):
 
     # ----------------- Test Delete Everything -----------------
     """This test ensures that everything can be selected and deleted via the three dots handler
-       on the Right Side Bar"""
+       on the Assitants Side Bar"""
 
     def test_delete_everything(self):
         

@@ -60,7 +60,7 @@ class SummaryWithQuotationsTests(BaseTest):
 
     # ----------------- Test drop down collapses and expands -----------------
     """Ensure the Amplify Helpers folder can be clicked and that the folder expands
-       on the Right Side Bar"""
+       on the Assitants Side Bar"""
 
     def test_dropdown_closes_after_selection(self):
         
@@ -108,7 +108,7 @@ class SummaryWithQuotationsTests(BaseTest):
 
     # ----------------- Test Summary with Quotations can be clicked -----------------
     """Ensure the Summary with Quotations button in the Amplify Helpers folder can be clicked 
-       on the Right Side Bar"""
+       on the Assitants Side Bar"""
 
     def test_summary_with_quotations_is_interactable(self):
         
@@ -184,7 +184,7 @@ class SummaryWithQuotationsTests(BaseTest):
 
     # ----------------- Test Summary with Shared window -----------------
     """Ensure the Share button on the Summary with Quotations button in the Amplify Helpers folder can be clicked 
-       on the Right Side Bar and that it makes the Share Modal appear"""
+       on the Assitants Side Bar and that it makes the Share Modal appear"""
 
     def test_share_button(self):
         
@@ -268,7 +268,7 @@ class SummaryWithQuotationsTests(BaseTest):
 
     # ----------------- Test Summary with Quotations Duplicate Window -----------------
     """Ensure the Duplicate Button on the Summary with Quotations button in the Amplify Helpers folder can be clicked 
-       on the Right Side Bar and that it creates a duplicate in the prompts"""
+       on the Assitants Side Bar and that it creates a duplicate in the prompts"""
 
     def test_summary_with_quotations_duplicate(self):
         
@@ -378,7 +378,7 @@ class SummaryWithQuotationsTests(BaseTest):
 
     # ----------------- Test Summary with Quotations Modal is interactable bullet points -----------------
     """Ensure the Summary with Quotations button in the Amplify Helpers folder can be clicked 
-       on the Right Side Bar and the modal is interactable with bullet points"""
+       on the Assitants Side Bar and the modal is interactable with bullet points"""
     
     def test_summary_with_quotations_modal_is_interactable_bullet(self):   
         
@@ -461,7 +461,7 @@ class SummaryWithQuotationsTests(BaseTest):
         
     # ----------------- Test Summary with Quotations Modal is interactable Numbered List -----------------
     """Ensure the Summary with Quotations button in the Amplify Helpers folder can be clicked 
-       on the Right Side Bar and the modal is interactable with numbered list"""
+       on the Assitants Side Bar and the modal is interactable with numbered list"""
     
     def test_summary_with_quotations_modal_is_interactable_number(self):  
         

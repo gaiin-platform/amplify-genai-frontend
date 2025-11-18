@@ -67,7 +67,7 @@ class ShareTabTests(BaseTest):
         )
 
     # ----------------- Test Refresh Button -----------------
-    """Test the 'Refresh' button in the Share tab on the Left Side Bar
+    """Test the 'Refresh' button in the Share tab on the Chats Side Bar
        to ensure the 'Shared with you' results refresh"""
 
     def test_share_refresh(self):

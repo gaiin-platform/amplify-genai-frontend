@@ -33,6 +33,7 @@ const ToolItem: React.FC<ToolItemProps> = ({ toolId, toolInfo, index, selected, 
   return (
     <div
       className="tool-item border border-gray-400 dark:border-gray-500 bg-gradient-to-br from-gray-200 via-gray-100 to-gray-300 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 shadow-lg hover:shadow-xl transition-all duration-200 ease-in-out text-gray-800 dark:text-gray-100"
+      id="toolItem"
       style={{
         padding: '10px',
         margin: '10px 0',
@@ -41,6 +42,7 @@ const ToolItem: React.FC<ToolItemProps> = ({ toolId, toolInfo, index, selected, 
     >
       <div 
         className={`flex flex-row ${onClick ? 'cursor-pointer hover:bg-gray-200/70 dark:hover:bg-gray-600/50 rounded-md transition-colors duration-150' : ''}`}
+        id="toolClick"
         onClick={handleMainClick}
       >
         {onChange ?
@@ -51,7 +53,7 @@ const ToolItem: React.FC<ToolItemProps> = ({ toolId, toolInfo, index, selected, 
             onChange={(e) => onChange(toolId, e)}
             bold={true}
           /> :
-          <span className={`flex flex-row gap-2 mt-[1px] font-bold`}>{
+          <span className={`flex flex-row gap-2 mt-[1px] font-bold`} id="toolName">{
                 getIcon(toolInfo.tool_name)} {snakeCaseToTitleCase(toolInfo.tool_name)}</span>}
         <div className='ml-auto flex items-center gap-2'>
           {showDetails && toolInfo.tags && toolInfo.tags.length > 0 && (

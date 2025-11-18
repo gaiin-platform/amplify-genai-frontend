@@ -160,7 +160,7 @@ class TagTests(BaseTest):
 
     # ----------------- Test Add One Tag On Individual Chat -----------------
     """This test ensures that a tag can be added onto an individual chat
-       via the three dot handler on the Left Side Bar"""
+       via the three dot handler on the Chats Side Bar"""
 
     def test_add_tag_individual_chat(self):
 
@@ -322,7 +322,7 @@ class TagTests(BaseTest):
 
     # ----------------- Test Add Multiple Tags On Individual Chat -----------------
     """This test ensures that multiple tags can be added onto an individual chat
-       via the three dot handler on the Left Side Bar"""
+       via the three dot handler on the Chats Side Bar"""
 
     def test_add_multiple_tags_individual_chat(self):
 
@@ -490,7 +490,7 @@ class TagTests(BaseTest):
 
     # ----------------- Test Add Multiple Tag On Multiple Chats -----------------
     """This test ensures that multiple tags can be added onto multiple chats
-       via the three dot handler on the Left Side Bar"""
+       via the three dot handler on the Chats Side Bar"""
 
     def test_add_multiple_tags_multiple_chats(self):
 
@@ -701,7 +701,7 @@ class TagTests(BaseTest):
     # # NO WAY TO VISUALIZE TAGS???????????????? THEREFORE NO WAY TO REMOVE THEM! TEMPORARILY DEPRICATED
     # # ----------------- Test Remove Tags -----------------
     # """This test ensures that a tag can be removed from an individual chat
-    #    via the three dot handler on the Left Side Bar"""
+    #    via the three dot handler on the Chats Side Bar"""
 
     # def test_remove_tags(self):
 

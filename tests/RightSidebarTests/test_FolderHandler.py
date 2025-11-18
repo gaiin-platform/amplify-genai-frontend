@@ -193,7 +193,7 @@ class FolderHandlerTests(BaseTest):
         )
         self.assertTrue(side_bar_detection, "Expected multiple side bars")
 
-        # Use the right sidebar
+        # Use the assistants sidebar
         right_panel = side_bar_detection
 
         # Locate all elements with the ID 'dropName'
@@ -254,7 +254,7 @@ class FolderHandlerTests(BaseTest):
         )
         self.assertTrue(side_bar_detection, "Expected multiple side bars")
 
-        # Use the right sidebar
+        # Use the assistants sidebar
         right_panel = side_bar_detection
 
         # Locate all elements with the ID 'dropName'
@@ -422,7 +422,7 @@ class FolderHandlerTests(BaseTest):
         )
         self.assertTrue(side_bar_detection, "Expected side bar")
 
-        # Use the right sidebar
+        # Use the assistants sidebar
         right_panel = side_bar_detection
 
         # Locate all elements with the ID 'dropName'
@@ -865,7 +865,7 @@ class FolderHandlerTests(BaseTest):
     #     )
     #     self.assertTrue(side_bar_detection, "Expected side bar")
 
-    #     # Use the right sidebar
+    #     # Use the assistants sidebar
     #     right_panel = side_bar_detection
 
     #     # Locate all elements with the ID 'dropDown'
@@ -939,7 +939,7 @@ class FolderHandlerTests(BaseTest):
     #     )
     #     self.assertTrue(side_bar_detection, "Expected side bar")
 
-    #     # Use the right sidebar
+    #     # Use the assistants sidebar
     #     right_panel = side_bar_detection
 
     #     # Locate all elements with the ID 'dropDown'

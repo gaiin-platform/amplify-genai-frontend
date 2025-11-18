@@ -292,7 +292,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
                                 {getIcon(selectedOp.name)}
-                                <span className="ml-2">
+                                <span className="ml-2" id="operationName">
                                     {formatOperationName(selectedOp.name)}
                                 </span>
                             </h2>
@@ -300,6 +300,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                 {onCancel && (
                                     <button
                                         className="flex items-center bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 shadow-sm"
+                                        id="cancelAddActionButton"
                                         onClick={onCancel}
                                     >
                                         <IconX size={16} stroke={1.5} className="mr-1" />
@@ -308,6 +309,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                 )}
                                 <button
                                     className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 shadow-sm"
+                                    id="addActionButton"
                                     onClick={() => {
                                         if (onActionAdded && selectedOp) {
                                             const formattedParams = Object.fromEntries(
@@ -335,7 +337,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                         </div>
 
                         {selectedOp.description ? (
-                            <div className="bg-blue-50 dark:bg-[#3e3f4b] border border-blue-100 dark:border-neutral-600 rounded-md p-3 mb-6 flex items-start">
+                            <div id="operationDescription" className="bg-blue-50 dark:bg-[#3e3f4b] border border-blue-100 dark:border-neutral-600 rounded-md p-3 mb-6 flex items-start">
                                 <IconInfoCircle size={18} stroke={1.5} className="text-blue-600 dark:text-blue-400 mt-0.5 mr-2 flex-shrink-0" />
                                 <p className="text-sm text-gray-700 dark:text-gray-300">
                                     {selectedOp.description}
@@ -366,6 +368,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                               placeholder="Enter a custom name..."
                               value={customName}
                               onChange={(e) => setCustomName(e.target.value)}
+                              id="customNameInput"
                               className="w-full px-3 py-2 border rounded-md bg-white dark:bg-[#343541] border-gray-300 dark:border-neutral-600
                               text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500
                               focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-shadow duration-150"
@@ -385,6 +388,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                             </label>
                             <textarea
                               placeholder="Enter special notes for the AI on how to use this action..."
+                              id="customDescriptionInput"
                               value={customDescription}
                               onChange={(e) => setCustomDescription(e.target.value)}
                               rows={3}
@@ -405,7 +409,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                         )}
 
                         <details className="mt-6 bg-gray-50 dark:bg-[#343541] border border-gray-300 dark:border-neutral-600 rounded-md">
-                            <summary className="cursor-pointer px-4 py-3 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+                            <summary id="technicalDetails" className="cursor-pointer px-4 py-3 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
                 <span className="font-medium flex items-center">
                   <IconCode size={14} stroke={1.5} className="mr-2" />
                   Technical Details
@@ -440,7 +444,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                         <div className="p-6">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
-                                <IconTools size={20} stroke={1.5} className="mr-2" />
+                                <IconTools size={20} stroke={1.5} className="mr-2"/>
                                 <span className="mr-3">{selectedActionSet.name || 'Unnamed Action Set'}</span>
                                 {featureFlags.scheduledTasks && <ScheduledTaskButton
                                     taskType={'actionSet'} 

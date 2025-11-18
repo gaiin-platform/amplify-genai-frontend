@@ -217,7 +217,7 @@ class MassShareTests(BaseTest):
 
     # ----------------- Test Share Mass Assistants -----------------
     """This test ensures multiple assistants can be shared individually via the 
-    three dots handler on the Right Side Bar"""
+    three dots handler on the Assitants Side Bar"""
 
     def test_share_mass_assistants(self):
         
@@ -473,7 +473,7 @@ class MassShareTests(BaseTest):
 
     # ----------------- Test Share Mass Prompts -----------------
     """This test ensures multiple prompts can be shared individually via the 
-    three dots handler on the Right Side Bar"""
+    three dots handler on the Assitants Side Bar"""
 
     def test_share_mass_prompts(self):
         
@@ -648,7 +648,7 @@ class MassShareTests(BaseTest):
 
     # ----------------- Test Share Everything -----------------
     """This test ensures everything can be selected and shared via the 
-    three dots handler on the Right Side Bar"""
+    three dots handler on the Assitants Side Bar"""
 
     def test_share_everything(self):
         

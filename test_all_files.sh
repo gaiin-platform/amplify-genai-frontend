@@ -15,6 +15,7 @@ if [ -z "$1" ]; then
   echo "Case 7: Run everything in the 'ModalTests' folder"
   echo "Case 8: Run everything in the 'RightSidebarTests' folder"
   echo "Case 9: Run everything in the 'TabTests' folder"
+  echo "Case 10: Run everything in the 'UserMenuTests' folder"
   exit 1
 fi
 
@@ -71,6 +72,9 @@ case $1 in
     ;;
   9)
     run_tests_in_directory "TabTests"
+    ;;
+  10)
+    run_tests_in_directory "UserMenuTests"
     ;;
   *)
     echo "Invalid case number. Please enter a number between 1 and 9."

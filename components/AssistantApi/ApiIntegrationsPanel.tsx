@@ -254,6 +254,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
             option.isEnabled && (
               <button 
                 key={option.id}
+                id={`${option.id}Select`}
                 className="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center gap-2"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -280,6 +281,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
         <div className="pb-2 relative">
           <button 
             ref={dropdownButtonRef}
+            id="apiOperationsSelect"
             className={`${buttonClassName(!!shownAPIComponent)} w-full`}
             onClick={(e) => {
               e.stopPropagation();
@@ -298,6 +300,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
             option.isEnabled && (
               <button 
                 key={option.id}
+                id={`${option.id}APIButton`}
                 className={buttonClassName(shownAPIComponent === option.id)}
                 onClick={() => handleOptionClick(option.id, true)}
                 disabled={option.isDisabled}

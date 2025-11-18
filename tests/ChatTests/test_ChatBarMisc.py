@@ -150,7 +150,7 @@ class ChatBarMiscTests(BaseTest):
         self.assertIsNotNone(assistant_chat_label, "Assistant chat label should appear after selection")
     
     # ----------------- Test Collapse Left Sidebar -----------------
-    """This test ensures that the left sidebar can be collapsed"""
+    """This test ensures that the chat sidebar can be collapsed"""
     
     def test_collapse_left_sidebar(self):
         
@@ -175,7 +175,7 @@ class ChatBarMiscTests(BaseTest):
         self.sidebar_press()
 
     # ----------------- Test Collapse Right Sidebar -----------------
-    """This test ensures that the right sidebar can be collapsed"""
+    """This test ensures that the assistants sidebar can be collapsed"""
     
     def test_collapse_right_sidebar(self):
         

@@ -201,7 +201,7 @@ class CreateChatFolderTests(BaseTest):
         )
         self.assertTrue(side_bar_detection, "Sidebar is present")
 
-        # Use the left sidebar
+        # Use the chat sidebar
         left_panel = side_bar_detection
 
         # Locate all elements with the ID 'dropName'

@@ -40,7 +40,7 @@ class CreateVisualizationsTests(BaseTest):
 
     # ----------------- Test Create Visualization can be clicked -----------------
     """Ensure the Create Visualization button in the Amplify Helpers folder can be clicked 
-       on the Right Side Bar"""
+       on the Assitants Side Bar"""
 
     def test_create_visualization_is_interactable(self):
         
@@ -116,7 +116,7 @@ class CreateVisualizationsTests(BaseTest):
 
     # ----------------- Test Create Visualization with Shared window -----------------
     """Ensure the Share button on the Create Visualization button in the Amplify Helpers folder can be clicked 
-       on the Right Side Bar and that it makes the Share Modal appear"""
+       on the Assitants Side Bar and that it makes the Share Modal appear"""
 
     def test_share_button(self):
         
@@ -200,7 +200,7 @@ class CreateVisualizationsTests(BaseTest):
 
     # ----------------- Test Create Visualization Duplicate Window -----------------
     """Ensure the Duplicate Button on the Create Visualization button in the Amplify Helpers folder can be clicked 
-       on the Right Side Bar and that it creates a duplicate in the prompts"""
+       on the Assitants Side Bar and that it creates a duplicate in the prompts"""
 
     def test_create_visualization_duplicate(self):
         
@@ -310,7 +310,7 @@ class CreateVisualizationsTests(BaseTest):
         
     # ----------------- Create Visualization with Quotations Modal is interactable -----------------
     """Ensure the Create Visualization button in the Amplify Helpers folder can be clicked 
-       on the Right Side Bar and the modal is interactable"""
+       on the Assitants Side Bar and the modal is interactable"""
     
     def test_create_visualization_modal_is_interactable_bullet(self): 
         
