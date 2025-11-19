@@ -206,7 +206,12 @@ const Home = ({
     const [settings, setSettings] = useState<Settings>();
 
     useEffect(() => {
-        const handleEvent = (event:any) => setSettings( getSettings(featureFlagsRef.current) );
+        const handleEvent = (event:any) => {
+            console.log('[Theme Debug] updateFeatureSettings event fired, reloading settings');
+            const reloadedSettings = getSettings(featureFlagsRef.current);
+            console.log('[Theme Debug] Reloaded settings:', reloadedSettings);
+            setSettings(reloadedSettings);
+        };
         window.addEventListener('updateFeatureSettings', handleEvent);
         return () => window.removeEventListener('updateFeatureSettings', handleEvent)
     }, []);
@@ -214,6 +219,7 @@ const Home = ({
     // Update lightMode when settings change
     useEffect(() => {
         if (settings?.theme) {
+            console.log('[Theme Debug] Settings changed, updating lightMode to:', settings.theme);
             dispatch({ field: 'lightMode', value: settings.theme });
         }
     }, [settings]);
