@@ -1,6 +1,6 @@
 # White Label Quick Start
 
-## 🎨 Customize Your Branding in 3 Steps
+## 🎨 Local Development (3 Steps)
 
 ### Step 1: Add Your Logo
 Place your logo file in `public/logos/`:
@@ -25,6 +25,42 @@ npm run dev
 ```
 
 Visit the login screen to see your branding!
+
+---
+
+## 🐳 Docker/Production Deployment
+
+**⚠️ Important:** Next.js embeds `NEXT_PUBLIC_*` variables at **build time**. You must set them when building the Docker image, not at runtime.
+
+### Step 1: Add Your Logo
+```bash
+cp ~/your-logo.svg public/logos/your-logo.svg
+```
+
+### Step 2: Build with Branding
+```bash
+docker build \
+  --build-arg NEXT_PUBLIC_BRAND_LOGO=/logos/your-logo.svg \
+  --build-arg NEXT_PUBLIC_BRAND_PRIMARY_COLOR=#525364 \
+  --build-arg NEXT_PUBLIC_BRAND_HOVER_COLOR=#3d3e4d \
+  -t your-app:branded \
+  .
+```
+
+### Step 3: Push & Deploy
+```bash
+# Tag and push to ECR
+docker tag your-app:branded ${ECR_REGISTRY}/your-app:latest
+docker push ${ECR_REGISTRY}/your-app:latest
+
+# Deploy to ECS
+aws ecs update-service \
+  --cluster your-cluster \
+  --service your-service \
+  --force-new-deployment
+```
+
+📖 **See `docs/WHITE_LABELING_BUILD.md` for detailed build instructions**
 
 ---
 
