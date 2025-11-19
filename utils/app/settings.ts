@@ -10,10 +10,13 @@ export const getSettings = (featureFlags:any): Settings => {
     featureOptions: featureOptionDefaults(featureFlags),
     hiddenModelIds: []
   };
+  console.log('[Theme Debug] getSettings - default settings:', settings);
   const settingsJson = localStorage.getItem(STORAGE_KEY);
+  console.log('[Theme Debug] getSettings - localStorage raw:', settingsJson);
   if (settingsJson) {
     try {
       let savedSettings = JSON.parse(settingsJson) as Settings;
+      console.log('[Theme Debug] getSettings - parsed savedSettings:', savedSettings);
       const allowedFeatureOptions = settings.featureOptions;
 
       // Remove keys from savedSettings.featureOptions that are not in allowedFeatureOptions
@@ -25,11 +28,15 @@ export const getSettings = (featureFlags:any): Settings => {
         if (!savedSettings.featureOptions.hasOwnProperty(key)) savedSettings.featureOptions[key] = allowedFeatureOptions[key];
       }
 
+      console.log('[Theme Debug] getSettings - before Object.assign, settings.theme:', settings.theme);
+      console.log('[Theme Debug] getSettings - before Object.assign, savedSettings.theme:', savedSettings.theme);
       settings = Object.assign(settings, savedSettings);
+      console.log('[Theme Debug] getSettings - after Object.assign, settings.theme:', settings.theme);
     } catch (e) {
       console.error(e);
     }
   }
+  console.log('[Theme Debug] getSettings - returning settings:', settings);
   return settings;
 };
 
