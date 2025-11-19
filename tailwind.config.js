@@ -13,6 +13,7 @@ module.exports = {
         brand: {
           primary: process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR || '#48bb78',
           hover: process.env.NEXT_PUBLIC_BRAND_HOVER_COLOR || '#38a169',
+          'dark-bg': process.env.NEXT_PUBLIC_BRAND_DARK_BG || '#343541',
         },
       },
     },
