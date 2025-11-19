@@ -180,33 +180,36 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
 
   // Auto-save theme changes immediately
   useEffect(() => {
-    if (initSettingsRef.current && theme !== initSettingsRef.current.theme) {
-      console.log('[Theme Debug] Theme changed to:', theme, '- auto-saving...');
+    // Get the current saved settings to compare
+    const currentSavedSettings = getSettings(featureFlags);
+    
+    if (theme !== currentSavedSettings.theme) {
+      console.log('[Theme Debug] Theme changed from', currentSavedSettings.theme, 'to:', theme, '- auto-saving...');
       
       // Update the home state
       homeDispatch({ field: 'lightMode', value: theme });
       
-      // Save to localStorage
+      // Save to localStorage with current feature options and hidden models
       const updatedSettings: Settings = {
         theme: theme,
-        featureOptions: initSettingsRef.current.featureOptions,
-        hiddenModelIds: initSettingsRef.current.hiddenModelIds
+        featureOptions: currentSavedSettings.featureOptions,
+        hiddenModelIds: currentSavedSettings.hiddenModelIds
       };
       saveSettings(updatedSettings);
-      
-      // Update the ref so we don't trigger this again
-      initSettingsRef.current.theme = theme;
+      console.log('[Theme Debug] Saved to localStorage:', updatedSettings);
       
       // Save to cloud
       saveUserSettings(updatedSettings).then(result => {
         if (result) {
           console.log('[Theme Debug] Theme saved successfully to cloud');
+        } else {
+          console.log('[Theme Debug] Failed to save theme to cloud');
         }
       });
       
       statsService.setThemeEvent(theme);
     }
-  }, [theme])
+  }, [theme, featureFlags])
 
 
 
