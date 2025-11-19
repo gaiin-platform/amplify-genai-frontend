@@ -35,7 +35,7 @@ const MessageSelectModal: React.FC<Props> = ({setConversation, onSubmit, onCance
     return ( <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
     <div className="fixed inset-0 z-10 overflow-hidden">
       <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-          <div className="dark:border-neutral-600 inline-block overflow-hidden rounded-lg border border-gray-300 bg-white px-4 pt-5 text-left align-bottom shadow-xl transition-all dark:bg-[#22232b] sm:my-8 sm:w-full sm:max-w-[600px] sm:align-middle "
+          <div className="dark:border-neutral-600 inline-block overflow-hidden rounded-lg border border-gray-300 bg-white px-4 pt-5 text-left align-bottom shadow-xl transition-all dark:bg-brand-dark-modal sm:my-8 sm:w-full sm:max-w-[600px] sm:align-middle "
            style={{ transform: 'translateY(+26%)', position: 'relative' }}>
             <label className="mr-2 text-lg font-bold text-black dark:text-neutral-200">Select Conversation Range for Quality Improvement Summary</label>
     
@@ -80,7 +80,7 @@ const MessageSelectModal: React.FC<Props> = ({setConversation, onSubmit, onCance
                                     setStartIndex(index);
                                 }}
                                 style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                                className={`mr-4 text-left items-start w-full rounded-lg p-2 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-[#343541]/90 ${startIndex === index ? "bg-neutral-200 dark:bg-[#343541]/90 cursor-default": ""}`}
+                                className={`mr-4 text-left items-start w-full rounded-lg p-2 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-brand-dark-bg/90 ${startIndex === index ? "bg-neutral-200 dark:bg-brand-dark-bg/90 cursor-default": ""}`}
                             >   
                                 <label className={`mx-1 flex-full truncate text-left ${startIndex === index ? "": "cursor-pointer"}`}
                                       >{message.content.slice(0,75)}</label>
@@ -91,7 +91,7 @@ const MessageSelectModal: React.FC<Props> = ({setConversation, onSubmit, onCance
             </div>
             }
 
-            <div className="flex flex-row items-center justify-end py-4 bg-white dark:bg-[#22232b]">
+            <div className="flex flex-row items-center justify-end py-4 bg-white dark:bg-brand-dark-modal">
                 <button className="mr-2 w-full px-4 py-2 border rounded-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-300" 
                     onClick={onCancel}
                     >Cancel

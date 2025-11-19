@@ -158,7 +158,7 @@ export const ArtifactEditor: React.FC<Props> = ({
   };
 
   return (
-    <div className="mt-8 group md:px-4 bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-[#444654] dark:text-gray-100 h-[calc(100vh-140px)] flex flex-col">
+    <div className="mt-8 group md:px-4 bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-brand-dark-secondary dark:text-gray-100 h-[calc(100vh-140px)] flex flex-col">
       <div className="p-2 text-base md:max-w-2xl md:gap-6 md:py-2 lg:max-w-2xl lg:px-0 xl:max-w-3xl overflow-hidden">
         <div className="prose mt-[-2px] dark:prose-invert max-w-full">
           <div
@@ -206,7 +206,7 @@ export const ArtifactEditor: React.FC<Props> = ({
             ) : (
               <textarea
                 ref={textareaRef}
-                className="w-full resize-none whitespace-pre-wrap border-none dark:bg-[#343541] flex-grow overflow-auto"
+                className="w-full resize-none whitespace-pre-wrap border-none dark:bg-brand-dark-bg flex-grow overflow-auto"
                 value={editContent}
                 onChange={handleInputChange}
                 onKeyDown={handlePressEnter}

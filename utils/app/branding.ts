@@ -1,37 +1,22 @@
 /**
  * White label branding configuration
- * Provides centralized access to customizable brand assets and colors
+ * Logo path is configured via environment variable
+ * Colors are configured in tailwind.config.js
  */
-
-export interface BrandConfig {
-  logo: string;
-  primaryColor: string;
-  hoverColor: string;
-  darkBackground: string;
-}
 
 /**
- * Get the current brand configuration from environment variables
- * Falls back to defaults if not configured
+ * Get the brand logo path
  */
-export const getBrandConfig = (): BrandConfig => {
-  return {
-    logo: process.env.NEXT_PUBLIC_BRAND_LOGO || '/favicon.ico',
-    primaryColor: process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR || '#48bb78',
-    hoverColor: process.env.NEXT_PUBLIC_BRAND_HOVER_COLOR || '#38a169',
-    darkBackground: process.env.NEXT_PUBLIC_BRAND_DARK_BG || '#343541',
-  };
+export const getBrandLogo = (): string => {
+  return process.env.NEXT_PUBLIC_BRAND_LOGO || '/favicon.ico';
 };
 
 /**
- * Client-side hook to get brand configuration
+ * Client-side hook to get brand logo
  * Use this in React components
  */
-export const useBrandConfig = (): BrandConfig => {
+export const useBrandConfig = () => {
   return {
     logo: process.env.NEXT_PUBLIC_BRAND_LOGO || '/favicon.ico',
-    primaryColor: process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR || '#48bb78',
-    hoverColor: process.env.NEXT_PUBLIC_BRAND_HOVER_COLOR || '#38a169',
-    darkBackground: process.env.NEXT_PUBLIC_BRAND_DARK_BG || '#343541',
   };
 };

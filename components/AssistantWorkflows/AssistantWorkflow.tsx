@@ -239,7 +239,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                 className={`border-b border-neutral-300 dark:border-neutral-700 last:border-b-0 ${isDisabled ? 'opacity-50' : ''}`}
                 > 
                 <div className={`gap-1 items-center px-3 pb-4 bg-neutral-100 dark:bg-[#2A2B32] cursor-pointer 
-                                 ${ expandedSteps.includes(index) ?"" : "hover:bg-neutral-200 dark:hover:bg-[#343541]"} ${isDisabled ? 'opacity-70' : ''}`}>
+                                 ${ expandedSteps.includes(index) ?"" : "hover:bg-neutral-200 dark:hover:bg-brand-dark-bg"} ${isDisabled ? 'opacity-70' : ''}`}>
               
                   <div className="flex flex-col w-full flex-grow">
                     <div className="relative">
@@ -265,7 +265,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                     <ExpansionComponent
                       isOpened={obfuscateSteps || typeof obfuscate === 'boolean'}
                       title={segmentTitle}
-                      content={ <div className="py-3 mt-5 bg-gray-200 dark:bg-[#22232b] p-2">
+                      content={ <div className="py-3 mt-5 bg-gray-200 dark:bg-brand-dark-modal p-2">
                           {obfuscateSteps ? (
                             // Simplified view (obfuscated)
                             <div className="text-sm text-neutral-700 dark:text-neutral-300">
@@ -284,7 +284,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                                   <div className="font-medium text-neutral-800 dark:text-neutral-200 mb-1">
                                   • {step.description}
                                   </div>
-                                  <div className="text-xs bg-gray-300 dark:bg-[#343541] p-2 rounded">
+                                  <div className="text-xs bg-gray-300 dark:bg-brand-dark-bg p-2 rounded">
                                     
                                     <div className="mb-1"><span className="font-medium">Tool:</span> {step.tool}</div>
                                     

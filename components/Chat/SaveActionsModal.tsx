@@ -58,7 +58,7 @@ export const SaveActionsModal: FC<SaveActionsModalProps> = ({
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-      <div className="bg-white dark:bg-[#22232b] text-black dark:text-neutral-200 rounded-lg border border-gray-300 dark:border-neutral-600 shadow-xl" style={{ width }}>
+      <div className="bg-white dark:bg-brand-dark-modal text-black dark:text-neutral-200 rounded-lg border border-gray-300 dark:border-neutral-600 shadow-xl" style={{ width }}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-300 dark:border-neutral-600">
           <div className="text-xl font-semibold">{title}</div>
           <button
@@ -79,7 +79,7 @@ export const SaveActionsModal: FC<SaveActionsModalProps> = ({
             <input
               id="name"
               type="text"
-              className={`w-full rounded-lg border ${nameError ? 'border-red-500' : 'border-neutral-500'} px-4 py-2 shadow dark:bg-[#40414F] dark:text-neutral-100`}
+              className={`w-full rounded-lg border ${nameError ? 'border-red-500' : 'border-neutral-500'} px-4 py-2 shadow dark:bg-brand-dark-input dark:text-neutral-100`}
               placeholder="Enter a name for this set of actions"
               value={name}
               onChange={(e) => {
@@ -99,7 +99,7 @@ export const SaveActionsModal: FC<SaveActionsModalProps> = ({
               <input
                 type="text"
                 placeholder="Add a tag..."
-                className="flex-grow rounded-lg border border-neutral-500 px-3 py-1 dark:bg-[#40414F] dark:text-neutral-100"
+                className="flex-grow rounded-lg border border-neutral-500 px-3 py-1 dark:bg-brand-dark-input dark:text-neutral-100"
                 value={newTagInput}
                 onChange={(e) => setNewTagInput(e.target.value)}
                 onKeyDown={(e) => {

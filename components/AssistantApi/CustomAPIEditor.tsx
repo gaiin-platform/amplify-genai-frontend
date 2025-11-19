@@ -55,7 +55,7 @@ export const HTTPRequestSelect: FC<SelectProps> = ({requestType, handleChange, d
     <div className='text-black dark:text-neutral-200'>
       Select Request Type
       <select
-        className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+        className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
         value={requestType}
         id="selectRequestType"
         onChange={(e) => handleChange(e.target.value)}
@@ -152,7 +152,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
             </button>
           </div>
           <input
-            className="mt-2 mb-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+            className="mt-2 mb-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
             placeholder="Name"
             value={api.name}
             onChange={(e) => {
@@ -172,7 +172,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
             }}
           />
           <input
-            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
             placeholder="URL"
             value={api.url}
             onChange={(e) => {
@@ -200,7 +200,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
             {(api.params || []).map((param, paramIndex) => (
               <div key={paramIndex} className="flex mt-1">
                 <input
-                  className="w-1/2 mr-2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                  className="w-1/2 mr-2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                   placeholder="Name"
                   value={param.name}
                   onChange={(e) => {
@@ -221,7 +221,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
                   }}
                 />
                 <input
-                  className="w-1/2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                  className="w-1/2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                   placeholder="Description for the Assistant"
                   value={param.description}
                   onChange={(e) => {
@@ -272,7 +272,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
             {Object.entries(api.headers || {}).map(([key, value], headerIndex) => (
               <div key={headerIndex} className="flex mt-1">
                 <input
-                  className="w-1/2 mr-2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                  className="w-1/2 mr-2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                   placeholder="Key"
                   value={key}
                   onChange={(e) => {
@@ -285,7 +285,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
                   }}
                 />
                 <input
-                  className="w-1/2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                  className="w-1/2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                   placeholder="Value"
                   value={value}
                   onChange={(e) => {
@@ -312,7 +312,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
           <div className="mt-2">
             <label className="text-sm font-bold">Body:</label>
             <textarea
-              className="mt-1 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+              className="mt-1 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
               placeholder="Request Body (JSON)"
               value={typeof api.body === 'object' ? JSON.stringify(api.body, null, 2) : api.body}
               onChange={(e) => {
@@ -349,7 +349,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
           <div className="mt-2">
             <label className="text-sm font-bold">Authentication:</label>
             <select
-              className="ml-2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+              className="ml-2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
               value={api.auth.type || ""}
               onChange={(e) => {
                 const newApiInfo = [...apiInfo];
@@ -366,7 +366,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
           {api.auth.type === 'basic' && (
             <div className="mt-2">
               <input
-                className="mr-2 w-1/2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                className="mr-2 w-1/2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                 placeholder="Username"
                 value={api.auth.username || ''}
                 onChange={(e) => {
@@ -376,7 +376,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
                 }}
               />
               <input
-                className="w-1/2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                className="w-1/2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                 type="password"
                 placeholder="Password"
                 value={api.auth.password || ''}
@@ -390,7 +390,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
           )}
           {api.auth.type === 'bearer' && (
             <input
-              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
               placeholder="Bearer Token"
               value={api.auth.token}
               onChange={(e) => {
@@ -401,7 +401,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
             />
           )}
           <textarea
-            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
             placeholder="API Description (what it does and why it's used)"
             value={api.description || ''}
             onChange={(e) => {

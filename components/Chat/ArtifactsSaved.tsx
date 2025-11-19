@@ -146,7 +146,7 @@ return (
 
         {isOpen &&
         <div ref={artifactsRef}  
-            className="overflow-auto fixed z-50 border border-neutral-300 rounded bg-neutral-100 dark:border-neutral-600 bg-neutral-100 dark:bg-[#444654]"
+            className="overflow-auto fixed z-50 border border-neutral-300 rounded bg-neutral-100 dark:border-neutral-600 bg-neutral-100 dark:bg-brand-dark-secondary"
             style={{maxHeight: `200px`, top: 40, transform: isArtifactsOpen ? 'translateX(-90%)' : 'translateX(0)' , 
             }}>
                 <ul id="artifactsList" className="suggestions-list ">
@@ -155,7 +155,7 @@ return (
                     onMouseEnter={() => setHoveredItem(index)} onMouseLeave={() => setHoveredItem(-1)}
                     title={`${artifact.description}\n - ${artifact.sharedBy ? `Shared by: ${artifact.sharedBy}` : artifact.createdAt}`}
                     id="artifactInList"
-                    className="p-2.5 border-b border-neutral-300 dark:border-b-neutral-600 hover:bg-neutral-200 dark:hover:bg-[#343541]/90 flex flex-row gap-2">
+                    className="p-2.5 border-b border-neutral-300 dark:border-b-neutral-600 hover:bg-neutral-200 dark:hover:bg-brand-dark-bg/90 flex flex-row gap-2">
                       <label className='truncate flex-grow' style={{maxWidth: hoveredItem === index || loadingItem === index ? '200px' : '224px', cursor: loadingItem === index ? 'default': 'pointer'}}> {artifact.name}</label>
                 
                       { loadingItem === index ? 

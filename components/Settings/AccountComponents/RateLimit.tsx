@@ -37,7 +37,7 @@ export const RateLimiter: FC<RateLimitProps> = ({period, setPeriod, rate, setRat
             <>
             <select
                 id="rateLimitType"
-                className="rounded border-gray-300 p-0.5 text-neutral-900 dark:text-neutral-100 shadow-sm dark:bg-[#40414F] focus:border-neutral-700 focus:ring focus:ring-neutral-500 focus:ring-opacity-50  custom-shadow"
+                className="rounded border-gray-300 p-0.5 text-neutral-900 dark:text-neutral-100 shadow-sm dark:bg-brand-dark-input focus:border-neutral-700 focus:ring focus:ring-neutral-500 focus:ring-opacity-50  custom-shadow"
                 style={{ width: '92px'}}
                 value={period}
                 onChange={(e) => setPeriod(e.target.value as PeriodType)}

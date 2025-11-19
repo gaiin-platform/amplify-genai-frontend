@@ -414,7 +414,7 @@ interface SelectProps {
 }
 
 export const AccountSelect: FC<SelectProps> = ({accounts, defaultAccount, setDefaultAccount, showId=true}) => {
-    const cn = "mb-2 w-full rounded-lg border border-neutral-500 px-4 py-1 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100  custom-shadow";
+    const cn = "mb-2 w-full rounded-lg border border-neutral-500 px-4 py-1 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100  custom-shadow";
     return (
         <> 
         {accounts.length > 0 ? 

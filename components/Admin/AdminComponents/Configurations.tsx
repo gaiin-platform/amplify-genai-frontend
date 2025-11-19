@@ -376,7 +376,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                     <div className="mt-2 flex flex-row gap-3">
                     Cost Threshold
                     <input type="number" disabled={!promptCostAlert.isActive}
-                            className="text-center w-[100px] dark:bg-[#40414F] bg-gray-200"
+                            className="text-center w-[100px] dark:bg-brand-dark-input bg-gray-200"
                             id="costThresholdInput"
                             min={0} step={.01} value={promptCostAlert.cost as number?? 0 }
                             onChange={(e) => {
@@ -463,7 +463,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                     setIsAddingAmpGroups({...isAddingAmpGroups, members : updatedEmails})
                                 }
                             />
-                            <div className="h-[40px] rounded-r border border-neutral-500 pl-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 overflow-x-auto">
+                            <div className="h-[40px] rounded-r border border-neutral-500 pl-4 py-1 dark:bg-brand-dark-input bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 overflow-x-auto">
                             {isAddingAmpGroups.members.map((user, idx) => (
                                 <div key={idx} className="flex items-center gap-1 mr-1">
                                     <span className="flex flex-row gap-4 py-2 mr-4"> 

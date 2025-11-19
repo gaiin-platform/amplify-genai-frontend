@@ -514,7 +514,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
    <div 
         ref={artifactsRef}
         id="artifactsTab" 
-        className={`text-base overflow-hidden h-full bg-gray-200 dark:bg-[#343541] text-black dark:text-white border-l border-black px-2`}
+        className={`text-base overflow-hidden h-full bg-gray-200 dark:bg-brand-dark-bg text-black dark:text-white border-l border-black px-2`}
         style={{ width: dynamicWidth, minWidth: '400px', transition: 'width 0.3s ease-in-out' }}
    >
         <div className="flex flex-col h-full " > 
@@ -522,7 +522,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
            
                 {isLoading && 
                 <div className="fixed top-14 ml-20 left-3/4 transform translate-x-3/4 z-[9999] pointer-events-none animate-float">
-                    <div className="p-3 flex flex-row items-center border border-gray-500 bg-[#202123] rounded-lg shadow-xl pointer-events-auto">
+                    <div className="p-3 flex flex-row items-center border border-gray-500 bg-brand-dark-sidebar rounded-lg shadow-xl pointer-events-auto">
                         <LoadingIcon style={{ width: "24px", height: "24px" }}/>
                         <span className="text-lg font-bold ml-2 text-white">{isLoading}</span>
                     </div>
@@ -530,7 +530,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
 
                 {(isModalOpen) &&  
                     <div className="shadow-xl flex justify-center w-full">
-                        <div id="shareArtifactModal" className="p-4  border border-gray-500 rounded z-50 absolute bg-white dark:bg-[#444654]" style={{ transform: `translateY(50%)`}}>
+                        <div id="shareArtifactModal" className="p-4  border border-gray-500 rounded z-50 absolute bg-white dark:bg-brand-dark-secondary" style={{ transform: `translateY(50%)`}}>
 
                         
                     {isSharing && <div className="flex flex-col gap-2" >

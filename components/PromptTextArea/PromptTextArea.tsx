@@ -156,7 +156,7 @@ const PromptTextArea: React.FC<PromptTextAreaProps> = ({
     };
 
     return (
-        <div className="flex flex-col rounded-lg w-full border border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F]">
+        <div className="flex flex-col rounded-lg w-full border border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input">
 
             {codeLanguage && (
                 <Editor
@@ -180,7 +180,7 @@ const PromptTextArea: React.FC<PromptTextAreaProps> = ({
             )}
             {!codeLanguage && (
                 <textarea
-                    className="mt-0 mb-0 w-full rounded-t-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                    className="mt-0 mb-0 w-full rounded-t-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                     id="textArea"
                     value={textAreaValue}
                     onChange={handleTextChange}
@@ -194,7 +194,7 @@ const PromptTextArea: React.FC<PromptTextAreaProps> = ({
                     <div className="flex items-center space-x-2">
                         <button
                             onClick={handleGenerateClick}
-                            className="mr-2 w-full px-4 py-2 mt-0 border rounded-b-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                            className="mr-2 w-full px-4 py-2 mt-0 border rounded-b-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                         >
                             <div className="flex flex-row items-center">
                                 <IconRobot />
@@ -207,7 +207,7 @@ const PromptTextArea: React.FC<PromptTextAreaProps> = ({
                     <div className="flex items-center space-x-2">
                         <button
                             onClick={handleStopGenerate}
-                            className="mr-2 w-full px-4 py-2 mt-0 border rounded-b-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                            className="mr-2 w-full px-4 py-2 mt-0 border rounded-b-lg shadow border-neutral-500 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                         >
                             {stopButtonText}
                         </button>

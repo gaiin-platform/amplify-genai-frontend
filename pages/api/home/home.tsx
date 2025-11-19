@@ -96,7 +96,6 @@ import { AdminConfigTypes } from '@/types/admin';
 import { ConversationStorage } from '@/types/conversationStorage';
 import UserMenu from '@/components/Layout/UserMenu';
 import { useBrandConfig } from '@/utils/app/branding';
-import { BrandStyles } from '@/components/BrandStyles';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -1315,12 +1314,12 @@ const Home = ({
         if (featureFlags.dataDisclosure && hasAcceptedDataDisclosure === false  && window.location.hostname !== 'localhost') {
                 return (
                     <main className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}>
-                        <div className="flex flex-col items-center justify-center min-h-screen text-center dark:bg-[#444654] bg-white dark:text-white text-black">
+                        <div className="flex flex-col items-center justify-center min-h-screen text-center dark:bg-brand-dark-secondary bg-white dark:text-white text-black">
                             <h1 className="text-2xl font-bold dark:text-white">Amplify Data Disclosure Agreement</h1>
                             {dataDisclosure?.url && <a className="hover:text-blue-500" href={dataDisclosure.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', marginBottom: '10px' }}>Download the data disclosure agreement</a>}
                             {dataDisclosure && dataDisclosure.html ? (
                                 <div
-                                    className="data-disclosure dark:bg-[#343541] bg-gray-50 dark:text-white text-black text-left"
+                                    className="data-disclosure dark:bg-brand-dark-bg bg-gray-50 dark:text-white text-black text-left"
                                     style={{
                                         overflowY: 'scroll',
                                         border: '1px solid #ccc',
@@ -1448,7 +1447,6 @@ const Home = ({
                     />
                     <link rel="icon" href="/favicon.ico" />
                 </Head>
-                <BrandStyles />
                 {selectedConversation && (
                     <main
                         className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}

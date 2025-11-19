@@ -267,7 +267,7 @@ const SharedItemsList: FC<{}> = () => {
                                     </div>
 
                                     {hoveredItem === item && ( 
-                                        <div className="ml-2 flex-shrink-0 flex flex-row items-center bg-neutral-200 dark:bg-[#343541]/90 rounded-lg p-1"
+                                        <div className="ml-2 flex-shrink-0 flex flex-row items-center bg-neutral-200 dark:bg-brand-dark-bg/90 rounded-lg p-1"
                                             onMouseEnter={() => {
                                                 setHoveredItem(item)
                                                 setIsButtonHover(false)

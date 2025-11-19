@@ -104,7 +104,7 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
         <div ref={ref} className="relative" style={{width:'220px'}}>
             {isOpen && (
                 <div
-                    className="w-full absolute bottom-0 mb-9 border border-neutral-200 rounded overflow-scroll bg-white dark:border-neutral-600 dark:bg-[#343541]"
+                    className="w-full absolute bottom-0 mb-9 border border-neutral-200 rounded overflow-scroll bg-white dark:border-neutral-600 dark:bg-brand-dark-bg"
                     style={{height: "200px"}}
                 >
                     {availableAssistants.map((assistant, index) => (
@@ -113,7 +113,7 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
                             onClick={()=>{
                                 handleSelectAssistant(assistant);
                             }}
-                            className="flex flex-row items-center justify-center text-black hover:opacity-50 mt-6 dark:text-white dark:border-neutral-600 gap-3 py-2 px-4 dark:bg-[#343541] md:mb-0 md:mt-2 rounded border border-neutral-200 bg-white">
+                            className="flex flex-row items-center justify-center text-black hover:opacity-50 mt-6 dark:text-white dark:border-neutral-600 gap-3 py-2 px-4 dark:bg-brand-dark-bg md:mb-0 md:mt-2 rounded border border-neutral-200 bg-white">
 
                                 <IconRobot size={16}/>
                                 <button key={index}
@@ -128,7 +128,7 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
             {activeAssistant && (
                 <div
                     onClick={toggleDropdown}
-                    className="flex flex-row items-center text-black hover:opacity-50 mt-6 dark:text-white dark:border-neutral-600 py-3 px-4 dark:bg-[#343541] md:mb-0 md:mt-2 rounded border border-neutral-200 bg-white">
+                    className="flex flex-row items-center text-black hover:opacity-50 mt-6 dark:text-white dark:border-neutral-600 py-3 px-4 dark:bg-brand-dark-bg md:mb-0 md:mt-2 rounded border border-neutral-200 bg-white">
                 <IconRobot size={20}/>
                 <button
                     className="ml-2 overflow-hidden text-overflow-ellipsis white-space-nowrap truncate flex w-full items-center"

@@ -191,7 +191,7 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
             {loadingMessage ? (
                 createPortal(
                     <div className="fixed top-14 left-1/2 transform -translate-x-1/2 z-[9999] pointer-events-none animate-float">
-                        <div className="p-3 flex flex-row items-center border border-gray-500 bg-[#202123] rounded-lg shadow-xl pointer-events-auto">
+                        <div className="p-3 flex flex-row items-center border border-gray-500 bg-brand-dark-sidebar rounded-lg shadow-xl pointer-events-auto">
                             <LoadingIcon style={{ width: "24px", height: "24px" }}/>
                             <span className="text-lg font-bold ml-2 text-white">{loadingMessage}</span>
                         </div>

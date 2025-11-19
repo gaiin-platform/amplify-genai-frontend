@@ -526,7 +526,7 @@ interface Props {
                 <button
                     disabled={isSyncing}
                     id="promptHandler"
-                    className={`outline-none focus:outline-none p-0.5 transition-all duration-200 rounded-md ${isMenuOpen ? 'bg-neutral-200 dark:bg-[#343541]/90' : ''}`}
+                    className={`outline-none focus:outline-none p-0.5 transition-all duration-200 rounded-md ${isMenuOpen ? 'bg-neutral-200 dark:bg-brand-dark-bg/90' : ''}`}
                     onClick={toggleDropdown}>
                     <IconDotsVertical size={20} className="flex-shrink-0 text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 enhanced-icon transition-transform duration-300"/>
                 </button>
@@ -535,7 +535,7 @@ interface Props {
             {isMenuOpen && (
                 <div
                     ref={menuRef}
-                    className="absolute bg-neutral-100 dark:bg-[#202123] text-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-600 dark:text-white z-50 shadow-md"
+                    className="absolute bg-neutral-100 dark:bg-brand-dark-sidebar text-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-600 dark:text-white z-50 shadow-md"
                     id="subMenu"
                     style={{ top: '95%', right: '0', pointerEvents: 'auto', width: '180px' }}>
                     <div className="overflow-y-auto" style={{maxHeight: window.innerHeight * 0.7}}>
@@ -629,7 +629,7 @@ interface Props {
         {isTagsDialogVisible && 
         <div className="fixed inset-0 bg-black bg-opacity-50 h-full w-full">
             <div className="flex items-center justify-center min-h-screen">
-              <div className="border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#202123] rounded-lg md:rounded-lg shadow-lg overflow-hidden mx-auto max-w-lg w-[400px] transition-all duration-300"
+              <div className="border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-brand-dark-sidebar rounded-lg md:rounded-lg shadow-lg overflow-hidden mx-auto max-w-lg w-[400px] transition-all duration-300"
               >
                 <div id="tagAddModal" className="p-2 h-[60px] overflow-y-auto">
                 <TagsList tags={tags} 

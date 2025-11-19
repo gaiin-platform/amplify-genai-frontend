@@ -1127,7 +1127,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             </div>
                             <div className="flex flex-row gap-2 ">
                                 <select
-                                    className={"my-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow"}
+                                    className={"my-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-brand-dark-input dark:text-neutral-100 custom-shadow"}
                                     id="autoPopulateSelect"
                                     value={selectTemplateId}
                                     onChange={(e) => setSelectTemplateId(e.target.value ?? '')}
@@ -1142,7 +1142,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         ))}
                                 </select>
                                 <button
-                                className={`mt-2 px-1 h-[36px] rounded border border-neutral-900 dark:border-neutral-500 px-4 py-2 text-neutral-500 dark:text-neutral-300 dark:bg-[#40414F]
+                                className={`mt-2 px-1 h-[36px] rounded border border-neutral-900 dark:border-neutral-500 px-4 py-2 text-neutral-500 dark:text-neutral-300 dark:bg-brand-dark-input
                                             ${selectTemplateId ? "cursor-pointer  hover:text-neutral-900 dark:hover:text-neutral-100"  : "cursor-not-allowed"}`}
                                 disabled={!selectTemplateId}
                                 id="fillInTemplateButton"
@@ -1167,7 +1167,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             </div>
                             <input
                                 id="assistantNameInput"
-                                className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                                 placeholder={t('A name for your prompt.') || ''}
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
@@ -1179,7 +1179,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 {t('Description')}
                             </div>
                             <textarea
-                                className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                                 id="assistantDescription"
                                 style={{resize: 'none'}}
                                 placeholder={t('A description for your prompt.') || ''}
@@ -1193,7 +1193,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 {t('Instructions')}
                             </div>
                             <textarea
-                                className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                                 style={{resize: 'none'}}
                                 placeholder={
                                     t(
@@ -1212,7 +1212,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     {t('Disclaimer to Append to Responses')}
                                 </div>
                                 <textarea
-                                    className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                    className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                                     style={{resize: 'none'}}
                                     placeholder={
                                         t(
@@ -1277,7 +1277,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                }}/>
                             {showDataSourceSelector && (
                                 <div className="mt-[-8px] flex justify-center overflow-hidden transform scale-y-90 origin-top-left">
-                                    <div className="rounded bg-white dark:bg-[#343541] mb-4">
+                                    <div className="rounded bg-white dark:bg-brand-dark-bg mb-4">
                                     <DataSourceSelector
                                             disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                             minWidth="500px"
@@ -1543,7 +1543,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     <select
                                       title={baseWorkflowTemplateId ? "This assistant is using a workflow template. You cannot change the assistant type." : ""}
                                       disabled={baseWorkflowTemplateId !== undefined || disableEdit}
-                                      className={`mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100 ${baseWorkflowTemplateId ? "opacity-40" : ""}`}
+                                      className={`mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100 ${baseWorkflowTemplateId ? "opacity-40" : ""}`}
                                       value={opsLanguageVersion}
                                       onChange={(e) => setOpsLanguageVersion(e.target.value)}
                                     >   
@@ -1634,7 +1634,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                 </div>
                                                 <input
                                                   disabled={disableEdit}
-                                                  className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                  className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                                                   placeholder={t('Tag names separated by commas.') || ''}
                                                   id="tagInput"
                                                   value={tags}
@@ -1651,7 +1651,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                 </div>
                                                 <input
                                                   disabled={disableEdit}
-                                                  className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                                  className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                                                   placeholder={t('Tag names separated by commas.') || ''}
                                                   id="conversationTagInput"
                                                   value={conversationTags}

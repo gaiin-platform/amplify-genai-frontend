@@ -188,7 +188,7 @@ export const AssistantDriveDataSources: FC<Props> = ({
                   ...rescanSchedule,
                   frequency: e.target.value as DriveRescanSchedule['frequency']
                 })}
-                className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm"
+                className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-brand-dark-input text-gray-900 dark:text-white text-sm"
               >
                 <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
@@ -207,7 +207,7 @@ export const AssistantDriveDataSources: FC<Props> = ({
                   ...rescanSchedule,
                   time: e.target.value
                 })}
-                className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm"
+                className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-brand-dark-input text-gray-900 dark:text-white text-sm"
               />
             </div>
 
@@ -222,7 +222,7 @@ export const AssistantDriveDataSources: FC<Props> = ({
                     ...rescanSchedule,
                     dayOfWeek: parseInt(e.target.value)
                   })}
-                  className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm"
+                  className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-brand-dark-input text-gray-900 dark:text-white text-sm"
                 >
                   <option value={0}>Sunday</option>
                   <option value={1}>Monday</option>
@@ -246,7 +246,7 @@ export const AssistantDriveDataSources: FC<Props> = ({
                     ...rescanSchedule,
                     dayOfMonth: parseInt(e.target.value)
                   })}
-                  className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm"
+                  className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-brand-dark-input text-gray-900 dark:text-white text-sm"
                 >
                   {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
                     <option key={day} value={day}>{day}</option>
@@ -515,9 +515,9 @@ export const AssistantDriveDataSources: FC<Props> = ({
                   </div>
                 </div>
               ) : (
-        <div className="flex rounded-xl border dark:border-[#454652] bg-[#e5e7eb] dark:bg-[#343541]">    
+        <div className="flex rounded-xl border dark:border-[#454652] bg-[#e5e7eb] dark:bg-brand-dark-bg">    
           <div
-            className="p-0 bg-[#ffffff] text-medium text-gray-500 dark:text-gray-400 dark:bg-[#343541] rounded-lg w-full"
+            className="p-0 bg-[#ffffff] text-medium text-gray-500 dark:text-gray-400 dark:bg-brand-dark-bg rounded-lg w-full"
             style={{ height, minWidth, minHeight: '400px' }}
           >
             <div className="relative">

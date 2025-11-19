@@ -56,7 +56,7 @@ const UserMessageEditor: React.FC<Props> = (
                                       <textarea
                                           ref={textareaRef}
                                           id="editResponse"
-                                          className="w-full resize-none whitespace-pre-wrap border-none dark:bg-[#343541]"
+                                          className="w-full resize-none whitespace-pre-wrap border-none dark:bg-brand-dark-bg"
                                           value={messageContent}
                                           onChange={handleInputChange}
                                           onKeyDown={handlePressEnter}

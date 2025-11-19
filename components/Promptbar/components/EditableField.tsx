@@ -59,7 +59,7 @@ const EditableField: React.FC<EditableFieldProps> = ({ data, currentValue, handl
                 type="text"
                 value={value}
                 onChange={handleChange}
-                className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
             />
         );
     } else if (data.type === 'options' && data.options) {
@@ -67,7 +67,7 @@ const EditableField: React.FC<EditableFieldProps> = ({ data, currentValue, handl
             <select
                 value={value}
                 onChange={handleChange}
-                className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
             >
                 {data.options.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -83,7 +83,7 @@ const EditableField: React.FC<EditableFieldProps> = ({ data, currentValue, handl
                     type="text"
                     value={value}
                     onChange={handleChange}
-                    className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                    className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                 />
                 {errorMessage && <span style={{ color: 'red' }}>{errorMessage}</span>}
             </div>
@@ -94,7 +94,7 @@ const EditableField: React.FC<EditableFieldProps> = ({ data, currentValue, handl
                 type="text"
                 value={value}
                 onChange={handleChange}
-                className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
             />
         );
     }

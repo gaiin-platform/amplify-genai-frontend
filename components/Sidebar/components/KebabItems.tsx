@@ -19,7 +19,7 @@ export const KebabItem: FC<ItemProps> = ({label, handleAction, icon, title=''}) 
         key={label}
         value={label}
         onClick={handleAction}
-        className={`w-full items-center gap-2 flex flex-row pr-2 pl-2 py-1.5 cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#343541]/90 transition-all duration-200`}>
+        className={`w-full items-center gap-2 flex flex-row pr-2 pl-2 py-1.5 cursor-pointer hover:bg-neutral-200 dark:hover:bg-brand-dark-bg/90 transition-all duration-200`}>
         <div className="text-neutral-900 dark:text-neutral-100 flex-shrink-0 enhanced-icon">{icon} </div>
         <span className="sidebar-text">{label}</span>
       </button>
@@ -76,7 +76,7 @@ export const KebabActionItem: FC<ActionProps> = ({label, type, handleAction, set
         key={label}
         value={label}
         onClick={handleClick}
-        className="w-full flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#343541]/90 transition-all duration-200">
+        className="w-full flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-neutral-200 dark:hover:bg-brand-dark-bg/90 transition-all duration-200">
         <div className="text-neutral-900 dark:text-neutral-100 enhanced-icon">{icon}</div>
         <span className="sidebar-text">{label}</span>  
       </button>
@@ -104,7 +104,7 @@ export const KebabMenuItems: FC<MenuItemsProps> = ({ label, id, children}) => {
       <div className="border-b dark:border-white/20">
         <button
           id={id || label}
-          className="w-full flex items-center justify-between pr-2 pl-2 py-1.5 cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#343541]/90 transition-all duration-200"
+          className="w-full flex items-center justify-between pr-2 pl-2 py-1.5 cursor-pointer hover:bg-neutral-200 dark:hover:bg-brand-dark-bg/90 transition-all duration-200"
           onClick={() => setIsExpanded(!isExpanded)}
         >
           <div className="flex items-center gap-2">

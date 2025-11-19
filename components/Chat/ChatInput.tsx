@@ -835,7 +835,7 @@ export const ChatInput = ({
                             <>
                                 <button
                                     id="stopGenerating"
-                                    className="z-20 -mt-4 flex w-fit items-center gap-1 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 "
+                                    className="z-20 -mt-4 flex w-fit items-center gap-1 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-brand-dark-bg dark:text-white md:mb-0 "
                                     onClick={handleStopConversation}
                                 >
                                     <IconPlayerStop className="animate-pulse" fill="blue" size={16}/> {t('Stop Generating')}
@@ -851,7 +851,7 @@ export const ChatInput = ({
                     {/*  selectedConversation &&*/}
                     {/*  selectedConversation.messages.length > 0 && (*/}
                     {/*    <button*/}
-                    {/*      className="absolute top-0 left-0 right-0 mx-auto mb-3 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 md:mt-2"*/}
+                    {/*      className="absolute top-0 left-0 right-0 mx-auto mb-3 flex w-fit items-center gap-3 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-brand-dark-bg dark:text-white md:mb-0 md:mt-2"*/}
                     {/*      onClick={onRegenerate}*/}
                     {/*    >*/}
                     {/*      <IconRepeat size={16} /> {t('Regenerate response')}*/}
@@ -859,7 +859,7 @@ export const ChatInput = ({
                     {/*  )}*/}
 
                     {showDataSourceSelector && (
-                        <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-[#343541]"
+                        <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-brand-dark-bg"
                              style={{transform: 'translateY(70px)'}}>
                             <DataSourceSelector
                                 disallowedFileExtensions={getDisallowedFileExtensions()}
@@ -960,7 +960,7 @@ export const ChatInput = ({
                     {//TODO: feature flag this
                     }
                     {featureFlags.memory &&
-                        <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-[#343541]"
+                        <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-brand-dark-bg"
                              style={{transform: 'translateY(50px)'}}>
                             <MemoryPresenter
                                 isFactsVisible={isFactsVisible}
@@ -970,7 +970,7 @@ export const ChatInput = ({
 
 
 
-                    <div className="relative mx-2 flex w-full flex-grow sm:mx-4 bg-neutral-100 dark:bg-[#3d3e4c] rounded-md" style={{transform: 'translateY(24px)'}}>
+                    <div className="relative mx-2 flex w-full flex-grow sm:mx-4 bg-neutral-100 dark:bg-brand-dark-tertiary rounded-md" style={{transform: 'translateY(24px)'}}>
 
                         <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
                             if(asts.length === 0){
@@ -1003,7 +1003,7 @@ export const ChatInput = ({
 
                     </div>
 
-                    <div className="relative mx-2 flex w-full flex-grow flex-col rounded-md border border-black/10 bg-white shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:border-gray-900/50 dark:bg-[#40414F] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4" >
+                    <div className="relative mx-2 flex w-full flex-grow flex-col rounded-md border border-black/10 bg-white shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:border-gray-900/50 dark:bg-brand-dark-input dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4" >
 
                         {/* Render ActionsList above the input area */}
                         {featureFlags.actionSets && addedActions.length > 0 && (
@@ -1188,7 +1188,7 @@ export const ChatInput = ({
                     </div>
 
 
-                    <div className="h-8 pt-4 w-full flex flex-row gap-2 items-center bg-white dark:bg-[#343541] mt-[-8px]">
+                    <div className="h-8 pt-4 w-full flex flex-row gap-2 items-center bg-white dark:bg-brand-dark-bg mt-[-8px]">
 
 
                         {featureFlags.dataSourceSelectorOnInput && (
@@ -1269,7 +1269,7 @@ export const ChatInput = ({
                             </button>
 
                             {showAssistantSelect && (
-                                <div className="absolute rounded bg-white dark:bg-[#343541]"
+                                <div className="absolute rounded bg-white dark:bg-brand-dark-bg"
                                      style={{transform: 'translateX(30px) translateY(-2px)', zIndex: 10}}>
                                     <AssistantSelect
                                         assistant={selectedAssistant || DEFAULT_ASSISTANT}
@@ -1305,7 +1305,7 @@ export const ChatInput = ({
                         )}
 
                         {featureFlags.memory && projects.length > 0 && showProjectList && session?.user?.email && (
-                            <div className="absolute rounded bg-white dark:bg-[#343541]"
+                            <div className="absolute rounded bg-white dark:bg-brand-dark-bg"
                                  style={{transform: 'translateX(30px) translateY(-2px)', zIndex: 10}}
 
                                 >

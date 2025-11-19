@@ -121,7 +121,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
     const modelNumberInputs = (key: string, value: number | null, step: number, parseInteger: boolean, description: string) => 
         isAddingAvailModel ? <div id={key} title={description} className="flex flex-row gap-3 dark:text-neutral-200 text-neutral-900">
         <input type="number" id={`${key}Input`} title={description}
-                className="text-center w-[100px] dark:bg-[#40414F] bg-gray-200"
+                className="text-center w-[100px] dark:bg-brand-dark-input bg-gray-200"
                 min={0} step={step} value={value ?? 0 }
                 onChange={(e) => {
                     const value = e.target.value;
@@ -227,7 +227,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                 { ModelProviders.map((p:string) => 
                                     <button key={p}
                                     id={`provider${p}`}
-                                    className={`w-[182.5px] h-[39px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-[#40414F] bg-gray-300 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 
+                                    className={`w-[182.5px] h-[39px] rounded-r border border-neutral-500 px-4 py-1 dark:bg-brand-dark-input bg-gray-300 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 
                                     ${p === isAddingAvailModel.model.provider ? "cursor-default" : "opacity-60 hover:opacity-80"}`}
                                     disabled={p === isAddingAvailModel.model.provider}
                                     onClick={() => {
@@ -399,7 +399,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                 </td>
 
                                 <td className="border border-neutral-500 break-words ">
-                                    <div className="flex justify-center p-2 dark:bg-[#40414F]">
+                                    <div className="flex justify-center p-2 dark:bg-brand-dark-input">
                                         <select 
                                             value={availModel.provider ?? 'Unknown Provider'}
                                             onChange={(e) => {
@@ -411,7 +411,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                             title="Click to change provider"
                                         >
                                             {ModelProviders.map((provider: string) => (
-                                                <option key={provider} value={provider} className="bg-white dark:bg-[#40414F] text-neutral-900 dark:text-neutral-100">
+                                                <option key={provider} value={provider} className="bg-white dark:bg-brand-dark-input text-neutral-900 dark:text-neutral-100">
                                                     {provider}
                                                 </option>
                                             ))}
@@ -555,7 +555,7 @@ const ModelDefaultSelect: FC<SelectProps> = ({models, defaultModels, selectedKey
     return (
         <div className="flex flex-col gap-2 text-center text-[14px] " title={description}>
             <label id={`${capitalize(selectedKey)}Model`} className="font-bold text-[#0bb9f4]">{label ?? `${camelToTitleCase(selectedKey)} Model`}</label>
-            <select id="modelSelect" className={`mb-2 text-center rounded-lg border py-2 text-neutral-900 shadow focus:outline-none dark:bg-[#40414F] dark:text-neutral-100  custom-shadow
+            <select id="modelSelect" className={`mb-2 text-center rounded-lg border py-2 text-neutral-900 shadow focus:outline-none dark:bg-brand-dark-input dark:text-neutral-100  custom-shadow
                                 ${!!selected ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50' : 'border-red-500' }`} 
                 value={selected?.name ?? ''}
                 onChange={(e) => {

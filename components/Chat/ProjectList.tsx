@@ -85,7 +85,7 @@ export const ProjectList: FC<Props> = ({
                     <option
                         key="default"
                         value=""
-                        className="dark:bg-[#343541] dark:text-white"
+                        className="dark:bg-brand-dark-bg dark:text-white"
                     >
                         Select Project
                     </option>
@@ -94,7 +94,7 @@ export const ProjectList: FC<Props> = ({
                         <option
                             key={project.ProjectID}
                             value={project.ProjectID}
-                            className="dark:bg-[#343541] dark:text-white"
+                            className="dark:bg-brand-dark-bg dark:text-white"
                         >
                             {project.ProjectName}
                         </option>
