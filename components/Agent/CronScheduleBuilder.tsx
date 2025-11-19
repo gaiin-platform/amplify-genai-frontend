@@ -938,7 +938,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
                 setStartDate(newStartDate);
                 handleRangeChange(newStartDate, endDate);
               }}
-              className="w-full shadow custom-shadow p-2 border rounded-lg dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
+              className="w-full shadow custom-shadow p-2 border rounded-lg bg-brand-light-input dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
             />
           </div>
           <div>
@@ -954,7 +954,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
                 setEndDate(newEndDate);
                 handleRangeChange(startDate, newEndDate);
               }}
-              className="w-full shadow custom-shadow p-2 border rounded-lg dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
+              className="w-full shadow custom-shadow p-2 border rounded-lg bg-brand-light-input dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
             />
           </div>
         </div>
@@ -1003,4 +1003,4 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
   );
 }; 
 
-const selectClassName = "w-full shadow custom-shadow p-2 border rounded-lg dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
+const selectClassName = "w-full shadow custom-shadow p-2 border rounded-lg bg-brand-light-input dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"

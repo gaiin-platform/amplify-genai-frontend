@@ -146,7 +146,7 @@ return (
 
         {isOpen &&
         <div ref={artifactsRef}  
-            className="overflow-auto fixed z-50 border border-neutral-300 rounded bg-neutral-100 dark:border-neutral-600 bg-neutral-100 dark:bg-brand-dark-secondary"
+            className="overflow-auto fixed z-50 border border-neutral-300 rounded bg-neutral-100 dark:border-neutral-600 bg-neutral-100 bg-brand-light-secondary dark:bg-brand-dark-secondary"
             style={{maxHeight: `200px`, top: 40, transform: isArtifactsOpen ? 'translateX(-90%)' : 'translateX(0)' , 
             }}>
                 <ul id="artifactsList" className="suggestions-list ">

@@ -388,7 +388,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
           {/* Menu */}
           <div 
             ref={menuRef}
-            className="relative mt-12 py-2 w-52 bg-white dark:bg-brand-dark-sidebar rounded-lg border border-neutral-200 dark:border-neutral-600 shadow-xl max-h-[calc(100vh-4rem)] overflow-y-auto"
+            className="relative mt-12 py-2 w-52 bg-white bg-brand-light-sidebar dark:bg-brand-dark-sidebar rounded-lg border border-neutral-200 dark:border-neutral-600 shadow-xl max-h-[calc(100vh-4rem)] overflow-y-auto"
             id="userScroll"
             style={{
               boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',

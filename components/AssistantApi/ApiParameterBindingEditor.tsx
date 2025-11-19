@@ -47,7 +47,7 @@ export const ApiParameterBindingEditor: React.FC<ParameterBindingEditorProps> = 
       </h3>
 
       {Object.entries(paramSource.properties).map(([paramName, paramInfo]: [string, any]) => (
-        <div key={paramName} className="bg-gray-50 dark:bg-brand-dark-input rounded-lg p-4 border border-gray-300 dark:border-neutral-600">
+        <div key={paramName} className="bg-gray-50 bg-brand-light-input dark:bg-brand-dark-input rounded-lg p-4 border border-gray-300 dark:border-neutral-600">
           <label className="flex items-center justify-between font-medium text-sm text-gray-900 dark:text-white mb-2">
             <div className="flex items-center">
               {paramSource.required?.includes(paramName) ? (
@@ -65,7 +65,7 @@ export const ApiParameterBindingEditor: React.FC<ParameterBindingEditorProps> = 
           </label>
 
           <div className="flex items-center gap-3 mt-2">
-            <div className="flex items-center bg-white dark:bg-brand-dark-bg border border-gray-300 dark:border-neutral-600 rounded-md overflow-hidden">
+            <div className="flex items-center bg-brand-light-bg dark:bg-brand-dark-bg border border-gray-300 dark:border-neutral-600 rounded-md overflow-hidden">
               <ToggleOptionButtons
                 activeColor={"text-blue-700 dark:text-blue-300"}
                 options={[
@@ -93,7 +93,7 @@ export const ApiParameterBindingEditor: React.FC<ParameterBindingEditorProps> = 
               placeholder={paramModes[paramName] === 'manual' ? 
                           `Enter ${formatOperationName(paramName)} value...` : 
                           'AI value generation hints (optional)'}
-              className="flex-1 px-3 py-2 border rounded-md bg-white dark:bg-brand-dark-bg border-gray-300 dark:border-neutral-600
+              className="flex-1 px-3 py-2 border rounded-md bg-brand-light-bg dark:bg-brand-dark-bg border-gray-300 dark:border-neutral-600
                         text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500
                         focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-shadow duration-150"
             />

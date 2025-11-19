@@ -48,7 +48,7 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ open, onClose }) =
           </div>
 
         {/* Content */}
-        <div className="relative bg-white dark:bg-brand-dark-bg">
+        <div className="relative bg-brand-light-bg dark:bg-brand-dark-bg">
           <div className="overflow-y-auto max-h-[calc(85vh-120px)]">
             <div className="p-2">
               <SharedItemsList />

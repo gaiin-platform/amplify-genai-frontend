@@ -770,7 +770,7 @@ const GroupSelect: FC<SelectProps> = ({ groups, selectedGroup, setSelectedGroup,
 
     return (
         <div className='flex flex-row gap-2 mb-2'>
-            <select className={"mb-2 w-full text-[1.4rem] text-center rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100  custom-shadow"}
+            <select className={"mb-2 w-full text-[1.4rem] text-center rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100  custom-shadow"}
                     id="selectAssistantGroup"
                     value={selectedGroup?.name ?? ''}
                     title='Select Group'
@@ -1217,7 +1217,7 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({ groupId, astPromptId, assi
             <div className='w-full flex flex-col gap-2 mb-2'>
                 Prompt Message for User Group Selection
                 <textarea
-                    className="mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
+                    className="mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100"
                     style={{ resize: 'none' }}
                     placeholder={`Message to display to user when selecting one of the group types prior to chatting.\n (default message: "Please select the group you best identify with to start chatting."')`}
                     value={userQuestion}
@@ -1260,7 +1260,7 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({ groupId, astPromptId, assi
                                             </div>
                                             {data.isDisabled ?
                                                 <textarea
-                                                    className="mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
+                                                    className="mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100"
                                                     style={{ resize: 'none' }}
                                                     placeholder={`Message to display for selected disabled type: ${type}`}
                                                     value={data.disabledMessage}
@@ -1269,7 +1269,7 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({ groupId, astPromptId, assi
                                                 />
                                                 :
                                                 <textarea
-                                                    className="mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
+                                                    className="mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100"
                                                     style={{ resize: 'none' }}
                                                     placeholder={`Additional instructions specific for this group type: ${type}`}
                                                     value={data.additionalInstructions}
@@ -1323,7 +1323,7 @@ export const GroupTypesAstData: FC<TypeAstProps> = ({ groupId, astPromptId, assi
                                     
                                     {showDataSourceSelector === type && (
                                         <div className="mt-[-10px] justify-center overflow-x-hidden">
-                                            <div className="rounded bg-white dark:bg-brand-dark-bg">
+                                            <div className="rounded bg-brand-light-bg dark:bg-brand-dark-bg">
                                                 <DataSourceSelector
                                                     disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                                     onClose={() => setShowDataSourceSelector('')}

@@ -1314,7 +1314,7 @@ const Home = ({
         if (featureFlags.dataDisclosure && hasAcceptedDataDisclosure === false  && window.location.hostname !== 'localhost') {
                 return (
                     <main className={`flex h-screen w-screen flex-col text-sm ${lightMode}`}>
-                        <div className="flex flex-col items-center justify-center min-h-screen text-center dark:bg-brand-dark-secondary bg-white dark:text-white text-black">
+                        <div className="flex flex-col items-center justify-center min-h-screen text-center bg-brand-light-secondary dark:bg-brand-dark-secondary bg-white dark:text-white text-black">
                             <h1 className="text-2xl font-bold dark:text-white">Amplify Data Disclosure Agreement</h1>
                             {dataDisclosure?.url && <a className="hover:text-blue-500" href={dataDisclosure.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', marginBottom: '10px' }}>Download the data disclosure agreement</a>}
                             {dataDisclosure && dataDisclosure.html ? (

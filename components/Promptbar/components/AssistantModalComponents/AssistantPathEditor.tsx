@@ -284,7 +284,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
             )}
             <div className="relative">
                 <input
-                    className={`mt-2 w-full rounded-lg border ${pathError ? 'border-red-500' : isPathAvailable ? 'border-green-500' : 'border-neutral-500'} px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100`}
+                    className={`mt-2 w-full rounded-lg border ${pathError ? 'border-red-500' : isPathAvailable ? 'border-green-500' : 'border-neutral-500'} px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100`}
                     placeholder="Enter a name for the path where you want to publish your assistant"
                     id="pathNameInput"
                     value={astPath || ''}

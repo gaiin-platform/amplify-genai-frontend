@@ -526,7 +526,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     
 
     
-    const admin_text = 'rounded-r border border-neutral-500 px-4 py-1 dark:bg-brand-dark-input bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50'
+    const admin_text = 'rounded-r border border-neutral-500 px-4 py-1 bg-brand-light-input dark:bg-brand-dark-input bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50'
 
     const tabTitle = (tab: AdminTab) => {
         return  `${tab}${adminTabHasChanges(Array.from(unsavedConfigs), tab) ? " * " : ""}`;
@@ -889,7 +889,7 @@ export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, 
         <div className="relative w-full" ref={dropdownRef}>
           <button
             type="button"
-            className="text-center w-full overflow-x-auto px-4 py-2 text-left text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100 flex-grow-0"
+            className="text-center w-full overflow-x-auto px-4 py-2 text-left text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100 flex-grow-0"
             style={{ whiteSpace: 'nowrap', cursor: hasGroupOptions ? "pointer" : 'default' }}
             onClick={handleDropdownToggle}
             onMouseEnter={(e) => e.stopPropagation()}
@@ -901,7 +901,7 @@ export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, 
           </button>
     
           {isOpen && !isDisabled && hasGroupOptions && (
-            <ul className={`absolute z-[99999] max-h-60 w-full overflow-auto rounded-lg border-2 border-neutral-500 bg-white shadow-xl dark:border-neutral-900 dark:bg-brand-dark-input ${
+            <ul className={`absolute z-[99999] max-h-60 w-full overflow-auto rounded-lg border-2 border-neutral-500 bg-white shadow-xl dark:border-neutral-900 bg-brand-light-input dark:bg-brand-dark-input ${
                 dropdownDirection === 'up' ? 'bottom-full mb-0.5' : 'top-full mt-0.5'
               }`}
                 style={{ 

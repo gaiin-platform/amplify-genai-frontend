@@ -149,7 +149,7 @@ const FeaturePlugin = ({ plugins, setPlugins }: Props) => {
                 }}
                 ref={draggableRef}
             >
-                <div className={`${showPluginSelect ? 'pluginSelect bottom-full absolute mb-[-14px] rounded bg-white dark:bg-brand-dark-bg' : 'hidden'}`}
+                <div className={`${showPluginSelect ? 'pluginSelect bottom-full absolute mb-[-14px] rounded bg-brand-light-bg dark:bg-brand-dark-bg' : 'hidden'}`}
                 >
                     <PluginSelector
                         plugins={plugins}

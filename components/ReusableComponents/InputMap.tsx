@@ -45,7 +45,7 @@ export const InputsMap: React.FC<Props> = ({ id, inputs, state, inputChanged, sp
                 </label>
                 
                   { (obscure && !showKeys.includes(input.key)) && state[input.key] ?
-                  <div className="w-full rounded-r border border-neutral-500 flex flex-row gap-4 items-center dark:bg-brand-dark-input bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50">
+                  <div className="w-full rounded-r border border-neutral-500 flex flex-row gap-4 items-center bg-brand-light-input dark:bg-brand-dark-input bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50">
                   <ActionButton
                       handleClick={() => setShowKeys([...showKeys, input.key])}
                       id="showSecret"
@@ -55,7 +55,7 @@ export const InputsMap: React.FC<Props> = ({ id, inputs, state, inputChanged, sp
                     {'*'.repeat(state[input.key].length)}
                   </div>
                   :
-                  <div className="w-full rounded-r border border-neutral-500 flex items-center dark:bg-brand-dark-input bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50">
+                  <div className="w-full rounded-r border border-neutral-500 flex items-center bg-brand-light-input dark:bg-brand-dark-input bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50">
                   {obscure && 
                     <ActionButton
                       handleClick={() => setShowKeys(showKeys.filter((k:string) => k !== input.key))}
@@ -67,7 +67,7 @@ export const InputsMap: React.FC<Props> = ({ id, inputs, state, inputChanged, sp
                   <input
                     disabled={input.disabled}
                     id={`${id}-${input.key}`}
-                    className="w-full border-0 px-4 py-1 dark:bg-brand-dark-input bg-gray-200 dark:text-neutral-100 text-neutral-900 focus:outline-none"
+                    className="w-full border-0 px-4 py-1 bg-brand-light-input dark:bg-brand-dark-input bg-gray-200 dark:text-neutral-100 text-neutral-900 focus:outline-none"
                     placeholder={input.placeholder}
                     value={state[input.key]}
                     onChange={(e) => {

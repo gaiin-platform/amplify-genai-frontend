@@ -272,7 +272,7 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
         const [hoveredButton, setHoveredButton] = useState(false);
         
         // Determine background color based on hover state
-        let hoverBgClass = 'bg-white dark:bg-brand-dark-input'; // default
+        let hoverBgClass = 'bg-white bg-brand-light-input dark:bg-brand-dark-input'; // default
         
         if (hoveredButton) {
             // When hovering remove button, show gray for all items

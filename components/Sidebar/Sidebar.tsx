@@ -170,7 +170,7 @@ const Sidebar = <T,>({
       </div>
       {footerComponent && (
         <div 
-          className={`fixed bottom-0 ${side}-0 z-40 w-[270px] bg-white dark:bg-brand-dark-sidebar border-t border-neutral-300 dark:border-neutral-600`}
+          className={`fixed bottom-0 ${side}-0 z-40 w-[270px] bg-white bg-brand-light-sidebar dark:bg-brand-dark-sidebar border-t border-neutral-300 dark:border-neutral-600`}
           style={{ left: side === 'left' ? '0' : 'auto', right: side === 'right' ? '0' : 'auto' }}
         >
           {footerComponent}

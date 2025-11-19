@@ -569,7 +569,7 @@ If people need help with prompt engineering, which is how you converse effective
 
 // @ts-ignore
     return (
-            <div className="relative flex-1 overflow-hidden bg-neutral-100 dark:bg-brand-dark-bg">
+            <div className="relative flex-1 overflow-hidden bg-brand-light-secondary dark:bg-brand-dark-bg">
                 <>
                     <div
                         className="max-h-full overflow-x-hidden"
@@ -736,7 +736,7 @@ If people need help with prompt engineering, which is how you converse effective
                         </section>
 
                         {showExample.examples.length == 0 && (
-                            <div className="justify-center items-center px-8 py-4 flex flex-col w-full text-black bg-white dark:text-white dark:bg-brand-dark-sidebar">
+                            <div className="justify-center items-center px-8 py-4 flex flex-col w-full text-black bg-white dark:text-white bg-brand-light-sidebar dark:bg-brand-dark-sidebar">
                                 <div>
                                     <h1 className="justify-center mb-4 text-2xl font-extrabold tracking-tight leading-none text-gray-900 md:text-3xl lg:text-4xl dark:text-white">
                                         We don&apos;t have any examples of this item yet...
@@ -747,7 +747,7 @@ If people need help with prompt engineering, which is how you converse effective
                         {showExample.examples.map((example, index) => (
                             <>
                             <div>
-                                <div className="px-8 py-4 flex flex-col w-full text-black bg-white dark:text-white dark:bg-brand-dark-sidebar">
+                                <div className="px-8 py-4 flex flex-col w-full text-black bg-white dark:text-white bg-brand-light-sidebar dark:bg-brand-dark-sidebar">
                                     <div>
                                         <h1 className="mb-4 text-3xl font-extrabold tracking-tight leading-none text-gray-900 md:text-5xl lg:text-6xl dark:text-white">
                                         Scenario #{index + 1}:
@@ -790,7 +790,7 @@ If people need help with prompt engineering, which is how you converse effective
                                 </div>
                             </div>
                             <div>
-                                <div className="px-8 py-4 flex flex-col w-full text-gray-600 dark:text-white bg-white dark:bg-brand-dark-sidebar">
+                                <div className="px-8 py-4 flex flex-col w-full text-gray-600 dark:text-white bg-white bg-brand-light-sidebar dark:bg-brand-dark-sidebar">
                                     <div>
                                         <h1 className="mb-4 text-3xl font-extrabold tracking-tight leading-none text-gray-900 md:text-5xl lg:text-6xl dark:text-white">
                                         Output for Scenario #{index + 1}:

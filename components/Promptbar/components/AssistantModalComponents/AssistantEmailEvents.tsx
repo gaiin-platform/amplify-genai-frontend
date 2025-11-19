@@ -111,7 +111,7 @@ interface ApiItemProps {
                 <div className="absolute right-0 flex flex-row gap-2">
                     Email Identifier Tag:
                     <input
-                        className="w-[200px] mt-[-3px] rounded-lg border border-neutral-500 pl-4 pr-8 py-1 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
+                        className="w-[200px] mt-[-3px] rounded-lg border border-neutral-500 pl-4 pr-8 py-1 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100"
                         value={ (emailEventTag || safeEmailEventTag(assistantName))}
                         disabled={!enableEmailEvents || disableEdit || isPresetCheck(initialEmailEventTag)}
                         onChange={(e) => {
@@ -166,7 +166,7 @@ interface ApiItemProps {
                                 {label}
                             </div>
                             <textarea
-                                className="w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
+                                className="w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100"
                                 style={{resize: !enableEmailEvents || disableEdit ? 'none' : 'vertical'}}
                                 placeholder={placeholder}
                                 value={emailEventTemplate?.[key as keyof typeof emailEventTemplate] || ''}

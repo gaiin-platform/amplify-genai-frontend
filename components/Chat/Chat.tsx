@@ -984,7 +984,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             <div className={`flex h-full ${featureFlags.artifacts && isArtifactOpen ? 'grid grid-cols-2 gap-0' : ' w-full'}`}>
                 
                 {/* Chat Area */}
-                <div className={`relative ${featureFlags.artifacts && isArtifactOpen ? 'overflow-hidden' : 'flex-1'} bg-neutral-100 dark:bg-brand-dark-bg`}>
+                <div className={`relative ${featureFlags.artifacts && isArtifactOpen ? 'overflow-hidden' : 'flex-1'} bg-brand-light-secondary dark:bg-brand-dark-bg`}>
                     { modelError ? (
                         <ErrorMessageDiv error={modelError}/>  
                     ) : (
@@ -1150,7 +1150,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                                     <div
                                        className={isBarSticky ? 
-                                           "items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100 text-sm text-neutral-500 dark:border-none dark:bg-brand-dark-secondary dark:text-neutral-200 text-gray-800 dark:text-gray-200" :
+                                           "items-center sticky top-0 py-3 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100 text-sm text-neutral-500 dark:border-none bg-brand-light-secondary dark:bg-brand-dark-secondary dark:text-neutral-200 text-gray-800 dark:text-gray-200" :
                                            "sticky top-4 mt-4 flex justify-center items-center z-10"
                                        }>
                                        
@@ -1409,7 +1409,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     {loading && <ChatLoader/>}
 
                                     <div
-                                        className="h-[300px] bg-white dark:bg-brand-dark-bg"
+                                        className="h-[300px] bg-brand-light-bg dark:bg-brand-dark-bg"
                                         ref={messagesEndRef}
                                     />
 

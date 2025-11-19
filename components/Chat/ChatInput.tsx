@@ -859,7 +859,7 @@ export const ChatInput = ({
                     {/*  )}*/}
 
                     {showDataSourceSelector && (
-                        <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-brand-dark-bg"
+                        <div ref={dataSourceSelectorRef} className="rounded bg-brand-light-bg dark:bg-brand-dark-bg"
                              style={{transform: 'translateY(70px)'}}>
                             <DataSourceSelector
                                 disallowedFileExtensions={getDisallowedFileExtensions()}
@@ -960,7 +960,7 @@ export const ChatInput = ({
                     {//TODO: feature flag this
                     }
                     {featureFlags.memory &&
-                        <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-brand-dark-bg"
+                        <div ref={dataSourceSelectorRef} className="rounded bg-brand-light-bg dark:bg-brand-dark-bg"
                              style={{transform: 'translateY(50px)'}}>
                             <MemoryPresenter
                                 isFactsVisible={isFactsVisible}
@@ -970,7 +970,7 @@ export const ChatInput = ({
 
 
 
-                    <div className="relative mx-2 flex w-full flex-grow sm:mx-4 bg-neutral-100 dark:bg-brand-dark-tertiary rounded-md" style={{transform: 'translateY(24px)'}}>
+                    <div className="relative mx-2 flex w-full flex-grow sm:mx-4 bg-neutral-100 bg-brand-light-tertiary dark:bg-brand-dark-tertiary rounded-md" style={{transform: 'translateY(24px)'}}>
 
                         <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
                             if(asts.length === 0){
@@ -1003,7 +1003,7 @@ export const ChatInput = ({
 
                     </div>
 
-                    <div className="relative mx-2 flex w-full flex-grow flex-col rounded-md border border-black/10 bg-white shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:border-gray-900/50 dark:bg-brand-dark-input dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4" >
+                    <div className="relative mx-2 flex w-full flex-grow flex-col rounded-md border border-black/10 bg-white shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:border-gray-900/50 bg-brand-light-input dark:bg-brand-dark-input dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4" >
 
                         {/* Render ActionsList above the input area */}
                         {featureFlags.actionSets && addedActions.length > 0 && (
@@ -1188,7 +1188,7 @@ export const ChatInput = ({
                     </div>
 
 
-                    <div className="h-8 pt-4 w-full flex flex-row gap-2 items-center bg-white dark:bg-brand-dark-bg mt-[-8px]">
+                    <div className="h-8 pt-4 w-full flex flex-row gap-2 items-center bg-brand-light-bg dark:bg-brand-dark-bg mt-[-8px]">
 
 
                         {featureFlags.dataSourceSelectorOnInput && (
@@ -1269,7 +1269,7 @@ export const ChatInput = ({
                             </button>
 
                             {showAssistantSelect && (
-                                <div className="absolute rounded bg-white dark:bg-brand-dark-bg"
+                                <div className="absolute rounded bg-brand-light-bg dark:bg-brand-dark-bg"
                                      style={{transform: 'translateX(30px) translateY(-2px)', zIndex: 10}}>
                                     <AssistantSelect
                                         assistant={selectedAssistant || DEFAULT_ASSISTANT}
@@ -1305,7 +1305,7 @@ export const ChatInput = ({
                         )}
 
                         {featureFlags.memory && projects.length > 0 && showProjectList && session?.user?.email && (
-                            <div className="absolute rounded bg-white dark:bg-brand-dark-bg"
+                            <div className="absolute rounded bg-brand-light-bg dark:bg-brand-dark-bg"
                                  style={{transform: 'translateX(30px) translateY(-2px)', zIndex: 10}}
 
                                 >
