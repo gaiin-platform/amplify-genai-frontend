@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    /* Brand colors will be injected by BrandStyles component */
+    /* These are fallback values */
+    --color-brand-primary: #48bb78;
+    --color-brand-hover: #38a169;
+    --color-brand-dark-bg: #343541;
+  }
+}
+
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import 'sidebar-enhancements.css';
 @import 'table-enhancements.css';
