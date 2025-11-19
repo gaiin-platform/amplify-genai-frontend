@@ -84,7 +84,7 @@ export const AssistantSelect: FC<Props> = ({
                         key={AssistantProviderID.AMPLIFY}
                         value={AssistantProviderID.AMPLIFY}
                         id="standardConversation"
-                        className="dark:bg-[#343541] dark:text-white"
+                        className="dark:bg-brand-dark-bg dark:text-white"
                     >
                         Standard Conversation
                     </option>
@@ -93,7 +93,7 @@ export const AssistantSelect: FC<Props> = ({
                         <option
                             key={a.id}
                             value={a.id}
-                            className="dark:bg-[#343541] dark:text-white"
+                            className="dark:bg-brand-dark-bg dark:text-white"
                             id="assistantName"
                         >
                             {a.definition.name}

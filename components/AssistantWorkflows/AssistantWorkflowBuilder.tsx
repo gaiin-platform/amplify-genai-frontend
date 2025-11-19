@@ -528,7 +528,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                 setSelectedWorkflow(newTemplate);
               }
             }}
-            className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+            className="w-full p-2 border rounded-lg dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
             placeholder="Name for this step (used for references)"
           />
         </div>
@@ -547,7 +547,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
               setSelectedWorkflow(newTemplate);
             }
           }}
-          className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+          className="w-full p-2 border rounded-lg dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
           placeholder="What this step does"
           disabled={isTerminate}
         />
@@ -561,7 +561,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           <button
             disabled={isTerminate}
             type="button"
-            className={`flex flex-row w-full p-2 border text-left rounded-lg bg-white dark:bg-[#40414F] dark:border-neutral-600 dark:text-white ${ isTerminate ? "" : "hover:bg-gray-50 dark:hover:bg-[#4a4b59] transition-colors"}`}
+            className={`flex flex-row w-full p-2 border text-left rounded-lg bg-white dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white ${ isTerminate ? "" : "hover:bg-gray-50 dark:hover:bg-[#4a4b59] transition-colors"}`}
             onClick={() => setShowToolSelector(!showToolSelector)}
           >
             {step.tool || "Select a tool"}
@@ -606,7 +606,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
               setSelectedWorkflow(newTemplate);
             }
           }}
-          className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+          className="w-full p-2 border rounded-lg dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
           rows={4}
           placeholder="Instructions for this step"
           // disabled={isTerminate}
@@ -627,7 +627,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
               setSelectedWorkflow(newTemplate);
             }
           }}
-          className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+          className="w-full p-2 border rounded-lg dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
           placeholder="Group related steps"
           disabled={isTerminate}
         />
@@ -801,9 +801,9 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                   >
                     Argument
                   </label>
-                  <div className="w-full rounded-r border border-neutral-500 flex items-center dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50">
+                  <div className="w-full rounded-r border border-neutral-500 flex items-center dark:bg-brand-dark-input bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50">
                     <select
-                      className="w-full border-0 px-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 focus:outline-none"
+                      className="w-full border-0 px-4 py-1 dark:bg-brand-dark-input bg-gray-200 dark:text-neutral-100 text-neutral-900 focus:outline-none"
                       value={key}
                       onChange={(e) => {
                         const newTemplate = cloneDeep(selectedWorkflow);
@@ -835,9 +835,9 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                   >
                     Value
                   </label>
-                  <div className="w-full rounded-r border border-neutral-500 flex items-center dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50">
+                  <div className="w-full rounded-r border border-neutral-500 flex items-center dark:bg-brand-dark-input bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50">
                     <input
-                      className="w-full border-0 px-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 focus:outline-none"
+                      className="w-full border-0 px-4 py-1 dark:bg-brand-dark-input bg-gray-200 dark:text-neutral-100 text-neutral-900 focus:outline-none"
                       placeholder="Value content"
                       value={value}
                       onChange={(e) => {
@@ -1057,7 +1057,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
               return (
                 <React.Fragment key={index}>
                   <div 
-                    className={`p-4 bg-white border-t border-neutral-300 dark:border-neutral-700 dark:bg-[#343541] 
+                    className={`p-4 bg-white border-t border-neutral-300 dark:border-neutral-700 dark:bg-brand-dark-bg 
                     ${expandedSteps.includes(index) ? '' : 'hover:bg-neutral-200 dark:hover:bg-gray-700'}
                     ${isTerminateStep(step) && !expandedSteps.includes(index) ? 'opacity-50' : ''} 
                     ${draggedIndex === index ? 'opacity-50' : ''}
@@ -1075,7 +1075,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                     <ExpansionComponent
                       title={`${index + 1}. ${(isTerminateStep(step) ? 'Terminate conversation'  : 
                                           ( `${step.stepName || step.description}`) || 'New Step')}`}
-                      content={<div className=" bg-neutral-100 dark:bg-[#22232b] p-2">{renderStepEditor(step, index)}</div>}
+                      content={<div className=" bg-neutral-100 dark:bg-brand-dark-modal p-2">{renderStepEditor(step, index)}</div>}
                       onOpen={() => setExpandedSteps([...expandedSteps, index])}
                       onClose={() => setExpandedSteps(expandedSteps.filter(i => i !== index))}
                       closedWidget={<IconCaretDown size={20} style={{ color: actionColor, fill: actionColor || "none"}} />}
@@ -1175,7 +1175,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           type="text"
           value={selectedWorkflow.name}
           onChange={(e) => setSelectedWorkflow({...selectedWorkflow, name: e.target.value})}
-          className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+          className="w-full p-2 border rounded-lg dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
           placeholder="Name your workflow template"
         />
       </div>
@@ -1198,7 +1198,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
         <textarea
           value={selectedWorkflow.description}
           onChange={(e) => setSelectedWorkflow({...selectedWorkflow, description: e.target.value})}
-          className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+          className="w-full p-2 border rounded-lg dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
           rows={2}
           placeholder="Describe what this workflow does"
         />

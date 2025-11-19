@@ -169,7 +169,7 @@ const getIcons = (model: Model) => {
           
         </button>
         {isOpen && (
-          <ul id="modelList" className="absolute mt-1 w-full overflow-auto rounded-lg border border-neutral-200 bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-[#343541] sm:text-sm"
+          <ul id="modelList" className="absolute mt-1 w-full overflow-auto rounded-lg border border-neutral-200 bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-brand-dark-bg sm:text-sm"
               style={{maxHeight: window.innerHeight * 0.55, zIndex: 20}}>
             {models.sort((a, b) => a.name.localeCompare(b.name))
                     .map((model: Model) => (
@@ -204,7 +204,7 @@ const legendItem = (icon: JSX.Element, message: string) => {
 
 const legend = (showPricingBreakdown: boolean, featureFlags: any) => {
   return (
-    <div className='text-black dark:text-white absolute mt-1 w-[260px] rounded-lg border border-neutral-200 bg-white p-4 text-sm shadow-lg z-20 dark:border-neutral-600 dark:bg-[#343541]'
+    <div className='text-black dark:text-white absolute mt-1 w-[260px] rounded-lg border border-neutral-200 bg-white p-4 text-sm shadow-lg z-20 dark:border-neutral-600 dark:bg-brand-dark-bg'
          style={{transform: 'translateX(-85%)'}}>
       <div id="modelLegend" className='mb-2 font-semibold text-neutral-700 dark:text-neutral-300'>
         Legend

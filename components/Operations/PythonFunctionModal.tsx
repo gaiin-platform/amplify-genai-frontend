@@ -641,7 +641,7 @@ if __name__ == "__main__":
                 <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
                     <div className="hidden sm:inline-block sm:h-screen sm:align-middle" aria-hidden="true" />
                     <div
-                        className={`text-black dark:text-neutral-200 inline-block overflow-hidden ${blackoutBackground ? 'rounded-lg border border-gray-300 dark:border-neutral-600' : ''} bg-white pt-5 text-left align-bottom shadow-xl transition-all dark:bg-[#22232b] sm:my-8 sm:align-middle`}
+                        className={`text-black dark:text-neutral-200 inline-block overflow-hidden ${blackoutBackground ? 'rounded-lg border border-gray-300 dark:border-neutral-600' : ''} bg-white pt-5 text-left align-bottom shadow-xl transition-all dark:bg-brand-dark-modal sm:my-8 sm:align-middle`}
                         ref={modalRef}
                         role="dialog"
                         style={{ transform: translateY ? `translateY(${translateY})` : '0', width }}
@@ -958,7 +958,7 @@ Output only a markdown code block like this:
                                   </button>
                                 </div>
                                 <input
-                                    className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 shadow dark:bg-[#40414F] dark:text-neutral-100"
+                                    className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 shadow dark:bg-brand-dark-input dark:text-neutral-100"
                                     placeholder='Name of the function'
                                     value={name}
                                     onChange={(e) => {
@@ -983,7 +983,7 @@ Output only a markdown code block like this:
                                         <input
                                             type="text"
                                             placeholder="Add a tag..."
-                                            className="flex-grow rounded-lg border border-neutral-500 px-3 py-1 dark:bg-[#40414F] dark:text-neutral-100"
+                                            className="flex-grow rounded-lg border border-neutral-500 px-3 py-1 dark:bg-brand-dark-input dark:text-neutral-100"
                                             value={newTagInput}
                                             onChange={(e) => setNewTagInput(e.target.value)}
                                             onKeyDown={(e) => {
@@ -1036,7 +1036,7 @@ Output only a markdown code block like this:
                                         <input
                                             type="text"
                                             placeholder="Add a group..."
-                                            className="flex-grow rounded-lg border border-neutral-500 px-3 py-1 dark:bg-[#40414F] dark:text-neutral-100"
+                                            className="flex-grow rounded-lg border border-neutral-500 px-3 py-1 dark:bg-brand-dark-input dark:text-neutral-100"
                                             value={newGroupInput}
                                             onChange={(e) => setNewGroupInput(e.target.value)}
                                             onKeyDown={(e) => {
@@ -1168,7 +1168,7 @@ Output only a markdown code block like this:
                                             </button>
 
                                             <select
-                                                className="ml-2 border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                                className="ml-2 border rounded p-2 dark:bg-brand-dark-input dark:text-white"
                                                 value={env.type}
                                                 onChange={(e) => {
                                                     const newVars = [...envVars];
@@ -1185,7 +1185,7 @@ Output only a markdown code block like this:
                                             </select>
                                             </div>
                                             <input
-                                                className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                                className="border rounded p-2 dark:bg-brand-dark-input dark:text-white"
                                                 placeholder="Key"
                                                 value={env.key}
                                                 onChange={(e) => {
@@ -1197,7 +1197,7 @@ Output only a markdown code block like this:
                                             />
                                     {env.type === 'OAuth Token' ? (
                                       <select
-                                        className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                        className="border rounded p-2 dark:bg-brand-dark-input dark:text-white"
                                         value={env.value}
                                         onChange={(e) => {
                                           const newVars = [...envVars];
@@ -1213,7 +1213,7 @@ Output only a markdown code block like this:
                                       </select>
                                     ) : env.type === 'Amplify Variable' ? (
                                       <select
-                                        className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                        className="border rounded p-2 dark:bg-brand-dark-input dark:text-white"
                                         value={env.value}
                                         onChange={(e) => {
                                           const newVars = [...envVars];
@@ -1232,7 +1232,7 @@ Output only a markdown code block like this:
                                     ) : env.type === 'Secret' ? (
                                       <input
                                         type="password"
-                                        className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                        className="border rounded p-2 dark:bg-brand-dark-input dark:text-white"
                                         placeholder="Secret value"
                                         value={env.value}
                                         onChange={(e) => {
@@ -1245,7 +1245,7 @@ Output only a markdown code block like this:
                                     ) : (
                                       <input
                                         type="text"
-                                        className="border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                        className="border rounded p-2 dark:bg-brand-dark-input dark:text-white"
                                         placeholder="Value"
                                         value={env.value}
                                         onChange={(e) => {
@@ -1272,20 +1272,20 @@ Output only a markdown code block like this:
                                 <div className="mt-6 text-sm font-bold">Test Case</div>
                                 <div className="mt-2 grid grid-cols-2 gap-4">
                                     <input
-                                        className="col-span-2 rounded-lg border border-neutral-500 px-4 py-2 shadow dark:bg-[#40414F] dark:text-neutral-100"
+                                        className="col-span-2 rounded-lg border border-neutral-500 px-4 py-2 shadow dark:bg-brand-dark-input dark:text-neutral-100"
                                         placeholder="Test case name"
                                         value={newTestCase.name}
                                         onChange={(e) => updateNewTestCase({ ...newTestCase, name: e.target.value })}
                                     />
                                     <textarea
-                                        className="col-span-2 rounded-lg border border-neutral-500 px-4 py-2 shadow dark:bg-[#40414F] dark:text-neutral-100"
+                                        className="col-span-2 rounded-lg border border-neutral-500 px-4 py-2 shadow dark:bg-brand-dark-input dark:text-neutral-100"
                                         placeholder="Description"
                                         rows={2}
                                         value={newTestCase.description}
                                         onChange={(e) => updateNewTestCase({ ...newTestCase, description: e.target.value })}
                                     />
                                     <textarea
-                                        className="col-span-2 rounded-lg border border-neutral-500 px-4 py-2 shadow dark:bg-[#40414F] dark:text-neutral-100 font-mono"
+                                        className="col-span-2 rounded-lg border border-neutral-500 px-4 py-2 shadow dark:bg-brand-dark-input dark:text-neutral-100 font-mono"
                                         placeholder="Input JSON"
                                         rows={3}
                                         value={newTestCase.inputJson}
@@ -1322,7 +1322,7 @@ Output only a markdown code block like this:
                                         </label>
                                     </div>
                                     <textarea
-                                        className="col-span-2 rounded-lg border border-neutral-500 px-4 py-2 shadow dark:bg-[#40414F] dark:text-neutral-100 font-mono"
+                                        className="col-span-2 rounded-lg border border-neutral-500 px-4 py-2 shadow dark:bg-brand-dark-input dark:text-neutral-100 font-mono"
                                         placeholder="Expected output (JSON or prompt text)"
                                         rows={3}
                                         value={newTestCase.expectedOutput}
@@ -1719,7 +1719,7 @@ Output only a markdown code block like this:
                                         <label className="block text-sm font-medium mb-1">Path</label>
                                         <input
                                             type="text"
-                                            className="w-full border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                            className="w-full border rounded p-2 dark:bg-brand-dark-input dark:text-white"
                                             placeholder="e.g. cars/list"
                                             value={publishPath}
                                             onChange={(e) => setPublishPath(e.target.value)}
@@ -1730,7 +1730,7 @@ Output only a markdown code block like this:
                                         <label className="block text-sm font-medium mb-1">Version</label>
                                         <input
                                             type="text"
-                                            className="w-full border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                            className="w-full border rounded p-2 dark:bg-brand-dark-input dark:text-white"
                                             value={publishVersion}
                                             onChange={(e) => setPublishVersion(e.target.value)}
                                         />
@@ -1748,7 +1748,7 @@ Output only a markdown code block like this:
                                     <div>
                                         <label className="block text-sm font-medium mb-1">Access</label>
                                         <select
-                                            className="w-full border rounded p-2 dark:bg-[#40414F] dark:text-white"
+                                            className="w-full border rounded p-2 dark:bg-brand-dark-input dark:text-white"
                                             value={access}
                                             //@ts-ignore
                                             onChange={(e) => setAccess(e.target.value)}
@@ -1805,7 +1805,7 @@ Output only a markdown code block like this:
                             </div>
                         </div>
 
-                        <div className="flex flex-row items-center justify-end p-4 bg-white dark:bg-[#22232b]">
+                        <div className="flex flex-row items-center justify-end p-4 bg-white dark:bg-brand-dark-modal">
                             <button
                                 className="px-4 py-2 border rounded-lg shadow text-neutral-900 hover:bg-neutral-100 dark:bg-white dark:text-black dark:hover:bg-neutral-300 disabled:opacity-50 flex items-center gap-2"
                                 onClick={handleSave}

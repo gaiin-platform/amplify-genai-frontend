@@ -15,7 +15,7 @@ const SimpleSidebar: React.FC<SimpleSidebarProps> = ({ side }) => {
     : 'border-l border-neutral-300 dark:border-neutral-800';
   
   return (
-    <div className={`${baseClasses} ${borderClasses} bg-gray-50 dark:bg-[#202123]`}>
+    <div className={`${baseClasses} ${borderClasses} bg-gray-50 dark:bg-brand-dark-sidebar`}>
       {/* Empty sidebar - just maintaining structure */}
     </div>
   );

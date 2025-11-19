@@ -186,11 +186,11 @@ const AssistantPage = ({
   // Ensure the theme is applied to the body as well
   useEffect(() => {
     if (lightMode === 'dark') {
-      document.body.classList.add('bg-[#343541]');
+      document.body.classList.add('bg-brand-dark-bg');
       document.body.classList.remove('bg-white');
     } else {
       document.body.classList.add('bg-white');
-      document.body.classList.remove('bg-[#343541]');
+      document.body.classList.remove('bg-brand-dark-bg');
     }
   }, [lightMode]);
 
@@ -709,7 +709,7 @@ const AssistantPage = ({
         showLeftSidebar={false}
         showRightSidebar={false}
       >
-        <div className="flex h-full items-center justify-center bg-white dark:bg-[#343541]">
+        <div className="flex h-full items-center justify-center bg-white dark:bg-brand-dark-bg">
           <LoadingDialog open={true} message={loadingMessage || "Setting up the assistant..."} />
         </div>
       </MainLayout>
@@ -772,7 +772,7 @@ const AssistantPage = ({
         showLeftSidebar={false}
         showRightSidebar={false}
       >
-        <div className="flex h-screen w-screen flex-col items-center justify-center text-center bg-white dark:bg-[#343541]">
+        <div className="flex h-screen w-screen flex-col items-center justify-center text-center bg-white dark:bg-brand-dark-bg">
           <div className="max-w-md mx-auto p-6">
             <div className="mb-6 flex justify-center">
               <LoadingIcon />
@@ -822,7 +822,7 @@ const AssistantPage = ({
       header={headerContent}
     >
       {/* Model selector above messages */}
-      <div className="bg-white dark:bg-[#343541] border-b border-neutral-200 dark:border-neutral-600 py-4 px-4 relative">
+      <div className="bg-white dark:bg-brand-dark-bg border-b border-neutral-200 dark:border-neutral-600 py-4 px-4 relative">
         <div className="w-full px-40">
           {showSettings && (
             <div className="flex justify-center">
@@ -864,7 +864,7 @@ const AssistantPage = ({
       </div>
 
       {/* Chat messages */}
-      <div className="flex-1 overflow-y-auto py-4 px-6 bg-white dark:bg-[#343541]">
+      <div className="flex-1 overflow-y-auto py-4 px-6 bg-white dark:bg-brand-dark-bg">
         {filterMessages().length === 0 ? (
           <div className="flex h-full flex-col">
             {assistantDefinition?.data && requiredGroupType && 
@@ -894,7 +894,7 @@ const AssistantPage = ({
                         {editing === index ? (
                           <>
                           <textarea
-                            className="w-full p-3 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-[#40414f] text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all resize-none"
+                            className="w-full p-3 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-brand-dark-input text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all resize-none"
                             value={editedContent}
                             id="editUserMessage"
                             onChange={(e) => setEditedContent(e.target.value)}
@@ -1001,7 +1001,7 @@ const AssistantPage = ({
             {isProcessing && (
               <div className="mb-6">
                 <div className="flex justify-start">
-                  <div className="bg-neutral-100 dark:bg-[#444654] px-4 py-3 rounded-lg">
+                  <div className="bg-neutral-100 dark:bg-brand-dark-secondary px-4 py-3 rounded-lg">
                     <div className="flex items-center">
                       <Spinner size="16px"/> <span className="ml-2 shimmer-text">{responseStatus.trim() || astResponding}</span> 
                     </div>
@@ -1031,13 +1031,13 @@ const AssistantPage = ({
         </div>)}
 
       {/* Input area */}
-      <div className="border-t border-neutral-200 dark:border-neutral-600 bg-white dark:bg-[#343541] py-4 px-6">
+      <div className="border-t border-neutral-200 dark:border-neutral-600 bg-white dark:bg-brand-dark-bg py-4 px-6">
       
         <div className="w-full px-10">
           <div className="relative">
             <textarea
               ref={textareaRef}
-              className="w-full resize-none rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#40414f] px-4 py-3 pr-12 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-500"
+              className="w-full resize-none rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-brand-dark-input px-4 py-3 pr-12 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-500"
               style={{
                 minHeight: '56px',
                 maxHeight: '200px',

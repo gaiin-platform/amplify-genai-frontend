@@ -45,7 +45,7 @@ const JsonForm: React.FC<FormProps> = ({form,onChange}) => {
                     <label className="w-24">{key.substring(2)}:</label>
                     <input
                         type="password"
-                        className="mt-2 w-96 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                        className="mt-2 w-96 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                         value={strValue}
                         onChange={(e) => {
                             onChange(key, e.target.value);
@@ -70,7 +70,7 @@ const JsonForm: React.FC<FormProps> = ({form,onChange}) => {
                 <div className="text-sm text-gray-500 flex items-center space-x-2">
                     <label className="w-24">{key}:</label>
                     <input
-                        className="mt-2 w-96 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                        className="mt-2 w-96 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                         value={value}
                         onChange={(e) => {
                             let newValue = e.target.value;

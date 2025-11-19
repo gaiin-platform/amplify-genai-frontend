@@ -528,7 +528,7 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
                         >
                             Add Users
                         </button>}
-                        {isAddingUsers && <div className=" flex flex-row gap-0.5 bg-neutral-200 dark:bg-[#343541]/90 w-[36px]">
+                        {isAddingUsers && <div className=" flex flex-row gap-0.5 bg-neutral-200 dark:bg-brand-dark-bg/90 w-[36px]">
                             <button
                                 className="text-green-500 hover:text-green-700 cursor-pointer"
                                 onClick={(e) => {
@@ -719,7 +719,7 @@ const UsersAction: FC<ActionProps> = ({ condition, label, title, clickAction, on
     return (condition ? (
         <div className="flex flex-row gap-1">
             <label className={`px-4 py-2 text-white  bg-gray-700`}>  {label}</label>
-            <div className="flex flex-row gap-0.5 bg-neutral-200 dark:bg-[#343541]/90 ">
+            <div className="flex flex-row gap-0.5 bg-neutral-200 dark:bg-brand-dark-bg/90 ">
                 <button
                     className="text-green-500 hover:text-green-700 cursor-pointer"
                     onClick={(e) => {

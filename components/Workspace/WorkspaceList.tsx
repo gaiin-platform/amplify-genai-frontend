@@ -214,7 +214,7 @@ const WorkspaceList: FC<SharedItemsListProps> = () => {
                                           content={items.map((item, index) => (
                             <button
                                 key={index}
-                                className="flex w-full cursor-pointer items-center gap-3 rounded-lg pb-2 pt-3 pr-2 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-[#343541]/90"
+                                className="flex w-full cursor-pointer items-center gap-3 rounded-lg pb-2 pt-3 pr-2 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-brand-dark-bg/90"
                                 onClick={() => {
                                     handleFetchShare(item);
                                 }}

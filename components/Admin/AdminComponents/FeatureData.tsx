@@ -682,7 +682,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
                     
                     {isAvailableCheck(isAddingTemplate.isAvailable, () => {
                         setIsAddingTemplate({...isAddingTemplate, isAvailable: !isAddingTemplate.isAvailable});
-                    }, "h-[40px] px-1 items-center bg-gray-200 dark:bg-[#40414F]")} 
+                    }, "h-[40px] px-1 items-center bg-gray-200 dark:bg-brand-dark-input")} 
 
                     <div className="ml-4 flex flex-col mt-[-45px]">
                         <InfoBox 

@@ -489,7 +489,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
 }
 
     return <div className="flex flex-col gap-4 ">           
-            <div className="flex flex-row gap-3 rounded-xl text-neutral-600 border-2 dark:border-none dark:text-white bg-neutral-100 dark:bg-[#343541] rounded-md shadow-lg p-1 pl-2">
+            <div className="flex flex-row gap-3 rounded-xl text-neutral-600 border-2 dark:border-none dark:text-white bg-neutral-100 dark:bg-brand-dark-bg rounded-md shadow-lg p-1 pl-2">
                 <IconHammer size={20}/>
                 Creating Your Artifact...
             </div>

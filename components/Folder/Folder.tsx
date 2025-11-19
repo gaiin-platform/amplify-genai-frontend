@@ -214,7 +214,7 @@ const Folder = ({
             onMouseLeave={() => !isTodaysFolder && setIsHovered(false)}
         >
           {isRenaming ? (
-            <div className="flex w-full items-center gap-3 bg-neutral-200 dark:bg-[#343541]/90 p-3 rounded">
+            <div className="flex w-full items-center gap-3 bg-neutral-200 dark:bg-brand-dark-bg/90 p-3 rounded">
               <IconPencil size={18} className="text-gray-500" />
               <input
                 className="mr-12 flex-1 overflow-hidden overflow-ellipsis border-neutral-400 bg-transparent text-left text-[12.5px] leading-3 dark:text-white outline-none focus:border-neutral-100"
@@ -266,7 +266,7 @@ const Folder = ({
           )}
 
           {(isDeleting || isRenaming) && (
-            <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded-md shadow-sm overflow-hidden">
+            <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-brand-dark-bg/90 rounded-md shadow-sm overflow-hidden">
               <ActionButton
                 id = {"confirm"}
                 handleClick={(e) => {
@@ -312,7 +312,7 @@ const Folder = ({
           )}
 
           {!isDeleting && !isRenaming && isHovered && !checkFolders && !isTodaysFolder && (
-            <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-[#343541]/90 rounded-md shadow-sm overflow-hidden fade-in">
+            <div className="absolute right-1 z-10 flex bg-neutral-200 dark:bg-brand-dark-bg/90 rounded-md shadow-sm overflow-hidden fade-in">
               <ActionButton
                 handleClick={(e) => {
                   e.stopPropagation();

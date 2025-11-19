@@ -96,7 +96,7 @@ function formatCost(cost: number) {
 const getAgentLogItem = (msg: any) => {
   if (msg.role === 'assistant' && msg.content && msg.content.tool === 'exec_code') {
     return (
-      <div className="flex items-center gap-2 bg-gray-50 dark:bg-[#444654] rounded p-2 my-1 max-w-full">
+      <div className="flex items-center gap-2 bg-gray-50 dark:bg-brand-dark-secondary rounded p-2 my-1 max-w-full">
         <IconTerminal2 className="min-w-[20px] text-blue-600 dark:text-blue-400" />
         <div className="w-full overflow-x-auto">
           <span className="font-medium text-blue-700 dark:text-blue-300">
@@ -136,7 +136,7 @@ const getAgentLogItem = (msg: any) => {
   }
   else if (msg.role === 'environment' && msg.content && msg.content.tool === 'think') {
     return (
-      <div className="flex items-center gap-2 bg-gray-50 dark:bg-[#444654] rounded p-2 my-1 max-w-full">
+      <div className="flex items-center gap-2 bg-gray-50 dark:bg-brand-dark-secondary rounded p-2 my-1 max-w-full">
         <IconBulb size={26} className="min-w-[28px] text-amber-400 dark:text-amber-300" />
         <div className="w-full overflow-hidden">
           <span className="font-medium text-blue-700 dark:text-blue-300">
@@ -175,7 +175,7 @@ const getAgentLogItem = (msg: any) => {
 
   else if (msg.role === 'assistant') {
     return (
-      <div className="flex flex-col gap-2 bg-gray-50 dark:bg-[#444654] rounded p-2 my-1">
+      <div className="flex flex-col gap-2 bg-gray-50 dark:bg-brand-dark-secondary rounded p-2 my-1">
         <div className="flex items-center gap-2">
           <IconRobot className="min-w-[20px] text-blue-600 dark:text-blue-400" />
           <IconArrowRight className="min-w-[16px] text-blue-500 dark:text-blue-300" />
@@ -224,7 +224,7 @@ const getAgentLogItem = (msg: any) => {
   } else if (msg.role === 'user') {
     
     return (
-      <div className="flex items-center gap-2 bg-white dark:bg-[#343541] rounded p-2 my-1 mr-2">
+      <div className="flex items-center gap-2 bg-white dark:bg-brand-dark-bg rounded p-2 my-1 mr-2">
         <IconUser className="min-w-[20px] text-purple-600 dark:text-purple-400" />
         <div>
           <span className="font-medium text-purple-700 dark:text-purple-300">
@@ -253,7 +253,7 @@ const getAgentLogItem = (msg: any) => {
   } else if (msg.role === 'environment') {
     if (msg.content?.total_token_cost) {
       return (
-      <div className="mt-4 flex items-center gap-2 bg-white dark:bg-[#343541] rounded p-2 my-1 mr-2">
+      <div className="mt-4 flex items-center gap-2 bg-white dark:bg-brand-dark-bg rounded p-2 my-1 mr-2">
         <IconCurrencyDollar className="min-w-[20px] text-green-500" />
         <div>
           <span className="font-medium text-lg">
@@ -265,7 +265,7 @@ const getAgentLogItem = (msg: any) => {
     }
     const hasError = msg.content?.error;
     return (
-      <div className="flex items-center gap-2 bg-gray-50 dark:bg-[#444654] rounded p-2 my-1">
+      <div className="flex items-center gap-2 bg-gray-50 dark:bg-brand-dark-secondary rounded p-2 my-1">
         <IconTerminal2 className="min-w-[20px] text-blue-600 dark:text-blue-400" />
         <div className="w-full overflow-x-auto">
           <div className="flex items-center gap-2 mb-1">

@@ -59,7 +59,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
       <div className="flex flex-1 h-full overflow-hidden">
         {/* Left Sidebar */}
         {showLeftSidebar && (
-          <div className="hidden sm:block sm:w-64 bg-gray-50 dark:bg-[#202123] border-r border-neutral-300 dark:border-neutral-800">
+          <div className="hidden sm:block sm:w-64 bg-gray-50 dark:bg-brand-dark-sidebar border-r border-neutral-300 dark:border-neutral-800">
             {leftSidebar}
           </div>
         )}
@@ -67,7 +67,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         {/* Main Content */}
         <div className="flex flex-col flex-1 overflow-hidden">
           {header && (
-            <header className="border-b border-neutral-200 dark:border-neutral-600 bg-white dark:bg-[#343541] py-4 px-6 flex justify-between items-center">
+            <header className="border-b border-neutral-200 dark:border-neutral-600 bg-white dark:bg-brand-dark-bg py-4 px-6 flex justify-between items-center">
               <div className="flex items-center justify-between w-full">
                 <div>{header}</div>
               </div>
@@ -78,7 +78,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
 
         {/* Right Sidebar */}
         {showRightSidebar && (
-          <div className="hidden sm:block sm:w-64 bg-gray-50 dark:bg-[#202123] border-l border-neutral-300 dark:border-neutral-800">
+          <div className="hidden sm:block sm:w-64 bg-gray-50 dark:bg-brand-dark-sidebar border-l border-neutral-300 dark:border-neutral-800">
             {rightSidebar}
           </div>
         )}

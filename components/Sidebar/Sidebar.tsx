@@ -61,12 +61,12 @@ const Sidebar = <T,>({
   };
 
   const highlightDrop = (e: any) => {
-    e.target.classList.add('bg-neutral-200', 'dark:bg-[#343541]/90');
+    e.target.classList.add('bg-neutral-200', 'dark:bg-brand-dark-bg/90');
     e.target.style.transition = 'background-color 0.15s ease-in-out';
   };
 
   const removeHighlight = (e: any) => {
-    e.target.classList.remove('bg-neutral-200', 'dark:bg-[#343541]/90');
+    e.target.classList.remove('bg-neutral-200', 'dark:bg-brand-dark-bg/90');
   };
 
   const addItemButton = (width: string) => ( 
@@ -170,7 +170,7 @@ const Sidebar = <T,>({
       </div>
       {footerComponent && (
         <div 
-          className={`fixed bottom-0 ${side}-0 z-40 w-[270px] bg-white dark:bg-[#202123] border-t border-neutral-300 dark:border-neutral-600`}
+          className={`fixed bottom-0 ${side}-0 z-40 w-[270px] bg-white dark:bg-brand-dark-sidebar border-t border-neutral-300 dark:border-neutral-600`}
           style={{ left: side === 'left' ? '0' : 'auto', right: side === 'right' ? '0' : 'auto' }}
         >
           {footerComponent}

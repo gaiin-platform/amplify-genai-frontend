@@ -132,12 +132,12 @@ export const WebsiteURLInput: React.FC<WebsiteURLInputProps> = ({ onAddURL }) =>
                     value={url}
                     onChange={(e) => handleUrlChange(e.target.value)}
                     placeholder="Enter website URL or sitemap URL"
-                    className="flex-grow rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                    className="flex-grow rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                 />
                 <button
                     type="submit"
                     disabled={loadingSitemap}
-                    className="rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100 dark:hover:bg-[#343541] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 hover:bg-neutral-100 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100 dark:hover:bg-brand-dark-bg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                     {loadingSitemap && <IconLoader size={16} className="animate-spin" />}
                     {loadingSitemap ? 'Loading Sitemap...' : 'Add URL'}
@@ -161,7 +161,7 @@ export const WebsiteURLInput: React.FC<WebsiteURLInputProps> = ({ onAddURL }) =>
                                 <select
                                     value={unlimitedPages ? "unlimited" : "limited"}
                                     onChange={(e) => setUnlimitedPages(e.target.value === "unlimited")}
-                                    className="rounded-lg border border-neutral-500 px-2 py-1 text-neutral-900 text-sm focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                    className="rounded-lg border border-neutral-500 px-2 py-1 text-neutral-900 text-sm focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                                 >
                                     <option value="limited">Limit to specific number</option>
                                     <option value="unlimited">⚠️ Get ALL URLs</option>
@@ -174,7 +174,7 @@ export const WebsiteURLInput: React.FC<WebsiteURLInputProps> = ({ onAddURL }) =>
                                             max="1000"
                                             value={maxPages}
                                             onChange={(e) => setMaxPages(parseInt(e.target.value) || 50)}
-                                            className="w-20 rounded-lg border border-neutral-500 px-2 py-1 text-neutral-900 text-sm focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                            className="w-20 rounded-lg border border-neutral-500 px-2 py-1 text-neutral-900 text-sm focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
                                         />
                                         <span className="text-xs text-gray-500 dark:text-gray-400">
                                         Maximum URLs to extract from sitemap
@@ -380,7 +380,7 @@ export const WebsiteScanScheduler: React.FC<WebsiteScanSchedulerProps> = ({ init
                               const newSchedule: WebsiteScanSchedule = { ...schedule, frequency, scanFrequency };
                               updateScheduleForWebsiteUrl(urlItem, newSchedule);
                             }}
-                            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm"
+                            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-brand-dark-input text-gray-900 dark:text-white text-sm"
                           >
                             <option value="daily">Daily</option>
                             <option value="weekly">Weekly</option>
@@ -403,7 +403,7 @@ export const WebsiteScanScheduler: React.FC<WebsiteScanSchedulerProps> = ({ init
                                 const newSchedule = { ...schedule, maxPages };
                                 updateScheduleForWebsiteUrl(urlItem, newSchedule);
                               }}
-                              className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm"
+                              className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-brand-dark-input text-gray-900 dark:text-white text-sm"
                               placeholder="10"
                             />
                             <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">

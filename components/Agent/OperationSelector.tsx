@@ -203,10 +203,10 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
 
 
     return (
-        <div className="flex h-[400px] w-full border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg bg-white dark:bg-[#22232b] overflow-hidden">
+        <div className="flex h-[400px] w-full border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg bg-white dark:bg-brand-dark-modal overflow-hidden">
             {/* Left Pane - Operations List */}
             <div className="w-1/2 border-r border-gray-300 dark:border-gray-700 overflow-auto bg-gray-50 dark:bg-[#2b2c35]">
-                <div className="relative bg-gray-100 dark:bg-[#343541] pl-4 pb-3 border-b border-gray-200 dark:border-gray-700 overflow-x-hidden text-black dark:text-neutral-100">
+                <div className="relative bg-gray-100 dark:bg-brand-dark-bg pl-4 pb-3 border-b border-gray-200 dark:border-gray-700 overflow-x-hidden text-black dark:text-neutral-100">
                  
                 <ActiveTabs
                         id="OperationSelectorTabs"
@@ -366,7 +366,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                               placeholder="Enter a custom name..."
                               value={customName}
                               onChange={(e) => setCustomName(e.target.value)}
-                              className="w-full px-3 py-2 border rounded-md bg-white dark:bg-[#343541] border-gray-300 dark:border-neutral-600
+                              className="w-full px-3 py-2 border rounded-md bg-white dark:bg-brand-dark-bg border-gray-300 dark:border-neutral-600
                               text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500
                               focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-shadow duration-150"
                             />
@@ -388,7 +388,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                               value={customDescription}
                               onChange={(e) => setCustomDescription(e.target.value)}
                               rows={3}
-                              className="w-full px-3 py-2 border rounded-md bg-white dark:bg-[#343541] border-gray-300 dark:border-neutral-600
+                              className="w-full px-3 py-2 border rounded-md bg-white dark:bg-brand-dark-bg border-gray-300 dark:border-neutral-600
                               text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500
                               focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-shadow duration-150"
                             />
@@ -404,7 +404,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                             />
                         )}
 
-                        <details className="mt-6 bg-gray-50 dark:bg-[#343541] border border-gray-300 dark:border-neutral-600 rounded-md">
+                        <details className="mt-6 bg-gray-50 dark:bg-brand-dark-bg border border-gray-300 dark:border-neutral-600 rounded-md">
                             <summary className="cursor-pointer px-4 py-3 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
                 <span className="font-medium flex items-center">
                   <IconCode size={14} stroke={1.5} className="mr-2" />

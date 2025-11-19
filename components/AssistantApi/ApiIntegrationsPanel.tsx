@@ -59,7 +59,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
 
   const buttonClassName = (shown: boolean) => 
-  `mt-2 mb-4 flex items-center gap-2 rounded border border-neutral-500 px-3 py-2 text-sm text-neutral-800 dark:border-neutral-700 dark:text-neutral-100 whitespace-nowrap ${shown ? "bg-neutral-300 dark:bg-[#40414F]" : "hover:bg-neutral-200 dark:hover:bg-neutral-700"}`;
+  `mt-2 mb-4 flex items-center gap-2 rounded border border-neutral-500 px-3 py-2 text-sm text-neutral-800 dark:border-neutral-700 dark:text-neutral-100 whitespace-nowrap ${shown ? "bg-neutral-300 dark:bg-brand-dark-input" : "hover:bg-neutral-200 dark:hover:bg-neutral-700"}`;
 
   // Define integration options
   const integrationOptions = [

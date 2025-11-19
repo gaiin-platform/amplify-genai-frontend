@@ -105,7 +105,7 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({
 
         return ( <>
             <input ref={inputRef}
-                className={`w-full rounded-lg border-2 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:bg-[#40414F] dark:text-neutral-100 transition-colors duration-200 ${getBorderColor()}`}
+                className={`w-full rounded-lg border-2 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:bg-brand-dark-input dark:text-neutral-100 transition-colors duration-200 ${getBorderColor()}`}
                 id="emailInput"
                 type="text"
                 value={input}
@@ -163,12 +163,12 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({
             />
             {suggestions.length > 0 && (
                 <div ref={suggestionRef}  
-                className="sm:w-full sm:max-w-[440px] absolute z-50 border border-neutral-300 rounded overflow-y-auto bg-white dark:border-neutral-600 bg-neutral-100 dark:bg-[#202123]"
+                className="sm:w-full sm:max-w-[440px] absolute z-50 border border-neutral-300 rounded overflow-y-auto bg-white dark:border-neutral-600 bg-neutral-100 dark:bg-brand-dark-sidebar"
                 style={{ height: `${calculateHeight(suggestions.length)}px`}}>
                     <ul className="suggestions-list">
                     {suggestions.map((suggestion, index) => (
                         <li key={index} onClick={() => handleSuggestionClick(suggestion)}
-                        className="cursor-pointer p-1 border-b border-neutral-300 dark:border-b-neutral-600 hover:bg-neutral-200 dark:hover:bg-[#343541]/90">
+                        className="cursor-pointer p-1 border-b border-neutral-300 dark:border-b-neutral-600 hover:bg-neutral-200 dark:hover:bg-brand-dark-bg/90">
 
                             {suggestion}
                         </li>

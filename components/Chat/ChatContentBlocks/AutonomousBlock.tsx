@@ -515,7 +515,7 @@ const AutonomousBlock: React.FC<Props> = (
 
     return <div>
         <div
-            className="rounded-xl text-neutral-600 border-2 dark:border-none dark:text-white bg-neutral-100 dark:bg-[#343541] rounded-md shadow-lg mb-2 mr-2"
+            className="rounded-xl text-neutral-600 border-2 dark:border-none dark:text-white bg-neutral-100 dark:bg-brand-dark-bg rounded-md shadow-lg mb-2 mr-2"
         >
             <ExpansionComponent 
                 title={"I am working on your request..."} 

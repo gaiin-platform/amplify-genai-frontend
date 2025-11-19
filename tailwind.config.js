@@ -11,9 +11,17 @@ module.exports = {
     extend: {
       colors: {
         brand: {
-          primary: process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR || '#48bb78',
-          hover: process.env.NEXT_PUBLIC_BRAND_HOVER_COLOR || '#38a169',
-          'dark-bg': process.env.NEXT_PUBLIC_BRAND_DARK_BG || '#343541',
+          // Customize these colors for your brand
+          primary: '#48bb78',
+          hover: '#38a169',
+          
+          // All dark mode backgrounds - change this one color to rebrand
+          'dark-bg': '#343541',
+          'dark-sidebar': '#343541',
+          'dark-input': '#343541',
+          'dark-secondary': '#343541',
+          'dark-tertiary': '#343541',
+          'dark-modal': '#343541',
         },
       },
     },

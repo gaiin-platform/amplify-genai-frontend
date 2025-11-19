@@ -128,13 +128,13 @@ export const MemoryPresenter: FC<Props> = ({
                 {featureFlags.memory && settingRef.current?.featureOptions.includeMemory && selectedConversation && selectedConversation.messages?.length > 0 && extractedFacts.length > 0 && (
                     <div className="w-full">
                         {isFactsVisible && (
-                            <div className="text-black dark:text-white extracted-facts bg-white dark:bg-[#343541] rounded-lg shadow-lg flex flex-col">
+                            <div className="text-black dark:text-white extracted-facts bg-white dark:bg-brand-dark-bg rounded-lg shadow-lg flex flex-col">
                                 <div className="relative max-h-96 overflow-y-auto pt-0.5">
                                     <table className="w-full border-collapse">
                                         <thead>
                                             <tr>
-                                                <th className="sticky -top-1 border border-gray-200 dark:border-gray-600 px-4 py-2 text-left bg-white dark:bg-[#343541] z-10">Fact</th>
-                                                <th className="sticky -top-1 border border-gray-200 dark:border-gray-600 px-4 py-2 text-center w-32 bg-white dark:bg-[#343541] z-10">Actions</th>
+                                                <th className="sticky -top-1 border border-gray-200 dark:border-gray-600 px-4 py-2 text-left bg-white dark:bg-brand-dark-bg z-10">Fact</th>
+                                                <th className="sticky -top-1 border border-gray-200 dark:border-gray-600 px-4 py-2 text-center w-32 bg-white dark:bg-brand-dark-bg z-10">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody className="px-4">

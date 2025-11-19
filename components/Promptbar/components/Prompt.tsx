@@ -212,7 +212,7 @@ export const PromptComponent = ({ prompt }: Props) => {
 
             <div id="promptEncompass" className="relative flex w-full">
                 <button
-                    className="w-full  cursor-pointer p-1 items-center gap-1 rounded-lg p-2 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-[#343541]/90"
+                    className="w-full  cursor-pointer p-1 items-center gap-1 rounded-lg p-2 text-sm transition-colors duration-200 hover:bg-neutral-200 dark:hover:bg-brand-dark-bg/90"
                     draggable={prompt.id.startsWith("astg") || isBase ? false : true} 
                     onClick={(e) => {
                         e.stopPropagation();
@@ -258,7 +258,7 @@ export const PromptComponent = ({ prompt }: Props) => {
 
                 {isHovered && !checkPrompts &&
                     <div
-                        className="absolute top-1 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-neutral-200 dark:bg-[#343541]/90 rounded">
+                        className="absolute top-1 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-neutral-200 dark:bg-brand-dark-bg/90 rounded">
 
                         {!isDeleting && !isRenaming && canCopy && (
                             <ActionButton handleClick={handleCopy} title="Duplicate Template" id="duplicateTemplate"> 

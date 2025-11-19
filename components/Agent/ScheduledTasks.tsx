@@ -386,7 +386,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               Filter by type
             </label>
             <select 
-              className="w-full px-2 py-1 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+              className="w-full px-2 py-1 border rounded-lg dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
               value={selectedTypeFilter}
               onChange={(e) => setSelectedTypeFilter(e.target.value)}
             >
@@ -495,7 +495,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         return (
           <div className="flex flex-row gap-2 mb-4">
               <select
-                  className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow 
+                  className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-brand-dark-input dark:text-neutral-100 custom-shadow 
                   ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}
                   ${isEnforced ? 'opacity-50 cursor-not-allowed' : ''}`}
                   id="autoPopulateSelect"
@@ -518,7 +518,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           <div className="flex flex-col mb-4 relative">
             <div 
               onClick={() => !isEnforced && setShowActionSetList(!showActionSetList)}
-              className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow flex justify-between items-center
+              className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-brand-dark-input dark:text-neutral-100 custom-shadow flex justify-between items-center
               ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}
               ${isEnforced ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
@@ -530,7 +530,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             </div>
             
             {featureFlags.actionSets && showActionSetList && !isEnforced && (
-              <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-[#343541] border border-neutral-300 dark:border-neutral-700 rounded-lg shadow-lg">
+              <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-brand-dark-bg border border-neutral-300 dark:border-neutral-700 rounded-lg shadow-lg">
                 <div className="p-3" style={{ maxHeight: '350px', overflowY: 'auto' }}>
                   <ActionSetList onLoad={handleActionSetSelect} />
                 </div>
@@ -544,7 +544,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         <div className="flex flex-col mb-4 relative">
           <div 
             onClick={() => !isEnforced && setShowApiToolList(!showApiToolList)}
-            className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow flex justify-between items-center
+            className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-brand-dark-input dark:text-neutral-100 custom-shadow flex justify-between items-center
             ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}
             ${isEnforced ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
           >
@@ -556,7 +556,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           </div>
           
           {featureFlags.integrations && showApiToolList && !isEnforced && (
-            <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-[#343541] border border-neutral-300 dark:border-neutral-700 rounded-lg shadow-lg">
+            <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-brand-dark-bg border border-neutral-300 dark:border-neutral-700 rounded-lg shadow-lg">
               <div className="p-3" >
                 <div className='border-b flex flex-col border-neutral-500'>
                   <ApiIntegrationsPanel
@@ -688,7 +688,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               type="text"
               value={selectedTask.taskName}
               onChange={(e) => setSelectedTask({...selectedTask, taskName: e.target.value})}
-              className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+              className="w-full p-2 border rounded-lg dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
               placeholder="Name your task"
             />
           </div>
@@ -700,7 +700,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             <textarea
               value={selectedTask.description}
               onChange={(e) => setSelectedTask({...selectedTask, description: e.target.value})}
-              className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+              className="w-full p-2 border rounded-lg dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
               rows={2}
               placeholder="Describe what this task does"
             />
@@ -713,7 +713,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             <textarea
               value={selectedTask.taskInstructions}
               onChange={(e) => setSelectedTask({...selectedTask, taskInstructions: e.target.value})}
-              className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+              className="w-full p-2 border rounded-lg dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
               rows={4}
               placeholder="Provide todo instructions for this task"
             />
@@ -758,7 +758,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                                              taskType: e.target.value as ScheduledTaskType}
                 setSelectedTask(updatedSelectedTask);
               }}
-              className="w-full shadow custom-shadow p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+              className="w-full shadow custom-shadow p-2 border rounded-lg dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
             >
               <option value="">Select Task Type</option>
               <option value="assistant">Assistant</option>
@@ -781,7 +781,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               type="text"
               value={selectedTask.tags?.join(', ') || ''}
               onChange={(e) => setSelectedTask({...selectedTask, tags: e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag)})}
-              className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+              className="w-full p-2 border rounded-lg dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
               placeholder="maintenance, report, etc."
             />
           </div>
@@ -821,7 +821,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                     ...selectedTask, 
                     notifyEmailAddresses: e.target.value.split(',').map(email => email.trim()).filter(email => email)
                   })}
-                  className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+                  className="w-full p-2 border rounded-lg dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
                   placeholder="email1@example.com, email2@example.com"
                 />
                 <div className="flex flex-row items-center gap-1 text-xs text-neutral-500 dark:text-neutral-400 mt-1">
