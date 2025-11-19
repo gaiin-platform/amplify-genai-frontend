@@ -96,7 +96,6 @@ import { AdminConfigTypes } from '@/types/admin';
 import { ConversationStorage } from '@/types/conversationStorage';
 import UserMenu from '@/components/Layout/UserMenu';
 import { useBrandConfig } from '@/utils/app/branding';
-import Image from 'next/image';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -1525,12 +1524,12 @@ const Home = ({
                 <div
                     className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white">
                     <div className="mb-8">
-                        <Image 
+                        <img 
                             src={brandConfig.logo} 
                             alt="Company Logo" 
                             width={150} 
                             height={150}
-                            priority
+                            style={{ maxWidth: '150px', maxHeight: '150px' }}
                         />
                     </div>
                     <button

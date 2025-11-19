@@ -15,7 +15,7 @@ export interface BrandConfig {
  */
 export const getBrandConfig = (): BrandConfig => {
   return {
-    logo: process.env.NEXT_PUBLIC_BRAND_LOGO || '/logos/default-logo.svg',
+    logo: process.env.NEXT_PUBLIC_BRAND_LOGO || '/favicon.ico',
     primaryColor: process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR || '#48bb78',
     hoverColor: process.env.NEXT_PUBLIC_BRAND_HOVER_COLOR || '#38a169',
   };
@@ -27,7 +27,7 @@ export const getBrandConfig = (): BrandConfig => {
  */
 export const useBrandConfig = (): BrandConfig => {
   return {
-    logo: process.env.NEXT_PUBLIC_BRAND_LOGO || '/logos/default-logo.svg',
+    logo: process.env.NEXT_PUBLIC_BRAND_LOGO || '/favicon.ico',
     primaryColor: process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR || '#48bb78',
     hoverColor: process.env.NEXT_PUBLIC_BRAND_HOVER_COLOR || '#38a169',
   };
