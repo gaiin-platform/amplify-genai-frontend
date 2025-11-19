@@ -1,7 +1,7 @@
 # CustomInstructionsTests Documentation
 
 ## Overview
-This folder contains tests for custom instructions and specialized assistants that modify how the AI responds to user prompts. These include default instructions and specialized assistants for creating diagrams, PowerPoints, and visualizations.
+This folder contains tests for custom instructions and specialized assistants in Amplify. These assistants provide template-based interactions with customizable instructions, including Default Instructions for general use, and specialized assistants for creating diagrams, PowerPoints, and visualizations.
 
 ## Test Files
 
@@ -9,77 +9,65 @@ This folder contains tests for custom instructions and specialized assistants th
 **Test Class**: `DefaultInstructionsTests`
 
 #### Tests:
-1. **test_default_instructions_presence**
-   - **Purpose**: Tests that default instructions are present and visible in the settings
-   - **Functionality**: Verifies default instructions setting is accessible
+1. **test_default_instructions_is_interactable**
+   - **Purpose**: Ensure the Default Instructions button in the Custom Instructions folder can be clicked on the Assistants Side Bar
+   - **Functionality**: Verifies the Default Instructions assistant is accessible and opens its modal
 
-2. **test_default_instructions_edit**
-   - **Purpose**: Tests editing default instructions and verifying the changes are saved
-   - **Functionality**: Tests:
-     - Opening default instructions editor
-     - Modifying instruction text
-     - Saving changes
-     - Verifying persistence
+2. **test_share_button**
+   - **Purpose**: Ensure the Share button on the Default Instructions button in the Custom Instructions folder can be clicked on the Assistants Side Bar and that it makes the Share Modal appear
+   - **Functionality**: Tests sharing functionality for the Default Instructions template
 
-3. **test_default_instructions_clear**
-   - **Purpose**: Tests clearing default instructions and verifying they are removed
-   - **Functionality**: Tests:
-     - Clearing instruction text
-     - Confirming clear action
-     - Verifying instructions are empty
+3. **test_default_instructions_duplicate**
+   - **Purpose**: Ensure the Duplicate Button on the Default Instructions button in the Custom Instructions folder can be clicked on the Assistants Side Bar and that it creates a duplicate in the prompts
+   - **Functionality**: Tests duplication of the Default Instructions template
+
+4. **test_default_instructions_modal_is_interactable_bullet**
+   - **Purpose**: Ensure the Default Instructions button in the Custom Instructions folder can be clicked on the Assistants Side Bar and the modal is interactable
+   - **Functionality**: Tests submitting the Default Instructions modal with configuration options
 
 ---
 
 ### test_DiagramAssistant.py
-**Test Class**: `DiagramAssistantTests`
+**Test Class**: `DiagramAssistantsTests`
 
 #### Tests:
-1. **test_diagram_assistant_activation**
-   - **Purpose**: Tests activating the Diagram Assistant and verifying it appears in the active assistants list
-   - **Functionality**: Tests:
-     - Navigating to assistants panel
-     - Selecting Diagram Assistant
-     - Verifying activation status
-     - Checking active assistants list
+1. **test_diagram_assistant_is_interactable**
+   - **Purpose**: Ensure the Diagram Assistant button in the Custom Instructions folder can be clicked on the Assistants Side Bar
+   - **Functionality**: Verifies the Diagram Assistant is accessible and opens its modal
 
-2. **test_diagram_generation**
-   - **Purpose**: Tests generating a diagram through the assistant and verifying the output
-   - **Functionality**: Tests:
-     - Activating Diagram Assistant
-     - Submitting diagram request
-     - Verifying diagram output/artifact creation
+2. **test_share_button**
+   - **Purpose**: Ensure the Share button on the Diagram Assistant button in the Custom Instructions folder can be clicked on the Assistants Side Bar and that it makes the Share Modal appear
+   - **Functionality**: Tests sharing functionality for the Diagram Assistant template
 
-3. **test_diagram_assistant_deactivation**
-   - **Purpose**: Tests deactivating the Diagram Assistant
-   - **Functionality**: Tests:
-     - Deactivating assistant
-     - Verifying removal from active list
+3. **test_diagram_assistant_duplicate**
+   - **Purpose**: Ensure the Duplicate Button on the Diagram Assistant button in the Custom Instructions folder can be clicked on the Assistants Side Bar and that it creates a duplicate in the prompts
+   - **Functionality**: Tests duplication of the Diagram Assistant template
+
+4. **test_diagram_assistant_modal_is_interactable**
+   - **Purpose**: Ensure the Diagram Assistant button in the Custom Instructions folder can be clicked on the Assistants Side Bar and the modal is interactable
+   - **Functionality**: Tests submitting the Diagram Assistant modal with configuration options
 
 ---
 
 ### test_PowerPointAssistant.py
-**Test Class**: `PowerPointAssistantTests`
+**Test Class**: `PowerPointAssistantsTests`
 
 #### Tests:
-1. **test_powerpoint_assistant_activation**
-   - **Purpose**: Tests activating the PowerPoint Assistant
-   - **Functionality**: Tests:
-     - Navigating to assistants panel
-     - Selecting PowerPoint Assistant
-     - Verifying activation status
+1. **test_powerpoint_assistant_is_interactable**
+   - **Purpose**: Ensure the PowerPoint Assistant button in the Custom Instructions folder can be clicked on the Assistants Side Bar
+   - **Functionality**: Verifies the PowerPoint Assistant is accessible and opens its modal
 
-2. **test_powerpoint_generation**
-   - **Purpose**: Tests generating a PowerPoint presentation through the assistant
-   - **Functionality**: Tests:
-     - Activating PowerPoint Assistant
-     - Submitting presentation request
-     - Verifying output generation
+2. **test_share_button**
+   - **Purpose**: Ensure the Share button on the PowerPoint Assistant button in the Custom Instructions folder can be clicked on the Assistants Side Bar and that it makes the Share Modal appear
+   - **Functionality**: Tests sharing functionality for the PowerPoint Assistant template
 
-3. **test_powerpoint_assistant_deactivation**
-   - **Purpose**: Tests deactivating the PowerPoint Assistant
-   - **Functionality**: Tests:
-     - Deactivating assistant
-     - Verifying removal from active list
+3. **test_powerpoint_assistant_duplicate**
+   - **Purpose**: Ensure the Duplicate Button on the PowerPoint Assistant button in the Custom Instructions folder can be clicked on the Assistants Side Bar and that it creates a duplicate in the prompts
+   - **Functionality**: Tests duplication of the PowerPoint Assistant template
+
+4. **test_powerpoint_assistant_modal_is_interactable**
+   - **Purpose**: Ensure the PowerPoint Assistant button in the Custom Instructions folder can be clicked on the Assistants Side Bar and the modal is interactable
+   - **Functionality**: Tests submitting the PowerPoint Assistant modal with configuration options
 
 ---
 
@@ -87,52 +75,39 @@ This folder contains tests for custom instructions and specialized assistants th
 **Test Class**: `VisualizationAssistantTests`
 
 #### Tests:
-1. **test_visualization_assistant_activation**
-   - **Purpose**: Tests activating the Visualization Assistant
-   - **Functionality**: Tests:
-     - Navigating to assistants panel
-     - Selecting Visualization Assistant
-     - Verifying activation status
+1. **test_visualization_assistant_is_interactable**
+   - **Purpose**: Ensure the Visualization Assistant button in the Custom Instructions folder can be clicked on the Assistants Side Bar
+   - **Functionality**: Verifies the Visualization Assistant is accessible and opens its modal
 
-2. **test_visualization_generation**
-   - **Purpose**: Tests generating visualizations through the assistant
-   - **Functionality**: Tests:
-     - Activating Visualization Assistant
-     - Submitting visualization request
-     - Verifying chart/graph output
+2. **test_share_button**
+   - **Purpose**: Ensure the Share button on the Visualization Assistant button in the Custom Instructions folder can be clicked on the Assistants Side Bar and that it makes the Share Modal appear
+   - **Functionality**: Tests sharing functionality for the Visualization Assistant template
 
-3. **test_visualization_assistant_deactivation**
-   - **Purpose**: Tests deactivating the Visualization Assistant
-   - **Functionality**: Tests:
-     - Deactivating assistant
-     - Verifying removal from active list
+3. **test_visualization_assistant_duplicate**
+   - **Purpose**: Ensure the Duplicate Button on the Visualization Assistant button in the Custom Instructions folder can be clicked on the Assistants Side Bar and that it creates a duplicate in the prompts
+   - **Functionality**: Tests duplication of the Visualization Assistant template
+
+4. **test_visualization_assistant_modal_is_interactable**
+   - **Purpose**: Ensure the Visualization Assistant button in the Custom Instructions folder can be clicked on the Assistants Side Bar and the modal is interactable
+   - **Functionality**: Tests submitting the Visualization Assistant modal with configuration options
 
 ## Common Test Patterns
 
-### Assistant Activation Flow:
-1. Navigate to Assistants page/panel (usually in assistants sidebar)
-2. Locate specific assistant in list
-3. Click to activate assistant
-4. Verify assistant appears in "Active Assistants" list
-5. Verify assistant badge/indicator in chat interface
+### Helper Method: `click_assistants_tab()`
+- Navigates to the Assistants tab in the assistants sidebar
+- Used by all test files as a setup step
+- Includes wait times for UI rendering
 
-### Assistant Usage Flow:
-1. Activate assistant
-2. Send message/request in chat
-3. Wait for assistant to process request
-4. Verify output matches assistant's purpose
-5. Check for artifacts if applicable
-
-### Assistant Deactivation Flow:
-1. Locate assistant in active list
-2. Click deactivate/remove button
-3. Verify assistant removed from active list
-4. Verify assistant no longer influences chat behavior
+### Test Flow for Each Assistant:
+1. Navigate to Assistants tab
+2. Expand Custom Instructions folder
+3. Locate specific assistant
+4. Test interaction (click, share, duplicate, or modal submission)
+5. Verify expected behavior
 
 ## Notes
-- Custom instructions apply globally to all conversations unless overridden
-- Specialized assistants (Diagram, PowerPoint, Visualization) provide structured output
-- Assistants can be activated/deactivated on a per-conversation basis
-- Multiple assistants can be active simultaneously
-- Default instructions act as a baseline that assistants build upon
-- These tests focus on UI interaction; actual AI generation quality is not tested
+- All tests run in headless mode by default
+- Tests use explicit waits for element presence
+- Each assistant tests follow similar patterns: interactability, sharing, and duplication
+- Modal submission tests verify that the Submit button can be clicked successfully
+- All assistants are located within the "Custom Instructions" folder on the Assistants sidebar

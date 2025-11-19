@@ -438,7 +438,7 @@ class UpperChatTests(BaseTest):
     # ----------------- Test Privacy -----------------
     """Test to ensure the upper chat privacy button is accessible."""
     
-    def test_upper_download(self):
+    def test_upper_privacy(self):
         # Delete all conversations from previous tests
         self.delete_all_chats()
         

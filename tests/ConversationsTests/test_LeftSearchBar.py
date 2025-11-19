@@ -128,7 +128,7 @@ class SearchBarLeftTests(BaseTest):
     # ----------------- Test Search Chats -----------------
     """Ensure the Chats searched in the Left Search Bar appear"""
 
-    def test_search_assistant(self):
+    def test_search_chat(self):
         
         self.delete_all_chats()
 

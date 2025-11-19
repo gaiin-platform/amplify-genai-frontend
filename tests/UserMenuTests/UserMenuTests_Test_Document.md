@@ -79,7 +79,6 @@ This folder contains tests for user menu functionality, including base menu navi
      - Viewing detailed account table
      - Verifying transaction/usage details
 
-**Billing Groups Tab:**
 8. **test_presence_on_billing_groups**
    - **Purpose**: Tests presence of elements in billing groups tab
    - **Functionality**: Verifies:

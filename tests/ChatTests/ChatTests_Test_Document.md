@@ -273,7 +273,7 @@ This folder contains tests for the core chat interface functionality, including 
    - **Purpose**: Test to ensure the upper chat artifact button is accessible
    - **Functionality**: Tests adding/removing artifacts to conversation
 
-6. **test_upper_download** (duplicate method name)
+6. **test_upper_privacy**
    - **Purpose**: Test to ensure the upper chat privacy button is accessible
    - **Functionality**: Tests privacy toggle (cloud vs local storage)
 

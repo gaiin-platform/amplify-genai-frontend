@@ -87,7 +87,7 @@ This folder contains tests for Amplify's built-in helper tools and assistants. T
    - **Purpose**: Ensure the Duplicate Button on the CSV Extractor button in the Amplify Helpers folder can be clicked on the Assitants Side Bar and that it creates a duplicate in the prompts
    - **Functionality**: Tests duplication of the CSV Extractor template
 
-4. **test_create_visualization_modal_is_interactable_bullet**
+4. **test_csv_modal_is_interactable_bullet**
    - **Purpose**: Ensure the CSV Extractor button in the Amplify Helpers folder can be clicked on the Assitants Side Bar and the modal is interactable
    - **Functionality**: Tests submitting the CSV Extractor modal with configuration options
 

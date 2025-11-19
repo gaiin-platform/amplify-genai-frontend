@@ -299,7 +299,7 @@ class CSVExtractorTests(BaseTest):
     """Ensure the CSV Extractor button in the Amplify Helpers folder can be clicked 
        on the Assitants Side Bar and the modal is interactable"""
     
-    def test_create_visualization_modal_is_interactable_bullet(self):  
+    def test_csv_modal_is_interactable_bullet(self):  
         
         self.click_assistants_tab()
                               

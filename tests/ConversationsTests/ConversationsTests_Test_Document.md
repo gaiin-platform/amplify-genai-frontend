@@ -84,23 +84,13 @@ This folder contains tests for conversation management functionality, including 
 **Test Class**: `LeftSideBarSearchTests`
 
 #### Tests:
-1. **test_search_bar_presence**
+1. **test_search_chat**
    - **Purpose**: Tests that the search bar element is present in the chat sidebar
-   - **Functionality**: Verifies the search bar is visible and accessible
+   - **Functionality**: Verifies the search bar is visible, accessible, and produces the correct chat upon input
 
-2. **test_search_bar_functionality**
+2. **test_search_nothing**
    - **Purpose**: Tests that the search bar can accept input and filter conversations based on search terms
-   - **Functionality**: Tests:
-     - Entering search text
-     - Verifying filtered results
-     - Verifying matching conversations appear
-
-3. **test_search_bar_clear**
-   - **Purpose**: Tests the clear button functionality to reset the search bar
-   - **Functionality**: Tests:
-     - Entering search text
-     - Clicking clear button
-     - Verifying all conversations reappear
+   - **Functionality**: Verifies putting an incorrect search into the search bar produces nothing
 
 ## Common Test Patterns
 
