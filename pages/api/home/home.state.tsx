@@ -89,7 +89,7 @@ export const initialState: HomeInitialState = {
   chatEndpoint: null,
   conversationStateId: "init",
   loading: false,
-  lightMode: 'dark',
+  lightMode: (process.env.NEXT_PUBLIC_DEFAULT_THEME as 'light' | 'dark') || 'dark',
   status: [],
 
   workspaceDirty: false,
