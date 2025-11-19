@@ -1508,6 +1508,15 @@ const Home = ({
             <div
                 className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white"
                 style={{color: lightMode === 'dark' ? 'white' : 'black'}}>
+                    <div className="mb-8">
+                        <img 
+                            src={brandConfig.logo} 
+                            alt="Company Logo" 
+                            width={150} 
+                            height={150}
+                            style={{ maxWidth: '150px', maxHeight: '150px' }}
+                        />
+                    </div>
                     <Loader />
                     <h1 className="mt-6 mb-4 text-2xl font-bold">
                         Loading...

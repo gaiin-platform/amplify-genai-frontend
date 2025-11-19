@@ -1,6 +1,7 @@
 import React, { FC, useRef } from 'react';
 
 import Loader from "@/components/Loader/Loader";
+import { useBrandConfig } from '@/utils/app/branding';
 
 interface Props {
   open: boolean;
@@ -10,6 +11,7 @@ interface Props {
 export const LoadingDialog: FC<Props> = ({ open, message}) => {
 
   const modalRef = useRef<HTMLDivElement>(null);
+  const brandConfig = useBrandConfig();
 
   // Render nothing if the dialog is not open.
   if (!open) {
@@ -32,6 +34,17 @@ export const LoadingDialog: FC<Props> = ({ open, message}) => {
           <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 via-transparent to-purple-50/30 dark:from-blue-950/30 dark:via-transparent dark:to-purple-950/20 rounded-3xl pointer-events-none" />
           
           <div className="relative flex flex-col items-center justify-center text-center space-y-6">
+            {/* Brand logo */}
+            <div className="mb-2">
+              <img 
+                src={brandConfig.logo} 
+                alt="Company Logo" 
+                width={100} 
+                height={100}
+                style={{ maxWidth: '100px', maxHeight: '100px' }}
+              />
+            </div>
+            
             {/* Enhanced loader container */}
             <div className="relative">
               {/* Main loader */}
