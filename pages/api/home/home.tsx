@@ -206,12 +206,7 @@ const Home = ({
     const [settings, setSettings] = useState<Settings>();
 
     useEffect(() => {
-        const handleEvent = (event:any) => {
-            console.log('[Theme Debug] updateFeatureSettings event fired, reloading settings');
-            const reloadedSettings = getSettings(featureFlagsRef.current);
-            console.log('[Theme Debug] Reloaded settings:', reloadedSettings);
-            setSettings(reloadedSettings);
-        };
+        const handleEvent = (event:any) => setSettings( getSettings(featureFlagsRef.current) );
         window.addEventListener('updateFeatureSettings', handleEvent);
         return () => window.removeEventListener('updateFeatureSettings', handleEvent)
     }, []);
@@ -219,19 +214,15 @@ const Home = ({
     // Update lightMode when settings change
     useEffect(() => {
         if (settings?.theme) {
-            console.log('[Theme Debug] Settings changed, updating lightMode to:', settings.theme);
             dispatch({ field: 'lightMode', value: settings.theme });
         }
     }, [settings]);
 
     // Apply dark class to document root when lightMode changes
     useEffect(() => {
-        console.log('[Theme Debug] lightMode changed to:', lightMode);
         if (lightMode === 'dark') {
-            console.log('[Theme Debug] Adding dark class to document');
             document.documentElement.classList.add('dark');
         } else {
-            console.log('[Theme Debug] Removing dark class from document');
             document.documentElement.classList.remove('dark');
         }
     }, [lightMode]);
@@ -855,15 +846,12 @@ const Home = ({
                     if (result.data) {
                         // Get current local settings to preserve theme preference
                         const currentSettings = getSettings(featureFlags);
-                        console.log('[Theme Debug] fetchSettings - current local theme:', currentSettings.theme);
-                        console.log('[Theme Debug] fetchSettings - cloud theme:', result.data.theme);
                         
                         // Merge cloud settings but preserve local theme
                         const mergedSettings: Settings = {
                             ...result.data as Settings,
                             theme: currentSettings.theme // Keep local theme preference
                         };
-                        console.log('[Theme Debug] fetchSettings - saving merged settings:', mergedSettings);
                         saveSettings(mergedSettings);
                         window.dispatchEvent(new Event('updateFeatureSettings'));
                     }

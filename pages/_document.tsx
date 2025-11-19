@@ -20,19 +20,12 @@ export default function Document(props: Props) {
               (function() {
                 try {
                   var settingsStr = localStorage.getItem('settings');
-                  console.log('[Theme Debug] _document script - localStorage settings:', settingsStr);
                   var settings = JSON.parse(settingsStr || '{}');
                   var theme = settings.theme || '${process.env.NEXT_PUBLIC_DEFAULT_THEME || 'light'}';
-                  console.log('[Theme Debug] _document script - resolved theme:', theme);
                   if (theme === 'dark') {
                     document.documentElement.classList.add('dark');
-                    console.log('[Theme Debug] _document script - added dark class');
-                  } else {
-                    console.log('[Theme Debug] _document script - NOT adding dark class (theme is light)');
                   }
-                } catch (e) {
-                  console.error('[Theme Debug] _document script error:', e);
-                }
+                } catch (e) {}
               })();
             `,
           }}
