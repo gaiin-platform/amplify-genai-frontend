@@ -7,6 +7,7 @@ export interface BrandConfig {
   logo: string;
   primaryColor: string;
   hoverColor: string;
+  darkBackground: string;
 }
 
 /**
@@ -18,6 +19,7 @@ export const getBrandConfig = (): BrandConfig => {
     logo: process.env.NEXT_PUBLIC_BRAND_LOGO || '/favicon.ico',
     primaryColor: process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR || '#48bb78',
     hoverColor: process.env.NEXT_PUBLIC_BRAND_HOVER_COLOR || '#38a169',
+    darkBackground: process.env.NEXT_PUBLIC_BRAND_DARK_BG || '#343541',
   };
 };
 
@@ -30,5 +32,6 @@ export const useBrandConfig = (): BrandConfig => {
     logo: process.env.NEXT_PUBLIC_BRAND_LOGO || '/favicon.ico',
     primaryColor: process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR || '#48bb78',
     hoverColor: process.env.NEXT_PUBLIC_BRAND_HOVER_COLOR || '#38a169',
+    darkBackground: process.env.NEXT_PUBLIC_BRAND_DARK_BG || '#343541',
   };
 };

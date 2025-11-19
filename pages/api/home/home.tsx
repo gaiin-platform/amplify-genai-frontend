@@ -96,6 +96,7 @@ import { AdminConfigTypes } from '@/types/admin';
 import { ConversationStorage } from '@/types/conversationStorage';
 import UserMenu from '@/components/Layout/UserMenu';
 import { useBrandConfig } from '@/utils/app/branding';
+import { BrandStyles } from '@/components/BrandStyles';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -1447,6 +1448,7 @@ const Home = ({
                     />
                     <link rel="icon" href="/favicon.ico" />
                 </Head>
+                <BrandStyles />
                 {selectedConversation && (
                     <main
                         className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}

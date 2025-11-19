@@ -23,20 +23,32 @@ docker build \
   .
 ```
 
-### Option 2: Environment File
+### Option 2: Build Script with Variables
 
-Create a `.env.build` file:
+Create a `build.sh` script:
 
 ```bash
-NEXT_PUBLIC_BRAND_LOGO=/logos/nc-state.svg
-NEXT_PUBLIC_BRAND_PRIMARY_COLOR=#CC0000
-NEXT_PUBLIC_BRAND_HOVER_COLOR=#990000
+#!/bin/bash
+
+# Brand configuration
+BRAND_LOGO="/logos/nc-state.svg"
+BRAND_PRIMARY="#CC0000"
+BRAND_HOVER="#990000"
+
+# Build with arguments
+docker build \
+  --build-arg NEXT_PUBLIC_BRAND_LOGO="$BRAND_LOGO" \
+  --build-arg NEXT_PUBLIC_BRAND_PRIMARY_COLOR="$BRAND_PRIMARY" \
+  --build-arg NEXT_PUBLIC_BRAND_HOVER_COLOR="$BRAND_HOVER" \
+  -t your-app:nc-state \
+  .
 ```
 
-Then build:
+Make it executable and run:
 
 ```bash
-docker build --env-file .env.build -t your-app:nc-state .
+chmod +x build.sh
+./build.sh
 ```
 
 ### Option 3: CI/CD Pipeline
