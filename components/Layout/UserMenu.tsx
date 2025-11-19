@@ -8,7 +8,7 @@ import { AssistantAdminUI } from '../Admin/AssistantAdminUI';
 import { AdminUI } from '../Admin/AdminUI';
 import { UserCostsModal } from '../Admin/UserCostModal';
 import { SettingDialog } from '../Settings/SettingDialog';
-import { getSettings } from '@/utils/app/settings';
+import { getSettings, saveSettings } from '@/utils/app/settings';
 import { Settings } from '@/types/settings';
 import SharingDialog from '../Share/SharingDialog';
 
@@ -95,14 +95,14 @@ export const UserMenu: React.FC<UserMenuProps> = ({
     console.log('[Theme Debug] UserMenu theme toggle - changing to:', newTheme);
     dispatch({ field: 'lightMode', value: newTheme });
     
-    // Save to localStorage
-    const currentSettings = JSON.parse(localStorage.getItem('settings') || '{}');
-    const updatedSettings = {
+    // Save to localStorage using the proper settings function
+    const currentSettings = getSettings(featureFlags);
+    const updatedSettings: Settings = {
       ...currentSettings,
       theme: newTheme
     };
-    localStorage.setItem('settings', JSON.stringify(updatedSettings));
-    console.log('[Theme Debug] UserMenu - saved to localStorage:', updatedSettings);
+    saveSettings(updatedSettings);
+    console.log('[Theme Debug] UserMenu - saved settings:', updatedSettings);
   };
 
   // Handle palette change immediately
