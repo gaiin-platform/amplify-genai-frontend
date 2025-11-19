@@ -178,11 +178,49 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
 
   }, [theme, featureOptions, hiddenModelIds])
 
+  // Auto-save theme changes immediately
+  useEffect(() => {
+    if (initSettingsRef.current && theme !== initSettingsRef.current.theme) {
+      console.log('[Theme Debug] Theme changed to:', theme, '- auto-saving...');
+      
+      // Update the home state
+      homeDispatch({ field: 'lightMode', value: theme });
+      
+      // Save to localStorage
+      const updatedSettings: Settings = {
+        theme: theme,
+        featureOptions: initSettingsRef.current.featureOptions,
+        hiddenModelIds: initSettingsRef.current.hiddenModelIds
+      };
+      saveSettings(updatedSettings);
+      
+      // Update the ref so we don't trigger this again
+      initSettingsRef.current.theme = theme;
+      
+      // Save to cloud
+      saveUserSettings(updatedSettings).then(result => {
+        if (result) {
+          console.log('[Theme Debug] Theme saved successfully to cloud');
+        }
+      });
+      
+      statsService.setThemeEvent(theme);
+    }
+  }, [theme])
+
 
 
   const handleSave = async () => {
+    console.log('[Theme Debug] handleSave called');
+    console.log('[Theme Debug] hasUnsavedChanges:', hasUnsavedChanges);
+    console.log('[Theme Debug] current theme:', theme);
+    console.log('[Theme Debug] initSettingsRef theme:', initSettingsRef.current?.theme);
+    
     window.dispatchEvent(new Event('settingsSave'));
-    if (!hasUnsavedChanges) return;
+    if (!hasUnsavedChanges) {
+      console.log('[Theme Debug] No unsaved changes, returning early');
+      return;
+    }
     if (Object.values(allAvailableModels).every((model: Model) => hiddenModelIds.includes(model.id) || model.id === defaultModelId)) {
         alert("All models are currently set to be hidden. At least one model needs to remain visible, please adjust your selection.");
         return;
@@ -195,6 +233,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                                         featureOptions: featureOptions, 
                                         hiddenModelIds: hiddenModelIds.filter((id: string) => id !== defaultModelId)
                                       }
+    console.log('[Theme Debug] Saving settings:', updatedSettings);
     statsService.saveSettingsEvent(updatedSettings);
     // console.log(updatedSettings);
     saveSettings(updatedSettings);
