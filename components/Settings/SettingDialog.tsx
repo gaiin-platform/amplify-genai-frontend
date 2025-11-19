@@ -161,7 +161,6 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
   const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(initSettingsRef.current?.featureOptions);
   const [theme, setTheme] = useState<Theme>(() => {
     const initialTheme = initSettingsRef.current?.theme || 'light';
-    console.log('[Theme Debug] SettingDialog initial theme state:', initialTheme);
     return initialTheme;
   });
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
@@ -188,8 +187,6 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
     const currentSavedSettings = getSettings(featureFlags);
     
     if (theme !== currentSavedSettings.theme) {
-      console.log('[Theme Debug] Theme changed from', currentSavedSettings.theme, 'to:', theme, '- auto-saving...');
-      
       // Update the home state
       homeDispatch({ field: 'lightMode', value: theme });
       
@@ -200,16 +197,9 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
         hiddenModelIds: currentSavedSettings.hiddenModelIds
       };
       saveSettings(updatedSettings);
-      console.log('[Theme Debug] Saved to localStorage:', updatedSettings);
       
       // Save to cloud
-      saveUserSettings(updatedSettings).then(result => {
-        if (result) {
-          console.log('[Theme Debug] Theme saved successfully to cloud');
-        } else {
-          console.log('[Theme Debug] Failed to save theme to cloud');
-        }
-      });
+      saveUserSettings(updatedSettings);
       
       statsService.setThemeEvent(theme);
     }
@@ -218,16 +208,8 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
 
 
   const handleSave = async () => {
-    console.log('[Theme Debug] handleSave called');
-    console.log('[Theme Debug] hasUnsavedChanges:', hasUnsavedChanges);
-    console.log('[Theme Debug] current theme:', theme);
-    console.log('[Theme Debug] initSettingsRef theme:', initSettingsRef.current?.theme);
-    
     window.dispatchEvent(new Event('settingsSave'));
-    if (!hasUnsavedChanges) {
-      console.log('[Theme Debug] No unsaved changes, returning early');
-      return;
-    }
+    if (!hasUnsavedChanges) return;
     if (Object.values(allAvailableModels).every((model: Model) => hiddenModelIds.includes(model.id) || model.id === defaultModelId)) {
         alert("All models are currently set to be hidden. At least one model needs to remain visible, please adjust your selection.");
         return;
@@ -240,7 +222,6 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                                         featureOptions: featureOptions, 
                                         hiddenModelIds: hiddenModelIds.filter((id: string) => id !== defaultModelId)
                                       }
-    console.log('[Theme Debug] Saving settings:', updatedSettings);
     statsService.saveSettingsEvent(updatedSettings);
     // console.log(updatedSettings);
     saveSettings(updatedSettings);
@@ -418,10 +399,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                                       name="theme"
                                       value={color}
                                       checked={theme === color}
-                                      onChange={(event) => {
-                                        console.log('[Theme Debug] Radio button clicked, changing theme to:', event.target.value);
-                                        setTheme(event.target.value as Theme);
-                                      }}
+                                      onChange={(event) => setTheme(event.target.value as Theme)}
                                       className="settings-theme-radio"
                                   />
                                   <div className="settings-theme-option-content">
