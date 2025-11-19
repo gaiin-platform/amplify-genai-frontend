@@ -17,6 +17,17 @@
     
     # ---- Build ----
     FROM dependencies AS build
+    
+    # Accept build arguments for white labeling
+    ARG NEXT_PUBLIC_BRAND_LOGO=/logos/default-logo.svg
+    ARG NEXT_PUBLIC_BRAND_PRIMARY_COLOR=#48bb78
+    ARG NEXT_PUBLIC_BRAND_HOVER_COLOR=#38a169
+    
+    # Set as environment variables for the build
+    ENV NEXT_PUBLIC_BRAND_LOGO=$NEXT_PUBLIC_BRAND_LOGO
+    ENV NEXT_PUBLIC_BRAND_PRIMARY_COLOR=$NEXT_PUBLIC_BRAND_PRIMARY_COLOR
+    ENV NEXT_PUBLIC_BRAND_HOVER_COLOR=$NEXT_PUBLIC_BRAND_HOVER_COLOR
+    
     COPY --chown=appuser:appgroup . .
     RUN npm run build
     
