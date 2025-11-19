@@ -19,10 +19,10 @@ Use this checklist to ensure your white labeling implementation is complete and 
 
 ## Environment Configuration
 
-- [ ] `.env.local` file exists in project root
 - [ ] `NEXT_PUBLIC_BRAND_LOGO` is set with correct path
 - [ ] `NEXT_PUBLIC_BRAND_PRIMARY_COLOR` is set with hex color
 - [ ] `NEXT_PUBLIC_BRAND_HOVER_COLOR` is set with hex color
+- [ ] `NEXT_PUBLIC_BRAND_DARK_BG` is set with hex color for dark mode background color
 - [ ] All environment variables start with `NEXT_PUBLIC_`
 - [ ] Hex colors include the `#` symbol
 

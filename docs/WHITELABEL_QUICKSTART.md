@@ -17,6 +17,7 @@ NEXT_PUBLIC_BRAND_LOGO=/logos/your-company-logo.svg
 # Your brand colors (hex format)
 NEXT_PUBLIC_BRAND_PRIMARY_COLOR=#525364
 NEXT_PUBLIC_BRAND_HOVER_COLOR=#3d3e4d
+NEXT_PUBLIC_BRAND_DARK_BG=#8B0000 \
 ```
 
 ### Step 3: Restart & Test
@@ -43,6 +44,7 @@ docker build \
   --build-arg NEXT_PUBLIC_BRAND_LOGO=/logos/your-logo.svg \
   --build-arg NEXT_PUBLIC_BRAND_PRIMARY_COLOR=#525364 \
   --build-arg NEXT_PUBLIC_BRAND_HOVER_COLOR=#3d3e4d \
+  --build-arg NEXT_PUBLIC_BRAND_DARK_BG=#8B0000 \
   -t your-app:branded \
   .
 ```
