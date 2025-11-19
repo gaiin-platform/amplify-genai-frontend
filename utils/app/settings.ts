@@ -44,8 +44,11 @@ export const saveWorkspaceMetadata = (workspaceMetadata: Workspace) => {
   localStorage.setItem('workspaceMetadata', JSON.stringify(workspaceMetadata));
 };
 
-export const saveSettings = (settings: Settings) => {  
+export const saveSettings = (settings: Settings) => {
+  console.log('[Theme Debug] saveSettings called with:', settings);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  const verified = localStorage.getItem(STORAGE_KEY);
+  console.log('[Theme Debug] saveSettings - verified localStorage after save:', verified);
 };
 
 
