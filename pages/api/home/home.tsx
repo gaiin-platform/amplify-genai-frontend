@@ -220,9 +220,12 @@ const Home = ({
 
     // Apply dark class to document root when lightMode changes
     useEffect(() => {
+        console.log('[Theme Debug] lightMode changed to:', lightMode);
         if (lightMode === 'dark') {
+            console.log('[Theme Debug] Adding dark class to document');
             document.documentElement.classList.add('dark');
         } else {
+            console.log('[Theme Debug] Removing dark class from document');
             document.documentElement.classList.remove('dark');
         }
     }, [lightMode]);
