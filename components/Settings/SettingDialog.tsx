@@ -160,7 +160,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
   
   const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(initSettingsRef.current?.featureOptions);
   const [theme, setTheme] = useState<Theme>(() => {
-    const initialTheme = initSettingsRef.current?.theme;
+    const initialTheme = initSettingsRef.current?.theme || 'light';
     console.log('[Theme Debug] SettingDialog initial theme state:', initialTheme);
     return initialTheme;
   });
