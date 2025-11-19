@@ -92,7 +92,17 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 
   const handleThemeToggle = () => {
     const newTheme = lightMode === 'dark' ? 'light' : 'dark';
+    console.log('[Theme Debug] UserMenu theme toggle - changing to:', newTheme);
     dispatch({ field: 'lightMode', value: newTheme });
+    
+    // Save to localStorage
+    const currentSettings = JSON.parse(localStorage.getItem('settings') || '{}');
+    const updatedSettings = {
+      ...currentSettings,
+      theme: newTheme
+    };
+    localStorage.setItem('settings', JSON.stringify(updatedSettings));
+    console.log('[Theme Debug] UserMenu - saved to localStorage:', updatedSettings);
   };
 
   // Handle palette change immediately
