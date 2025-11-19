@@ -6,7 +6,7 @@ const STORAGE_KEY = 'settings';
 export const getSettings = (featureFlags:any): Settings => {
   // filter settings to ensure all models are still available 
   let settings: Settings = {
-    theme: (process.env.NEXT_PUBLIC_DEFAULT_THEME as 'light' | 'dark') || 'dark',
+    theme: (process.env.NEXT_PUBLIC_DEFAULT_THEME as 'light' | 'dark') || 'light',
     featureOptions: featureOptionDefaults(featureFlags),
     hiddenModelIds: []
   };

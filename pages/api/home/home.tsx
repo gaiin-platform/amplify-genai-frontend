@@ -211,7 +211,12 @@ const Home = ({
         return () => window.removeEventListener('updateFeatureSettings', handleEvent)
     }, []);
 
-
+    // Update lightMode when settings change
+    useEffect(() => {
+        if (settings?.theme) {
+            dispatch({ field: 'lightMode', value: settings.theme });
+        }
+    }, [settings]);
 
     // This is where tabs will be sync'd
     useEffect(() => {
