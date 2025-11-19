@@ -34,8 +34,16 @@ colors: {
   brand: {
     primary: '#CC0000',
     hover: '#990000',
+    
+    // Dark mode
     'dark-bg': '#8B0000',
-    // ... other variants
+    'dark-sidebar': '#8B0000',
+    // ... other dark variants
+    
+    // Light mode
+    'light-bg': '#FFF5F5',
+    'light-sidebar': '#FEE2E2',
+    // ... other light variants
   },
 }
 ```

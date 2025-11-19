@@ -530,7 +530,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
 
                 {(isModalOpen) &&  
                     <div className="shadow-xl flex justify-center w-full">
-                        <div id="shareArtifactModal" className="p-4  border border-gray-500 rounded z-50 absolute bg-white dark:bg-brand-dark-secondary" style={{ transform: `translateY(50%)`}}>
+                        <div id="shareArtifactModal" className="p-4  border border-gray-500 rounded z-50 absolute bg-white bg-brand-light-secondary dark:bg-brand-dark-secondary" style={{ transform: `translateY(50%)`}}>
 
                         
                     {isSharing && <div className="flex flex-col gap-2" >

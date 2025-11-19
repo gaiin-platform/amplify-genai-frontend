@@ -265,7 +265,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                     <ExpansionComponent
                       isOpened={obfuscateSteps || typeof obfuscate === 'boolean'}
                       title={segmentTitle}
-                      content={ <div className="py-3 mt-5 bg-gray-200 dark:bg-brand-dark-modal p-2">
+                      content={ <div className="py-3 mt-5 bg-gray-200 bg-brand-light-modal dark:bg-brand-dark-modal p-2">
                           {obfuscateSteps ? (
                             // Simplified view (obfuscated)
                             <div className="text-sm text-neutral-700 dark:text-neutral-300">

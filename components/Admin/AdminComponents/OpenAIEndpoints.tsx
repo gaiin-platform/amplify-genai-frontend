@@ -89,7 +89,7 @@ export const OpenAIEndpointsTab: FC<Props> = ({openAiEndpoints, setOpenAiEndpoin
                             {modelData[modelName].endpoints.length === 0 ? (
                                 <input
                                     id={`editModelName-${modelName}-${modelIndex}`}
-                                    className="p-2 text-[0.95rem] border border-neutral-300 dark:border-white/20 rounded dark:bg-brand-dark-input dark:text-neutral-100 text-neutral-900 max-w-[160px]"
+                                    className="p-2 text-[0.95rem] border border-neutral-300 dark:border-white/20 rounded bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100 text-neutral-900 max-w-[160px]"
                                     value={editingModelName[`${modelIndex}-${modelName}`] ?? modelName}
                                     onChange={(e) => {
                                         const newValue = e.target.value;

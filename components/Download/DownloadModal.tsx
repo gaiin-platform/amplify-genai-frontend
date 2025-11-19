@@ -350,7 +350,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                     {showHeaders && (
                                     <div id="conversationHeaderText" className="ml-2">
                                         <textarea
-                                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
+                                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100"
                                             style={{resize: 'none'}}
                                             placeholder={
                                                 "A markdown header to insert at the start of a conversation"
@@ -369,7 +369,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                     {showHeaders && (
                                     <div id="messageHeaderText" className="ml-2">
                                         <textarea
-                                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
+                                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100"
                                             style={{resize: 'none'}}
                                             placeholder={
                                                 ""
@@ -387,7 +387,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                     {showHeaders && (
                                     <div id="userMessageHeaderText" className="ml-2">
                                         <textarea
-                                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
+                                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100"
                                             style={{resize: 'none'}}
                                             placeholder={
                                                 ""
@@ -404,7 +404,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                     {showHeaders && (
                                     <div id="assistantHeaderText" className="ml-2">
                                         <textarea
-                                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
+                                            className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100"
                                             style={{resize: 'none'}}
                                             placeholder={
                                                 ""

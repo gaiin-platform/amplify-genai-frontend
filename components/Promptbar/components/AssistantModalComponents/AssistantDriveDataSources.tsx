@@ -188,7 +188,7 @@ export const AssistantDriveDataSources: FC<Props> = ({
                   ...rescanSchedule,
                   frequency: e.target.value as DriveRescanSchedule['frequency']
                 })}
-                className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-brand-dark-input text-gray-900 dark:text-white text-sm"
+                className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white bg-brand-light-input dark:bg-brand-dark-input text-gray-900 dark:text-white text-sm"
               >
                 <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
@@ -207,7 +207,7 @@ export const AssistantDriveDataSources: FC<Props> = ({
                   ...rescanSchedule,
                   time: e.target.value
                 })}
-                className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-brand-dark-input text-gray-900 dark:text-white text-sm"
+                className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white bg-brand-light-input dark:bg-brand-dark-input text-gray-900 dark:text-white text-sm"
               />
             </div>
 
@@ -222,7 +222,7 @@ export const AssistantDriveDataSources: FC<Props> = ({
                     ...rescanSchedule,
                     dayOfWeek: parseInt(e.target.value)
                   })}
-                  className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-brand-dark-input text-gray-900 dark:text-white text-sm"
+                  className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white bg-brand-light-input dark:bg-brand-dark-input text-gray-900 dark:text-white text-sm"
                 >
                   <option value={0}>Sunday</option>
                   <option value={1}>Monday</option>
@@ -246,7 +246,7 @@ export const AssistantDriveDataSources: FC<Props> = ({
                     ...rescanSchedule,
                     dayOfMonth: parseInt(e.target.value)
                   })}
-                  className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-brand-dark-input text-gray-900 dark:text-white text-sm"
+                  className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white bg-brand-light-input dark:bg-brand-dark-input text-gray-900 dark:text-white text-sm"
                 >
                   {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
                     <option key={day} value={day}>{day}</option>

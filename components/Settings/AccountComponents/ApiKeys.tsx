@@ -515,7 +515,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                             </div>
 
                                             <textarea
-                                                className= "mt-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
+                                                className= "mt-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100"
                                                 style={{resize: 'none'}}
                                                 id="applicationName"
                                                 placeholder={`Application Name`}
@@ -550,7 +550,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                     {t('Application Description')}
                                 </div>
                                 <textarea
-                                    className="mr-6 mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
+                                    className="mr-6 mb-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100"
                                     style={{resize: 'none'}}
                                     id="applicationDescription"
                                     placeholder={`Provide a short description on the application use of this api key.`}
@@ -592,7 +592,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                     </div>
                                     {includeExpiration && 
                                         <input
-                                            className="ml-2 rounded border-gray-300 p-0.5 text-neutral-900 dark:text-neutral-100 shadow-sm bg-neutral-200 dark:bg-brand-dark-input focus:border-neutral-700 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
+                                            className="ml-2 rounded border-gray-300 p-0.5 text-neutral-900 dark:text-neutral-100 shadow-sm bg-neutral-200 bg-brand-light-input dark:bg-brand-dark-input focus:border-neutral-700 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
                                             type="date"
                                             id="expiration"
                                             value={selectedDate}
@@ -671,7 +671,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                       Filter by purpose
                                   </label>
                                 <select 
-                                    className="w-auto px-2 py-1 border rounded-lg dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
+                                    className="w-auto px-2 py-1 border rounded-lg bg-brand-light-input dark:bg-brand-dark-input dark:border-neutral-600 dark:text-white"
                                     value={selectedPurposeFilter}
                                     onChange={(e) => setSelectedPurposeFilter(e.target.value)}
                                 >
@@ -1193,7 +1193,7 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
                 minHeight: '36px',
                 flex: 'shrink-0',
             }}
-            className={`mb-2 p-2 flex-1 text-sm rounded flex flex-row ${textColor || 'text-black dark:text-neutral-200'} ${isOverflowing || isDate ? 'bg-neutral-200 dark:bg-brand-dark-input' : 'transparent'}`}
+            className={`mb-2 p-2 flex-1 text-sm rounded flex flex-row ${textColor || 'text-black dark:text-neutral-200'} ${isOverflowing || isDate ? 'bg-neutral-200 bg-brand-light-input dark:bg-brand-dark-input' : 'transparent'}`}
         >
         {!isEditing && 
             <> {displayLabel ? formattedLabel :  <div className='ml-8'><NALabel/></div>}</>
@@ -1203,7 +1203,7 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
             <>
             {editableField && editableField === 'expirationDate' && (<>
                 <input
-                    className="rounded border-gray-300 p-0.5 text-neutral-900 dark:text-neutral-100 shadow-sm bg-neutral-200 dark:bg-brand-dark-input focus:border-neutral-700 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
+                    className="rounded border-gray-300 p-0.5 text-neutral-900 dark:text-neutral-100 shadow-sm bg-neutral-200 bg-brand-light-input dark:bg-brand-dark-input focus:border-neutral-700 focus:ring focus:ring-neutral-500 focus:ring-opacity-50"
                     type="date"
                     id="expiration"
                     value={selectedDate}

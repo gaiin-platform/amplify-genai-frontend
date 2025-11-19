@@ -224,7 +224,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
             <input
               ref={nameInputRef}
               id="promptModalName"
-              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
+              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100"
               placeholder={t('A name for your prompt.') || ''}
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -235,7 +235,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
             </div>
             <textarea
               id="promptDescription"
-              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
+              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100"
               style={{ resize: 'none' }}
               placeholder={t('A description for your prompt.') || ''}
               value={description}
@@ -251,7 +251,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                 </div>
               <select
               id="customInstructions"
-              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100 "
+              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100 "
               value={rootPrompt.id}
               onChange={(e) => handleUpdateRootPrompt(e.target.value)}
               >
@@ -269,7 +269,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
             </div>
             <textarea
               id="promptContent"
-              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
+              className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100"
               style={{ resize: 'none' }}
               placeholder={
                 t(
@@ -344,7 +344,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                 <div className="mt-2 mb-6 text-sm text-black dark:text-neutral-200 overflow-y">
                   <input
                       ref={nameInputRef}
-                      className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
+                      className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100"
                       placeholder={t('Tag names separated by commas.') || ''}
                       value={conversationTags}
                       title={"Tags for conversations created with this template."}
@@ -368,7 +368,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                   {t('Required Tags')}
                 </div>
                 <input
-                    className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
+                    className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100"
                     placeholder={'Required tag names separated by commas.'}
                     value={requiredTags}
                     title={'A list of any tags that must be present on the conversation for the buttons to appear.'}
@@ -387,7 +387,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                     type="radio"
                     id="promptTemplateCheck"
                     name="template"
-                    className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-brand-dark-input dark:ring-offset-neutral-300 dark:border-opacity-50"
+                    className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 bg-brand-light-input dark:bg-brand-dark-input dark:ring-offset-neutral-300 dark:border-opacity-50"
                     value={MessageType.PROMPT}
                     checked={selectedTemplate === MessageType.PROMPT}
                     onChange={() => setSelectedTemplate(MessageType.PROMPT)}
@@ -403,7 +403,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                           type="radio"
                           id="customInstructionsCheck"
                           name="template"
-                          className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-brand-dark-input dark:ring-offset-neutral-300 dark:border-opacity-50"
+                          className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 bg-brand-light-input dark:bg-brand-dark-input dark:ring-offset-neutral-300 dark:border-opacity-50"
                           value={MessageType.ROOT}
                           checked={selectedTemplate === MessageType.ROOT}
                           onChange={() => setSelectedTemplate(MessageType.ROOT)}
@@ -420,7 +420,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                           type="radio"
                           name="template"
                           id="promptPrefixCheck"
-                          className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-brand-dark-input dark:ring-offset-neutral-300 dark:border-opacity-50"
+                          className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 bg-brand-light-input dark:bg-brand-dark-input dark:ring-offset-neutral-300 dark:border-opacity-50"
                           value={MessageType.PREFIX_PROMPT}
                           checked={selectedTemplate === MessageType.PREFIX_PROMPT}
                           onChange={() => setSelectedTemplate(MessageType.PREFIX_PROMPT)}
@@ -437,7 +437,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                           type="radio"
                           name="template"
                           id="outputTransformerCheck"
-                          className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-brand-dark-input dark:ring-offset-neutral-300 dark:border-opacity-50"
+                          className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 bg-brand-light-input dark:bg-brand-dark-input dark:ring-offset-neutral-300 dark:border-opacity-50"
                           value={MessageType.OUTPUT_TRANSFORMER}
                           checked={selectedTemplate === MessageType.OUTPUT_TRANSFORMER}
                           onChange={() => setSelectedTemplate(MessageType.OUTPUT_TRANSFORMER)}
@@ -454,7 +454,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                           type="radio"
                           name="template"
                           id="followUpButtonCheck"
-                          className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-brand-dark-input dark:ring-offset-neutral-300 dark:border-opacity-50"
+                          className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 bg-brand-light-input dark:bg-brand-dark-input dark:ring-offset-neutral-300 dark:border-opacity-50"
                           value={MessageType.FOLLOW_UP}
                           checked={selectedTemplate === MessageType.FOLLOW_UP}
                           onChange={() => setSelectedTemplate(MessageType.FOLLOW_UP)}
@@ -471,7 +471,7 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
                     type="radio"
                     name="template"
                     id="automationTemplateCheck"
-                    className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-brand-dark-input dark:ring-offset-neutral-300 dark:border-opacity-50"
+                    className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 bg-brand-light-input dark:bg-brand-dark-input dark:ring-offset-neutral-300 dark:border-opacity-50"
                     value={MessageType.AUTOMATION}
                     checked={selectedTemplate === MessageType.AUTOMATION}
                     onChange={() => setSelectedTemplate(MessageType.AUTOMATION)}

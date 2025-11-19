@@ -28,7 +28,7 @@ const Search: FC<Props> = ({ placeholder, searchTerm, onSearch, disabled=false, 
       </div>
       <input
         id="SearchBar"
-        className={`w-full flex-1 rounded-md border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-brand-dark-sidebar pl-7 pr-2 ${paddingY} text-[14px] leading-3 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-shadow duration-150`}
+        className={`w-full flex-1 rounded-md border border-neutral-300 dark:border-neutral-600 bg-neutral-100 bg-brand-light-sidebar dark:bg-brand-dark-sidebar pl-7 pr-2 ${paddingY} text-[14px] leading-3 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-shadow duration-150`}
         type="text"
         placeholder={t(placeholder) || ''}
         value={searchTerm}

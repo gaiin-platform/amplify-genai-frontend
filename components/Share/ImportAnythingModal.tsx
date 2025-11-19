@@ -332,7 +332,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
                             <IconNote className="mt-1.5 mx-2" size={18}/>
                             Note
                         </h3>
-                        <div className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-brand-dark-input dark:text-neutral-100"
+                        <div className="mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-brand-light-input dark:bg-brand-dark-input dark:text-neutral-100"
                         >{note} </div>
 
 

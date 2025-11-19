@@ -45,7 +45,7 @@ export const ArtifactPreview: React.FC<Props> = ({ codeBlocks, artifactContent, 
         }
     }
 
-   return <div className="mt-8 group md:px-4 bg-gray-50 text-gray-800 dark:border-gray-900/50 dark:bg-brand-dark-secondary dark:text-gray-100 h-[calc(100vh-140px)] flex flex-col">
+   return <div className="mt-8 group md:px-4 bg-gray-50 text-gray-800 dark:border-gray-900/50 bg-brand-light-secondary dark:bg-brand-dark-secondary dark:text-gray-100 h-[calc(100vh-140px)] flex flex-col">
     <div className="p-2 text-base md:max-w-2xl md:gap-6 md:py-2 lg:max-w-2xl lg:px-0 xl:max-w-3xl flex-grow overflow-auto">
       <div className="prose mt-[-2px] w-full dark:prose-invert">
         <div className="flex w-full flex-col h-full">
