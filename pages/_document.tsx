@@ -14,6 +14,21 @@ export default function Document(props: Props) {
       <Head>
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content="Amplify"></meta>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var settings = JSON.parse(localStorage.getItem('settings') || '{}');
+                  var theme = settings.theme || '${process.env.NEXT_PUBLIC_DEFAULT_THEME || 'light'}';
+                  if (theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
       </Head>
       <body>
         <Main />
