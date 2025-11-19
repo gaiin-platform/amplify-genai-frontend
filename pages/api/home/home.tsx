@@ -121,6 +121,7 @@ const Home = ({
     chatEndpoint,
 }: Props) => {
     const { t } = useTranslation('chat');
+    const brandConfig = useBrandConfig();
     const [initialRender, setInitialRender] = useState<boolean>(true);
     // const [loadingSelectedConv, setLoadingSelectedConv] = useState<boolean>(false);
     const [loadingMessage, setLoadingMessage] = useState<string>('');
@@ -1517,8 +1518,6 @@ const Home = ({
                 </div>
             </main>);
     } else {
-        const brandConfig = useBrandConfig();
-        
         return (
             <main
                 className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`} 

@@ -58,6 +58,7 @@ const AssistantPage = ({
 }: Props) => {
   const { t } = useTranslation('chat');
   const { data: session } = useSession();
+  const brandConfig = useBrandConfig();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // State management
@@ -718,8 +719,6 @@ const AssistantPage = ({
 
   // Error state
   if (!session) {
-    const brandConfig = useBrandConfig();
-    
     return (
       <MainLayout
         title="Login Required"
