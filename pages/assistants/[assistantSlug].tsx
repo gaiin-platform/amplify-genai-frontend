@@ -718,10 +718,9 @@ const AssistantPage = ({
 
   // Error state
   if (!session) {
+    const brandConfig = useBrandConfig();
+    
     return (
-      const brandConfig = useBrandConfig();
-      
-      return (
       <MainLayout
         title="Login Required"
         description={`Chat with ${assistantName}`}
