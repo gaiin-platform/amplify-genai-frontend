@@ -1,0 +1,39 @@
+<svg width="300" height="80" viewBox="0 0 300 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Graduation cap icon -->
+  <g transform="translate(10, 15)">
+    <!-- Cap top -->
+    <path d="M25 10 L50 20 L25 30 L0 20 Z" fill="#48bb78" stroke="#38a169" stroke-width="1.5"/>
+    <!-- Cap base -->
+    <rect x="20" y="30" width="10" height="15" fill="#38a169" rx="1"/>
+    <!-- Tassel -->
+    <circle cx="50" cy="20" r="3" fill="#2d3748"/>
+    <line x1="50" y1="23" x2="50" y2="32" stroke="#2d3748" stroke-width="1.5"/>
+    <circle cx="50" cy="32" r="2.5" fill="#2d3748"/>
+    <!-- Book pages -->
+    <g transform="translate(5, 35)">
+      <rect x="0" y="0" width="15" height="12" fill="#e2e8f0" stroke="#cbd5e0" stroke-width="1"/>
+      <line x1="7.5" y1="0" x2="7.5" y2="12" stroke="#cbd5e0" stroke-width="1"/>
+      <line x1="0" y1="3" x2="15" y2="3" stroke="#cbd5e0" stroke-width="0.5"/>
+      <line x1="0" y1="6" x2="15" y2="6" stroke="#cbd5e0" stroke-width="0.5"/>
+      <line x1="0" y1="9" x2="15" y2="9" stroke="#cbd5e0" stroke-width="0.5"/>
+    </g>
+  </g>
+  
+  <!-- Text: AnyUniversity -->
+  <text x="75" y="45" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#2d3748">
+    Any
+  </text>
+  <text x="135" y="45" font-family="Arial, sans-serif" font-size="28" font-weight="300" fill="#48bb78">
+    University
+  </text>
+  
+  <!-- Tagline -->
+  <text x="75" y="60" font-family="Arial, sans-serif" font-size="10" font-weight="400" fill="#718096" letter-spacing="1">
+    LEARNING WITHOUT LIMITS
+  </text>
+  
+  <!-- Decorative elements -->
+  <circle cx="270" cy="25" r="2" fill="#48bb78" opacity="0.6"/>
+  <circle cx="280" cy="30" r="1.5" fill="#48bb78" opacity="0.4"/>
+  <circle cx="285" cy="20" r="1" fill="#48bb78" opacity="0.3"/>
+</svg>
