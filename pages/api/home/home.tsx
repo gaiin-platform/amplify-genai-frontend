@@ -852,8 +852,19 @@ const Home = ({
             try {
                 const result = await fetchUserSettings();
                 if (result.success) {
-                    if (result.data) { 
-                        saveSettings(result.data as Settings);
+                    if (result.data) {
+                        // Get current local settings to preserve theme preference
+                        const currentSettings = getSettings(featureFlags);
+                        console.log('[Theme Debug] fetchSettings - current local theme:', currentSettings.theme);
+                        console.log('[Theme Debug] fetchSettings - cloud theme:', result.data.theme);
+                        
+                        // Merge cloud settings but preserve local theme
+                        const mergedSettings: Settings = {
+                            ...result.data as Settings,
+                            theme: currentSettings.theme // Keep local theme preference
+                        };
+                        console.log('[Theme Debug] fetchSettings - saving merged settings:', mergedSettings);
+                        saveSettings(mergedSettings);
                         window.dispatchEvent(new Event('updateFeatureSettings'));
                     }
                 } else {
