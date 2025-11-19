@@ -218,6 +218,15 @@ const Home = ({
         }
     }, [settings]);
 
+    // Apply dark class to document root when lightMode changes
+    useEffect(() => {
+        if (lightMode === 'dark') {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    }, [lightMode]);
+
     // This is where tabs will be sync'd
     useEffect(() => {
         const handleStorageChange = (event: any) => {
