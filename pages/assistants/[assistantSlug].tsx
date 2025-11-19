@@ -740,19 +740,7 @@ const AssistantPage = ({
             <button
               onClick={() => signIn('cognito')}
               id="loginButton"
-              className="shadow-md"
-              style={{
-                backgroundColor: 'white',
-                border: '2px solid #ccc',
-                color: 'black',
-                fontWeight: 'bold',
-                padding: '10px 20px',
-                borderRadius: '5px',
-                cursor: 'pointer',
-                transition: 'background-color 0.3s ease-in-out',
-              }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = brandConfig.primaryColor}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
+              className="bg-white hover:bg-brand-primary text-black font-bold py-2.5 px-5 rounded shadow-md cursor-pointer transition-colors duration-300 border-2 border-gray-300"
             >
               Login
             </button>
