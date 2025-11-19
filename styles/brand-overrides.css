@@ -1,0 +1,25 @@
+/* Brand color overrides - Single source of truth */
+/* All dark mode backgrounds use --brand-dark-bg variable */
+
+/* Set the brand background color for root elements */
+.dark,
+html.dark,
+.dark body,
+.dark main {
+  background-color: var(--brand-dark-bg) !important;
+}
+
+/* Override Tailwind's arbitrary value backgrounds in dark mode */
+/* Matches: dark:bg-[#343541], dark:bg-[#202123], etc. */
+.dark [class*="dark:bg-[#"]:is(.dark *),
+.dark [class*="bg-[#"]:is(.dark *) {
+  --tw-bg-opacity: 1 !important;
+  background-color: var(--brand-dark-bg) !important;
+}
+
+/* Override component-specific backgrounds */
+.dark .amplify-sidebar,
+.dark .amplify-header,
+.dark .amplify-assistant-message {
+  background-color: var(--brand-dark-bg) !important;
+}
