@@ -76,7 +76,7 @@ export const DataDisclosureViewer: FC<Props> = ({ open }) => {
                         href={dataDisclosure.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors duration-200"
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-200 dark:bg-blue-700 hover:bg-blue-600 dark:text-white rounded-md transition-colors duration-200"
                     >
                         <IconExternalLink size={18} />
                         Download PDF
