@@ -198,6 +198,7 @@ const AgentFileBlock: React.FC<Props> = ({ filePath, message }) => {
               <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button 
                   className="p-1 bg-white rounded-full shadow-md hover:bg-gray-200"
+                  id="miniDownloadFileButton"
                   onClick={handleDownload}
                   title="Download file"
                 >

@@ -331,7 +331,7 @@ class AddActionTests(BaseTest):
         custom_select_btn.click()
         
         # Find all apiItem elements
-        api_items = self.wait.until(EC.presence_of_all_elements_located((By.ID, "apiItem")))
+        api_items = self.wait.until(EC.presence_of_all_elements_located((By.ID, "toolItem")))
         self.assertTrue(api_items, "Selectable API elements should be visible")
 
         target_text = "Write File From String"
@@ -340,17 +340,17 @@ class AddActionTests(BaseTest):
         for item in api_items:
             try:
                 # Find the apiName element within this apiItem
-                api_name = item.find_element(By.ID, "apiName")
+                api_name = item.find_element(By.ID, "toolName")
                 
                 if api_name.text.strip() == target_text:
                     # Found the correct one, now find and click its apiClick
-                    api_click = item.find_element(By.ID, "apiClick")
-                    self.assertTrue(api_click.is_displayed(), f"'apiClick' should be visible for {target_text}")
+                    api_click = item.find_element(By.ID, "toolClick")
+                    self.assertTrue(api_click.is_displayed(), f"'toolClick' should be visible for {target_text}")
                     api_click.click()
                     found = True
                     break
             except Exception as e:
-                print(f"Skipping an apiItem due to: {e}")
+                print(f"Skipping an toolItem due to: {e}")
 
         self.assertTrue(found, f"Could not find apiName with text '{target_text}'")
         
@@ -442,6 +442,112 @@ class AddActionTests(BaseTest):
     # ----------------- Test Run Action -----------------
     """Test the Presence of all the elements in the Scheduled Tasks Modal"""
     # String Write File
+    
+    def test_run_action(self):
+        # Extra sleep for extra loading
+        time.sleep(3)
+        
+        add_action_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "addAction")))
+        self.assertTrue(add_action_btn, "Add Action Button should be clickable")
+        add_action_btn.click()
+        time.sleep(3)
+        
+        # id="apiOperationsSelect" click
+        api_operation_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "apiOperationsSelect")))
+        self.assertTrue(api_operation_btn, "API Operation Button should be clickable")
+        api_operation_btn.click()
+        time.sleep(2)
+        
+        # id="api-dropdown-menu" check presence of
+        api_dropdown_menu = self.wait.until(EC.presence_of_element_located((By.ID, "api-dropdown-menu")))
+        self.assertTrue(api_dropdown_menu, "API Dropdown Menu should be present")
+        time.sleep(1)
+        
+        # id="toolsSelect" check presence of / can click
+        custom_select_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "toolsSelect")))
+        self.assertTrue(custom_select_btn, "Agent Tools Select should be clickable in the dropdown menu")
+        time.sleep(1)
+        
+        custom_select_btn.click()
+        
+        # Find all apiItem elements
+        api_items = self.wait.until(EC.presence_of_all_elements_located((By.ID, "toolItem")))
+        self.assertTrue(api_items, "Selectable API elements should be visible")
+
+        target_text = "Write File From String"
+        found = False
+
+        for item in api_items:
+            try:
+                # Find the apiName element within this apiItem
+                api_name = item.find_element(By.ID, "toolName")
+                
+                if api_name.text.strip() == target_text:
+                    # Found the correct one, now find and click its apiClick
+                    api_click = item.find_element(By.ID, "toolClick")
+                    self.assertTrue(api_click.is_displayed(), f"'toolClick' should be visible for {target_text}")
+                    api_click.click()
+                    found = True
+                    break
+            except Exception as e:
+                print(f"Skipping an toolItem due to: {e}")
+
+        self.assertTrue(found, f"Could not find toolName with text '{target_text}'")
+        
+        # id="operationName" -> text equality "Write File From String"
+        operation_name_el = self.wait.until(EC.presence_of_element_located((By.ID, "operationName")))
+        self.assertTrue(operation_name_el, "operationName should be present")
+        self.assertEqual(self.normalize_text(operation_name_el.text), "Write File From String",
+                        "operationName text should equal 'Write File From String'")
+        
+        # id="parameterName" -> check one parameter name equals "Content"
+        parameter_name_elements = self.wait.until(EC.presence_of_all_elements_located((By.ID, "parameterName")))
+        self.assertTrue(parameter_name_elements, "parameterName elements should be present")
+
+        found_r = any(self.normalize_text(el.text) == "Content" for el in parameter_name_elements)
+        self.assertTrue(found_r, "At least one parameterName should equal 'Content'")
+
+        # id="parameterInput" presence of all/input (there may be multiple inputs for parameters)
+        parameter_inputs = self.wait.until(EC.presence_of_all_elements_located((By.ID, "parameterInput")))
+        self.assertTrue(parameter_inputs and len(parameter_inputs) > 0, "There should be at least one parameterInput present")
+        # try sending a sample numeric value to the first parameter input
+        first_param = parameter_inputs[0]
+        first_param.clear()
+        first_param.send_keys("Life... Oh whoops... Running in the 90s")
+        self.assertEqual(first_param.get_attribute("value"), "Life... Oh whoops... Running in the 90s", "parameterInput should accept string input")
+        
+        # id="addActionButton" clickable
+        add_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "addActionButton")))
+        self.assertTrue(add_btn, "addActionButton should be clickable")
+        add_btn.click()
+        
+        time.sleep(2)
+        
+        # id="cancelAddActionButton" clickable
+        cancel_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "cancelAddActionButton")))
+        self.assertTrue(cancel_btn, "cancelAddActionButton should be clickable")
+        cancel_btn.click()
+        time.sleep(2)
+        
+        # Locate the chatbar to input in messageChatInputText
+        chat_input_bar = self.wait.until(EC.presence_of_element_located((By.ID, "messageChatInputText")))
+        self.assertTrue(chat_input_bar, "Chat bar input should be initialized")
+        chat_input_bar.send_keys("Perform Action")
+        
+        time.sleep(2)
+        
+        # Locate the send message button
+        chat_send_message = self.wait.until(EC.presence_of_element_located((By.ID, "sendMessage")))
+        self.assertTrue(chat_send_message, "Send message button should be initialized")
+        chat_send_message.click()
+        time.sleep(30)
+        
+        # # Observe, file should be available for download 
+        # # id="miniDownloadFileButton"
+        # # May or may not appear due to dependent chat messages
+        # mini_download_button = self.wait.until(EC.presence_of_element_located((By.ID, "miniDownloadFileButton")))
+        # self.assertTrue(mini_download_button, "miniDownloadFileButton element should be present")
+    
         
 if __name__ == "__main__":
     unittest.main(verbosity=2)
