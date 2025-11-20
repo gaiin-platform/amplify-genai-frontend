@@ -1,5 +1,7 @@
 import React, {useContext, useEffect, useMemo, useRef, useState} from 'react';
-import {IconDownload, IconTrash, IconRefresh, IconLoader2} from "@tabler/icons-react";
+import {IconDownload, IconTrash, IconRefresh, IconLoader2, IconCheck, IconX} from "@tabler/icons-react";
+import toast from 'react-hot-toast';
+import {Checkbox} from '@/components/ReusableComponents/CheckBox';
 import {
     MantineReactTable,
     useMantineReactTable,
@@ -11,15 +13,32 @@ import {
 } from 'mantine-react-table';
 import {MantineProvider} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
-import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags, getFileDownloadUrl, reprocessFile} from "@/services/fileService";
+import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags, getFileDownloadUrl} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
-import { downloadDataSourceFile, deleteDatasourceFile, extractKey, getDocumentStatusConfig } from '@/utils/app/files';
+import { downloadDataSourceFile, deleteDatasourceFile, extractKey, getDocumentStatusConfig, startFileReprocessingWithPolling } from '@/utils/app/files';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
-import toast from 'react-hot-toast';
 import { IMAGE_FILE_TYPES } from '@/utils/app/const';
 import { embeddingDocumentStaus } from '@/services/adminService';
 import { capitalize } from '@/utils/app/data';
+import styled, {keyframes} from "styled-components";
+import {FiCommand} from "react-icons/fi";
+
+const animate = keyframes`
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(720deg);
+  }
+`;
+
+const LoadingIcon = styled(FiCommand)`
+  color: #777777;
+  font-size: 1.1rem;
+  font-weight: bold;
+  animation: ${animate} 2s infinite;
+`;
 
 
 const DataSourcesTable = () => {
@@ -34,7 +53,7 @@ const DataSourcesTable = () => {
 
     const [pagination, setPagination] = useState({
         pageIndex: 0,
-        pageSize: 100, //customize the default page size
+        pageSize: 50, //customize the default page size
     });
 
     const [lastPageIndex, setLastPageIndex] = useState(0);
@@ -63,6 +82,13 @@ const DataSourcesTable = () => {
     const [isLoadingStatus, setIsLoadingStatus] = useState(false);
     // Cache to track which files have had their status fetched
     const fetchedStatusKeys = useRef<Set<string>>(new Set());
+    // Track files being reprocessed/polled
+    const [pollingFiles, setPollingFiles] = useState<Set<string>>(new Set());
+    
+    // Multi-select delete state
+    const [isDeleteMode, setIsDeleteMode] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
     const handleRefresh = () => {
         setRefreshKey(prevKey => prevKey + 1); // Triggers re-fetch
@@ -330,19 +356,77 @@ const DataSourcesTable = () => {
             setLoadingMessage("");
         }
     }
-
-    const fileReprocessing = async (key: string) => {
-        setLoadingMessage("Reprocessing File...");
-        try {;
-            const result = await reprocessFile(key);;
-            if (result.success) {
-                toast("File's rag and embeddings regenerated successfully. Please wait a few minutes for the changes to take effect.");
+    
+    const deleteBatch = async () => {
+        if (selectedIds.size === 0) return;
+        
+        const totalFiles = selectedIds.size;
+        setLoadingMessage(`Deleting ${totalFiles} file(s)...`);
+        
+        try {
+            const results = await Promise.all(
+                Array.from(selectedIds).map(id => {
+                    const file = data.find(f => f.id === id);
+                    return deleteDatasourceFile({id, name: file?.name}, false);
+                })
+            );
+            
+            const failures = results.filter(r => !r.success);
+            const successCount = results.length - failures.length;
+            
+            if (failures.length === 0) {
+                toast.success(`Successfully deleted ${successCount} file(s)`);
+            } else if (successCount === 0) {
+                toast.error(`Failed to delete all ${failures.length} file(s)`);
             } else {
-                alert("Failed to regenerate file's rag and embeddings.");
+                toast.error(`Deleted ${successCount} file(s), but ${failures.length} failed: ${failures.map(f => f.fileName).join(', ')}`);
             }
+            
+            setSelectedIds(new Set());
+            setShowDeleteConfirmation(false);
+            setIsDeleteMode(false);
+            handleRefresh();
+        } catch (error) {
+            console.error('Error during batch delete:', error);
+            toast.error('An unexpected error occurred during batch deletion');
         } finally {
             setLoadingMessage("");
         }
+    }
+    
+    const toggleSelectAll = () => {
+        if (selectedIds.size === data.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(data.map(file => file.id)));
+        }
+    }
+    
+    const toggleSelectId = (id: string) => {
+        const newSelected = new Set(selectedIds);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedIds(newSelected);
+    }
+
+    const fileReprocessing = async (key: string) => {
+        // Find the document that will be reprocessed to get its type
+        const reprocessedDoc = data.find(file => file.id === key);
+        if (!reprocessedDoc) {
+            console.error('Document not found for reprocessing:', key);
+            return;
+        }
+
+        await startFileReprocessingWithPolling({
+            key: extractKey(reprocessedDoc),
+            fileType: reprocessedDoc.type,
+            setPollingFiles,
+            setEmbeddingStatus,
+            setLoadingMessage
+        });
     }
 
     const handleSaveCell = (table: MRT_TableInstance<FileRecord>, cell: MRT_Cell<FileRecord>, value: any) => {
@@ -434,9 +518,9 @@ const DataSourcesTable = () => {
             {
                 accessorKey: 'embeddingStatus', //embedding status column
                 header: 'Status',
-                width: 120,
-                size: 120,
-                maxSize: 120,
+                width: 150,
+                size: 150,
+                maxSize: 150,
                 enableSorting: false,
                 enableColumnActions: false,
                 enableColumnFilter: false,
@@ -444,6 +528,7 @@ const DataSourcesTable = () => {
                     // Use the same key extraction as the API call
                     const key = extractKey(cell.row.original);
                     const status = embeddingStatus?.[key];
+                    const fileType = cell.row.original.type;
                     
                     // Show loading only if this specific file hasn't been fetched yet
                     if (!fetchedStatusKeys.current.has(key)) {
@@ -464,10 +549,29 @@ const DataSourcesTable = () => {
                     }
 
                     return (
-                        <div className="flex items-center justify-center">
+                        <div className="flex items-center justify-start gap-2">
                             <span className={`${config.color} text-xs px-1.5 py-0.5 rounded font-normal whitespace-nowrap`}>
-                                {config.text}
+                                {capitalize(config.text)}
                             </span>
+                            {/* Show refresh button for non-completed, non-image files */}
+                            {status !== 'completed' && !IMAGE_FILE_TYPES.includes(fileType) && (
+                                pollingFiles.has(cell.row.original.id) ? (
+                                    <LoadingIcon style={{ width: "18px", height: "18px" }} />
+                                ) : (
+                                    <ActionButton
+                                        title='Regenerate text extraction and embeddings for this file.'
+                                        handleClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            if (confirm("Are you sure you want to regenerate the text extraction and embeddings for this file?")) {
+                                                fileReprocessing(cell.row.original.id);
+                                            }
+                                        }}
+                                    > 
+                                        <IconRefresh size={16} />
+                                    </ActionButton>
+                                )
+                            )}
                         </div>
                     );
                 },
@@ -481,49 +585,38 @@ const DataSourcesTable = () => {
                 enableSorting: false,
                 enableColumnActions: false,
                 enableColumnFilter: false,
-                Cell: ({cell}) => (
-                    <ActionButton
-                        title='Delete File'
-                        handleClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            deleteFile(cell.row.original.id);
-                        }}> 
-                        <IconTrash/>
-                    </ActionButton>
-                ),   
-            },
-            {
-                accessorKey: 're-embed', //access nested data with dot notation
-                header: ' ',
-                width: 18,
-                size: 18,
-                maxSize: 18,
-                enableSorting: false,
-                enableColumnActions: false,
-                enableColumnFilter: false,
                 Cell: ({cell}) => {
-                    // Only show the refresh button for non-image file types
-                    const fileType = cell.row.original.type;
-                    if (IMAGE_FILE_TYPES.includes(fileType)) {
-                        return null;
+                    if (isDeleteMode) {
+                        return (
+                            <div onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                toggleSelectId(cell.row.original.id);
+                            }}>
+                                <Checkbox
+                                    id={`delete-checkbox-${cell.row.original.id}`}
+                                    label=""
+                                    checked={selectedIds.has(cell.row.original.id)}
+                                    onChange={() => toggleSelectId(cell.row.original.id)}
+                                />
+                            </div>
+                        );
                     }
-                    
                     return (
                         <ActionButton
-                            title='Regenerate text extraction and embeddings for this file.'
+                            title='Delete File'
                             handleClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                fileReprocessing(cell.row.original.id);
+                                deleteFile(cell.row.original.id);
                             }}> 
-                        <IconRefresh size={20} />
+                            <IconTrash/>
                         </ActionButton>
                     );
-                },
+                },   
             },
         ],
-        [embeddingStatus, fetchedStatusKeys],
+        [embeddingStatus, fetchedStatusKeys, isDeleteMode, selectedIds, pollingFiles],
     );
 
     const myTailwindColors = {
@@ -574,13 +667,71 @@ const DataSourcesTable = () => {
             : undefined,
         renderToolbarInternalActions: ({ table }) => (
             <> 
-             <div className="ml-[10px] rounded p-1 hover:bg-gray-600 dark:hover:bg-black">
-                <IconRefresh 
-                    
-                    onClick={handleRefresh}  
-                    style={{ cursor: 'pointer' }}  
-                />
-            </div>
+                
+                {isDeleteMode && !showDeleteConfirmation && (
+                    <>
+                        <button
+                            onClick={toggleSelectAll}
+                            className="ml-2 text-xs px-2 py-1 rounded hover:bg-gray-600 dark:hover:bg-black"
+                        >
+                            {selectedIds.size === data.length ? 'Deselect All' : 'Select All'}
+                        </button>
+                        <span className="ml-2 text-xs text-gray-400">
+                            {selectedIds.size} selected
+                        </span>
+                        <button
+                            onClick={() => setShowDeleteConfirmation(true)}
+                            disabled={selectedIds.size === 0}
+                            className="ml-2 px-2 py-1 rounded bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-xs"
+                        >
+                            Delete
+                        </button>
+                    </>
+                )}
+                
+                {showDeleteConfirmation && (
+                    <div className="ml-2 flex items-center gap-2 bg-red-500/10 px-2 py-1 rounded">
+                        <span className="text-xs">
+                            Delete {selectedIds.size} file(s)?
+                        </span>
+                        <button
+                            onClick={deleteBatch}
+                            className="p-1 rounded hover:bg-green-500/20"
+                            title="Confirm"
+                        >
+                            <IconCheck size={16} className="text-green-500" />
+                        </button>
+                        <button
+                            onClick={() => setShowDeleteConfirmation(false)}
+                            className="p-1 rounded hover:bg-red-500/20"
+                            title="Cancel"
+                        >
+                            <IconX size={16} className="text-red-500" />
+                        </button>
+                    </div>
+                )}
+
+                <button
+                    onClick={() => {
+                        if (isDeleteMode) {
+                            setIsDeleteMode(false);
+                            setSelectedIds(new Set());
+                        } else {
+                            setIsDeleteMode(true);
+                        }
+                    }}
+                    className="ml-[10px] rounded p-1 hover:bg-gray-600 dark:hover:bg-black flex items-center gap-1"
+                    title={isDeleteMode ? 'Cancel Delete Mode' : 'Delete Multiple'}
+                >
+                    {isDeleteMode ? <IconX size={18} /> : <IconTrash size={18} />}
+                </button>
+                
+                <div className="ml-[10px] rounded p-1 hover:bg-gray-600 dark:hover:bg-black">
+                    <IconRefresh 
+                        onClick={handleRefresh}  
+                        style={{ cursor: 'pointer' }}  
+                    />
+                </div>
                 <MRT_ToggleGlobalFilterButton table={table} />
                 <MRT_ToggleFiltersButton table={table} />
                 <MRT_ShowHideColumnsButton table={table} />

@@ -1,8 +1,9 @@
-import { getFileDownloadUrl, deleteFile } from "@/services/fileService";
+import { getFileDownloadUrl, deleteFile, reprocessFile } from "@/services/fileService";
 import { DataSource } from "@/types/chat";
 import { IMAGE_FILE_TYPES } from "./const";
 import toast from "react-hot-toast";
 import { capitalize } from "./data";
+import { embeddingDocumentStaus } from "@/services/adminService";
 
 export const downloadDataSourceFile = async (dataSource: DataSource, groupId: string | undefined = undefined) => {
     const response = await getFileDownloadUrl(dataSource.id, groupId); // support images too 
@@ -17,22 +18,28 @@ export const downloadDataSourceFile = async (dataSource: DataSource, groupId: st
     }
 }
 
-export const deleteDatasourceFile = async (dataSource: DataSource) => {
+export const deleteDatasourceFile = async (dataSource: DataSource, showToast: boolean = true) => {
   console.log("deleteDatasourceFile: ", dataSource)
   try {
       const response = await deleteFile(dataSource.id || 'none');
       if (!response.success) {  // Now correctly checking success
           console.error(`Failed to delete file: ${dataSource.id}`, response);
-          alert(`Error deleting file. Please try again.`);
-          return false;
+          if (showToast) {
+              alert(`Error deleting file. Please try again.`);
+          }
+          return { success: false, fileName: dataSource.name || dataSource.id || 'Unknown file' };
       }
-      toast(`File deleted successfully`);
+      if (showToast) {
+          toast(`File deleted successfully`);
+      }
       console.log(`File deleted successfully: ${dataSource.id}`);
-      return true;
+      return { success: true, fileName: dataSource.name || dataSource.id || 'Unknown file' };
   } catch (error) {
       console.error(`Error while deleting file: ${dataSource.id}`, error);
-      alert(`An unexpected error occurred while deleting "${dataSource.id}". Please try again later.`);
-      return false;
+      if (showToast) {
+          alert(`An unexpected error occurred while deleting "${dataSource.id}". Please try again later.`);
+      }
+      return { success: false, fileName: dataSource.name || dataSource.id || 'Unknown file' };
   }
 };
 
@@ -129,7 +136,7 @@ export const getDocumentStatusConfig = (status: string) => {
             };
         case 'completed':
             return { 
-                color: 'text-emerald-600 bg-emerald-50', 
+                color: 'text-green-500 bg-gray-300', 
                 text: name,
                 showIndicatorWhenNotHovered: false
             };
@@ -144,17 +151,17 @@ export const getDocumentStatusConfig = (status: string) => {
         case 'terminated':
             return { 
                 color: 'text-slate-500 bg-slate-50', 
-                text: name,
+                text: "error",
                 indicator: '!',
                 indicatorColor: 'text-orange-500',
                 showIndicatorWhenNotHovered: true
             };
         case 'not_found':
             return { 
-                color: 'text-red-600 bg-red-50', 
-                text: 'Error',
-                indicator: '!',
-                indicatorColor: 'text-red-500',
+                color: 'px-2 text-gray-500', 
+                text: '-----',
+                indicator: '',
+                indicatorColor: 'text-gray-500',
                 showIndicatorWhenNotHovered: true
             };
         default:
@@ -170,3 +177,120 @@ export const extractKey = (ds: any) => {
   }
   return key;
 }
+
+// File reprocessing with polling interface
+export interface FileReprocessingOptions {
+  key: string;
+  fileType: string;
+  setPollingFiles: (updater: (prev: Set<string>) => Set<string>) => void;
+  setEmbeddingStatus: (updater: (prev: any) => any) => void;
+  onSuccess?: () => void;
+  onError?: (error: any) => void;
+  successMessage?: string;
+  failureMessage?: string;
+  setLoadingMessage?: (message: string) => void;
+}
+
+/**
+ * Reprocesses a file and polls for status updates until completed or timeout
+ * 
+ * @param options Configuration for file reprocessing and polling
+ */
+export const startFileReprocessingWithPolling = async (options: FileReprocessingOptions): Promise<void> => {
+  const {
+    key,
+    fileType,
+    setPollingFiles,
+    setEmbeddingStatus,
+    onSuccess,
+    onError,
+    successMessage = "File's rag and embeddings regenerated successfully. Please wait a few minutes for the changes to take effect.",
+    failureMessage = "Failed to regenerate file's rag and embeddings.",
+    setLoadingMessage
+  } = options;
+
+  try {
+    // Set loading message if provided
+    if (setLoadingMessage) setLoadingMessage("Reprocessing File...");
+    
+    // Add to polling files
+    setPollingFiles(prev => new Set(prev).add(key));
+    
+    const result = await reprocessFile(key);
+    if (result.success) {
+      toast(successMessage);
+      
+      // Poll every 5 seconds for 2 minutes (24 polls total) or until completed
+      let pollCount = 0;
+      const maxPolls = 24;
+      
+      const pollStatus = () => {
+        const keyData = {key, type: fileType};
+        embeddingDocumentStaus([keyData])
+          .then(response => {
+            if (response?.success && response?.data) {
+              setEmbeddingStatus(prev => ({
+                ...prev,
+                ...response.data
+              }));
+              
+              // Stop polling if completed
+              if (response.data[key] === 'completed') {
+                setPollingFiles(prev => {
+                  const newSet = new Set(prev);
+                  newSet.delete(key);
+                  return newSet;
+                });
+                if (onSuccess) onSuccess();
+                return;
+              }
+            }
+            
+            pollCount++;
+            if (pollCount < maxPolls) {
+              setTimeout(pollStatus, 5000); // Poll again in 5 seconds
+            } else {
+              // Stop polling after 2 minutes
+              setPollingFiles(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(key);
+                return newSet;
+              });
+            }
+          })
+          .catch(error => {
+            console.error('Failed to poll embedding status:', error);
+            setPollingFiles(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(key);
+              return newSet;
+            });
+            if (onError) onError(error);
+          });
+      };
+      
+      // Start first poll after 5 seconds
+      setTimeout(pollStatus, 5000);
+    } else {
+      alert(failureMessage);
+      // Remove from polling if reprocessing failed
+      setPollingFiles(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(key);
+        return newSet;
+      });
+      if (onError) onError(new Error(failureMessage));
+    }
+  } catch (error) {
+    console.error('Failed to reprocess file:', error);
+    setPollingFiles(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(key);
+      return newSet;
+    });
+    if (onError) onError(error);
+  } finally {
+    // Clear loading message if provided
+    if (setLoadingMessage) setLoadingMessage("");
+  }
+};

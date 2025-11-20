@@ -12,6 +12,7 @@ import {addFile, checkContentReady, deleteFile} from "@/services/fileService";
 import HomeContext from "@/pages/api/home/home.context";
 import React from 'react';
 import { resolveRagEnabled } from '@/types/features';
+import { processInputFiles } from '@/utils/fileHandler';
 
 interface Props {
     onAttach: (data: AttachedDocument) => void;
@@ -44,7 +45,8 @@ export const handleFile = async (file:any,
                         //   extractDocumentsLocally:boolean,
                         groupId:string | undefined, 
                         ragEnabled:boolean,
-                        props:any = {}
+                        props:any = {},
+                        tags:string[] = []
                       ) => {
 
     try {
@@ -103,7 +105,7 @@ export const handleFile = async (file:any,
                         else if (onUploadProgress && progress >= 95) {
                             onUploadProgress(document, 95);
                         }
-                    }, ragEnabled);
+                    }, ragEnabled, tags);
                 docKey = key;
                 if (onSetAbortController) onSetAbortController(document, () => {
                                             abortController?.abort()                                    
@@ -188,39 +190,22 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetad
               // Changed to handle multiple files
               const files = Array.from(e.target.files);
     
-              files.forEach((file) => {
-                const fileName = file.name;
-                const extension = fileName.split('.').pop() || '';
-    
-                if (extension === '') {
-                  alert('This file type is not supported.');
-                  return;
-                }
-    
-                if (extension === 'xls' || extension === 'xlsm') {
-                  alert('This file type is not supported. Please save the file as xlsx.');
-                  return;
-                }
-    
-                if (extension === 'ppt' || extension === 'potx') {
-                  alert('This file type is not supported. Please save the file as pptx.');
-                  return;
-                }
-                
-                if (disallowedFileExtensions && disallowedFileExtensions.includes(extension)) {
-                  alert('This file type is not supported.');
-                  return;
-                }
-    
-                if (allowedFileExtensions && !allowedFileExtensions.includes(extension)) {
-                  alert('This file type is not supported.');
-                  return;
-                }
-    
-                statsService.attachFileEvent(file, uploadDocuments);
-                const ragEnabled = disableRag === undefined ? resolveRagEnabled(featureFlags, ragOn) 
-                                                            : featureFlags.ragEnabled && !disableRag;
-                handleFile(file, onAttach, onUploadProgress, onSetKey, onSetMetadata, onSetAbortController, uploadDocuments, groupId, ragEnabled, props);  //extractDocumentsLocally,
+              // Process files using centralized file processor
+              processInputFiles(files, {
+                disallowedExtensions: disallowedFileExtensions,
+                allowedExtensions: allowedFileExtensions,
+                onAttach,
+                onUploadProgress: onUploadProgress ?? (() => {}),
+                onSetKey: onSetKey ?? (() => {}),
+                onSetMetadata: onSetMetadata ?? (() => {}),
+                onSetAbortController: onSetAbortController ?? (() => {}),
+                statsService,
+                featureFlags,
+                ragOn,
+                uploadDocuments,
+                groupId,
+                disableRag,
+                props
               });
     
               e.target.value = ''; // Clear the input after files are handled

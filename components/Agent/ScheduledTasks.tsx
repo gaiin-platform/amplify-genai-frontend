@@ -236,77 +236,48 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
       const taskResult = await executeTask(taskId);
       if (taskResult.success) {
         toast.success("Task execution started.");
-
+        
         let attempts = 0;
-        const maxAttempts = 200; 
-        let trackedExecutionId: string | null = null;
+        const maxAttempts = 200;
         
         const pollForLogs = async () => {
           attempts++;
-          const fetchedLogs = await fetchTaskLogs(taskId, false);
           
-          // Get all execution logs (both old 'execution-' and new 'scheduled-task-' formats)
-          const executionLogs = fetchedLogs
-            .filter((log: TaskExecutionRecord) => 
-              log.executionId.startsWith('execution-') || 
-              log.executionId.startsWith('scheduled-task-')
-            )
-            .sort((a: TaskExecutionRecord, b: TaskExecutionRecord) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime());
-
-          // If we haven't tracked an execution yet, find one to track
-          if (!trackedExecutionId && executionLogs.length > 0) {
-            // First, look for running logs (old format)
-            let logToTrack = executionLogs.find((log: TaskExecutionRecord) => log.status === 'running');
+          try {
+            const fetchedLogs = await fetchTaskLogs(taskId, false);
             
-            // If no running log, look for NEW logs created after task start (new format)
-            if (!logToTrack) {
-              logToTrack = executionLogs.find((log: TaskExecutionRecord) => log.executedAt > startTime);
-            }
-            
-            if (logToTrack) {
-              trackedExecutionId = logToTrack.executionId;
-              
-              // If this log is already completed (new format), handle immediately
-              if (['success', 'failure', 'timeout'].includes(logToTrack.status) && logToTrack.executedAt > startTime) {
-                toast(`Task completed with status: ${logToTrack.status}`);
-                setTimeout(() => {
-                  setSelectedLogId(logToTrack.executionId); 
-                  setIsTestingTask(false);
-                }, 1000);
-                return; // Stop polling
-              }
-            }
-          }
-
-          // If we're tracking an execution, check if it completed
-          if (trackedExecutionId) {
+            // Look for any new logs created after task start that are in an end state
             const completedLog = fetchedLogs.find((log: TaskExecutionRecord) => 
-              log.executionId === trackedExecutionId && 
+              log.executedAt > startTime && 
               ['success', 'failure', 'timeout'].includes(log.status)
             );
 
             if (completedLog) {
               toast(`Task completed with status: ${completedLog.status}`);
               setTimeout(() => {
-                setSelectedLogId(completedLog.executionId); 
+                setSelectedLogId(completedLog.executionId);
                 setIsTestingTask(false);
               }, 1000);
-
               return; // Stop polling
             }
-          }
 
-          if (attempts <= maxAttempts) {
-            setTimeout(pollForLogs, 2500);
-          } else {
-            toast.error("Timeout waiting for task completion logs. Please check logs manually.");
+            // Continue polling if we haven't reached max attempts
+            if (attempts <= maxAttempts) {
+              setTimeout(pollForLogs, 2500);
+            } else {
+              toast.error("Timeout waiting for task completion logs. Please check logs manually.");
+              setIsTestingTask(false);
+            }
+            
+          } catch (error) {
+            console.error("Error fetching logs:", error);
+            toast.error("Failed to fetch task logs");
             setIsTestingTask(false);
-            return; // Stop polling
           }
-          
         };
 
-        setTimeout(pollForLogs, 1000); // Start polling after 1 second
+        // Start polling after 1 second
+        setTimeout(pollForLogs, 1000);
 
       } else {
         toast.error("Failed to run task: " + (taskResult.message || "Unknown error"));

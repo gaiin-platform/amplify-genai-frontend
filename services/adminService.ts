@@ -38,7 +38,6 @@ export const getFeatureFlags = async () => {
     return await doRequestOp(op);
 }
 
-
 export const getUserAppConfigs = async () => {
     const op = {
         method: 'GET',
@@ -74,11 +73,10 @@ export const embeddingDocumentStaus = async (dataSources: {key: string, type: st
         method: 'POST',
         path: EMBEDDINGS_URL_PATH,
         op: '/status',
-        SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
+        service: EMBEDDINGS_SERVICE_NAME
     };
     return await doRequestOp(op);
 }
-
 
 export const terminateEmbedding = async (key: any) => {
     const op = {
@@ -86,7 +84,7 @@ export const terminateEmbedding = async (key: any) => {
         method: 'POST',
         path: EMBEDDINGS_URL_PATH,
         op: '/terminate',
-        SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
+        service: EMBEDDINGS_SERVICE_NAME
     };
     return await doRequestOp(op);
 }
@@ -96,7 +94,7 @@ export const getInFlightEmbeddings = async () => {
         method: 'GET',
         path: EMBEDDINGS_URL_PATH,
         op: '/sqs/get',
-        SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
+        service: EMBEDDINGS_SERVICE_NAME
     };
 
     const result = await doRequestOp(op);

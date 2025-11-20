@@ -18,7 +18,7 @@ interface Props<T> {
   searchTerm: string;
   handleSearchTerm: (searchTerm: string) => void;
   handleCreateItem: () => void;
-  handleCreateFolder: () => void;
+  handleCreateFolder?: () => void;
   handleDrop: (e: any) => void;
   handleCreateAssistantItem: () => void;
   setFolderSort: (s: SortType) => void;
@@ -116,7 +116,7 @@ const Sidebar = <T,>({
         <div className="flex items-center justify-between w-full gap-1">
           <div className="flex items-center gap-1 flex-1 min-w-0">
             {addButtonForSide(side)}
-            <button
+           {handleCreateFolder && <button
               className="enhanced-folder-button flex-shrink-0"
               onClick={handleCreateFolder}
               id="createFolderButton"
@@ -124,7 +124,7 @@ const Sidebar = <T,>({
               style={{ minWidth: '32px', width: '32px', height: '38px' }}
             >
               <IconFolderPlus size={16} className="enhanced-icon" />
-            </button>
+            </button> }
           </div>
         </div>
         {side === 'right' && addItemButton('')}

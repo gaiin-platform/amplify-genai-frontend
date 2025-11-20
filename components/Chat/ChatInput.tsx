@@ -6,7 +6,11 @@ import {
     IconSend,
     IconBrain,
     IconBulb,
-    IconScale, IconSettingsAutomation
+    IconScale, 
+    IconSettingsAutomation,
+    IconUpload,
+    IconCheck,
+    IconX
 } from '@tabler/icons-react';
 import SaveActionsModal from './SaveActionsModal';
 import {
@@ -15,6 +19,7 @@ import {
     useCallback,
     useContext,
     useEffect,
+    useMemo,
     useRef,
     useState,
 } from 'react';
@@ -37,6 +42,7 @@ import {COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS} from "@/utils/
 import {useChatService} from "@/hooks/useChatService";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {getAssistants} from "@/utils/app/assistants";
+import { processDragDropFiles, processPastedFiles } from '@/utils/fileHandler';
 import AssistantsInUse from "@/components/Chat/AssistantsInUse";
 import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
 import QiModal from './QiModal';
@@ -60,6 +66,17 @@ import OperationSelector from "@/components/Agent/OperationSelector";
 import ActionsList from "@/components/Chat/ActionsList";
 import { resolveRagEnabled } from '@/types/features';
 import { OpBindings } from '@/types/op';
+import { 
+    LargeTextBlock, 
+    replacePlaceholdersWithText,
+    removeLargeTextBlockFromContent
+} from '@/utils/app/largeText';
+import { UI_CONFIG } from '@/constants/largeText';
+import { LargeTextDisplay } from '@/components/Chat/LargeTextDisplay';
+import { LargeTextTabs } from '@/components/Chat/LargeTextTabs';
+import { AttachmentDisplay } from '@/components/Chat/AttachmentDisplay';
+import { useLargeTextManager } from '@/hooks/useLargeTextManager';
+import { useTextBlockEditor } from '@/hooks/useTextBlockEditor';
 
 
 
@@ -176,7 +193,7 @@ export const ChatInput = ({
         !artifactIsStreaming;
 
     useEffect(() => {
-        const updateWidth = () => {
+       const updateWidth = () => {
             if (!messageIsStreaming && !artifactIsStreaming) setChatContainerWidth(updateSize());
         }
         window.addEventListener('resize', updateWidth);
@@ -185,6 +202,7 @@ export const ChatInput = ({
         window.addEventListener('pagehide', updateWidth);
         const observer = new MutationObserver(updateWidth);
         observer.observe(document, { childList: true, subtree: true, attributes: true });
+
         return () => {
             window.removeEventListener('resize', updateWidth);
             window.removeEventListener('orientationchange', updateWidth);
@@ -192,7 +210,7 @@ export const ChatInput = ({
             window.removeEventListener('pagehide', updateWidth);
             observer.disconnect();
         };
-    }, []);
+    }, [messageIsStreaming, artifactIsStreaming]);
 
 
     const promptsRef = useRef(prompts);
@@ -247,9 +265,42 @@ export const ChatInput = ({
     // Action set modal states
     const [showSaveActionsModal, setShowSaveActionsModal] = useState(false);
 
+    // Drag and drop state management
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragCounter, setDragCounter] = useState(0);
+
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     //const [assistant, setAssistant] = useState<Assistant>(selectedAssistant || DEFAULT_ASSISTANT);
     const [availableAssistants, setAvailableAssistants] = useState<Assistant[]>([DEFAULT_ASSISTANT]);
+    
+    // Large text handling - using custom hook for state management
+    const { 
+        largeTextBlocks, 
+        showLargeTextPreview, 
+        hasLargeTextBlocks,
+        handleLargeTextPaste, 
+        removeLargeTextBlock: removeLargeTextBlockFromHook,
+        removeMultipleLargeTextBlocks,
+        clearLargeText,
+        setLargeTextBlocks
+    } = useLargeTextManager();
+    
+    // Text block editing - using custom hook for edit mode management
+    const {
+        editMode,
+        isEditing,
+        editingBlockId,
+        handleEditBlock,
+        handleSaveEdit,
+        handleCancelEdit,
+        shouldSkipPlaceholderDeletion
+    } = useTextBlockEditor({
+        largeTextBlocks,
+        setLargeTextBlocks,
+        content: content || '',
+        setContent,
+        textareaRef
+    });
     const [showAssistantSelect, setShowAssistantSelect] = useState(false);
     const [documents, setDocuments] = useState<AttachedDocument[]>();
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>({});
@@ -271,8 +322,10 @@ export const ChatInput = ({
 
     const extractDocumentsLocally = featureFlags.extractDocumentsLocally;
 
-    const filteredPrompts =  promptsRef.current.filter((prompt:Prompt) =>
-        prompt.name.toLowerCase().includes(promptInputValue.toLowerCase()),
+    const filteredPrompts = useMemo(() => 
+        promptsRef.current.filter((prompt:Prompt) =>
+            prompt.name.toLowerCase().includes(promptInputValue.toLowerCase())
+        ), [promptInputValue, prompts]
     );
 
     const handleShowAssistantSelector = () => {
@@ -286,7 +339,7 @@ export const ChatInput = ({
     //     setShowAssistantSelect(false);
     // };
 
-    const allDocumentsDoneUploading = () => {
+    const allDocumentsDoneUploading = useMemo(() => {
         if (!documents || documents.length == 0) {
             return true;
         }
@@ -296,7 +349,7 @@ export const ChatInput = ({
         }
 
         return documents?.every(isComplete);
-    }
+    }, [documents, documentState]);
 
 
 
@@ -342,8 +395,23 @@ export const ChatInput = ({
             return;
         }
 
-        setContent(value);
-        updatePromptListVisibility(value);
+        // Skip placeholder deletion logic when in edit mode
+        let finalContent = value;
+        if (!shouldSkipPlaceholderDeletion) {
+            // Check for deleted placeholder characters and remove corresponding blocks
+            const blocksToRemove = largeTextBlocks.filter((block) => 
+                !value.includes(block.placeholderChar)
+            );
+            
+            if (blocksToRemove.length > 0) {
+                // Remove all deleted blocks at once using the multi-remove function
+                const blockIdsToRemove = blocksToRemove.map(block => block.id);
+                finalContent = removeMultipleLargeTextBlocks(blockIdsToRemove, value);
+            }
+        }
+
+        setContent(finalContent);
+        updatePromptListVisibility(finalContent);
     };
 
     const addDocument = (document: AttachedDocument) => {
@@ -388,7 +456,7 @@ export const ChatInput = ({
             return;
         }
 
-        if (!allDocumentsDoneUploading()) {
+        if (!allDocumentsDoneUploading) {
             alert(t('Please wait for all documents to finish uploading or remove them from the prompt.'));
             return;
         }
@@ -406,10 +474,42 @@ export const ChatInput = ({
         }
 
         const type = (isWorkflowOn) ? MessageType.AUTOMATION : MessageType.PROMPT;
+        
+        // Prepare message content and label for large text handling
+        let messageContent = content || '';
+        let messageLabel = content || '';
+        let messageData: any = {};
+        
+        if (largeTextBlocks.length > 0) {
+            // Replace all placeholders in content with actual large text for sending to model
+            messageContent = replacePlaceholdersWithText(messageContent, largeTextBlocks);
+            
+            // Keep the label as is for display purposes (with placeholders)
+            messageLabel = messageLabel;
+            
+            // Add large text metadata
+            messageData = {
+                hasLargeText: true,
+                largeTextBlocks: largeTextBlocks.map(block => ({
+                    id: block.id,
+                    displayName: block.displayName,
+                    placeholderChar: block.placeholderChar,
+                    charCount: block.charCount,
+                    lineCount: block.lineCount,
+                    wordCount: block.wordCount,
+                    preview: block.preview,
+                    originalText: block.originalText,
+                    pastePosition: messageLabel.indexOf(block.placeholderChar)
+                }))
+            };
+        }
+        
         let msg = newMessage({
             role: 'user', 
-            content: content, 
+            content: messageContent, 
+            label: messageLabel,
             type: type,
+            data: messageData,
             configuredTools: addedActions.length > 0 ? [...addedActions] : undefined
         });
 
@@ -456,6 +556,9 @@ export const ChatInput = ({
         setDocuments([]);
         setDocumentState({});
         setDocumentMetadata({});
+        
+        // Clear large text state using hook
+        clearLargeText();
         
         // Keep the actions list after sending - removed setAddedActions([])
 
@@ -608,7 +711,7 @@ export const ChatInput = ({
             textareaRef.current.style.height = 'inherit';
             textareaRef.current.style.height = `${textareaRef.current?.scrollHeight}px`;
             textareaRef.current.style.overflow = `${
-                textareaRef?.current?.scrollHeight > 400 ? 'auto' : 'hidden'
+                textareaRef?.current?.scrollHeight > UI_CONFIG.TEXTAREA_MAX_HEIGHT ? 'auto' : 'hidden'
             }`;
         }
 
@@ -705,11 +808,11 @@ export const ChatInput = ({
         setIsQiLoading(false);
     }
 
-    const getDisallowedFileExtensions = () => {
+    const disallowedFileExtensions = useMemo(() => {
         return [ ...COMMON_DISALLOWED_FILE_EXTENSIONS,
             ...(selectedConversation?.model?.supportsImages
-                ? [] : IMAGE_FILE_EXTENSIONS ) ]
-    }
+                ? [] : IMAGE_FILE_EXTENSIONS ) ];
+    }, [selectedConversation?.model?.supportsImages]);
 
     const handleCloseAllPopups = () => {
         setShowOpsPopup(false);
@@ -719,6 +822,140 @@ export const ChatInput = ({
         setShowMessageSelectDialog(false);
         setShowQiDialog(false);
     }
+
+    // Drag and drop handlers
+    const handleDragEnter = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Only handle file drags
+        if (e.dataTransfer.types.includes('Files')) {
+            setDragCounter(prev => prev + 1);
+            setIsDragging(true);
+        }
+    }, []);
+
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        setDragCounter(prev => {
+            const newCounter = prev - 1;
+            if (newCounter === 0) {
+                setIsDragging(false);
+            }
+            return newCounter;
+        });
+    }, []);
+
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Only allow file drops
+        if (e.dataTransfer.types.includes('Files')) {
+            e.dataTransfer.dropEffect = 'copy';
+        }
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        setIsDragging(false);
+        setDragCounter(0);
+
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length === 0) return;
+
+        // Process dropped files using centralized file processor
+        processDragDropFiles(files, {
+            disallowedExtensions: disallowedFileExtensions,
+            onAttach: addDocument,
+            onUploadProgress: handleDocumentState,
+            onSetKey: handleSetKey,
+            onSetMetadata: handleSetMetadata,
+            onSetAbortController: handleDocumentAbortController,
+            statsService,
+            featureFlags,
+            ragOn,
+            uploadDocuments: featureFlags.uploadDocuments,
+            groupId: undefined,
+            props: {}
+        });
+    }, [disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
+
+    // Clipboard paste handler
+    const handlePaste = useCallback((e: React.ClipboardEvent) => {
+        const files = Array.from(e.clipboardData.files);
+        const pastedText = e.clipboardData.getData('text/plain');
+
+        // Handle file pastes first (existing functionality)
+        if (files.length > 0) {
+            e.preventDefault();
+            // Process pasted files using centralized file processor
+            processPastedFiles(files, {
+                disallowedExtensions: disallowedFileExtensions,
+                onAttach: addDocument,
+                onUploadProgress: handleDocumentState,
+                onSetKey: handleSetKey,
+                onSetMetadata: handleSetMetadata,
+                onSetAbortController: handleDocumentAbortController,
+                statsService,
+                featureFlags,
+                ragOn,
+                uploadDocuments: featureFlags.uploadDocuments,
+                groupId: undefined,
+                props: {}
+            });
+            return;
+        }
+
+        // Handle text pastes - check if it's large text
+        if (pastedText && pastedText.trim()) {
+            const textarea = textareaRef.current;
+            if (textarea) {
+                const cursorPos = textarea.selectionStart;
+                const currentContent = content || '';
+                
+                const { newContent, hasLargeText } = handleLargeTextPaste(
+                    pastedText,
+                    currentContent,
+                    cursorPos,
+                    textareaRef
+                );
+                
+                if (hasLargeText) {
+                    e.preventDefault();
+                    setContent(newContent);
+                }
+            }
+            // If text is not large, let the default paste behavior handle it
+        }
+    }, [content, handleLargeTextPaste, disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
+
+    // Handle individual large text block removal using hook
+    const handleRemoveLargeTextBlock = useCallback((blockId: string) => {
+        // Determine content to use based on edit state
+        const contentToUse = (isEditing && editingBlockId === blockId) 
+            ? editMode.originalConversationContent 
+            : (content || '');
+            
+        if (contentToUse) {
+            const updatedContent = removeLargeTextBlockFromHook(
+                blockId, 
+                contentToUse,
+                // Callback to handle edit mode cleanup if the removed block was being edited
+                (removedBlockId) => {
+                    if (isEditing && editingBlockId === removedBlockId) {
+                        handleCancelEdit();
+                    }
+                }
+            );
+            setContent(updatedContent);
+        }
+    }, [content, removeLargeTextBlockFromHook, isEditing, editingBlockId, editMode.originalConversationContent, handleCancelEdit]);
+
 
     ////// Plugin Dependencies //////
 
@@ -862,7 +1099,7 @@ export const ChatInput = ({
                         <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-[#343541]"
                              style={{transform: 'translateY(70px)'}}>
                             <DataSourceSelector
-                                disallowedFileExtensions={getDisallowedFileExtensions()}
+                                disallowedFileExtensions={disallowedFileExtensions}
                                 onDataSourceSelected={(d) => {
                                     const doc = {
                                         id: d.id,
@@ -972,16 +1209,19 @@ export const ChatInput = ({
 
                     <div className="relative mx-2 flex w-full flex-grow sm:mx-4 bg-neutral-100 dark:bg-[#3d3e4c] rounded-md" style={{transform: 'translateY(24px)'}}>
 
-                        <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
-                            if(asts.length === 0){
-                                //setAssistant(DEFAULT_ASSISTANT);
-                                homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
-                            }
-                            else {
-                                //setAssistant(asts[0]);
-                                homeDispatch({field: 'selectedAssistant', value: asts[0]});
-                            }
-                        }}/>
+                        {/* Only show AssistantsInUse when AttachmentDisplay is NOT shown */}
+                        {!((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
+                            <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
+                                if(asts.length === 0){
+                                    //setAssistant(DEFAULT_ASSISTANT);
+                                    homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
+                                }
+                                else {
+                                    //setAssistant(asts[0]);
+                                    homeDispatch({field: 'selectedAssistant', value: asts[0]});
+                                }
+                            }}/>
+                        )}
 
                         {//TODO: feature flag this
                         }
@@ -992,18 +1232,56 @@ export const ChatInput = ({
                             setSelectedProject(project);
                             setShowProjectList(false);
                         }}/>} */}
-                     {documents && documents.length > 0 && 
-                        <div  style={{transform: 'translateY(-4px)'}}>
-                            <FileList documents={documents}
-                                    documentStates={documentState}
-                                    onCancelUpload={onCancelUpload}
-                                    setDocuments={setDocuments}/>
+                     {/* Unified Attachment Display - Files, Large Text, and Assistant */}
+                     {((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
+                        <div style={{transform: 'translateY(-4px)'}}>
+                            <AttachmentDisplay
+                                documents={documents}
+                                documentStates={documentState}
+                                onCancelUpload={onCancelUpload}
+                                setDocuments={setDocuments}
+                                largeTextBlocks={largeTextBlocks}
+                                onRemoveBlock={handleRemoveLargeTextBlock}
+                                onEditBlock={handleEditBlock}
+                                currentlyEditingId={editingBlockId || undefined}
+                                showLargeTextPreview={showLargeTextPreview || isEditing}
+                                selectedAssistant={selectedAssistant || undefined}
+                                onRemoveAssistant={() => homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT})}
+                            />
                         </div>
-                     }
+                     )}
 
                     </div>
 
-                    <div className="relative mx-2 flex w-full flex-grow flex-col rounded-md border border-black/10 bg-white shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:border-gray-900/50 dark:bg-[#40414F] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4" >
+                    <div 
+                        className={`relative mx-2 flex w-full flex-grow flex-col rounded-md border shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4 transition-colors duration-200 ${
+                            isDragging 
+                                ? 'border-blue-400 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-900/20' 
+                                : 'border-black/10 bg-white dark:border-gray-900/50 dark:bg-[#40414F]'
+                        }`}
+                        onDragEnter={handleDragEnter}
+                        onDragLeave={handleDragLeave}
+                        onDragOver={handleDragOver}
+                        onDrop={handleDrop}
+                    >
+                        {/* Drag and drop overlay */}
+                        {isDragging && (
+                            <div className="absolute inset-0 z-50 rounded-md">
+                                {/* Main drop zone - centered in box */}
+                                <div className="absolute inset-0 flex items-center justify-center bg-blue-50/80 dark:bg-blue-900/40 backdrop-blur-sm rounded-md border-2 border-dashed border-blue-400 dark:border-blue-500">
+                                    <div className="flex items-center justify-center gap-2 text-blue-600 dark:text-blue-400 font-medium">
+                                        <IconUpload size={24} />
+                                        <span>Drop files here to attach</span>
+                                    </div>
+                                </div>
+                                {/* Subtitle positioned below the box */}
+                                <div className="absolute bottom-0 left-0 right-0 transform translate-y-full pt-2 text-center">
+                                    <div className="text-blue-500 dark:text-blue-300 text-sm">
+                                        Supports documents, images, and more
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Render ActionsList above the input area */}
                         {featureFlags.actionSets && addedActions.length > 0 && (
@@ -1059,10 +1337,11 @@ export const ChatInput = ({
                         <div className="px-2 flex items-center">
 
 
-                            {featureFlags.promptOptimizer && isInputInFocus && (
+                            {featureFlags.promptOptimizer && isInputInFocus && !isEditing && (
                                 <div className='relative mr-[-32px]'>
                                     <PromptOptimizerButton
                                         prompt={content || ""}
+                                        largeTextBlocks={largeTextBlocks}
                                         onOptimized={(optimizedPrompt:string) => {
                                             setContent(optimizedPrompt);
                                             textareaRef.current?.focus();
@@ -1105,47 +1384,90 @@ export const ChatInput = ({
                                 ref={textareaRef}
                                 onFocus={() => setIsInputInFocus(true)}
                                 onBlur={() => setIsInputInFocus(false)}
+                                onPaste={handlePaste}
                                 id="messageChatInputText"
-                                className="m-0 w-full resize-none border-0 bg-transparent p-0 py-2 pr-8 pl-10 text-black dark:bg-transparent dark:text-white md:py-3 md:pl-10"
+                                className="m-0 w-full resize-none border-0 bg-transparent p-0 py-2 pr-8 pl-10 text-black dark:bg-transparent dark:text-white md:py-3 md:pl-10 large-text-input"
                                 style={{
                                     resize: 'none',
                                     bottom: `${textareaRef?.current?.scrollHeight}px`,
-                                    maxHeight: '400px',
+                                    maxHeight: `${UI_CONFIG.TEXTAREA_MAX_HEIGHT}px`,
                                     overflow: `${
-                                        textareaRef.current && textareaRef.current.scrollHeight > 400
+                                        textareaRef.current && textareaRef.current.scrollHeight > UI_CONFIG.TEXTAREA_MAX_HEIGHT
                                             ? 'auto'
                                             : 'hidden'
                                     }`,
                                 }}
                                 placeholder={
-                                    // t('Type a message or type "/" to select a prompt...') || ''
-                                    "Type a message to chat with Amplify..."
+                                    isEditing 
+                                        ? `Editing large text block - ESC to cancel, Ctrl+Enter to save`
+                                        : "Type a message to chat with Amplify..."
                                 }
                                 value={content}
                                 rows={1}
                                 onCompositionStart={() => setIsTyping(true)}
                                 onCompositionEnd={() => setIsTyping(false)}
                                 onChange={handleChange}
-                                onKeyDown={handleKeyDown}
+                                onKeyDown={(e) => {
+                                    // Handle edit mode shortcuts
+                                    if (isEditing) {
+                                        if (e.key === 'Escape') {
+                                            e.preventDefault();
+                                            handleCancelEdit();
+                                            return;
+                                        }
+                                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                            e.preventDefault();
+                                            handleSaveEdit();
+                                            return;
+                                        }
+                                    }
+                                    
+                                    // Normal key handling
+                                    handleKeyDown(e);
+                                }}
                             />
 
-                            <button
-                                id="sendMessage"
-                                className={`chat-input-button left-1 rounded-sm p-1 text-neutral-800 opacity-60  mx-1 
-                                ${messageIsDisabled || !content? 'cursor-not-allowed ' : 'hover:bg-neutral-200 hover:text-black dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-white'} 
-                                dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
-                                onClick={handleSend}
-                                title={messageIsDisabled ? "Please address missing information to enable chat"
-                                    : !content ? "Enter a message to start chatting" : "Send Prompt"}
-                                disabled={messageIsDisabled || !content }
-                            >
-                                {messageIsStreaming || artifactIsStreaming ? (
-                                    <div
-                                        className="h-4 w-4 animate-spin rounded-full border-t-2 border-neutral-800 opacity-60 dark:border-neutral-100"></div>
-                                ) : (
-                                    <IconSend size={18}/>
-                                )}
-                            </button>
+                            {/* Edit Mode Controls - positioned inline */}
+                            {isEditing && (
+                                <div className="flex items-center gap-2 ml-2">
+                                    <button
+                                        className="px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded transition-colors flex items-center gap-1"
+                                        onClick={handleSaveEdit}
+                                        title="Save changes (Ctrl+Enter)"
+                                    >
+                                        <IconCheck size={14} />
+                                        Save
+                                    </button>
+                                    <button
+                                        className="px-2 py-1 text-xs bg-gray-500 hover:bg-gray-600 text-white rounded transition-colors flex items-center gap-1"
+                                        onClick={handleCancelEdit}
+                                        title="Cancel editing (Escape)"
+                                    >
+                                        <IconX size={14} />
+                                        Cancel
+                                    </button>
+                                </div>
+                            )}
+
+                            {!isEditing && (
+                                <button
+                                    id="sendMessage"
+                                    className={`chat-input-button left-1 rounded-sm p-1 text-neutral-800 opacity-60  mx-1 
+                                    ${messageIsDisabled || !content? 'cursor-not-allowed ' : 'hover:bg-neutral-200 hover:text-black dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-white'} 
+                                    dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
+                                    onClick={handleSend}
+                                    title={messageIsDisabled ? "Please address missing information to enable chat"
+                                        : !content ? "Enter a message to start chatting" : "Send Prompt"}
+                                    disabled={messageIsDisabled || !content }
+                                >
+                                    {messageIsStreaming || artifactIsStreaming ? (
+                                        <div
+                                            className="h-4 w-4 animate-spin rounded-full border-t-2 border-neutral-800 opacity-60 dark:border-neutral-100"></div>
+                                    ) : (
+                                        <IconSend size={18}/>
+                                    )}
+                                </button>
+                            )}
 
 
                             {showScrollDownButton && (
@@ -1214,7 +1536,7 @@ export const ChatInput = ({
                         { featureFlags.uploadDocuments &&
                         <div style={{transform: 'translateX(-10px)'}}>
                             <AttachFile id="__attachFile"
-                                        disallowedFileExtensions={getDisallowedFileExtensions()}
+                                        disallowedFileExtensions={disallowedFileExtensions}
                                         onAttach={addDocument}
                                         onSetMetadata={handleSetMetadata}
                                         onSetKey={handleSetKey}
