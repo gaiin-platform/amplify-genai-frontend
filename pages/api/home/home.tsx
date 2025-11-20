@@ -1558,9 +1558,9 @@ const Home = ({
                         <img 
                             src={brandConfig.logo} 
                             alt="Company Logo" 
-                            width={150} 
-                            height={150}
-                            style={{ maxWidth: '150px', maxHeight: '150px' }}
+                            width={250} 
+                            height={250}
+                            style={{ maxWidth: '250px', maxHeight: '250px' }}
                         />
                     </div>
                     <button
