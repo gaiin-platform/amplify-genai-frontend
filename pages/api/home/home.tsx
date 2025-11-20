@@ -1534,9 +1534,7 @@ const Home = ({
                         <img 
                             src={brandConfig.logo} 
                             alt="Company Logo" 
-                            width={150} 
-                            height={150}
-                            style={{ maxWidth: '150px', maxHeight: '150px' }}
+                            className="w-logo-loading h-logo-loading"
                         />
                     </div>
                     <Loader />
@@ -1558,9 +1556,7 @@ const Home = ({
                         <img 
                             src={brandConfig.logo} 
                             alt="Company Logo" 
-                            width={250} 
-                            height={250}
-                            style={{ maxWidth: '250px', maxHeight: '250px' }}
+                            className="w-logo-login h-logo-login"
                         />
                     </div>
                     <button
