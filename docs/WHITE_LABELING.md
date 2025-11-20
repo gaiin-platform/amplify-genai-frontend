@@ -40,6 +40,37 @@ NEXT_PUBLIC_BRAND_HOVER_COLOR=#38a169
 
 3. **Default logo**: If not configured, the app uses `/logos/default-logo.svg`
 
+### Logo Size Customization
+
+You can customize the logo size on the login and loading screens by editing `tailwind.config.js`:
+
+```javascript
+theme: {
+  extend: {
+    spacing: {
+      'logo-login': '150px',    // Login page logo size
+      'logo-loading': '150px',  // Loading screen logo size
+    },
+  },
+},
+```
+
+**To change logo sizes:**
+1. Open `tailwind.config.js`
+2. Find the `spacing` section under `theme.extend`
+3. Modify the values:
+   - `logo-login`: Controls the login page logo size
+   - `logo-loading`: Controls the loading screen logo size
+4. Rebuild your application for changes to take effect
+
+**Example - Larger login logo:**
+```javascript
+spacing: {
+  'logo-login': '250px',    // Larger logo on login page
+  'logo-loading': '150px',  // Standard size on loading screen
+},
+```
+
 ### Color Customization
 
 1. **Choose your brand colors** in hex format (e.g., `#525364`)

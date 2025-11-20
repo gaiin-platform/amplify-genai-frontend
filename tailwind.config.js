@@ -32,6 +32,10 @@ module.exports = {
           'light-modal': '#ffffff',
         },
       },
+      spacing: {
+        'logo-login': '150px', // Login page logo size - change to customize
+        'logo-loading': '150px', // Loading screen logo size - change to customize
+      },
     },
   },
   variants: {

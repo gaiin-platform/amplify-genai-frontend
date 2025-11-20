@@ -61,13 +61,13 @@ npm run dev
 ```bash
 docker build \
   --build-arg NEXT_PUBLIC_BRAND_LOGO=/logos/your-logo.svg \
-  --build-arg NEXT_PUBLIC_DEFAULT_THEME=dark \
+  --build-arg NEXT_PUBLIC_DEFAULT_THEME=light \
   -t your-app .
 ```
 
 ## Files Modified
 
-- `tailwind.config.js` - Color definitions
+- `tailwind.config.js` - Color definitions & logo size
 - `utils/app/branding.ts` - Logo utility
 - `Dockerfile` - Build args for logo/theme
 - `pages/api/home/home.state.tsx` - Default theme
