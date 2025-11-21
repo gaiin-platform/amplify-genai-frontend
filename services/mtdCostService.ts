@@ -28,7 +28,6 @@ export const getAllUserMtdCosts = async (limit: number = 50, lastEvaluatedKey: a
 
     try {
         const result = await doRequestOp(op);
-        // console.log('Raw doRequestOp result:', result); // Debug log
         if (result && result.users) return { success: true, data: result };
 
     } catch (error) {
@@ -36,6 +35,83 @@ export const getAllUserMtdCosts = async (limit: number = 50, lastEvaluatedKey: a
     }
 
     return { success: false, message: 'Failed to fetch user MTD costs' };
+}
+
+export interface AutoLoadProgress {
+    users: any[];
+    loadedCount: number;
+    currentTotalCost: number;
+    batchNumber: number;
+    hasMore: boolean;
+    isComplete: boolean;
+}
+
+export const getAllUserMtdCostsRecursive = async (
+    onProgress: (progress: AutoLoadProgress) => void,
+    abortSignal?: AbortSignal,
+    batchSize: number = 100
+) => {
+    let allUsers: any[] = [];
+    let nextKey: any = null;
+    let batchNumber = 0;
+    let hasMore = true;
+
+    try {
+        while (hasMore) {
+            if (abortSignal?.aborted) {
+                onProgress({
+                    users: allUsers,
+                    loadedCount: allUsers.length,
+                    currentTotalCost: allUsers.reduce((sum, u) => sum + u.totalCost, 0),
+                    batchNumber,
+                    hasMore: false,
+                    isComplete: false
+                });
+                return { success: true, data: { users: allUsers, aborted: true } };
+            }
+
+            const result = await getAllUserMtdCosts(batchSize, nextKey);
+            
+            if (!result.success || !result.data) {
+                throw new Error(result.message || 'Failed to fetch batch');
+            }
+
+            const newUsers = result.data.users || [];
+            allUsers = [...allUsers, ...newUsers];
+            batchNumber++;
+            hasMore = result.data.hasMore && !!result.data.lastEvaluatedKey;
+            nextKey = result.data.lastEvaluatedKey;
+
+            const currentTotalCost = allUsers.reduce((sum, u) => sum + (u.totalCost || 0), 0);
+
+            onProgress({
+                users: allUsers,
+                loadedCount: allUsers.length,
+                currentTotalCost,
+                batchNumber,
+                hasMore,
+                isComplete: !hasMore
+            });
+
+            if (!hasMore) break;
+        }
+
+        return { 
+            success: true, 
+            data: { 
+                users: allUsers, 
+                totalCount: allUsers.length,
+                totalCost: allUsers.reduce((sum, u) => sum + (u.totalCost || 0), 0)
+            } 
+        };
+    } catch (error) {
+        console.error('Error in getAllUserMtdCostsRecursive:', error);
+        return { 
+            success: false, 
+            message: error instanceof Error ? error.message : 'Failed to fetch all user MTD costs',
+            data: { users: allUsers }
+        };
+    }
 }
 
 
