@@ -11,12 +11,30 @@ from tests.base_test import BaseTest
 
 
 class PowerPointAssistantsTests(BaseTest):
+    """
+    Test suite for the PowerPoint Assistant functionality.
+
+    Tests verify that the PowerPoint Assistant in the Custom Instructions folder can be:
+    - Located and clicked in the Assistants sidebar
+    - Opened to display the chat modal interface
+    - Shared with other users
+    - Duplicated to create a copy
+    - Used to chat and generate PowerPoint presentations
+
+    The PowerPoint Assistant provides specialized help for creating and editing PowerPoint presentations.
+    """
 
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
         super().setUp(headless=True)
-        
+
     def click_assistants_tab(self):
+        """
+        Helper method to navigate to the Assistants tab.
+
+        Locates and clicks the Assistants tab in the sidebar,
+        waiting for the content to load.
+        """
         
         time.sleep(5)
         
@@ -39,10 +57,20 @@ class PowerPointAssistantsTests(BaseTest):
         time.sleep(2)
 
     # ----------------- Test PowerPoint Assistant can be clicked -----------------
-    """Ensure the PowerPoint Assistant button in the Custom Instructions folder can be clicked 
-       on the Assitants Side Bar"""
+    """Ensure the PowerPoint Assistant button in the Custom Instructions folder can be clicked
+       on the Assistants Side Bar"""
 
     def test_powerpoint_assistant_is_interactable(self):
+        """
+        Test that the PowerPoint Assistant button can be clicked to open its chat modal.
+
+        Verification steps:
+        1. Navigate to Assistants tab
+        2. Open the Custom Instructions dropdown
+        3. Locate the PowerPoint Assistant option
+        4. Click it to open the chat modal
+        5. Verify the modal title displays "Chat with PowerPoint Assistant"
+        """
         
         self.click_assistants_tab()
         
@@ -116,10 +144,15 @@ class PowerPointAssistantsTests(BaseTest):
         )
 
     # ----------------- Test PowerPoint Assistant with Shared window -----------------
-    """Ensure the Share button on the PowerPoint Assistant button in the Custom Instructions folder can be clicked 
-       on the Assitants Side Bar and that it makes the Share Modal appear"""
+    """Ensure the Share button on the PowerPoint Assistant button in the Custom Instructions folder can be clicked
+       on the Assistants Side Bar and that it makes the Share Modal appear"""
 
     def test_share_button(self):
+        """
+        Test that the PowerPoint Assistant can be shared with other users.
+
+        Follows the same pattern as other assistant sharing tests.
+        """
         
         self.click_assistants_tab()
         
@@ -201,10 +234,15 @@ class PowerPointAssistantsTests(BaseTest):
         )
 
     # ----------------- Test PowerPoint Assistant Duplicate Window -----------------
-    """Ensure the Duplicate Button on the PowerPoint Assistant button in the Custom Instructions folder can be clicked 
-       on the Assitants Side Bar and that it creates a duplicate in the prompts"""
+    """Ensure the Duplicate Button on the PowerPoint Assistant button in the Custom Instructions folder can be clicked
+       on the Assistants Side Bar and that it creates a duplicate in the prompts"""
 
     def test_powerpoint_assistant_duplicate(self):
+        """
+        Test that the PowerPoint Assistant can be duplicated.
+
+        Follows the same pattern as other assistant duplication tests.
+        """
         
         self.click_assistants_tab()
         
@@ -312,10 +350,16 @@ class PowerPointAssistantsTests(BaseTest):
         )
 
     # ----------------- PowerPoint Assistant Modal is interactable -----------------
-    """Ensure the PowerPoint Assistant button in the PowerPoint Assistant folder can be clicked 
-       on the Assitants Side Bar and the modal is interactable"""
-    
-    def test_powerpoint_assistant_modal_is_interactable(self): 
+    """Ensure the PowerPoint Assistant button in the PowerPoint Assistant folder can be clicked
+       on the Assistants Side Bar and the modal is interactable"""
+
+    def test_powerpoint_assistant_modal_is_interactable(self):
+        """
+        Test that the PowerPoint Assistant modal is fully interactable and can be submitted.
+
+        This test verifies the end-to-end workflow of using the PowerPoint Assistant
+        to start a chat session.
+        """ 
         
         self.click_assistants_tab()
                                

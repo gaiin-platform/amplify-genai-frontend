@@ -18,6 +18,19 @@ from tests.base_test import BaseTest
 
 
 class ResponseChatHandlerTests(BaseTest):
+    """
+    Test suite for chat response handling and interaction features.
+
+    This comprehensive suite tests how users interact with chat responses:
+    - Copying message content to clipboard (using Command/Ctrl+C)
+    - Regenerating responses to get alternative answers
+    - Editing sent messages and regenerating responses
+    - Viewing and navigating response versions
+    - Managing conversation flow and message interactions
+
+    Note: Clipboard operations use Keys.COMMAND on macOS and Keys.CONTROL on other platforms.
+    The tests include many repetitive patterns for thorough coverage of response interactions.
+    """
 
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
@@ -25,6 +38,12 @@ class ResponseChatHandlerTests(BaseTest):
 
     # ----------------- Setup Test Data ------------------
     def create_folder(self, folder_name):
+        """
+        Helper method to create a folder via alert prompt.
+
+        Args:
+            folder_name (str): Name for the new folder
+        """
         time.sleep(5)
         folder_add_buttons = self.wait.until(
             EC.presence_of_all_elements_located((By.ID, "createFolderButton"))

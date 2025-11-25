@@ -15,89 +15,185 @@ from selenium.webdriver.support.ui import Select
 from tests.base_test import BaseTest
 
 class ChatHomeTests(BaseTest):
-    
+    """
+    Test suite for core chat functionality and UI interactions.
+
+    This comprehensive test suite covers:
+    - Chat creation, renaming, and management
+    - Folder creation and organization
+    - Message sending and conversation storage
+    - Model parameter configuration (temperature, max length)
+    - Chat export and download functionality
+    - UI element interactions (sliders, buttons, modals)
+
+    Note: Some tests involving temperature sliders may have variable results
+    as temperature changes don't always produce significantly different outputs.
+    """
+
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
         super().setUp(headless=True)
 
     # ----------------- Setup Test Data ------------------
     def create_folder(self, folder_name):
+        """
+        Helper method to create a new folder in the sidebar.
+
+        Args:
+            folder_name (str): The name for the new folder
+
+        Creates a folder via:
+        1. Clicking the create folder button
+        2. Entering the folder name in the alert prompt
+        3. Accepting the alert to confirm creation
+        """
+        # Wait for UI to be fully loaded and stable
         time.sleep(5)
+
+        # Locate all create folder buttons (there may be multiple)
         folder_add_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "createFolderButton")))
         self.assertGreater(len(folder_add_buttons), 1, "Expected multiple buttons with ID 'createFolderButton'")
+
+        # Click the first create folder button
         folder_add_buttons[0].click()
-        
+
         try:
+            # Wait for the browser alert prompt to appear
             alert = self.wait.until(EC.alert_is_present())
             self.assertIsNotNone(alert, "Alert prompt should be present")
+
+            # Wait for alert to be fully rendered
             time.sleep(3)
+
+            # Enter the folder name in the alert prompt
             alert.send_keys(folder_name)
+
+            # Wait before accepting to ensure text is entered
             time.sleep(3)
+
+            # Accept the alert to create the folder
             alert.accept()
         except UnexpectedAlertPresentException as e:
             self.fail(f"Unexpected alert present: {str(e)}")
             
     def click_assistants_tab(self):
+        """
+        Helper method to navigate to the Assistants tab.
+
+        Locates and clicks the Assistants tab button in the sidebar,
+        waiting for the UI to update after the click.
+        """
+        # Wait for tabs to be fully loaded
         time.sleep(5)
+
+        # Locate all tab buttons
         tab_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
+
+        # Find the Assistants tab by checking the title attribute
         assistants_button = next((btn for btn in tab_buttons if "Assistants" in btn.get_attribute("title")), None)
         self.assertIsNotNone(assistants_button, "'Assistants' tab button not found")
+
+        # Click to switch to the Assistants tab
         assistants_button.click()
 
+        # Wait for the tab content to load
         time.sleep(2)
     
     def create_chat(self, chat_name):
+        """
+        Helper method to create and rename a new chat conversation.
+
+        Args:
+            chat_name (str): The desired name for the new chat
+
+        Process:
+        1. Click "New Chat" button
+        2. Locate the newly created "New Conversation"
+        3. Click the conversation to select it
+        4. Click the rename button
+        5. Enter the new name and confirm
+        """
+        # Locate and click the "New Chat" button
         prompt_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "promptButton")))
         self.assertTrue(prompt_buttons, "New Chat elements should be initialized")
         chat_add_button = next((el for el in prompt_buttons if el.text == "New Chat"), None)
         self.assertIsNotNone(chat_add_button, "New Chat button should be present")
         chat_add_button.click()
-        
+
+        # Wait for new chat to be created
         time.sleep(2)
-        
+
+        # Locate the newly created chat with default name "New Conversation"
         chat_name_elements = self.wait.until(EC.presence_of_all_elements_located((By.ID, "chatName")))
         self.assertTrue(chat_name_elements, "Drop name elements should be initialized")
         chats = next((el for el in chat_name_elements if el.text == "New Conversation"), None)
         self.assertIsNotNone(chats, "New Conversation button should be present")
+
+        # Find and click the parent button element to select this chat
         chat_click = chats.find_element(By.XPATH, "./ancestor::button")
         button_id = chat_click.get_attribute("id")
         self.assertEqual(button_id, "chatClick", "Button should be called chatClick")
         chat_click.click()
 
+        # Click the rename button to enter rename mode
         rename_button = self.wait.until(EC.element_to_be_clickable((By.ID, "isRenaming")))
         self.assertIsNotNone(rename_button, "Rename button should be initialized and clicked")
         rename_button.click()
 
+        # Enter the new chat name
         rename_field = self.wait.until(EC.presence_of_element_located((By.ID, "isRenamingInput")))
         rename_field.clear()
         rename_field.send_keys(chat_name)
+
+        # Confirm the rename
         rename_confirm_button = self.wait.until(EC.element_to_be_clickable((By.ID, "handleConfirm")))
         self.assertIsNotNone(rename_confirm_button, "Rename confirm button should be initialized and clicked")
         rename_confirm_button.click()
+
+        # Verify the chat was renamed successfully
         drop_name_elements = self.wait.until(EC.presence_of_all_elements_located((By.ID, "chatName")))
         self.assertTrue(drop_name_elements, "Drop name elements should be initialized")
-        
+
+        # Wait for rename to complete
         time.sleep(2)
-        
+
+        # Confirm the chat now has the specified name
         folder = next((el for el in drop_name_elements if el.text == chat_name), None)
         self.assertIsNotNone(folder, "New Conversation button should be present")
         
         
     def send_message(self, chat_name, message):
-        # Locate all elements with the ID 'chatName'
+        """
+        Helper method to send a message in a specific chat.
+
+        Args:
+            chat_name (str): The name of the chat to send the message in
+            message (str): The message text to send
+
+        Process:
+        1. Locate and click the specified chat to open it
+        2. Enter the message in the chat input field
+        3. Click the send button
+        4. Wait for the LLM to process and respond
+        """
+        # Locate all chat names in the sidebar
         chat_name_elements = self.wait.until(EC.presence_of_all_elements_located((By.ID, "chatName")))
         self.assertTrue(chat_name_elements, "Chat name elements should be initialized")
-        
+
+        # Wait for chat list to fully load
         time.sleep(2)
-        
-        # Find the element with chat name
+
+        # Find the specified chat by name
         chat = next((el for el in chat_name_elements if el.text == chat_name), None)
         self.assertIsNotNone(chat, "Chat button should be present")
+
+        # Click the chat to open it
         chat_click = chat.find_element(By.XPATH, "./ancestor::button")
         button_id = chat_click.get_attribute("id")
         self.assertEqual(button_id, "chatClick", "Button should be called chatClick")
         chat_click.click()
-        # Locate the chatbar to input in messageChatInputText
+
+        # Locate the chat input field
         chat_input_bar = self.wait.until(EC.presence_of_element_located((By.ID, "messageChatInputText")))
         self.assertTrue(chat_input_bar, "Chat bar input should be initialized")
         chat_input_bar.send_keys(message)
@@ -207,7 +303,7 @@ class ChatHomeTests(BaseTest):
         time.sleep(1)
     
     # ----------------- Test Store Conversation To Cloud -----------------
-    """This test ensures that you can store a conversation to the cload by clicking the 
+    """This test ensures that you can store a conversation to the cloud by clicking the 
        save to cloud button"""
     
     def test_store_convo_in_cloud(self):

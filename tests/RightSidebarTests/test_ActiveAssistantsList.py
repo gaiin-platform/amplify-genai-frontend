@@ -12,12 +12,35 @@ from tests.base_test import BaseTest
 
 
 class ActiveAssistantsListTests(BaseTest):
+    """
+    Test suite for the Active Assistants List in the right sidebar.
+
+    Tests cover the complete assistant lifecycle:
+    - Creating new assistants via the "Add Assistant" button
+    - Viewing assistants in dropdown folders (Amplify Helpers, Custom Instructions)
+    - Sharing assistants with other users
+    - Duplicating assistants to create copies
+    - Deleting individual assistants
+    - Hovering interactions to reveal action buttons
+    - Dropdown collapse/expand functionality for assistant folders
+    - Button state management (hover, click, visibility)
+
+    The suite includes helper methods for:
+    - Navigating to the Assistants tab
+    - Deleting all assistants (cleanup utility)
+    - Managing dropdown folder states
+
+    This 856-line test file ensures thorough coverage of assistant management features.
+    """
 
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
         super().setUp(headless=True)
-        
+
     def click_assistants_tab(self):
+        """
+        Helper method to navigate to the Assistants tab.
+        """
         time.sleep(5)
         tab_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "tabSelection")))
         assistants_button = next((btn for btn in tab_buttons if "Assistants" in btn.get_attribute("title")), None)
@@ -26,6 +49,11 @@ class ActiveAssistantsListTests(BaseTest):
         time.sleep(5)
         
     def delete_all_assistants(self):
+        """
+        Helper method to delete all assistants via the prompt handler menu.
+
+        Used for test cleanup and ensuring a clean state between tests.
+        """
 
         prompt_handler_button = self.wait.until(EC.presence_of_element_located((By.ID, "promptHandler")))
         prompt_handler_button.click()

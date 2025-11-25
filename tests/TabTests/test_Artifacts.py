@@ -18,6 +18,20 @@ from tests.base_test import BaseTest
 
 
 class ArtifactsTests(BaseTest):
+    """
+    Test suite for the Artifacts tab functionality.
+
+    Artifacts allow users to view and manage generated content from chats:
+    - Creating and viewing artifacts in the Artifacts tab
+    - Managing artifact versions (create, view, navigate, delete)
+    - Editing artifact content and creating new versions
+    - Deleting individual artifacts and specific versions
+    - Navigating between different versions of the same artifact
+
+    Tests verify proper version management and that the artifact lifecycle
+    (create → edit → version → delete) works correctly. Many tests have similar
+    patterns for thorough coverage of artifact operations.
+    """
 
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
@@ -25,6 +39,12 @@ class ArtifactsTests(BaseTest):
 
     # ----------------- Setup Test Data ------------------
     def create_folder(self, folder_name):
+        """
+        Helper method to create a folder via alert prompt.
+
+        Args:
+            folder_name (str): Name for the new folder
+        """
         time.sleep(5)
         folder_add_buttons = self.wait.until(EC.presence_of_all_elements_located((By.ID, "createFolderButton")))
         self.assertGreater(len(folder_add_buttons), 1, "Expected multiple buttons with ID 'createFolderButton'")

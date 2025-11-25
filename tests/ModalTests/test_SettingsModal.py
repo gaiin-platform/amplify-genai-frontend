@@ -19,14 +19,32 @@ from tests.base_test import BaseTest
 
 
 class SettingsModalTests(BaseTest):
+    """
+    Test suite for the Settings modal functionality.
+
+    Tests verify user can:
+    - Open and navigate the Settings modal
+    - Toggle various settings on and off
+    - Test settings state changes and persistence
+    - Handle alert interactions for settings confirmations
+    - Reset settings to default states
+
+    Note: Settings are toggled multiple times in tests to:
+    1. Verify the toggle functionality works in both directions
+    2. Reset settings to their initial state for subsequent tests
+    This ensures test isolation and repeatability.
+    """
 
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
         super().setUp(headless=True)
-        
-    
+
+
     # ----------------- Setup Test Data ------------------
     def settings_settings(self):
+        """
+        Helper method to navigate to and open the Settings modal.
+        """
 
         time.sleep(5)
 

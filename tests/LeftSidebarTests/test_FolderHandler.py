@@ -18,6 +18,28 @@ from tests.base_test import BaseTest
 
 
 class FolderHandlerLeftTests(BaseTest):
+    """
+    Test suite for folder management in the left sidebar.
+
+    This extensive test suite (1580+ lines) covers all folder operations:
+    - Creating folders via alert prompts
+    - Renaming folders through context menus
+    - Deleting folders and handling confirmations
+    - Drag-and-drop operations for moving chats between folders
+    - Submenu navigation (right-click context menus)
+    - Moving chats in and out of folders
+    - Edge cases and various folder states
+
+    Tests use complex interactions including:
+    - ActionChains for drag-and-drop
+    - Context menu navigation
+    - Alert handling
+    - Element visibility checks
+    - XPath queries for nested elements
+
+    Many tests follow repetitive patterns to ensure comprehensive coverage
+    of folder management functionality.
+    """
 
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
@@ -25,6 +47,12 @@ class FolderHandlerLeftTests(BaseTest):
 
     # ----------------- Setup Test Data ------------------
     def create_folder(self, folder_name):
+        """
+        Helper method to create a folder via alert prompt.
+
+        Args:
+            folder_name (str): Name for the new folder
+        """
         time.sleep(5)
         folder_add_button = self.wait.until(EC.presence_of_element_located((By.ID, "createFolderButton")))
         self.assertTrue(folder_add_button, "Expected multiple buttons with ID 'createFolderButton'")

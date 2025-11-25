@@ -15,13 +15,33 @@ from selenium.webdriver.support.ui import Select
 from tests.base_test import BaseTest
 
 class PromptModalTests(BaseTest):
-    
+    """
+    Test suite for the Prompt/Assistant creation and management modal.
+
+    Tests verify the modal functionality for:
+    - Creating new assistants with custom instructions
+    - Configuring assistant parameters and settings
+    - Managing variable fields in assistant prompts
+    - Testing the Prompt Optimizer feature (currently deprecated - first test commented out)
+    - Checkbox selection for various assistant options
+    - Modal interaction flows and form submission
+
+    Note: The first test (prompt optimizer) is commented out because the prompt optimizer
+    button functionality was not working at the time of test creation.
+    """
+
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
-        super().setUp(headless=True)              
-            
-    # ----------------- Setup Test Data ------------------  
+        super().setUp(headless=True)
+
+    # ----------------- Setup Test Data ------------------
     def create_assistant(self, assistant_name):
+        """
+        Helper method to create a new assistant.
+
+        Args:
+            assistant_name (str): Name for the new assistant
+        """
         assistant_add_button = self.wait.until(EC.element_to_be_clickable((By.ID, "addAssistantButton")))
         self.assertIsNotNone(assistant_add_button, "Add Assistant button should be initialized and clickable")
         assistant_add_button.click()
@@ -522,7 +542,7 @@ class PromptModalTests(BaseTest):
         time.sleep(15) # View the results 
         
         
-        # Tag Names are visible, soo partially depricated I guess??
+        # Tag Names are visible, so partially depricated
         
         # # Verify the Tag name is correct
         # tag_names = self.wait.until(EC.presence_of_all_elements_located(

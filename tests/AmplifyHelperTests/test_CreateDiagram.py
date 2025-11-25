@@ -11,12 +11,30 @@ from tests.base_test import BaseTest
 
 
 class CreateDiagramTests(BaseTest):
+    """
+    Test suite for the Create Diagram assistant functionality.
+
+    Tests verify that the Create Diagram assistant in the Amplify Helpers folder can be:
+    - Located and clicked in the Assistants sidebar
+    - Opened to display the modal interface
+    - Shared with other users
+    - Duplicated to create a copy
+    - Used to generate diagrams via the modal
+
+    The Create Diagram assistant helps users create visual diagrams based on text descriptions.
+    """
 
     def setUp(self):
         # Call the parent setUp with headless=True (or False for debugging)
         super().setUp(headless=True)
-        
+
     def click_assistants_tab(self):
+        """
+        Helper method to navigate to the Assistants tab.
+
+        Locates and clicks the Assistants tab in the sidebar,
+        waiting for the content to load.
+        """
         
         time.sleep(5)
         
@@ -39,10 +57,20 @@ class CreateDiagramTests(BaseTest):
         time.sleep(2)
 
     # ----------------- Test Create Diagram can be clicked -----------------
-    """Ensure the Create Diagram button in the Amplify Helpers folder can be clicked 
-       on the Assitants Side Bar"""
+    """Ensure the Create Diagram button in the Amplify Helpers folder can be clicked
+       on the Assistants Side Bar"""
 
     def test_create_diagram_is_interactable(self):
+        """
+        Test that the Create Diagram assistant button can be clicked to open its modal.
+
+        Verification steps:
+        1. Navigate to Assistants tab
+        2. Open the Amplify Helpers dropdown
+        3. Locate the Create Diagram option
+        4. Click it to open the modal
+        5. Verify the modal title displays "Create Diagram"
+        """
         
         self.click_assistants_tab()
         
@@ -111,10 +139,20 @@ class CreateDiagramTests(BaseTest):
         )
 
     # ----------------- Test Summary with Shared window -----------------
-    """Ensure the Share button on the Create Diagram button in the Amplify Helpers folder can be clicked 
-       on the Assitants Side Bar and that it makes the Share Modal appear"""
+    """Ensure the Share button on the Create Diagram button in the Amplify Helpers folder can be clicked
+       on the Assistants Side Bar and that it makes the Share Modal appear"""
 
     def test_share_button(self):
+        """
+        Test that the Create Diagram assistant can be shared with other users.
+
+        Verification steps:
+        1. Navigate to Assistants tab
+        2. Open the Amplify Helpers dropdown
+        3. Hover over Create Diagram to reveal action buttons
+        4. Click the Share button
+        5. Verify the "Add People to Share With" modal appears
+        """
         
         self.click_assistants_tab()
         
@@ -193,10 +231,21 @@ class CreateDiagramTests(BaseTest):
         )
 
     # ----------------- Test Create Diagram Duplicate Window -----------------
-    """Ensure the Duplicate Button on the Create Diagram button in the Amplify Helpers folder can be clicked 
-       on the Assitants Side Bar and that it creates a duplicate in the prompts"""
+    """Ensure the Duplicate Button on the Create Diagram button in the Amplify Helpers folder can be clicked
+       on the Assistants Side Bar and that it creates a duplicate in the prompts"""
 
     def test_create_diagram_duplicate(self):
+        """
+        Test that the Create Diagram assistant can be duplicated.
+
+        Verification steps:
+        1. Navigate to Assistants tab
+        2. Open the Amplify Helpers dropdown
+        3. Hover over Create Diagram to reveal action buttons
+        4. Click the Duplicate button
+        5. Verify "Create Diagram (copy)" appears in the list
+        6. Verify the copy can be clicked to open its modal
+        """
         
         self.click_assistants_tab()
         
@@ -297,10 +346,22 @@ class CreateDiagramTests(BaseTest):
         )
         
     # ----------------- Create Diagram with Quotations Modal is interactable -----------------
-    """Ensure the Create Diagram button in the Amplify Helpers folder can be clicked 
-       on the Assitants Side Bar and the modal is interactable"""
-    
-    def test_create_diagram_modal_is_interactable_bullet(self): 
+    """Ensure the Create Diagram button in the Amplify Helpers folder can be clicked
+       on the Assistants Side Bar and the modal is interactable"""
+
+    def test_create_diagram_modal_is_interactable_bullet(self):
+        """
+        Test that the Create Diagram modal is fully interactable and can be submitted.
+
+        Verification steps:
+        1. Navigate to Assistants tab
+        2. Open the Amplify Helpers dropdown
+        3. Click Create Diagram to open the modal
+        4. Click the Submit button
+        5. Wait for diagram generation to complete
+
+        This test verifies the end-to-end workflow of using the Create Diagram assistant.
+        """ 
         
         self.click_assistants_tab()
                                
@@ -362,9 +423,6 @@ class CreateDiagramTests(BaseTest):
         
         time.sleep(15)
 
-
-    # Inspect Element Notes
-    # Console Freeze: setTimeout( ()=>{ debugger }, 3000)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
