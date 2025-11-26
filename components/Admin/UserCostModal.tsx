@@ -134,46 +134,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     const controller = new AbortController();
     setAbortController(controller);
     setUserLoading(true);
-  // Auto-load All Users MTD costs with progressive rendering
-  const autoLoadAllUsers = useCallback(async () => {
-    const controller = new AbortController();
-    setAbortController(controller);
-    setUserLoading(true);
     setUserError(null);
-    setUserCosts([]);
-    setAutoLoadState({
-      status: 'loading',
-      loadedCount: 0,
-      currentTotalCost: 0,
-      batchNumber: 0,
-      hasMore: true
-    });
-
-    const handleProgress = (progress: AutoLoadProgress) => {
-      setUserCosts(progress.users);
-      setAutoLoadState({
-        status: progress.isComplete ? 'completed' : 'loading',
-        loadedCount: progress.loadedCount,
-        currentTotalCost: progress.currentTotalCost,
-        batchNumber: progress.batchNumber,
-        hasMore: progress.hasMore
-      });
-    };
-
-    try {
-      const result = await getAllUserMtdCostsRecursive(
-        handleProgress,
-        controller.signal,
-        100
-      );
-
-      if (!result.success) {
-        setUserError(result.message || 'Failed to fetch MTD costs');
-        setAutoLoadState(prev => ({ ...prev, status: 'error' }));
-      } else if (result.data?.aborted) {
-        setAutoLoadState(prev => ({ ...prev, status: 'aborted' }));
-      } else {
-        setAutoLoadState(prev => ({ ...prev, status: 'completed' }));
     setUserCosts([]);
     setAutoLoadState({
       status: 'loading',
