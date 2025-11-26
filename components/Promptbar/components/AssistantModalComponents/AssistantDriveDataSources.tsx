@@ -78,6 +78,7 @@ export const AssistantDriveDataSources: FC<Props> = ({
   const [supportedDriveIntegrations, setSupportedDriveIntegrations] = useState<string[] | null>(null);
 
   const [selectedIntegration, setSelectedIntegration] = useState<string>('');
+  const [selectedMicrosoftService, setSelectedMicrosoftService] = useState<'microsoft_drive' | 'microsoft_sharepoint'>('microsoft_drive');
   const [connectedDriveIntegrations, setConnectedDriveIntegrations] = useState<string[] | null>(null);
   const [currentFolderPath, setCurrentFolderPath] = useState<string[]>([]);
   const [currentFolderHistory, setCurrentFolderHistory] = useState<Array<{id: string | null, name: string}>>([]);
@@ -433,8 +434,13 @@ export const AssistantDriveDataSources: FC<Props> = ({
   }
 
   const handleOnTabChange = (integrationProvider: string) => {
-    const integration = integrationProvider.toLowerCase() + "_drive";
-    setSelectedIntegration(integration);
+    if (integrationProvider.toLowerCase() === 'microsoft') {
+      // For Microsoft, use the selected service (OneDrive or SharePoint)
+      setSelectedIntegration(selectedMicrosoftService);
+    } else {
+      const integration = integrationProvider.toLowerCase() + "_drive";
+      setSelectedIntegration(integration);
+    }
   }
 
       // Initialize drive rescan schedule from existing scheduled tasks
@@ -496,13 +502,37 @@ export const AssistantDriveDataSources: FC<Props> = ({
               {renderRescanScheduler()}
             </div>}
 
-         <IntegrationTabs open={true} 
+         <IntegrationTabs open={true}
            onConnectedIntegrations={handleOnConnectedIntegrations}
            onSupportedIntegrations={handleOnSupportedIntegrations}
            onTabChange={handleOnTabChange}
-           allowedIntegrations={Object.values(integrationProviders).map(provider => provider + "_drive")}
+           allowedIntegrations={[
+             ...Object.values(integrationProviders).map(provider => provider + "_drive"),
+             'microsoft_sharepoint' // Add SharePoint explicitly
+           ]}
           />
-    
+
+        {/* Microsoft Service Selector - shown when Microsoft tab is active */}
+        {selectedIntegration && (selectedIntegration.startsWith('microsoft_')) && (
+          <div className="mb-4 px-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Select Service
+            </label>
+            <select
+              value={selectedMicrosoftService}
+              onChange={(e) => {
+                const newService = e.target.value as 'microsoft_drive' | 'microsoft_sharepoint';
+                setSelectedMicrosoftService(newService);
+                setSelectedIntegration(newService);
+              }}
+              className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm"
+            >
+              <option value="microsoft_drive">OneDrive</option>
+              <option value="microsoft_sharepoint">SharePoint</option>
+            </select>
+          </div>
+        )}
+
         {/* File Display */}
         {selectedIntegration && (
         <>
