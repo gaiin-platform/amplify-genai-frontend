@@ -25,6 +25,7 @@ import { Accounts } from './AccountComponents/Account';
 import { Account, noCoaAccount } from '@/types/accounts';
 import { getAccounts } from '@/services/accountService';
 import { noRateLimit } from '@/types/rateLimit';
+import { DataDisclosureViewer } from './DataDisclosureViewer';
 
   interface Props {
   open: boolean;
@@ -516,7 +517,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
               // Conversation Storage
         
                 {label: `Conversation Storage`, 
-                  title: "Enable conversations to sync across devices or keep them priavte",
+                  title: "Enable conversations to sync across devices or keep them private",
                   content: <>
                     {featureFlags.storeCloudConversations && 
                           <ConversationsStorage open={open} />
@@ -524,6 +525,19 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                   </>
                   
                 },
+                 ///////////////////////////////////////////////////////////////////////////////
+                // Review Data Disclosure
+          
+                {label: `Review Data Disclosure`, 
+                  title: "Review the Amplify data disclosure",
+                  content: <>
+                    {featureFlags.dataDisclosure  && 
+                          <DataDisclosureViewer open={open} />
+                        }
+                  </>
+                  
+                },
+
               ///////////////////////////////////////////////////////////////////////////////
               // Legacy Workspaces
               ...(workspaces && workspaces.length > 0 ? 
