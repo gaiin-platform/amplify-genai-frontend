@@ -69,7 +69,7 @@ export const DataDisclosureViewer: FC<Props> = ({ open }) => {
             <div className="settings-card-header flex flex-row items-center gap-4 justify-between">
                 <div>
                     <h3 className="settings-card-title">Amplify Data Disclosure Agreement</h3>
-                    <p className="settings-card-description">Review Amplify's data handling and privacy practices</p>
+                    <p className="settings-card-description">{"Review Amplify's data handling and privacy practices"}</p>
                 </div>
                 {dataDisclosure.url && (
                     <a
