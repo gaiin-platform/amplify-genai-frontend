@@ -1,5 +1,5 @@
 import React, { FC, useContext, useState, useEffect } from 'react';
-import { IconBrandGoogleDrive, IconAlertTriangle, IconFolder, IconFolders } from '@tabler/icons-react';
+import { IconAlertTriangle, IconFolder, IconFolders } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { capitalize } from '@/utils/app/data';
 import DataSourcesTableScrollingIntegrations from '@/components/DataSources/DataSourcesTableScrollingIntegrations';
@@ -15,6 +15,7 @@ import { getScheduledTask } from '@/services/scheduledTasksService';
 import { cronToDriveRescanSchedule } from '@/utils/app/scheduledTasks';
 import { AssistantDefinition } from '@/types/assistant';
 import { getDriveFileIntegrationTypes } from '@/utils/app/integrations';
+import { translateIntegrationIcon } from '@/components/Integrations/IntegrationsDialog';
 
 
  // Add helper function to check if there are any files selected
@@ -78,6 +79,7 @@ export const AssistantDriveDataSources: FC<Props> = ({
   const [supportedDriveIntegrations, setSupportedDriveIntegrations] = useState<string[] | null>(null);
 
   const [selectedIntegration, setSelectedIntegration] = useState<string>('');
+  const [selectedMicrosoftService, setSelectedMicrosoftService] = useState<'microsoft_drive' | 'microsoft_sharepoint'>('microsoft_drive');
   const [connectedDriveIntegrations, setConnectedDriveIntegrations] = useState<string[] | null>(null);
   const [currentFolderPath, setCurrentFolderPath] = useState<string[]>([]);
   const [currentFolderHistory, setCurrentFolderHistory] = useState<Array<{id: string | null, name: string}>>([]);
@@ -433,8 +435,13 @@ export const AssistantDriveDataSources: FC<Props> = ({
   }
 
   const handleOnTabChange = (integrationProvider: string) => {
-    const integration = integrationProvider.toLowerCase() + "_drive";
-    setSelectedIntegration(integration);
+    if (integrationProvider.toLowerCase() === 'microsoft') {
+      // For Microsoft, use the selected service (OneDrive or SharePoint)
+      setSelectedIntegration(selectedMicrosoftService);
+    } else {
+      const integration = integrationProvider.toLowerCase() + "_drive";
+      setSelectedIntegration(integration);
+    }
   }
 
       // Initialize drive rescan schedule from existing scheduled tasks
@@ -496,13 +503,60 @@ export const AssistantDriveDataSources: FC<Props> = ({
               {renderRescanScheduler()}
             </div>}
 
-         <IntegrationTabs open={true} 
+         <IntegrationTabs open={true}
            onConnectedIntegrations={handleOnConnectedIntegrations}
            onSupportedIntegrations={handleOnSupportedIntegrations}
            onTabChange={handleOnTabChange}
-           allowedIntegrations={Object.values(integrationProviders).map(provider => provider + "_drive")}
+           allowedIntegrations={[
+             ...Object.values(integrationProviders).map(provider => provider + "_drive"),
+             'microsoft_sharepoint' // Add SharePoint explicitly
+           ]}
           />
-    
+
+        {/* Microsoft Service Selector - shown when Microsoft tab is active */}
+        {selectedIntegration && (selectedIntegration.startsWith('microsoft_')) && (
+          <div className="mb-4 px-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+              <span className="flex items-center gap-2">
+                Select Service
+              </span>
+              {/* Connection status indicator */}
+              {connectedDriveIntegrations?.includes(selectedMicrosoftService) ? (
+                <span className="ml-auto text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                  Connected
+                </span>
+              ) : (
+                <span className="ml-auto text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+                  <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                  Disconnected
+                </span>
+              )}
+            </label>
+            <div className="relative">
+              <select
+                value={selectedMicrosoftService}
+                onChange={(e) => {
+                  const newService = e.target.value as 'microsoft_drive' | 'microsoft_sharepoint';
+                  setSelectedMicrosoftService(newService);
+                  setSelectedIntegration(newService);
+                }}
+                className="w-full p-2 pl-10 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm cursor-pointer"
+              >
+                <option value="microsoft_drive">
+                  OneDrive 
+                </option>
+                <option value="microsoft_sharepoint">
+                  SharePoint 
+                </option>
+              </select>
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                {translateIntegrationIcon(selectedMicrosoftService)}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* File Display */}
         {selectedIntegration && (
         <>
