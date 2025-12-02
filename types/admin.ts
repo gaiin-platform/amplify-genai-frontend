@@ -119,6 +119,7 @@ export interface Embedding  {
         key: string;
         size: number;
         user: string;
+        chunkNumber?: number;
     }
     terminated?: boolean;
 

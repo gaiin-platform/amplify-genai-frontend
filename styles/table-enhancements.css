@@ -686,3 +686,20 @@
 .modern-table.hide-last-column tbody tr:last-child td:nth-last-child(2) {
   border-bottom-right-radius: 12px;
 }
+
+/* Force specific colors in hidden last column */
+.modern-table.hide-last-column tbody td:last-child .force-red-text {
+  color: #dc2626 !important;
+}
+
+.dark .modern-table.hide-last-column tbody td:last-child .force-red-text {
+  color: #dc2626 !important;
+}
+
+.modern-table.hide-last-column tbody td:last-child .force-yellow-text {
+  color: #ca8a04 !important;
+}
+
+.dark .modern-table.hide-last-column tbody td:last-child .force-yellow-text {
+  color: #eab308 !important;
+}
