@@ -6,6 +6,27 @@
 @import 'sidebar-enhancements.css';
 @import 'table-enhancements.css';
 
+/* White Label CSS Custom Properties */
+/* Light theme colors (default) */
+:root {
+  --color-brand-bg-light: #ffffff;
+  --color-brand-text-light: #000000;
+  --color-brand-primary-light: #3b82f6;
+  --color-brand-primary-hover-light: #2563eb;
+  --color-brand-secondary-light: #8b5cf6;
+  --color-brand-accent-light: #10b981;
+}
+
+/* Dark theme colors */
+.dark {
+  --color-brand-bg-dark: #1a1a1a;
+  --color-brand-text-dark: #ffffff;
+  --color-brand-primary-dark: #60a5fa;
+  --color-brand-primary-hover-dark: #3b82f6;
+  --color-brand-secondary-dark: #a78bfa;
+  --color-brand-accent-dark: #34d399;
+}
+
 
 ::-webkit-scrollbar-track {
   background-color: transparent;
