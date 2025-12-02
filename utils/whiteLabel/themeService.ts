@@ -20,11 +20,13 @@ export class ThemeService {
     // Check for user preference in local storage
     const savedTheme = this.getSavedTheme();
     if (savedTheme) {
+      console.log('[ThemeService] Using saved theme:', savedTheme);
       return savedTheme;
     }
     
     // Fall back to configured default
     const config = getWhiteLabelConfig();
+    console.log('[ThemeService] No saved theme, using default:', config.defaultTheme);
     return config.defaultTheme;
   }
   
@@ -51,6 +53,7 @@ export class ThemeService {
   static saveTheme(theme: Theme): void {
     try {
       localStorage.setItem(THEME_STORAGE_KEY, theme);
+      console.log('[ThemeService] Saved theme to localStorage:', theme);
     } catch (error) {
       console.error('Failed to save theme to local storage:', error);
     }

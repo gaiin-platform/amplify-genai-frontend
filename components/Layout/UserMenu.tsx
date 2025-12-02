@@ -11,6 +11,8 @@ import { SettingDialog } from '../Settings/SettingDialog';
 import { getSettings } from '@/utils/app/settings';
 import { Settings } from '@/types/settings';
 import SharingDialog from '../Share/SharingDialog';
+import { ThemeService } from '@/utils/whiteLabel/themeService';
+import { Theme } from '@/types/settings';
 
 
 interface UserMenuProps {
@@ -91,8 +93,9 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   };
 
   const handleThemeToggle = () => {
-    const newTheme = lightMode === 'dark' ? 'light' : 'dark';
+    const newTheme: Theme = lightMode === 'dark' ? 'light' : 'dark';
     dispatch({ field: 'lightMode', value: newTheme });
+    ThemeService.setTheme(newTheme); // Persist theme preference
   };
 
   // Handle palette change immediately

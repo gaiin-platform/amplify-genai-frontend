@@ -90,7 +90,7 @@ NEXT_PUBLIC_BRAND_NAME=My Company AI Assistant
 ### Step 1: Prepare Your Logo
 
 1. **Format:** SVG is strongly recommended for scalability and quality
-2. **Size:** Design for approximately 150x40 pixels (width x height)
+2. **Size:** Design for approximately 200x60 pixels (width x height)
 3. **Colors:** Ensure your logo works on both light and dark backgrounds
 4. **File naming:** Use lowercase with hyphens (e.g., `my-company-logo.svg`)
 
@@ -114,11 +114,25 @@ NEXT_PUBLIC_CUSTOM_LOGO=my-company-logo.svg
 
 ### Step 4: Rebuild and Deploy
 
-Rebuild your application to apply the changes:
-
+**For Local Development:**
 ```bash
 npm run build
+npm start
 ```
+
+**For Docker Deployment:**
+```bash
+docker build \
+  --build-arg NEXT_PUBLIC_CUSTOM_LOGO="my-company-logo.svg" \
+  --build-arg NEXT_PUBLIC_DEFAULT_THEME="dark" \
+  --build-arg NEXT_PUBLIC_BRAND_NAME="My Company" \
+  -t my-app:latest \
+  .
+
+docker run -p 3000:3000 my-app:latest
+```
+
+**Note:** Environment variables must be passed as build arguments for Docker builds since they are baked into the application at build time.
 
 ### Logo Examples
 
@@ -182,114 +196,104 @@ NEXT_PUBLIC_DEFAULT_THEME=light
 
 ## Color Customization
 
-Customize the application's color scheme by modifying the Tailwind configuration. This allows you to define custom colors for both light and dark themes.
+The application uses CSS custom properties (variables) to define colors, which allows you to customize the entire color scheme without modifying any HTML or component code. All existing Tailwind classes (like `bg-blue-500`, `text-purple-600`) automatically use your custom colors.
 
-### Step 1: Edit Tailwind Configuration
+### How It Works
 
-Open `tailwind.config.js` and add your custom colors in the `theme.extend.colors` section:
+The application overrides three main Tailwind color families:
+- **Blue** → Primary brand color (buttons, links, highlights)
+- **Purple** → Secondary brand color (accents, special features)
+- **Green** → Accent color (success states, positive actions)
 
-```javascript
-// tailwind.config.js
-module.exports = {
-  // ... existing config
-  theme: {
-    extend: {
-      colors: {
-        // Light theme colors
-        'brand-bg-light': '#ffffff',
-        'brand-text-light': '#1a1a1a',
-        'brand-primary-light': '#2563eb',
-        'brand-primary-hover-light': '#1d4ed8',
-        'brand-secondary-light': '#7c3aed',
-        
-        // Dark theme colors
-        'brand-bg-dark': '#0f172a',
-        'brand-text-dark': '#f1f5f9',
-        'brand-primary-dark': '#3b82f6',
-        'brand-primary-hover-dark': '#60a5fa',
-        'brand-secondary-dark': '#8b5cf6',
-      },
-    },
-  },
-};
-```
+Each color family has 11 shades (50, 100, 200, ..., 900, 950) that are automatically calculated for both light and dark themes.
 
-### Step 2: Define CSS Custom Properties
+### Step 1: Edit CSS Variables
 
-Add CSS variables in `styles/globals.css` for runtime theme switching:
+Open `styles/globals.css` and modify the color values in the `:root` and `.dark` sections:
 
 ```css
 /* styles/globals.css */
 
 :root {
-  /* Light theme colors */
-  --color-brand-bg: #ffffff;
-  --color-brand-text: #1a1a1a;
-  --color-brand-primary: #2563eb;
-  --color-brand-primary-hover: #1d4ed8;
-  --color-brand-secondary: #7c3aed;
+  /* Primary color (replaces blue throughout the app) */
+  --color-primary-500: #your-brand-color;
+  --color-primary-600: #your-brand-color-darker;
+  
+  /* Secondary color (replaces purple) */
+  --color-secondary-500: #your-secondary-color;
+  
+  /* Accent color (replaces green) */
+  --color-accent-500: #your-accent-color;
+  
+  /* Customize other shades as needed (50-950) */
 }
 
 .dark {
-  /* Dark theme colors */
-  --color-brand-bg: #0f172a;
-  --color-brand-text: #f1f5f9;
-  --color-brand-primary: #3b82f6;
-  --color-brand-primary-hover: #60a5fa;
-  --color-brand-secondary: #8b5cf6;
+  /* Dark mode versions (usually lighter) */
+  --color-primary-500: #your-brand-color-light;
+  --color-primary-600: #your-brand-color;
 }
 ```
 
-### Step 3: Use Custom Colors in Components
+### Step 2: Rebuild Application
 
-Reference your custom colors using Tailwind classes:
+After editing CSS variables, rebuild the application:
 
-```jsx
-<button className="bg-brand-primary-light dark:bg-brand-primary-dark hover:bg-brand-primary-hover-light dark:hover:bg-brand-primary-hover-dark">
-  Click Me
-</button>
+```bash
+npm run build
 ```
 
-Or use CSS variables directly:
+Or for Docker:
 
-```jsx
-<div style={{ backgroundColor: 'var(--color-brand-primary)' }}>
-  Content
-</div>
+```bash
+docker build -t my-app:latest .
 ```
+
+### No Code Changes Needed
+
+All existing UI components automatically use your custom colors. For example:
+- `bg-blue-500` → Uses your `--color-primary-500`
+- `text-purple-600` → Uses your `--color-secondary-600`
+- `border-green-400` → Uses your `--color-accent-400`
 
 ### Color Customization Examples
 
 **Example 1: Corporate Blue Theme**
-```javascript
-// tailwind.config.js
-colors: {
-  'brand-primary-light': '#0066cc',
-  'brand-primary-hover-light': '#0052a3',
-  'brand-primary-dark': '#3399ff',
-  'brand-primary-hover-dark': '#66b3ff',
+```css
+:root {
+  --color-primary-500: #0066cc;
+  --color-primary-600: #0052a3;
+}
+
+.dark {
+  --color-primary-500: #3399ff;
+  --color-primary-600: #66b3ff;
 }
 ```
 
 **Example 2: Green Eco Theme**
-```javascript
-// tailwind.config.js
-colors: {
-  'brand-primary-light': '#059669',
-  'brand-primary-hover-light': '#047857',
-  'brand-primary-dark': '#10b981',
-  'brand-primary-hover-dark': '#34d399',
+```css
+:root {
+  --color-primary-500: #059669;
+  --color-primary-600: #047857;
+}
+
+.dark {
+  --color-primary-500: #10b981;
+  --color-primary-600: #34d399;
 }
 ```
 
 **Example 3: Purple Tech Theme**
-```javascript
-// tailwind.config.js
-colors: {
-  'brand-primary-light': '#7c3aed',
-  'brand-primary-hover-light': '#6d28d9',
-  'brand-primary-dark': '#8b5cf6',
-  'brand-primary-hover-dark': '#a78bfa',
+```css
+:root {
+  --color-primary-500: #7c3aed;
+  --color-primary-600: #6d28d9;
+}
+
+.dark {
+  --color-primary-500: #8b5cf6;
+  --color-primary-600: #a78bfa;
 }
 ```
 
@@ -471,69 +475,42 @@ NEXT_PUBLIC_BRAND_NAME=Acme AI Assistant
 
 ### tailwind.config.js
 ```javascript
-module.exports = {
-  darkMode: 'class',
-  content: [
-    './pages/**/*.{js,ts,jsx,tsx}',
-    './components/**/*.{js,ts,jsx,tsx}',
-  ],
-  theme: {
-    extend: {
-      colors: {
-        // Acme purple branding - Light theme
-        'brand-bg-light': '#ffffff',
-        'brand-text-light': '#1a1a1a',
-        'brand-primary-light': '#7c3aed',      // Acme purple
-        'brand-primary-hover-light': '#6d28d9',
-        'brand-secondary-light': '#ec4899',    // Acme pink accent
-        'brand-accent-light': '#f59e0b',       // Acme gold
-        
-        // Acme purple branding - Dark theme
-        'brand-bg-dark': '#0f172a',
-        'brand-text-dark': '#f1f5f9',
-        'brand-primary-dark': '#8b5cf6',       // Lighter purple for dark mode
-        'brand-primary-hover-dark': '#a78bfa',
-        'brand-secondary-dark': '#f472b6',     // Lighter pink for dark mode
-        'brand-accent-dark': '#fbbf24',        // Lighter gold for dark mode
-      },
-    },
-  },
-  plugins: [],
-};
+// No changes needed - Tailwind config already set up to use CSS variables
+// Colors are customized via styles/globals.css instead
 ```
 
-### styles/globals.css (additions)
+### styles/globals.css (modifications)
 ```css
 /* Acme Corporation Theme Variables */
+/* Edit the existing color variables in styles/globals.css */
 
 :root {
-  /* Light theme */
-  --color-brand-bg: #ffffff;
-  --color-brand-text: #1a1a1a;
-  --color-brand-primary: #7c3aed;
-  --color-brand-primary-hover: #6d28d9;
-  --color-brand-secondary: #ec4899;
-  --color-brand-accent: #f59e0b;
+  /* Primary color (purple) - replaces blue throughout app */
+  --color-primary-500: #7c3aed;
+  --color-primary-600: #6d28d9;
+  --color-primary-700: #5b21b6;
+  
+  /* Secondary color (pink) - replaces purple throughout app */
+  --color-secondary-500: #ec4899;
+  --color-secondary-600: #db2777;
+  
+  /* Accent color (gold) - replaces green throughout app */
+  --color-accent-500: #f59e0b;
+  --color-accent-600: #d97706;
+  
+  /* Customize other shades (50-950) as needed */
 }
 
 .dark {
-  /* Dark theme */
-  --color-brand-bg: #0f172a;
-  --color-brand-text: #f1f5f9;
-  --color-brand-primary: #8b5cf6;
-  --color-brand-primary-hover: #a78bfa;
-  --color-brand-secondary: #f472b6;
-  --color-brand-accent: #fbbf24;
-}
-
-/* Optional: Apply brand colors to specific elements */
-.brand-button {
-  background-color: var(--color-brand-primary);
-  color: var(--color-brand-bg);
-}
-
-.brand-button:hover {
-  background-color: var(--color-brand-primary-hover);
+  /* Dark mode versions (lighter shades) */
+  --color-primary-500: #8b5cf6;
+  --color-primary-600: #a78bfa;
+  
+  --color-secondary-500: #f472b6;
+  --color-secondary-600: #f9a8d4;
+  
+  --color-accent-500: #fbbf24;
+  --color-accent-600: #fcd34d;
 }
 ```
 
@@ -559,32 +536,28 @@ project/
    cp /path/to/acme-logo.svg public/logos/
    ```
 
-2. **Configure environment:**
+2. **Customize colors:**
    ```bash
-   # Create or edit .env.local
-   cat > .env.local << EOF
-   NEXT_PUBLIC_CUSTOM_LOGO=acme-logo.svg
-   NEXT_PUBLIC_DEFAULT_THEME=dark
-   NEXT_PUBLIC_BRAND_NAME=Acme AI Assistant
-   EOF
+   # Edit styles/globals.css
+   # Change the CSS variable values (see example above)
    ```
 
-3. **Customize colors:**
+3. **Build with Docker:**
    ```bash
-   # Edit tailwind.config.js and styles/globals.css
-   # (Use examples above)
+   docker build \
+     --build-arg NEXT_PUBLIC_CUSTOM_LOGO="acme-logo.svg" \
+     --build-arg NEXT_PUBLIC_DEFAULT_THEME="dark" \
+     --build-arg NEXT_PUBLIC_BRAND_NAME="Acme AI Assistant" \
+     -t acme-ai:latest \
+     .
    ```
 
-4. **Build and test:**
+4. **Run and test:**
    ```bash
-   # Install dependencies
-   npm install
+   # Start container
+   docker run -p 3000:3000 acme-ai:latest
    
-   # Build application
-   npm run build
-   
-   # Start production server
-   npm start
+   # Open browser to http://localhost:3000
    ```
 
 5. **Verify configuration:**

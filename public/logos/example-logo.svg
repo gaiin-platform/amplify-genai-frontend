@@ -9,8 +9,8 @@
      - Recommended for logos to maintain quality across devices
   
   2. DIMENSIONS:
-     - Recommended viewBox: "0 0 150 40" (width x height)
-     - This creates a 150x40 aspect ratio (approximately 3.75:1)
+     - Recommended viewBox: "0 0 200 60" (width x height)
+     - This creates a 200x60 aspect ratio (approximately 3.33:1)
      - The logo component will scale this appropriately
   
   3. DESIGN GUIDELINES:
@@ -40,16 +40,16 @@
   4. Set NEXT_PUBLIC_CUSTOM_LOGO=your-logo-name.svg in .env.local
   5. Place the file in the public/logos/ directory
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 40" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" fill="none">
   <!-- Background rectangle (optional - remove if you want transparent background) -->
-  <rect width="150" height="40" rx="4" fill="#f0f0f0"/>
+  <rect width="200" height="60" rx="6" fill="#f0f0f0"/>
   
   <!-- Example icon/symbol on the left -->
-  <circle cx="20" cy="20" r="12" fill="#3b82f6"/>
-  <path d="M20 14 L20 26 M14 20 L26 20" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="30" cy="30" r="18" fill="#3b82f6"/>
+  <path d="M30 18 L30 42 M18 30 L42 30" stroke="white" stroke-width="3" stroke-linecap="round"/>
   
   <!-- Example company name text -->
-  <text x="40" y="25" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#1f2937">
+  <text x="60" y="38" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="#1f2937">
     Your Brand
   </text>
 </svg>
