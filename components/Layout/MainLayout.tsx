@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import Head from 'next/head';
 import { Theme } from '@/types/settings';
+import { ThemeService } from '@/utils/whiteLabel/themeService';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -32,13 +33,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({
 }) => {
   
   // Apply theme class to document when theme changes
+  // Only apply if not already initialized by _app.tsx to avoid duplicate application
   useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-      document.documentElement.classList.remove('light');
-    } else {
-      document.documentElement.classList.add('light');
-      document.documentElement.classList.remove('dark');
+    if (!document.documentElement.classList.contains('light') && 
+        !document.documentElement.classList.contains('dark')) {
+      ThemeService.applyTheme(theme);
     }
   }, [theme]);
   

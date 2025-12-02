@@ -8,6 +8,7 @@ import { Message } from "@/types/chat";
 import { Artifact, ArtifactBlockDetail } from "@/types/artifacts";
 import toast from "react-hot-toast";
 import React from "react";
+import { getWhiteLabelConfig } from "@/utils/whiteLabel/config";
 
 
   interface Props {
@@ -54,6 +55,12 @@ export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
 
 
     const [isHovered, setIsHovered] = useState <number> (-1);
+    
+    // Get logo source for background image
+    const config = getWhiteLabelConfig();
+    const logoSrc = config.customLogoPath 
+        ? `/logos/${config.customLogoPath}`
+        : '/sparc_apple.png';
 
     if (!artifacts || messageIsStreaming || artifactIsStreaming) return <></>;
 
@@ -115,7 +122,7 @@ export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
                     <div className="flex flex-row items-center min-h-12 flex-wrap">
                         <div
                             className="w-14 h-14 flex-none bg-cover rounded-l-xl text-center overflow-hidden"
-                            style={{backgroundImage: 'url("/sparc_apple.png")'}}
+                            style={{backgroundImage: `url("${logoSrc}")`}}
                             title={artifact.name}>
                         </div>
                         <div className="ml-5 mt-1">
