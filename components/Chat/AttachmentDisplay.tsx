@@ -9,6 +9,7 @@ import { LargeTextBlock, extractNumberFromBracketedText } from '@/utils/app/larg
 import { AttachedDocument } from '@/types/attacheddocument';
 import { Assistant, DEFAULT_ASSISTANT } from '@/types/assistant';
 import { DISPLAY_CONFIG, UI_CONFIG } from '@/constants/largeText';
+import { animate } from '../Loader/LoadingIcon';
 
 interface AttachmentDisplayProps {
   // File attachments
@@ -29,14 +30,6 @@ interface AttachmentDisplayProps {
   onRemoveAssistant?: () => void;
 }
 
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
 
 const LoadingIcon = styled(FiCommand)`
   color: #777777;

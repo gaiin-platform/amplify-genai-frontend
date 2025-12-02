@@ -20,6 +20,7 @@ import { baseAssistantFolder, isBaseFolder, isBasePrompt } from "@/utils/app/bas
 import { Modal } from "../ReusableComponents/Modal";
 import { IconNote } from "@tabler/icons-react";
 import { getUserIdentifier } from "@/utils/app/data";
+import { animate } from "../Loader/LoadingIcon";
 
 export interface ImportModalProps {
     onImport: (importData: ExportFormatV4) => void;
@@ -37,14 +38,6 @@ export interface ImportFetcher {
     (): Promise<{success:boolean, message:string, data: ExportFormatV4|null}>;
 }
 
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
 
 const LoadingIcon = styled(FiCommand)`
   color: lightgray;
