@@ -444,6 +444,18 @@ export const AssistantDriveDataSources: FC<Props> = ({
     }
   }
 
+  // Get list of supported Microsoft services
+  const getSupportedMicrosoftServices = (): Array<'microsoft_drive' | 'microsoft_sharepoint'> => {
+    if (!supportedDriveIntegrations) return [];
+    return supportedDriveIntegrations.filter(
+      integration => integration === 'microsoft_drive' || integration === 'microsoft_sharepoint'
+    ) as Array<'microsoft_drive' | 'microsoft_sharepoint'>;
+  };
+
+  const getServiceDisplayName = (service: 'microsoft_drive' | 'microsoft_sharepoint'): string => {
+    return service === 'microsoft_drive' ? 'OneDrive' : 'SharePoint';
+  };
+
       // Initialize drive rescan schedule from existing scheduled tasks
     useEffect(() => {
         const initializeDriveRescanSchedule = async () => {
@@ -513,49 +525,58 @@ export const AssistantDriveDataSources: FC<Props> = ({
            ]}
           />
 
-        {/* Microsoft Service Selector - shown when Microsoft tab is active */}
-        {selectedIntegration && (selectedIntegration.startsWith('microsoft_')) && (
-          <div className="mb-4 px-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
-              <span className="flex items-center gap-2">
-                Select Service
-              </span>
-              {/* Connection status indicator */}
-              {connectedDriveIntegrations?.includes(selectedMicrosoftService) ? (
-                <span className="ml-auto text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                  Connected
+        {/* Microsoft Service Selector - only shown when multiple services are supported */}
+        {selectedIntegration && (selectedIntegration.startsWith('microsoft_')) && (() => {
+          const supportedMicrosoftServices = getSupportedMicrosoftServices();
+          
+          // If only one service is supported, don't show selector at all
+          if (supportedMicrosoftServices.length <= 1) {
+            return null;
+          }
+          
+          // Multiple services supported - show dropdown
+          return (
+            <div className="mb-4 px-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                <span className="flex items-center gap-2">
+                  Select Service
                 </span>
-              ) : (
-                <span className="ml-auto text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
-                  <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-                  Disconnected
-                </span>
-              )}
-            </label>
-            <div className="relative">
-              <select
-                value={selectedMicrosoftService}
-                onChange={(e) => {
-                  const newService = e.target.value as 'microsoft_drive' | 'microsoft_sharepoint';
-                  setSelectedMicrosoftService(newService);
-                  setSelectedIntegration(newService);
-                }}
-                className="w-full p-2 pl-10 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm cursor-pointer"
-              >
-                <option value="microsoft_drive">
-                  OneDrive 
-                </option>
-                <option value="microsoft_sharepoint">
-                  SharePoint 
-                </option>
-              </select>
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                {translateIntegrationIcon(selectedMicrosoftService)}
+                {/* Connection status indicator */}
+                {connectedDriveIntegrations?.includes(selectedMicrosoftService) ? (
+                  <span className="ml-auto text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                    Connected
+                  </span>
+                ) : (
+                  <span className="ml-auto text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+                    <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                    Disconnected
+                  </span>
+                )}
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedMicrosoftService}
+                  onChange={(e) => {
+                    const newService = e.target.value as 'microsoft_drive' | 'microsoft_sharepoint';
+                    setSelectedMicrosoftService(newService);
+                    setSelectedIntegration(newService);
+                  }}
+                  className="w-full p-2 pl-10 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm cursor-pointer"
+                >
+                  {supportedMicrosoftServices.map(service => (
+                    <option key={service} value={service}>
+                      {getServiceDisplayName(service)}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                  {translateIntegrationIcon(selectedMicrosoftService)}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* File Display */}
         {selectedIntegration && (
