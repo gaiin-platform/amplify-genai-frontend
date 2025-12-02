@@ -5,134 +5,194 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - Dev to Main Release
+## [0.8.1] - 2025-12-01
 
 ### Added
-- **Large Text Block Management**: Comprehensive system for handling large text content with improved UX
-  - Implemented multi-row layout for large text blocks to prevent horizontal overflow
-  - Added 20-block limit for large text blocks with user-friendly notifications
-  - Extended Unicode parenthesized numbers support from 10 to 20 blocks
-  - Added CSV upload functionality with preview and validation
-  - New `LargeTextDisplay`, `LargeTextTabs`, and `ExpandedTextDisplay` components
-  - Added `useLargeTextManager` and `useTextBlockEditor` hooks for state management
 
-- **Workflow Builder Enhancements**: Major improvements to assistant workflow creation
-  - Added AI-powered workflow generation with `WorkflowGeneratorModal`
-  - Implemented visual workflow builder with drag-and-drop interface
-  - Added tool selector components (`ToolSelectorCore`, `ToolSelectorModal`, `ToolSelectorPanel`)
-  - Created step editor for detailed workflow customization
-  - Added smart tag selector for improved workflow organization
+#### Core Features
+- **LaTeX Rendering Support**: Comprehensive LaTeX rendering in chat, artifacts, and standalone assistants with streaming-aware scroll fixes
+  - Prevents LaTeX processing in code blocks to avoid PowerShell variable interference
+  - Improved math display with layout stability
+  - Fixed whitespace issues in standalone agent chat
+  
+- **Visual Workflow Builder**: Complete visual workflow creation system
+  - Initial visual workflow builder implementation
+  - Enhanced search and filtering capabilities
+  - Direct saving functionality with comprehensive fixes
+  - Drag-and-drop interface for workflow steps
+  - AI-powered workflow generation with improved UX and labeling
+  - Multi-select tool picker modal with improved UI consistency
+  
+- **Large Text Block Management**: Advanced handling for large text content
+  - Citation-style placeholder system implementation
+  - Horizontal tab-style display with edit functionality
+  - Multi-row layout to prevent horizontal overflow
+  - 20-block limit with user-friendly notifications
+  - Replace Unicode placeholders with [TEXT_N] format
+  - Fixed multiple placeholder deletion bugs with atomic state updates
+  - Improved edit mode UX and state management
+  
+- **Microsoft SharePoint Integration**: OneDrive and SharePoint support
+  - Service selection for Microsoft data sources
+  - Enhanced UI for service selection in AssistantDriveDataSources
+  
+- **Data Disclosure Viewer**: View data disclosure in settings
+  - Improved button styles for accessibility and visual consistency
+  - Build fixes for proper functionality
+  
+- **File Management Enhancements**:
+  - Multi-select delete with consolidated toast notifications (replaces per-file toast spam)
+  - ZIP file logic integration in file handler
+  - File tags support
+  - Enhanced drag-and-drop and clipboard paste functionality
+  - Embedding status display in file management components
+  - Improved file reprocessing functionality with refactored integration icon handling
 
-- **Sitemap Processing**: Enhanced website data source handling
-  - Implemented sitemap URL selection modal with filtering capabilities
-  - Added sitemap exclusion functionality for better control
-  - Enhanced website URL validation and processing
-  - Added support for unlimited sitemap URL extraction with warnings
+#### Admin Features
+- **User Cost Management**: Seamless auto-loading pagination system
+  - Automatic recursive loading for ALL users
+  - Real-time progress feedback (count, cost, batch number)
+  - "Stop Loading" button for graceful abort
+  - Skeleton loaders for smooth transitions
+  - Progressive rendering as batches arrive
+  - Removed confusing manual "Load More" button and limit selector
+  
+- **CSV Admin Upload**: Comprehensive upload functionality
+  - User validation with detailed feedback
+  - Refactored into reusable component system
+  - Email validation service integration
+  
+- **Enhanced Admin UI**:
+  - Configurations for AI email domain support
+  - User cost management improvements
+  - Rate limiting features
+  - OpenAI endpoints management enhancements
+  - Test endpoints with data transformation for non-completions endpoints
+  
+- **Scheduled Tasks**: Enhanced component with improved logging
+  - Better task log polling and error handling
+  - Task execution logging improvements
 
-- **LaTeX Rendering Improvements**: Major stability and performance enhancements
-  - Implemented aggressive layout-stable LaTeX processing for artifacts
-  - Added enhanced LaTeX components with layout stability
-  - Created specialized `ArtifactLatexBlock` and `LatexBlock` components
-  - Improved math display with estimated dimensions to prevent layout shifts
+#### Performance & Technical Improvements
+- **LZW Data Compression**: Outgoing request body compression
+- **IndexedDB Migration**: Storage refactored from localStorage to IndexedDB
+- **API Optimization**: Updated NO_COMPRESSION_PATHS for:
+  - `/amp`
+  - `/user-data`
+  - `/data-disclosure`
+  - Additional paths for improved request handling
 
-- **API Key Management**: Enhanced security and user experience
-  - Added MTD (Month-to-Date) cost tracking for API keys
-  - Implemented rotation warning system for API keys
-  - Enhanced API key filtering by purpose
-  - Added visual indicators for API key status and costs
-
-- **File Upload Enhancements**: Improved file handling capabilities
-  - Added attachment display component for better file visualization
-  - Enhanced file list functionality with better state management
-  - Improved file upload progress tracking
-  - Added support for various file type handling
-
-- **Integration Improvements**: Better third-party service connections
-  - Added comprehensive integration logos and assets
-  - Enhanced Google and Microsoft service integration
-  - Improved OAuth integration handling
-  - Added integration-specific utilities and helpers
-
-### Enhanced
-- **Assistant Management**: Significant improvements to assistant functionality
-  - Enhanced assistant modal with better data source management
-  - Improved website data source rescanning capabilities
-  - Added assistant path publishing features
-  - Enhanced assistant workflow display and management
-  - Improved assistant configuration options
-
-- **UI/UX Improvements**: Better user interface and experience
-  - Enhanced modal components with better accessibility
-  - Improved responsive design for various screen sizes
-  - Added better loading states and progress indicators
-  - Enhanced color palette selector functionality
-  - Improved sidebar and navigation components
-
-- **Data Source Management**: More robust data handling
-  - Enhanced website URL input with validation
-  - Improved data source table functionality
-  - Added CSV upload configurations and processing
-  - Better error handling and user feedback
+#### UI/UX Enhancements
+- Enhanced Assistant Workflow UI with tooltips and styling improvements
+- Workflow preview display
+- Refactored SmartTagSelector to eliminate code duplication
+- Refactored ToolItem creation with shared factory utilities
+- Refactored step editing with shared component and enhanced dark mode support
+- Enhanced loading indicators with portal and animation
+- Model selector bottom cutoff and jitter fixes during AI streaming
+- Advanced conversation settings UI improvements
+- Improved integration components with proper icons
+- Website URL improvements for assistants
+- Dynamic width adjustment for Artifacts component
+- Enhanced LegacyWorkspace with modal portal and light mode support
+- Fixed star rating rendering in ConversationTable and ConversationPopup
 
 ### Fixed
-- **Text Block Management**: Resolved critical text handling issues
-  - Fixed multiple placeholder deletion bug with atomic state updates
-  - Resolved TypeScript const reassignment error in handleChange
-  - Fixed placeholder expansion while preserving PromptOptimizer improvements
-  - Corrected text block numbering for blocks beyond 10
 
-- **Scheduled Tasks**: Improved reliability and error handling
-  - Enhanced task log polling and error handling
-  - Fixed task creation and management issues
-  - Improved scheduled task status display
+#### Critical Bug Fixes
+- **LaTeX Processing**: Prevented in code blocks to resolve PowerShell variable interference (#176, #167)
+- **Payload Compression**: Removed problematic logic from requestOp API handler
+- **Agent State Handling**: Refactored for better reliability
+- **Account Persistence**: Fixed serialization bugs
+- **Multiple Placeholder Deletion**: Atomic state updates prevent corruption
+- **Text Block Numbering**: Correct numbering for blocks beyond 10
 
-- **LaTeX Processing**: Major stability improvements
-  - Prevented LaTeX processing in code blocks to resolve PowerShell variable interference
-  - Fixed layout shifts during LaTeX rendering
-  - Improved streaming content handling with LaTeX
+#### Component Fixes
+- Standalone assistant functionality improvements
+- Assistant Group Interface button availability and interaction bugs
+- API Keys component rotation warning logic
+- WorkflowGeneratorModal schema requirement compliance
+- Edit mode issues in large text block functionality
+- TypeScript const reassignment errors in handleChange
+- Placeholder expansion while preserving PromptOptimizer improvements
 
-- **Component Stability**: Various bug fixes and improvements
-  - Fixed edit mode issues in large text block functionality
-  - Resolved artifact rendering and streaming issues
-  - Improved component state management
-  - Fixed various TypeScript and React warnings
+#### Build & Development Fixes
+- Multiple build error resolutions
+- Test suite updates (Part 1 and Part 2 completed)
+- Removed console logging from production code
+- Fixed duplicate code across components
 
 ### Changed
-- **Package Dependencies**: Updated core dependencies
-  - Updated various npm packages for security and performance
-  - Enhanced package-lock.json with latest versions
-  - Improved build and development tooling
 
-- **Code Organization**: Better structure and maintainability
-  - Refactored large text handling utilities
-  - Reorganized workflow-related components
-  - Improved utility functions and helpers
-  - Enhanced type definitions and interfaces
+#### Refactoring
+- ToolPicker components renamed to ToolSelector for consistency
+- CSV upload refactored into reusable component system
+- Large text handling code organization improved
+- Email handling refactored in email auto-complete service
+- Integration components refactored with proper icons
+- UserCostModal refactored (removed pricing page)
+- Storage handling migrated to IndexedDB
 
-- **Configuration**: Updated project settings
-  - Enhanced CSV upload configurations
-  - Improved integration constants and settings
-  - Updated color and styling configurations
+#### Configuration Updates
+- Promptbar and Sidebar components made handleCreateFolder optional
+- AssistantModal filters visible data source flags
+- AssistantModal and AssistantPathEditor improved path handling
+- Model pricing feature flag added
+- Enhanced admin configurations
 
-### Removed
-- **Unused Components**: Cleanup and optimization
-  - Removed obsolete pricing page
-  - Cleaned up unused integration types
-  - Removed deprecated utility functions
+#### Dependencies
+- Version bumped to 0.8.1
+- react-syntax-highlighter updated to 15.6.6
+- jimp added for image processing
+- Package-lock updates for security
 
-### Security
-- **API Security**: Enhanced security measures
-  - Improved API key rotation warnings
-  - Enhanced access control for API keys
-  - Better validation for user inputs and file uploads
+### Development
 
-### Performance
-- **Rendering Optimizations**: Improved application performance
-  - Optimized LaTeX rendering to prevent layout thrashing
-  - Enhanced large text block handling for better memory usage
-  - Improved component re-rendering efficiency
-  - Better debouncing and throttling for user interactions
+#### Code Quality
+- Removed duplicate code across multiple components
+- Improved TypeScript compliance and type safety
+- Better error handling throughout application
+- Enhanced component organization
+- Eliminated code duplication in multiple areas
+
+#### Testing
+- Fixed and modified all remaining tests
+- Enhanced test coverage
+- Updated test suite for new features
+
+### Contributors
+- Karely Rodriguez (@dev-karely)
+- Allen Karns
+- seviert / seviert23
+- Jagadeesh Reddy Vanga / jagadeesh-r1
+- Daniel Henricks
+- maxmoundas
+- Charlie.Perkins.20
+
+### Migration Notes
+- Storage has been migrated to IndexedDB - users may need to re-authenticate
+- Some admin endpoints have new data transformation requirements
+- NO_COMPRESSION_PATHS configuration may need updates for custom deployments
 
 ---
 
-**Note**: This release represents a major update with significant improvements to text handling, workflow management, and user experience. Please allow time for data source updates to take effect after saving changes to assistants.
+## [0.8.0] - 2025-08-19
+
+### Added
+- Initial LaTeX feature implementation
+- Gemini thinking/reasoning message support
+- AssistantReasoningMessage component
+- Enhanced admin test endpoints
+
+### Enhanced
+- Agent logs now compressed for better performance
+- Admin UI improvements for user management
+
+### Fixed
+- Various stability and performance improvements
+
+---
+
+**Release Schedule**: Major releases occur when significant feature sets are complete. Patch releases address critical bugs and security issues.
+
+**Support**: This project follows semantic versioning. Breaking changes will only occur in major version updates.
