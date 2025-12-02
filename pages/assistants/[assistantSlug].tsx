@@ -33,6 +33,7 @@ import { getAccounts } from '@/services/accountService';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { getFileDownloadUrl } from '@/services/fileService';
 import { fetchImageFromPresignedUrl } from '@/utils/app/files';
+import { Logo } from '@/components/Logo/Logo';
 
 // Extend the Model type to include isDefault property
 interface Model extends BaseModel {
@@ -726,9 +727,9 @@ const AssistantPage = ({
       >
         <div className="flex h-screen w-screen flex-col text-sm text-black dark:text-white">
           <div className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white">
-            <h1 className="mb-4 text-2xl font-bold">
-              <LoadingIcon />
-            </h1>
+            <div className="mb-8">
+              <Logo width={200} height={60} />
+            </div>
             <button
               onClick={() => signIn('cognito')}
               id="loginButton"
