@@ -6,11 +6,12 @@ import {
     IconSend,
     IconBrain,
     IconBulb,
-    IconScale, 
+    IconScale,
     IconSettingsAutomation,
     IconUpload,
     IconCheck,
-    IconX
+    IconX,
+    IconSearch
 } from '@tabler/icons-react';
 import SaveActionsModal from './SaveActionsModal';
 import {
@@ -77,6 +78,7 @@ import { LargeTextTabs } from '@/components/Chat/LargeTextTabs';
 import { AttachmentDisplay } from '@/components/Chat/AttachmentDisplay';
 import { useLargeTextManager } from '@/hooks/useLargeTextManager';
 import { useTextBlockEditor } from '@/hooks/useTextBlockEditor';
+import { SerpApiModal } from '@/components/Search/SerpApiModal';
 
 
 
@@ -255,12 +257,18 @@ export const ChatInput = ({
     // Show Ops popup toggle state
     const [showOpsPopup, setShowOpsPopup] = useState(false);
     const [editingAction, setEditingAction] = useState<{
-        name: string; 
+        name: string;
         customName?: string;
         customDescription?: string;
         index: number;
         parameters?: OpBindings;
     } | null>(null);
+
+    // SerpApi search state
+    const [isSerpApiEnabled, setIsSerpApiEnabled] = useState(false);
+    const [serpApiLoading, setSerpApiLoading] = useState(false);
+    const [showSerpApiModal, setShowSerpApiModal] = useState(false);
+    const [serpApiQuery, setSerpApiQuery] = useState<string>('');
     
     // Action set modal states
     const [showSaveActionsModal, setShowSaveActionsModal] = useState(false);
@@ -1546,7 +1554,6 @@ export const ChatInput = ({
                             />
                         </div>}
 
-                        
                         { featureFlags.actionSets && 
                         <>
                         {/* Add Action button toggles the operations popup */}
@@ -1613,6 +1620,25 @@ export const ChatInput = ({
                                 </div>
                             )}
                         </div>
+                        {/* SerpApi Google Search Button */}
+                        <button
+                            className={`chat-input-button rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200 ${
+                                isSerpApiEnabled ? 'bg-blue-200 dark:bg-blue-800' : ''
+                            }`}
+                            id="toggleSerpApi"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (!isSerpApiEnabled) {
+                                    setShowSerpApiModal(true);
+                                } else {
+                                    setIsSerpApiEnabled(false);
+                                    setSerpApiQuery('');
+                                }
+                            }}
+                            title={isSerpApiEnabled ? `Disable Google Search: "${serpApiQuery}"` : "Enable Google Search (SerpApi)"}
+                        >
+                            <IconSearch size={20} className={serpApiLoading ? 'animate-pulse' : ''} />
+                        </button>
                         {/*<div className='flex flex-row gap-2'>
                          {featureFlags.memory && projects.length > 0  &&
                         // settingRef.current.featureOptions.includeMemory &&
@@ -1706,6 +1732,19 @@ export const ChatInput = ({
                         setShowSaveActionsModal(false);
                     }}
                     onCancel={() => setShowSaveActionsModal(false)}
+                />
+            )}
+
+            {/* SerpApi Modal */}
+            {showSerpApiModal && (
+                <SerpApiModal
+                    initialQuery={serpApiQuery}
+                    onSubmit={(query) => {
+                        setSerpApiQuery(query);
+                        setIsSerpApiEnabled(true);
+                        setShowSerpApiModal(false);
+                    }}
+                    onClose={() => setShowSerpApiModal(false)}
                 />
             )}
         </>
