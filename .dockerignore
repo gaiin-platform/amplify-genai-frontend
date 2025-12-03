@@ -2,3 +2,36 @@
 .env.local
 node_modules
 test-results
+
+# Test files and directories
+__tests__
+tests
+*.test.ts
+*.test.tsx
+*.test.js
+*.test.jsx
+*.spec.ts
+*.spec.tsx
+*.spec.js
+*.spec.jsx
+vitest.config.ts
+.vitest
+
+# Development and IDE files
+.kiro
+.vscode
+.idea
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Documentation (optional - remove if you want docs in container)
+# docs
+
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# CI/CD files
+.github

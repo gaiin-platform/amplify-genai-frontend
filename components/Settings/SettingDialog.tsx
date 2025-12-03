@@ -7,6 +7,7 @@ import { featureOptionFlags, getSettings, saveSettings } from '@/utils/app/setti
 import { Settings, Theme } from '@/types/settings';
 
 import HomeContext from '@/pages/api/home/home.context';
+import { ThemeService } from '@/utils/whiteLabel/themeService';
 import React from 'react';
 import { ConversationsStorage } from './ConversationStorage';
 import FlagsMap, { Flag } from '../ReusableComponents/FlagsMap';
@@ -189,7 +190,10 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
         return;
     }
 
-    if (theme !== initSettingsRef.current?.theme) statsService.setThemeEvent(theme);
+    if (theme !== initSettingsRef.current?.theme) {
+      statsService.setThemeEvent(theme);
+      ThemeService.setTheme(theme); // Persist theme preference
+    }
     homeDispatch({ field: 'lightMode', value: theme });
 
     const updatedSettings: Settings = { theme: theme, 

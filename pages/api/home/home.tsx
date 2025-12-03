@@ -93,6 +93,8 @@ import { useRouter } from 'next/router';
 import { AdminConfigTypes } from '@/types/admin';
 import { ConversationStorage } from '@/types/conversationStorage';
 import UserMenu from '@/components/Layout/UserMenu';
+import { Logo } from '@/components/Logo/Logo';
+import { ThemeService } from '@/utils/whiteLabel/themeService';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -198,6 +200,14 @@ const Home = ({
         featureFlagsRef.current = featureFlags;
         window.dispatchEvent(new Event('updateFeatureSettings'));
     }, [featureFlags]);
+
+    // Initialize theme from ThemeService on mount
+    useEffect(() => {
+        const initialTheme = ThemeService.getInitialTheme();
+        if (initialTheme !== lightMode) {
+            dispatch({ field: 'lightMode', value: initialTheme });
+        }
+    }, []); // Run once on mount
 
     const [settings, setSettings] = useState<Settings>();
 
@@ -831,8 +841,14 @@ const Home = ({
             try {
                 const result = await fetchUserSettings();
                 if (result.success) {
-                    if (result.data) { 
-                        saveSettings(result.data as Settings);
+                    if (result.data) {
+                        const serverSettings = result.data as Settings;
+                        
+                        // Preserve local theme preference - don't let server override it
+                        const localTheme = ThemeService.getInitialTheme();
+                        serverSettings.theme = localTheme;
+                        
+                        saveSettings(serverSettings);
                         window.dispatchEvent(new Event('updateFeatureSettings'));
                     }
                 } else {
@@ -1108,12 +1124,18 @@ const Home = ({
             const settings = getSettings(featureFlags);
             setSettings(settings);
 
-            if (settings.theme) {
-                dispatch({
-                    field: 'lightMode',
-                    value: settings.theme,
-                });
+            // Use ThemeService as the source of truth for theme
+            const initialTheme = ThemeService.getInitialTheme();
+            if (settings.theme !== initialTheme) {
+                // Update settings to match ThemeService
+                settings.theme = initialTheme;
+                saveSettings(settings);
             }
+            
+            dispatch({
+                field: 'lightMode',
+                value: initialTheme,
+            });
 
             // will save us the call if a user does not have workspaces 
             const savedWorkspaces = await storageGet('workspaces');
@@ -1527,9 +1549,9 @@ const Home = ({
                 style={{backgroundColor: lightMode === 'dark' ? 'black' : 'white'}}>
                 <div
                     className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white">
-                    <h1 className="mb-4 text-2xl font-bold">
-                        <LoadingIcon />
-                    </h1>
+                    <div className="mb-8">
+                        <Logo width={200} height={60} />
+                    </div>
                     <button
                         onClick={() => signIn('cognito')}
                         id="loginButton"
