@@ -164,7 +164,7 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                         <a href="#"
                             className={pageClasses(key)}
                             onClick={swapPage(key)}>
-                            <div className="group flex flex-row items-center pointer">
+                            <div className="group flex flex-row items-center pointer shrink-0">
                                 <div>
                                     {translateIntegrationIcon(key)}
                                 </div>

@@ -1,16 +1,17 @@
 import React, {FC, useContext, useEffect, useState} from 'react';
-import { IconCircleX, IconCheck, IconWorld, IconSitemap, IconRefresh } from '@tabler/icons-react';
+import { IconCircleX, IconCheck, IconWorld, IconSitemap, IconReload } from '@tabler/icons-react';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import Search from '../Search';
-import { embeddingDocumentStaus } from '@/services/adminService';
-import { extractKey, getDocumentStatusConfig, startFileReprocessingWithPolling } from '@/utils/app/files';
+import { embeddingDocumentStatus } from '@/services/adminService';
+import { extractKey, getDocumentStatusConfig, shouldShowReprocessButton, isRecentlyReprocessed, startFileReprocessingWithPolling } from '@/utils/app/files';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
 import { IMAGE_FILE_TYPES } from '@/utils/app/const';
 import HomeContext from '@/pages/api/home/home.context';
+import { animate } from '../Loader/LoadingIcon';
 
 interface Props {
     documents:AttachedDocument[]|undefined;
@@ -21,14 +22,6 @@ interface Props {
 }
 
 
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
 
 const LoadingIcon = styled(FiCommand)`
   color: #777777;
@@ -188,7 +181,7 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
     const [dataSources, setDataSources] = useState<AttachedDocument[]>(documents ?? []);
     const [hovered, setHovered] = useState<string>('');
     const [expandedSitemaps, setExpandedSitemaps] = useState<Set<string>>(new Set());
-    const [embeddingStatus, setEmbeddingStatus] = useState<{[key: string]: string} | null >(null);
+    const [embeddingStatus, setEmbeddingStatus] = useState<{[key: string]: string} & { metadata?: {[key: string]: any}} | null >(null);
     const [pollingFiles, setPollingFiles] = useState<Set<string>>(new Set());
 
     useEffect(() => {
@@ -214,13 +207,15 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
 
                 // Make concurrent calls for each chunk
                 const statusPromises = chunks.map(chunk => 
-                    embeddingDocumentStaus(chunk)
+                    embeddingDocumentStatus(chunk)
                         .then(response => {
                             if (response?.success && response?.data) {
                                 // Merge results into existing state as they come in
                                 setEmbeddingStatus(prevStatus => ({
                                     ...prevStatus,
-                                    ...response.data
+                                    ...response.data,
+                                    // Include metadata if available
+                                    ...(response.metadata && { metadata: { ...prevStatus?.metadata, ...response.metadata } })
                                 }));
                             }
                             return response;
@@ -288,9 +283,18 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
         if (IMAGE_FILE_TYPES.includes(doc.type)) return null;
         
         const key = extractKey(doc);
+        const status = embeddingStatus?.[key];
+        const metadata = embeddingStatus?.metadata?.[key];
+        const createdAt = doc.metadata?.createdAt || new Date().toISOString();
         
-        if (pollingFiles.has(key)) {
+        // Show loader if recently reprocessed (within last 5 minutes) or currently polling
+        if (isRecentlyReprocessed(createdAt, status || 'unknown', metadata) || pollingFiles.has(key)) {
             return <LoadingIcon style={{ width: "16px", height: "16px", color: lightMode === 'dark' ? 'white' : 'gray'}} />;
+        }
+        
+        // Show reprocess button if conditions are met
+        if (!shouldShowReprocessButton(createdAt, status || 'unknown', metadata)) {
+            return null;
         }
         
         return (
@@ -304,7 +308,7 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                 }
             }}
         > 
-            <IconRefresh size={16} />
+            <IconReload size={16} />
         </ActionButton>)
 
     }
@@ -386,9 +390,10 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                         {document && embeddingStatus && (
                             <StatusBadge 
                                 status={embeddingStatus[extractKey(document)]} 
+                                metadata={embeddingStatus?.metadata?.[extractKey(document)]}
                             />
                         )}
-                        {document && embeddingStatus && embeddingStatus[extractKey(document)] && embeddingStatus[extractKey(document)] !== 'completed' && (
+                        {document && embeddingStatus && embeddingStatus[extractKey(document)] && (
                            reprocessButton(document)
                         )}
                     </div>}
@@ -438,8 +443,9 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                 <div className="flex-shrink-0 px-4 flex items-center gap-1">
                     {embeddingStatus && <StatusBadge 
                         status={embeddingStatus[extractKey(document)]} 
+                        metadata={embeddingStatus?.metadata?.[extractKey(document)]}
                     />}
-                    {embeddingStatus && embeddingStatus[extractKey(document)] && embeddingStatus[extractKey(document)] !== 'completed' && (
+                    {embeddingStatus && embeddingStatus[extractKey(document)] && (
                         reprocessButton(document)
                     )}
                 </div>}
@@ -559,16 +565,40 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
 
 
     // Status badge component  
-export const StatusBadge: FC<{ status: string | null | undefined}> = ({ status }) => {
+export const StatusBadge: FC<{ status: string | null | undefined, metadata?: {[key: string]: any}}> = ({ status, metadata }) => {
     if (!status) return null;
     
     const config = getDocumentStatusConfig(status);
     if (!config) return null;
     
+    let tooltipText = config.text;
+    
+    // Add metadata details to tooltip if available
+    if (metadata) {
+        const details = [];
+        if (metadata.failedChunks !== undefined && metadata.totalChunks !== undefined) {
+            details.push(`${metadata.failedChunks}/${metadata.totalChunks} chunks failed`);
+        }
+        if (metadata.lastUpdated) {
+            details.push(`Updated: ${new Date(metadata.lastUpdated).toLocaleString()}`);
+        }
+        if (details.length > 0) {
+            tooltipText += `\n${details.join('\n')}`;
+        }
+    }
+    
     return (
         <div className="inline-block min-w-[60px] text-right">
-                <span className={`${config.color} text-xs px-1.5 py-0.5 rounded font-normal whitespace-nowrap`}>
+                <span 
+                    className={`${config.color} text-xs px-1.5 py-0.5 rounded font-normal whitespace-nowrap`}
+                    title={tooltipText}
+                >
                     {config.text}
+                    {metadata?.failedChunks !== undefined && metadata?.totalChunks !== undefined && (
+                        <span className="ml-1 text-xs opacity-75">
+                            ({metadata.failedChunks}/{metadata.totalChunks})
+                        </span>
+                    )}
                 </span>
         </div>
     );

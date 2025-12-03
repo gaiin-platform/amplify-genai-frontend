@@ -1,5 +1,5 @@
 import React, {FC, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
-import {IconDownload, IconRefresh, IconTrash, IconLoader2, IconCheck, IconX} from "@tabler/icons-react";
+import {IconDownload, IconTrash, IconLoader2, IconCheck, IconX, IconReload, IconRefresh} from "@tabler/icons-react";
 import toast from 'react-hot-toast';
 import {Checkbox} from '@/components/ReusableComponents/CheckBox';
 import {
@@ -17,14 +17,15 @@ import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags} from "@/service
 import {TagsList} from "@/components/Chat/TagsList";
 import {DataSource} from "@/types/chat";
 import { v4 as uuidv4 } from 'uuid';
-import { deleteDatasourceFile, downloadDataSourceFile, extractKey, getDocumentStatusConfig, startFileReprocessingWithPolling } from '@/utils/app/files';
+import { deleteDatasourceFile, downloadDataSourceFile, extractKey, getDocumentStatusConfig, getFileAction, startFileReprocessingWithPolling, startFileStatusPolling } from '@/utils/app/files';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
 import { IMAGE_FILE_TYPES } from '@/utils/app/const';
-import { embeddingDocumentStaus } from '@/services/adminService';
+import { embeddingDocumentStatus } from '@/services/adminService';
 import { capitalize } from '@/utils/app/data';
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
+import { animate } from '../Loader/LoadingIcon';
 
 
 interface Props {
@@ -35,14 +36,6 @@ interface Props {
     height?: string;
 }
 
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
 
 const LoadingIcon = styled(FiCommand)`
   color: #777777;
@@ -94,7 +87,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
     const tableContainerRef = useRef<HTMLDivElement>(null);
     
     // Embedding status state
-    const [embeddingStatus, setEmbeddingStatus] = useState<{[key: string]: string} | null>(null);
+    const [embeddingStatus, setEmbeddingStatus] = useState<{[key: string]: string} & { metadata?: {[key: string]: any}} | null>(null);
     const [isLoadingStatus, setIsLoadingStatus] = useState(false);
     // Cache to track which files have had their status fetched
     const fetchedStatusKeys = useRef<Set<string>>(new Set());
@@ -127,10 +120,12 @@ const DataSourcesTableScrolling: FC<Props> = ({
             setIsLoading(true);
 
             let existingData = data;
+            let currentPageKeys = pageKeys;
 
             const globalFilterQuery = globalFilter ? globalFilter : null;
 
             if (globalFilterQuery) {
+                currentPageKeys = [];
                 setPageKeys([]); //reset page keys if global filter is set
                 setLastPageIndex(0);
                 existingData = [];
@@ -140,6 +135,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 : 'createdAt#desc';
 
             if (sortingKey !== prevSorting) {
+                currentPageKeys = [];
                 setPageKeys([]); //reset page keys if sorting changes
                 setLastPageIndex(0);
                 setPrevSorting(sortingKey);
@@ -147,6 +143,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
             }
 
             if (columnFilters !== previousColumnFilters) {
+                currentPageKeys = [];
                 setPageKeys([]); //reset page keys if column filters change
                 setLastPageIndex(0);
                 setPreviousColumnFilters(columnFilters);
@@ -156,7 +153,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
             let sortIndex = 'createdAt'
 
             const pageKeyIndex = pagination.pageIndex - 1;
-            const pageKey = pageKeyIndex >= 0 ? pageKeys[pageKeyIndex] : null;
+            const pageKey = pageKeyIndex >= 0 ? currentPageKeys[pageKeyIndex] : null;
             let forwardScan =
                 ((lastPageIndex < pagination.pageIndex) || !pageKey) ? false : true;
 
@@ -221,12 +218,16 @@ const DataSourcesTableScrolling: FC<Props> = ({
             const result = await queryUserFiles(
                 query, null);
 
-            if (!result.success) {
+            if (!result.success || !result.data) {
                 setIsError(true);
+                setIsLoading(false);
+                setIsRefetching(false);
+                return;
             }
+            
             // dont show assistant icons in the data source table
-            const items = result.data?.items;
-            const updatedWithCommonNames = items?.map((file: any) => {
+            const items = result.data.items || [];
+            const updatedWithCommonNames = items.map((file: any) => {
                 const commonName = mimeTypeToCommonName[file.type];
                 return {
                     ...file,
@@ -235,12 +236,13 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 };
             });
 
-            if ((pageKeyIndex >= pageKeys.length - 1 || pageKeys.length === 0) && result.data.pageKey) {
-                setPageKeys([...pageKeys, result.data.pageKey]);
+            if ((pageKeyIndex >= currentPageKeys.length - 1 || currentPageKeys.length === 0) && result.data.pageKey) {
+                const updatedPageKeys = [...currentPageKeys, result.data.pageKey];
+                setPageKeys(updatedPageKeys);
                 setHasMoreData(true);
             }
 
-            setHasMoreData(result.data.pageKey !== null && result.data.items.length === pagination.pageSize);
+            setHasMoreData(result.data.pageKey !== null && items.length === pagination.pageSize);
 
             setData([...existingData, ...updatedWithCommonNames]);
 
@@ -347,14 +349,16 @@ const DataSourcesTableScrolling: FC<Props> = ({
 
                 // Make concurrent calls for each chunk
                 const statusPromises = chunks.map(chunk => 
-                    embeddingDocumentStaus(chunk)
+                    embeddingDocumentStatus(chunk)
                         .then(response => {
                             if (response?.success && response?.data) {
                                 // Merge results into existing state as they come in
                                 setEmbeddingStatus(prevStatus => {
                                     const newStatus = {
                                         ...prevStatus,
-                                        ...response.data
+                                        ...response.data,
+                                        // Include metadata if available
+                                        ...(response.metadata && { metadata: { ...prevStatus?.metadata, ...response.metadata } })
                                     };
                                     
                                     // Mark these keys as fetched AFTER state update
@@ -647,30 +651,88 @@ const DataSourcesTableScrolling: FC<Props> = ({
                         return null;
                     }
 
+                    const metadata = embeddingStatus?.metadata?.[key];
+                    let tooltipText = capitalize(config.text);
+                    
+                    // Add metadata details to tooltip if available
+                    if (metadata) {
+                        const details = [];
+                        if (metadata.failedChunks !== undefined && metadata.totalChunks !== undefined) {
+                            details.push(`${metadata.failedChunks}/${metadata.totalChunks} chunks failed`);
+                        }
+                        if (metadata.lastUpdated) {
+                            details.push(`Updated: ${new Date(metadata.lastUpdated).toLocaleString()}`);
+                        }
+                        if (details.length > 0) {
+                            tooltipText += `\n${details.join('\n')}`;
+                        }
+                    }
+
                     return (
                         <div className="flex items-center justify-start gap-2">
-                            <span className={`${config.color} text-xs px-1.5 py-0.5 rounded font-normal whitespace-nowrap`}>
+                            <span 
+                                className={`${config.color} text-xs px-1.5 py-0.5 rounded font-normal whitespace-nowrap`}
+                                title={tooltipText}
+                            >
                                 {capitalize(config.text)}
+                                {metadata?.failedChunks !== undefined && metadata?.totalChunks !== undefined && (
+                                    <span className="ml-1 text-xs opacity-75">
+                                        ({metadata.failedChunks}/{metadata.totalChunks})
+                                    </span>
+                                )}
                             </span>
-                            {/* Show refresh button for non-completed, non-image files */}
-                            {status !== 'completed' && !IMAGE_FILE_TYPES.includes(fileType) && (
-                                pollingFiles.has(cell.row.original.id) ? (
-                                    <LoadingIcon style={{ width: "18px", height: "18px" }} />
-                                ) : (
-                                    <ActionButton
-                                        title='Regenerate text extraction and embeddings for this file.'
-                                        handleClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            if (confirm("Are you sure you want to regenerate the text extraction and embeddings for this file?")) {
-                                                fileReprocessing(cell.row.original.id);
-                                            }
-                                        }}
-                                    > 
-                                        <IconRefresh size={16} />
-                                    </ActionButton>
-                                )
-                            )}
+                            {/* Show loader if actively polling, or action button based on status/time */}
+                            {!IMAGE_FILE_TYPES.includes(fileType) && (() => {
+                                // Show spinner if actively polling this file
+                                if (pollingFiles.has(cell.row.original.id)) {
+                                    return <LoadingIcon style={{ width: "18px", height: "18px" }} />;
+                                }
+                                
+                                // Determine which action to show
+                                const action = getFileAction(cell.row.original.createdAt, status, metadata);
+                                
+                                if (action === 'refresh') {
+                                    // Within 5 min: Show refresh button (check status + start polling)
+                                    return (
+                                        <ActionButton
+                                            title='Check status update - file may still be processing'
+                                            handleClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                startFileStatusPolling({
+                                                    key: extractKey(cell.row.original),
+                                                    fileType: cell.row.original.type,
+                                                    setPollingFiles,
+                                                    setEmbeddingStatus
+                                                });
+                                            }}
+                                        >
+                                            <IconRefresh size={16} className="text-blue-500" />
+                                        </ActionButton>
+                                    );
+                                }
+                                
+                                if (action === 'reprocess') {
+                                    // After 5 min or failed: Show reprocess button
+                                    return (
+                                        <ActionButton
+                                            title='Regenerate text extraction and embeddings for this file.'
+                                            handleClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                if (confirm("Are you sure you want to regenerate the text extraction and embeddings for this file?")) {
+                                                    fileReprocessing(cell.row.original.id);
+                                                }
+                                            }}
+                                        >
+                                            <IconReload size={16} />
+                                        </ActionButton>
+                                    );
+                                }
+                                
+                                // Completed files: show nothing
+                                return null;
+                            })()}
                         </div>
                     );
                 },
