@@ -9,7 +9,9 @@ export const getSettings = (featureFlags:any): Settings => {
   let settings: Settings = {
     theme: ThemeService.getInitialTheme(), // Use ThemeService instead of hardcoded 'dark'
     featureOptions: featureOptionDefaults(featureFlags),
-    hiddenModelIds: []
+    hiddenModelIds: [],
+    chatColorPalette: 'warm-browns',
+    avatarColorTone: 'userPrimary'
   };
   const settingsJson = localStorage.getItem(STORAGE_KEY);
   if (settingsJson) {

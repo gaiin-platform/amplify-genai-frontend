@@ -64,9 +64,10 @@ export const COLOR_PALETTES: ColorPalette[] = [
 interface ColorPaletteSelectorProps {
   onPaletteChange?: (paletteId: string) => void;
   onToneCycle?: (paletteId: string) => void;
+  currentPalette?: string;
 }
 
-export const ColorPaletteSelector: React.FC<ColorPaletteSelectorProps> = ({ onPaletteChange, onToneCycle }) => {
+export const ColorPaletteSelector: React.FC<ColorPaletteSelectorProps> = ({ onPaletteChange, onToneCycle, currentPalette }) => {
   const [selectedPalette, setSelectedPalette] = useState('warm-browns');
 
   useEffect(() => {
@@ -77,6 +78,13 @@ export const ColorPaletteSelector: React.FC<ColorPaletteSelectorProps> = ({ onPa
       applyChatPalette(savedPalette);
     }
   }, []);
+
+  // Update selected palette when prop changes (from parent)
+  useEffect(() => {
+    if (currentPalette && currentPalette !== selectedPalette) {
+      setSelectedPalette(currentPalette);
+    }
+  }, [currentPalette]);
 
   const applyChatPalette = (paletteId: string) => {
     document.body.setAttribute('data-chat-palette', paletteId);
