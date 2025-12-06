@@ -23,6 +23,7 @@ import { IntegrationsTab } from "./AdminComponents/Integrations";
 import { EmbeddingsTab } from "./AdminComponents/Embeddings";
 import { OpsTab } from "./AdminComponents/Ops";
 import { Pptx_TEMPLATES, Ast_Group_Data, FeatureDataTab, } from "./AdminComponents/FeatureData";
+import { CriticalErrorTrackingTab } from "./AdminComponents/Critical_Error_Tracking";
 import { ConversationStorage } from "@/types/conversationStorage";
 
 
@@ -66,6 +67,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [rateLimit, setRateLimit] = useState<{period: PeriodType, rate: string}>({...noRateLimit, rate: '0'});
     const [promptCostAlert, setPromptCostAlert] = useState<PromptCostAlert>({isActive:false, alertMessage: '', cost: 0});
     const [emailSupport, setEmailSupport] = useState<EmailSupport>({isActive:false, email:''});
+    const [criticalErrorsConfig, setCriticalErrorsConfig] = useState<CriticalErrorsConfig>({isActive:false, email:''});
     const [aiEmailDomain, setAiEmailDomain] = useState<string>('');
 
     const [defaultConversationStorage, setDefaultConversationStorage] = useState<ConversationStorage>('future-local');
@@ -157,6 +159,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 setPromptCostAlert(data[AdminConfigTypes.PROMPT_COST_ALERT || promptCostAlert]);
                 setDefaultConversationStorage(data[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE] || defaultConversationStorage);
                 setEmailSupport(data[AdminConfigTypes.EMAIL_SUPPORT || emailSupport]);
+                setCriticalErrorsConfig(data[AdminConfigTypes.CRITICAL_ERRORS] || criticalErrorsConfig);
                 setAiEmailDomain(data[AdminConfigTypes.AI_EMAIL_DOMAIN] || aiEmailDomain);
                 setDefaultModels(data[AdminConfigTypes.DEFAULT_MODELS] || {});
                 setLoadingMessage("");
@@ -226,6 +229,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return defaultConversationStorage;
             case AdminConfigTypes.EMAIL_SUPPORT:
                 return emailSupport;
+            case AdminConfigTypes.CRITICAL_ERRORS:
+                // Only send fields the backend expects, exclude subscription_status (read-only)
+                const isActive = Boolean(criticalErrorsConfig.isActive);
+                return {
+                    isActive,
+                    email: isActive ? String(criticalErrorsConfig.email || "") : ""
+                };
             case AdminConfigTypes.AI_EMAIL_DOMAIN:
                 return aiEmailDomain;
             case AdminConfigTypes.APP_SECRETS:
@@ -435,6 +445,11 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
         if (emailSupport.isActive && !emailSupport.email) {
             alert("The Support Email feature cannot be activated without providing an email address. Please add an email address or disable the feature.");
+            return false;
+        }
+
+        if (criticalErrorsConfig.isActive && !criticalErrorsConfig.email) {
+            alert("Critical Error Notifications cannot be activated without providing an email address. Please add an email address or disable the feature.");
             return false;
         }
         return true;
@@ -789,6 +804,19 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             },
 
             ///////////////////////////////////////////////////////////////////////////////
+            // Critical Error Tracking
+
+            { label: tabTitle('Critical Errors'),
+                content:
+                <CriticalErrorTrackingTab
+                    stillLoadingData={stillLoadingData}
+                    criticalErrorsConfig={criticalErrorsConfig}
+                    setCriticalErrorsConfig={setCriticalErrorsConfig}
+                    updateUnsavedConfigs={updateUnsavedConfigs}
+                />
+            },
+
+            ///////////////////////////////////////////////////////////////////////////////
   
             // Integrations Tab - only included if included in the feature flags list
             ...(integrations ? 
@@ -805,6 +833,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     />
                 }
                 ] : []),
+
 
         ]
         }
@@ -999,4 +1028,14 @@ export interface PromptCostAlert {
 export interface EmailSupport {
     isActive: boolean;
     email: string;
+}
+
+export interface CriticalErrorsConfig {
+    isActive: boolean;
+    email: string;
+    subscription_status?: {
+        status: 'confirmed' | 'pending' | 'not_subscribed' | 'error';
+        subscription_arn: string | null;
+        message: string;
+    };
 }
