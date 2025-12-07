@@ -806,7 +806,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             ///////////////////////////////////////////////////////////////////////////////
             // Critical Error Tracking
 
-            { label: tabTitle('Critical Errors'),
+            ...( featureFlags.criticalErrorTracking || features.criticalErrorTracking?.enabled
+                ? [{ label: tabTitle('Critical Errors'),
                 content:
                 <CriticalErrorTrackingTab
                     stillLoadingData={stillLoadingData}
@@ -814,7 +815,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     setCriticalErrorsConfig={setCriticalErrorsConfig}
                     updateUnsavedConfigs={updateUnsavedConfigs}
                 />
-            },
+            }] : []),
 
             ///////////////////////////////////////////////////////////////////////////////
   
