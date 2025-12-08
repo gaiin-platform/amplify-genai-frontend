@@ -430,12 +430,12 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
         setShareWith([]);
     }
 
-    const handleDownloadArtifact = () => {
+    const handleDownloadArtifact = async () => {
         statsService.downloadArtifactEvent();
         setIsLoading('Downloading Artifact...');
         const artifact = selectArtifactList[versionIndex];
         const artifactContent = getArtifactContents();
-        downloadArtifacts(artifact.name.replace(/\s+/g, '_'), artifactContent, codeBlocks);
+        await downloadArtifacts(artifact.name.replace(/\s+/g, '_'), artifactContent, codeBlocks);
         setIsLoading('');
 
     }
