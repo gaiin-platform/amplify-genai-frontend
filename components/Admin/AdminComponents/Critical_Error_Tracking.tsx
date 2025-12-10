@@ -233,7 +233,7 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
                 <div className="admin-style-settings-card-header">
                     <h3 className="admin-style-settings-card-title flex items-center gap-2"><IconMailExclamation size={24} /> Email Notifications</h3>
                     <p className="admin-style-settings-card-description">
-                        Configure email notifications for critical errors. When enabled, you'll receive instant alerts whenever a new critical error is logged.
+                        {"Configure email notifications for critical errors. When enabled, you'll receive instant alerts whenever a new critical error is logged."}
                     </p>
                 </div>
                 
@@ -285,7 +285,7 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
                                     <IconAlertTriangle size={18} className="flex-shrink-0" />
                                     <div className="flex flex-col">
                                         <span className="font-medium">⚠️ Not Subscribed</span>
-                                        <span className="text-yellow-600/80 dark:text-yellow-400/80">Click "Save Changes" to subscribe this email to notifications.</span>
+                                        <span className="text-yellow-600/80 dark:text-yellow-400/80">{'Click "Save Changes" to subscribe this email to notifications.'}</span>
                                     </div>
                                 </div>
                             )}
@@ -302,7 +302,7 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
                     )}
                     {criticalErrorsConfig.isActive && !criticalErrorsConfig.subscription_status && (
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                            💡 After saving, you'll receive a confirmation email from AWS SNS. You must confirm the subscription to start receiving notifications.
+                            {"💡 After saving, you\'ll receive a confirmation email from AWS SNS. You must confirm the subscription to start receiving notifications."}
                         </p>
                     )}
                 </div>
