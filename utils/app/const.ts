@@ -14,6 +14,10 @@ export const IMAGE_FILE_EXTENSIONS = ["jpg","png", "gif", "jpeg", "webp"];
 
 export const IMAGE_FILE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
+// Threshold for massive documents (2000+ pages = ~500,000 tokens)
+// Using 400,000 tokens to catch documents approaching the 2000-page mark
+export const MASSIVE_DOCUMENT_TOKEN_THRESHOLD = 400000;
+
 export const DEFAULT_TEMPERATURE = 1;
 
 

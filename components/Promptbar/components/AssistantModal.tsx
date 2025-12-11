@@ -2,7 +2,7 @@ import {FC, useContext, ReactElement, useEffect, useRef, useState} from 'react';
 import HomeContext from '@/pages/api/home/home.context';
 import {useTranslation} from 'next-i18next';
 import {Prompt} from '@/types/prompt';
-import {COMMON_DISALLOWED_FILE_EXTENSIONS} from "@/utils/app/const";
+import {COMMON_DISALLOWED_FILE_EXTENSIONS, MASSIVE_DOCUMENT_TOKEN_THRESHOLD} from "@/utils/app/const";
 import {ExistingFileList, FileList} from "@/components/Chat/FileList";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
@@ -1266,6 +1266,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             onSetKey={onSetKey}
                                             onUploadProgress={onUploadProgress}
                                             disableRag={false}
+                                            props={{type: 'assistant-document', context: 'assistant'}}
                                 />
                             </div>
                             <FileList documents={dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)) && !isWebsiteDs(ds))} documentStates={documentState}
@@ -1287,6 +1288,14 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                             minWidth="500px"
                                             onDataSourceSelected={(d) => {
+                                                // 🔥 [PART 4] Block massive files from being selected for assistants
+                                                const totalTokens = d.metadata?.totalTokens;
+                                                if (totalTokens && totalTokens >= MASSIVE_DOCUMENT_TOKEN_THRESHOLD) {
+                                                    console.log(`[ASSISTANT BLOCK] Rejecting massive file "${d.name}" from DataSourceSelector - ${totalTokens} tokens exceeds threshold of ${MASSIVE_DOCUMENT_TOKEN_THRESHOLD}`);
+                                                    alert(`This file is too large to attach to an assistant. Files must be under ${MASSIVE_DOCUMENT_TOKEN_THRESHOLD.toLocaleString()} tokens.\n\n"${d.name}" has ${totalTokens.toLocaleString()} tokens and cannot be used with assistants.`);
+                                                    return; // Don't add the data source
+                                                }
+
                                                 const doc = {
                                                     id: d.id,
                                                     name: d.name || "",
@@ -1295,13 +1304,14 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                     data: "",
                                                     metadata: d.metadata,
                                                 };
+                                                console.log(`[ASSISTANT ATTACH] Adding file "${d.name}" to assistant (${totalTokens || 'unknown'} tokens)`);
                                                 setDataSources([...dataSources, doc as any]);
                                                 setDocumentState({...documentState, [d.id]: 100});
                                             }}
                                             onClose={() =>  setShowDataSourceSelector(false)}
-                                            onIntegrationDataSourceSelected={featureFlags.integrations ? 
-                                                (file: File) => { handleFile(file, onAttach, onUploadProgress, onSetKey, onSetMetadata, 
-                                                                  () => {}, featureFlags.uploadDocuments, assistant.groupId, featureFlags.ragEnabled)} 
+                                            onIntegrationDataSourceSelected={featureFlags.integrations ?
+                                                (file: File) => { handleFile(file, onAttach, onUploadProgress, onSetKey, onSetMetadata,
+                                                                  () => {}, featureFlags.uploadDocuments, assistant.groupId, featureFlags.ragEnabled, {type: 'assistant-document', context: 'assistant'})}
                                                 : undefined
                                             }
                                         />

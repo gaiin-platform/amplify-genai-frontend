@@ -14,6 +14,7 @@ import HomeContext from "@/pages/api/home/home.context";
 import React from 'react';
 import { resolveRagEnabled } from '@/types/features';
 import { processInputFiles } from '@/utils/fileHandler';
+import { MASSIVE_DOCUMENT_TOKEN_THRESHOLD } from '@/utils/app/const';
 
 interface Props {
     onAttach: (data: AttachedDocument) => void;
@@ -130,7 +131,7 @@ export const handleFile = async (file:any,
                 }
 
                 await response;
-                                    
+
                 const readyStatus = await checkContentReady(metadataUrl, 120, abortController);
 
                 if (readyStatus && readyStatus.success){
@@ -143,6 +144,26 @@ export const handleFile = async (file:any,
                         if (document.metadata) {
                             if (!document.metadata.isImage && (!(document.metadata.totalItems) || document.metadata.totalItems < 1)) {
                                 alert("I was unable to extract any text from the provided document. If this is a PDF, please OCR the PDF before uploading it.");
+                            }
+
+                            // Check if this is a massive document and mark it
+                            if (document.metadata.totalTokens && document.metadata.totalTokens >= MASSIVE_DOCUMENT_TOKEN_THRESHOLD) {
+                                console.log(`[MASSIVE DOC DETECTED] File "${document.name}" has ${document.metadata.totalTokens} tokens (threshold: ${MASSIVE_DOCUMENT_TOKEN_THRESHOLD})`);
+
+                                // 🔥 [PART 4] Block massive files from being attached to assistants
+                                const isAssistantAttachment = props?.type === 'assistant-document' || props?.context === 'assistant';
+                                if (isAssistantAttachment) {
+                                    console.log(`[ASSISTANT BLOCK] Rejecting massive file "${document.name}" - too large for assistant attachment`);
+                                    alert(`This file is too large to attach to an assistant. Files must be under ${MASSIVE_DOCUMENT_TOKEN_THRESHOLD.toLocaleString()} tokens.\n\nThis file has ${document.metadata.totalTokens.toLocaleString()} tokens and cannot be used with assistants.`);
+                                    // Clean up the uploaded file since we're rejecting it
+                                    safeCleanUp(key);
+                                    return; // Exit early, don't complete the attachment
+                                }
+
+                                // Store massive flag in metadata for later use (chat attachments only)
+                                document.metadata.isMassive = true;
+                                // Alert user that this is a massive document
+                                alert(`This document is very large (${document.metadata.totalTokens.toLocaleString()} tokens). It will be processed through the document cache instead of RAG for better performance.`);
                             }
                         }
 

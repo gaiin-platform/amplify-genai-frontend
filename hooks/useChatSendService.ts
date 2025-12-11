@@ -369,8 +369,16 @@ export function useSendService() {
                     } else if (featureFlags.ragEnabled && featureFlags.ragEvaluation && (pluginIds?.includes(PluginID.RAG) && pluginIds?.includes(PluginID.RAG_EVAL))) {
                         options = { ...(options || {}), ragEvaluation: true };
                     }
-                                                      // Advanced Rag is default off for assistant use 
-                    if (!featureFlags.cachedDocuments || options?.assistantId || options?.groupId) {
+
+                    // Check if any attached documents are massive
+                    const hasMassiveDocument = documents?.some(doc => doc.metadata?.isMassive);
+
+                    // Advanced Rag is default off for assistant use
+                    // BUT: For massive documents, force skipDocumentCache=false to route through document cache
+                    if (hasMassiveDocument) {
+                        options = { ...(options || {}), skipDocumentCache: false, skipRag: true };
+                        console.log('[MASSIVE DOC ROUTING] Forcing skipDocumentCache=false and skipRag=true for massive document');
+                    } else if (!featureFlags.cachedDocuments || options?.assistantId || options?.groupId) {
                         options = { ...(options || {}), skipDocumentCache : true};
                     }
 
