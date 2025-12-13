@@ -48,6 +48,9 @@ import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
 import QiModal from './QiModal';
 import { QiSummary, QiSummaryType } from '@/types/qi';
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
+import {ArtifactsSaved} from './ArtifactsSaved';
+import {ArtifactsList} from './ArtifactsList';
+import { PendingArtifact, ArtifactBlockDetail } from '@/types/artifacts';
 import { createQiSummary } from '@/services/qiService';
 import MessageSelectModal from './MesssageSelectModal';
 import cloneDeep from 'lodash/cloneDeep';
@@ -305,6 +308,9 @@ export const ChatInput = ({
     const [documentMetadata, setDocumentMetadata] = useState<{ [key: string]: AttachedDocumentMetadata }>({});
     const [documentAborts, setDocumentAborts] = useState<{ [key: string]: AbortController }>({});
 
+    // Pending artifacts state
+    const [pendingArtifacts, setPendingArtifacts] = useState<PendingArtifact[]>([]);
+
     const promptListRef = useRef<HTMLUListElement | null>(null);
     const dataSourceSelectorRef = useRef<HTMLDivElement | null>(null);
     const actionSelectorRef = useRef<HTMLDivElement | null>(null);
@@ -440,6 +446,27 @@ export const ChatInput = ({
         return content;
     }
 
+    // Handle pending artifacts
+    const handleAddPendingArtifact = (artifact: PendingArtifact) => {
+        setPendingArtifacts(prev => {
+            // Check if artifact already exists (update if loading state changed)
+            const existingIndex = prev.findIndex(a => a.key === artifact.key);
+            if (existingIndex >= 0) {
+                const updated = [...prev];
+                updated[existingIndex] = artifact;
+                return updated;
+            }
+            // Add new artifact
+            return [...prev, artifact];
+        });
+    };
+
+    const handleRemovePendingArtifact = (key: string) => {
+        setPendingArtifacts(prev => prev.filter(a => a.key !== key));
+    };
+
+    const allArtifactsLoaded = pendingArtifacts.length === 0 || pendingArtifacts.every(a => a.loadingState === 'ready');
+
     const handleSend = () => {
         handleCloseAllPopups();
         setEditingAction(null);  // Clear any editing action state
@@ -455,6 +482,11 @@ export const ChatInput = ({
 
         if (!allDocumentsDoneUploading) {
             alert(t('Please wait for all documents to finish uploading or remove them from the prompt.'));
+            return;
+        }
+
+        if (!allArtifactsLoaded) {
+            alert(t('Please wait for all artifacts to finish loading or remove them.'));
             return;
         }
 
@@ -500,10 +532,27 @@ export const ChatInput = ({
                 }))
             };
         }
-        
+
+        // Add pending artifacts to message data
+        if (pendingArtifacts.length > 0) {
+            messageData.artifacts = pendingArtifacts
+                .filter(pa => pa.loadingState === 'ready' && pa.artifact)
+                .map(pa => {
+                    // Extract base artifact ID (remove version/date suffix)
+                    const baseArtifactId = pa.artifactId.split(':')[0];
+                    return {
+                        artifactId: baseArtifactId,
+                        name: pa.name,
+                        description: pa.description,
+                        createdAt: pa.artifact!.createdAt,
+                        version: pa.artifact!.version
+                    } as ArtifactBlockDetail;
+                });
+        }
+
         let msg = newMessage({
-            role: 'user', 
-            content: messageContent, 
+            role: 'user',
+            content: messageContent,
             label: messageLabel,
             type: type,
             data: messageData,
@@ -541,6 +590,44 @@ export const ChatInput = ({
             return d;
         });
 
+        // Update conversation with artifacts before sending
+        if (pendingArtifacts.length > 0 && selectedConversation) {
+            const conversationArtifacts = selectedConversation.artifacts ?? {};
+
+            pendingArtifacts.forEach(pa => {
+                if (pa.artifact && pa.loadingState === 'ready') {
+                    // Extract base artifact ID (remove version/date suffix)
+                    // e.g., "Fun_Animated_SVG:v1-20251020" -> "Fun_Animated_SVG"
+                    const baseArtifactId = pa.artifactId.split(':')[0];
+
+                    // Preserve the artifact with its original version and update the artifactId
+                    const artifact = {...pa.artifact, artifactId: baseArtifactId};
+
+                    // Check if this artifactId already exists in conversation
+                    if (Object.keys(conversationArtifacts).includes(baseArtifactId)) {
+                        // Check if this specific version already exists
+                        const existingVersion = conversationArtifacts[baseArtifactId].find(a => a.version === artifact.version);
+                        if (!existingVersion) {
+                            // Add this version to the array
+                            conversationArtifacts[baseArtifactId] = [
+                                ...conversationArtifacts[baseArtifactId],
+                                artifact
+                            ];
+                        }
+                        // If version already exists, skip adding it again
+                    } else {
+                        conversationArtifacts[baseArtifactId] = [artifact];
+                    }
+                }
+            });
+
+            // Update selected conversation with new artifacts
+            selectedConversation.artifacts = conversationArtifacts;
+
+            // Dispatch to update global state so useSendService can access it
+            homeDispatch({field: 'selectedConversation', value: selectedConversation});
+        }
+
         statsService.userSendChatEvent(msg as Message, selectedConversation?.model?.id ?? '');
 
         onSend(msg, updatedDocuments || []);
@@ -553,10 +640,11 @@ export const ChatInput = ({
         setDocuments([]);
         setDocumentState({});
         setDocumentMetadata({});
-        
+        setPendingArtifacts([]); // Clear pending artifacts
+
         // Clear large text state using hook
         clearLargeText();
-        
+
         // Keep the actions list after sending - removed setAddedActions([])
 
         if (window.innerWidth < 640 && textareaRef && textareaRef.current) {
@@ -1280,6 +1368,16 @@ export const ChatInput = ({
                             </div>
                         )}
 
+                        {/* Render pending artifacts list above the input area */}
+                        {featureFlags.artifacts && pendingArtifacts.length > 0 && (
+                            <div className="w-full px-2 py-2 border-b border-black/10 dark:border-gray-700/50">
+                                <ArtifactsList
+                                    artifacts={pendingArtifacts}
+                                    onRemove={handleRemovePendingArtifact}
+                                />
+                            </div>
+                        )}
+
                         {/* Render ActionsList above the input area */}
                         {featureFlags.actionSets && addedActions.length > 0 && (
                             <div className="w-full px-2 py-2 border-b border-black/10 dark:border-gray-700/50">
@@ -1568,6 +1666,15 @@ export const ChatInput = ({
                         
                         </>}
 
+                        { featureFlags.artifacts &&
+                         <ArtifactsSaved
+                             iconSize={20}
+                             isArtifactsOpen={false}
+                             pendingArtifacts={pendingArtifacts}
+                             onAddPendingArtifact={handleAddPendingArtifact}
+                         />
+                        }
+
                         <div className='flex flex-row gap-2'>
 
                             <button
@@ -1610,6 +1717,8 @@ export const ChatInput = ({
                                 </div>
                             )}
                         </div>
+
+                       
                         {/*<div className='flex flex-row gap-2'>
                          {featureFlags.memory && projects.length > 0  &&
                         // settingRef.current.featureOptions.includeMemory &&

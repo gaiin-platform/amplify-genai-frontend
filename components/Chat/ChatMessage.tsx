@@ -567,6 +567,12 @@ export const ChatMessage: FC<Props> = memo(({
                                                 message={message}
                                             />
                                         )}
+
+                                        {featureFlags.artifacts && !isActionResult && 
+                                            <ArtifactsBlock
+                                              message={message}
+                                              messageIndex={messageIndex}
+                                            />}
                                     </div>
                                     <div className="flex flex-row">
                                         {(isEditing || messageIsStreaming) ? null : (

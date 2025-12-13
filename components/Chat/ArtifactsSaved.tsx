@@ -4,7 +4,7 @@ import { FC, useContext, useEffect, useRef, useState } from 'react';
 
 import HomeContext from '@/pages/api/home/home.context';
 import { Conversation, Message, MessageType, newMessage } from '@/types/chat';
-import { Artifact, ArtifactBlockDetail } from '@/types/artifacts';
+import { Artifact, ArtifactBlockDetail, PendingArtifact } from '@/types/artifacts';
 import { deleteArtifact, getArtifact } from '@/services/artifactsService';
 import toast from 'react-hot-toast';
 import { animate } from '../Loader/LoadingIcon';
@@ -17,6 +17,8 @@ import React from 'react';
 interface Props {
   iconSize: number | string;
   isArtifactsOpen: boolean;
+  pendingArtifacts?: PendingArtifact[];
+  onAddPendingArtifact?: (artifact: PendingArtifact) => void;
 }
 
 export const LoadingIcon = styled(FiCommand)`
@@ -26,7 +28,7 @@ export const LoadingIcon = styled(FiCommand)`
 `;
 
 export const ArtifactsSaved: FC<Props> = ({
-  iconSize, isArtifactsOpen
+  iconSize, isArtifactsOpen, pendingArtifacts = [], onAddPendingArtifact
 }) => {
   const { 
     state: { selectedConversation, conversations, folders, artifacts, statsService, messageIsStreaming}, dispatch: homeDispatch, handleUpdateSelectedConversation
@@ -98,16 +100,58 @@ const handleUpdateConversation = (updatedConversation: Conversation, artifact: A
 
 const handleAddArtifactToConversation = async (key: string, index:number) => {
     if (messageIsStreaming) return;
+
+    const artifact = artifactList[index];
+
+    // If using new pending artifacts pattern
+    if (onAddPendingArtifact) {
+        // Add to pending list immediately
+        const pendingArtifact: PendingArtifact = {
+            key,
+            artifactId: artifact.artifactId,
+            name: artifact.name,
+            description: artifact.description,
+            loadingState: 'loading'
+        };
+
+        onAddPendingArtifact(pendingArtifact);
+        statsService.bringArtifactToAnotherConversationEvent(key);
+        // Don't close dropdown - let user add multiple artifacts
+
+        // Load artifact in background
+        getArtifact(key).then(result => {
+            if (result.success) {
+              console.log("Successfully loaded artifact: ", result.data);
+                const loadedArtifact: Artifact = result.data;
+                // Update the pending artifact to ready state
+                onAddPendingArtifact({
+                    ...pendingArtifact,
+                    artifact: loadedArtifact,
+                    loadingState: 'ready'
+                });
+            } else {
+                // Update to error state
+                onAddPendingArtifact({
+                    ...pendingArtifact,
+                    loadingState: 'error'
+                });
+                toast.error("Unable to load artifact");
+            }
+        });
+        return;
+    }
+
+    // Old pattern (fallback)
     setLoadingItem(index);
     statsService.bringArtifactToAnotherConversationEvent(key);
     const result = await getArtifact(key);
 
     if (result.success) {
-      const artifact:Artifact = result.data;
-      if (selectedConversation)  handleUpdateConversation({...selectedConversation}, artifact);
+      const loadedArtifact:Artifact = result.data;
+      if (selectedConversation)  handleUpdateConversation({...selectedConversation}, loadedArtifact);
     } else {
       alert("Unable to retrieve the artifact at this time. Please try again later.");
-    } 
+    }
     setLoadingItem(-1);
     setIsOpen(false);
 }
@@ -132,25 +176,36 @@ const handleDeleteArtifact = async (key: string, index:number) => {
     setLoadingItem(-1);
 }
 
-if (artifacts && artifacts.length === 0) return <></>;
+// Filter out artifacts that are already in pending list
+const pendingKeys = pendingArtifacts.map(pa => pa.key);
+const availableArtifacts = artifacts && artifacts.length > 0
+    ? artifacts.filter(artifact => !pendingKeys.includes(artifact.key))
+    : [];
 
 return (
-        <div className='flex flex-col '>
+        <div className='flex flex-col relative'>
         <button
-            className="ml-2 cursor-pointer hover:opacity-50"
+            className="chat-input-button rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
             onClick={(e) => setIsOpen(!isOpen)}
-            title={"Add Artifacts To Conversation"}
+            title="Add saved Artifact"
             >
-            <IconLibrary className="block text-neutral-500 dark:text-neutral-200" size={iconSize} /> 
+            <IconLibrary size={iconSize} />
         </button>
 
         {isOpen &&
-        <div ref={artifactsRef}  
-            className="overflow-auto fixed z-50 border border-neutral-300 rounded bg-neutral-100 dark:border-neutral-600 bg-neutral-100 dark:bg-[#444654]"
-            style={{maxHeight: `200px`, top: 40, transform: isArtifactsOpen ? 'translateX(-90%)' : 'translateX(0)' , 
-            }}>
+        <div ref={artifactsRef}
+            className="overflow-auto absolute z-50 border border-neutral-300 rounded bg-neutral-100 dark:border-neutral-600 bg-neutral-100 dark:bg-[#444654]"
+            style={{maxHeight: `200px`, bottom: 40, left: 0}}
+            >
+                {availableArtifacts.length === 0 ? (
+                    <div className="p-4 text-center text-neutral-500 dark:text-neutral-400">
+                        {artifacts && artifacts.length > 0
+                            ? 'All saved artifacts are already attached'
+                            : 'No saved artifacts available'}
+                    </div>
+                ) : (
                 <ul id="artifactsList" className="suggestions-list ">
-                {artifacts.map((artifact, index) => (
+                {availableArtifacts.map((artifact, index) => (
                     <li key={index} onClick={() => { if (loadingItem === -1 ) handleAddArtifactToConversation(artifact.key, index)}} 
                     onMouseEnter={() => setHoveredItem(index)} onMouseLeave={() => setHoveredItem(-1)}
                     title={`${artifact.description}\n - ${artifact.sharedBy ? `Shared by: ${artifact.sharedBy}` : artifact.createdAt}`}
@@ -180,6 +235,7 @@ return (
                     </li>
                 ))}
                 </ul>
+                )}
         </div> }
         </div>
 )

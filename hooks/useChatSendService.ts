@@ -18,9 +18,8 @@ import { AttachedDocument } from "@/types/attacheddocument";
 import { Prompt } from "@/types/prompt";
 import { usePromptFinderService } from "@/hooks/usePromptFinderService";
 import { useChatService } from "@/hooks/useChatService";
-import { ARTIFACTS_PROMPT, DEFAULT_TEMPERATURE } from "@/utils/app/const";
+import { DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { uploadConversation } from "@/services/remoteConversationService";
-import { getFocusedMessages } from '@/services/prepareChatService';
 import { doReadMemoryOp } from '@/services/memoryService';
 import {
     ExtractedFact,
@@ -263,34 +262,49 @@ export function useSendService() {
                         (!pluginIds || (pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER))) &&
                         // turn off artifacts for base prompt templates
                         !(selectedConversation?.promptTemplate && isBasePrompt(selectedConversation.promptTemplate.id));
+
+                    // honor assistant does not support artifact flag 
+                    const astFeatureOptions = message.data?.assistant?.definition?.featureOptions;
+                    if (astFeatureOptions && 'IncludeArtifactsInstr' in astFeatureOptions && 
+                        !astFeatureOptions.IncludeArtifactsInstr) {
+                        console.log("Artifacts disabled for assistant: ", message.data?.assistant?.definition?.name);
+                        isArtifactsOn = false;
+                    }
+
                     console.log("Artifacts on: ", isArtifactsOn)
                     if (selectedConversation?.promptTemplate && isBasePrompt(selectedConversation.promptTemplate.id)) {
                         console.log("Artifacts disabled for base prompt template: ", selectedConversation.promptTemplate.name);
                     }
                     const isSmartMessagesOn = featureOptions.includeFocusedMessages && (!pluginIds || (pluginIds.includes(PluginID.SMART_MESSAGES)));
-                    console.log("Smart Messageson: ", isSmartMessagesOn)
+                    console.log("Smart Messages on: ", isSmartMessagesOn)
 
                     const isMemoryOn = featureFlags.memory && featureOptions.includeMemory && (!pluginIds || (pluginIds.includes(PluginID.MEMORY)));
                     console.log("Memory on: ", isMemoryOn)
 
-                    // if both artifact and smart messages is off then it returnes with the messages right away 
-                    const {focusedMessages, includeArtifactInstr} = await getFocusedMessages(chatEndpoint || '', updatedConversation, statsService,
-                        isArtifactsOn, isSmartMessagesOn, homeDispatch, getDefaultModel(DefaultModels.ADVANCED), getDefaultModel(DefaultModels.CHEAPEST), defaultAccount);
-
-                    if (isArtifactsOn && !includeArtifactInstr) {
-                        isArtifactsOn = false;
-                        console.log("Turning Artifacts off - llm determined it is not needed")
-                    }
-
                     console.log("Conversation tokens: ", updatedConversation.maxTokens);
                     const chatBody: ChatBody = {
                         model: updatedConversation.model,
-                        messages: focusedMessages, //updatedConversation.messages,
+                        messages: updatedConversation.messages,
                         prompt: rootPrompt || updatedConversation.prompt || "",
                         temperature: updatedConversation.temperature || DEFAULT_TEMPERATURE,
                         maxTokens: updatedConversation.maxTokens || (Math.round(updatedConversation.model.outputTokenLimit / 2)),
                         conversationId
                     };
+                     
+                    console.log("Adding artifacts to chat body: ", selectedConversation.artifacts);
+                    
+                    if (isArtifactsOn && selectedConversation.artifacts) {
+                        console.log("Adding artifacts to chat body: ", selectedConversation.artifacts);
+                        chatBody.artifacts = selectedConversation.artifacts;
+                    }
+                    // Add smart messages and artifacts options - backend will handle processing
+                    if (isSmartMessagesOn || isArtifactsOn) {
+                        chatBody.options = {
+                            smartMessages: isSmartMessagesOn,
+                            artifacts: isArtifactsOn
+                        };
+                        
+                    }
 
 
                     if (selectedConversation?.projectId) {
@@ -325,18 +339,18 @@ export function useSendService() {
                         }
                     }
 
-                    if (isArtifactsOn) {
-                        // account for plugin on/off features 
-                        const astFeatureOptions = message.data?.assistant?.definition?.featureOptions;
+                    // if (isArtifactsOn) {
+                    //     // account for plugin on/off features 
+                    //     const astFeatureOptions = message.data?.assistant?.definition?.featureOptions;
 
-                        // ast feature option trumps 
-                        // either no ast feature option exists
-                        // or the assistant has it turned on
-                        if ((!astFeatureOptions) || (astFeatureOptions.IncludeArtifactsInstr)) {
-                            chatBody.prompt += '\n\n' + ARTIFACTS_PROMPT;
-                            //  console.log("ARTIFACT PROMPT ADDED")
-                        }
-                    }
+                        // // ast feature option trumps 
+                        // // either no ast feature option exists
+                        // // or the assistant has it turned on
+                        // if ((!astFeatureOptions) || (astFeatureOptions.IncludeArtifactsInstr)) {
+                        //     chatBody.prompt += '\n\n' + ARTIFACTS_PROMPT;
+                        //     //  console.log("ARTIFACT PROMPT ADDED")
+                        // }
+                    // }
 
                     if (uri) {
                         chatBody.endpoint = uri;
