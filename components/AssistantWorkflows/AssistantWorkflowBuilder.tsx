@@ -603,7 +603,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
               key={template.templateId}
               className={`p-2 rounded-lg cursor-pointer flex flex-row ${
                 selectedWorkflowId === template.templateId
-                  ? 'bg-blue-100 dark:bg-blue-900'
+                  ? 'bg-blue-100 dark:bg-blue-200'
                   : 'hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
               onClick={() => handleLoadTemplate(template.templateId)}
