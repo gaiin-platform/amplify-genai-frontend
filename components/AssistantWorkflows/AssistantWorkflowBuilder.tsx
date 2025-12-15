@@ -386,6 +386,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
       setSelectedWorkflowId(null);
       setSelectedWorkflow(emptyTemplate(false));
       setIsPreviewing(false);
+      setExpandedSteps([]); // Clear expanded steps when deselecting
       return;
     }
 
@@ -405,6 +406,9 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
     if (selectedTemp.template?.steps && selectedTemp.template.steps.length > 0) {
       // we already loaded it fully previously
       setSelectedWorkflow( selectedTemp ); // populate what we do have
+      // Expand all steps by default when loading a template
+      const stepIndices = selectedTemp.template.steps.map((_: Step, index: number) => index);
+      setExpandedSteps(stepIndices);
       setLoadingSelectedWorkflow(false);
       return;
     }
@@ -422,6 +426,9 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           fullTemplate.template.steps = [];
         }
         setSelectedWorkflow(fullTemplate);
+        // Expand all steps by default when loading a template
+        const stepIndices = fullTemplate.template.steps.map((_: Step, index: number) => index);
+        setExpandedSteps(stepIndices);
     } else {
       alert("Failed to load template");
       setSelectedWorkflow( emptyTemplate(false) );
@@ -1047,6 +1054,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                 setShowVisualBuilder(true);
               }}
               title="Edit this workflow using the visual drag-and-drop interface"
+              disabled={loadingSelectedWorkflow}
             >
               <IconPuzzle size={18} className="text-blue-600 dark:text-blue-400" />
               Visual Builder
@@ -1056,6 +1064,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
               className={`px-3 py-2 ${buttonStyle}`}
               onClick={handleOpenWorkflowBuilder}
               title="Edit this workflow using the step-by-step editor interface"
+              disabled={loadingSelectedWorkflow}
             >
               <IconEdit size={18} className="text-purple-600 dark:text-purple-400" />
               Workflow Builder
@@ -1063,12 +1072,19 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           </div>
         </div>
         
-        <AssistantWorkflow 
-          id={"previewCurrentWorkflow"}
-          workflowTemplate={selectedWorkflow} 
-          enableCustomization={false}  // do nothing 
-          onWorkflowTemplateUpdate={(workflowTemplate: AstWorkflow | null) => {}}
-        />
+        {loadingSelectedWorkflow ? (
+          <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+            <IconLoader2 size={48} className="animate-spin text-blue-500 mb-4" />
+            <p className="text-gray-600 dark:text-gray-400 text-lg">Loading workflow template...</p>
+          </div>
+        ) : (
+          <AssistantWorkflow 
+            id={"previewCurrentWorkflow"}
+            workflowTemplate={selectedWorkflow} 
+            enableCustomization={false}  // do nothing 
+            onWorkflowTemplateUpdate={(workflowTemplate: AstWorkflow | null) => {}}
+          />
+        )}
       </div>
     </div>
   );
