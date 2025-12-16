@@ -9,6 +9,7 @@ import InputsMap from "@/components/ReusableComponents/InputMap";
 import { translateIntegrationIcon } from "@/components/Integrations/IntegrationsDialog";
 import { registerIntegrationSecrets } from "@/services/oauthIntegrationsService";
 import toast from "react-hot-toast";
+import { WebSearchIntegration } from "./WebSearchIntegration";
 
 interface Props {
     integrations: IntegrationsMap;
@@ -73,12 +74,16 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
         return secrets ? secrets[key] ?? "" : "";    
     }
 
-    return <div className="admin-style-settings-card">
+    return <>
+        {/* Web Search Integration */}
+        <WebSearchIntegration />
+
+        <div className="admin-style-settings-card">
         <div className="admin-style-settings-card-header">
             <div className="flex flex-row items-center gap-3 mb-2">
-                <h3 className="admin-style-settings-card-title">Integrations</h3>
+                <h3 className="admin-style-settings-card-title">OAuth Integrations</h3>
             </div>
-            <p className="admin-style-settings-card-description">Configure and manage third-party integrations</p>
+            <p className="admin-style-settings-card-description">Configure and manage OAuth third-party integrations (Google Drive, Microsoft OneDrive, etc.)</p>
         </div>
 
         {Object.entries(integrations).map(([name, integrationList]: [string, Integration[]]) => 
@@ -152,5 +157,6 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
             </div>
         )}
     </div>
+    </>
 
 }

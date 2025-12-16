@@ -1,4 +1,4 @@
-import { IconRobot, IconChartBar, IconFileSearch, IconLibrary, IconMessageBolt, IconDeviceSdCard } from '@tabler/icons-react';
+import { IconRobot, IconChartBar, IconFileSearch, IconLibrary, IconMessageBolt, IconDeviceSdCard, IconWorldSearch } from '@tabler/icons-react';
 import React from 'react';
 
 // Plugina are on and off features during the conversation chat requests
@@ -14,12 +14,13 @@ export interface Plugin {
 
 export enum PluginID {
   // GOOGLE_SEARCH = 'google-search',
-  CODE_INTERPRETER = 'code-interpreter', 
+  CODE_INTERPRETER = 'code-interpreter',
   RAG = 'rag',
   ARTIFACTS = 'artifacts',
   SMART_MESSAGES = 'smart-focused-messages',
   RAG_EVAL = 'rag-eval',
-  MEMORY = 'memory'
+  MEMORY = 'memory',
+  WEB_SEARCH = 'web-search'
 }
 
 export const Plugins: Record<PluginID, Plugin> = {
@@ -61,6 +62,13 @@ export const Plugins: Record<PluginID, Plugin> = {
     name: "Memory",
     title: "Allows auto-extraction of new memories from the conversation.",
     iconComponent: IconDeviceSdCard
+  },
+  [PluginID.WEB_SEARCH]: {
+    id: PluginID.WEB_SEARCH,
+    name: "Web Search",
+    title: "Enable web search to find current information. Configure your API key in Settings → Integrations → Web Search.",
+    default: false,
+    iconComponent: IconWorldSearch
   }
 };
 

@@ -115,6 +115,8 @@ export interface ChatBody {
   [key: string]: any;
   codeInterpreterAssistantId?: string;
   projectId?: string;
+  tools?: any[]; // Tool definitions in OpenAI function format
+  enableWebSearch?: boolean; // Enable backend web search tool execution
 }
 
 export interface Conversation {

@@ -35,6 +35,7 @@ import {
 } from '@/utils/app/memory';
 import { handleAgentRun, handleAgentRunResult, isWaitingForAgentResponse } from '@/utils/app/agent';
 import { lzwCompress } from '@/utils/app/lzwCompression';
+import { WEB_SEARCH_TOOL_DEFINITION } from '@/types/tools';
 
 export type ChatRequest = {
     message: Message;
@@ -282,7 +283,7 @@ export function useSendService() {
                     console.log("Memory on: ", isMemoryOn)
 
                     console.log("Conversation tokens: ", updatedConversation.maxTokens);
-                    const chatBody: ChatBody = {
+                    let chatBody: ChatBody = {
                         model: updatedConversation.model,
                         messages: updatedConversation.messages,
                         prompt: rootPrompt || updatedConversation.prompt || "",
@@ -290,7 +291,19 @@ export function useSendService() {
                         maxTokens: updatedConversation.maxTokens || (Math.round(updatedConversation.model.outputTokenLimit / 2)),
                         conversationId
                     };
-                     
+
+                    // Check if Web Search is enabled
+                    const isWebSearchOn = plugins?.some(p => p.id === PluginID.WEB_SEARCH) ?? false;
+                    console.log("Web Search on: ", isWebSearchOn);
+
+                    if (isWebSearchOn) {
+                        // Add web search tool to the request
+                        // Backend will handle tool execution with user's API key
+                        chatBody.tools = [WEB_SEARCH_TOOL_DEFINITION];
+                        chatBody.enableWebSearch = true;
+                        console.log("Web search tool added to chat body");
+                    }
+
                     console.log("Adding artifacts to chat body: ", selectedConversation.artifacts);
                     
                     if (isArtifactsOn && selectedConversation.artifacts) {
@@ -688,7 +701,9 @@ export function useSendService() {
                                 return;
                             }
                         }
-                      
+
+                        // Tool execution is handled by the backend
+                        // The backend will execute tools and return the final response
 
                         //console.log("Dispatching post procs: " + postProcessingCallbacks.length);
                         postProcessingCallbacks.forEach(callback => callback({

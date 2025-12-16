@@ -1,10 +1,72 @@
 import { AttachedDocument } from './attacheddocument';
-  
+
 
 export const integrationProviders = {
     Google: 'google',
     Microsoft: 'microsoft'
   } as const;
+
+// Web search providers for admin-configured web search
+export const webSearchProviders = {
+    brave_search: 'brave_search',
+    tavily: 'tavily',
+    serper: 'serper',
+    serpapi: 'serpapi'
+  } as const;
+
+export type WebSearchProvider = keyof typeof webSearchProviders;
+
+export interface WebSearchProviderConfig {
+    id: WebSearchProvider;
+    name: string;
+    description: string;
+    apiKeyUrl: string;
+    apiKeyPlaceholder: string;
+    freeQuota?: string;
+}
+
+export interface AdminWebSearchConfig {
+    provider: WebSearchProvider;
+    isEnabled: boolean;
+    maskedKey?: string;
+    lastUpdated?: string;
+}
+
+// Configuration for admin web search integrations
+export const WEB_SEARCH_PROVIDERS: Record<WebSearchProvider, WebSearchProviderConfig> = {
+    brave_search: {
+        id: 'brave_search',
+        name: 'Brave Search',
+        description: 'Privacy-focused web search API. Comprehensive results without tracking.',
+        apiKeyUrl: 'https://brave.com/search/api/',
+        apiKeyPlaceholder: 'BSA...',
+        freeQuota: '2,000 queries/month free',
+    },
+    tavily: {
+        id: 'tavily',
+        name: 'Tavily',
+        description: 'AI-optimized search API. Returns clean, LLM-ready results.',
+        apiKeyUrl: 'https://tavily.com/',
+        apiKeyPlaceholder: 'tvly-...',
+        freeQuota: '1,000 queries/month free',
+    },
+    serper: {
+        id: 'serper',
+        name: 'Serper',
+        description: 'Google Search API. Fast and reliable search results.',
+        apiKeyUrl: 'https://serper.dev/',
+        apiKeyPlaceholder: '',
+        freeQuota: '2,500 queries free (one-time)',
+    },
+    serpapi: {
+        id: 'serpapi',
+        name: 'SerpAPI',
+        description: 'Google, Bing, Yahoo and other search engines. Comprehensive search results with structured data.',
+        apiKeyUrl: 'https://serpapi.com/manage-api-key',
+        apiKeyPlaceholder: '',
+        freeQuota: '100 searches/month free',
+    },
+};
   
 //   // Derive the type from the object keys
 export type IntegrationProviders = keyof typeof integrationProviders;
