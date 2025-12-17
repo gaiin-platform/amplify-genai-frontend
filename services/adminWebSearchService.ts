@@ -8,7 +8,7 @@
 import { WebSearchProvider, AdminWebSearchConfig } from '@/types/integrations';
 import { doRequestOp } from './doRequestOp';
 
-const SERVICE_NAME = 'oauth';  // Reuse oauth service for admin operations
+const SERVICE_NAME = 'websearch';  // Use separate service for local testing
 const URL_PATH = '/integrations';
 
 /**
