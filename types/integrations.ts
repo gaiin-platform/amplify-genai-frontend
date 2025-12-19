@@ -6,8 +6,11 @@ export const integrationProviders = {
     Microsoft: 'microsoft'
   } as const;
   
-//   // Derive the type from the object keys
-export type IntegrationProviders = keyof typeof integrationProviders;
+// Type for the TypeScript-friendly names (keys)
+export type IntegrationProviderNames = keyof typeof integrationProviders;
+
+// Type for the actual runtime keys used by backend (values) - 'google' | 'microsoft'
+export type IntegrationProviders = typeof integrationProviders[IntegrationProviderNames];
 
 // Helper function to extract values with literal types
 const values = <T extends Record<string, U>, U extends string>(obj: T) =>
@@ -28,7 +31,7 @@ export interface IntegrationSecrets {
 }
   
  
-// Create IntegrationsMap with dynamic keys
+// Create IntegrationsMap with dynamic keys (using lowercase runtime values)
 export type IntegrationsMap = Partial<{
     [K in IntegrationProviders]: Integration[];
 }>;

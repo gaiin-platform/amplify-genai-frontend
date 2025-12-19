@@ -136,7 +136,7 @@ export const IntegrationsTab: FC<Props> = ({
                     />
 
                     {/* Admin Consent Checkbox - Only for Microsoft */}
-                    {name.toLowerCase() === 'microsoft' && (
+                    {name === integrationProviders.Microsoft && (
                         <div className="ml-4 mt-4 flex flex-col gap-2">
                             <label className="flex items-center gap-3 cursor-pointer">
                                 <input

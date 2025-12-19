@@ -17,7 +17,7 @@ import { OpenAIEndpointsTab } from "./AdminComponents/OpenAIEndpoints";
 import { FeatureFlagsTab } from "./AdminComponents/FeatureFlags";
 import { emptySupportedModel, SupportedModelsTab } from "./AdminComponents/SupportedModels";
 import { ConfigurationsTab } from "./AdminComponents/Configurations";
-import { Integration, IntegrationProviders, integrationProvidersList, IntegrationSecretsMap, IntegrationsMap, ProviderSettingsMap } from "@/types/integrations";
+import { Integration, IntegrationProviders, integrationProviders, integrationProvidersList, IntegrationSecretsMap, IntegrationsMap, ProviderSettingsMap } from "@/types/integrations";
 import { checkActiveIntegrations } from "@/services/oauthIntegrationsService";
 import { IntegrationsTab } from "./AdminComponents/Integrations";
 import { EmbeddingsTab } from "./AdminComponents/Embeddings";
@@ -162,7 +162,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         const integrationProviderKeys = Object.keys(integrationsList);
                         integrationProviderKeys.forEach((provider) => {
                             // Only populate settings for providers that have defined settings
-                            if (provider === 'microsoft') {
+                            if (provider === integrationProviders.Microsoft) {
                                 if (!providerSettingsData[provider]) {
                                     providerSettingsData[provider] = {};
                                 }
@@ -900,11 +900,11 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         setIntegrationSecrets={setIntegrationSecrets}
                         providerSettings={providerSettings}
                         setProviderSettings={setProviderSettings}
-                        azureAdminConsentProvided={providerSettings.microsoft?.azure_admin_consent_provided || false}
+                        azureAdminConsentProvided={providerSettings[integrationProviders.Microsoft]?.azure_admin_consent_provided || false}
                         setAzureAdminConsentProvided={(value: boolean) => {
                             const updated = {
                                 ...providerSettings,
-                                microsoft: { ...providerSettings.microsoft, azure_admin_consent_provided: value }
+                                [integrationProviders.Microsoft]: { ...providerSettings[integrationProviders.Microsoft], azure_admin_consent_provided: value }
                             };
                             setProviderSettings(updated);
                             updateUnsavedConfigs(AdminConfigTypes.INTEGRATIONS);
