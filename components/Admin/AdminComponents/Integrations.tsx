@@ -1,7 +1,7 @@
 import { FC, useState } from "react";
 import {  titleLabel } from "../AdminUI";
 import { AdminConfigTypes} from "@/types/admin";
-import { IntegrationsMap, Integration, integrationProviders, IntegrationSecretsMap, IntegrationProviders, IntegrationSecrets} from "@/types/integrations";
+import { IntegrationsMap, Integration, integrationProviders, IntegrationSecretsMap, IntegrationProviders, IntegrationSecrets, ProviderSettingsMap} from "@/types/integrations";
 import { IconCheck, IconX, IconPlus } from "@tabler/icons-react";
 import { capitalize } from "@/utils/app/data";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
@@ -16,11 +16,27 @@ interface Props {
 
     integrationSecrets: IntegrationSecretsMap;
     setIntegrationSecrets: (s: IntegrationSecretsMap) => void;
-    
-    updateUnsavedConfigs: (t: AdminConfigTypes) => void; 
+
+    providerSettings: ProviderSettingsMap;
+    setProviderSettings: (s: ProviderSettingsMap) => void;
+
+    azureAdminConsentProvided: boolean;
+    setAzureAdminConsentProvided: (value: boolean) => void;
+
+    updateUnsavedConfigs: (t: AdminConfigTypes) => void;
 }
 
-export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integrationSecrets, setIntegrationSecrets, updateUnsavedConfigs}) => {
+export const IntegrationsTab: FC<Props> = ({
+    integrations,
+    setIntegrations,
+    integrationSecrets,
+    setIntegrationSecrets,
+    providerSettings,
+    setProviderSettings,
+    azureAdminConsentProvided,
+    setAzureAdminConsentProvided,
+    updateUnsavedConfigs
+}) => {
 
     const [secretsHasChanges, setSecretsHasChanges] = useState<string[]>([]);
     const [isRegisteringSecrets, setIsRegisteringSecrets] = useState<string>('');
@@ -117,9 +133,29 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
                             setIntegrationSecrets({...integrationSecrets, [name]: updated});
                             if (!secretsHasChanges.includes(name)) setSecretsHasChanges([...secretsHasChanges, name]);
                         }}
-                    /> 
-                    </div> 
-                    
+                    />
+
+                    {/* Admin Consent Checkbox - Only for Microsoft */}
+                    {name.toLowerCase() === 'microsoft' && (
+                        <div className="ml-4 mt-4 flex flex-col gap-2">
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={azureAdminConsentProvided}
+                                    onChange={(e) => setAzureAdminConsentProvided(e.target.checked)}
+                                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600"
+                                />
+                                <span className="text-sm font-medium text-black dark:text-white">
+                                    Admin consent is being provided in Azure for this integration
+                                </span>
+                            </label>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 ml-7">
+                                Enable this if you have configured admin consent for this application in Microsoft Entra ID (formerly Azure AD). This allows users to connect without requiring individual consent prompts.
+                            </p>
+                        </div>
+                    )}
+                    </div>
+
                     { integrationList.map((integration: Integration) =>
                         <div id={integration.id} key={integration.id} className={`ml-4 flex flex-row gap-2 `}>  {/* hover:bg-gray-200 dark:hover:bg-[#40414F] */}
                             <div className="mr-4 ">

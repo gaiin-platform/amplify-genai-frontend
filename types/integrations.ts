@@ -37,6 +37,20 @@ export type IntegrationSecretsMap = Partial<{
     [K in IntegrationProviders]: IntegrationSecrets;
 }>;
 
+export interface ProviderSettings {
+  azure_admin_consent_provided?: boolean;
+  // Future: google_service_account_auth?: boolean;
+}
+
+export type ProviderSettingsMap = Partial<{
+  [K in IntegrationProviders]: ProviderSettings;
+}>;
+
+export interface IntegrationsConfigData {
+  integrations: IntegrationsMap;
+  provider_settings: ProviderSettingsMap;
+}
+
 export type IntegrationFileRecord = {
   name: string;
   id:  string;
