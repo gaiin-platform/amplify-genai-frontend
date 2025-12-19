@@ -7,12 +7,15 @@ const SERVICE_NAME = "oauth";
 
 // This takes the name of the integration, such as "google_sheets" which will need a corresponding
 // client configured in the back-end lambda
-export const getOauthRedirect = async (integration: string) => {
+export const getOauthRedirect = async (integration: string, providerSettings?: any) => {
     const op = {
         method: 'POST',
         path: URL_PATH + OAUTH_PATH,
         op: "/start-auth",
-        data: { integration },
+        data: {
+            integration,
+            ...(providerSettings && { provider_settings: providerSettings })
+        },
         service: SERVICE_NAME
     };
     return await doRequestOp(op);
@@ -56,7 +59,7 @@ export const checkActiveIntegrations = async (integrations: string[]) => {
         method: 'GET',
         path: "",
         op: `/${i}/integrations`,
-        service: SERVICE_NAME
+        service: i
       };
       const response = await doRequestOp(op);
       if (response.success && response.data) {
@@ -91,8 +94,6 @@ export const registerIntegrationSecrets = async (integrationSecrets: any) => {
     };
     return await doRequestOp(op);
 }
-
-
 
 export const listIntegrationFiles = async (data: any) => {
     const op = {
