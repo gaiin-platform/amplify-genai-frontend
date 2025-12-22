@@ -36,6 +36,7 @@ import {
 } from '@/utils/app/memory';
 import { handleAgentRun, handleAgentRunResult, isWaitingForAgentResponse } from '@/utils/app/agent';
 import { lzwCompress } from '@/utils/app/lzwCompression';
+import { calculatePromptCost, formatCost } from '@/utils/app/costEstimation';
 
 export type ChatRequest = {
     message: Message;
@@ -54,7 +55,7 @@ export type ChatRequest = {
 
 export function useSendService() {
     const {
-        state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts, memoryExtractionEnabled, defaultAccount },
+        state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts, memoryExtractionEnabled, defaultAccount, promptCostAlert },
         getDefaultModel, handleUpdateSelectedConversation,
         postProcessingCallbacks,
         dispatch: homeDispatch,
@@ -205,26 +206,6 @@ export function useSendService() {
                         message.label = label;
                     }
 
-                    if (selectedConversation
-                        && selectedConversation?.model
-                        && !options?.ragOnly) {
-
-                        // const {prompts, inputCost, inputTokens, outputCost, totalCost} =
-                        //     calculateTokenCost(selectedConversation.model, documents || []);
-
-                        // if (totalCost === -1 && inputTokens > 4000) {
-                        //     const go = confirm(`This request will require ${inputTokens} input tokens at an unknown cost.`);
-                        //     if (!go) {
-                        //         return;
-                        //     }
-                        // }
-                        // if (+totalCost > 0.5) {
-                        //     const go = confirm(`This request will cost an estimated $${totalCost} (the actual cost may be more) and require ${prompts} prompt(s).`);
-                        //     if (!go) {
-                        //         return;
-                        //     }
-                        // }
-                    }
                     console.log("Model in use: ", selectedConversation.model.name);
                     let updatedConversation: Conversation;
                     if (deleteCount) {
@@ -241,6 +222,54 @@ export function useSendService() {
                             ...selectedConversation,
                             messages: [...selectedConversation.messages, message],
                         };
+                    }
+
+                    // 💰 PROMPT COST ALERT - Check cost before sending
+                    if (selectedConversation
+                        && selectedConversation?.model
+                        && !options?.ragOnly
+                        && promptCostAlert?.isActive) {
+
+                        try {
+                            // Calculate estimated cost using the updated conversation (with new message)
+                            const estimatedCost = calculatePromptCost(
+                                updatedConversation,
+                                selectedConversation.model,
+                                options
+                            );
+
+                            console.log(`💰 Estimated prompt cost: ${formatCost(estimatedCost)}`);
+
+                            // Check if cost exceeds the admin-set threshold
+                            if (estimatedCost > promptCostAlert.cost) {
+                                // Replace placeholders in the admin's alert message
+                                let alertMessage = promptCostAlert.alertMessage ||
+                                    'This prompt will cost approximately $<cost>. Do you want to continue?';
+
+                                // Replace both <cost> and <totalCost> placeholders
+                                const formattedCost = formatCost(estimatedCost);
+                                alertMessage = alertMessage.replace(/<cost>/g, formattedCost);
+                                alertMessage = alertMessage.replace(/<totalCost>/g, formattedCost);
+
+                                // Show confirmation dialog
+                                const userConfirmed = window.confirm(alertMessage);
+
+                                if (!userConfirmed) {
+                                    // User cancelled - clean up and exit
+                                    console.log('⚠️ User cancelled due to high cost');
+                                    cleanupHomeState();
+                                    resolve({ success: false, cancelled: true });
+                                    return;
+                                }
+
+                                // User confirmed - log and proceed
+                                console.log('✅ User confirmed high-cost prompt');
+                            }
+                        } catch (error) {
+                            // If cost calculation fails, log error but don't block the message
+                            console.error('❌ Error calculating prompt cost:', error);
+                            // Continue sending - don't block user due to calculation error
+                        }
                     }
                     // console.log("updated: ", updatedConversation.messages);
 

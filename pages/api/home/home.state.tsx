@@ -18,6 +18,7 @@ import { Artifact } from '@/types/artifacts';
 import { ShareItem } from '@/types/export';
 import { ExtractedFact } from '@/types/memory';
 import { Features } from '@/types/features';
+import { PromptCostAlert } from '@/components/Admin/AdminUI';
 
 export interface HomeInitialState {
   defaultAccount: Account | undefined;
@@ -82,6 +83,7 @@ export interface HomeInitialState {
   aiEmailDomain: string;
   ragOn: boolean;
   isStandalonePromptCreation: boolean;
+  promptCostAlert: PromptCostAlert | null;
 }
 
 export const initialState: HomeInitialState = {
@@ -157,5 +159,6 @@ export const initialState: HomeInitialState = {
   supportEmail: '',
   aiEmailDomain: '',
   ragOn: false,
-  isStandalonePromptCreation: false
+  isStandalonePromptCreation: false,
+  promptCostAlert: null
 };
