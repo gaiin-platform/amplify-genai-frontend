@@ -17,6 +17,17 @@
     
     # ---- Build ----
     FROM dependencies AS build
+    
+    # Accept white label build arguments
+    ARG NEXT_PUBLIC_CUSTOM_LOGO
+    ARG NEXT_PUBLIC_DEFAULT_THEME
+    ARG NEXT_PUBLIC_BRAND_NAME
+    
+    # Set as environment variables for Next.js build
+    ENV NEXT_PUBLIC_CUSTOM_LOGO=${NEXT_PUBLIC_CUSTOM_LOGO}
+    ENV NEXT_PUBLIC_DEFAULT_THEME=${NEXT_PUBLIC_DEFAULT_THEME}
+    ENV NEXT_PUBLIC_BRAND_NAME=${NEXT_PUBLIC_BRAND_NAME}
+    
     COPY --chown=appuser:appgroup . .
     RUN npm run build
     

@@ -189,7 +189,7 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
             </ActionButton> 
             {folderHistory.map((item, index) => (
                 <React.Fragment key={item.id || index}>
-                    {/* <span className="mx-1 text-gray-500">/</span> */}
+                    <span className="mx-1 text-gray-500">/</span>
                     <button
                     className="cursor-pointer text-blue-500 hover:text-blue-700"
                     onClick={(e) => {
@@ -319,13 +319,18 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                         {isFolder ? (
                           <div className="flex flex-row items-center gap-2">
                             <IconFolder size={16} className="flex items-center" />
-                            <span 
+                            <span
                               className="text-gray-400 cursor-pointer hover:text-blue-500"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const newHistory = [...folderHistory, { id: record.id, name: record.name }];
-                                setFolderHistory(newHistory);
-                                onFolderPathChange?.(newHistory);
+                                // Use functional update to avoid stale closure
+                                setFolderHistory((prevHistory) => {
+                                //   console.log('Current folderHistory:', prevHistory);
+                                  const newHistory = [...prevHistory, { id: record.id, name: record.name }];
+                                //   console.log('New history:', newHistory);
+                                  onFolderPathChange?.(newHistory);
+                                  return newHistory;
+                                });
                                 setIsLoading(true);
                                 fetchFiles(record.id);
                               }}
@@ -426,9 +431,12 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
               const isFolder = record.mimeType.toLowerCase().includes("folder");
 
               if (isFolder) {
-                const newHistory = [...folderHistory, { id: record.id, name: record.name }];
-                setFolderHistory(newHistory);
-                onFolderPathChange?.(newHistory);
+                // Use functional update to avoid stale closure
+                setFolderHistory((prevHistory) => {
+                  const newHistory = [...prevHistory, { id: record.id, name: record.name }];
+                  onFolderPathChange?.(newHistory);
+                  return newHistory;
+                });
                 setIsLoading(true);
                 fetchFiles(record.id);
               } else {

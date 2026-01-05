@@ -10,6 +10,7 @@ import { isRemoteConversation } from "@/utils/app/conversation";
 import { fetchMultipleRemoteConversations } from "@/services/remoteConversationService";
 import { ItemSelect } from "../ReusableComponents/ItemsSelect";
 import { Modal } from "../ReusableComponents/Modal";
+import { animate } from "../Loader/LoadingIcon";
 
 export interface DownloadModalProps {
     onDownloadReady: (url: string) => void;
@@ -21,14 +22,6 @@ export interface DownloadModalProps {
     showInclude?: boolean;
 }
 
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
 
 const LoadingIcon = styled(FiCommand)`
   color: lightgray;

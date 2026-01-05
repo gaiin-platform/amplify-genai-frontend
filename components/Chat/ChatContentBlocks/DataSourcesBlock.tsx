@@ -14,6 +14,7 @@ import HomeContext from "@/pages/api/home/home.context";
 import { getFileDownloadUrl } from "@/services/fileService";
 import { fetchImageFromPresignedUrl } from "@/utils/app/files";
 import { IMAGE_FILE_TYPES } from "@/utils/app/const";
+import { getWhiteLabelConfig } from "@/utils/whiteLabel/config";
 
 interface Props {
     message: Message;
@@ -74,6 +75,12 @@ export const DataSourcesBlock: React.FC<Props> = (
     const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>({});
     const imageUrlsRef = useRef<Record<string, string>>({});
     const [selectedImage, setSelectedImage] = useState<{url: string, name: string} | null>(null);
+    
+    // Get logo source for default image
+    const config = getWhiteLabelConfig();
+    const defaultLogoSrc = config.customLogoPath 
+        ? `/logos/${config.customLogoPath}`
+        : '/sparc_apple.png';
 
     const getName = (dataSource: any) => {
         if(dataSource.name){
@@ -84,7 +91,7 @@ export const DataSourcesBlock: React.FC<Props> = (
     }
 
     const getImage = async (dataSource: any, index: number) => {
-        const defaultImage = 'url("/sparc_apple.png")';
+        const defaultImage = `url("${defaultLogoSrc}")`;
         if (!dataSource.type || !dataSource.id || !IMAGE_FILE_TYPES.includes(dataSource.type)) {
             return defaultImage;
         }
@@ -147,7 +154,7 @@ export const DataSourcesBlock: React.FC<Props> = (
         if (imageUrlsRef.current[cacheKey]) {
             return imageUrlsRef.current[cacheKey];
         }
-        return "/sparc_apple.png"; // Fallback image
+        return defaultLogoSrc; // Fallback image
     };
 
     return (
@@ -165,7 +172,7 @@ export const DataSourcesBlock: React.FC<Props> = (
             {message.data && message.data.dataSources && message.data.dataSources.map((d: any, i: any) => {
                 const cacheKey = `${d.id}-${i}`;
                 const isLoading = loadingImages[cacheKey];
-                const imageUrl = imageUrlsRef.current[cacheKey] ? `url(${imageUrlsRef.current[cacheKey]})` : 'url("/sparc_apple.png")';
+                const imageUrl = imageUrlsRef.current[cacheKey] ? `url(${imageUrlsRef.current[cacheKey]})` : `url("${defaultLogoSrc}")`;
                 const isImage = d.type && IMAGE_FILE_TYPES.includes(d.type);
                 
                 const getDocumentIcon = () => {

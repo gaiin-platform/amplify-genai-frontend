@@ -32,13 +32,13 @@ export const AddEmailWithAutoComplete: FC<AddEmailsProps> = ({ id, emails, allEm
     const getValidationState = (currentInput: string): 'valid' | 'invalid' | 'neutral' => {
         const trimmed = currentInput.trim();
         if (!trimmed) return 'neutral';
-        
+
         if (trimmed.includes(',')) {
             const parts = trimmed.split(',').map(p => p.trim()).filter(p => p);
-            if (parts.some(part => isValidEntry(part) && !emails.includes(part))) return 'valid';
+            if (parts.some(part => isValidEntry(part) && !emails.some(e => e.toLowerCase() === part.toLowerCase()))) return 'valid';
         }
-        
-        if (emails.includes(trimmed)) return 'invalid'; // Duplicate
+
+        if (emails.some(e => e.toLowerCase() === trimmed.toLowerCase())) return 'invalid'; // Duplicate
         return isValidEntry(trimmed) ? 'valid' : 'invalid';
     };
 
@@ -48,8 +48,8 @@ export const AddEmailWithAutoComplete: FC<AddEmailsProps> = ({ id, emails, allEm
             .map(entry => entry.trim())
             .filter(entry => entry);
 
-        const validEntries = entries.filter(entry => 
-            isValidEntry(entry) && !emails.includes(entry)
+        const validEntries = entries.filter(entry =>
+            isValidEntry(entry) && !emails.some(e => e.toLowerCase() === entry.toLowerCase())
         );
         
         if (validEntries.length > 0) {
@@ -77,15 +77,16 @@ export const AddEmailWithAutoComplete: FC<AddEmailsProps> = ({ id, emails, allEm
     const handleBlurAdd = useCallback(() => {
         const trimmed = input.trim();
         if (!trimmed) return;
-        
-        // Only auto-add on blur if the input matches a known user in amplifyUsers
+
+        // Only auto-add on blur if the input matches a known user in amplifyUsers (case-insensitive)
+        const trimmedLower = trimmed.toLowerCase();
         const isKnownUser = amplifyUsers && (
             // Check if input matches a username (key) or email (value) in amplifyUsers
-            Object.keys(amplifyUsers).includes(trimmed) || 
-            Object.values(amplifyUsers).includes(trimmed)
+            Object.keys(amplifyUsers).some(key => key.toLowerCase() === trimmedLower) ||
+            Object.values(amplifyUsers).some(val => val.toLowerCase() === trimmedLower)
         );
-        
-        if (isKnownUser && !emails.includes(trimmed)) {
+
+        if (isKnownUser && !emails.some(e => e.toLowerCase() === trimmedLower)) {
             processEntries(trimmed, true);
         }
     }, [input, processEntries, amplifyUsers, emails]);

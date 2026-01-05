@@ -7,14 +7,20 @@ import {Inter} from 'next/font/google';
 import { useEffect } from 'react';
 
 import '@/styles/globals.css';
+import { ThemeService } from '@/utils/whiteLabel/themeService';
 
 const inter = Inter({subsets: ['latin']});
 
 function App({ Component, pageProps }: AppProps) {
     const queryClient = new QueryClient();
 
-    // Initialize chat color palette on app load
+    // Initialize theme and chat color palette on app load
     useEffect(() => {
+        // Initialize theme before first render
+        const initialTheme = ThemeService.getInitialTheme();
+        ThemeService.applyTheme(initialTheme);
+        
+        // Initialize chat color palette
         const savedPalette = localStorage.getItem('chatColorPalette');
         if (savedPalette) {
             document.body.setAttribute('data-chat-palette', savedPalette);

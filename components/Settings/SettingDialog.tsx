@@ -7,6 +7,7 @@ import { featureOptionFlags, getSettings, saveSettings } from '@/utils/app/setti
 import { Settings, Theme } from '@/types/settings';
 
 import HomeContext from '@/pages/api/home/home.context';
+import { ThemeService } from '@/utils/whiteLabel/themeService';
 import React from 'react';
 import { ConversationsStorage } from './ConversationStorage';
 import FlagsMap, { Flag } from '../ReusableComponents/FlagsMap';
@@ -25,6 +26,7 @@ import { Accounts } from './AccountComponents/Account';
 import { Account, noCoaAccount } from '@/types/accounts';
 import { getAccounts } from '@/services/accountService';
 import { noRateLimit } from '@/types/rateLimit';
+import { DataDisclosureViewer } from './DataDisclosureViewer';
 
   interface Props {
   open: boolean;
@@ -188,7 +190,10 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
         return;
     }
 
-    if (theme !== initSettingsRef.current?.theme) statsService.setThemeEvent(theme);
+    if (theme !== initSettingsRef.current?.theme) {
+      statsService.setThemeEvent(theme);
+      ThemeService.setTheme(theme); // Persist theme preference
+    }
     homeDispatch({ field: 'lightMode', value: theme });
 
     const updatedSettings: Settings = { theme: theme, 
@@ -516,7 +521,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
               // Conversation Storage
         
                 {label: `Conversation Storage`, 
-                  title: "Enable conversations to sync across devices or keep them priavte",
+                  title: "Enable conversations to sync across devices or keep them private",
                   content: <>
                     {featureFlags.storeCloudConversations && 
                           <ConversationsStorage open={open} />
@@ -524,6 +529,19 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                   </>
                   
                 },
+                 ///////////////////////////////////////////////////////////////////////////////
+                // Review Data Disclosure
+          
+                {label: `Review Data Disclosure`, 
+                  title: "Review the Amplify data disclosure",
+                  content: <>
+                    {featureFlags.dataDisclosure  && 
+                          <DataDisclosureViewer open={open} />
+                        }
+                  </>
+                  
+                },
+
               ///////////////////////////////////////////////////////////////////////////////
               // Legacy Workspaces
               ...(workspaces && workspaces.length > 0 ? 

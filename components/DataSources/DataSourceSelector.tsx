@@ -56,6 +56,16 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
         
     }, [loading]);
 
+    const getIntegrationName = (integration: string) => {
+        switch (integration) {
+            case "microsoft_drive":
+                return "OneDrive";
+            case "microsoft_sharepoint":
+                return "SharePoint";
+        }
+        return capitalize(integration.split('_')[0]);
+    }
+
     useEffect(() => {
         if (selectRef.current) {
             selectRef.current.focus();
@@ -154,12 +164,12 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                         <a href="#"
                             className={pageClasses(key)}
                             onClick={swapPage(key)}>
-                            <div className="group flex flex-row items-center pointer">
+                            <div className="group flex flex-row items-center pointer shrink-0">
                                 <div>
                                     {translateIntegrationIcon(key)}
                                 </div>
                                 <div className="ml-2">
-                                    {capitalize(key.split('_')[0])}
+                                    {getIntegrationName(key)}
                                 </div>
                             </div>
                         </a>
@@ -174,6 +184,7 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                 >
                     Close
                 </button>}
+                <br></br>
                 
                 
                 {/*    <a href="#"*/}
@@ -260,10 +271,9 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                         }}
                     />
                 )}
-                {userIntegrations && 
+                {userIntegrations &&
                  userIntegrations.map((key) =>
-                    selectedPage === key ? 
-                    <div key={key}>
+                    <div key={key} style={{ display: selectedPage === key ? 'block' : 'none' }}>
                      <DataSourcesTableScrollingIntegrations
                         onDataSourceSelected={onIntegrationDataSourceSelected}
                         disallowedFileExtensions={disallowedFileExtensions}
@@ -281,8 +291,8 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                             enableHiding: false,
                         }}
                         enableDownload={onClose ? false : true}
-                    /> 
-                    </div> : null )
+                    />
+                    </div>)
                 }
             
             </div>

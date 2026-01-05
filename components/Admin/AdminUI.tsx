@@ -17,12 +17,13 @@ import { OpenAIEndpointsTab } from "./AdminComponents/OpenAIEndpoints";
 import { FeatureFlagsTab } from "./AdminComponents/FeatureFlags";
 import { emptySupportedModel, SupportedModelsTab } from "./AdminComponents/SupportedModels";
 import { ConfigurationsTab } from "./AdminComponents/Configurations";
-import { Integration, IntegrationProviders, integrationProvidersList, IntegrationSecretsMap, IntegrationsMap } from "@/types/integrations";
+import { Integration, IntegrationProviders, integrationProviders, integrationProvidersList, IntegrationSecretsMap, IntegrationsMap, ProviderSettingsMap } from "@/types/integrations";
 import { checkActiveIntegrations } from "@/services/oauthIntegrationsService";
 import { IntegrationsTab } from "./AdminComponents/Integrations";
 import { EmbeddingsTab } from "./AdminComponents/Embeddings";
 import { OpsTab } from "./AdminComponents/Ops";
 import { Pptx_TEMPLATES, Ast_Group_Data, FeatureDataTab, } from "./AdminComponents/FeatureData";
+import { CriticalErrorTrackingTab } from "./AdminComponents/Critical_Error_Tracking";
 import { ConversationStorage } from "@/types/conversationStorage";
 
 
@@ -66,6 +67,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [rateLimit, setRateLimit] = useState<{period: PeriodType, rate: string}>({...noRateLimit, rate: '0'});
     const [promptCostAlert, setPromptCostAlert] = useState<PromptCostAlert>({isActive:false, alertMessage: '', cost: 0});
     const [emailSupport, setEmailSupport] = useState<EmailSupport>({isActive:false, email:''});
+    const [criticalErrorsConfig, setCriticalErrorsConfig] = useState<CriticalErrorsConfig>({isActive:false, email:''});
     const [aiEmailDomain, setAiEmailDomain] = useState<string>('');
 
     const [defaultConversationStorage, setDefaultConversationStorage] = useState<ConversationStorage>('future-local');
@@ -96,6 +98,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     const [integrations, setIntegrations] = useState<IntegrationsMap | null >(null);
     const [integrationSecrets, setIntegrationSecrets] = useState<IntegrationSecretsMap>({});
+    const [providerSettings, setProviderSettings] = useState<ProviderSettingsMap>({});
     const [hasChildModalOpen, setHasChildModalOpen] = useState<boolean>(false);
 
     const mergeIntegrationLists = ( supported: Integration[] | undefined,
@@ -148,8 +151,41 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 setAdmins(data[AdminConfigTypes.ADMINS] || []);
                 const featureData = data[AdminConfigTypes.FEATURE_FLAGS];
                 setFeatures(featureData || {});
-                // handle calls to integrations 
-                if (Object.keys(featureData).includes('integrations')) getActiveIntegrations(data[AdminConfigTypes.INTEGRATIONS]); // async no need to wait
+                // handle calls to integrations
+                if (Object.keys(featureData).includes('integrations')) {
+                    const integrationsData = data[AdminConfigTypes.INTEGRATIONS];
+                    if (integrationsData) {
+                        // Support nested structure with backwards compatibility
+                        const integrationsList = integrationsData.integrations || integrationsData;
+                        let providerSettingsData = integrationsData.provider_settings || {};
+
+                        // Ensure provider_settings are fully populated with defaults for providers that have settings
+                        const integrationProviderKeys = Object.keys(integrationsList);
+                        integrationProviderKeys.forEach((provider) => {
+                            // Only populate settings for providers that have defined settings
+                            if (provider === integrationProviders.Microsoft) {
+                                if (!providerSettingsData[provider]) {
+                                    providerSettingsData[provider] = {};
+                                }
+                                if (providerSettingsData[provider].azure_admin_consent_provided === undefined) {
+                                    providerSettingsData[provider].azure_admin_consent_provided = false;
+                                }
+                            }
+                            // Future: Add defaults for other providers here when they have settings
+                            // if (provider === 'google') {
+                            //     if (!providerSettingsData[provider]) {
+                            //         providerSettingsData[provider] = {};
+                            //     }
+                            //     if (providerSettingsData[provider].some_google_setting === undefined) {
+                            //         providerSettingsData[provider].some_google_setting = false;
+                            //     }
+                            // }
+                        });
+
+                        getActiveIntegrations(integrationsList);
+                        setProviderSettings(providerSettingsData);
+                    }
+                }
 
                 setAmpGroups(data[AdminConfigTypes.AMPLIFY_GROUPS] || {})
                 setTemplates(data[AdminConfigTypes.PPTX_TEMPLATES] || []);
@@ -157,6 +193,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 setPromptCostAlert(data[AdminConfigTypes.PROMPT_COST_ALERT || promptCostAlert]);
                 setDefaultConversationStorage(data[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE] || defaultConversationStorage);
                 setEmailSupport(data[AdminConfigTypes.EMAIL_SUPPORT || emailSupport]);
+                setCriticalErrorsConfig(data[AdminConfigTypes.CRITICAL_ERRORS] || criticalErrorsConfig);
                 setAiEmailDomain(data[AdminConfigTypes.AI_EMAIL_DOMAIN] || aiEmailDomain);
                 setDefaultModels(data[AdminConfigTypes.DEFAULT_MODELS] || {});
                 setLoadingMessage("");
@@ -226,6 +263,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return defaultConversationStorage;
             case AdminConfigTypes.EMAIL_SUPPORT:
                 return emailSupport;
+            case AdminConfigTypes.CRITICAL_ERRORS:
+                // Only send fields the backend expects, exclude subscription_status (read-only)
+                const isActive = Boolean(criticalErrorsConfig.isActive);
+                return {
+                    isActive,
+                    email: isActive ? String(criticalErrorsConfig.email || "") : ""
+                };
             case AdminConfigTypes.AI_EMAIL_DOMAIN:
                 return aiEmailDomain;
             case AdminConfigTypes.APP_SECRETS:
@@ -299,7 +343,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             case AdminConfigTypes.PPTX_TEMPLATES:
                 return templates.filter((pptx:Pptx_TEMPLATES) => changedTemplates.includes(pptx.name));
             case AdminConfigTypes.INTEGRATIONS:
-                return integrations;
+                return {
+                    integrations: integrations,
+                    provider_settings: providerSettings
+                };
             case AdminConfigTypes.OPENAI_ENDPOINTS:
                 const toTest:{key: string, url: string, model:string}[] = [];
                 
@@ -435,6 +482,11 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
         if (emailSupport.isActive && !emailSupport.email) {
             alert("The Support Email feature cannot be activated without providing an email address. Please add an email address or disable the feature.");
+            return false;
+        }
+
+        if (criticalErrorsConfig.isActive && !criticalErrorsConfig.email) {
+            alert("Critical Error Notifications cannot be activated without providing an email address. Please add an email address or disable the feature.");
             return false;
         }
         return true;
@@ -789,6 +841,20 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             },
 
             ///////////////////////////////////////////////////////////////////////////////
+            // Critical Error Tracking
+
+            ...( featureFlags.criticalErrorTracking || features.criticalErrorTracking?.enabled
+                ? [{ label: tabTitle('Critical Errors'),
+                content:
+                <CriticalErrorTrackingTab
+                    stillLoadingData={stillLoadingData}
+                    criticalErrorsConfig={criticalErrorsConfig}
+                    setCriticalErrorsConfig={setCriticalErrorsConfig}
+                    updateUnsavedConfigs={updateUnsavedConfigs}
+                />
+            }] : []),
+
+            ///////////////////////////////////////////////////////////////////////////////
   
             // Integrations Tab - only included if included in the feature flags list
             ...(integrations ? 
@@ -801,10 +867,22 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         setIntegrations={setIntegrations}
                         integrationSecrets={integrationSecrets}
                         setIntegrationSecrets={setIntegrationSecrets}
+                        providerSettings={providerSettings}
+                        setProviderSettings={setProviderSettings}
+                        azureAdminConsentProvided={providerSettings[integrationProviders.Microsoft]?.azure_admin_consent_provided || false}
+                        setAzureAdminConsentProvided={(value: boolean) => {
+                            const updated = {
+                                ...providerSettings,
+                                [integrationProviders.Microsoft]: { ...providerSettings[integrationProviders.Microsoft], azure_admin_consent_provided: value }
+                            };
+                            setProviderSettings(updated);
+                            updateUnsavedConfigs(AdminConfigTypes.INTEGRATIONS);
+                        }}
                         updateUnsavedConfigs={updateUnsavedConfigs}
                     />
                 }
                 ] : []),
+
 
         ]
         }
@@ -999,4 +1077,14 @@ export interface PromptCostAlert {
 export interface EmailSupport {
     isActive: boolean;
     email: string;
+}
+
+export interface CriticalErrorsConfig {
+    isActive: boolean;
+    email: string;
+    subscription_status?: {
+        status: 'confirmed' | 'pending' | 'not_subscribed' | 'error';
+        subscription_arn: string | null;
+        message: string;
+    };
 }

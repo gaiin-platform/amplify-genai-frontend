@@ -56,7 +56,6 @@ import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
 import { GroupTypeSelector } from './GroupTypeSelector';
 import { Artifacts } from '../Artifacts/Artifacts';
 import { downloadDataSourceFile } from '@/utils/app/files';
-import { ArtifactsSaved } from './ArtifactsSaved';
 import React from 'react';
 import { PromptHighlightedText } from './PromptHighlightedText';
 import { getSettings } from '@/utils/app/settings';
@@ -1323,9 +1322,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         <IconDownload size={18}/>
                                                     </button>
 
-                                                    {featureFlags.artifacts && 
-                                                    <ArtifactsSaved iconSize={18} isArtifactsOpen={isArtifactOpen}/>}
-                                                    
                                                     {featureFlags.storeCloudConversations &&
                                                     <CloudStorage iconSize={18} />
                                                     }
@@ -1418,9 +1414,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         <IconDownload size={18}/>
                                                     </button>
 
-                                                    {featureFlags.artifacts && 
-                                                    <ArtifactsSaved iconSize={18} isArtifactsOpen={isArtifactOpen}/>}
-                                                    
                                                     {featureFlags.storeCloudConversations &&
                                                     <CloudStorage iconSize={18} />
                                                     }

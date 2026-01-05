@@ -53,3 +53,6 @@ __pycache__/
 *.pyo
 .pytest_cache/
 tests/chrome_profile/
+
+# Kiro IDE specific files
+.kiro/

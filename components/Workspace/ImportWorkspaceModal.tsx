@@ -15,6 +15,7 @@ import { saveFolders } from "@/utils/app/folders";
 import { savePrompts } from "@/utils/app/prompts";
 import { DefaultModels } from "@/types/model";
 import { getUserIdentifier } from "@/utils/app/data";
+import { animate } from "../Loader/LoadingIcon";
 
 export interface ImportModalProps {
     onImport: (importData: ExportFormatV4) => void;
@@ -28,14 +29,6 @@ export interface ImportModalProps {
     editable: boolean;
 }
 
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
 
 const LoadingIcon = styled(FiCommand)`
   color: lightgray;

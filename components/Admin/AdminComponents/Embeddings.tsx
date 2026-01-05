@@ -1,8 +1,9 @@
-import { FC, useState } from "react";
+import { FC, useContext, useState } from "react";
 import { loadingIcon, titleLabel } from "../AdminUI";
 import { AdminConfigTypes, Embedding, EmbeddingsConfig } from "@/types/admin";
 import { userFriendlyDate } from "@/utils/app/date";
 import { getInFlightEmbeddings, terminateEmbedding } from "@/services/adminService";
+import HomeContext from "@/pages/api/home/home.context";
 
 interface Props {
     refresh:  (type: AdminConfigTypes, click: () => void, loading: boolean, title?: string, top?: string) => JSX.Element
@@ -12,11 +13,13 @@ interface Props {
 }
 
 export const EmbeddingsTab: FC<Props> = ({refresh, refreshingTypes, setRefreshingTypes}) => {
+    const { state: { amplifyUsers} } = useContext(HomeContext);
 
-        const [embeddings, setEmbeddings] = useState<EmbeddingsConfig>({embeddings: []});  
-        const [hasRetrievedEmbeddings, setHasRetrievedEmbeddings] = useState<boolean>(false);
-        const [loadingEmbeddings, setLoadingEmbeddings] = useState<boolean>(false);
-        const [terminatingEmbeddings, setTerminatingEmbeddings] = useState<string[]>([]);
+    const [embeddings, setEmbeddings] = useState<EmbeddingsConfig>({embeddings: []});  
+    const [hasRetrievedEmbeddings, setHasRetrievedEmbeddings] = useState<boolean>(false);
+    const [loadingEmbeddings, setLoadingEmbeddings] = useState<boolean>(false);
+    const [terminatingEmbeddings, setTerminatingEmbeddings] = useState<string[]>([]);
+    const [hoveredRow, setHoveredRow] = useState<number>(-1);
         
     const handleGetEmbeddings = async () => {
         setLoadingEmbeddings(true);
@@ -68,20 +71,20 @@ export const EmbeddingsTab: FC<Props> = ({refresh, refreshingTypes, setRefreshin
         {hasRetrievedEmbeddings ? 
             <div className="mt-4">
                 {embeddings.embeddings.length > 0 ? 
-                <table className="border-collapse w-full" style={{ tableLayout: 'fixed' }}>
+                <table className="modern-table hide-last-column" style={{ tableLayout: 'fixed' }}>
                     <thead>
-                        <tr className="bg-gray-200 dark:bg-[#373844] text-center">
-                            {["Message ID", "Event Time", "User", "Key", "Size", "Terminate"].map((i) => (
+                        <tr className="gradient-header hide-last-column text-center">
+                            {["Message ID", "Event Time", "User", "Key", "Chunk", "Size"].map((i) => (
                                 <th
                                     key={i}
-                                    className="p-0.5 border border-gray-500 text-neutral-600 dark:text-neutral-300"
+                                    className="px-4 py-2 border border-gray-500 text-neutral-600 dark:text-neutral-300"
                                     style={{width:
-                                            i === "Message ID" ? "18%"
-                                                : i === "Event Time" ? "12%"
-                                                : i === "User" ? "25%"
-                                                : i === "Key" ? "28%"
-                                                : i === "Size" ? "8%"
-                                                : "10%", // terminated
+                                            i === "Message ID" ? "16%"
+                                                : i === "Event Time" ? "10%"
+                                                : i === "User" ? "20%"
+                                                : i === "Key" ? "30%"
+                                                : i === "Chunk" ? "6%"
+                                                : "8%", // Size
                                     }}>
                                     {i}
                                 </th>
@@ -90,7 +93,7 @@ export const EmbeddingsTab: FC<Props> = ({refresh, refreshingTypes, setRefreshin
                     </thead>
                     <tbody>
                         {embeddings.embeddings.map((embedding: Embedding, i: number) => (
-                            <tr key={i}>
+                            <tr key={i} onMouseEnter={() => setHoveredRow(i)} onMouseLeave={() => setHoveredRow(-1)}>
                                 <td className="border border-neutral-500 px-4 py-2 break-words">
                                     {embedding.messageId}
                                 </td>
@@ -98,31 +101,38 @@ export const EmbeddingsTab: FC<Props> = ({refresh, refreshingTypes, setRefreshin
                                     {userFriendlyDate(embedding.eventTime)}
                                 </td>
                                 <td className="border border-neutral-500 px-4 py-2 text-center">
-                                    {embedding.object.user}
+                                    {amplifyUsers[embedding.object.user] || embedding.object.user}
                                 </td>
-                                <td className="border border-neutral-500 px-4 py-2">
-                                    <div className="truncate" title={embedding.object.key}>
+                                <td className="border border-neutral-500 px-2 py-2">
+                                    <div className="break-all text-xs leading-tight max-h-16 overflow-y-auto" title={embedding.object.key}>
                                         {embedding.object.key}
                                     </div>
                                 </td>
                                 <td className="border border-neutral-500 px-2 py-2 text-center">
+                                    {embedding.object.chunkNumber ?? '-'}
+                                </td>
+                                <td className="border border-neutral-500 px-2 py-2 text-center">
                                     {embedding.object.size}
                                 </td>
-                                <td className="border border-neutral-500 py-2 text-center">
-                                    <button
-                                        className={` ${
-                                            embedding.terminated || terminatingEmbeddings.includes(embedding.object.key) ? 'text-red-600' : 'hover:text-red-800'
-                                        }`}
-                                        disabled={embedding.terminated || terminatingEmbeddings.includes(embedding.object.key)}
-                                        title={embedding.terminated ? '' : 'Terminate'}
-                                        onClick={() => {
-                                            handleTerminateEmbedding(embedding.object.key);
-                                        }}
-                                    >
-                                        {embedding.terminated ? 'Terminated' 
-                                                            : terminatingEmbeddings.includes(embedding.object.key) 
-                                                            ? 'Terminating...' :'Terminate'}
-                                    </button>
+                                <td>
+                                    <div className="w-[30px] flex-shrink-0">
+                                        {hoveredRow === i && !embedding.terminated && !terminatingEmbeddings.includes(embedding.object.key) ? (
+                                            <button
+                                                title="Terminate Embedding"
+                                                type="button"
+                                                className="ml-2 p-1 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none"
+                                                onClick={() => {
+                                                    handleTerminateEmbedding(embedding.object.key);
+                                                }}
+                                            >
+                                                Terminate
+                                            </button>
+                                        ) : embedding.terminated ? (
+                                            <span className="text-xs ml-1 force-red-text">Terminated</span>
+                                        ) : terminatingEmbeddings.includes(embedding.object.key) ? (
+                                            <span className="text-xs ml-1 force-yellow-text">...</span>
+                                        ) : null}
+                                    </div>
                                 </td>
                             </tr>
                         ))}

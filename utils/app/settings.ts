@@ -1,14 +1,17 @@
 import { Settings } from '@/types/settings';
 import {Workspace} from "@/types/workspace";
+import { ThemeService } from '@/utils/whiteLabel/themeService';
 
 const STORAGE_KEY = 'settings';
 
 export const getSettings = (featureFlags:any): Settings => {
   // filter settings to ensure all models are still available 
   let settings: Settings = {
-    theme: 'dark',
+    theme: ThemeService.getInitialTheme(), // Use ThemeService instead of hardcoded 'dark'
     featureOptions: featureOptionDefaults(featureFlags),
-    hiddenModelIds: []
+    hiddenModelIds: [],
+    chatColorPalette: 'warm-browns',
+    avatarColorTone: 'userPrimary'
   };
   const settingsJson = localStorage.getItem(STORAGE_KEY);
   if (settingsJson) {
@@ -37,7 +40,9 @@ export const saveWorkspaceMetadata = (workspaceMetadata: Workspace) => {
   localStorage.setItem('workspaceMetadata', JSON.stringify(workspaceMetadata));
 };
 
-export const saveSettings = (settings: Settings) => {  
+export const saveSettings = (settings: Settings) => {
+  // Sync theme with ThemeService when saving settings
+  ThemeService.setTheme(settings.theme);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 };
 

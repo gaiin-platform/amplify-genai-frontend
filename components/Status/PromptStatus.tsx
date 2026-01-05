@@ -16,6 +16,7 @@ import {
 import { PromptStatusDetails } from '@/components/Status/PromptStatusDetails';
 import Loader from '@/components/Loader/Loader';
 import { Status } from '@/types/workflow';
+import { getWhiteLabelConfig } from '@/utils/whiteLabel/config';
 
 interface PromptStatusProps {
     status: Status;
@@ -24,6 +25,12 @@ interface PromptStatusProps {
 export const PromptStatus: React.FC<PromptStatusProps> = ({ status }) => {
     const [detailsOpen, setDetailsOpen] = useState(true);
     const [animationFrame, setAnimationFrame] = useState(0);
+    
+    // Get logo source for assistant icon background
+    const config = getWhiteLabelConfig();
+    const assistantLogoSrc = config.customLogoPath 
+        ? `/logos/${config.customLogoPath}`
+        : '/sparc_folds.png';
 
     //status.animated = true;
 
@@ -78,7 +85,7 @@ export const PromptStatus: React.FC<PromptStatusProps> = ({ status }) => {
 
     const getCoverBackgroundImage = (status: Status) => {
         if (status.icon === 'assistant') {
-            return 'url("/sparc_folds.png")';
+            return `url("${assistantLogoSrc}")`;
         } else if (status.inProgress) {
             return 'url("/bg-18.png")';
         }
