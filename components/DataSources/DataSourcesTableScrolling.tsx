@@ -887,7 +887,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
                                         setShowDeleteConfirmation(true);
                                     }}
                                     disabled={selectedIds.size === 0}
-                                    className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors text-sm"
+                                    className="px-3 py-1.5 rounded bg-red-600 text-white hover:bg-red-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors text-sm"
                                 >
                                     Delete
                                 </button>
@@ -912,10 +912,10 @@ const DataSourcesTableScrolling: FC<Props> = ({
                                     e.stopPropagation();
                                     setIsDeleteMode(true);
                                 }}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded hover:bg-gray-600 dark:hover:bg-black transition-colors"
+                                className="flex items-center bg-white dark:bg-opacity-0 gap-2 px-3 py-1.5 rounded hover:bg-gray-200 dark:hover:bg-black transition-colors"
                             >
-                                <IconTrash size={18} />
-                                <span className="text-sm text-neutral-200 font-bold">{'Delete Multiple'}</span>
+                                <IconTrash size={18} className="mb-1" />
+                                <span className="text-sm text-neutral-600 dark:text-neutral-300 font-bold">{'Delete Multiple'}</span>
                             </button>
                         </div>
                         }
