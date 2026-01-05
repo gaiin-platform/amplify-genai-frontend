@@ -6,6 +6,7 @@ export interface Model {
   inputContextWindow: number;
   outputTokenLimit: number;
   supportsImages: boolean;
+  supportsVideo?: boolean;
   supportsReasoning: boolean;
   provider: string;
   inputTokenCost: number;

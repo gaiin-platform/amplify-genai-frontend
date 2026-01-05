@@ -12,6 +12,7 @@ export interface FileValidationOptions {
     disallowedExtensions?: string[];
     allowedExtensions?: string[];
     supportsImages?: boolean;
+    supportsVideo?: boolean;
     customErrorMessages?: {
         unsupportedType?: string;
         xlsFormat?: string;

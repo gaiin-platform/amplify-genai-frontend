@@ -82,12 +82,14 @@ export const fileExtensionToType: { [key: string]: string } = {
     'json': 'JSON',
     'xml': 'XML',
     
-    // Other common formats
-    'mp3': 'MP3 Audio',
+    // Video formats
     'mp4': 'MP4 Video',
-    'wav': 'WAV Audio',
     'mov': 'MOV Video',
     'avi': 'AVI Video',
+
+    // Other common formats
+    'mp3': 'MP3 Audio',
+    'wav': 'WAV Audio',
     'epub': 'EPUB Book',
     'sql': 'SQL File'
   };

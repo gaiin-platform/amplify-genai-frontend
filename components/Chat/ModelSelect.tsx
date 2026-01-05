@@ -1,4 +1,4 @@
-import { IconBaselineDensityLarge, IconBaselineDensityMedium, IconBaselineDensitySmall, IconCamera, IconCameraOff, IconCurrencyDollar, IconInfoCircle } from '@tabler/icons-react';
+import { IconBaselineDensityLarge, IconBaselineDensityMedium, IconBaselineDensitySmall, IconCamera, IconCameraOff, IconCurrencyDollar, IconInfoCircle, IconVideo, IconVideoOff} from '@tabler/icons-react';
 import { useContext, useEffect, useState, useRef } from 'react';
 
 import { useTranslation } from 'next-i18next';
@@ -167,6 +167,9 @@ const getIcons = (model: Model) => {
   return <div className="ml-auto flex flex-row gap-1 opacity-70">
           <div title={model.supportsImages ? "Supports Images in Prompts": "Does Not Support Images in Prompts"}>
            {model.supportsImages ? <IconCamera size={18}/> : <IconCameraOff size={18}/>}
+         </div>
+         <div title={model.supportsVideo ? "Supports Videos in Prompts": "Does Not Support Videos in Prompts"}>
+           {model.supportsVideo ? <IconVideo size={18}/> : <IconVideoOff size={18}/>}
          </div>
           {getCostIcon(model.inputTokenCost, model.outputTokenCost)}
           {getOutputLimitIcon(model.outputTokenLimit)}
@@ -339,6 +342,8 @@ const Legend = ({ showPricingBreakdown, featureFlags }: { showPricingBreakdown: 
       </div>
       {legendItem(<IconCamera size={16} />, "Supports Images in Prompts")}
       {legendItem( <IconCameraOff size={16} />, "No Image Support in Prompts")}
+      {legendItem( <IconVideo size={16} />, "Supports Video in Prompts")}
+      {legendItem( <IconVideoOff size={16} />, "No Video Support in Prompts")}
       {legendItem( <IconCurrencyDollar size={16} className='text-green-500' />, 'Inexpensive' )}
       {legendItem( <IconCurrencyDollar size={16} className='text-yellow-500' />, 'Moderate Cost' )}
       {legendItem( <IconCurrencyDollar size={16} className='text-red-500' />, 'Expensive' )}
