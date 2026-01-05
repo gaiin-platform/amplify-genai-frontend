@@ -1,10 +1,11 @@
-import { COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS } from './app/const';
+
 import { getMimeTypeFromExtension } from './app/fileTypeTranslations';
 import { handleFile } from '@/components/Chat/AttachFile';
 import { resolveRagEnabled } from '@/types/features';
 import { AttachedDocument } from '@/types/attacheddocument';
 import JSZip from 'jszip';
 import { v4 as uuidv4 } from 'uuid';
+import { IMAGE_FILE_TYPES } from './app/const';
 // ============================================================================
 // INTERFACES
 // ============================================================================
@@ -66,21 +67,9 @@ export function getFileExtension(filename: string): string {
     }
     return filename.split('.').pop()?.toLowerCase() || '';
 }
-/**
- * Get the default disallowed file extensions based on image support
- */
-export function getDisallowedExtensions(supportsImages: boolean = true): string[] {
-    return [
-        ...COMMON_DISALLOWED_FILE_EXTENSIONS,
-        ...(supportsImages ? [] : IMAGE_FILE_EXTENSIONS)
-    ];
-}
-/**
- * Utility function to get disallowed extensions for a specific context
- * This replicates the logic from ChatInput's getDisallowedFileExtensions()
- */
-export function getDisallowedExtensionsForModel(supportsImages: boolean = true): string[] {
-    return getDisallowedExtensions(supportsImages);
+
+export function isImageFile(file: any): boolean {
+    return file?.type && IMAGE_FILE_TYPES.includes(file.type);
 }
 /**
  * Validate a file based on the provided options

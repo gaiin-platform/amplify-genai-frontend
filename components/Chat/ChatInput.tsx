@@ -42,7 +42,7 @@ import {COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS} from "@/utils/
 import {useChatService} from "@/hooks/useChatService";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {getAssistants} from "@/utils/app/assistants";
-import { processDragDropFiles, processPastedFiles } from '@/utils/fileHandler';
+import { isImageFile, processDragDropFiles, processPastedFiles } from '@/utils/fileHandler';
 import AssistantsInUse from "@/components/Chat/AssistantsInUse";
 import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
 import QiModal from './QiModal';
@@ -79,6 +79,7 @@ import { LargeTextTabs } from '@/components/Chat/LargeTextTabs';
 import { AttachmentDisplay } from '@/components/Chat/AttachmentDisplay';
 import { useLargeTextManager } from '@/hooks/useLargeTextManager';
 import { useTextBlockEditor } from '@/hooks/useTextBlockEditor';
+import toast from 'react-hot-toast';
 
 
 
@@ -582,7 +583,7 @@ export const ChatInput = ({
             }
         }
 
-        const updatedDocuments = documents?.map((d) => {
+        let updatedDocuments = documents?.map((d) => {
             const metadata = documentMetadata[d.id];
             if (metadata) {
                 return {...d, metadata: metadata};
@@ -630,6 +631,11 @@ export const ChatInput = ({
 
         statsService.userSendChatEvent(msg as Message, selectedConversation?.model?.id ?? '');
 
+        const hasImages = updatedDocuments?.some((d) => isImageFile(d));
+        if (!selectedConversation?.model?.supportsImages && hasImages) {
+            toast(" This model does not support images");
+            updatedDocuments = updatedDocuments?.filter((d: AttachedDocument) => !isImageFile(d));
+        }
         onSend(msg, updatedDocuments || []);
 
         // if (selectedProject && selectedConversation) {
@@ -894,9 +900,8 @@ export const ChatInput = ({
     }
 
     const disallowedFileExtensions = useMemo(() => {
-        return [ ...COMMON_DISALLOWED_FILE_EXTENSIONS,
-            ...(selectedConversation?.model?.supportsImages
-                ? [] : IMAGE_FILE_EXTENSIONS ) ];
+   
+        return [ ...COMMON_DISALLOWED_FILE_EXTENSIONS ];
     }, [selectedConversation?.model?.supportsImages]);
 
     const handleCloseAllPopups = () => {
