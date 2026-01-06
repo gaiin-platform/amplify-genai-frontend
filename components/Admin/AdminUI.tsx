@@ -17,7 +17,7 @@ import { OpenAIEndpointsTab } from "./AdminComponents/OpenAIEndpoints";
 import { FeatureFlagsTab } from "./AdminComponents/FeatureFlags";
 import { emptySupportedModel, SupportedModelsTab } from "./AdminComponents/SupportedModels";
 import { ConfigurationsTab } from "./AdminComponents/Configurations";
-import { Integration, IntegrationProviders, integrationProvidersList, IntegrationSecretsMap, IntegrationsMap } from "@/types/integrations";
+import { Integration, IntegrationProviders, integrationProviders, integrationProvidersList, IntegrationSecretsMap, IntegrationsMap, ProviderSettingsMap } from "@/types/integrations";
 import { checkActiveIntegrations } from "@/services/oauthIntegrationsService";
 import { IntegrationsTab } from "./AdminComponents/Integrations";
 import { EmbeddingsTab } from "./AdminComponents/Embeddings";
@@ -96,6 +96,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     const [integrations, setIntegrations] = useState<IntegrationsMap | null >(null);
     const [integrationSecrets, setIntegrationSecrets] = useState<IntegrationSecretsMap>({});
+    const [providerSettings, setProviderSettings] = useState<ProviderSettingsMap>({});
     const [hasChildModalOpen, setHasChildModalOpen] = useState<boolean>(false);
 
     const mergeIntegrationLists = ( supported: Integration[] | undefined,
@@ -149,8 +150,41 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 setAdmins(data[AdminConfigTypes.ADMINS] || []);
                 const featureData = data[AdminConfigTypes.FEATURE_FLAGS];
                 setFeatures(featureData || {});
-                // handle calls to integrations 
-                if (Object.keys(featureData).includes('integrations')) getActiveIntegrations(data[AdminConfigTypes.INTEGRATIONS]); // async no need to wait
+                // handle calls to integrations
+                if (Object.keys(featureData).includes('integrations')) {
+                    const integrationsData = data[AdminConfigTypes.INTEGRATIONS];
+                    if (integrationsData) {
+                        // Support nested structure with backwards compatibility
+                        const integrationsList = integrationsData.integrations || integrationsData;
+                        let providerSettingsData = integrationsData.provider_settings || {};
+
+                        // Ensure provider_settings are fully populated with defaults for providers that have settings
+                        const integrationProviderKeys = Object.keys(integrationsList);
+                        integrationProviderKeys.forEach((provider) => {
+                            // Only populate settings for providers that have defined settings
+                            if (provider === integrationProviders.Microsoft) {
+                                if (!providerSettingsData[provider]) {
+                                    providerSettingsData[provider] = {};
+                                }
+                                if (providerSettingsData[provider].azure_admin_consent_provided === undefined) {
+                                    providerSettingsData[provider].azure_admin_consent_provided = false;
+                                }
+                            }
+                            // Future: Add defaults for other providers here when they have settings
+                            // if (provider === 'google') {
+                            //     if (!providerSettingsData[provider]) {
+                            //         providerSettingsData[provider] = {};
+                            //     }
+                            //     if (providerSettingsData[provider].some_google_setting === undefined) {
+                            //         providerSettingsData[provider].some_google_setting = false;
+                            //     }
+                            // }
+                        });
+
+                        getActiveIntegrations(integrationsList);
+                        setProviderSettings(providerSettingsData);
+                    }
+                }
 
                 setAmpGroups(data[AdminConfigTypes.AMPLIFY_GROUPS] || {})
                 setTemplates(data[AdminConfigTypes.PPTX_TEMPLATES] || []);
@@ -299,7 +333,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             case AdminConfigTypes.PPTX_TEMPLATES:
                 return templates.filter((pptx:Pptx_TEMPLATES) => changedTemplates.includes(pptx.name));
             case AdminConfigTypes.INTEGRATIONS:
-                return integrations;
+                return {
+                    integrations: integrations,
+                    provider_settings: providerSettings
+                };
             case AdminConfigTypes.OPENAI_ENDPOINTS:
                 const toTest:{key: string, url: string, model:string}[] = [];
                 
@@ -861,6 +898,17 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         setIntegrations={setIntegrations}
                         integrationSecrets={integrationSecrets}
                         setIntegrationSecrets={setIntegrationSecrets}
+                        providerSettings={providerSettings}
+                        setProviderSettings={setProviderSettings}
+                        azureAdminConsentProvided={providerSettings[integrationProviders.Microsoft]?.azure_admin_consent_provided || false}
+                        setAzureAdminConsentProvided={(value: boolean) => {
+                            const updated = {
+                                ...providerSettings,
+                                [integrationProviders.Microsoft]: { ...providerSettings[integrationProviders.Microsoft], azure_admin_consent_provided: value }
+                            };
+                            setProviderSettings(updated);
+                            updateUnsavedConfigs(AdminConfigTypes.INTEGRATIONS);
+                        }}
                         updateUnsavedConfigs={updateUnsavedConfigs}
                     />
                 }
