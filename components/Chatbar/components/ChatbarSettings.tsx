@@ -146,23 +146,27 @@ export const ChatbarSettings = () => {
             )}
 
             {/* Web Search API Keys */}
-            <SidebarButton
-                text={t('Web Search')}
-                icon={<IconSearch size={18} />}
-                onClick={() => setIsWebSearchSettingsOpen(true)}
-            />
-            {isWebSearchSettingsOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div className="relative w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-lg bg-white dark:bg-[#343541] p-6 shadow-xl">
-                        <button
-                            className="absolute top-4 right-4 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
-                            onClick={() => setIsWebSearchSettingsOpen(false)}
-                        >
-                            <span className="text-2xl">&times;</span>
-                        </button>
-                        <ToolApiKeysTab open={isWebSearchSettingsOpen} />
-                    </div>
-                </div>
+            {featureFlags.webSearch && (
+                <>
+                    <SidebarButton
+                        text={t('Web Search')}
+                        icon={<IconSearch size={18} />}
+                        onClick={() => setIsWebSearchSettingsOpen(true)}
+                    />
+                    {isWebSearchSettingsOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                            <div className="relative w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-lg bg-white dark:bg-[#343541] p-6 shadow-xl">
+                                <button
+                                    className="absolute top-4 right-4 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+                                    onClick={() => setIsWebSearchSettingsOpen(false)}
+                                >
+                                    <span className="text-2xl">&times;</span>
+                                </button>
+                                <ToolApiKeysTab open={isWebSearchSettingsOpen} />
+                            </div>
+                        </div>
+                    )}
+                </>
             )}
 
             <Import onImport={handleImportConversations} />

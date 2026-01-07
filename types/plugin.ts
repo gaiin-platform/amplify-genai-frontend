@@ -1,4 +1,4 @@
-import { IconRobot, IconChartBar, IconFileSearch, IconLibrary, IconMessageBolt, IconDeviceSdCard, IconWorldSearch } from '@tabler/icons-react';
+import { IconRobot, IconChartBar, IconFileSearch, IconLibrary, IconMessageBolt, IconDeviceSdCard, IconWorldSearch, IconPlugConnected } from '@tabler/icons-react';
 import React from 'react';
 
 // Plugina are on and off features during the conversation chat requests
@@ -20,7 +20,8 @@ export enum PluginID {
   SMART_MESSAGES = 'smart-focused-messages',
   RAG_EVAL = 'rag-eval',
   MEMORY = 'memory',
-  WEB_SEARCH = 'web-search'
+  WEB_SEARCH = 'web-search',
+  MCP = 'mcp'
 }
 
 export const Plugins: Record<PluginID, Plugin> = {
@@ -69,6 +70,13 @@ export const Plugins: Record<PluginID, Plugin> = {
     title: "Enable web search to find current information. Configure your API key in Settings → Integrations → Web Search.",
     default: false,
     iconComponent: IconWorldSearch
+  },
+  [PluginID.MCP]: {
+    id: PluginID.MCP,
+    name: "MCP Tools",
+    title: "Enable MCP (Model Context Protocol) tools. Configure MCP servers in Settings → MCP Servers.",
+    default: false,
+    iconComponent: IconPlugConnected
   }
 };
 

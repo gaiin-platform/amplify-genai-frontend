@@ -23,6 +23,7 @@ import ExpansionComponent from '../Chat/ExpansionComponent';
 import { IntegrationTabs } from '../Integrations/IntegrationsTab';
 import { ApiKeys } from './AccountComponents/ApiKeys';
 import { Accounts } from './AccountComponents/Account';
+import { MCPServersTab } from './MCPServersTab';
 import { Account, noCoaAccount } from '@/types/accounts';
 import { getAccounts } from '@/services/accountService';
 import { noRateLimit } from '@/types/rateLimit';
@@ -512,9 +513,16 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
 
               ///////////////////////////////////////////////////////////////////////////////
               // Integrations Tab
-              ...(featureFlags.integrations ? [{label: `Integrations`, 
+              ...(featureFlags.integrations ? [{label: `Integrations`,
                 title: "Manage your integration connections",
                 content: <IntegrationTabs open={open} depth={1}/>
+              }] : []),
+
+              ///////////////////////////////////////////////////////////////////////////////
+              // MCP Servers Tab
+              ...(featureFlags.mcp ? [{label: `MCP Servers`,
+                title: "Connect to MCP servers for extended tool capabilities",
+                content: <MCPServersTab open={open}/>
               }] : []),
 
               ///////////////////////////////////////////////////////////////////////////////

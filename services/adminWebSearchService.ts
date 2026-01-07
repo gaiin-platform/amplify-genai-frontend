@@ -8,29 +8,49 @@
 import { WebSearchProvider, AdminWebSearchConfig } from '@/types/integrations';
 import { doRequestOp } from './doRequestOp';
 
-const SERVICE_NAME = 'websearch';  // Use separate service for local testing
-const URL_PATH = '/integrations';
+const SERVICE_NAME = 'admin';  // Use admin service
+const URL_PATH = '/amplifymin';
 
 /**
  * Get the current admin web search configuration
  */
 export async function getAdminWebSearchConfig(): Promise<AdminWebSearchConfig | null> {
     try {
+        // Try to get from backend first
         const result = await doRequestOp({
             method: 'GET',
             path: URL_PATH,
-            op: '/web-search/admin/config',
+            op: '/configs',
+            queryParams: {
+                config_ids: 'webSearchConfig'
+            },
             service: SERVICE_NAME
         });
 
-        if (result.success && result.data) {
-            return result.data as AdminWebSearchConfig;
+        if (result.success && result.data?.webSearchConfig) {
+            const config = result.data.webSearchConfig;
+            return {
+                provider: config.provider,
+                isEnabled: config.isEnabled !== false,
+                maskedKey: config.maskedKey || config.masked_key,
+                lastUpdated: config.lastUpdated || config.last_updated
+            } as AdminWebSearchConfig;
         }
-        return null;
     } catch (e) {
-        console.error('Failed to get admin web search config:', e);
-        return null;
+        console.error('Backend web search config not available:', e);
     }
+
+    // Fallback to localStorage
+    try {
+        const tempConfig = localStorage.getItem('tempAdminWebSearchConfig');
+        if (tempConfig) {
+            return JSON.parse(tempConfig) as AdminWebSearchConfig;
+        }
+    } catch (e) {
+        console.error('Failed to read localStorage fallback:', e);
+    }
+
+    return null;
 }
 
 /**
@@ -44,15 +64,31 @@ export async function registerAdminWebSearchKey(
         const result = await doRequestOp({
             method: 'POST',
             path: URL_PATH,
-            op: '/web-search/admin/register',
+            op: '/configs/update',
             data: {
-                provider,
-                api_key: apiKey
+                configurations: [
+                    {
+                        type: 'webSearchConfig',
+                        data: {
+                            provider,
+                            api_key: apiKey
+                        }
+                    }
+                ]
             },
             service: SERVICE_NAME
         });
 
         if (result.success) {
+            // Store successful config in localStorage as a fallback until backend GET works
+            const tempConfig = {
+                provider,
+                isEnabled: true,
+                maskedKey: `${apiKey.substring(0, 3)}...${apiKey.substring(apiKey.length - 3)}`,
+                lastUpdated: new Date().toISOString()
+            };
+            localStorage.setItem('tempAdminWebSearchConfig', JSON.stringify(tempConfig));
+
             return { success: true };
         }
         return { success: false, error: result.message || result.error || 'Failed to register API key' };
@@ -72,12 +108,24 @@ export async function deleteAdminWebSearchKey(
         const result = await doRequestOp({
             method: 'POST',
             path: URL_PATH,
-            op: '/web-search/admin/delete',
-            data: { provider },
+            op: '/configs/update',
+            data: {
+                configurations: [
+                    {
+                        type: 'webSearchConfig',
+                        data: {
+                            provider,
+                            isEnabled: false
+                        }
+                    }
+                ]
+            },
             service: SERVICE_NAME
         });
 
         if (result.success) {
+            // Clear localStorage fallback when successfully deleted
+            localStorage.removeItem('tempAdminWebSearchConfig');
             return { success: true };
         }
         return { success: false, error: result.message || 'Failed to delete API key' };
@@ -89,31 +137,15 @@ export async function deleteAdminWebSearchKey(
 
 /**
  * Test an admin web search API key
+ * Note: Test functionality is not available in the new admin config system
  */
 export async function testAdminWebSearchKey(
-    provider: WebSearchProvider,
-    apiKey: string
+    _provider: WebSearchProvider,
+    _apiKey: string
 ): Promise<{ success: boolean; error?: string }> {
-    try {
-        const result = await doRequestOp({
-            method: 'POST',
-            path: URL_PATH,
-            op: '/web-search/admin/test',
-            data: {
-                provider,
-                api_key: apiKey
-            },
-            service: SERVICE_NAME
-        });
-
-        if (result.success) {
-            return { success: true };
-        }
-        return { success: false, error: result.message || result.error || 'API key test failed' };
-    } catch (e) {
-        console.error('Failed to test admin web search key:', e);
-        return { success: false, error: 'Network error' };
-    }
+    // Test functionality is not implemented in the new admin config system
+    console.warn('Test admin web search key functionality is not available in the new admin config system');
+    return { success: false, error: 'Test functionality not available' };
 }
 
 /**

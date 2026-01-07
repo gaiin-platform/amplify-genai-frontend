@@ -1462,7 +1462,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     
 
 
-                                    {selectedConversationState?.messages?.map((message: Message, index: number) => (
+                                    {selectedConversationState?.messages?.map((message: Message, index: number) => {
+                                        // Don't render tool messages - they're internal context for the LLM
+                                        if (message.role === 'tool') return null;
+                                        return (
                                         <MemoizedChatMessage
                                                 key={index}
                                                 message={message}
@@ -1478,22 +1481,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     if (editedMessage.role != "assistant") {
                                                         const lastUserMessageIndex = selectedConversationState?.messages
                                                                                                                .map(msg => msg.role)
-                                                                                                               .lastIndexOf('user');                                                                                                    
+                                                                                                               .lastIndexOf('user');
 
                                                         if (index === lastUserMessageIndex) {
                                                             routeMessage(editedMessage, selectedConversationState?.messages.length - index, []);
                                                         } else {
-                                                            // ask to fork or overwrite 
+                                                            // ask to fork or overwrite
                                                             setShowOnEditMessagePrompt({editedMessage: editedMessage, index: index});
                                                         }
-                                                        
+
                                                     } else {
                                                         console.log("updateMessage");
                                                         updateMessage(selectedConversationState, editedMessage, index);
                                                     }
                                                 }}
                                             />
-                                    ))}
+                                        );
+                                    })}
 
                                     {loading && <ChatLoader/>}
 

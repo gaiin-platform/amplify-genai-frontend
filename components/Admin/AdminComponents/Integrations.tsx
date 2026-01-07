@@ -1,4 +1,5 @@
-import { FC, useState } from "react";
+import { FC, useState, useContext } from "react";
+import HomeContext from '@/pages/api/home/home.context';
 import {  titleLabel } from "../AdminUI";
 import { AdminConfigTypes} from "@/types/admin";
 import { IntegrationsMap, Integration, integrationProviders, IntegrationSecretsMap, IntegrationProviders, IntegrationSecrets} from "@/types/integrations";
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integrationSecrets, setIntegrationSecrets, updateUnsavedConfigs}) => {
+    const { state: { featureFlags } } = useContext(HomeContext);
 
     const [secretsHasChanges, setSecretsHasChanges] = useState<string[]>([]);
     const [isRegisteringSecrets, setIsRegisteringSecrets] = useState<string>('');
@@ -76,7 +78,7 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
 
     return <>
         {/* Web Search Integration */}
-        <WebSearchIntegration />
+        {featureFlags.webSearch && <WebSearchIntegration />}
 
         <div className="admin-style-settings-card">
         <div className="admin-style-settings-card-header">

@@ -36,6 +36,7 @@ import {
 import { handleAgentRun, handleAgentRunResult, isWaitingForAgentResponse } from '@/utils/app/agent';
 import { lzwCompress } from '@/utils/app/lzwCompression';
 import { WEB_SEARCH_TOOL_DEFINITION } from '@/types/tools';
+import { getEnabledMCPToolsForLLM, handleMCPToolCall } from '@/services/mcpToolExecutor';
 
 export type ChatRequest = {
     message: Message;
@@ -292,8 +293,8 @@ export function useSendService() {
                         conversationId
                     };
 
-                    // Check if Web Search is enabled
-                    const isWebSearchOn = plugins?.some(p => p.id === PluginID.WEB_SEARCH) ?? false;
+                    // Check if Web Search is enabled (requires feature flag AND plugin enabled)
+                    const isWebSearchOn = featureFlags.webSearch && (plugins?.some(p => p.id === PluginID.WEB_SEARCH) ?? false);
                     console.log("Web Search on: ", isWebSearchOn);
 
                     if (isWebSearchOn) {
@@ -302,6 +303,27 @@ export function useSendService() {
                         chatBody.tools = [WEB_SEARCH_TOOL_DEFINITION];
                         chatBody.enableWebSearch = true;
                         console.log("Web search tool added to chat body");
+                    }
+
+                    // Check if MCP is enabled (requires feature flag AND plugin enabled)
+                    const isMCPOn = featureFlags.mcp && (plugins?.some(p => p.id === PluginID.MCP) ?? false);
+                    console.log("MCP on: ", isMCPOn);
+
+                    let mcpTools: any[] = [];
+                    if (isMCPOn) {
+                        // Load MCP tools for LLM
+                        try {
+                            mcpTools = await getEnabledMCPToolsForLLM();
+                            if (mcpTools.length > 0) {
+                                // Add MCP tools to the existing tools array
+                                chatBody.tools = [...(chatBody.tools || []), ...mcpTools];
+                                // Flag to indicate MCP tools need client-side execution
+                                chatBody.mcpEnabled = true;
+                                console.log(`MCP: Added ${mcpTools.length} tools to chat body`);
+                            }
+                        } catch (error) {
+                            console.error("Failed to load MCP tools:", error);
+                        }
                     }
 
                     console.log("Adding artifacts to chat body: ", selectedConversation.artifacts);
@@ -437,7 +459,12 @@ export function useSendService() {
                     }
 
                     if (options) {
+                        // Preserve enableWebSearch when applying options
+                        const enableWebSearchValue = chatBody.enableWebSearch;
                         Object.assign(chatBody, options);
+                        if (enableWebSearchValue) {
+                            chatBody.enableWebSearch = enableWebSearchValue;
+                        }
                     }
 
                     // console.log("Chatbody:", chatBody);
@@ -702,8 +729,469 @@ export function useSendService() {
                             }
                         }
 
-                        // Tool execution is handled by the backend
-                        // The backend will execute tools and return the final response
+                        // Tool execution is handled by the backend for most tools
+                        // For MCP tools, we handle execution client-side since MCP servers run locally
+
+                        // Check if there are pending MCP tool calls that need client-side execution
+                        if (isMCPOn && currentState.mcpToolCalls && currentState.mcpToolCalls.length > 0) {
+                            console.log("[MCP] Executing tool calls client-side:", currentState.mcpToolCalls);
+
+                            // Execute all MCP tool calls
+                            const toolResults: any[] = [];
+                            for (const toolCall of currentState.mcpToolCalls) {
+                                try {
+                                    homeDispatch({
+                                        type: "append",
+                                        field: "status",
+                                        value: newStatus({
+                                            id: `mcp_tool_${toolCall.id}`,
+                                            summary: `Executing MCP Tool`,
+                                            message: `Running ${toolCall.function?.name || toolCall.name}...`,
+                                            icon: "plug",
+                                            inProgress: true,
+                                            animated: true
+                                        })
+                                    });
+
+                                    const { result, toolInfo } = await handleMCPToolCall(
+                                        toolCall.function?.name || toolCall.name,
+                                        toolCall.function?.arguments ?
+                                            (typeof toolCall.function.arguments === 'string' ?
+                                                JSON.parse(toolCall.function.arguments) :
+                                                toolCall.function.arguments) :
+                                            toolCall.arguments || {}
+                                    );
+
+                                    toolResults.push({
+                                        tool_call_id: toolCall.id,
+                                        role: 'tool',
+                                        name: toolCall.function?.name || toolCall.name,
+                                        content: result.content,
+                                        isError: result.isError,
+                                        serverName: toolInfo.serverName,
+                                        toolName: toolInfo.toolName,
+                                        // Store full rawResult for rendering images and rich content
+                                        rawResult: result.rawResult
+                                    });
+
+                                    console.log(`[MCP] Tool ${toolInfo.toolName} executed:`, result);
+                                } catch (error) {
+                                    console.error(`[MCP] Tool execution failed:`, error);
+                                    toolResults.push({
+                                        tool_call_id: toolCall.id,
+                                        role: 'tool',
+                                        name: toolCall.function?.name || toolCall.name,
+                                        toolName: toolCall.function?.name || toolCall.name,
+                                        content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                                        isError: true
+                                    });
+                                }
+                            }
+
+                            // Store tool results in the message state for display
+                            const lastMsgIndex = updatedConversation.messages.length - 1;
+                            if (lastMsgIndex >= 0) {
+                                updatedConversation.messages[lastMsgIndex].data = {
+                                    ...updatedConversation.messages[lastMsgIndex].data,
+                                    state: {
+                                        ...updatedConversation.messages[lastMsgIndex].data?.state,
+                                        mcpToolResults: toolResults
+                                    }
+                                };
+                            }
+
+                            // Continue the conversation with tool results
+                            // Build messages with assistant tool_calls and tool results
+                            console.log("[MCP] Continuing conversation with tool results...");
+
+                            // Store MCP tool results in message data for rendering
+                            const mcpToolResultsForDisplay = toolResults.map(tr => ({
+                                toolName: tr.toolName || tr.name || 'unknown',
+                                serverName: tr.serverName,
+                                content: tr.rawResult?.content || [{ type: 'text', text: tr.content }],
+                                isError: tr.isError
+                            }));
+
+                            // Create assistant message with tool_calls
+                            const assistantToolCallMessage = newMessage({
+                                role: 'assistant',
+                                content: text, // Include any text the assistant wrote
+                                tool_calls: currentState.mcpToolCalls.map((tc: any) => ({
+                                    id: tc.id,
+                                    type: 'function',
+                                    function: tc.function
+                                })),
+                                data: {
+                                    mcpToolResults: mcpToolResultsForDisplay
+                                }
+                            });
+
+                            // Create tool result messages
+                            const toolResultMessages = toolResults.map(tr => newMessage({
+                                role: 'tool',
+                                tool_call_id: tr.tool_call_id,
+                                content: tr.content
+                            }));
+
+                            // Update conversation with assistant message (with tool_calls) and tool results
+                            const messagesWithToolResults = [
+                                ...updatedConversation.messages.slice(0, -1), // Remove the current incomplete assistant message
+                                assistantToolCallMessage,
+                                ...toolResultMessages
+                            ];
+
+                            updatedConversation = {
+                                ...updatedConversation,
+                                messages: messagesWithToolResults
+                            };
+
+                            homeDispatch({
+                                field: 'selectedConversation',
+                                value: updatedConversation,
+                            });
+
+                            // Make a direct API call to continue the conversation with tool results
+                            // Don't use handleSend recursively - it adds unnecessary user messages
+                            console.log("[MCP] Sending continuation request with tool results...");
+
+                            // Build continuation chatBody with tool results already in messages
+                            const continuationChatBody: ChatBody = {
+                                model: updatedConversation.model,
+                                messages: messagesWithToolResults, // Messages already include tool_calls and tool results
+                                prompt: rootPrompt || updatedConversation.prompt || "",
+                                temperature: updatedConversation.temperature || DEFAULT_TEMPERATURE,
+                                maxTokens: updatedConversation.maxTokens || (Math.round(updatedConversation.model.outputTokenLimit / 2)),
+                                conversationId,
+                                // Use the same tools from the original request (already includes MCP tools)
+                                tools: chatBody.tools,
+                                mcpEnabled: true,
+                                enableWebSearch: isWebSearchOn,
+                                skipRag: true,
+                                skipCodeInterpreter: true
+                            };
+
+                            if (isSmartMessagesOn || isArtifactsOn) {
+                                continuationChatBody.options = {
+                                    smartMessages: isSmartMessagesOn,
+                                    artifacts: isArtifactsOn
+                                };
+                            }
+
+                            // Reset state for continuation
+                            currentState = {};
+                            text = '';
+
+                            // Make direct API call for continuation
+                            const continuationController = new AbortController();
+                            const continuationMetaHandler: MetaHandler = {
+                                status: (meta: any) => {
+                                    if (meta.id === "reasoning") reasoningText += meta.message;
+                                    homeDispatch({ type: "append", field: "status", value: newStatus(meta) })
+                                },
+                                mode: (modeName: string) => {
+                                    outOfOrder = (modeName === "out_of_order");
+                                },
+                                state: (state: any) => {
+                                    currentState = deepMerge(currentState, state);
+                                },
+                                shouldAbort: () => {
+                                    if (shouldAbort()) {
+                                        continuationController.abort();
+                                        return true;
+                                    }
+                                    return false;
+                                }
+                            };
+
+                            try {
+                                const continuationResponse = await sendChatRequest(
+                                    continuationChatBody,
+                                    continuationController.signal,
+                                    continuationMetaHandler
+                                );
+
+                                if (!continuationResponse || !continuationResponse.ok) {
+                                    console.error("[MCP] Continuation request failed:", continuationResponse?.statusText);
+                                    cleanupHomeState();
+                                    resolve(text);
+                                    return;
+                                }
+
+                                const continuationData = continuationResponse.body;
+                                if (!continuationData) {
+                                    cleanupHomeState();
+                                    resolve(text);
+                                    return;
+                                }
+
+                                const continuationReader = continuationData.getReader();
+                                let continuationDone = false;
+                                let continuationText = '';
+
+                                // Add new assistant message for continuation response
+                                const continuationMessages: Message[] = [
+                                    ...messagesWithToolResults,
+                                    newMessage({
+                                        role: 'assistant',
+                                        content: "",
+                                        data: { state: currentState }
+                                    }),
+                                ];
+                                updatedConversation = {
+                                    ...updatedConversation,
+                                    messages: continuationMessages,
+                                };
+                                homeDispatch({
+                                    field: 'selectedConversation',
+                                    value: updatedConversation,
+                                });
+
+                                while (!continuationDone) {
+                                    if (shouldAbort()) {
+                                        continuationController.abort();
+                                        continuationDone = true;
+                                        break;
+                                    }
+                                    const { value, done: doneReading } = await continuationReader.read();
+                                    continuationDone = doneReading;
+                                    const chunkValue = decoder.decode(value);
+                                    continuationText += chunkValue;
+
+                                    // Update the last message with streamed content
+                                    const streamedMessages: Message[] =
+                                        updatedConversation.messages.map((message, index) => {
+                                            if (index === updatedConversation.messages.length - 1) {
+                                                return {
+                                                    ...message,
+                                                    content: continuationText,
+                                                    data: { ...(message.data || {}), state: currentState }
+                                                };
+                                            }
+                                            return message;
+                                        });
+                                    updatedConversation = {
+                                        ...updatedConversation,
+                                        messages: streamedMessages,
+                                    };
+                                    homeDispatch({
+                                        field: 'selectedConversation',
+                                        value: updatedConversation,
+                                    });
+                                }
+
+                                // Loop to handle multiple rounds of MCP tool calls
+                                // This allows unlimited tool call chains (e.g., install → create → execute → ...)
+                                const MAX_TOOL_ITERATIONS = 10; // Safety limit
+                                let toolIteration = 0;
+                                let currentChatBody = continuationChatBody;
+                                let currentMessages = updatedConversation.messages;
+
+                                while (currentState.mcpToolCalls && currentState.mcpToolCalls.length > 0 && toolIteration < MAX_TOOL_ITERATIONS) {
+                                    toolIteration++;
+                                    console.log(`[MCP] Tool iteration ${toolIteration}: ${currentState.mcpToolCalls.length} tool calls detected`);
+
+                                    // Clear status from previous iteration to prevent stacking
+                                    homeDispatch({ field: 'status', value: [] });
+
+                                    // Execute the tool calls
+                                    const newToolResults: any[] = [];
+                                    for (const toolCall of currentState.mcpToolCalls) {
+                                        try {
+                                            homeDispatch({
+                                                type: "append",
+                                                field: "status",
+                                                value: newStatus({
+                                                    id: `mcp_tool_${toolCall.id}`,
+                                                    summary: `Executing MCP Tool`,
+                                                    message: `Running ${toolCall.function?.name || toolCall.name}...`,
+                                                    icon: "plug",
+                                                    inProgress: true,
+                                                    animated: true
+                                                })
+                                            });
+
+                                            const { result, toolInfo } = await handleMCPToolCall(
+                                                toolCall.function?.name || toolCall.name,
+                                                toolCall.function?.arguments ?
+                                                    (typeof toolCall.function.arguments === 'string' ?
+                                                        JSON.parse(toolCall.function.arguments) :
+                                                        toolCall.function.arguments) :
+                                                    toolCall.arguments || {}
+                                            );
+
+                                            newToolResults.push({
+                                                tool_call_id: toolCall.id,
+                                                role: 'tool',
+                                                content: result.content,
+                                                isError: result.isError,
+                                                serverName: toolInfo.serverName,
+                                                toolName: toolInfo.toolName,
+                                                // Store full rawResult for rendering images and rich content
+                                                rawResult: result.rawResult
+                                            });
+
+                                            console.log(`[MCP] Tool ${toolInfo.toolName} executed:`, result);
+                                        } catch (error) {
+                                            console.error(`[MCP] Tool execution failed:`, error);
+                                            newToolResults.push({
+                                                tool_call_id: toolCall.id,
+                                                role: 'tool',
+                                                toolName: toolCall.function?.name || toolCall.name,
+                                                content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                                                isError: true
+                                            });
+                                        }
+                                    }
+
+                                    // Build next continuation with new tool results
+                                    // Store MCP tool results in message data for rendering
+                                    const mcpToolResults = newToolResults.map(tr => ({
+                                        toolName: tr.toolName || 'unknown',
+                                        serverName: tr.serverName,
+                                        content: tr.rawResult?.content || [{ type: 'text', text: tr.content }],
+                                        isError: tr.isError
+                                    }));
+
+                                    const nextAssistantMessage = newMessage({
+                                        role: 'assistant',
+                                        content: continuationText,
+                                        tool_calls: currentState.mcpToolCalls.map((tc: any) => ({
+                                            id: tc.id,
+                                            type: 'function',
+                                            function: tc.function
+                                        })),
+                                        data: {
+                                            mcpToolResults: mcpToolResults
+                                        }
+                                    });
+
+                                    const nextToolMessages = newToolResults.map(tr => newMessage({
+                                        role: 'tool',
+                                        tool_call_id: tr.tool_call_id,
+                                        content: tr.content
+                                    }));
+
+                                    const nextMessages = [
+                                        ...currentMessages.slice(0, -1),
+                                        nextAssistantMessage,
+                                        ...nextToolMessages
+                                    ];
+
+                                    // Update conversation
+                                    updatedConversation = {
+                                        ...updatedConversation,
+                                        messages: nextMessages
+                                    };
+                                    currentMessages = nextMessages;
+
+                                    homeDispatch({
+                                        field: 'selectedConversation',
+                                        value: updatedConversation,
+                                    });
+
+                                    // Reset state for next iteration
+                                    currentState = {};
+
+                                    // Make another continuation request
+                                    const nextChatBody: ChatBody = {
+                                        ...currentChatBody,
+                                        messages: nextMessages
+                                    };
+
+                                    console.log(`[MCP] Sending continuation request ${toolIteration + 1}...`);
+
+                                    const nextResponse = await sendChatRequest(
+                                        nextChatBody,
+                                        continuationController.signal,
+                                        continuationMetaHandler
+                                    );
+
+                                    if (!nextResponse || !nextResponse.ok || !nextResponse.body) {
+                                        console.error("[MCP] Continuation request failed");
+                                        break;
+                                    }
+
+                                    const nextReader = nextResponse.body.getReader();
+                                    let nextDone = false;
+                                    let nextText = '';
+
+                                    // Add assistant message for next response
+                                    const nextContinuationMessages: Message[] = [
+                                        ...nextMessages,
+                                        newMessage({
+                                            role: 'assistant',
+                                            content: "",
+                                            data: { state: {} }
+                                        }),
+                                    ];
+                                    updatedConversation = {
+                                        ...updatedConversation,
+                                        messages: nextContinuationMessages,
+                                    };
+                                    currentMessages = nextContinuationMessages;
+                                    homeDispatch({
+                                        field: 'selectedConversation',
+                                        value: updatedConversation,
+                                    });
+
+                                    while (!nextDone) {
+                                        if (shouldAbort()) {
+                                            continuationController.abort();
+                                            break;
+                                        }
+                                        const { value, done: doneReading } = await nextReader.read();
+                                        nextDone = doneReading;
+                                        const chunkValue = decoder.decode(value);
+                                        nextText += chunkValue;
+
+                                        const streamedMsgs: Message[] =
+                                            updatedConversation.messages.map((msg, idx) => {
+                                                if (idx === updatedConversation.messages.length - 1) {
+                                                    return { ...msg, content: nextText, data: { ...(msg.data || {}), state: currentState } };
+                                                }
+                                                return msg;
+                                            });
+                                        updatedConversation = { ...updatedConversation, messages: streamedMsgs };
+                                        currentMessages = streamedMsgs;
+                                        homeDispatch({ field: 'selectedConversation', value: updatedConversation });
+                                    }
+
+                                    continuationText = nextText;
+                                    // Loop will continue if currentState.mcpToolCalls was populated by continuationMetaHandler
+                                }
+
+                                if (toolIteration >= MAX_TOOL_ITERATIONS) {
+                                    console.warn("[MCP] Maximum tool iterations reached");
+                                }
+
+                                // Save conversation
+                                if (selectedConversation.isLocal) {
+                                    const updatedConversations: Conversation[] = conversationsRef.current.map(
+                                        (conversation: Conversation) => {
+                                            if (conversation.id === selectedConversation.id) {
+                                                return conversationWithCompressedMessages(updatedConversation);
+                                            }
+                                            return conversation;
+                                        },
+                                    );
+                                    if (updatedConversations.length === 0) {
+                                        updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
+                                    }
+                                    homeDispatch({ field: 'conversations', value: updatedConversations });
+                                    saveConversations(updatedConversations);
+                                } else {
+                                    uploadConversation(updatedConversation, foldersRef.current);
+                                }
+
+                                cleanupHomeState();
+                                resolve(continuationText);
+                            } catch (error) {
+                                console.error("[MCP] Continuation request failed:", error);
+                                cleanupHomeState();
+                                resolve(text);
+                            }
+                            return;
+                        }
 
                         //console.log("Dispatching post procs: " + postProcessingCallbacks.length);
                         postProcessingCallbacks.forEach(callback => callback({
