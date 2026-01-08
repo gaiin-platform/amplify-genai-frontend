@@ -1,5 +1,6 @@
 import React, {FC, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
-import {IconArrowNarrowLeft, IconDownload, IconFolder, IconCheck} from "@tabler/icons-react";
+import {IconArrowNarrowLeft, IconDownload, IconFolder, IconCheck, IconX} from "@tabler/icons-react";
+import { BatchProcessModal, BatchProgress } from './BatchProcessModal';
 import {
     MantineReactTable,
     useMantineReactTable,
@@ -66,7 +67,18 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
     const [sorting, setSorting] = useState<MRT_SortingState>([]);
     const tableContainerRef = useRef<HTMLDivElement>(null);
 
+    // Batch selection state (only for ChatInput context)
+    const [isSelectMultipleMode, setIsSelectMultipleMode] = useState(false);
+    const [selectedForBatch, setSelectedForBatch] = useState<Set<string>>(new Set());
+    const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
+    const [showBatchModal, setShowBatchModal] = useState(false);
+    const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+    const abortBatchRef = useRef(false);
+
     const ROOT = 'root';
+
+    // Determine if we're in ChatInput context (show Select Multiple) vs AssistantDriveDataSources context (already has checkboxes)
+    const shouldShowSelectMultiple = onDataSourceSelected && !onItemSelected;
 
     const getTypeFromCommonName = (commonName: string, filename: string) => {
         switch (commonName) {
@@ -239,6 +251,233 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
         return null;
     }
 
+    // Batch selection functions
+    const toggleFileSelection = (id: string) => {
+        const newSelected = new Set(selectedForBatch);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedForBatch(newSelected);
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedForBatch.size === data.length) {
+            setSelectedForBatch(new Set());
+        } else {
+            setSelectedForBatch(new Set(data.map(file => file.id)));
+        }
+    };
+
+    // Recursively fetch all files in a folder (and subfolders)
+    const fetchAllFilesInFolder = async (folderId: string): Promise<IntegrationFileRecord[]> => {
+        try {
+            const result = await listIntegrationFiles({ integration: driveId, folder_id: folderId });
+
+            if (!result.success) {
+                console.error('Failed to fetch folder contents:', folderId);
+                return [];
+            }
+
+            let allFiles: IntegrationFileRecord[] = [];
+            const items = result.data.map((f: IntegrationFileRecord) => {
+                return {...f, mimeType: getTypeFromCommonName(f.mimeType, f.name), type: getExtendedTypeFromMimeType(f.mimeType, f.name)}
+            });
+
+            // Filter disallowed extensions
+            const filteredItems = disallowedFileExtensions && disallowedFileExtensions.length > 0
+                ? items.filter((file: IntegrationFileRecord) => {
+                    if (file.mimeType.toLowerCase().includes("folder")) return true;
+                    const extension = getExtensionFromFilename(file.name);
+                    return extension ? !disallowedFileExtensions.includes(extension) : true;
+                })
+                : items;
+
+            for (const item of filteredItems) {
+                const isFolder = item.mimeType.toLowerCase().includes("folder");
+
+                if (isFolder) {
+                    // Recursively get files from this subfolder
+                    const subFolderFiles = await fetchAllFilesInFolder(item.id);
+                    allFiles = [...allFiles, ...subFolderFiles];
+                } else {
+                    // Add this file to the list
+                    allFiles.push(item);
+                }
+            }
+
+            return allFiles;
+        } catch (error) {
+            console.error('Error fetching folder contents:', error);
+            return [];
+        }
+    };
+
+    // Process batch selection
+    const processBatchSelection = async (itemsToProcess: IntegrationFileRecord[]) => {
+        abortBatchRef.current = false;
+        setIsBatchProcessing(true);
+
+        // Separate folders and files
+        const folders: IntegrationFileRecord[] = [];
+        const files: IntegrationFileRecord[] = [];
+
+        itemsToProcess.forEach(item => {
+            const isFolder = item.mimeType.toLowerCase().includes("folder");
+            if (isFolder) {
+                folders.push(item);
+            } else {
+                files.push(item);
+            }
+        });
+
+        // Fetch all files from folders
+        let allFilesToProcess: IntegrationFileRecord[] = [...files];
+
+        if (folders.length > 0) {
+            // Show modal with scanning state
+            const scanningProgress: BatchProgress = {
+                total: 0,
+                completed: 0,
+                failed: [],
+                currentFile: null,
+                isComplete: false,
+                scanningFolders: true,
+                scanningMessage: `Scanning ${folders.length} folder(s)...`
+            };
+            setBatchProgress(scanningProgress);
+            setShowBatchModal(true);
+
+            for (const folder of folders) {
+                if (abortBatchRef.current) break;
+
+                const folderFiles = await fetchAllFilesInFolder(folder.id);
+                allFilesToProcess = [...allFilesToProcess, ...folderFiles];
+            }
+        }
+
+        if (abortBatchRef.current) {
+            setIsBatchProcessing(false);
+            setShowBatchModal(false);
+            setBatchProgress(null);
+            return;
+        }
+
+        // Initialize progress
+        const progress: BatchProgress = {
+            total: allFilesToProcess.length,
+            completed: 0,
+            failed: [],
+            currentFile: null,
+            isComplete: false,
+            scanningFolders: false
+        };
+
+        setBatchProgress(progress);
+        setShowBatchModal(true);
+
+        // Process each file
+        for (let i = 0; i < allFilesToProcess.length; i++) {
+            if (abortBatchRef.current) break;
+
+            const file = allFilesToProcess[i];
+
+            // Update current file
+            setBatchProgress(prev => prev ? { ...prev, currentFile: file.name } : null);
+
+            try {
+                // Use existing onFileSelected logic
+                await processFileUpload(file);
+
+                // Success
+                setBatchProgress(prev => prev ? {
+                    ...prev,
+                    completed: prev.completed + 1,
+                    currentFile: i === allFilesToProcess.length - 1 ? null : prev.currentFile
+                } : null);
+
+            } catch (error) {
+                // Failure
+                setBatchProgress(prev => prev ? {
+                    ...prev,
+                    completed: prev.completed + 1,
+                    failed: [...prev.failed, { file, error: error instanceof Error ? error.message : 'Unknown error' }],
+                    currentFile: i === allFilesToProcess.length - 1 ? null : prev.currentFile
+                } : null);
+            }
+
+            // Small delay to avoid overwhelming the API
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
+
+        // Mark as complete
+        setBatchProgress(prev => prev ? { ...prev, isComplete: true, currentFile: null } : null);
+        setIsBatchProcessing(false);
+        setIsSelectMultipleMode(false);
+        setSelectedForBatch(new Set());
+    };
+
+    // Extract file processing logic from onFileSelected
+    const processFileUpload = async (item: IntegrationFileRecord): Promise<void> => {
+        const downloadLink = await getDownloadLinkData(item.id, false);
+
+        if (!downloadLink) {
+            throw new Error('Failed to get download link');
+        }
+
+        const response = await fetch(downloadLink);
+        if (!response.ok) throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+
+        const fileBlob = await response.blob();
+
+        const extension = getExtensionFromFilename(item.name);
+        const actualMimeType = extension ?
+            getFileTypeFromExtension(extension) :
+            (fileBlob.type || "application/octet-stream");
+
+        const file = new File(
+            [fileBlob],
+            item.name,
+            {
+              type: actualMimeType,
+              lastModified: new Date().getTime()
+            }
+        );
+
+        statsService.attachFileEvent(file, featureFlags.uploadDocuments);
+
+        if (onDataSourceSelected) onDataSourceSelected(file);
+    };
+
+    const handleConfirmBatchSelection = async () => {
+        if (selectedForBatch.size === 0) {
+            toast.error('No files selected');
+            return;
+        }
+
+        const itemsToProcess = data.filter(item => selectedForBatch.has(item.id));
+        await processBatchSelection(itemsToProcess);
+    };
+
+    const handleCancelBatch = () => {
+        abortBatchRef.current = true;
+        setShowBatchModal(false);
+        setBatchProgress(null);
+        setIsBatchProcessing(false);
+    };
+
+    const handleRetryFailed = async (failedFiles: IntegrationFileRecord[]) => {
+        setShowBatchModal(false);
+        setBatchProgress(null);
+        await processBatchSelection(failedFiles);
+    };
+
+    const handleCloseBatchModal = () => {
+        setShowBatchModal(false);
+        setBatchProgress(null);
+    };
+
     const onFileSelected = async (item: IntegrationFileRecord) => {
         setLoadingMessage("Preparing Document for Upload...");
         // have to get a download link because we need to get the file contents which is only doable by saving it in our internal servers
@@ -291,7 +530,64 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
             {
                 accessorKey: 'name',
                 header: 'Name',
-                width: 200,
+                Header: shouldShowSelectMultiple ? () => (
+                    <div className="flex items-center gap-1">
+                        <span>Name</span>
+                        {!isSelectMultipleMode && (
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setIsSelectMultipleMode(true);
+                                }}
+                                className="text-xs px-1.5 py-0.5 ml-1 mr-3 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors whitespace-nowrap"
+                            >
+                                Select Multiple
+                            </button>
+                        )}
+                        {isSelectMultipleMode && (
+                            <>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        toggleSelectAll();
+                                    }}
+                                    className="text-xs px-1.5 py-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors whitespace-nowrap"
+                                >
+                                    {selectedForBatch.size === data.length && data.length > 0 ? 'Deselect All' : 'Select All'}
+                                </button>
+                                <span className="text-xs text-gray-500 whitespace-nowrap">
+                                    ({selectedForBatch.size})
+                                </span>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleConfirmBatchSelection();
+                                    }}
+                                    disabled={selectedForBatch.size === 0}
+                                    className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                    title="Confirm Selection"
+                                >
+                                    <IconCheck size={16} className="text-green-600 dark:text-green-400" />
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setIsSelectMultipleMode(false);
+                                        setSelectedForBatch(new Set());
+                                    }}
+                                    className="p-1 mr-3 rounded hover:bg-red-100 dark:hover:bg-red-900 transition-colors"
+                                    title="Cancel"
+                                >
+                                    <IconX size={16} className="text-red-600 dark:text-red-400" />
+                                </button>
+                            </>
+                        )}
+                    </div>
+                ) : undefined,
                 size: 200,
                 maxSize: 300,
                 Cell: ({ cell, row }) => {
@@ -299,10 +595,11 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                   const isFolder = record.mimeType.toLowerCase().includes("folder");
                   const displayName = record.name;
                   const isSelected = isItemSelected ? isItemSelected(record.id, isFolder) : false;
-                  
+                  const isBatchSelected = selectedForBatch.has(record.id);
+
                   return (
                     <div className="flex flex-row items-center gap-2">
-                      {/* Checkbox for selection */}
+                      {/* Checkbox for assistant data source selection (existing) */}
                       {onItemSelected && (
                         <div onClick={(e) => e.stopPropagation()}>
                           <input
@@ -313,7 +610,19 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                           />
                         </div>
                       )}
-                      
+
+                      {/* Checkbox for batch selection (new - ChatInput context) */}
+                      {isSelectMultipleMode && shouldShowSelectMultiple && (
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            id={`batch-checkbox-${record.id}`}
+                            checked={isBatchSelected}
+                            onChange={() => toggleFileSelection(record.id)}
+                          />
+                        </div>
+                      )}
+
                       {/* File/Folder content */}
                       <div className="flex-1">
                         {isFolder ? (
@@ -365,7 +674,6 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
               {
                 accessorKey: 'size',
                 header: 'Size',
-                width: 60,
                 size: 60,
                 enableColumnFilter: false,
                 Cell: ({cell}) => (
@@ -377,13 +685,12 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                     accessorKey: 'mimeType',
                     header: 'Type',
                     //enableSorting: false,
-                    width: 100,
                     size: 100,
                     maxSize: 100,
                     Edit: ({cell, column, table}) => <>{cell.getValue<string>()}</>,
                 },
         ],
-        [enableDownload, featureFlags.uploadDocuments, isItemSelected, onItemSelected],
+        [enableDownload, featureFlags.uploadDocuments, isItemSelected, onItemSelected, isSelectMultipleMode, selectedForBatch, data, shouldShowSelectMultiple],
     );
 
     const columns = allColumns.filter(
@@ -429,6 +736,12 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
               event.preventDefault();
               const record = row.original;
               const isFolder = record.mimeType.toLowerCase().includes("folder");
+
+              // If in select multiple mode, toggle selection instead of normal behavior
+              if (isSelectMultipleMode && shouldShowSelectMultiple) {
+                toggleFileSelection(record.id);
+                return;
+              }
 
               if (isFolder) {
                 // Use functional update to avoid stale closure
@@ -477,6 +790,16 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                 </ScrollArea>
                 {renderBreadcrumbs()}
             </MantineProvider>
+
+            {/* Batch Process Modal */}
+            {showBatchModal && batchProgress && (
+                <BatchProcessModal
+                    progress={batchProgress}
+                    onCancel={handleCancelBatch}
+                    onRetry={handleRetryFailed}
+                    onClose={handleCloseBatchModal}
+                />
+            )}
         </div>)
 };
 
