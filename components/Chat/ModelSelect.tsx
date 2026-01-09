@@ -81,6 +81,7 @@ export const ModelSelect: React.FC<Props> = ({
 
 
   useEffect(() => {
+    console.log("models", models);
     setSelectModel(modelId);
     // Edge case in component use in Assistant Admin UI
     if (!isDisabled && handleModelChange && !modelId && defaultModelId) {

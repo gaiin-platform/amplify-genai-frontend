@@ -11,8 +11,9 @@ export const COMMON_DISALLOWED_FILE_EXTENSIONS = [
     "psd","heic","heif","ico","ps",
 ];
 export const IMAGE_FILE_EXTENSIONS = ["jpg","png", "gif", "jpeg", "webp"];
+export const VIDEO_FILE_EXTENSIONS = ["mp4", "mov", "avi", "mkv", "webm"];
 
 export const IMAGE_FILE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-
+export const VIDEO_FILE_TYPES = ["video/mp4", "video/mov", "video/avi", "video/mkv", "video/webm"];
 export const DEFAULT_TEMPERATURE = 1;
 
