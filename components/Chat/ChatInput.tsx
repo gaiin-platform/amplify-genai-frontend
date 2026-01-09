@@ -38,7 +38,7 @@ import {PromptList} from './PromptList';
 import {VariableModal} from './VariableModal';
 import {DefaultModels, Model, REASONING_LEVELS, ReasoningLevels} from "@/types/model";
 import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
-import {COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS} from "@/utils/app/const";
+import {COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS, VIDEO_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {getAssistants} from "@/utils/app/assistants";
@@ -894,10 +894,12 @@ export const ChatInput = ({
     }
 
     const disallowedFileExtensions = useMemo(() => {
-        return [ ...COMMON_DISALLOWED_FILE_EXTENSIONS,
-            ...(selectedConversation?.model?.supportsImages
-                ? [] : IMAGE_FILE_EXTENSIONS ) ];
-    }, [selectedConversation?.model?.supportsImages]);
+        return [
+            ...COMMON_DISALLOWED_FILE_EXTENSIONS,
+            ...(selectedConversation?.model?.supportsImages ? [] : IMAGE_FILE_EXTENSIONS),
+            ...(selectedConversation?.model?.supportsVideo ? [] : VIDEO_FILE_EXTENSIONS)
+        ];
+    }, [selectedConversation?.model?.supportsImages, selectedConversation?.model?.supportsVideo]);
 
     const handleCloseAllPopups = () => {
         setShowOpsPopup(false);
