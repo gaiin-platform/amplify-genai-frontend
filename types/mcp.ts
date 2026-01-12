@@ -164,6 +164,9 @@ export function formatMCPToolName(serverId: string, toolName: string): string {
 }
 
 // Helper to parse MCP tool name
+// NOTE: A more robust version of this function exists in services/mcpToolExecutor.ts
+// which handles the full mcp_{timestamp}_{random}_{toolName} server ID format.
+// Consider consolidating to a single implementation if both are being used.
 export function parseMCPToolName(fullName: string): { serverId: string; toolName: string } | null {
   if (!fullName.startsWith('mcp_')) {
     return null;

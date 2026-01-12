@@ -23,7 +23,7 @@ interface Props {
 export const IntegrationTabs: FC<Props> = ({ open, depth=0, allowedIntegrations=[], onTabChange: integrationTabChange = () => {},
                                              onSupportedIntegrations = () => {}, onConnectedIntegrations = () => {}}) => {
   const { t } = useTranslation('settings');
-  const { dispatch: homeDispatch, state: { statsService, featureFlags } } = useContext(HomeContext);
+  const { state: { featureFlags } } = useContext(HomeContext);
   const lastActiveTab = useRef<number | undefined>(undefined);
 
   const [connectingStates, setConnectingStates] = useState<{[key: string]: boolean}>({});

@@ -119,7 +119,8 @@ export function validateApiKeyFormat(provider: ToolProvider, apiKey: string): bo
     case 'serper':
       return apiKey.length > 20;
     default:
-      return apiKey.length > 10;
+      // Unknown providers should be explicitly handled - return false to be safe
+      return false;
   }
 }
 

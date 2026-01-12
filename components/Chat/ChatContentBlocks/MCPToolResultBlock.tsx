@@ -17,7 +17,6 @@ import {
   IconClipboard,
   IconPhoto,
   IconCode,
-  IconTerminal2,
   IconBrandPython,
   IconFileSpreadsheet,
   IconDatabase,
@@ -139,13 +138,31 @@ const TextContent: FC<{ text: string; isError?: boolean }> = memo(({ text, isErr
 });
 TextContent.displayName = 'TextContent';
 
+// Helper to validate and create image src URL
+const createImageSrc = (data: string, mimeType?: string): string | null => {
+  if (!data) {
+    return null;
+  }
+  // If data is already a data URL, trust it as-is
+  if (data.startsWith('data:')) {
+    return data;
+  }
+  // Validate that the data is valid base64
+  try {
+    atob(data);
+  } catch {
+    return null;
+  }
+  return `data:${mimeType || 'image/png'};base64,${data}`;
+};
+
 const ImageContent: FC<{ data: string; mimeType?: string }> = memo(({ data, mimeType }) => {
   const [expanded, setExpanded] = useState(true);
   const [error, setError] = useState(false);
 
-  const src = data.startsWith('data:') ? data : `data:${mimeType || 'image/png'};base64,${data}`;
+  const src = createImageSrc(data, mimeType);
 
-  if (error) {
+  if (error || !src) {
     return (
       <div className="p-4 bg-neutral-800 rounded-lg text-center text-neutral-500">
         <IconPhoto size={24} className="mx-auto mb-2 opacity-50" />

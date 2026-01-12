@@ -88,7 +88,8 @@ export async function registerAdminWebSearchKey(
             const tempConfig = {
                 provider,
                 isEnabled: true,
-                maskedKey: `${apiKey.substring(0, 3)}...${apiKey.substring(apiKey.length - 3)}`,
+                // Use consistent masking pattern (4 chars on each end) matching maskApiKey in types/tools.ts
+                maskedKey: `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}`,
                 lastUpdated: new Date().toISOString()
             };
             localStorage.setItem('tempAdminWebSearchConfig', JSON.stringify(tempConfig));

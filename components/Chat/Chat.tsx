@@ -1463,7 +1463,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
 
                                     {selectedConversationState?.messages?.map((message: Message, index: number) => {
-                                        // Don't render tool messages - they're internal context for the LLM
+                                        // Don't render raw tool messages as chat bubbles; they're internal context for the LLM.
+                                        // Tool results (e.g., message.data.mcpToolResults) are still rendered via MCPToolResultBlock inside MemoizedChatMessage.
                                         if (message.role === 'tool') return null;
                                         return (
                                         <MemoizedChatMessage

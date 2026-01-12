@@ -13,7 +13,11 @@ import {
 } from '@/types/mcp';
 import { doRequestOp } from './doRequestOp';
 
-const SERVICE_NAME = 'websearch';  // Reuse integrations service
+// NOTE: Although the URL path is "/integrations", the underlying backend service
+// identifier is historically named "websearch". Changing this constant would
+// break existing API routing, so we keep the value and document the mismatch
+// explicitly for maintainability.
+const SERVICE_NAME = 'websearch';
 const URL_PATH = '/integrations';
 
 /**

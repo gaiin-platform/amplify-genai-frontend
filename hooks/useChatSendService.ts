@@ -459,11 +459,15 @@ export function useSendService() {
                     }
 
                     if (options) {
-                        // Preserve enableWebSearch when applying options
+                        // Preserve enableWebSearch and mcpEnabled when applying options
                         const enableWebSearchValue = chatBody.enableWebSearch;
+                        const mcpEnabledValue = (chatBody as any).mcpEnabled;
                         Object.assign(chatBody, options);
                         if (enableWebSearchValue) {
                             chatBody.enableWebSearch = enableWebSearchValue;
+                        }
+                        if (mcpEnabledValue !== undefined) {
+                            (chatBody as any).mcpEnabled = mcpEnabledValue;
                         }
                     }
 
@@ -1188,6 +1192,10 @@ export function useSendService() {
 
                                 if (toolIteration >= MAX_TOOL_ITERATIONS) {
                                     console.warn("[MCP] Maximum tool iterations reached");
+                                    toast.error(
+                                        'Tool execution was limited to prevent excessive iterations. Some tool operations may not have completed.',
+                                        { duration: 5000 }
+                                    );
                                 }
 
                                 // Save conversation

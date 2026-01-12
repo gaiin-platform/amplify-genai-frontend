@@ -28,7 +28,7 @@ interface Props {
     updateUnsavedConfigs: (t: AdminConfigTypes) => void;
 }
 
-export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integrationSecrets, setIntegrationSecrets, updateUnsavedConfigs}) => {
+export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integrationSecrets, setIntegrationSecrets, providerSettings, setProviderSettings, azureAdminConsentProvided, setAzureAdminConsentProvided, updateUnsavedConfigs}) => {
     const { state: { featureFlags } } = useContext(HomeContext);
 
     const [secretsHasChanges, setSecretsHasChanges] = useState<string[]>([]);
