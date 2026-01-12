@@ -738,7 +738,7 @@ const DataSourcesTable = () => {
                         <button
                             onClick={() => setShowDeleteConfirmation(true)}
                             disabled={selectedIds.size === 0}
-                            className="ml-2 px-2 py-1 rounded bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-xs"
+                            className="ml-2 px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-xs"
                         >
                             Delete
                         </button>

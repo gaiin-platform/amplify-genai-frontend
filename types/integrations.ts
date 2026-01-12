@@ -68,8 +68,11 @@ export const WEB_SEARCH_PROVIDERS: Record<WebSearchProvider, WebSearchProviderCo
     },
 };
   
-//   // Derive the type from the object keys
-export type IntegrationProviders = keyof typeof integrationProviders;
+// Type for the TypeScript-friendly names (keys)
+export type IntegrationProviderNames = keyof typeof integrationProviders;
+
+// Type for the actual runtime keys used by backend (values) - 'google' | 'microsoft'
+export type IntegrationProviders = typeof integrationProviders[IntegrationProviderNames];
 
 // Helper function to extract values with literal types
 const values = <T extends Record<string, U>, U extends string>(obj: T) =>
@@ -90,7 +93,7 @@ export interface IntegrationSecrets {
 }
   
  
-// Create IntegrationsMap with dynamic keys
+// Create IntegrationsMap with dynamic keys (using lowercase runtime values)
 export type IntegrationsMap = Partial<{
     [K in IntegrationProviders]: Integration[];
 }>;
@@ -98,6 +101,20 @@ export type IntegrationsMap = Partial<{
 export type IntegrationSecretsMap = Partial<{
     [K in IntegrationProviders]: IntegrationSecrets;
 }>;
+
+export interface ProviderSettings {
+  azure_admin_consent_provided?: boolean;
+  // Future: google_service_account_auth?: boolean;
+}
+
+export type ProviderSettingsMap = Partial<{
+  [K in IntegrationProviders]: ProviderSettings;
+}>;
+
+export interface IntegrationsConfigData {
+  integrations: IntegrationsMap;
+  provider_settings: ProviderSettingsMap;
+}
 
 export type IntegrationFileRecord = {
   name: string;
