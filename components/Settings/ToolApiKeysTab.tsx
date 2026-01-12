@@ -25,7 +25,6 @@ import {
   getConfiguredApiKeys,
   saveApiKey,
   deleteApiKey,
-  testApiKey,
 } from '@/services/toolApiKeyService';
 
 interface Props {
@@ -38,7 +37,6 @@ export const ToolApiKeysTab: FC<Props> = ({ open }) => {
   const [addingProvider, setAddingProvider] = useState<ToolProvider | null>(null);
   const [newApiKey, setNewApiKey] = useState('');
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<ToolProvider | null>(null);
 
@@ -70,24 +68,6 @@ export const ToolApiKeysTab: FC<Props> = ({ open }) => {
     setAddingProvider(null);
     setNewApiKey('');
     setError(null);
-  };
-
-  const handleTestKey = async () => {
-    if (!addingProvider || !newApiKey) return;
-
-    setTesting(true);
-    setError(null);
-
-    const result = await testApiKey(addingProvider, newApiKey);
-    setTesting(false);
-
-    if (!result.success) {
-      setError(result.error || 'Test failed');
-    } else {
-      setError(null);
-      // Show success briefly, then save
-      await handleSaveKey();
-    }
   };
 
   const handleSaveKey = async () => {
@@ -264,7 +244,7 @@ export const ToolApiKeysTab: FC<Props> = ({ open }) => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleSaveKey}
-                      disabled={saving || testing || !newApiKey}
+                      disabled={saving || !newApiKey}
                       className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                       {saving ? (

@@ -6,7 +6,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { MCPServerConfig, MCPTool } from '@/types/mcp';
+import { MCPServerConfig } from '@/types/mcp';
 import { listMCPServers } from '@/services/mcpService';
 import {
   getEnabledMCPToolsForLLM,
@@ -42,6 +42,7 @@ export interface UseMCPChatReturn {
   mcpToolsForLLM: any[];
   isLoadingTools: boolean;
   hasEnabledServers: boolean;
+  loadError: string | null;
 
   // Actions
   loadMCPTools: () => Promise<void>;
@@ -58,6 +59,7 @@ export function useMCPChat(): UseMCPChatReturn {
   const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
   const [mcpToolsForLLM, setMcpToolsForLLM] = useState<any[]>([]);
   const [isLoadingTools, setIsLoadingTools] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const loadedRef = useRef(false);
 
   // Check if MCP is effectively enabled (has servers with tools)
@@ -71,6 +73,7 @@ export function useMCPChat(): UseMCPChatReturn {
     if (isLoadingTools) return;
 
     setIsLoadingTools(true);
+    setLoadError(null);
     try {
       // Load servers
       const servers = await listMCPServers();
@@ -82,7 +85,9 @@ export function useMCPChat(): UseMCPChatReturn {
 
       console.log(`[MCP] Loaded ${servers.length} servers, ${tools.length} tools`);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load MCP tools';
       console.error('[MCP] Failed to load tools:', error);
+      setLoadError(errorMessage);
       setMcpToolsForLLM([]);
     } finally {
       setIsLoadingTools(false);
@@ -178,6 +183,7 @@ export function useMCPChat(): UseMCPChatReturn {
     mcpToolsForLLM,
     isLoadingTools,
     hasEnabledServers,
+    loadError,
     loadMCPTools,
     executeMCPToolCall,
     executeMCPToolCalls,

@@ -5,7 +5,7 @@
  * This enables client-side tool execution for MCP servers running locally.
  */
 
-import { MCPServerConfig, MCPTool, MCPToolResult } from '@/types/mcp';
+import { MCPTool, MCPToolResult } from '@/types/mcp';
 import { listMCPServers } from './mcpService';
 
 // JSON-RPC request structure

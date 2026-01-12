@@ -40,7 +40,11 @@ export async function getAdminWebSearchConfig(): Promise<AdminWebSearchConfig | 
         console.error('Backend web search config not available:', e);
     }
 
-    // Fallback to localStorage
+    // Fallback to localStorage for temporary caching
+    // This is used when the backend config was just saved but GET hasn't propagated yet.
+    // The localStorage value is set immediately after a successful POST and serves as a
+    // short-term cache until the backend GET returns the updated config. It's cleared
+    // when the config is deleted, ensuring consistency with the source of truth (backend).
     try {
         const tempConfig = localStorage.getItem('tempAdminWebSearchConfig');
         if (tempConfig) {

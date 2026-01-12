@@ -753,13 +753,27 @@ export function useSendService() {
                                         })
                                     });
 
+                                    const toolName = toolCall.function?.name || toolCall.name;
+                                    let parsedArgs: Record<string, unknown>;
+                                    if (toolCall.function?.arguments) {
+                                        if (typeof toolCall.function.arguments === 'string') {
+                                            try {
+                                                parsedArgs = JSON.parse(toolCall.function.arguments);
+                                            } catch (parseError) {
+                                                throw new Error(
+                                                    `Failed to parse JSON arguments for tool "${toolName}": ` +
+                                                    `${parseError instanceof Error ? parseError.message : String(parseError)}`
+                                                );
+                                            }
+                                        } else {
+                                            parsedArgs = toolCall.function.arguments;
+                                        }
+                                    } else {
+                                        parsedArgs = toolCall.arguments || {};
+                                    }
                                     const { result, toolInfo } = await handleMCPToolCall(
-                                        toolCall.function?.name || toolCall.name,
-                                        toolCall.function?.arguments ?
-                                            (typeof toolCall.function.arguments === 'string' ?
-                                                JSON.parse(toolCall.function.arguments) :
-                                                toolCall.function.arguments) :
-                                            toolCall.arguments || {}
+                                        toolName,
+                                        parsedArgs
                                     );
 
                                     toolResults.push({
@@ -949,7 +963,6 @@ export function useSendService() {
                                 while (!continuationDone) {
                                     if (shouldAbort()) {
                                         continuationController.abort();
-                                        continuationDone = true;
                                         break;
                                     }
                                     const { value, done: doneReading } = await continuationReader.read();
@@ -1010,13 +1023,27 @@ export function useSendService() {
                                                 })
                                             });
 
+                                            const iterToolName = toolCall.function?.name || toolCall.name;
+                                            let iterParsedArgs: Record<string, unknown>;
+                                            if (toolCall.function?.arguments) {
+                                                if (typeof toolCall.function.arguments === 'string') {
+                                                    try {
+                                                        iterParsedArgs = JSON.parse(toolCall.function.arguments);
+                                                    } catch (parseError) {
+                                                        throw new Error(
+                                                            `Failed to parse JSON arguments for tool "${iterToolName}": ` +
+                                                            `${parseError instanceof Error ? parseError.message : String(parseError)}`
+                                                        );
+                                                    }
+                                                } else {
+                                                    iterParsedArgs = toolCall.function.arguments;
+                                                }
+                                            } else {
+                                                iterParsedArgs = toolCall.arguments || {};
+                                            }
                                             const { result, toolInfo } = await handleMCPToolCall(
-                                                toolCall.function?.name || toolCall.name,
-                                                toolCall.function?.arguments ?
-                                                    (typeof toolCall.function.arguments === 'string' ?
-                                                        JSON.parse(toolCall.function.arguments) :
-                                                        toolCall.function.arguments) :
-                                                    toolCall.arguments || {}
+                                                iterToolName,
+                                                iterParsedArgs
                                             );
 
                                             newToolResults.push({
@@ -1082,7 +1109,6 @@ export function useSendService() {
                                         ...updatedConversation,
                                         messages: nextMessages
                                     };
-                                    currentMessages = nextMessages;
 
                                     homeDispatch({
                                         field: 'selectedConversation',
