@@ -38,9 +38,10 @@ import {
 
 interface Props {
   open: boolean;
+  setUnsavedChanges?: (hasChanges: boolean) => void;
 }
 
-export const MCPServersTab: FC<Props> = ({ open }) => {
+export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
   const [servers, setServers] = useState<MCPServerConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -57,6 +58,14 @@ export const MCPServersTab: FC<Props> = ({ open }) => {
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [expandedServerId, setExpandedServerId] = useState<string | null>(null);
+
+  // Track unsaved form changes
+  useEffect(() => {
+    if (setUnsavedChanges) {
+      const hasFormData = showAddForm && (formData.name.trim() !== '' || formData.url.trim() !== '');
+      setUnsavedChanges(hasFormData);
+    }
+  }, [showAddForm, formData, setUnsavedChanges]);
 
   // Load servers
   useEffect(() => {

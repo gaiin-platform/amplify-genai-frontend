@@ -4,7 +4,7 @@
  * Allows admins to configure a shared web search API key for all users.
  */
 
-import { FC, useState, useEffect } from 'react';
+import { FC, useState, useEffect, useRef } from 'react';
 import {
     IconSearch,
     IconKey,
@@ -26,8 +26,13 @@ import {
     deleteAdminWebSearchKey,
 } from '@/services/adminWebSearchService';
 import toast from 'react-hot-toast';
+import { AdminConfigTypes } from '@/types/admin';
 
-export const WebSearchIntegration: FC = () => {
+interface Props {
+    updateUnsavedConfigs?: (t: AdminConfigTypes) => void;
+}
+
+export const WebSearchIntegration: FC<Props> = ({ updateUnsavedConfigs }) => {
     const [config, setConfig] = useState<AdminWebSearchConfig | null>(null);
     const [loading, setLoading] = useState(true);
     const [selectedProvider, setSelectedProvider] = useState<WebSearchProvider | null>(null);
@@ -36,9 +41,23 @@ export const WebSearchIntegration: FC = () => {
     const [deleting, setDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    // Track if we've already notified about unsaved changes
+    const hasNotifiedUnsaved = useRef(false);
+
     useEffect(() => {
         loadConfig();
     }, []);
+
+    // Track unsaved form changes
+    useEffect(() => {
+        if (updateUnsavedConfigs) {
+            const hasUnsavedData = selectedProvider !== null && apiKey.trim() !== '';
+            if (hasUnsavedData && !hasNotifiedUnsaved.current) {
+                updateUnsavedConfigs(AdminConfigTypes.WEB_SEARCH);
+                hasNotifiedUnsaved.current = true;
+            }
+        }
+    }, [selectedProvider, apiKey, updateUnsavedConfigs]);
 
     const loadConfig = async () => {
         setLoading(true);
@@ -61,6 +80,7 @@ export const WebSearchIntegration: FC = () => {
         setSelectedProvider(null);
         setApiKey('');
         setError(null);
+        hasNotifiedUnsaved.current = false;
     };
 
     const handleSave = async () => {

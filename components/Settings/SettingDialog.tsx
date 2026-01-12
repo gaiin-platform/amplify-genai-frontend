@@ -275,9 +275,10 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
 
     const [accountsUnsavedChanges, setAccountsUnsavedChanges] = useState(false);
     const [apiUnsavedChanges, setApiUnsavedChanges] = useState(false);
+    const [mcpUnsavedChanges, setMcpUnsavedChanges] = useState(false);
    
     const handleClose = () => {
-      if ((accountsUnsavedChanges || apiUnsavedChanges || hasUnsavedChanges) && !confirm("You have unsaved changes.\n\nYou will lose any unsaved data, would you still like to close Settings?")) return;
+      if ((accountsUnsavedChanges || apiUnsavedChanges || mcpUnsavedChanges || hasUnsavedChanges) && !confirm("You have unsaved changes.\n\nYou will lose any unsaved data, would you still like to close Settings?")) return;
       
       // Reset all state variables to their original values when closing
       if (initSettingsRef.current) {
@@ -289,6 +290,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
       window.dispatchEvent(new Event('cleanupApiKeys'));
       setAccountsUnsavedChanges(false);
       setApiUnsavedChanges(false);
+      setMcpUnsavedChanges(false);
       setHasUnsavedChanges(false);
       onClose();
       
@@ -330,7 +332,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
     }, [trackTab]);
 
     const otherChanges = () => {
-    return accountsUnsavedChanges || apiUnsavedChanges;
+    return accountsUnsavedChanges || apiUnsavedChanges || mcpUnsavedChanges;
     }
 
 
@@ -520,9 +522,9 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
 
               ///////////////////////////////////////////////////////////////////////////////
               // MCP Servers Tab
-              ...(featureFlags.mcp ? [{label: `MCP Servers`,
-                title: "Connect to MCP servers for extended tool capabilities",
-                content: <MCPServersTab open={open}/>
+              ...(featureFlags.mcp ? [{label: `MCP Servers${mcpUnsavedChanges ? " *" : ""}`,
+                title: mcpUnsavedChanges ? "Contains unsaved form data" : "Connect to MCP servers for extended tool capabilities",
+                content: <MCPServersTab open={open} setUnsavedChanges={setMcpUnsavedChanges}/>
               }] : []),
 
               ///////////////////////////////////////////////////////////////////////////////

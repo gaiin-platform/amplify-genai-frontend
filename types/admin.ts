@@ -19,6 +19,7 @@ export enum AdminConfigTypes {
     EMAIL_SUPPORT = 'emailSupport',
     AI_EMAIL_DOMAIN = 'aiEmailDomain',
     INTEGRATIONS = 'integrations',
+    WEB_SEARCH = 'webSearch',
     DEFAULT_CONVERSATION_STORAGE = 'defaultConversationStorage',
     DEFAULT_MODELS = 'defaultModels',
     CRITICAL_ERRORS = 'criticalErrors',
@@ -79,7 +80,8 @@ export const adminDataTabMap: Record<AdminTab, string[]> = {
     ],
 
     'Integrations' : [
-      AdminConfigTypes.INTEGRATIONS
+      AdminConfigTypes.INTEGRATIONS,
+      AdminConfigTypes.WEB_SEARCH
     ],
 
     'Critical Errors' : [
