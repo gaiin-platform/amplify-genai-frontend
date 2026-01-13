@@ -51,6 +51,8 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
     useEffect(() => {
         if(selectedAssistant){
             setActiveAssistant(selectedAssistant);
+            if (selectedConversation && selectedConversation.groupType) delete selectedConversation.groupType;
+ 
         }
     }, [selectedAssistant]);
 
