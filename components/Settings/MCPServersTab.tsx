@@ -419,7 +419,7 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
           <IconServer className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p>No MCP servers configured yet.</p>
           <p className="text-sm mt-1">
-            Click "Add Server" to connect to an MCP server.
+            Click &quot;Add Server&quot; to connect to an MCP server.
           </p>
         </div>
       ) : (
