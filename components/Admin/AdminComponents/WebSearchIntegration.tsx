@@ -4,7 +4,7 @@
  * Allows admins to configure a shared web search API key for all users.
  */
 
-import { FC, useState, useEffect, useRef } from 'react';
+import { FC, useState } from 'react';
 import {
     IconSearch,
     IconKey,
@@ -21,54 +21,22 @@ import {
     AdminWebSearchConfig,
 } from '@/types/integrations';
 import {
-    getAdminWebSearchConfig,
     registerAdminWebSearchKey,
     deleteAdminWebSearchKey,
 } from '@/services/adminWebSearchService';
 import toast from 'react-hot-toast';
-import { AdminConfigTypes } from '@/types/admin';
 
 interface Props {
-    updateUnsavedConfigs?: (t: AdminConfigTypes) => void;
+    config: AdminWebSearchConfig | null;
+    setConfig: (config: AdminWebSearchConfig | null) => void;
 }
 
-export const WebSearchIntegration: FC<Props> = ({ updateUnsavedConfigs }) => {
-    const [config, setConfig] = useState<AdminWebSearchConfig | null>(null);
-    const [loading, setLoading] = useState(true);
+export const WebSearchIntegration: FC<Props> = ({ config, setConfig }) => {
     const [selectedProvider, setSelectedProvider] = useState<WebSearchProvider | null>(null);
     const [apiKey, setApiKey] = useState('');
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
-    // Track if we've already notified about unsaved changes
-    const hasNotifiedUnsaved = useRef(false);
-
-    useEffect(() => {
-        loadConfig();
-    }, []);
-
-    // Track unsaved form changes
-    useEffect(() => {
-        if (updateUnsavedConfigs) {
-            const hasUnsavedData = selectedProvider !== null && apiKey.trim() !== '';
-            if (hasUnsavedData && !hasNotifiedUnsaved.current) {
-                updateUnsavedConfigs(AdminConfigTypes.WEB_SEARCH);
-                hasNotifiedUnsaved.current = true;
-            }
-        }
-    }, [selectedProvider, apiKey, updateUnsavedConfigs]);
-
-    const loadConfig = async () => {
-        setLoading(true);
-        try {
-            const result = await getAdminWebSearchConfig();
-            setConfig(result);
-        } catch (e) {
-            console.error('Failed to load web search config:', e);
-        }
-        setLoading(false);
-    };
 
     const handleSelectProvider = (provider: WebSearchProvider) => {
         setSelectedProvider(provider);
@@ -80,7 +48,6 @@ export const WebSearchIntegration: FC<Props> = ({ updateUnsavedConfigs }) => {
         setSelectedProvider(null);
         setApiKey('');
         setError(null);
-        hasNotifiedUnsaved.current = false;
     };
 
     const handleSave = async () => {
@@ -93,7 +60,13 @@ export const WebSearchIntegration: FC<Props> = ({ updateUnsavedConfigs }) => {
 
         if (result.success) {
             toast.success('Web search API key saved successfully');
-            await loadConfig();
+            // Update config with the newly saved configuration
+            setConfig({
+                provider: selectedProvider,
+                isEnabled: true,
+                maskedKey: `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}`,
+                lastUpdated: new Date().toISOString()
+            });
             handleCancel();
         } else {
             setError(result.error || 'Failed to save API key');
@@ -118,15 +91,6 @@ export const WebSearchIntegration: FC<Props> = ({ updateUnsavedConfigs }) => {
 
         setDeleting(false);
     };
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center p-8">
-                <IconLoader2 className="w-6 h-6 animate-spin text-blue-500" />
-                <span className="ml-2 text-neutral-600 dark:text-neutral-400">Loading...</span>
-            </div>
-        );
-    }
 
     return (
         <div className="admin-style-settings-card">

@@ -19,7 +19,7 @@ export enum AdminConfigTypes {
     EMAIL_SUPPORT = 'emailSupport',
     AI_EMAIL_DOMAIN = 'aiEmailDomain',
     INTEGRATIONS = 'integrations',
-    WEB_SEARCH = 'webSearch',
+    WEB_SEARCH = 'webSearchConfig',
     DEFAULT_CONVERSATION_STORAGE = 'defaultConversationStorage',
     DEFAULT_MODELS = 'defaultModels',
     CRITICAL_ERRORS = 'criticalErrors',

@@ -2,7 +2,7 @@ import { FC, useState, useContext } from "react";
 import HomeContext from '@/pages/api/home/home.context';
 import {  titleLabel } from "../AdminUI";
 import { AdminConfigTypes} from "@/types/admin";
-import { IntegrationsMap, Integration, integrationProviders, IntegrationSecretsMap, IntegrationProviders, IntegrationSecrets, ProviderSettingsMap} from "@/types/integrations";
+import { IntegrationsMap, Integration, integrationProviders, IntegrationSecretsMap, IntegrationProviders, IntegrationSecrets, ProviderSettingsMap, AdminWebSearchConfig} from "@/types/integrations";
 import { IconCheck, IconX, IconPlus } from "@tabler/icons-react";
 import { capitalize } from "@/utils/app/data";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
@@ -22,10 +22,13 @@ interface Props {
     azureAdminConsentProvided: boolean;
     setAzureAdminConsentProvided: (value: boolean) => void;
 
+    webSearchConfig: AdminWebSearchConfig | null;
+    setWebSearchConfig: (config: AdminWebSearchConfig | null) => void;
+
     updateUnsavedConfigs: (t: AdminConfigTypes) => void;
 }
 
-export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integrationSecrets, setIntegrationSecrets, azureAdminConsentProvided, setAzureAdminConsentProvided, updateUnsavedConfigs}) => {
+export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integrationSecrets, setIntegrationSecrets, azureAdminConsentProvided, setAzureAdminConsentProvided, webSearchConfig, setWebSearchConfig, updateUnsavedConfigs}) => {
     const { state: { featureFlags } } = useContext(HomeContext);
 
     const [secretsHasChanges, setSecretsHasChanges] = useState<string[]>([]);
@@ -81,7 +84,7 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
 
     return <>
         {/* Web Search Integration */}
-        {featureFlags.webSearch && <WebSearchIntegration updateUnsavedConfigs={updateUnsavedConfigs} />}
+        {featureFlags.webSearch && <WebSearchIntegration config={webSearchConfig} setConfig={setWebSearchConfig} />}
 
         <div className="admin-style-settings-card">
         <div className="admin-style-settings-card-header">
