@@ -19,16 +19,13 @@ interface Props {
     integrationSecrets: IntegrationSecretsMap;
     setIntegrationSecrets: (s: IntegrationSecretsMap) => void;
 
-    providerSettings: ProviderSettingsMap;
-    setProviderSettings: (s: ProviderSettingsMap) => void;
-
     azureAdminConsentProvided: boolean;
     setAzureAdminConsentProvided: (value: boolean) => void;
 
     updateUnsavedConfigs: (t: AdminConfigTypes) => void;
 }
 
-export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integrationSecrets, setIntegrationSecrets, providerSettings, setProviderSettings, azureAdminConsentProvided, setAzureAdminConsentProvided, updateUnsavedConfigs}) => {
+export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integrationSecrets, setIntegrationSecrets, azureAdminConsentProvided, setAzureAdminConsentProvided, updateUnsavedConfigs}) => {
     const { state: { featureFlags } } = useContext(HomeContext);
 
     const [secretsHasChanges, setSecretsHasChanges] = useState<string[]>([]);

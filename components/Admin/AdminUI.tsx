@@ -867,8 +867,6 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         setIntegrations={setIntegrations}
                         integrationSecrets={integrationSecrets}
                         setIntegrationSecrets={setIntegrationSecrets}
-                        providerSettings={providerSettings}
-                        setProviderSettings={setProviderSettings}
                         azureAdminConsentProvided={providerSettings[integrationProviders.Microsoft]?.azure_admin_consent_provided || false}
                         setAzureAdminConsentProvided={(value: boolean) => {
                             const updated = {
