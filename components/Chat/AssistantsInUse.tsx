@@ -30,6 +30,7 @@ const AssistantsInUse: React.FC<Props> = ({assistants,assistantsChanged}) => {
     function handleRemoveSelectedAssistant(assistant: Assistant) {
         if (selectedConversation) {
             const updatedConversation = {...selectedConversation};
+            delete updatedConversation.groupType;
             //add prompt template
             updatedConversation.promptTemplate = null;
             //clear tags - currently only really applies to the assistant creator 

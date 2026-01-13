@@ -69,6 +69,7 @@ import { IntegrationsDialog } from '../Integrations/IntegrationsDialog';
 import { TemperatureSlider } from './Sliders/Temperature';
 import { ResponseTokensSlider } from './Sliders/ResponseTokens';
 import { storageRemove } from '@/utils/app/storage';
+import { Assistant } from '@/types/assistant';
 
 
 interface Props {
@@ -307,6 +308,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) {
                 if (selectedConversation?.model?.id !== selectedModelId) setSelectedModelId(selectedConversation?.model?.id);
             }
+            const groupType = selectedConversation?.groupType;
+            if (groupType && !selectedAssistant?.definition?.data?.groupTypeData?.[groupType]) {
+                delete selectedConversation.groupType;
+            } 
+
         }, [selectedAssistant, selectedConversation]);
 
 
@@ -830,6 +836,27 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         };
         
+        const enforcesGroupTypes = () => selectedAssistant?.definition?.data && Object.keys(selectedAssistant?.definition?.data?.groupTypeData || {}).length > 0;
+                                                    
+        const getGroupTypeSelector = (ast: Assistant | null) => {
+            if (selectedConversation && ast) {
+
+             return <GroupTypeSelector
+                groupOptionsData={ast?.definition?.data?.groupTypeData || {}}
+                setSelected={(type: string | undefined) => {
+                    // set selectedConversations with type
+                    homeDispatch({ field: 'selectedConversation', value: {...selectedConversation, groupType: type} })
+                    handleUpdateConversation(selectedConversation, {
+                        key: 'groupType',
+                        value: type,
+                    }) 
+                }}
+                groupUserTypeQuestion={ast?.definition?.data?.groupUserTypeQuestion || ''}
+             />
+            }
+                
+         return null;
+        }
 
         const onClearAll = () => {
             if (
@@ -1135,22 +1162,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     
                                                 </div>
                                                 
-                                                { selectedAssistant?.definition?.data && Object.keys(selectedAssistant?.definition?.data?.groupTypeData || {}).length > 0 ? 
-                                                    <>
-                                                        <GroupTypeSelector
-                                                            groupOptionsData={selectedAssistant.definition.data.groupTypeData}
-                                                            setSelected={(type: string | undefined) => {
-                                                                // set selectedConversations with type
-                                                                homeDispatch({ field: 'selectedConversation', value: {...selectedConversation, groupType: type} })
-                                                                handleUpdateConversation(selectedConversation, {
-                                                                    key: 'groupType',
-                                                                    value: type,
-                                                                }) 
-                                                            }}
-                                                            groupUserTypeQuestion={selectedAssistant.definition.data.groupUserTypeQuestion}
-                                                        />
-                                                        
-                                                    </> :
+                                                { enforcesGroupTypes() ? <> {getGroupTypeSelector(selectedAssistant)} </> :
                                                     ( showAdvancedConvSettings && 
                                                     <>
                                                         <SystemPrompt
@@ -1435,7 +1447,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     </div>
                                     <div ref={modelSelectRef}></div>
                                     
-                                        <div 
+                                        <div
                                             className="flex flex-col md:gap-6 md:py-3 md:pt-6 lg:px-0 mx-16 ">
                                             { showSettings && !availableAstModelId(selectedAssistant?.definition?.data?.model) &&
                                                 <div
@@ -1494,6 +1506,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 }}
                                             />
                                     ))}
+                                    {enforcesGroupTypes() && <div className='relative z-20 text-center my-6 px-4 py-6 mx-16 bg-white dark:bg-[#343541] border border-neutral-200 dark:border-neutral-600 rounded-lg custom-shadow'> {getGroupTypeSelector(selectedAssistant)} </div> }
 
                                     {loading && <ChatLoader/>}
 
