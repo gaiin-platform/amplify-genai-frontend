@@ -80,6 +80,7 @@ const AssistantPage = ({
   const [showSettings, setShowSettings] = useState(true);
   const [isHoveringSettings, setIsHoveringSettings] = useState(false);
   const [messageState, setMessageState] = useState<any>({});
+  const messageStateRef = useRef<any>({});
   const [responseStatus, setResponseStatus] = useState<string>('');
   const [astResponding, setAstResponding] = useState<string>('');
   const [editing, setEditing] = useState<number | null>(null);
@@ -87,6 +88,11 @@ const AssistantPage = ({
   const [abortController, setAbortController] = useState<AbortController>(new AbortController());
   const [defaultAccount, setDefaultAccount] = useState<Account | null>(null);
   const [astIconUrl, setAstIconUrl] = useState<string | null>(null);
+
+  // Agent state management
+  const [isAgentRunning, setIsAgentRunning] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<string>('');
+  const runningAgentSessionRef = useRef<string | null>(null);
 
   // Add the shimmer animation useEffect here with the other hooks
   useEffect(() => {
@@ -111,8 +117,9 @@ const AssistantPage = ({
         color: transparent;
         animation: shimmer 3s infinite linear;
         position: relative;
+        cursor: default;
       }
-      
+
       .shimmer-text::before {
         position: absolute;
         left: 0;
@@ -120,8 +127,16 @@ const AssistantPage = ({
         color: #000000; /* Pure black for light mode */
         z-index: -1;
       }
-      
-      
+
+      /* Hover state for light mode - stop animation and show solid readable text */
+      .shimmer-text:hover {
+        animation: none;
+        color: rgb(0, 109, 243);
+        background: none;
+        -webkit-text-fill-color: rgb(0, 109, 243);
+      }
+
+
       .dark .shimmer-text {
         background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(225, 228, 233, 0.8) 50%, rgba(255,255,255,0) 100%);
         background-size: 200px 100%;
@@ -132,7 +147,15 @@ const AssistantPage = ({
         animation: shimmer 2s infinite linear;
         position: relative;
       }
-      
+
+      /* Hover state for dark mode - stop animation and show solid readable text */
+      .dark .shimmer-text:hover {
+        animation: none;
+        color: #e5e5e5;
+        background: none;
+        -webkit-text-fill-color: #e5e5e5;
+      }
+
     `;
 
     document.head.appendChild(style);
@@ -327,7 +350,7 @@ const AssistantPage = ({
   }, [chatEndpoint, assistantSlug]);
 
   const handleResponseStatus = (status: string) => {
-    console.log("status recieved:", status);
+    // console.log("status recieved:", status);
     if (status.includes("responding")) {
       setAstResponding(status);
     } else {
@@ -335,29 +358,210 @@ const AssistantPage = ({
     }
   }
 
+  // Handle agent polling when backend kicks off an agent run
+  const startAgentPolling = async (sessionId: string) => {
+    // Prevent duplicate polling
+    if (runningAgentSessionRef.current === sessionId) {
+      console.log(`Agent polling already in progress for session ${sessionId}`);
+      return;
+    }
+
+    runningAgentSessionRef.current = sessionId;
+
+    try {
+      // Import agent utilities
+      const { handleAgentRun } = await import('@/utils/app/agent');
+      const { sendChatRequestWithDocuments } = await import('@/services/chatService');
+
+      // Poll for agent completion with status updates
+      const agentResult: any = await handleAgentRun(
+        sessionId,
+        (status: any) => {
+          // Update status display with real-time agent actions
+          const statusMsg = status.summary || 'Processing...';
+          setAgentStatus(statusMsg);
+          setResponseStatus(statusMsg);
+        }
+      );
+
+      if (!agentResult) {
+        throw new Error('Agent run failed or was aborted');
+      }
+
+      // Type guard: ensure agentResult has the expected structure
+      if (!agentResult.data || !agentResult.data.result) {
+        console.error('Invalid agent result structure:', agentResult);
+        throw new Error('Agent completed but returned invalid result structure');
+      }
+
+      // Agent completed - now get summarization
+      setAgentStatus('Finalizing response...');
+      setResponseStatus('Finalizing response...');
+
+      const session = await getSession();
+      // @ts-ignore - accessToken exists on session but not in base type
+      if (!session || !session.accessToken) {
+        throw new Error('Session expired');
+      }
+
+      // Get the user's original prompt (second to last message, since we added empty assistant message)
+      // Find the last user message
+      const userMessages = messages.filter(m => m.role === 'user');
+      const userPrompt = userMessages[userMessages.length - 1]?.content || '';
+
+      // Import the shared agentMessages utility function for code reuse
+      const { agentMessages } = await import('@/utils/app/agent');
+      // For standalone assistant:
+      // - msgData is empty {} (no assistant definition needed in message data)
+      // - dataSources is empty [] (backend automatically adds assistant data sources when assistantId is present)
+      // - NO conversation messages (skipRag: true, backend handles assistant data sources)
+      const agentMessagesArray = agentMessages(agentResult, userPrompt, {}, []);
+
+      // Send with disableTools to prevent re-triggering agent and allow backend to add assistant data sources
+      const chatBody = {
+        model: activeModel,
+        prompt: "You are an AI assistant responding to a user's question. You have been provided with: (1) an assistant's work log, and (2) reference documents via RAG retrieval. CRITICAL RULES: Only use information from these sources. If reference documents are provided in the conversation, you HAVE access to their content - use it. Never claim you lack access to provided information. Never make up information. If the provided sources don't contain the answer, explicitly state that. Always ground your response in the actual content provided to you.",
+        messages: agentMessagesArray,
+        temperature: 0.5,
+        maxTokens: 4000,
+        ragOnly: true,
+        skipRag: false,
+        skipCodeInterpreter: true,
+        accountId: defaultAccount?.id,
+        rateLimit: defaultAccount?.rateLimit,
+        disableTools: true,
+        assistantId: assistantId
+      };
+
+      const metaHandler = {
+        status: () => {},
+        mode: () => {},
+        state: handleMessageState,
+        shouldAbort: () => false
+      };
+
+      const response = await sendChatRequestWithDocuments(
+        chatEndpoint!,
+        // @ts-ignore - accessToken exists on session
+        session.accessToken,
+        chatBody,
+        new AbortController().signal,
+        metaHandler
+      );
+
+      // Stream the summarization response
+      const responseData = response.body;
+      if (!responseData) {
+        throw new Error('No response body from summarization');
+      }
+
+      const reader = responseData.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let summaryText = '';
+
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
+
+        if (value) {
+          const chunkValue = decoder.decode(value, { stream: true });
+          summaryText += chunkValue;
+
+          // Update the assistant message with summary
+          setMessages(prev => {
+            const newMessages = [...prev];
+            if (newMessages.length > 0 && newMessages[newMessages.length - 1].role === 'assistant') {
+              newMessages[newMessages.length - 1] = {
+                role: 'assistant',
+                content: summaryText
+                // Note: standalone assistant uses simpler message structure without data field
+              };
+            }
+            return newMessages;
+          });
+        }
+      }
+
+    } catch (error) {
+      console.error('Agent polling error:', error);
+      setMessages(prev => {
+        const newMessages = [...prev];
+        if (newMessages.length > 0 && newMessages[newMessages.length - 1].role === 'assistant') {
+          newMessages[newMessages.length - 1] = {
+            role: 'assistant',
+            content: 'Sorry, the agent task failed: ' + (error instanceof Error ? error.message : String(error))
+          };
+        }
+        return newMessages;
+      });
+    } finally {
+      // Reset all agent-related state
+      runningAgentSessionRef.current = null;
+      setIsAgentRunning(false);
+      setIsProcessing(false);
+      setAgentStatus('');
+      setResponseStatus('');
+      setAstResponding('');
+    }
+  };
 
   // Handle sending a message
   const handleSendMessage = async (inputContent: string) => {
     if (!inputContent.trim() || isProcessing || !chatEndpoint) return;
-    
+
     // Add user message to the chat
     const userMessage = { role: 'user', content: inputContent };
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setIsProcessing(true);
-    
+
+    // Calculate the assistant message index BEFORE adding it
+    // After adding user message, messages will be: [...oldMessages, userMessage]
+    // After adding assistant placeholder: [...oldMessages, userMessage, assistantPlaceholder]
+    // So assistant index = messages.length (current) + 1 (for assistant message we're about to add)
+    const assistantMessageIndex = messages.length + 1;
+    console.log('🟢 [handleSendMessage] Calculated assistant message index:', assistantMessageIndex);
+    console.log('🟢 [handleSendMessage] Current messages.length:', messages.length);
+
+    // Add a placeholder for the assistant message BEFORE the API call
+    // This ensures messageState indices are correct when metaHandler callbacks fire
+    setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+
+    // Create a wrapper for handleMessageState that uses the correct index
+    const handleMessageStateWithIndex = (state: any) => {
+      console.log('🔵 [handleMessageStateWithIndex] Called with state for index:', assistantMessageIndex);
+      console.log('🔵 [handleMessageStateWithIndex] State:', JSON.stringify(state, null, 2));
+      console.log('🔵 [handleMessageStateWithIndex] Has agentRun?', !!state?.agentRun);
+      if (state?.agentRun) {
+        console.log('🔵 [handleMessageStateWithIndex] AgentRun details:', {
+          sessionId: state.agentRun.sessionId,
+          startTime: state.agentRun.startTime,
+          endTime: state.agentRun.endTime
+        });
+      }
+
+      // Update the ref immediately with the current ref value (not stale React state)
+      const newState = { ...messageStateRef.current, [assistantMessageIndex]: state };
+      messageStateRef.current = newState;
+      console.log('🔵 [handleMessageStateWithIndex] Updated messageStateRef.current:', JSON.stringify(messageStateRef.current, null, 2));
+
+      // Also update React state
+      setMessageState(newState);
+    };
+
     try {
       // Make sure we have a valid model to use
       if (!activeModel) {
         throw new Error("No model selected. Please select a model and try again.");
       }
-      
+
       // Verify the model has an id
       if (!activeModel.id) {
         console.error('Model is missing id:', activeModel);
         throw new Error("The selected model is invalid. Please select a different model.");
       }
-      const options = {groupType:  requiredGroupType ? groupType : undefined, groupId: assistantDefinition?.data?.groupId, 
+      const options = {groupType:  requiredGroupType ? groupType : undefined, groupId: assistantDefinition?.data?.groupId,
                        accountId: defaultAccount?.id, rateLimit: defaultAccount?.rateLimit
                       };
       // Send the message to the assistant with conversation history and selected model
@@ -370,30 +574,27 @@ const AssistantPage = ({
         messages,
         options,
         messageState,
-        handleMessageState,
+        handleMessageStateWithIndex, // Use the wrapper with correct index
         handleResponseStatus,
         abortController,
       );
-      
+
       if (!result.success) {
         console.error('Failed to get response from assistant:', result.error);
-        throw new Error(typeof result.error === 'object' && result.error !== null 
-          ? (result.error as any).message || "Unknown error" 
+        throw new Error(typeof result.error === 'object' && result.error !== null
+          ? (result.error as any).message || "Unknown error"
           : "Failed to get response from assistant");
       }
-      
+
       // Process the streaming response
       const response = result.response;
       if (!response) {
         throw new Error("Invalid response format - no response object");
       }
-      
+
       if (!response.body) {
         throw new Error("Invalid response format - no response body");
       }
-      
-      // Add a placeholder for the assistant message
-      setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
       
       // Process the streaming response
       try {
@@ -403,7 +604,7 @@ const AssistantPage = ({
         let done = false;
         let text = '';
         let chunkCount = 0;
-        
+
         // Set a timeout to check if we're getting any data
         const streamTimeout = setTimeout(() => {
           if (chunkCount === 0) {
@@ -412,34 +613,64 @@ const AssistantPage = ({
             setMessages(prev => {
               const newMessages = [...prev];
               if (newMessages.length > 0 && newMessages[newMessages.length - 1].role === 'assistant') {
-                newMessages[newMessages.length - 1] = { 
-                  role: 'assistant', 
-                  content: 'I received your message but haven\'t been able to generate a response yet. Please wait a moment or try again.' 
+                newMessages[newMessages.length - 1] = {
+                  role: 'assistant',
+                  content: 'I received your message but haven\'t been able to generate a response yet. Please wait a moment or try again.'
                 };
               }
               return newMessages;
             });
           }
         }, 15000);
-        
+
+        console.log('🟢 [Stream] Starting to read stream...');
+        console.log('🟢 [Stream] Current messageState:', JSON.stringify(messageState, null, 2));
+
         while (!done) {
           const { value, done: doneReading } = await reader.read();
           done = doneReading;
-          
+
+          // Check for agent run on EVERY iteration, not just when there's a value
+          // This is critical because agent runs may not send content chunks
+          const currentMessageState = messageStateRef.current[assistantMessageIndex];
+          const agentRun = currentMessageState?.agentRun;
+
+          // If agent run detected in messageState, stop normal streaming and start polling
+          if (agentRun && agentRun.sessionId && !agentRun.endTime) {
+            clearTimeout(streamTimeout);
+
+            // Start agent polling
+            setIsAgentRunning(true);
+            setAgentStatus('Starting agent...');
+            setResponseStatus('Starting agent...');
+
+            try {
+              console.log('🚀 [Stream] Starting agent polling...');
+              // Start polling (this function handles everything including setting isProcessing to false)
+              await startAgentPolling(agentRun.sessionId);
+            } catch (pollingError) {
+              console.error('❌ [Stream] Error during agent polling:', pollingError);
+              // startAgentPolling handles its own error display in messages
+            }
+            return; // Exit early, agent polling handles cleanup
+          }
+
           if (value) {
             chunkCount++;
             const chunkValue = decoder.decode(value, { stream: true });
+
+            // Normal streaming (if not agent run)
             text += chunkValue;
-            
+
             // Update the assistant message as it streams in
             setMessages(prev => {
               // Make a copy of the messages array
               const newMessages = [...prev];
               // Update the last message (the assistant's message)
               if (newMessages.length > 0) {
-                newMessages[newMessages.length - 1] = { 
-                  role: 'assistant', 
-                  content: text 
+                newMessages[newMessages.length - 1] = {
+                  role: 'assistant',
+                  content: text
                 };
               }
               return newMessages;
@@ -508,15 +739,19 @@ const AssistantPage = ({
       }
     } catch (error) {
       console.error("Error sending message:", error);
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: 'Sorry, there was an error processing your request: ' + 
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Sorry, there was an error processing your request: ' +
           (error instanceof Error ? error.message : String(error))
       }]);
     } finally {
-      setIsProcessing(false);
-      setResponseStatus('');
-      setAstResponding('');
+      // Only reset processing state if agent is not running
+      // Agent polling handles its own cleanup
+      if (!isAgentRunning) {
+        setIsProcessing(false);
+        setResponseStatus('');
+        setAstResponding('');
+      }
     }
   };
 
@@ -694,8 +929,20 @@ const AssistantPage = ({
   const stopGeneration = () => {
     if (abortController) {
       abortController.abort();
-      setIsProcessing(false);
     }
+
+    // If agent is running, trigger kill event for agent polling
+    if (isAgentRunning) {
+      window.dispatchEvent(new Event('killChatRequest'));
+      console.log('Dispatched killChatRequest event to abort agent polling');
+    }
+
+    // Reset all state
+    setIsProcessing(false);
+    setIsAgentRunning(false);
+    setAgentStatus('');
+    setResponseStatus('');
+    setAstResponding('');
   };
 
   // Loading state
@@ -996,7 +1243,13 @@ const AssistantPage = ({
                 <div className="flex justify-start">
                   <div className="bg-neutral-100 dark:bg-[#444654] px-4 py-3 rounded-lg">
                     <div className="flex items-center">
-                      <Spinner size="16px"/> <span className="ml-2 shimmer-text">{responseStatus.trim() || astResponding}</span> 
+                      <Spinner size="16px"/>
+                      <span className="ml-2 shimmer-text">
+                        {isAgentRunning
+                          ? (agentStatus || 'Agent working...')
+                          : (responseStatus.trim() || astResponding || 'Responding...')
+                        }
+                      </span>
                     </div>
                   </div>
                 </div>
