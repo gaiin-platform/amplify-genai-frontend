@@ -6,11 +6,12 @@ import {
     IconSend,
     IconBrain,
     IconBulb,
-    IconScale, 
+    IconScale,
     IconSettingsAutomation,
     IconUpload,
     IconCheck,
-    IconX
+    IconX,
+    IconWorldSearch
 } from '@tabler/icons-react';
 import SaveActionsModal from './SaveActionsModal';
 import {
@@ -1679,6 +1680,32 @@ export const ChatInput = ({
                              onAddPendingArtifact={handleAddPendingArtifact}
                          />
                         }
+
+                        {/* Web Search Toggle */}
+                        <button
+                            className={`chat-input-button rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200 ${
+                                plugins?.some(p => p.id === PluginID.WEB_SEARCH)
+                                    ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 opacity-100'
+                                    : ''
+                            }`}
+                            id="toggleWebSearch"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const isWebSearchOn = plugins?.some(p => p.id === PluginID.WEB_SEARCH);
+                                if (isWebSearchOn) {
+                                    // Remove web search plugin
+                                    setPlugins(plugins.filter(p => p.id !== PluginID.WEB_SEARCH));
+                                } else {
+                                    // Add web search plugin
+                                    setPlugins([...plugins, Plugins[PluginID.WEB_SEARCH]]);
+                                }
+                            }}
+                            title={plugins?.some(p => p.id === PluginID.WEB_SEARCH)
+                                ? "Web Search enabled - Click to disable"
+                                : "Enable Web Search for this message"}
+                        >
+                            <IconWorldSearch size={20} />
+                        </button>
 
                         <div className='flex flex-row gap-2'>
 

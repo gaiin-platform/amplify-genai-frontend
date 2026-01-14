@@ -11,7 +11,7 @@ interface reqPayload {
 }
 
 // Paths that should not be compressed
-const NO_COMPRESSION_PATHS = ['/billing', '/se', "/amp", '/vu-agent', "/user-data", "/data-disclosure"];
+const NO_COMPRESSION_PATHS = ['/billing', '/se', "/amp", '/vu-agent', "/user-data", "/data-disclosure", "/integrations"];
 
 
 const requestOp =
@@ -43,7 +43,9 @@ const requestOp =
         }
 
         if (payload) {
-            const shouldCompress = !NO_COMPRESSION_PATHS.includes(reqData.path);
+            // Use originalPath if available (set when running locally), otherwise use path
+            const pathToCheck = reqData.originalPath || reqData.path;
+            const shouldCompress = !NO_COMPRESSION_PATHS.includes(pathToCheck);
             
             if (shouldCompress) {
                 try {

@@ -1474,7 +1474,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     
 
 
-                                    {selectedConversationState?.messages?.map((message: Message, index: number) => (
+                                    {selectedConversationState?.messages?.map((message: Message, index: number) => {
+                                        // Don't render raw tool messages as chat bubbles; they're internal context for the LLM.
+                                        // Tool results (e.g., message.data.mcpToolResults) are still rendered via MCPToolResultBlock inside MemoizedChatMessage.
+                                        if (message.role === 'tool') return null;
+                                        return (
                                         <MemoizedChatMessage
                                                 key={index}
                                                 message={message}
@@ -1490,23 +1494,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     if (editedMessage.role != "assistant") {
                                                         const lastUserMessageIndex = selectedConversationState?.messages
                                                                                                                .map(msg => msg.role)
-                                                                                                               .lastIndexOf('user');                                                                                                    
+                                                                                                               .lastIndexOf('user');
 
                                                         if (index === lastUserMessageIndex) {
                                                             routeMessage(editedMessage, selectedConversationState?.messages.length - index, []);
                                                         } else {
-                                                            // ask to fork or overwrite 
+                                                            // ask to fork or overwrite
                                                             setShowOnEditMessagePrompt({editedMessage: editedMessage, index: index});
                                                         }
-                                                        
+
                                                     } else {
                                                         console.log("updateMessage");
                                                         updateMessage(selectedConversationState, editedMessage, index);
                                                     }
                                                 }}
                                             />
-                                    ))}
-                                    {enforcesGroupTypes() && <div className='relative z-20 text-center my-6 px-4 py-6 mx-16 bg-white dark:bg-[#343541] border border-neutral-200 dark:border-neutral-600 rounded-lg custom-shadow'> {getGroupTypeSelector(selectedAssistant)} </div> }
+                                        );
+                                    })}
 
                                     {loading && <ChatLoader/>}
 

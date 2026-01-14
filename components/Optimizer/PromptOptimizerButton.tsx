@@ -95,6 +95,7 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, largeTex
             }
             
             if (!model) {
+                console.log("No model available. Please check your model configuration.");
                 alert("No model available. Please check your model configuration.");
                 return;
             }
@@ -104,6 +105,7 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, largeTex
             const result = await promptForData(chatEndpoint, messages, model, "Improve the users prompt, NO COMMENTS, PLEASANTRIES, PREAMBLES ALLOWED", defaultAccount, null, maxTokens);
             
             if (!result) {
+                console.log("Failed to get response from chat service.");
                 alert("Failed to get response from AI service. This appears to be a backend service issue.");
                 return;
             }
@@ -118,6 +120,7 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, largeTex
             if (extractedPrompt && extractedPrompt[1]) {
                 onOptimized(extractedPrompt[1].trim());
             } else {
+                console.log("Error extracting prompt: ", result);
                 alert("Error optimizing prompt. Please try again.");
             }
         } catch (e) {
