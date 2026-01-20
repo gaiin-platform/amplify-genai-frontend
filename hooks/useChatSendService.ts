@@ -293,15 +293,23 @@ export function useSendService() {
                         conversationId
                     };
 
-                    // Check if Web Search is enabled (requires feature flag AND plugin enabled)
-                    const isWebSearchOn = featureFlags.webSearch && (plugins?.some(p => p.id === PluginID.WEB_SEARCH) ?? false);
-                    console.log("Web Search on: ", isWebSearchOn);
+                    // Check if Web Search is enabled:
+                    // - Feature flag must be on (admin enabled)
+                    // - Plugin must be enabled in FeaturePlugin (user enabled for session)
+                    // - Per-message toggle must be on (user enabled for this message)
+                    const perMessageWebSearch = message.data?.enableWebSearch ?? false;
+                    const pluginWebSearch = plugins?.some(p => p.id === PluginID.WEB_SEARCH) ?? false;
+                    // Check feature flag (now properly defined in backend)
+                    const featureFlagEnabled = featureFlags.webSearch === true;
+                    const isWebSearchOn = featureFlagEnabled && pluginWebSearch && perMessageWebSearch;
+                    
+                    // Always explicitly set enableWebSearch to prevent backend auto-enablement
+                    chatBody.enableWebSearch = isWebSearchOn;
 
                     if (isWebSearchOn) {
                         // Add web search tool to the request
                         // Backend will handle tool execution with user's API key
                         chatBody.tools = [WEB_SEARCH_TOOL_DEFINITION];
-                        chatBody.enableWebSearch = true;
                         console.log("Web search tool added to chat body");
                     }
 
@@ -463,7 +471,7 @@ export function useSendService() {
                         const enableWebSearchValue = chatBody.enableWebSearch;
                         const mcpEnabledValue = (chatBody as any).mcpEnabled;
                         Object.assign(chatBody, options);
-                        if (enableWebSearchValue) {
+                        if (enableWebSearchValue !== undefined) {
                             chatBody.enableWebSearch = enableWebSearchValue;
                         }
                         if (mcpEnabledValue !== undefined) {

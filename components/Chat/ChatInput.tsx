@@ -313,6 +313,9 @@ export const ChatInput = ({
     // Pending artifacts state
     const [pendingArtifacts, setPendingArtifacts] = useState<PendingArtifact[]>([]);
 
+    // Per-conversation web search toggle (independent from FeaturePlugin) - persists across messages
+    const isWebSearchEnabledForConversation = selectedConversation?.data?.webSearchEnabled ?? false;
+
     const promptListRef = useRef<HTMLUListElement | null>(null);
     const dataSourceSelectorRef = useRef<HTMLDivElement | null>(null);
     const actionSelectorRef = useRef<HTMLDivElement | null>(null);
@@ -509,17 +512,21 @@ export const ChatInput = ({
         // Prepare message content and label for large text handling
         let messageContent = content || '';
         let messageLabel = content || '';
-        let messageData: any = {};
-        
+        let messageData: any = {
+            // Include per-message web search toggle state
+            enableWebSearch: isWebSearchEnabledForConversation
+        };
+
         if (largeTextBlocks.length > 0) {
             // Replace all placeholders in content with actual large text for sending to model
             messageContent = replacePlaceholdersWithText(messageContent, largeTextBlocks);
-            
+
             // Keep the label as is for display purposes (with placeholders)
             messageLabel = messageLabel;
-            
+
             // Add large text metadata
             messageData = {
+                ...messageData,
                 hasLargeText: true,
                 largeTextBlocks: largeTextBlocks.map(block => ({
                     id: block.id,
@@ -648,6 +655,7 @@ export const ChatInput = ({
         setDocumentState({});
         setDocumentMetadata({});
         setPendingArtifacts([]); // Clear pending artifacts
+        // Note: Web search toggle now persists across messages in conversation data
 
         // Clear large text state using hook
         clearLargeText();
@@ -1113,6 +1121,17 @@ export const ChatInput = ({
         const containsArtifacts = plugins.map((p: Plugin) => p.id).includes(PluginID.ARTIFACTS);
         if (containsArtifacts) setAddedActions([]);
     }, [plugins]);
+
+    // Reset conversation web search toggle when web search plugin is disabled in FeaturePlugin
+    useEffect(() => {
+        const containsWebSearch = plugins.map((p: Plugin) => p.id).includes(PluginID.WEB_SEARCH);
+        if (!containsWebSearch && selectedConversation && selectedConversation.data?.webSearchEnabled) {
+            handleUpdateConversation(selectedConversation, {
+                key: 'data',
+                value: {...selectedConversation.data, webSearchEnabled: false},
+            });
+        }
+    }, [plugins, selectedConversation, handleUpdateConversation]);
 
     return (
         <>
@@ -1681,31 +1700,31 @@ export const ChatInput = ({
                          />
                         }
 
-                        {/* Web Search Toggle */}
+                        {/* Web Search Toggle - Per-Message Control (only show if web search is enabled in FeaturePlugin) */}
+                        { featureFlags.webSearch && plugins?.some(p => p.id === PluginID.WEB_SEARCH) &&
                         <button
-                            className={`chat-input-button rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200 ${
-                                plugins?.some(p => p.id === PluginID.WEB_SEARCH)
-                                    ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 opacity-100'
-                                    : ''
+                            className={`chat-input-button rounded-md p-1.5 transition-all duration-200 ${
+                                isWebSearchEnabledForConversation
+                                    ? 'bg-green-500 hover:bg-green-600 text-white shadow-md scale-105'
+                                    : 'text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200'
                             }`}
                             id="toggleWebSearch"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                const isWebSearchOn = plugins?.some(p => p.id === PluginID.WEB_SEARCH);
-                                if (isWebSearchOn) {
-                                    // Remove web search plugin
-                                    setPlugins(plugins.filter(p => p.id !== PluginID.WEB_SEARCH));
-                                } else {
-                                    // Add web search plugin
-                                    setPlugins([...plugins, Plugins[PluginID.WEB_SEARCH]]);
+                                if (selectedConversation) {
+                                    handleUpdateConversation(selectedConversation, {
+                                        key: 'data',
+                                        value: {...selectedConversation.data, webSearchEnabled: !isWebSearchEnabledForConversation},
+                                    });
                                 }
                             }}
-                            title={plugins?.some(p => p.id === PluginID.WEB_SEARCH)
-                                ? "Web Search enabled - Click to disable"
-                                : "Enable Web Search for this message"}
+                            title={isWebSearchEnabledForConversation
+                                ? "Web Search enabled for this conversation - Click to disable"
+                                : "Enable Web Search for this conversation"}
                         >
                             <IconWorldSearch size={20} />
                         </button>
+                        }
 
                         <div className='flex flex-row gap-2'>
 
