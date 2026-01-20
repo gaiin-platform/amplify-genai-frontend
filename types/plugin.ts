@@ -1,4 +1,4 @@
-import { IconRobot, IconChartBar, IconFileSearch, IconLibrary, IconMessageBolt, IconDeviceSdCard, IconWorldSearch, IconPlugConnected } from '@tabler/icons-react';
+import { IconRobot, IconChartBar, IconFileSearch, IconLibrary, IconMessageBolt, IconDeviceSdCard, IconWorldSearch, IconPlugConnected, IconPhoto } from '@tabler/icons-react';
 import React from 'react';
 
 // Plugina are on and off features during the conversation chat requests
@@ -21,7 +21,8 @@ export enum PluginID {
   RAG_EVAL = 'rag-eval',
   MEMORY = 'memory',
   WEB_SEARCH = 'web-search',
-  MCP = 'mcp'
+  MCP = 'mcp',
+  IMAGE_GENERATION = 'image-generation'
 }
 
 export const Plugins: Record<PluginID, Plugin> = {
@@ -77,6 +78,13 @@ export const Plugins: Record<PluginID, Plugin> = {
     title: "Enable MCP (Model Context Protocol) tools. Configure MCP servers in Settings → MCP Servers.",
     default: false,
     iconComponent: IconPlugConnected
+  },
+  [PluginID.IMAGE_GENERATION]: {
+    id: PluginID.IMAGE_GENERATION,
+    name: "Image Generation",
+    title: "Enable AI image generation capabilities using OpenAI's GPT Image models.",
+    default: false,
+    iconComponent: IconPhoto
   }
 };
 

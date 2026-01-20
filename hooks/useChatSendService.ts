@@ -454,6 +454,14 @@ export function useSendService() {
                         };
                     }
 
+                    // Enable image generation if plugin is active
+                    if (pluginIds?.includes(PluginID.IMAGE_GENERATION)) {
+                        options = {
+                            ...(options || {}),
+                            imageGenerationEnabled: true
+                        };
+                    }
+
                     if (options) {
                         // Preserve enableWebSearch and mcpEnabled when applying options
                         const enableWebSearchValue = chatBody.enableWebSearch;
