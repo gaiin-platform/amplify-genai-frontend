@@ -7,6 +7,7 @@ import { getCriticalErrors, resolveCriticalError } from "@/services/adminService
 import Checkbox from "@/components/ReusableComponents/CheckBox";
 import InputsMap from "@/components/ReusableComponents/InputMap";
 import HomeContext from "@/pages/api/home/home.context";
+import { userFriendlyDate } from "@/utils/app/date";
 
 interface CriticalError {
     error_id: string;
@@ -198,12 +199,14 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
         const now = new Date();
         const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
 
+        // For recent events, show relative time
         if (diff < 60) return `${diff}s ago`;
         if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
         if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
         if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-        
-        return date.toLocaleDateString() + " " + date.toLocaleTimeString();
+
+        // For older events, show full date/time with timezone
+        return userFriendlyDate(date.toISOString());
     };
 
     const filteredErrors = errors
