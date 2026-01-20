@@ -411,6 +411,14 @@ export function useSendService() {
                         };
                     }
 
+                    // Enable image generation if plugin is active
+                    if (pluginIds?.includes(PluginID.IMAGE_GENERATION)) {
+                        options = {
+                            ...(options || {}),
+                            imageGenerationEnabled: true
+                        };
+                    }
+
                     if (options) {
                         Object.assign(chatBody, options);
                     }

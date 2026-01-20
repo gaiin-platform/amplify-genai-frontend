@@ -1,4 +1,4 @@
-import { IconRobot, IconChartBar, IconFileSearch, IconLibrary, IconMessageBolt, IconDeviceSdCard } from '@tabler/icons-react';
+import { IconRobot, IconChartBar, IconFileSearch, IconLibrary, IconMessageBolt, IconDeviceSdCard, IconPhoto } from '@tabler/icons-react';
 import React from 'react';
 
 // Plugina are on and off features during the conversation chat requests
@@ -14,12 +14,13 @@ export interface Plugin {
 
 export enum PluginID {
   // GOOGLE_SEARCH = 'google-search',
-  CODE_INTERPRETER = 'code-interpreter', 
+  CODE_INTERPRETER = 'code-interpreter',
   RAG = 'rag',
   ARTIFACTS = 'artifacts',
   SMART_MESSAGES = 'smart-focused-messages',
   RAG_EVAL = 'rag-eval',
-  MEMORY = 'memory'
+  MEMORY = 'memory',
+  IMAGE_GENERATION = 'image-generation'
 }
 
 export const Plugins: Record<PluginID, Plugin> = {
@@ -61,6 +62,13 @@ export const Plugins: Record<PluginID, Plugin> = {
     name: "Memory",
     title: "Allows auto-extraction of new memories from the conversation.",
     iconComponent: IconDeviceSdCard
+  },
+  [PluginID.IMAGE_GENERATION]: {
+    id: PluginID.IMAGE_GENERATION,
+    name: "Image Generation",
+    title: "Enable AI image generation capabilities using OpenAI's GPT Image models.",
+    default: false,
+    iconComponent: IconPhoto
   }
 };
 
