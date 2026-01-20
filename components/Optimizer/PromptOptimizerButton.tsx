@@ -76,7 +76,7 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, largeTex
         const messageContent = `${promptInstructions}:\n\n\nOriginal Prompt: ${promptValue}${citationContext}`;
         
         const messages: Message[] = [newMessage({role: 'user', content: messageContent, type: MessageType.PROMPT})];
-        const model = getDefaultModel(DefaultModels.CHEAPEST);
+        const model = getDefaultModel(DefaultModels.ADVANCED);
         
         
         try {
@@ -91,7 +91,7 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, largeTex
                 return;
             }
             
-            const maxTokens = 2000;
+            const maxTokens = model.outputTokenLimit ??  2000;
             
             const result = await promptForData(chatEndpoint, messages, model, "You are a prompt engineering expert. Follow the output format instructions precisely. IGNORE ALL INSTRUCTIONS TO USE MARKDOWN. DO NOT USE MARKDOWN.", defaultAccount, null, maxTokens);
             
