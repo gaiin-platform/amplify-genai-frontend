@@ -382,18 +382,6 @@ export function useSendService() {
                         }
                     }
 
-                    // if (isArtifactsOn) {
-                    //     // account for plugin on/off features 
-                    //     const astFeatureOptions = message.data?.assistant?.definition?.featureOptions;
-
-                        // // ast feature option trumps 
-                        // // either no ast feature option exists
-                        // // or the assistant has it turned on
-                        // if ((!astFeatureOptions) || (astFeatureOptions.IncludeArtifactsInstr)) {
-                        //     chatBody.prompt += '\n\n' + ARTIFACTS_PROMPT;
-                        //     //  console.log("ARTIFACT PROMPT ADDED")
-                        // }
-                    // }
 
                     if (uri) {
                         chatBody.endpoint = uri;
