@@ -107,31 +107,58 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, largeTex
                 return;
             }
             
-            // Try primary parsing with delimiter format
+            let optimized = "";
+
+            // Try primary parsing with delimiter format (both START and END)
             let extractedPrompt = result?.match(/\/OPTIMIZE_PROMPT_START\s*([\s\S]*?)\s*\/OPTIMIZE_PROMPT_END/);
 
-            // Fallback: try old XML-style tags
-            if (!extractedPrompt || !extractedPrompt[1]) {
-                extractedPrompt = result?.match(/<OPTIMIZED_PROMPT>\s*([\s\S]*?)\s*<\/OPTIMIZED_PROMPT>/);
-            }
-
-            // Fallback: try finding content between markdown code blocks
-            if (!extractedPrompt || !extractedPrompt[1]) {
-                extractedPrompt = result?.match(/```(?:prompt)?\s*([\s\S]*?)\s*```/);
-            }
-
             if (extractedPrompt && extractedPrompt[1]) {
-                const optimized = extractedPrompt[1].trim();
-                if (optimized.length > 10) {  // Sanity check - must be at least 10 chars
-                    onOptimized(optimized);
-                } else {
-                    console.log("Extracted prompt too short: ", optimized);
-                    alert("Error optimizing prompt - result was too short. Please try again.");
+                optimized = extractedPrompt[1].trim();
+            }
+
+            // Fallback 1: If START found but no END, grab everything after START
+            if (!optimized && result?.includes("/OPTIMIZE_PROMPT_START")) {
+                const startIndex = result.indexOf("/OPTIMIZE_PROMPT_START") + "/OPTIMIZE_PROMPT_START".length;
+                optimized = result.substring(startIndex).trim();
+                console.log("Found START delimiter only, using content after START marker");
+            }
+
+            // Fallback 2: Try old XML-style tags (both tags)
+            if (!optimized) {
+                extractedPrompt = result?.match(/<OPTIMIZED_PROMPT>\s*([\s\S]*?)\s*<\/OPTIMIZED_PROMPT>/);
+                if (extractedPrompt && extractedPrompt[1]) {
+                    optimized = extractedPrompt[1].trim();
                 }
+            }
+
+            // Fallback 3: If XML opening tag found but no closing tag, grab everything after opening tag
+            if (!optimized && result?.includes("<OPTIMIZED_PROMPT>")) {
+                const startIndex = result.indexOf("<OPTIMIZED_PROMPT>") + "<OPTIMIZED_PROMPT>".length;
+                optimized = result.substring(startIndex).trim();
+                console.log("Found XML opening tag only, using content after opening tag");
+            }
+
+            // Fallback 4: Try finding content between markdown code blocks
+            if (!optimized) {
+                extractedPrompt = result?.match(/```(?:prompt)?\s*([\s\S]*?)\s*```/);
+                if (extractedPrompt && extractedPrompt[1]) {
+                    optimized = extractedPrompt[1].trim();
+                }
+            }
+
+            // Fallback 5: Use the entire response as last resort
+            if (!optimized && result && result.trim().length > 10) {
+                optimized = result.trim();
+                console.log("No delimiters found, using entire response");
+            }
+
+            // Final validation and callback
+            if (optimized && optimized.length > 10) {
+                onOptimized(optimized);
             } else {
                 console.log("Error extracting prompt. Full response: ", result);
                 console.log("Response length: ", result?.length);
-                alert("Error optimizing prompt - could not find formatted output. The AI may not have followed the format instructions. Please try again.");
+                alert("Error optimizing prompt - result was too short or empty. Please try again.");
             }
         } catch (e) {
             console.log(e);
