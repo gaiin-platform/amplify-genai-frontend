@@ -461,6 +461,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             let flags: any = result.data;
             homeDispatch({ field: 'featureFlags', value: flags});
             localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
+            window.dispatchEvent(new Event('updateFeatureSettings'));
         }
     }
 
