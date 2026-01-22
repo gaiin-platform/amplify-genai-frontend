@@ -39,7 +39,8 @@ export const promptForData = async (chatEndpoint:string, messages: Message[], mo
             skipRag: true,
             skipCodeInterpreter: true,
             accountId: account?.id,
-            rateLimit: account?.rateLimit
+            rateLimit: account?.rateLimit,
+            enableWebSearch: false
         };
 
         if (statsService) statsService.sendChatEvent(chatBody);

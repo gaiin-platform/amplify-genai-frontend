@@ -65,13 +65,13 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, largeTex
 
     ## CRITICAL OUTPUT FORMAT:
 
-    You MUST end your response with the optimized prompt wrapped in XML-style tags with NO text after the closing tag:
+    You MUST end your response with the optimized prompt wrapped between these EXACT delimiters with NO text after the ending delimiter:
 
-    <OPTIMIZED_PROMPT>
+    /OPTIMIZE_PROMPT_START
     [Your improved prompt goes here]
-    </OPTIMIZED_PROMPT>
+    /OPTIMIZE_PROMPT_END
 
-    DO NOT add any text, explanations, or comments after the closing </OPTIMIZED_PROMPT> tag.`;
+    DO NOT add any text, explanations, or comments after the /OPTIMIZE_PROMPT_END delimiter.`;
 
         const messageContent = `${promptInstructions}:\n\n\nOriginal Prompt: ${promptValue}${citationContext}`;
         
@@ -107,12 +107,12 @@ const PromptOptimizerButton: React.FC<PromptOptimzierProps> = ({prompt, largeTex
                 return;
             }
             
-            // Try primary parsing with XML-style tags (more robust)
-            let extractedPrompt = result?.match(/<OPTIMIZED_PROMPT>\s*([\s\S]*?)\s*<\/OPTIMIZED_PROMPT>/);
+            // Try primary parsing with delimiter format
+            let extractedPrompt = result?.match(/\/OPTIMIZE_PROMPT_START\s*([\s\S]*?)\s*\/OPTIMIZE_PROMPT_END/);
 
-            // Fallback: try old delimiter format
+            // Fallback: try old XML-style tags
             if (!extractedPrompt || !extractedPrompt[1]) {
-                extractedPrompt = result?.match(/\/OPTIMIZE_PROMPT_START\s*([\s\S]*?)\s*\/OPTIMIZE_PROMPT_END/);
+                extractedPrompt = result?.match(/<OPTIMIZED_PROMPT>\s*([\s\S]*?)\s*<\/OPTIMIZED_PROMPT>/);
             }
 
             // Fallback: try finding content between markdown code blocks
