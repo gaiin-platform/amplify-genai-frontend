@@ -280,9 +280,6 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               )
               .sort((a: TaskExecutionRecord, b: TaskExecutionRecord) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime());
 
-            // Debug logging
-            console.log(`[Poll ${attempts}] Found ${executionLogs.length} execution logs, tracking: ${trackedExecutionId}`);
-
             // If we haven't tracked an execution yet, find one to track
             if (!trackedExecutionId && executionLogs.length > 0) {
               // FIXED: Look for ANY new log first (running OR completed)
@@ -295,24 +292,18 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               
               if (logToTrack) {
                 trackedExecutionId = logToTrack.executionId;
-                console.log(`[Poll ${attempts}] Tracking execution:`, trackedExecutionId, `Status: ${logToTrack.status}`);
-                
+
                 // Mark if we found a running status
                 if (logToTrack.status === 'running') {
                   hasFoundRunning = true;
                 }
-                
-                console.log(`[Poll ${attempts}] Tracking execution:`, trackedExecutionId, `Status: ${logToTrack.status}`);
-                
+
                 // FIXED: Check completion immediately for fast executions
                 const isAlreadyCompleted = ['success', 'failure', 'timeout'].includes(logToTrack.status);
                 if (isAlreadyCompleted && logToTrack.executedAt > startTime) {
-                  console.log(`[Poll ${attempts}] Task already completed:`, logToTrack.status);
                   toast(`Task completed with status: ${logToTrack.status}`);
-                  setTimeout(() => {
-                    setSelectedLogId(logToTrack.executionId); 
-                    setIsTestingTask(false);
-                  }, 1000);
+                  setSelectedLogId(logToTrack.executionId);
+                  setIsTestingTask(false);
                   return; // Stop polling
                 }
               }
@@ -325,28 +316,34 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               );
 
               if (trackedLog) {
-                console.log(`[Poll ${attempts}] Tracked log status:`, trackedLog.status);
-                
                 // Update running status if we see it
                 if (trackedLog.status === 'running' && !hasFoundRunning) {
                   hasFoundRunning = true;
-                  console.log(`[Poll ${attempts}] Found running status`);
                 }
-                
+
                 // Check for completion - be extra thorough
                 const isCompleted = ['success', 'failure', 'timeout'].includes(trackedLog.status);
-                
+
                 if (isCompleted) {
-                  console.log(`[Poll ${attempts}] Task completed with status:`, trackedLog.status);
                   toast(`Task completed with status: ${trackedLog.status}`);
-                  setTimeout(() => {
-                    setSelectedLogId(trackedLog.executionId); 
-                    setIsTestingTask(false);
-                  }, 1000);
+                  setSelectedLogId(trackedLog.executionId);
+                  setIsTestingTask(false);
                   return; // Stop polling
                 }
-              } else {
-                console.log(`[Poll ${attempts}] ERROR: Tracked log not found in results!`);
+              }
+            }
+
+            // FAILSAFE: Also check for ANY completed log after a few attempts
+            if (!trackedExecutionId && attempts > 2) {
+              const anyCompleted = executionLogs.find((log: TaskExecutionRecord) =>
+                ['success', 'failure', 'timeout'].includes(log.status) &&
+                log.executedAt > startTime
+              );
+              if (anyCompleted) {
+                toast(`Task completed with status: ${anyCompleted.status}`);
+                setSelectedLogId(anyCompleted.executionId);
+                setIsTestingTask(false);
+                return; // Stop polling
               }
             }
 
@@ -477,7 +474,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                       key={task.taskId}
                       className={`px-2 py-1 rounded-lg cursor-pointer flex flex-row ${
                         selectedTask.taskId === task.taskId
-                          ? 'bg-blue-100 dark:bg-blue-900'
+                          ? 'bg-blue-100 dark:bg-blue-200'
                           : 'hover:bg-gray-200 dark:hover:bg-gray-700'
                       }`}
                       onClick={() => handleLoadTask(task.taskId)}>
@@ -491,7 +488,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                           <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${
                             task.active 
                               ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
-                              : 'text-gray-500'
+                              : 'text-gray-500 dark:text-gray-400'
                           }`}>
                             {task.active ? 'Active' : 'Inactive'}
                           </span>

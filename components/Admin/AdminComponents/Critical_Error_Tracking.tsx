@@ -1,4 +1,4 @@
-import { FC, useState, useEffect } from "react";
+import { FC, useState, useEffect, useContext } from "react";
 import { IconAlertTriangle, IconCheck, IconChevronDown, IconChevronRight, IconClock, IconCode, IconCopy, IconExternalLink, IconFilter, IconRefresh, IconSearch, IconUser, IconX, IconDatabase, IconServer, IconBug, IconMailExclamation } from "@tabler/icons-react";
 import { loading, loadingIcon, CriticalErrorsConfig } from "../AdminUI";
 import { AdminConfigTypes } from "@/types/admin";
@@ -6,6 +6,8 @@ import toast from "react-hot-toast";
 import { getCriticalErrors, resolveCriticalError } from "@/services/adminService";
 import Checkbox from "@/components/ReusableComponents/CheckBox";
 import InputsMap from "@/components/ReusableComponents/InputMap";
+import HomeContext from "@/pages/api/home/home.context";
+import { userFriendlyDate } from "@/utils/app/date";
 
 interface CriticalError {
     error_id: string;
@@ -59,6 +61,8 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
     const [lastEvaluatedKey, setLastEvaluatedKey] = useState<any>(null);
     const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
     const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
+    const { state: { amplifyUsers } } = useContext(HomeContext);
+
 
     const fetchErrors = async (loadMore: boolean = false) => {
         if (loadMore) {
@@ -195,12 +199,14 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
         const now = new Date();
         const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
 
+        // For recent events, show relative time
         if (diff < 60) return `${diff}s ago`;
         if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
         if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
         if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-        
-        return date.toLocaleDateString() + " " + date.toLocaleTimeString();
+
+        // For older events, show full date/time with timezone
+        return userFriendlyDate(date.toISOString());
     };
 
     const filteredErrors = errors
@@ -533,7 +539,7 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
                                                         } else if (userCount > 1) {
                                                             return `${userCount} users affected`;
                                                         } else {
-                                                            return error.current_user;
+                                                            return amplifyUsers[error.current_user] || error.current_user;
                                                         }
                                                     })()}
                                                 </span>
@@ -633,7 +639,7 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
                                                                             .sort(([, countA]: [string, any], [, countB]: [string, any]) => (countB as number) - (countA as number))
                                                                             .map(([user, count]) => (
                                                                                 <div key={user} className="flex items-center justify-between px-3 py-2 bg-blue-50 dark:bg-blue-700 text-blue-900 dark:text-blue-200 text-xs rounded">
-                                                                                    <span className="font-medium">{user}</span>
+                                                                                    <span className="font-medium">{amplifyUsers[user]}</span>
                                                                                     <span className="px-2 py-0.5 bg-blue-200 dark:bg-blue-800 rounded font-bold">{count}x</span>
                                                                                 </div>
                                                                             ))}
@@ -643,7 +649,7 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
                                                                         <div className="flex flex-wrap gap-2">
                                                                             {error.affected_users.filter((u: string) => u !== '__MANY_USERS__').map((user: string, idx: number) => (
                                                                                 <span key={idx} className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs rounded">
-                                                                                    {user}
+                                                                                    {amplifyUsers[user]}
                                                                                 </span>
                                                                             ))}
                                                                         </div>

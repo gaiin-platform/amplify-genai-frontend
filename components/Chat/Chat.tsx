@@ -69,6 +69,7 @@ import { IntegrationsDialog } from '../Integrations/IntegrationsDialog';
 import { TemperatureSlider } from './Sliders/Temperature';
 import { ResponseTokensSlider } from './Sliders/ResponseTokens';
 import { storageRemove } from '@/utils/app/storage';
+import { Assistant } from '@/types/assistant';
 
 
 interface Props {
@@ -307,6 +308,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) {
                 if (selectedConversation?.model?.id !== selectedModelId) setSelectedModelId(selectedConversation?.model?.id);
             }
+            const groupType = selectedConversation?.groupType;
+            if (groupType && !selectedAssistant?.definition?.data?.groupTypeData?.[groupType]) {
+                delete selectedConversation.groupType;
+            } 
+
         }, [selectedAssistant, selectedConversation]);
 
 
@@ -830,6 +836,27 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         };
         
+        const enforcesGroupTypes = () => selectedAssistant?.definition?.data && Object.keys(selectedAssistant?.definition?.data?.groupTypeData || {}).length > 0;
+                                                    
+        const getGroupTypeSelector = (ast: Assistant | null) => {
+            if (selectedConversation && ast) {
+
+             return <GroupTypeSelector
+                groupOptionsData={ast?.definition?.data?.groupTypeData || {}}
+                setSelected={(type: string | undefined) => {
+                    // set selectedConversations with type
+                    homeDispatch({ field: 'selectedConversation', value: {...selectedConversation, groupType: type} })
+                    handleUpdateConversation(selectedConversation, {
+                        key: 'groupType',
+                        value: type,
+                    }) 
+                }}
+                groupUserTypeQuestion={ast?.definition?.data?.groupUserTypeQuestion || ''}
+             />
+            }
+                
+         return null;
+        }
 
         const onClearAll = () => {
             if (
@@ -1135,22 +1162,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     
                                                 </div>
                                                 
-                                                { selectedAssistant?.definition?.data && Object.keys(selectedAssistant?.definition?.data?.groupTypeData || {}).length > 0 ? 
-                                                    <>
-                                                        <GroupTypeSelector
-                                                            groupOptionsData={selectedAssistant.definition.data.groupTypeData}
-                                                            setSelected={(type: string | undefined) => {
-                                                                // set selectedConversations with type
-                                                                homeDispatch({ field: 'selectedConversation', value: {...selectedConversation, groupType: type} })
-                                                                handleUpdateConversation(selectedConversation, {
-                                                                    key: 'groupType',
-                                                                    value: type,
-                                                                }) 
-                                                            }}
-                                                            groupUserTypeQuestion={selectedAssistant.definition.data.groupUserTypeQuestion}
-                                                        />
-                                                        
-                                                    </> :
+                                                { enforcesGroupTypes() ? <> {getGroupTypeSelector(selectedAssistant)} </> :
                                                     ( showAdvancedConvSettings && 
                                                     <>
                                                         <SystemPrompt
@@ -1435,7 +1447,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     </div>
                                     <div ref={modelSelectRef}></div>
                                     
-                                        <div 
+                                        <div
                                             className="flex flex-col md:gap-6 md:py-3 md:pt-6 lg:px-0 mx-16 ">
                                             { showSettings && !availableAstModelId(selectedAssistant?.definition?.data?.model) &&
                                                 <div
@@ -1462,7 +1474,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     
 
 
-                                    {selectedConversationState?.messages?.map((message: Message, index: number) => (
+                                    {selectedConversationState?.messages?.map((message: Message, index: number) => {
+                                        // Don't render raw tool messages as chat bubbles; they're internal context for the LLM.
+                                        // Tool results (e.g., message.data.mcpToolResults) are still rendered via MCPToolResultBlock inside MemoizedChatMessage.
+                                        if (message.role === 'tool') return null;
+                                        return (
                                         <MemoizedChatMessage
                                                 key={index}
                                                 message={message}
@@ -1478,22 +1494,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     if (editedMessage.role != "assistant") {
                                                         const lastUserMessageIndex = selectedConversationState?.messages
                                                                                                                .map(msg => msg.role)
-                                                                                                               .lastIndexOf('user');                                                                                                    
+                                                                                                               .lastIndexOf('user');
 
                                                         if (index === lastUserMessageIndex) {
                                                             routeMessage(editedMessage, selectedConversationState?.messages.length - index, []);
                                                         } else {
-                                                            // ask to fork or overwrite 
+                                                            // ask to fork or overwrite
                                                             setShowOnEditMessagePrompt({editedMessage: editedMessage, index: index});
                                                         }
-                                                        
+
                                                     } else {
                                                         console.log("updateMessage");
                                                         updateMessage(selectedConversationState, editedMessage, index);
                                                     }
                                                 }}
                                             />
-                                    ))}
+                                        );
+                                    })}
 
                                     {loading && <ChatLoader/>}
 

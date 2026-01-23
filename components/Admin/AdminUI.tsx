@@ -17,7 +17,7 @@ import { OpenAIEndpointsTab } from "./AdminComponents/OpenAIEndpoints";
 import { FeatureFlagsTab } from "./AdminComponents/FeatureFlags";
 import { emptySupportedModel, SupportedModelsTab } from "./AdminComponents/SupportedModels";
 import { ConfigurationsTab } from "./AdminComponents/Configurations";
-import { Integration, IntegrationProviders, integrationProviders, integrationProvidersList, IntegrationSecretsMap, IntegrationsMap, ProviderSettingsMap } from "@/types/integrations";
+import { Integration, IntegrationProviders, integrationProviders, integrationProvidersList, IntegrationSecretsMap, IntegrationsMap, ProviderSettingsMap, AdminWebSearchConfig } from "@/types/integrations";
 import { checkActiveIntegrations } from "@/services/oauthIntegrationsService";
 import { IntegrationsTab } from "./AdminComponents/Integrations";
 import { EmbeddingsTab } from "./AdminComponents/Embeddings";
@@ -99,6 +99,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [integrations, setIntegrations] = useState<IntegrationsMap | null >(null);
     const [integrationSecrets, setIntegrationSecrets] = useState<IntegrationSecretsMap>({});
     const [providerSettings, setProviderSettings] = useState<ProviderSettingsMap>({});
+    const [webSearchConfig, setWebSearchConfig] = useState<AdminWebSearchConfig | null>(null);
     const [hasChildModalOpen, setHasChildModalOpen] = useState<boolean>(false);
 
     const mergeIntegrationLists = ( supported: Integration[] | undefined,
@@ -196,6 +197,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 setCriticalErrorsConfig(data[AdminConfigTypes.CRITICAL_ERRORS] || criticalErrorsConfig);
                 setAiEmailDomain(data[AdminConfigTypes.AI_EMAIL_DOMAIN] || aiEmailDomain);
                 setDefaultModels(data[AdminConfigTypes.DEFAULT_MODELS] || {});
+                setWebSearchConfig(data[AdminConfigTypes.WEB_SEARCH] || null);
                 setLoadingMessage("");
             
                 const nonlazyResult = await nonlazyReq;
@@ -459,6 +461,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             let flags: any = result.data;
             homeDispatch({ field: 'featureFlags', value: flags});
             localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
+            window.dispatchEvent(new Event('updateFeatureSettings'));
         }
     }
 
@@ -867,8 +870,6 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         setIntegrations={setIntegrations}
                         integrationSecrets={integrationSecrets}
                         setIntegrationSecrets={setIntegrationSecrets}
-                        providerSettings={providerSettings}
-                        setProviderSettings={setProviderSettings}
                         azureAdminConsentProvided={providerSettings[integrationProviders.Microsoft]?.azure_admin_consent_provided || false}
                         setAzureAdminConsentProvided={(value: boolean) => {
                             const updated = {
@@ -879,6 +880,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             updateUnsavedConfigs(AdminConfigTypes.INTEGRATIONS);
                         }}
                         updateUnsavedConfigs={updateUnsavedConfigs}
+                        webSearchConfig={webSearchConfig}
+                        setWebSearchConfig={setWebSearchConfig}
                     />
                 }
                 ] : []),

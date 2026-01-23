@@ -31,12 +31,14 @@ export const PluginSelector: FC<Props> = ({
   const filterPlugInList = () => {
     return PluginList.filter(plugin => {
              // Do not include the plugin in the list if ragEnabled is false
-              if (plugin.id === PluginID.RAG && !featureFlags.ragEnabled) return false; 
-              if (plugin.id === PluginID.RAG_EVAL && (!featureFlags.ragEnabled || !featureFlags.ragEvaluation)) return false; 
+              if (plugin.id === PluginID.RAG && !featureFlags.ragEnabled) return false;
+              if (plugin.id === PluginID.RAG_EVAL && (!featureFlags.ragEnabled || !featureFlags.ragEvaluation)) return false;
               if (plugin.id === PluginID.CODE_INTERPRETER && !featureFlags.codeInterpreterEnabled) return false;
               if (plugin.id === PluginID.ARTIFACTS && (!featureFlags.artifacts || !settingRef.current?.featureOptions.includeArtifacts)) return false;
               if (plugin.id === PluginID.SMART_MESSAGES && !settingRef.current?.featureOptions.includeFocusedMessages) return false;
               if (plugin.id === PluginID.MEMORY && (!featureFlags.memory || !settingRef.current?.featureOptions.includeMemory)) return false;
+              if (plugin.id === PluginID.MCP && !featureFlags.mcp) return false;
+              if (plugin.id === PluginID.WEB_SEARCH && (!featureFlags.webSearch || !settingRef.current?.featureOptions.includeWebSearch)) return false;
               return true; // Include the plugin in the list if no flags block it
           });
   }

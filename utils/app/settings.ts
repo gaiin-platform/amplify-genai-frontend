@@ -78,6 +78,12 @@ export const featureOptionFlags = [
     "key": "includeMemory",
     "defaultValue": false,
     "description": "Enable long-term memory for users and assistants, storing key information from past conversations. This feature enhances contextual understanding, delivering more personalized and coherent responses over time. Users have full control, approving all memories before they're saved."
+  },
+  {
+    "label": "Web Search",
+    "key": "includeWebSearch",
+    "defaultValue": true,
+    "description": "Enable web search functionality in the plugin selector. Users can toggle web search on/off for their conversations. Configure your API key in Settings → Integrations → Web Search."
   }
 ];
 
@@ -91,6 +97,8 @@ const featureOptionDefaults = (featureFlags:any) =>  featureOptionFlags.reduce((
     if (featureFlags.highlighter) acc[x.key] = x.defaultValue;
   } else if (x.key === "includeMemory") {
     if (featureFlags.memory) acc[x.key] = x.defaultValue;
+  } else if (x.key === "includeWebSearch") {
+    if (featureFlags.webSearch) acc[x.key] = x.defaultValue;
   } else {
       acc[x.key] = x.defaultValue;
   }

@@ -99,6 +99,10 @@ const DataSourcesTableScrolling: FC<Props> = ({
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
+    // Multi-select mode state
+    const [isSelectMode, setIsSelectMode] = useState(false);
+    const [selectedForAction, setSelectedForAction] = useState<Set<string>>(new Set());
+
     const getTypeFromCommonName = (commonName: string) => {
         const foundType = Object.entries(mimeTypeToCommonName)
             .find(([key, value]) => value === commonName)?.[0];
@@ -492,6 +496,50 @@ const DataSourcesTableScrolling: FC<Props> = ({
         setSelectedIds(newSelected);
     }
 
+    // Select mode functions
+    const toggleSelectAllForAction = () => {
+        if (selectedForAction.size === data.length) {
+            setSelectedForAction(new Set());
+        } else {
+            setSelectedForAction(new Set(data.map(file => file.id)));
+        }
+    }
+
+    const toggleSelectForAction = (id: string) => {
+        const newSelected = new Set(selectedForAction);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedForAction(newSelected);
+    }
+
+    const handleBatchSelect = () => {
+        if (selectedForAction.size === 0 || !onDataSourceSelected) return;
+
+        // Call onDataSourceSelected for each selected file
+        Array.from(selectedForAction).forEach(id => {
+            const file = data.find(f => f.id === id);
+            if (file) {
+                onDataSourceSelected({
+                    id: file.id,
+                    type: file.type,
+                    name: file.name,
+                    metadata: {
+                        createdAt: file.createdAt,
+                        tags: file.tags,
+                        totalTokens: file.totalTokens,
+                    }
+                });
+            }
+        });
+
+        // Reset state
+        setSelectedForAction(new Set());
+        setIsSelectMode(false);
+    }
+
     const fileReprocessing = async (key: string) => {
         // Find the document that will be reprocessed to get its type
         const reprocessedDoc = data.find(file => file.id === key);
@@ -534,7 +582,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: '__id', //access nested data with dot notation
                 header: ' ',
-                width: 18,
                 size: 18,
                 maxSize: 18,
                 enableSorting: false,
@@ -555,7 +602,83 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: 'name', //access nested data with dot notation
                 header: 'Name',
-                width: 200,
+                Header: () => (
+                    <div className="flex items-center gap-1">
+                        <span>Name</span>
+                        {onDataSourceSelected && !isSelectMode && (
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setIsSelectMode(true);
+                                }}
+                                className="text-xs px-1.5 py-0.5 mx-6 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors whitespace-nowrap"
+                            >
+                                Select Multiple
+                            </button>
+                        )}
+                        {isSelectMode && (
+                            <>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        toggleSelectAllForAction();
+                                    }}
+                                    className="text-xs px-1.5 py-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors whitespace-nowrap"
+                                >
+                                    {selectedForAction.size === data.length && data.length > 0 ? 'Deselect All' : 'Select All'}
+                                </button>
+                                <span className="text-xs text-gray-500 whitespace-nowrap">
+                                    ({selectedForAction.size})
+                                </span>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleBatchSelect();
+                                    }}
+                                    disabled={selectedForAction.size === 0}
+                                    className="p-0.5 rounded hover:bg-green-100 dark:hover:bg-green-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                    title="Confirm Selection"
+                                >
+                                    <IconCheck size={16} className="text-green-600 dark:text-green-400" />
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setIsSelectMode(false);
+                                        setSelectedForAction(new Set());
+                                    }}
+                                    className="p-0.5 ml-[-4px] mr-3 rounded hover:bg-red-100 dark:hover:bg-red-900 transition-colors"
+                                    title="Cancel"
+                                >
+                                    <IconX size={16} className="text-red-600 dark:text-red-400" />
+                                </button>
+                            </>
+                        )}
+                    </div>
+                ),
+                Cell: ({cell}) => (
+                    <div className="flex items-center gap-2">
+                        {isSelectMode && (
+                            <div onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                toggleSelectForAction(cell.row.original.id);
+                            }}>
+                                <Checkbox
+                                    id={`select-checkbox-${cell.row.original.id}`}
+                                    label=""
+                                    checked={selectedForAction.has(cell.row.original.id)}
+                                    onChange={() => toggleSelectForAction(cell.row.original.id)}
+                                />
+                            </div>
+                        )}
+                        <span>{cell.getValue<string>()}</span>
+                    </div>
+                ),
                 size: 200,
                 //enableSorting: false,
                 maxSize: 300,
@@ -563,7 +686,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: 'id', //access nested data with dot notation
                 header: ' ',
-                width: 18,
                 size: 18,
                 maxSize: 18,
                 enableSorting: false,
@@ -584,7 +706,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: 'createdAt',
                 header: 'Created',
-                width: 100,
                 size: 100,
                 //enableSorting: false,
                 enableColumnFilter: false,
@@ -613,7 +734,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 accessorKey: 'commonType',
                 header: 'Type',
                 //enableSorting: false,
-                width: 100,
                 size: 100,
                 maxSize: 100,
                 Edit: ({cell, column, table}) => <>{cell.getValue<string>()}</>,
@@ -621,7 +741,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: 'embeddingStatus', //embedding status column
                 header: 'Status',
-                width: 150,
                 size: 150,
                 maxSize: 150,
                 enableSorting: false,
@@ -740,7 +859,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: 'delete',
                 header: '',
-                width: 18,
                 size: 18,
                 maxSize: 18,
                 enableSorting: false,
@@ -777,7 +895,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 },   
             },
         ],
-        [embeddingStatus, fetchedStatusKeys, isDeleteMode, selectedIds, pollingFiles],
+        [embeddingStatus, fetchedStatusKeys, isDeleteMode, selectedIds, isSelectMode, selectedForAction, pollingFiles],
     );
 
     const columns = allColumns.filter(
@@ -831,8 +949,10 @@ const DataSourcesTableScrolling: FC<Props> = ({
         },
         mantineTableBodyRowProps: ({row}) => ({
             onClick: (event) => {
-                //console.log("Data Source Selected", row.original);
-                if(onDataSourceSelected){
+                // If in select mode, toggle selection instead of normal behavior
+                if (isSelectMode) {
+                    toggleSelectForAction(row.original.id);
+                } else if(onDataSourceSelected){
                     onDataSourceSelected({
                         id: row.original.id,
                         type: row.original.type,
@@ -856,17 +976,27 @@ const DataSourcesTableScrolling: FC<Props> = ({
         mantineToolbarAlertBannerProps: isError
             ? {color: 'red', children: 'Error loading data'}
             : undefined,
+        mantineTableHeadCellProps: {
+            sx: {
+                '& .mantine-ActionIcon-root': {
+                    color: lightMode === 'light' ? '#374151' : undefined, // darker gray in light mode
+                },
+                '& svg': {
+                    color: lightMode === 'light' ? '#374151' : undefined, // darker gray in light mode
+                }
+            }
+        },
         ...(tableParams || {})
     });
 
     return (
         <div className="relative">
-            {/* Delete Mode Controls - Positioned to appear in toolbar area */}
+            {/* Multi-Select Mode Controls - Positioned to appear in toolbar area */}
             <div className="absolute right-2 z-10 flex items-center gap-2" style={{ transform: 'translateY(10px)' }}>
                 {!showDeleteConfirmation ? (
-                    <>  
+                    <>
                         {isDeleteMode ? (
-                            <div className="flex items-center gap-2">
+                            <div className="ml-2 flex items-center gap-2" style={{transform: 'translateY(32px)'}}>
                                 <button
                                     onClick={(e) => {
                                         e.preventDefault();
@@ -887,7 +1017,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
                                         setShowDeleteConfirmation(true);
                                     }}
                                     disabled={selectedIds.size === 0}
-                                    className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors text-sm"
+                                    className="px-3 py-1.5 rounded bg-red-600 text-white hover:bg-red-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors text-sm"
                                 >
                                     Delete
                                 </button>
@@ -898,24 +1028,24 @@ const DataSourcesTableScrolling: FC<Props> = ({
                                         setIsDeleteMode(false);
                                         setSelectedIds(new Set());
                                     }}
-                                    className="p-1.5 rounded hover:bg-gray-600 dark:hover:bg-black transition-colors"
+                                    className="p-1.5 rounded hover:bg-gray-300 dark:hover:bg-black transition-colors"
                                     title="Cancel"
                                 >
                                     <IconX size={18} />
                                 </button>
                             </div>
                         ) :
-                        <div style={{ transform: 'translateY(6px)' }}>
+                        <div style={{ transform: 'translateY(6px)' }} className="flex gap-2">
                             <button
                                 onClick={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
                                     setIsDeleteMode(true);
                                 }}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded hover:bg-gray-600 dark:hover:bg-black transition-colors"
+                                className="flex items-center bg-white dark:bg-opacity-0 gap-2 px-3 py-1.5 rounded hover:bg-gray-200 dark:hover:bg-black transition-colors"
                             >
                                 <IconTrash size={18} />
-                                <span className="text-sm text-neutral-200 font-bold">{'Delete Multiple'}</span>
+                                <span className="text-sm text-neutral-600 dark:text-neutral-300 font-bold">{'Delete Multiple'}</span>
                             </button>
                         </div>
                         }
