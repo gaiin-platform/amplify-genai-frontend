@@ -1,7 +1,7 @@
 import { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import HomeContext from '@/pages/api/home/home.context';
-import { IconCheck, IconLoader2} from '@tabler/icons-react';
+import { IconCheck, IconLoader2 } from '@tabler/icons-react';
 
 import { deleteUserIntegration, getAvailableIntegrations, getOauthRedirect, getConnectedIntegrations } from '@/services/oauthIntegrationsService';
 import { ActiveTabs } from '../ReusableComponents/ActiveTabs';
@@ -9,6 +9,7 @@ import { Integration, IntegrationProviders, IntegrationsMap } from '@/types/inte
 import { capitalize } from '@/utils/app/data';
 import { Loader } from '@mantine/core';
 import { translateIntegrationIcon } from './IntegrationsDialog';
+import { ToolApiKeysTab } from '../Settings/ToolApiKeysTab';
 
 interface Props {
   open: boolean;
@@ -22,7 +23,7 @@ interface Props {
 export const IntegrationTabs: FC<Props> = ({ open, depth=0, allowedIntegrations=[], onTabChange: integrationTabChange = () => {},
                                              onSupportedIntegrations = () => {}, onConnectedIntegrations = () => {}}) => {
   const { t } = useTranslation('settings');
-  const { dispatch: homeDispatch, state: { statsService} } = useContext(HomeContext);
+  const { state: { featureFlags } } = useContext(HomeContext);
   const lastActiveTab = useRef<number | undefined>(undefined);
 
   const [connectingStates, setConnectingStates] = useState<{[key: string]: boolean}>({});
@@ -32,26 +33,72 @@ export const IntegrationTabs: FC<Props> = ({ open, depth=0, allowedIntegrations=
   const [loadingIntegrations, setLoadingIntegrations] = useState(true);
 
   const [integrations, setIntegrations] = useState<IntegrationsMap>({});
+  const [providerSettings, setProviderSettings] = useState<any>({});
   
   const getIntegrations = async () => {
     const integrationSupport = await getAvailableIntegrations();
     if (integrationSupport && integrationSupport.success) {
-      const supportedIntegrations = integrationSupport.data;
+      const responseData = integrationSupport.data;
+
+      // Handle both old format (just integrations) and new format (with provider_settings)
+      let supportedIntegrations: IntegrationsMap;
+      let providerSettingsData: any = {};
+
+      if (responseData && typeof responseData === 'object') {
+        // Check if this is the new nested format
+        if ('integrations' in responseData && 'provider_settings' in responseData) {
+          supportedIntegrations = responseData.integrations;
+          providerSettingsData = responseData.provider_settings || {};
+        } else {
+          // Old format - just the integrations map
+          supportedIntegrations = responseData;
+        }
+      } else {
+        supportedIntegrations = {};
+      }
+
       setIntegrations(supportedIntegrations);
+      setProviderSettings(providerSettingsData);
       onSupportedIntegrations(supportedIntegrations);
     }  else {
+      // Set to empty object - the UI will handle showing "No integrations" message
+      setIntegrations({});
+      setProviderSettings({});
       onSupportedIntegrations({});
-      alert("Unable to retrieve available integrations at this time. Please try again later.");
+
+      // Only show alert for actual errors, not when integrations just aren't configured
+      const errorMessage = integrationSupport?.message || '';
+      const isConfigError = errorMessage.includes('Admin Table') || errorMessage.includes('not configured');
+
+      if (!isConfigError && integrationSupport) {
+        // This is a real error (network, server, etc), not just missing config
+        alert("Unable to retrieve available integrations at this time. Please try again later.");
+      }
     }
   }
 
   const getUserIntegrations = async () => {
     const userIntegrations = await getConnectedIntegrations();
-    if (userIntegrations && userIntegrations.success && userIntegrations.data) {
-      setConnectedIntegrations(userIntegrations.data);
-      onConnectedIntegrations(userIntegrations.data);
+    if (userIntegrations && userIntegrations.success) {
+      // Success can have either data or an empty array
+      const connections = userIntegrations.data || [];
+      setConnectedIntegrations(connections);
+      onConnectedIntegrations(connections);
     } else {
-      alert("Unable to verify connected integrations at this time. Please try again later.");
+      // Only show alert for actual errors, not when integrations just aren't configured
+      const errorMessage = userIntegrations?.message || '';
+      const isConfigError = errorMessage.includes('Admin Table') ||
+                           errorMessage.includes('not configured') ||
+                           errorMessage.includes('No integrations');
+
+      if (!isConfigError && userIntegrations) {
+        // This is a real error (network, server, etc), not just missing config
+        alert("Unable to verify connected integrations at this time. Please try again later.");
+      }
+
+      // Set to empty array even on error - UI will handle showing appropriate message
+      setConnectedIntegrations([]);
+      onConnectedIntegrations([]);
     }
   }
 
@@ -92,9 +139,14 @@ export const IntegrationTabs: FC<Props> = ({ open, depth=0, allowedIntegrations=
   const handleConnect = async (id: string) => {
     setConnectingStates(prev => ({ ...prev, [id]: true }));
 
+    // Extract provider from integration id (e.g., "microsoft_calendar" -> "Microsoft")
+    const provider = id.split('_')[0];
+    const capitalizedProvider = provider.charAt(0).toUpperCase() + provider.slice(1);
+    const settings = providerSettings[capitalizedProvider] || {};
+
     let location = null;
     try {
-      const res = await getOauthRedirect(id);
+      const res = await getOauthRedirect(id, settings);
       location = res.body.Location;
     } catch (e) {
       alert("An error occurred. Please try again.");
@@ -203,12 +255,35 @@ export const IntegrationTabs: FC<Props> = ({ open, depth=0, allowedIntegrations=
       )
   }
 
+  // Check if there are any integrations available
+  const hasIntegrations = Object.keys(integrations).length > 0;
+
+  if (loadingIntegrations) {
+    return (
+      <div className="flex flex-col items-center justify-center" style={{height: window.innerHeight * 0.4}}>
+          <Loader />
+          <div className="text-lg font-bold mb-2 text-black dark:text-neutral-200">Loading integrations...</div>
+      </div>
+    );
+  }
+
+  if (!hasIntegrations) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8" style={{height: window.innerHeight * 0.4}}>
+          <div className="text-center">
+            <div className="text-xl font-bold mb-4 text-black dark:text-neutral-200">
+              No Integrations Available
+            </div>
+            <p className="text-gray-600 dark:text-gray-400 max-w-md">
+              There are currently no third-party integrations configured for this application.
+              Please contact your administrator if you need access to integrations.
+            </p>
+          </div>
+      </div>
+    );
+  }
+
   return (
-    loadingIntegrations ?
-    <div className="flex flex-col items-center justify-center" style={{height: window.innerHeight * 0.4}}>
-        <Loader />
-        <div className="text-lg font-bold mb-2 text-black dark:text-neutral-200">Loading integrations...</div>
-    </div> :
     <ActiveTabs
         id="SettingsIntegrationsTab"
         depth={depth}
@@ -216,10 +291,15 @@ export const IntegrationTabs: FC<Props> = ({ open, depth=0, allowedIntegrations=
         onTabChange={(i: number, label: string) => integrationTabChange(label)}
         tabs={[
             ...(Object.keys(integrations).sort().map((name: string, i: number) =>
-                        ({label: capitalize(name), 
+                        ({label: capitalize(name),
                         content: <>{renderContent(name, i)}</>
                         })
-            ))]
+            )),
+            ...(featureFlags.webSearch ? [{
+              label: 'Web Search',
+              content: <ToolApiKeysTab open={open} />
+            }] : [])
+          ]
         }
     />
   );

@@ -15,6 +15,9 @@ const getPluginDefaults = (settings: Settings, featureFlags: any) => {
           case (PluginID.MEMORY):
             defaultVal = settings.featureOptions.includeMemory;
             break;
+          case (PluginID.WEB_SEARCH):
+            defaultVal = settings.featureOptions.includeWebSearch ?? false;
+            break;
           case (PluginID.RAG): // Rag is off by default if cached documents is on
             defaultVal = !(featureFlags?.cachedDocuments ?? false);
             break;

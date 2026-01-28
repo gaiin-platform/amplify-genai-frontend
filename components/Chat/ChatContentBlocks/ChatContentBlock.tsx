@@ -24,6 +24,8 @@ import DOMPurify from  "dompurify";
 import React from "react";
 import InvokeBlock from '@/components/Chat/ChatContentBlocks/InvokeBlock';
 import { DateToggle } from "@/components/ReusableComponents/DateToggle";
+import { MCPToolResultBlock } from "./MCPToolResultBlock";
+import { JupyterNotebookBlock } from "./JupyterNotebookBlock";
 
 
 
@@ -356,6 +358,29 @@ const ChatContentBlock: React.FC<Props> = (
                         
                     case 'agent':
                         return (<AgentFileBlock filePath={String(children).trim()} message={message} />);
+
+                    case 'mcp_result':
+                        if (featureFlags.mcp) {
+                            try {
+                                const mcpData = JSON.parse(String(children));
+                                return (<MCPToolResultBlock result={mcpData} />);
+                            } catch (e) {
+                                return (<ExpansionComponent title={"MCP Tool Result"} content={String(children)}/>);
+                            }
+                        }
+                        break;
+
+                    case 'jupyter':
+                    case 'jupyter_notebook':
+                        if (featureFlags.mcp) {
+                            try {
+                                const notebookData = JSON.parse(String(children));
+                                return (<JupyterNotebookBlock cells={notebookData.cells || []} title={notebookData.title} />);
+                            } catch (e) {
+                                return (<ExpansionComponent title={"Jupyter Notebook"} content={String(children)}/>);
+                            }
+                        }
+                        break;
 
                     case 'integrationsDialog':
                         if (featureFlags.integrations) {

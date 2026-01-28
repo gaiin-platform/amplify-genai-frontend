@@ -65,7 +65,7 @@ export const authOptions = {
                     },
                     body: JSON.stringify({
                         data: {
-                        token,
+                        token: {...token, accessToken: undefined, refreshToken: undefined},
                         profile
                         },
                         immutable_id_field: attr
