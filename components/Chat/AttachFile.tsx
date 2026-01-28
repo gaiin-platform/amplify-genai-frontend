@@ -65,18 +65,23 @@ export const handleFile = async (file:any,
         let size = file.size;
         const fileName = file.name.replace(/[_\s]+/g, '_');;
 
-        // Enforce 15MB file size limit (matches backend visual extraction skip threshold)
-        const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
-        if (size > MAX_FILE_SIZE) {
-            const fileSizeMB = (size / (1024 * 1024)).toFixed(1);
-            alert(`File too large: ${fileSizeMB}MB\n\nMaximum file size is 15MB. Files larger than this may timeout during processing.\n\nPlease reduce file size or split into smaller files.`);
-            return;
-        }
 
         let document:AttachedDocument = {id:uuidv4(), name: fileName, type: type, raw:"", data: props, groupId};
         console.log(`document.type: "${document.type}"`);
         console.log("document", document);
         console.log("file", file);
+
+        // not in use
+        // const enforceMaxFileSize = false;
+        // if(extractDocumentsLocally && (size < 524289 || !enforceMaxFileSize)){
+        //     // @ts-ignore
+        //     let handler = handlersByType[type] || handlersByType['*'];
+        //     document = await handler(file);
+        // }
+        // else if(extractDocumentsLocally && !uploadDocuments) {
+        //     alert("This file is too large to send in a prompt.");
+        //     return;
+        // }
 
         if (Array.isArray(document)) {
             document.forEach(
