@@ -447,11 +447,22 @@ export function useSendService() {
                     }
 
                     if (selectedConversation.model?.supportsReasoning) {
-                        // console.log("model supports reasoning: ", selectedConversation.data?.reasoningLevel)
-                        options = {
-                            ...(options || {}),
-                            reasoningLevel: selectedConversation.data?.reasoningLevel
-                        };
+                        const reasoningLevel = selectedConversation.data?.reasoningLevel;
+
+                        if (reasoningLevel === 'off') {
+                            console.log("Disabling reasoning");
+                            // Disable reasoning entirely
+                            options = {
+                                ...(options || {}),
+                                disableReasoning: true
+                            };
+                        } else {
+                            // Set reasoning level (low, medium, high)
+                            options = {
+                                ...(options || {}),
+                                reasoningLevel: reasoningLevel
+                            };
+                        }
                     }
 
                     if (options) {

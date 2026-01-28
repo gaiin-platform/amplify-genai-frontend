@@ -1827,11 +1827,13 @@ export const ChatInput = ({
                                             options={REASONING_LEVELS.map((lvl: string) => ({
                                                 id: lvl,
                                                 name: capitalize(lvl),
-                                                title: `The model will use ${{low: "average amount of", medium: "additional", high: "more"}[lvl]} output tokens when crafting a response. \n${
-                                                    {low: "Optimized for quick responses to simple questions, prioritizing speed",
-                                                        medium: "Balanced approach for everyday questions, offering good accuracy without unnecessary processing time",
-                                                        high: "Provides in-depth analysis for complex problems where thoroughness and precision matter most"}[lvl]}`,
-                                                icon: ({low: IconBulb, medium: IconScale, high: IconBrain}[lvl])
+                                                title: lvl === 'off'
+                                                    ? "Reasoning is disabled. The model will respond without extended thinking, providing faster but potentially less thorough responses."
+                                                    : `The model will use ${{low: "average amount of", medium: "additional", high: "more"}[lvl]} output tokens when crafting a response. \n${
+                                                        {low: "Optimized for quick responses to simple questions, prioritizing speed",
+                                                            medium: "Balanced approach for everyday questions, offering good accuracy without unnecessary processing time",
+                                                            high: "Provides in-depth analysis for complex problems where thoroughness and precision matter most"}[lvl]}`,
+                                                icon: lvl === 'off' ? undefined : ({low: IconBulb, medium: IconScale, high: IconBrain}[lvl])
 
                                             }))}
                                             selected={selectedConversation?.data?.reasoningLevel ?? 'low'}
