@@ -69,12 +69,18 @@ import OperationSelector from "@/components/Agent/OperationSelector";
 import ActionsList from "@/components/Chat/ActionsList";
 import { resolveRagEnabled } from '@/types/features';
 import { OpBindings } from '@/types/op';
-import { 
-    LargeTextBlock, 
+import {
+    LargeTextBlock,
     replacePlaceholdersWithText,
-    removeLargeTextBlockFromContent
+    removeLargeTextBlockFromContent,
+    detectFileType,
+    createFileFromText,
+    shouldShowModal,
+    generateSessionKey,
+    FileTypeResult
 } from '@/utils/app/largeText';
-import { UI_CONFIG } from '@/constants/largeText';
+import { UI_CONFIG, LARGE_TEXT_THRESHOLDS } from '@/constants/largeText';
+import { LargeTextModal } from './LargeTextModal';
 import { LargeTextDisplay } from '@/components/Chat/LargeTextDisplay';
 import { LargeTextTabs } from '@/components/Chat/LargeTextTabs';
 import { AttachmentDisplay } from '@/components/Chat/AttachmentDisplay';
@@ -277,15 +283,18 @@ export const ChatInput = ({
     const [availableAssistants, setAvailableAssistants] = useState<Assistant[]>([DEFAULT_ASSISTANT]);
     
     // Large text handling - using custom hook for state management
-    const { 
-        largeTextBlocks, 
-        showLargeTextPreview, 
+    const {
+        largeTextBlocks,
+        showLargeTextPreview,
         hasLargeTextBlocks,
-        handleLargeTextPaste, 
+        handleLargeTextPaste,
         removeLargeTextBlock: removeLargeTextBlockFromHook,
         removeMultipleLargeTextBlocks,
         clearLargeText,
-        setLargeTextBlocks
+        setLargeTextBlocks,
+        isProcessing,
+        sessionChoices,
+        setSessionChoices
     } = useLargeTextManager();
     
     // Text block editing - using custom hook for edit mode management
@@ -312,6 +321,18 @@ export const ChatInput = ({
 
     // Pending artifacts state
     const [pendingArtifacts, setPendingArtifacts] = useState<PendingArtifact[]>([]);
+
+    // Large text modal state
+    const [showLargeTextModal, setShowLargeTextModal] = useState(false);
+    const [pendingPasteData, setPendingPasteData] = useState<{
+        text: string;
+        detectedType: FileTypeResult;
+        textSize: number;
+        modelLimit?: number;
+        maxChars: number;
+        resolve: (choice: 'file' | 'block' | 'plain') => void;
+        reject: () => void;
+    } | null>(null);
 
     // Per-conversation web search toggle (independent from FeaturePlugin) - persists across messages
     const isWebSearchEnabledForConversation = selectedConversation?.data?.webSearchEnabled ?? false;
@@ -520,6 +541,20 @@ export const ChatInput = ({
         if (largeTextBlocks.length > 0) {
             // Replace all placeholders in content with actual large text for sending to model
             messageContent = replacePlaceholdersWithText(messageContent, largeTextBlocks);
+
+            // Validate expanded message size against model limit
+            if (maxLength && messageContent.length > maxLength) {
+                const totalSize = messageContent.length;
+                const placeholderSize = content.length;
+                const expandedSize = totalSize - placeholderSize;
+
+                toast.error(
+                    `Message with expanded text blocks is too large (${totalSize.toLocaleString()} characters). ` +
+                    `Model limit: ${maxLength.toLocaleString()} characters. ` +
+                    `Your text blocks add ${expandedSize.toLocaleString()} characters.`
+                );
+                return;
+            }
 
             // Keep the label as is for display purposes (with placeholders)
             messageLabel = messageLabel;
@@ -866,6 +901,42 @@ export const ChatInput = ({
         });
     }
 
+    // Function to show modal and wait for user decision
+    const showModalAndWait = useCallback((data: {
+        text: string;
+        detectedType: FileTypeResult;
+        textSize: number;
+        modelLimit?: number;
+        maxChars: number;
+    }): Promise<'file' | 'block' | 'plain'> => {
+        return new Promise((resolve, reject) => {
+            setPendingPasteData({
+                ...data,
+                resolve,
+                reject
+            });
+            setShowLargeTextModal(true);
+        });
+    }, []);
+
+    // Modal confirm handler
+    const handleModalConfirm = useCallback((choice: 'file' | 'block' | 'plain') => {
+        if (pendingPasteData) {
+            pendingPasteData.resolve(choice);
+        }
+        setShowLargeTextModal(false);
+        setPendingPasteData(null);
+    }, [pendingPasteData]);
+
+    // Modal cancel handler
+    const handleModalCancel = useCallback(() => {
+        if (pendingPasteData) {
+            pendingPasteData.reject();
+        }
+        setShowLargeTextModal(false);
+        setPendingPasteData(null);
+    }, [pendingPasteData]);
+
     const handleDocumentState = (document: AttachedDocument, progress: number) => {
         console.log("Progress: " + progress);
 
@@ -898,6 +969,38 @@ export const ChatInput = ({
         setDocuments(newDocuments);
 
     }
+
+    // Helper function to create file from pasted text and attach it
+    const createAndAttachFile = useCallback(async (
+        text: string,
+        detectedType: FileTypeResult
+    ): Promise<{ success: boolean }> => {
+        try {
+            // Create File object from text
+            const file = createFileFromText(text, detectedType);
+
+            // Use existing handleFile function to attach
+            await handleFile(
+                file,
+                addDocument,
+                handleDocumentState,
+                handleSetKey,
+                handleSetMetadata,
+                handleDocumentAbortController,
+                featureFlags.uploadDocuments,
+                undefined, // groupId
+                false, // ragEnabled - don't index auto-created files
+                {},
+                ['auto-generated'] // tags
+            );
+
+            return { success: true };
+        } catch (error) {
+            console.error('Failed to create file from pasted text:', error);
+            return { success: false };
+        }
+    }, [addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController, featureFlags.uploadDocuments]);
+
     const handleGetQiSummary = async (conversation:Conversation) => {
         handleCloseAllPopups();
         setShowMessageSelectDialog(false);
@@ -985,7 +1088,7 @@ export const ChatInput = ({
     }, [disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
 
     // Clipboard paste handler
-    const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
         const files = Array.from(e.clipboardData.files);
         const pastedText = e.clipboardData.getData('text/plain');
 
@@ -1010,28 +1113,112 @@ export const ChatInput = ({
             return;
         }
 
-        // Handle text pastes - check if it's large text
+        // Handle text pastes with smart processing
         if (pastedText && pastedText.trim()) {
             const textarea = textareaRef.current;
-            if (textarea) {
-                const cursorPos = textarea.selectionStart;
-                const currentContent = content || '';
-                
-                const { newContent, hasLargeText } = handleLargeTextPaste(
-                    pastedText,
-                    currentContent,
-                    cursorPos,
-                    textareaRef
-                );
-                
-                if (hasLargeText) {
-                    e.preventDefault();
-                    setContent(newContent);
+            if (!textarea) return;
+
+            e.preventDefault(); // Prevent default paste immediately
+
+            const cursorPos = textarea.selectionStart;
+            const currentContent = content || '';
+            const modelLimit = selectedConversation?.model?.inputContextWindow;
+
+            // Step 1: Check if text is too small (normal paste)
+            const textSize = pastedText.length;
+            if (textSize < LARGE_TEXT_THRESHOLDS.MIN_CHARACTERS) {
+                const beforeCursor = currentContent.substring(0, cursorPos);
+                const afterCursor = currentContent.substring(cursorPos);
+                setContent(beforeCursor + pastedText + afterCursor);
+                return;
+            }
+
+            // Step 2: Detect file type
+            const detectedType = detectFileType(pastedText);
+
+            // Step 3: Check session memory
+            const sessionKey = generateSessionKey(textSize, detectedType.extension);
+            const rememberedChoice = sessionChoices[sessionKey];
+
+            // Step 4: Determine if should show modal
+            const needsModal = shouldShowModal(
+                textSize,
+                detectedType,
+                modelLimit,
+                LARGE_TEXT_THRESHOLDS.MAX_CHARACTERS
+            );
+
+            // Get user choice (from session, modal, or auto-decide)
+            let userChoice: 'file' | 'block' | 'plain';
+
+            if (rememberedChoice && !needsModal) {
+                // Use remembered choice from this session
+                userChoice = rememberedChoice;
+            } else if (needsModal) {
+                // Show modal and wait for user decision
+                try {
+                    userChoice = await showModalAndWait({
+                        text: pastedText,
+                        detectedType,
+                        textSize,
+                        modelLimit,
+                        maxChars: LARGE_TEXT_THRESHOLDS.MAX_CHARACTERS
+                    });
+
+                    // Remember choice for this session
+                    setSessionChoices({
+                        ...sessionChoices,
+                        [sessionKey]: userChoice
+                    });
+                } catch {
+                    // User cancelled modal
+                    return;
+                }
+            } else {
+                // Auto-decide based on size and format
+                if (textSize >= LARGE_TEXT_THRESHOLDS.MAX_CHARACTERS) {
+                    userChoice = 'file';
+                } else {
+                    userChoice = 'block';
                 }
             }
-            // If text is not large, let the default paste behavior handle it
+
+            // Step 5: Execute user's choice
+            switch (userChoice) {
+                case 'file':
+                    const fileResult = await createAndAttachFile(pastedText, detectedType);
+                    if (fileResult.success) {
+                        toast.success(`File created: pasted-text.${detectedType.extension}`);
+                    } else {
+                        toast.error('Failed to create file attachment');
+                    }
+                    break;
+
+                case 'block':
+                    const result = handleLargeTextPaste(
+                        pastedText,
+                        currentContent,
+                        cursorPos,
+                        textareaRef,
+                        modelLimit
+                    );
+
+                    if (result.error) {
+                        toast.error(result.error);
+                    } else {
+                        setContent(result.newContent);
+                        toast.success('Text block created');
+                    }
+                    break;
+
+                case 'plain':
+                    const beforeCursor = currentContent.substring(0, cursorPos);
+                    const afterCursor = currentContent.substring(cursorPos);
+                    setContent(beforeCursor + pastedText + afterCursor);
+                    break;
+            }
         }
-    }, [content, handleLargeTextPaste, disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
+    }, [content, handleLargeTextPaste, disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController, selectedConversation, sessionChoices, setSessionChoices, createAndAttachFile, showModalAndWait]);
 
     // Handle individual large text block removal using hook
     const handleRemoveLargeTextBlock = useCallback((blockId: string) => {
@@ -1863,6 +2050,19 @@ export const ChatInput = ({
                         setShowSaveActionsModal(false);
                     }}
                     onCancel={() => setShowSaveActionsModal(false)}
+                />
+            )}
+
+            {/* Large Text Modal */}
+            {showLargeTextModal && pendingPasteData && (
+                <LargeTextModal
+                    text={pendingPasteData.text}
+                    detectedType={pendingPasteData.detectedType}
+                    textSize={pendingPasteData.textSize}
+                    modelLimit={pendingPasteData.modelLimit}
+                    maxChars={pendingPasteData.maxChars}
+                    onConfirm={handleModalConfirm}
+                    onCancel={handleModalCancel}
                 />
             )}
         </>

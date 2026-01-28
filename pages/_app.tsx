@@ -37,7 +37,15 @@ function App({ Component, pageProps }: AppProps) {
             refetchWhenOffline={false}
         >
             <div className={inter.className}>
-                <Toaster/>
+                <Toaster
+                    position="bottom-center"
+                    toastOptions={{
+                        duration: 3000,
+                        style: {
+                            marginBottom: '80px',
+                        },
+                    }}
+                />
                 <QueryClientProvider client={queryClient}>
                     <Component {...pageProps} />
                 </QueryClientProvider>

@@ -12,6 +12,7 @@ import {
   createPlaceholderText,
   extractPlaceholderNumber
 } from '@/constants/largeText';
+import { getMimeTypeFromExtension } from '@/utils/app/fileTypeTranslations';
 
 export interface LargeTextData {
   originalText: string;
@@ -342,4 +343,202 @@ PRESERVE THESE SYMBOLS EXACTLY: ${symbols.join(', ')}
 
 For context only - the referenced blocks contain:
 ${contextLines.join('\n')}`;
+}
+
+/**
+ * File type detection result
+ */
+export interface FileTypeResult {
+  extension: string;
+  mimeType: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+/**
+ * Detect file type from text content
+ * Returns extension, MIME type, and confidence level
+ * Uses existing fileTypeTranslations system for MIME type mappings
+ */
+export function detectFileType(text: string): FileTypeResult {
+  const trimmed = text.trim();
+
+  // 1. JSON Detection (high confidence)
+  if (isLikelyJSON(trimmed)) {
+    return {
+      extension: 'json',
+      mimeType: getMimeTypeFromExtension('json'),
+      confidence: 'high'
+    };
+  }
+
+  // 2. CSV Detection (high confidence)
+  const lines = trimmed.split('\n');
+  if (isLikelyCSV(lines)) {
+    return {
+      extension: 'csv',
+      mimeType: getMimeTypeFromExtension('csv'),
+      confidence: 'high'
+    };
+  }
+
+  // 3. XML Detection (high confidence)
+  if (isLikelyXML(trimmed)) {
+    return {
+      extension: 'xml',
+      mimeType: getMimeTypeFromExtension('xml'),
+      confidence: 'high'
+    };
+  }
+
+  // 4. Default: Plain text (low confidence)
+  return {
+    extension: 'txt',
+    mimeType: getMimeTypeFromExtension('txt'),
+    confidence: 'low'
+  };
+}
+
+/**
+ * Check if text is valid JSON
+ */
+function isLikelyJSON(text: string): boolean {
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if lines represent CSV data
+ * Looks for consistent delimiter patterns across rows
+ */
+function isLikelyCSV(lines: string[]): boolean {
+  if (lines.length < 2) return false;
+
+  const firstLine = lines[0];
+  if (!firstLine) return false;
+
+  // Detect delimiter (comma, tab, semicolon)
+  const delimiter = guessCSVDelimiter(firstLine);
+  if (!delimiter) return false;
+
+  const firstLineFieldCount = countCSVFields(firstLine, delimiter);
+  if (firstLineFieldCount < 2) return false; // Need at least 2 columns
+
+  // Check if other lines have similar field counts (allow ±1 variance)
+  const checkLines = lines.slice(1, Math.min(10, lines.length));
+  const consistent = checkLines.every(line => {
+    const fieldCount = countCSVFields(line, delimiter);
+    return Math.abs(fieldCount - firstLineFieldCount) <= 1;
+  });
+
+  return consistent;
+}
+
+/**
+ * Guess CSV delimiter from first line
+ */
+function guessCSVDelimiter(line: string): string | null {
+  const delimiters = [',', '\t', ';', '|'];
+
+  for (const delimiter of delimiters) {
+    const count = (line.match(new RegExp(`\\${delimiter}`, 'g')) || []).length;
+    if (count > 0) {
+      return delimiter;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Count fields in CSV line, handling quoted fields
+ */
+function countCSVFields(line: string, delimiter: string): number {
+  let count = 1;
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === delimiter && !inQuotes) {
+      count++;
+    }
+  }
+
+  return count;
+}
+
+/**
+ * Check if text is XML
+ */
+function isLikelyXML(text: string): boolean {
+  return (
+    text.startsWith('<?xml') ||
+    (text.startsWith('<') && text.endsWith('>') && text.includes('</'))
+  );
+}
+
+/**
+ * Generate filename for pasted text
+ */
+export function generatePastedFileName(extension: string): string {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('.')[0];
+  return `pasted-text-${timestamp}.${extension}`;
+}
+
+/**
+ * Create a File object from text string
+ * Used for converting large pasted text to file attachments
+ */
+export function createFileFromText(
+  text: string,
+  detectedType: FileTypeResult
+): File {
+  const blob = new Blob([text], { type: detectedType.mimeType });
+  const fileName = generatePastedFileName(detectedType.extension);
+  return new File([blob], fileName, { type: detectedType.mimeType });
+}
+
+/**
+ * Check if text should show modal (ambiguous or exceeds limits)
+ */
+export function shouldShowModal(
+  textSize: number,
+  detectedType: FileTypeResult,
+  modelLimit: number | undefined,
+  maxChars: number
+): boolean {
+  // Show modal if exceeds model limit
+  if (modelLimit && textSize > modelLimit) {
+    return true;
+  }
+
+  // Show modal if ambiguous format (low confidence)
+  if (detectedType.confidence === 'low' && textSize > 100000) {
+    return true; // Only for large ambiguous text
+  }
+
+  // Show modal if exceeds max chars and not high confidence
+  if (textSize > maxChars && detectedType.confidence !== 'high') {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Generate session key for remembering user choices
+ */
+export function generateSessionKey(
+  textSize: number,
+  extension: string
+): string {
+  // Key by size range (100K buckets) and format
+  const sizeRange = Math.floor(textSize / 100000) * 100000;
+  return `${extension}-${sizeRange}`;
 }
