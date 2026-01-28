@@ -21,7 +21,7 @@ import { IntegrationFileRecord } from '@/types/integrations';
 
 interface Props {
     driveId: string;
-    onDataSourceSelected?: (file: File) => void; 
+    onDataSourceSelected?: (file: File) => void;
     visibleColumns?: string[];
     visibleTypes?: string[];
     tableParams?: { [key: string]: any };
@@ -31,6 +31,7 @@ interface Props {
     // New props for selection mode
     onItemSelected?: (file: IntegrationFileRecord, isChecked: boolean) => void;
     isItemSelected?: (fileId: string, isFolder: boolean) => boolean;
+    isItemAutoSelected?: (fileId: string, isFolder: boolean) => boolean;
     onFolderPathChange?: (folderHistory: Array<{id: string | null, name: string}>) => void;
 }
 
@@ -44,6 +45,7 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                                                   enableDownload,
                                                   onItemSelected,
                                                   isItemSelected,
+                                                  isItemAutoSelected,
                                                   onFolderPathChange,
                                               }) => {
 
@@ -598,18 +600,24 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                   const itemIsFolder = isFolder(record);
                   const displayName = record.name;
                   const isSelected = isItemSelected ? isItemSelected(record.id, itemIsFolder) : false;
+                  const isAutoSelected = isItemAutoSelected ? isItemAutoSelected(record.id, itemIsFolder) : false;
                   const isBatchSelected = selectedForBatch.has(record.id);
 
                   return (
                     <div className="flex flex-row items-center gap-2">
                       {/* Checkbox for assistant data source selection (existing) */}
                       {onItemSelected && (
-                        <div onClick={(e) => e.stopPropagation()}>
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          title={isAutoSelected ? "To deselect items within, uncheck the parent folder." : undefined}
+                        >
                           <input
                             type="checkbox"
                             id={`checkbox-${record.id}`}
                             checked={isSelected}
+                            disabled={isAutoSelected}
                             onChange={(e) => onItemSelected(record, e.target.checked)}
+                            style={isAutoSelected ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                           />
                         </div>
                       )}

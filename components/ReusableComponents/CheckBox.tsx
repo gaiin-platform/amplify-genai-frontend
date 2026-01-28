@@ -7,11 +7,12 @@ interface CheckboxProps {
   onChange: (checked: boolean) => void;
   bold?: boolean;
   disabled?: boolean;
+  title?: string;
 }
 
-export const Checkbox: React.FC<CheckboxProps> = ({ id, label, checked, onChange, disabled, bold = false }) => {
+export const Checkbox: React.FC<CheckboxProps> = ({ id, label, checked, onChange, disabled, bold = false, title }) => {
   return (
-    <div className="checkbox-wrapper">
+    <div className="checkbox-wrapper" title={title}>
       <input
         disabled={!!disabled}
         className="inp-cbx"
@@ -20,7 +21,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({ id, label, checked, onChange
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
       />
-      <label className="cbx" htmlFor={id}>
+      <label className={`cbx ${disabled ? 'cbx-disabled' : ''}`} htmlFor={id}>
         <span>
           {/* Individual SVG check for each instance */}
           <svg width="12px" height="10px" viewBox="0 0 12 10">
@@ -43,6 +44,10 @@ export const Checkbox: React.FC<CheckboxProps> = ({ id, label, checked, onChange
           overflow: hidden;
           transition: all 0.2s ease;
           display: inline-block;
+        }
+        .checkbox-wrapper .cbx-disabled {
+          cursor: not-allowed;
+          opacity: 0.5;
         }
         .checkbox-wrapper .cbx span {
           float: left;
