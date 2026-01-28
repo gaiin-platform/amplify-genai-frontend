@@ -1074,7 +1074,7 @@ export interface Amplify_Groups {
 export interface PromptCostAlert {
     isActive: boolean;
     alertMessage: string;
-    cost: Number;
+    cost: number;
 }
 
 export interface EmailSupport {
