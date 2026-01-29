@@ -880,7 +880,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const handleScrollUp = () => {
             if (modelSelectRef && modelSelectRef.current) {
                 const rect = modelSelectRef.current.getBoundingClientRect();
-                
+
                 // Check if the element is fully in view, partially in view, or not visible
                 const inView = (
                     rect.top >= 0 &&
@@ -888,13 +888,40 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     rect.bottom <= (windowInnerDims.height || document.documentElement.clientHeight) &&
                     rect.right <= (windowInnerDims.width || document.documentElement.clientWidth)
                 );
-        
+
                 if (!inView) {
                     modelSelectRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
                 }
             }
         };
-        
+
+        const isModelSelectorInView = () => {
+            if (modelSelectRef && modelSelectRef.current) {
+                const rect = modelSelectRef.current.getBoundingClientRect();
+                return (
+                    rect.top >= 0 &&
+                    rect.left >= 0 &&
+                    rect.bottom <= (windowInnerDims.height || document.documentElement.clientHeight) &&
+                    rect.right <= (windowInnerDims.width || document.documentElement.clientWidth)
+                );
+            }
+            return false;
+        };
+
+        const handleToggleSettings = () => {
+            const inView = isModelSelectorInView();
+
+            // If model selector is in view and settings are shown, hide it
+            // If model selector is NOT in view, show settings (or keep them shown)
+            if (inView && showSettings) {
+                setShowSettings(false);
+            } else {
+                setShowSettings(true);
+            }
+
+            if (!messageIsStreaming) handleScrollUp();
+        };
+
         const enforcesGroupTypes = () => selectedAssistant?.definition?.data && Object.keys(selectedAssistant?.definition?.data?.groupTypeData || {}).length > 0;
                                                     
         const getGroupTypeSelector = (ast: Assistant | null) => {
@@ -1345,9 +1372,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();
-                                                        setShowSettings(!showSettings);
-                                                        if (!messageIsStreaming) handleScrollUp();
-                                                        
+                                                        handleToggleSettings();
                                                     }}
                                                 >
                                                     {selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
@@ -1430,9 +1455,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();
-                                                        setShowSettings(!showSettings);
-                                                        if (!messageIsStreaming) handleScrollUp();
-                                                        
+                                                        handleToggleSettings();
                                                     }}
                                                 >
                                                     {selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)

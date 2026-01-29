@@ -71,8 +71,8 @@ export const ActiveTabs: FC<Props> = ({id, tabs, initialActiveTab, onTabChange, 
     const modalContainer = isNested ? getModalContainer() : null;
 
     const tabsElement = (
-        <div 
-            className="flex flex-row border-b-2 dark:border-white/40 bg-neutral-100 dark:bg-[#2b2c36] overflow-x-auto"
+        <div
+            className="flex flex-row border-b-2 dark:border-white/40 bg-neutral-100 dark:bg-[#2b2c36]"
             style={{
                 position: isNested ? 'absolute' : 'sticky',
                 paddingTop: isNested ? `30px` : '0px',
@@ -80,7 +80,8 @@ export const ActiveTabs: FC<Props> = ({id, tabs, initialActiveTab, onTabChange, 
                 width: isNested ? '96%' : undefined,
                 zIndex: 60 + (10 - depth), // Higher than modal's z-50
                 minHeight: '60px',
-                overflow: 'hidden',
+                overflowX: 'auto',
+                overflowY: 'hidden',
             }}
         >
             {tabs.map((tab: Tabs, index: number) => 
