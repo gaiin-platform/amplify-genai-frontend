@@ -1180,11 +1180,18 @@ export const ChatInput = ({
                 // Auto-create file when exceeding model limit (no modal, no choice)
                 toast.success(
                     `Creating file attachment. Text (${textSize.toLocaleString()} chars) exceeds model limit (${modelLimit.toLocaleString()} chars).`,
-                    { duration: 4000 }
+                    {
+                        duration: 4000,
+                        position: 'bottom-center',
+                        style: { marginBottom: '80px' }
+                    }
                 );
                 const fileResult = await createAndAttachFile(pastedText, detectedType);
                 if (!fileResult.success) {
-                    toast.error('Failed to create file attachment');
+                    toast.error('Failed to create file attachment', {
+                        position: 'bottom-center',
+                        style: { marginBottom: '80px' }
+                    });
                 }
                 return; // Exit early, nothing more to do
             }
@@ -1237,9 +1244,15 @@ export const ChatInput = ({
                 case 'file':
                     const fileResult = await createAndAttachFile(pastedText, detectedType);
                     if (fileResult.success) {
-                        toast.success(`File created: pasted-text.${detectedType.extension}`);
+                        toast.success(`File created: pasted-text.${detectedType.extension}`, {
+                            position: 'bottom-center',
+                            style: { marginBottom: '80px' }
+                        });
                     } else {
-                        toast.error('Failed to create file attachment');
+                        toast.error('Failed to create file attachment', {
+                            position: 'bottom-center',
+                            style: { marginBottom: '80px' }
+                        });
                     }
                     break;
 
@@ -1253,10 +1266,16 @@ export const ChatInput = ({
                     );
 
                     if (result.error) {
-                        toast.error(result.error);
+                        toast.error(result.error, {
+                            position: 'bottom-center',
+                            style: { marginBottom: '80px' }
+                        });
                     } else {
                         setContent(result.newContent);
-                        toast.success('Text block created');
+                        toast.success('Text block created', {
+                            position: 'bottom-center',
+                            style: { marginBottom: '80px' }
+                        });
                     }
                     break;
 
