@@ -424,9 +424,9 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                             <br className="mt-1"></br>
                                 Supported Placeholders:<br></br>
                             <div className="flex justify-center text-start">
-                                &nbsp;&nbsp;&nbsp;&nbsp; * {"<totalCost>"}: The estimated total cost (e.g., "$0.05")
+                                &nbsp;&nbsp;&nbsp;&nbsp; * {"<totalCost>"}: The estimated total cost (e.g., &quot;$0.05&quot;)
                                 <br></br>
-                                &nbsp;&nbsp;&nbsp;&nbsp; * {"<prompts>"}: Number of context windows needed (e.g., "2" if tokens exceed 1x context window)
+                                &nbsp;&nbsp;&nbsp;&nbsp; * {"<prompts>"}: Number of context windows needed (e.g., &quot;2&quot; if tokens exceed 1x context window)
                             </div>
                         </span>
                         }
