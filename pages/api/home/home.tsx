@@ -830,7 +830,6 @@ const Home = ({
                     if (AdminConfigTypes.PROMPT_COST_ALERT in data) {
                         const promptCostData = data[AdminConfigTypes.PROMPT_COST_ALERT];
                         dispatch({ field: 'promptCostAlert', value: promptCostData});
-                        console.log('Prompt Cost Alert:', promptCostData)
                     }
 
                 } else {

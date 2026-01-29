@@ -84,6 +84,14 @@ export interface HomeInitialState {
   ragOn: boolean;
   isStandalonePromptCreation: boolean;
   promptCostAlert: PromptCostAlert | null;
+  promptCostAlertModal: {
+    isOpen: boolean;
+    message: string;
+    cost: string;
+    prompts: number;
+    onConfirm: () => void;
+    onDeny: () => void;
+  } | null;
 }
 
 export const initialState: HomeInitialState = {
@@ -160,5 +168,6 @@ export const initialState: HomeInitialState = {
   aiEmailDomain: '',
   ragOn: false,
   isStandalonePromptCreation: false,
-  promptCostAlert: null
+  promptCostAlert: null,
+  promptCostAlertModal: null
 };

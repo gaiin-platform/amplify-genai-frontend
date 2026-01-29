@@ -417,16 +417,16 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 />
                 <div className={`ml-6 flex flex-col ${promptCostAlert.isActive ? "" :'opacity-30'}`}>
                     <div className="text-md w-full text-center">Alert Message</div>
-                    <InfoBox 
+                    <InfoBox
                         content={
-                        <span className="text-sm w-full text-center"> 
-                            To include dynamic values like the total cost or the number of prompts in the alert message, use placeholders in the following format: {"<placeholderName>"}.
+                        <span className="text-sm w-full text-center">
+                            To include dynamic values in the alert message, use placeholders in the following format: {"<placeholderName>"}.
                             <br className="mt-1"></br>
-                                Optional Supported Tags:<br></br>
+                                Supported Placeholders:<br></br>
                             <div className="flex justify-center text-start">
-                                &nbsp;&nbsp;&nbsp;&nbsp; * {"<totalCost>"}: Displays the calculated cost of sending the prompt.
+                                &nbsp;&nbsp;&nbsp;&nbsp; * {"<totalCost>"}: The estimated total cost (e.g., "$0.05")
                                 <br></br>
-                                &nbsp;&nbsp;&nbsp;&nbsp; * {"<prompts>"}: Displays the number of prompts needed to send their prompt.
+                                &nbsp;&nbsp;&nbsp;&nbsp; * {"<prompts>"}: Number of context windows needed (e.g., "2" if tokens exceed 1x context window)
                             </div>
                         </span>
                         }
