@@ -21,7 +21,7 @@ import { IntegrationFileRecord } from '@/types/integrations';
 
 interface Props {
     driveId: string;
-    onDataSourceSelected?: (file: File) => void; 
+    onDataSourceSelected?: (file: File) => void;
     visibleColumns?: string[];
     visibleTypes?: string[];
     tableParams?: { [key: string]: any };
@@ -31,6 +31,7 @@ interface Props {
     // New props for selection mode
     onItemSelected?: (file: IntegrationFileRecord, isChecked: boolean) => void;
     isItemSelected?: (fileId: string, isFolder: boolean) => boolean;
+    isItemAutoSelected?: (fileId: string, isFolder: boolean) => boolean;
     onFolderPathChange?: (folderHistory: Array<{id: string | null, name: string}>) => void;
 }
 
@@ -44,12 +45,16 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                                                   enableDownload,
                                                   onItemSelected,
                                                   isItemSelected,
+                                                  isItemAutoSelected,
                                                   onFolderPathChange,
                                               }) => {
 
     const {
         state: {lightMode, featureFlags, statsService}, setLoadingMessage
     } = useContext(HomeContext);
+
+    // Helper function to determine if an item is a folder/directory
+    const isFolder = (item: IntegrationFileRecord): boolean => /folder|directory|site|library/i.test(item.mimeType);
 
     const [data, setData] = useState<IntegrationFileRecord[]>([]);
 
@@ -130,15 +135,15 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
             if (disallowedFileExtensions && disallowedFileExtensions.length > 0) {
                 files = files.filter((file: IntegrationFileRecord) => {
                     // Skip folders from filtering
-                    if (file.mimeType.toLowerCase().includes("folder")) return true;
+                    if (isFolder(file)) return true;
                     const extension = getExtensionFromFilename(file.name)
                     return extension ? !disallowedFileExtensions.includes(extension) : true;
                 });
             }
 
             files.sort((a:IntegrationFileRecord, b:IntegrationFileRecord) => {
-                const aIsFolder = a.mimeType.toLowerCase().includes("folder");
-                const bIsFolder = b.mimeType.toLowerCase().includes("folder");
+                const aIsFolder = isFolder(a);
+                const bIsFolder = isFolder(b);
                 if (aIsFolder && !bIsFolder) return -1;
                 if (!aIsFolder && bIsFolder) return 1;
                 return a.name.localeCompare(b.name);
@@ -288,16 +293,16 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
             // Filter disallowed extensions
             const filteredItems = disallowedFileExtensions && disallowedFileExtensions.length > 0
                 ? items.filter((file: IntegrationFileRecord) => {
-                    if (file.mimeType.toLowerCase().includes("folder")) return true;
+                    if (isFolder(file)) return true;
                     const extension = getExtensionFromFilename(file.name);
                     return extension ? !disallowedFileExtensions.includes(extension) : true;
                 })
                 : items;
 
             for (const item of filteredItems) {
-                const isFolder = item.mimeType.toLowerCase().includes("folder");
+                const itemIsFolder = isFolder(item);
 
-                if (isFolder) {
+                if (itemIsFolder) {
                     // Recursively get files from this subfolder
                     const subFolderFiles = await fetchAllFilesInFolder(item.id);
                     allFiles = [...allFiles, ...subFolderFiles];
@@ -324,8 +329,8 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
         const files: IntegrationFileRecord[] = [];
 
         itemsToProcess.forEach(item => {
-            const isFolder = item.mimeType.toLowerCase().includes("folder");
-            if (isFolder) {
+            const itemIsFolder = isFolder(item);
+            if (itemIsFolder) {
                 folders.push(item);
             } else {
                 files.push(item);
@@ -592,21 +597,27 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                 maxSize: 300,
                 Cell: ({ cell, row }) => {
                   const record = row.original;
-                  const isFolder = record.mimeType.toLowerCase().includes("folder");
+                  const itemIsFolder = isFolder(record);
                   const displayName = record.name;
-                  const isSelected = isItemSelected ? isItemSelected(record.id, isFolder) : false;
+                  const isSelected = isItemSelected ? isItemSelected(record.id, itemIsFolder) : false;
+                  const isAutoSelected = isItemAutoSelected ? isItemAutoSelected(record.id, itemIsFolder) : false;
                   const isBatchSelected = selectedForBatch.has(record.id);
 
                   return (
                     <div className="flex flex-row items-center gap-2">
                       {/* Checkbox for assistant data source selection (existing) */}
                       {onItemSelected && (
-                        <div onClick={(e) => e.stopPropagation()}>
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          title={isAutoSelected ? "To deselect items within, uncheck the parent folder." : undefined}
+                        >
                           <input
                             type="checkbox"
                             id={`checkbox-${record.id}`}
                             checked={isSelected}
+                            disabled={isAutoSelected}
                             onChange={(e) => onItemSelected(record, e.target.checked)}
+                            style={isAutoSelected ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                           />
                         </div>
                       )}
@@ -625,7 +636,7 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
 
                       {/* File/Folder content */}
                       <div className="flex-1">
-                        {isFolder ? (
+                        {itemIsFolder ? (
                           <div className="flex flex-row items-center gap-2">
                             <IconFolder size={16} className="flex items-center" />
                             <span
@@ -735,7 +746,7 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
             onClick: (event) => {
               event.preventDefault();
               const record = row.original;
-              const isFolder = record.mimeType.toLowerCase().includes("folder");
+              const itemIsFolder = isFolder(record);
 
               // If in select multiple mode, toggle selection instead of normal behavior
               if (isSelectMultipleMode && shouldShowSelectMultiple) {
@@ -743,7 +754,7 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                 return;
               }
 
-              if (isFolder) {
+              if (itemIsFolder) {
                 // Use functional update to avoid stale closure
                 setFolderHistory((prevHistory) => {
                   const newHistory = [...prevHistory, { id: record.id, name: record.name }];

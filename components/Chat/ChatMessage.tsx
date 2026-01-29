@@ -607,7 +607,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         {messagedCopied ? (
                                             <IconCheck
                                                 size={20}
-                                                className="text-green-500 dark:text-green-400"
+                                                className="ml-1 text-green-500 dark:text-green-400"
                                             />
                                         ) : (
                                             <button
@@ -778,7 +778,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     {messagedCopied ? (
                                         <IconCheck
                                             size={20}
-                                            className="text-green-500 dark:text-green-400"
+                                            className="ml-1 text-green-500 dark:text-green-400"
                                         />
                                     ) : (
                                         <button

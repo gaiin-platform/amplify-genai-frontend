@@ -65,6 +65,7 @@ export const handleFile = async (file:any,
         let size = file.size;
         const fileName = file.name.replace(/[_\s]+/g, '_');;
 
+
         let document:AttachedDocument = {id:uuidv4(), name: fileName, type: type, raw:"", data: props, groupId};
         console.log(`document.type: "${document.type}"`);
         console.log("document", document);
