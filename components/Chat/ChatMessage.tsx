@@ -43,6 +43,7 @@ import RagEvaluationBlock from './ChatContentBlocks/RagEvaluationBlock';
 import { AssistantReasoningMessage } from './ChatContentBlocks/AssistantReasoningMessage';
 import { LargeTextDisplay } from './LargeTextDisplay';
 import { generatePlaceholderText } from '@/utils/app/largeText';
+import { MCPToolResultBlock } from './ChatContentBlocks/MCPToolResultBlock';
 
 export interface Props {
     message: Message;
@@ -567,6 +568,12 @@ export const ChatMessage: FC<Props> = memo(({
                                                 message={message}
                                             />
                                         )}
+
+                                        {featureFlags.artifacts && !isActionResult && 
+                                            <ArtifactsBlock
+                                              message={message}
+                                              messageIndex={messageIndex}
+                                            />}
                                     </div>
                                     <div className="flex flex-row">
                                         {(isEditing || messageIsStreaming) ? null : (
@@ -600,7 +607,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         {messagedCopied ? (
                                             <IconCheck
                                                 size={20}
-                                                className="text-green-500 dark:text-green-400"
+                                                className="ml-1 text-green-500 dark:text-green-400"
                                             />
                                         ) : (
                                             <button
@@ -705,6 +712,18 @@ export const ChatMessage: FC<Props> = memo(({
                                             conversationId={selectedConversation?.id || ""}
                                           />
 
+                                          {/* Render MCP Tool Results with images and rich content */}
+                                          {featureFlags.mcp && message.data?.mcpToolResults && message.data.mcpToolResults.length > 0 && (
+                                            <div className="mcp-tool-results my-4">
+                                              {message.data.mcpToolResults.map((result: any, idx: number) => (
+                                                <MCPToolResultBlock
+                                                  key={idx}
+                                                  result={result}
+                                                />
+                                              ))}
+                                            </div>
+                                          )}
+
                                           {featureFlags.artifacts &&
                                             <ArtifactsBlock
                                               message={message}
@@ -759,7 +778,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     {messagedCopied ? (
                                         <IconCheck
                                             size={20}
-                                            className="text-green-500 dark:text-green-400"
+                                            className="ml-1 text-green-500 dark:text-green-400"
                                         />
                                     ) : (
                                         <button

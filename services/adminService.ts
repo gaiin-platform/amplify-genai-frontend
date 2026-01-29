@@ -198,6 +198,37 @@ export const getInFlightEmbeddings = async () => {
     }
 }
 
+export const getCriticalErrors = async (limit: number = 50, lastEvaluatedKey: any = null) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: '/critical_errors',
+        data: {
+            limit,
+            ...(lastEvaluatedKey && { last_evaluated_key: lastEvaluatedKey })
+        },
+        service: SERVICE_NAME
+    };
+    
+    const result = await doRequestOp(op);
+    console.log("result: ", result);
+    return result;
+}
+
+export const resolveCriticalError = async (errorId: string, resolutionNotes: string) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: '/critical_errors/resolve',
+        data: {
+            error_id: errorId,
+            resolution_notes: resolutionNotes
+        },
+        service: SERVICE_NAME
+    };
+    return await doRequestOp(op);
+}
+
 const isCompletionsEndpoint = (url: string) => {
     return url.includes("/completions");
 }

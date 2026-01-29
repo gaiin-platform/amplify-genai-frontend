@@ -26,7 +26,7 @@ export enum DefaultModels {
 }
 
 
-export const REASONING_LEVELS = ['low', 'medium', 'high'];
+export const REASONING_LEVELS = ['low', 'medium', 'high', 'off'];
 
 // Derive the type from the array
 export type ReasoningLevels = typeof REASONING_LEVELS[number];

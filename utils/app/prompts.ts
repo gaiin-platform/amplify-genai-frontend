@@ -115,10 +115,13 @@ export const updatePrompt = (updatedPrompt: Prompt, allPrompts: Prompt[]) => {
 };
 
 export const savePrompts = (prompts: Prompt[]) => {
-  const importedAssistants = prompts.filter(prompt => isAssistant(prompt) && prompt.data?.noShare && 
-                                                       !prompt.groupId && !isSystemAssistant(prompt));   
-  const localPrompts = prompts.filter((p:Prompt) => !isAssistant(p)); // imported ones 
-  storageSet('prompts', JSON.stringify([...localPrompts, ...importedAssistants]));
+  // Previously only saved asssistants not stored in the cloud to save space. Index db should be able to handle all prompts. If not, we can revert to the previous logic.
+  // const importedAssistants = prompts.filter(prompt => isAssistant(prompt) && prompt.data?.noShare && 
+  //                                                      !prompt.groupId && !isSystemAssistant(prompt));   
+  // const localPrompts = prompts.filter((p:Prompt) => !isAssistant(p)); // imported ones 
+  // storageSet('prompts', JSON.stringify([...localPrompts, ...importedAssistants]));
+
+  storageSet('prompts', JSON.stringify(prompts));
 };
 
 

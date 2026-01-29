@@ -80,8 +80,16 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({
 
     const emailSuggestions = (emailPrefix: string, curInput: string) => {
         if (!allEmails) return;
-        const suggestions = allEmails.filter(email => email.startsWith(emailPrefix) && !curInput.includes(email) && !alreadyAddedEmails.includes(email));
-        setSuggestions(suggestions);  
+        const emailPrefixLower = emailPrefix.toLowerCase();
+        const curInputLower = curInput.toLowerCase();
+        const alreadyAddedLower = alreadyAddedEmails.map(e => e.toLowerCase());
+        const suggestions = allEmails.filter(email => {
+            const emailLower = email.toLowerCase();
+            return emailLower.startsWith(emailPrefixLower) &&
+                   !curInputLower.includes(emailLower) &&
+                   !alreadyAddedLower.includes(emailLower);
+        });
+        setSuggestions(suggestions);
     }
 
     const calculateHeight = (rows: number) => rows <= 2 ? rows * 30 : 60;

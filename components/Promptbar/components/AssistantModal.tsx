@@ -1743,7 +1743,31 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         }}
                                         disabled={disableEdit}
                                     />}
-                                       
+
+                                    {/* API Integration Summary */}
+                                    { featureFlags.integrations && (selectedApis.length > 0 || builtInAgentTools.length > 0 || apiInfo.length > 0) &&
+                                    <div className="mt-3 px-3 py-2 rounded-md bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600">
+                                        <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1">Selected Integrations:</div>
+                                        <div className="text-xs text-neutral-700 dark:text-neutral-300 space-y-0.5">
+                                            {selectedApis.length > 0 && (
+                                                <div>
+                                                    <span className="font-medium">APIs:</span> {selectedApis.map(api => api.name || api.functionName || 'Unnamed').join(', ')}
+                                                </div>
+                                            )}
+                                            {builtInAgentTools.length > 0 && (
+                                                <div>
+                                                    <span className="font-medium">Tools:</span> {builtInAgentTools.join(', ')}
+                                                </div>
+                                            )}
+                                            {apiInfo.length > 0 && (
+                                                <div>
+                                                    <span className="font-medium">Custom APIs:</span> {apiInfo.map(api => api.name || 'Unnamed').join(', ')}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    }
+
                                 </div>
                                 }
                             />

@@ -36,14 +36,14 @@ export function getWhiteLabelConfig(): WhiteLabelConfig {
   const brandName = process.env.NEXT_PUBLIC_BRAND_NAME || 'Amplify GenAI';
   
   // Debug logging (can be removed in production)
-  if (typeof window !== 'undefined') {
-    console.log('[White Label Config]', {
-      customLogoPath,
-      defaultTheme,
-      brandName,
-      envVar: process.env.NEXT_PUBLIC_DEFAULT_THEME
-    });
-  }
+  // if (typeof window !== 'undefined') {
+  //   console.log('[White Label Config]', {
+  //     customLogoPath,
+  //     defaultTheme,
+  //     brandName,
+  //     envVar: process.env.NEXT_PUBLIC_DEFAULT_THEME
+  //   });
+  // }
   
   return {
     customLogoPath,

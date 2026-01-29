@@ -1,6 +1,6 @@
 import {useContext, useEffect, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
-import {VegaLite} from "react-vega";
+import {VegaEmbed} from "react-vega";
 import { fixJsonString } from "@/utils/app/errorHandling";
 import { DefaultModels } from "@/types/model";
 
@@ -49,7 +49,7 @@ const VegaVis: React.FC<VegaProps> = ({ chart, currentMessage }) => {
             // Parse the JSON string only once and handle errors
             const parsedChart = JSON.parse(content);
 
-            return <VegaLite width={550} height={450} spec={parsedChart} actions={false} />;
+            return <VegaEmbed spec={parsedChart} options={{ actions: false, width: 550, height: 450 }} />;
         } catch (parseError) {
             return <div>Loading...</div>;
         }

@@ -849,6 +849,12 @@ const Home = ({
                         serverSettings.theme = localTheme;
                         
                         saveSettings(serverSettings);
+                        
+                        // Apply chat color palette from server settings to DOM
+                        if (serverSettings.chatColorPalette) {
+                            document.body.setAttribute('data-chat-palette', serverSettings.chatColorPalette);
+                        }
+                        
                         window.dispatchEvent(new Event('updateFeatureSettings'));
                     }
                 } else {

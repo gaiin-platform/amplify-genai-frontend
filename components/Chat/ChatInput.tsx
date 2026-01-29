@@ -6,11 +6,12 @@ import {
     IconSend,
     IconBrain,
     IconBulb,
-    IconScale, 
+    IconScale,
     IconSettingsAutomation,
     IconUpload,
     IconCheck,
-    IconX
+    IconX,
+    IconWorldSearch
 } from '@tabler/icons-react';
 import SaveActionsModal from './SaveActionsModal';
 import {
@@ -42,12 +43,15 @@ import {COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS} from "@/utils/
 import {useChatService} from "@/hooks/useChatService";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {getAssistants} from "@/utils/app/assistants";
-import { processDragDropFiles, processPastedFiles } from '@/utils/fileHandler';
+import { isImageFile, processDragDropFiles, processPastedFiles } from '@/utils/fileHandler';
 import AssistantsInUse from "@/components/Chat/AssistantsInUse";
 import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
 import QiModal from './QiModal';
 import { QiSummary, QiSummaryType } from '@/types/qi';
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
+import {ArtifactsSaved} from './ArtifactsSaved';
+import {ArtifactsList} from './ArtifactsList';
+import { PendingArtifact, ArtifactBlockDetail } from '@/types/artifacts';
 import { createQiSummary } from '@/services/qiService';
 import MessageSelectModal from './MesssageSelectModal';
 import cloneDeep from 'lodash/cloneDeep';
@@ -76,6 +80,7 @@ import { LargeTextTabs } from '@/components/Chat/LargeTextTabs';
 import { AttachmentDisplay } from '@/components/Chat/AttachmentDisplay';
 import { useLargeTextManager } from '@/hooks/useLargeTextManager';
 import { useTextBlockEditor } from '@/hooks/useTextBlockEditor';
+import toast from 'react-hot-toast';
 
 
 
@@ -305,6 +310,12 @@ export const ChatInput = ({
     const [documentMetadata, setDocumentMetadata] = useState<{ [key: string]: AttachedDocumentMetadata }>({});
     const [documentAborts, setDocumentAborts] = useState<{ [key: string]: AbortController }>({});
 
+    // Pending artifacts state
+    const [pendingArtifacts, setPendingArtifacts] = useState<PendingArtifact[]>([]);
+
+    // Per-conversation web search toggle (independent from FeaturePlugin) - persists across messages
+    const isWebSearchEnabledForConversation = selectedConversation?.data?.webSearchEnabled ?? false;
+
     const promptListRef = useRef<HTMLUListElement | null>(null);
     const dataSourceSelectorRef = useRef<HTMLDivElement | null>(null);
     const actionSelectorRef = useRef<HTMLDivElement | null>(null);
@@ -440,6 +451,27 @@ export const ChatInput = ({
         return content;
     }
 
+    // Handle pending artifacts
+    const handleAddPendingArtifact = (artifact: PendingArtifact) => {
+        setPendingArtifacts(prev => {
+            // Check if artifact already exists (update if loading state changed)
+            const existingIndex = prev.findIndex(a => a.key === artifact.key);
+            if (existingIndex >= 0) {
+                const updated = [...prev];
+                updated[existingIndex] = artifact;
+                return updated;
+            }
+            // Add new artifact
+            return [...prev, artifact];
+        });
+    };
+
+    const handleRemovePendingArtifact = (key: string) => {
+        setPendingArtifacts(prev => prev.filter(a => a.key !== key));
+    };
+
+    const allArtifactsLoaded = pendingArtifacts.length === 0 || pendingArtifacts.every(a => a.loadingState === 'ready');
+
     const handleSend = () => {
         handleCloseAllPopups();
         setEditingAction(null);  // Clear any editing action state
@@ -455,6 +487,11 @@ export const ChatInput = ({
 
         if (!allDocumentsDoneUploading) {
             alert(t('Please wait for all documents to finish uploading or remove them from the prompt.'));
+            return;
+        }
+
+        if (!allArtifactsLoaded) {
+            alert(t('Please wait for all artifacts to finish loading or remove them.'));
             return;
         }
 
@@ -475,17 +512,21 @@ export const ChatInput = ({
         // Prepare message content and label for large text handling
         let messageContent = content || '';
         let messageLabel = content || '';
-        let messageData: any = {};
-        
+        let messageData: any = {
+            // Include per-message web search toggle state
+            enableWebSearch: isWebSearchEnabledForConversation
+        };
+
         if (largeTextBlocks.length > 0) {
             // Replace all placeholders in content with actual large text for sending to model
             messageContent = replacePlaceholdersWithText(messageContent, largeTextBlocks);
-            
+
             // Keep the label as is for display purposes (with placeholders)
             messageLabel = messageLabel;
-            
+
             // Add large text metadata
             messageData = {
+                ...messageData,
                 hasLargeText: true,
                 largeTextBlocks: largeTextBlocks.map(block => ({
                     id: block.id,
@@ -500,10 +541,27 @@ export const ChatInput = ({
                 }))
             };
         }
-        
+
+        // Add pending artifacts to message data
+        if (pendingArtifacts.length > 0) {
+            messageData.artifacts = pendingArtifacts
+                .filter(pa => pa.loadingState === 'ready' && pa.artifact)
+                .map(pa => {
+                    // Extract base artifact ID (remove version/date suffix)
+                    const baseArtifactId = pa.artifactId.split(':')[0];
+                    return {
+                        artifactId: baseArtifactId,
+                        name: pa.name,
+                        description: pa.description,
+                        createdAt: pa.artifact!.createdAt,
+                        version: pa.artifact!.version
+                    } as ArtifactBlockDetail;
+                });
+        }
+
         let msg = newMessage({
-            role: 'user', 
-            content: messageContent, 
+            role: 'user',
+            content: messageContent,
             label: messageLabel,
             type: type,
             data: messageData,
@@ -533,7 +591,7 @@ export const ChatInput = ({
             }
         }
 
-        const updatedDocuments = documents?.map((d) => {
+        let updatedDocuments = documents?.map((d) => {
             const metadata = documentMetadata[d.id];
             if (metadata) {
                 return {...d, metadata: metadata};
@@ -541,8 +599,51 @@ export const ChatInput = ({
             return d;
         });
 
+        // Update conversation with artifacts before sending
+        if (pendingArtifacts.length > 0 && selectedConversation) {
+            const conversationArtifacts = selectedConversation.artifacts ?? {};
+
+            pendingArtifacts.forEach(pa => {
+                if (pa.artifact && pa.loadingState === 'ready') {
+                    // Extract base artifact ID (remove version/date suffix)
+                    // e.g., "Fun_Animated_SVG:v1-20251020" -> "Fun_Animated_SVG"
+                    const baseArtifactId = pa.artifactId.split(':')[0];
+
+                    // Preserve the artifact with its original version and update the artifactId
+                    const artifact = {...pa.artifact, artifactId: baseArtifactId};
+
+                    // Check if this artifactId already exists in conversation
+                    if (Object.keys(conversationArtifacts).includes(baseArtifactId)) {
+                        // Check if this specific version already exists
+                        const existingVersion = conversationArtifacts[baseArtifactId].find(a => a.version === artifact.version);
+                        if (!existingVersion) {
+                            // Add this version to the array
+                            conversationArtifacts[baseArtifactId] = [
+                                ...conversationArtifacts[baseArtifactId],
+                                artifact
+                            ];
+                        }
+                        // If version already exists, skip adding it again
+                    } else {
+                        conversationArtifacts[baseArtifactId] = [artifact];
+                    }
+                }
+            });
+
+            // Update selected conversation with new artifacts
+            selectedConversation.artifacts = conversationArtifacts;
+
+            // Dispatch to update global state so useSendService can access it
+            homeDispatch({field: 'selectedConversation', value: selectedConversation});
+        }
+
         statsService.userSendChatEvent(msg as Message, selectedConversation?.model?.id ?? '');
 
+        const hasImages = updatedDocuments?.some((d) => isImageFile(d));
+        if (!selectedConversation?.model?.supportsImages && hasImages) {
+            toast(" This model does not support images");
+            updatedDocuments = updatedDocuments?.filter((d: AttachedDocument) => !isImageFile(d));
+        }
         onSend(msg, updatedDocuments || []);
 
         // if (selectedProject && selectedConversation) {
@@ -553,10 +654,12 @@ export const ChatInput = ({
         setDocuments([]);
         setDocumentState({});
         setDocumentMetadata({});
-        
+        setPendingArtifacts([]); // Clear pending artifacts
+        // Note: Web search toggle now persists across messages in conversation data
+
         // Clear large text state using hook
         clearLargeText();
-        
+
         // Keep the actions list after sending - removed setAddedActions([])
 
         if (window.innerWidth < 640 && textareaRef && textareaRef.current) {
@@ -806,9 +909,8 @@ export const ChatInput = ({
     }
 
     const disallowedFileExtensions = useMemo(() => {
-        return [ ...COMMON_DISALLOWED_FILE_EXTENSIONS,
-            ...(selectedConversation?.model?.supportsImages
-                ? [] : IMAGE_FILE_EXTENSIONS ) ];
+   
+        return [ ...COMMON_DISALLOWED_FILE_EXTENSIONS ];
     }, [selectedConversation?.model?.supportsImages]);
 
     const handleCloseAllPopups = () => {
@@ -1019,6 +1121,17 @@ export const ChatInput = ({
         const containsArtifacts = plugins.map((p: Plugin) => p.id).includes(PluginID.ARTIFACTS);
         if (containsArtifacts) setAddedActions([]);
     }, [plugins]);
+
+    // Reset conversation web search toggle when web search plugin is disabled in FeaturePlugin
+    useEffect(() => {
+        const containsWebSearch = plugins.map((p: Plugin) => p.id).includes(PluginID.WEB_SEARCH);
+        if (!containsWebSearch && selectedConversation && selectedConversation.data?.webSearchEnabled) {
+            handleUpdateConversation(selectedConversation, {
+                key: 'data',
+                value: {...selectedConversation.data, webSearchEnabled: false},
+            });
+        }
+    }, [plugins, selectedConversation, handleUpdateConversation]);
 
     return (
         <>
@@ -1277,6 +1390,16 @@ export const ChatInput = ({
                                         Supports documents, images, and more
                                     </div>
                                 </div>
+                            </div>
+                        )}
+
+                        {/* Render pending artifacts list above the input area */}
+                        {featureFlags.artifacts && pendingArtifacts.length > 0 && (
+                            <div className="w-full px-2 py-2 border-b border-black/10 dark:border-gray-700/50">
+                                <ArtifactsList
+                                    artifacts={pendingArtifacts}
+                                    onRemove={handleRemovePendingArtifact}
+                                />
                             </div>
                         )}
 
@@ -1568,6 +1691,41 @@ export const ChatInput = ({
                         
                         </>}
 
+                        { featureFlags.artifacts &&
+                         <ArtifactsSaved
+                             iconSize={20}
+                             isArtifactsOpen={false}
+                             pendingArtifacts={pendingArtifacts}
+                             onAddPendingArtifact={handleAddPendingArtifact}
+                         />
+                        }
+
+                        {/* Web Search Toggle - Per-Message Control (only show if web search is enabled in FeaturePlugin) */}
+                        { featureFlags.webSearch && plugins?.some(p => p.id === PluginID.WEB_SEARCH) &&
+                        <button
+                            className={`chat-input-button rounded-md p-1.5 transition-all duration-200 ${
+                                isWebSearchEnabledForConversation
+                                    ? 'bg-green-500 hover:bg-green-600 text-white shadow-md scale-105'
+                                    : 'text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200'
+                            }`}
+                            id="toggleWebSearch"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (selectedConversation) {
+                                    handleUpdateConversation(selectedConversation, {
+                                        key: 'data',
+                                        value: {...selectedConversation.data, webSearchEnabled: !isWebSearchEnabledForConversation},
+                                    });
+                                }
+                            }}
+                            title={isWebSearchEnabledForConversation
+                                ? "Web Search enabled for this conversation - Click to disable"
+                                : "Enable Web Search for this conversation"}
+                        >
+                            <IconWorldSearch size={20} />
+                        </button>
+                        }
+
                         <div className='flex flex-row gap-2'>
 
                             <button
@@ -1610,6 +1768,8 @@ export const ChatInput = ({
                                 </div>
                             )}
                         </div>
+
+                       
                         {/*<div className='flex flex-row gap-2'>
                          {featureFlags.memory && projects.length > 0  &&
                         // settingRef.current.featureOptions.includeMemory &&
@@ -1667,11 +1827,13 @@ export const ChatInput = ({
                                             options={REASONING_LEVELS.map((lvl: string) => ({
                                                 id: lvl,
                                                 name: capitalize(lvl),
-                                                title: `The model will use ${{low: "average amount of", medium: "additional", high: "more"}[lvl]} output tokens when crafting a response. \n${
-                                                    {low: "Optimized for quick responses to simple questions, prioritizing speed",
-                                                        medium: "Balanced approach for everyday questions, offering good accuracy without unnecessary processing time",
-                                                        high: "Provides in-depth analysis for complex problems where thoroughness and precision matter most"}[lvl]}`,
-                                                icon: ({low: IconBulb, medium: IconScale, high: IconBrain}[lvl])
+                                                title: lvl === 'off'
+                                                    ? "Reasoning is disabled. The model will respond without extended thinking, providing faster but potentially less thorough responses."
+                                                    : `The model will use ${{low: "average amount of", medium: "additional", high: "more"}[lvl]} output tokens when crafting a response. \n${
+                                                        {low: "Optimized for quick responses to simple questions, prioritizing speed",
+                                                            medium: "Balanced approach for everyday questions, offering good accuracy without unnecessary processing time",
+                                                            high: "Provides in-depth analysis for complex problems where thoroughness and precision matter most"}[lvl]}`,
+                                                icon: lvl === 'off' ? undefined : ({low: IconBulb, medium: IconScale, high: IconBrain}[lvl])
 
                                             }))}
                                             selected={selectedConversation?.data?.reasoningLevel ?? 'low'}
