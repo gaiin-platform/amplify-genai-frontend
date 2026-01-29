@@ -390,11 +390,11 @@ export function detectFileType(text: string): FileTypeResult {
     };
   }
 
-  // 4. Default: Plain text (low confidence)
+  // 4. Default: Plain text (high confidence - we're certain it's plain text)
   return {
     extension: 'txt',
     mimeType: getMimeTypeFromExtension('txt'),
-    confidence: 'low'
+    confidence: 'high'
   };
 }
 
@@ -518,9 +518,15 @@ export function shouldShowModal(
     return true;
   }
 
-  // Show modal if ambiguous format (low confidence)
-  if (detectedType.confidence === 'low' && textSize > 100000) {
-    return true; // Only for large ambiguous text
+  // Show modal for very large text (>100K) regardless of confidence
+  // This ensures users can set preferences for any large paste
+  if (textSize > 100000) {
+    return true;
+  }
+
+  // Show modal if ambiguous format (low confidence) for medium-sized text
+  if (detectedType.confidence === 'low' && textSize > maxChars / 2) {
+    return true;
   }
 
   // Show modal if exceeds max chars and not high confidence

@@ -4,6 +4,7 @@ export interface Settings {
   featureOptions: { [key: string]: boolean };
   chatColorPalette?: string;
   avatarColorTone?: 'userPrimary' | 'userSecondary' | 'assistantPrimary' | 'assistantSecondary';
+  largeTextPastePreferences?: { [key: string]: 'file' | 'block' | 'plain' };
 }
 
 

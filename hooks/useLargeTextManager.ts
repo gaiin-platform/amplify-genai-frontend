@@ -16,7 +16,6 @@ export function useLargeTextManager() {
   const [showLargeTextPreview, setShowLargeTextPreview] = useState(false);
   const [largeTextCounter, setLargeTextCounter] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [sessionChoices, setSessionChoices] = useState<{ [key: string]: 'block' | 'file' | 'plain' }>({});
 
   /**
    * Memoized text processing for performance optimization
@@ -189,7 +188,6 @@ export function useLargeTextManager() {
     showLargeTextPreview,
     hasLargeTextBlocks,
     isProcessing,
-    sessionChoices,
 
     // Actions
     handleLargeTextPaste,
@@ -199,7 +197,6 @@ export function useLargeTextManager() {
 
     // Direct state setters (for edge cases)
     setLargeTextBlocks,
-    setShowLargeTextPreview,
-    setSessionChoices
+    setShowLargeTextPreview
   };
 }

@@ -58,7 +58,7 @@ import cloneDeep from 'lodash/cloneDeep';
 import FeaturePlugin from './FeaturePluginSelector/FeaturePlugins';
 import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton";
 import { filterModels } from '@/utils/app/models';
-import { getSettings } from '@/utils/app/settings';
+import { getSettings, saveSettings } from '@/utils/app/settings';
 import { MemoryPresenter } from "@/components/Chat/MemoryPresenter";
 // import { ProjectList } from './ProjectList';
 import {  } from '../../services/memoryService';
@@ -292,9 +292,7 @@ export const ChatInput = ({
         removeMultipleLargeTextBlocks,
         clearLargeText,
         setLargeTextBlocks,
-        isProcessing,
-        sessionChoices,
-        setSessionChoices
+        isProcessing
     } = useLargeTextManager();
     
     // Text block editing - using custom hook for edit mode management
@@ -908,7 +906,7 @@ export const ChatInput = ({
         textSize: number;
         modelLimit?: number;
         maxChars: number;
-    }): Promise<'file' | 'block' | 'plain'> => {
+    }): Promise<{ choice: 'file' | 'block' | 'plain'; rememberChoice: boolean }> => {
         return new Promise((resolve, reject) => {
             setPendingPasteData({
                 ...data,
@@ -920,9 +918,9 @@ export const ChatInput = ({
     }, []);
 
     // Modal confirm handler
-    const handleModalConfirm = useCallback((choice: 'file' | 'block' | 'plain') => {
+    const handleModalConfirm = useCallback((choice: 'file' | 'block' | 'plain', rememberChoice: boolean) => {
         if (pendingPasteData) {
-            pendingPasteData.resolve(choice);
+            pendingPasteData.resolve({ choice, rememberChoice });
         }
         setShowLargeTextModal(false);
         setPendingPasteData(null);
@@ -1136,9 +1134,11 @@ export const ChatInput = ({
             // Step 2: Detect file type
             const detectedType = detectFileType(pastedText);
 
-            // Step 3: Check session memory
+            // Step 3: Check saved preferences from Settings
+            const currentSettings = getSettings(featureFlags);
+            const preferences = currentSettings.largeTextPastePreferences || {};
             const sessionKey = generateSessionKey(textSize, detectedType.extension);
-            const rememberedChoice = sessionChoices[sessionKey];
+            const rememberedChoice = preferences[sessionKey];
 
             // Step 4: Determine if should show modal
             const needsModal = shouldShowModal(
@@ -1148,16 +1148,33 @@ export const ChatInput = ({
                 LARGE_TEXT_THRESHOLDS.MAX_CHARACTERS
             );
 
-            // Get user choice (from session, modal, or auto-decide)
+            // Get user choice (from saved preference, modal, or auto-decide)
             let userChoice: 'file' | 'block' | 'plain';
 
-            if (rememberedChoice && !needsModal) {
-                // Use remembered choice from this session
+            // Check if text exceeds model limit (forced file, ignore preferences)
+            const exceedsModelLimit = modelLimit && textSize > modelLimit;
+
+            if (exceedsModelLimit) {
+                // Auto-create file when exceeding model limit (no modal, no choice)
+                toast.success(
+                    `Creating file attachment. Text (${textSize.toLocaleString()} chars) exceeds model limit (${modelLimit.toLocaleString()} chars).`,
+                    { duration: 4000 }
+                );
+                const fileResult = await createAndAttachFile(pastedText, detectedType);
+                if (!fileResult.success) {
+                    toast.error('Failed to create file attachment');
+                }
+                return; // Exit early, nothing more to do
+            }
+
+            // Check for saved preference
+            if (rememberedChoice) {
+                // Use remembered choice if it exists
                 userChoice = rememberedChoice;
             } else if (needsModal) {
                 // Show modal and wait for user decision
                 try {
-                    userChoice = await showModalAndWait({
+                    const result = await showModalAndWait({
                         text: pastedText,
                         detectedType,
                         textSize,
@@ -1165,11 +1182,19 @@ export const ChatInput = ({
                         maxChars: LARGE_TEXT_THRESHOLDS.MAX_CHARACTERS
                     });
 
-                    // Remember choice for this session
-                    setSessionChoices({
-                        ...sessionChoices,
-                        [sessionKey]: userChoice
-                    });
+                    userChoice = result.choice;
+
+                    // Save preference if user checked "remember"
+                    if (result.rememberChoice) {
+                        const updatedSettings: Settings = {
+                            ...currentSettings,
+                            largeTextPastePreferences: {
+                                ...preferences,
+                                [sessionKey]: userChoice
+                            }
+                        };
+                        saveSettings(updatedSettings);
+                    }
                 } catch {
                     // User cancelled modal
                     return;
@@ -1218,7 +1243,7 @@ export const ChatInput = ({
                     break;
             }
         }
-    }, [content, handleLargeTextPaste, disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController, selectedConversation, sessionChoices, setSessionChoices, createAndAttachFile, showModalAndWait]);
+    }, [content, handleLargeTextPaste, disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController, selectedConversation, createAndAttachFile, showModalAndWait]);
 
     // Handle individual large text block removal using hook
     const handleRemoveLargeTextBlock = useCallback((blockId: string) => {
@@ -2054,17 +2079,23 @@ export const ChatInput = ({
             )}
 
             {/* Large Text Modal */}
-            {showLargeTextModal && pendingPasteData && (
-                <LargeTextModal
-                    text={pendingPasteData.text}
-                    detectedType={pendingPasteData.detectedType}
-                    textSize={pendingPasteData.textSize}
-                    modelLimit={pendingPasteData.modelLimit}
-                    maxChars={pendingPasteData.maxChars}
-                    onConfirm={handleModalConfirm}
-                    onCancel={handleModalCancel}
-                />
-            )}
+            {showLargeTextModal && pendingPasteData && (() => {
+                const settings = getSettings(featureFlags);
+                const prefs = settings.largeTextPastePreferences || {};
+                const key = generateSessionKey(pendingPasteData.textSize, pendingPasteData.detectedType.extension);
+                return (
+                    <LargeTextModal
+                        text={pendingPasteData.text}
+                        detectedType={pendingPasteData.detectedType}
+                        textSize={pendingPasteData.textSize}
+                        modelLimit={pendingPasteData.modelLimit}
+                        maxChars={pendingPasteData.maxChars}
+                        hasExistingPreference={!!prefs[key]}
+                        onConfirm={handleModalConfirm}
+                        onCancel={handleModalCancel}
+                    />
+                );
+            })()}
         </>
     );
 };

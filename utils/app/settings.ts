@@ -5,13 +5,14 @@ import { ThemeService } from '@/utils/whiteLabel/themeService';
 const STORAGE_KEY = 'settings';
 
 export const getSettings = (featureFlags:any): Settings => {
-  // filter settings to ensure all models are still available 
+  // filter settings to ensure all models are still available
   let settings: Settings = {
     theme: ThemeService.getInitialTheme(), // Use ThemeService instead of hardcoded 'dark'
     featureOptions: featureOptionDefaults(featureFlags),
     hiddenModelIds: [],
     chatColorPalette: 'warm-browns',
-    avatarColorTone: 'userPrimary'
+    avatarColorTone: 'userPrimary',
+    largeTextPastePreferences: {}
   };
   const settingsJson = localStorage.getItem(STORAGE_KEY);
   if (settingsJson) {
