@@ -823,9 +823,13 @@ const Home = ({
                         const storageData = data[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE];
                             // honor users selection if it exists
                         if (!storageSelection && storageData) {
-                            dispatch({ field: 'storageSelection', value: storageData as ConversationStorage}); 
+                            dispatch({ field: 'storageSelection', value: storageData as ConversationStorage});
                             saveStorageSettings(storageData as ConversationStorage);
                         }
+                    }
+                    if (AdminConfigTypes.PROMPT_COST_ALERT in data) {
+                        const promptCostData = data[AdminConfigTypes.PROMPT_COST_ALERT];
+                        dispatch({ field: 'promptCostAlert', value: promptCostData});
                     }
 
                 } else {

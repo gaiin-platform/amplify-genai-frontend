@@ -35,6 +35,7 @@ import {
 } from '@/utils/app/memory';
 import { handleAgentRun, handleAgentRunResult, isWaitingForAgentResponse } from '@/utils/app/agent';
 import { lzwCompress } from '@/utils/app/lzwCompression';
+import { calculatePromptCostDetailed, formatCost } from '@/utils/app/costEstimation';
 import { WEB_SEARCH_TOOL_DEFINITION } from '@/types/tools';
 import { getEnabledMCPToolsForLLM, handleMCPToolCall } from '@/services/mcpToolExecutor';
 
@@ -55,7 +56,7 @@ export type ChatRequest = {
 
 export function useSendService() {
     const {
-        state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts, memoryExtractionEnabled, defaultAccount },
+        state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts, memoryExtractionEnabled, defaultAccount, promptCostAlert },
         getDefaultModel, handleUpdateSelectedConversation,
         postProcessingCallbacks,
         dispatch: homeDispatch,
@@ -95,45 +96,6 @@ export function useSendService() {
 
     const { getPrefix } = usePromptFinderService();
 
-    // const calculateTokenCost = (chatModel: Model, datasources: AttachedDocument[]) => {
-    //     let cost = 0;
-
-    //     datasources.forEach((doc) => {
-    //         if (doc.metadata?.totalTokens) {
-    //             cost += doc.metadata.totalTokens;
-    //         }
-    //     });
-
-    //     const model = Models[chatModel.id as ModelID];
-    //     if (!model) {
-    //         return {
-    //             prompts: -1,
-    //             inputTokens: cost,
-    //             inputCost: -1,
-    //             outputCost: -1,
-    //             totalCost: -1
-    //         };
-    //     }
-
-    //     const contextWindow = model.actualTokenLimit;
-    //     // calculate cost / context window rounded up
-    //     const prompts = Math.ceil(cost / contextWindow);
-
-    //     console.log("Prompts", prompts, "Cost", cost, "Context Window", contextWindow);
-
-    //     const outputCost = prompts * model.outputCost;
-    //     const inputCost = (cost / 1000) * model.inputCost;
-
-    //     console.log("Input Cost", inputCost, "Output Cost", outputCost);
-
-    //     return {
-    //         prompts: prompts,
-    //         inputCost: inputCost.toFixed(2),
-    //         inputTokens: cost,
-    //         outputCost: outputCost.toFixed(2),
-    //         totalCost: (inputCost + outputCost).toFixed(2)
-    //     };
-    // }
 
     useEffect(() => {
         const awaitAgentRun = async (sessionId: string) => {
@@ -206,26 +168,6 @@ export function useSendService() {
                         message.label = label;
                     }
 
-                    if (selectedConversation
-                        && selectedConversation?.model
-                        && !options?.ragOnly) {
-
-                        // const {prompts, inputCost, inputTokens, outputCost, totalCost} =
-                        //     calculateTokenCost(selectedConversation.model, documents || []);
-
-                        // if (totalCost === -1 && inputTokens > 4000) {
-                        //     const go = confirm(`This request will require ${inputTokens} input tokens at an unknown cost.`);
-                        //     if (!go) {
-                        //         return;
-                        //     }
-                        // }
-                        // if (+totalCost > 0.5) {
-                        //     const go = confirm(`This request will cost an estimated $${totalCost} (the actual cost may be more) and require ${prompts} prompt(s).`);
-                        //     if (!go) {
-                        //         return;
-                        //     }
-                        // }
-                    }
                     console.log("Model in use: ", selectedConversation.model.name);
                     let updatedConversation: Conversation;
                     if (deleteCount) {
@@ -242,6 +184,90 @@ export function useSendService() {
                             ...selectedConversation,
                             messages: [...selectedConversation.messages, message],
                         };
+                    }
+
+                    // 💰 PROMPT COST ALERT - Check cost before sending
+                    if (selectedConversation
+                        && selectedConversation?.model
+                        && !options?.ragOnly
+                        && promptCostAlert?.isActive) {
+
+                        console.log('✅ Prompt cost alert IS ACTIVE - calculating cost...');
+
+                        try {
+                            // 🚀 OPTIMIZED: Calculate once with detailed breakdown, format once
+                            const contextWindow = selectedConversation.model.inputContextWindow || 128000;
+                            const { cost: estimatedCost, breakdown } = calculatePromptCostDetailed(
+                                updatedConversation,
+                                selectedConversation.model,
+                                options
+                            );
+                            const numberOfPrompts = Math.ceil(breakdown.totalTokens / contextWindow);
+                            const formattedCost = formatCost(estimatedCost);
+                            const formattedThreshold = formatCost(promptCostAlert.cost);
+
+                            console.log(`💰 Estimated prompt cost: ${formattedCost} | Threshold: ${formattedThreshold}`);
+
+                            // Check if cost exceeds the admin-set threshold
+                            if (estimatedCost > promptCostAlert.cost) {
+                                console.log(`🚨 COST EXCEEDS THRESHOLD! (${formattedCost} > ${formattedThreshold}) - showing alert...`);
+
+                                // Replace placeholders in the admin's alert message
+                                let alertMessage = promptCostAlert.alertMessage ||
+                                    'This prompt will cost approximately <totalCost>. Do you want to continue?';
+
+                                // Handle both $<totalCost> (old style) and <totalCost> (new style)
+                                alertMessage = alertMessage.replace(/\$<totalCost>/g, formattedCost);
+                                alertMessage = alertMessage.replace(/<totalCost>/g, formattedCost);
+                                alertMessage = alertMessage.replace(/<prompts>/g, numberOfPrompts.toString());
+
+                                // Show confirmation dialog via home state
+                                const confirmationPromise = new Promise<boolean>((resolveConfirm) => {
+                                    homeDispatch({
+                                        field: 'promptCostAlertModal',
+                                        value: {
+                                            isOpen: true,
+                                            message: alertMessage,
+                                            cost: formattedCost,
+                                            prompts: numberOfPrompts,
+                                            onConfirm: () => {
+                                                homeDispatch({ field: 'promptCostAlertModal', value: null });
+                                                resolveConfirm(true);
+                                            },
+                                            onDeny: () => {
+                                                homeDispatch({ field: 'promptCostAlertModal', value: null });
+                                                resolveConfirm(false);
+                                            }
+                                        }
+                                    });
+                                });
+
+                                const userConfirmed = await confirmationPromise;
+
+                                if (!userConfirmed) {
+                                    // User cancelled - clean up and exit
+                                    console.log('⚠️ User cancelled due to high cost');
+                                    cleanupHomeState();
+                                    resolve({ success: false, cancelled: true });
+                                    return;
+                                }
+
+                                // User confirmed - log and proceed
+                                console.log('✅ User confirmed high-cost prompt');
+                            } else {
+                                console.log(`✅ Cost within threshold (${formattedCost} <= ${formattedThreshold}) - proceeding without alert`);
+                            }
+                        } catch (error) {
+                            // If cost calculation fails, log error but don't block the message
+                            console.error('❌ Error calculating prompt cost:', error);
+                            // Continue sending - don't block user due to calculation error
+                        }
+                    } else {
+                        console.log('ℹ️ Prompt cost alert skipped:', {
+                            reason: !promptCostAlert?.isActive ? 'Alert not active' :
+                                    !selectedConversation?.model ? 'No model selected' :
+                                    options?.ragOnly ? 'RAG only mode' : 'Unknown'
+                        });
                     }
                     // console.log("updated: ", updatedConversation.messages);
 

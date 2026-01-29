@@ -99,7 +99,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 folders,
                 extractedFacts,
                 defaultAccount,
-                isStandalonePromptCreation
+                isStandalonePromptCreation,
+                promptCostAlertModal
             },
             setLoadingMessage,
             handleUpdateConversation,
@@ -1678,8 +1679,22 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
             </div>
 
+            {/* Prompt Cost Alert Modal */}
+            {promptCostAlertModal?.isOpen && (
+                <ConfirmModal
+                    title="💰 Estimated Prompt Cost"
+                    message={promptCostAlertModal.message}
+                    confirmLabel="Continue"
+                    denyLabel="Cancel"
+                    onConfirm={promptCostAlertModal.onConfirm}
+                    onDeny={promptCostAlertModal.onDeny}
+                    width={500}
+                    height={220}
+                />
+            )}
+
             </>
         );
     });
-    
+
 Chat.displayName = 'Chat';
