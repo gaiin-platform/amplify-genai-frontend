@@ -230,6 +230,13 @@ export const ChatInput = ({
 
     const [messageIsDisabled, setMessageIsDisabled] = useState<boolean>(false);
 
+    // Track large text paste choice for current message
+    const [currentLargeTextChoice, setCurrentLargeTextChoice] = useState<'file' | 'block' | 'plain' | null>(null);
+
+    // Reset large text choice when conversation changes
+    useEffect(() => {
+        setCurrentLargeTextChoice(null);
+    }, [selectedConversation]);
 
     useEffect(() => {
         if (selectedConversation && selectedAssistant)
@@ -239,6 +246,13 @@ export const ChatInput = ({
     }, [selectedAssistant, selectedConversation]);
 
     const [content, setContent] = useState<string>();
+
+    // Reset large text choice when content is cleared (starting a new message)
+    useEffect(() => {
+        if (!content || content.trim() === '') {
+            setCurrentLargeTextChoice(null);
+        }
+    }, [content]);
     const [isTyping, setIsTyping] = useState<boolean>(false);
     const [showPromptList, setShowPromptList] = useState(false);
     const [activePromptIndex, setActivePromptIndex] = useState(0);
@@ -527,7 +541,7 @@ export const ChatInput = ({
         }
 
         const type = (isWorkflowOn) ? MessageType.AUTOMATION : MessageType.PROMPT;
-        
+
         // Prepare message content and label for large text handling
         let messageContent = content || '';
         let messageLabel = content || '';
@@ -535,6 +549,11 @@ export const ChatInput = ({
             // Include per-message web search toggle state
             enableWebSearch: isWebSearchEnabledForConversation
         };
+
+        // Add large text paste choice if present (for disabling Smart Messages, RAG, Prompt Optimizer)
+        if (currentLargeTextChoice) {
+            messageData.largeTextChoice = currentLargeTextChoice;
+        }
 
         if (largeTextBlocks.length > 0) {
             // Replace all placeholders in content with actual large text for sending to model
@@ -692,6 +711,9 @@ export const ChatInput = ({
 
         // Clear large text state using hook
         clearLargeText();
+
+        // Clear large text choice for next message
+        setCurrentLargeTextChoice(null);
 
         // Keep the actions list after sending - removed setAddedActions([])
 
@@ -1208,7 +1230,9 @@ export const ChatInput = ({
                 }
             }
 
-            // Step 5: Execute user's choice
+            // Step 5: Execute user's choice and track it
+            setCurrentLargeTextChoice(userChoice);
+
             switch (userChoice) {
                 case 'file':
                     const fileResult = await createAndAttachFile(pastedText, detectedType);
@@ -1669,7 +1693,7 @@ export const ChatInput = ({
                         <div className="px-2 flex items-center">
 
 
-                            {featureFlags.promptOptimizer && isInputInFocus && !isEditing && (
+                            {featureFlags.promptOptimizer && isInputInFocus && !isEditing && !currentLargeTextChoice && (
                                 <div className='relative mr-[-32px]'>
                                     <PromptOptimizerButton
                                         prompt={content || ""}
