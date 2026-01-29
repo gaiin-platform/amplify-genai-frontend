@@ -103,8 +103,9 @@ John Doe,john@test.com,30
 Jane Smith;jane@test.com;25`;
       const result = detectFileType(inconsistent);
 
-      // Should not be detected as CSV due to inconsistency
-      expect(result.confidence).not.toBe('high');
+      // Should not be detected as CSV due to inconsistency (falls back to plain text)
+      expect(result.extension).toBe('txt');
+      expect(result.confidence).toBe('high'); // Plain text detection is high confidence
     });
 
     it('should require at least 3 lines for CSV detection', () => {
@@ -172,7 +173,7 @@ John,,555-1234
 
       expect(result.extension).toBe('txt');
       expect(result.mimeType).toBe('text/plain');
-      expect(result.confidence).toBe('low');
+      expect(result.confidence).toBe('high'); // Changed from 'low' - we're certain it's plain text
     });
 
     it('should handle Lorem ipsum text', () => {
@@ -180,7 +181,7 @@ John,,555-1234
       const result = detectFileType(lorem);
 
       expect(result.extension).toBe('txt');
-      expect(result.confidence).toBe('low');
+      expect(result.confidence).toBe('high'); // Changed from 'low' - we're certain it's plain text
     });
 
     it('should handle empty string', () => {
