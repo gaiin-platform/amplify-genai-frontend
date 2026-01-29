@@ -175,17 +175,17 @@ export function getAllDataSources(
         : [];
 
     // Get conversation data sources (from all previous messages)
-    const conversation: DataSource[] = [];
+    const conversationDataSources: DataSource[] = [];
     const endIndex = includeLastMessage ? messages.length - 1 : messages.length;
 
     for (let i = 0; i < endIndex; i++) {
         const msgDataSources = messages[i].data?.dataSources || [];
-        conversation.push(...msgDataSources);
+        conversationDataSources.push(...msgDataSources);
     }
 
     // Remove duplicates by ID
     const uniqueConversation = Array.from(
-        new Map(conversation.map(ds => [ds.id, ds])).values()
+        new Map(conversationDataSources.map((ds: DataSource) => [ds.id, ds])).values()
     );
 
     return {
