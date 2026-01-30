@@ -505,6 +505,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         saveAction([AdminConfigTypes.PPTX_TEMPLATES], saveUpdatePptx); 
         saveAction([AdminConfigTypes.EMAIL_SUPPORT], () => homeDispatch({ field: 'supportEmail', value: emailSupport.email}));
         saveAction([AdminConfigTypes.AI_EMAIL_DOMAIN], () => homeDispatch({ field: 'aiEmailDomain', value: aiEmailDomain}));
+        saveAction([AdminConfigTypes.PROMPT_COST_ALERT], () => homeDispatch({ field: 'promptCostAlert', value: promptCostAlert}));
         if (!storageSelection) saveAction([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () => homeDispatch({ field: 'storageSelection', value: defaultConversationStorage})); 
     }
 
@@ -1074,7 +1075,7 @@ export interface Amplify_Groups {
 export interface PromptCostAlert {
     isActive: boolean;
     alertMessage: string;
-    cost: Number;
+    cost: number;
 }
 
 export interface EmailSupport {
