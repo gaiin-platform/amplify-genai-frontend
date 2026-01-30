@@ -43,6 +43,26 @@ import { DriveFilesDataSources } from '@/types/integrations';
 import { determineWebsiteScanCron, manageScheduledTasks, updateScheduledTasks, determineDriveScanCron, AssistantScheduledTaskUses } from '@/utils/app/scheduledTasks';
 import { validateUrl } from '@/utils/app/data';
 
+// Threshold for massive documents that cannot be used with assistants
+// Assistants require RAG indexing, which will crash with documents >= 400K tokens
+const MASSIVE_DOCUMENT_TOKEN_THRESHOLD = 400000;
+
+/**
+ * Validates if a document is too large for assistant use.
+ * Assistants require RAG indexing which cannot handle documents >= 400K tokens.
+ * @returns true if document is valid (can be attached), false if too large
+ */
+const validateDocumentSizeForAssistant = (totalTokens: number): boolean => {
+    if (totalTokens >= MASSIVE_DOCUMENT_TOKEN_THRESHOLD) {
+        toast.error(
+            `This file is too large for assistants (${totalTokens.toLocaleString()} tokens). ` +
+            `Maximum: ${MASSIVE_DOCUMENT_TOKEN_THRESHOLD.toLocaleString()} tokens. ` +
+            `Large files work in regular conversations where they're processed efficiently.`
+        );
+        return false;
+    }
+    return true;
+};
 
 interface Props {
     assistant: Prompt;
@@ -936,6 +956,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
         // handle file upload functions //
     const onAttach = (doc: AttachedDocument) => {
+        const totalTokens = doc.metadata?.totalTokens || 0;
+        if (!validateDocumentSizeForAssistant(totalTokens)) {
+            return; // Don't attach the document
+        }
+
         setDataSources((prev) => {
             prev.push(doc as any);
             return prev;
@@ -1287,6 +1312,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                             minWidth="500px"
                                             onDataSourceSelected={(d) => {
+                                                const totalTokens = d.metadata?.totalTokens || 0;
+                                                if (!validateDocumentSizeForAssistant(totalTokens)) {
+                                                    return;
+                                                }
+
                                                 const doc = {
                                                     id: d.id,
                                                     name: d.name || "",

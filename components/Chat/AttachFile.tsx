@@ -14,6 +14,7 @@ import HomeContext from "@/pages/api/home/home.context";
 import React from 'react';
 import { resolveRagEnabled } from '@/types/features';
 import { processInputFiles } from '@/utils/fileHandler';
+import toast from 'react-hot-toast';
 
 interface Props {
     onAttach: (data: AttachedDocument) => void;
@@ -65,6 +66,31 @@ export const handleFile = async (file:any,
         let size = file.size;
         const fileName = file.name.replace(/[_\s]+/g, '_');;
 
+        // File size limits
+        const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB - absolute maximum (Lambda 5min timeout limit)
+        const VISUAL_SKIP_THRESHOLD = 20 * 1024 * 1024; // 20MB - skip visual processing to save time
+
+        // Block files that are too large to process
+        if (size > MAX_FILE_SIZE) {
+            const sizeMB = (size / (1024 * 1024)).toFixed(2);
+            alert(
+                `File "${fileName}" is too large (${sizeMB}MB). ` +
+                `Maximum file size: 50MB. ` +
+                `Large files may timeout during processing. ` +
+                `Please split the file or reduce its size.`
+            );
+            return;
+        }
+
+        // Warn about large files that will skip visual processing
+        if (size > VISUAL_SKIP_THRESHOLD) {
+            const sizeMB = (size / (1024 * 1024)).toFixed(2);
+            console.log(`[FILE SIZE] Large file (${sizeMB}MB) - visual processing will be skipped to avoid timeout`);
+            toast(
+                `⚠️ Large file detected (${sizeMB}MB). Visual processing (images/charts) will be skipped. Text extraction only.`,
+                { duration: 5000, icon: '⚠️' }
+            );
+        }
 
         let document:AttachedDocument = {id:uuidv4(), name: fileName, type: type, raw:"", data: props, groupId};
         console.log(`document.type: "${document.type}"`);
