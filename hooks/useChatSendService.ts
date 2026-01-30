@@ -303,8 +303,10 @@ export function useSendService() {
                     if (selectedConversation?.promptTemplate && isBasePrompt(selectedConversation.promptTemplate.id)) {
                         console.log("Artifacts disabled for base prompt template: ", selectedConversation.promptTemplate.name);
                     }
-                    const isSmartMessagesOn = featureOptions.includeFocusedMessages && (!pluginIds || (pluginIds.includes(PluginID.SMART_MESSAGES)));
-                    console.log("Smart Messages on: ", isSmartMessagesOn)
+
+                    // Disable Smart Messages if large text was pasted
+                    const hasLargeTextPaste = !!message.data?.largeTextChoice;
+                    const isSmartMessagesOn = !hasLargeTextPaste && featureOptions.includeFocusedMessages && (!pluginIds || (pluginIds.includes(PluginID.SMART_MESSAGES)));
 
                     const isMemoryOn = featureFlags.memory && featureOptions.includeMemory && (!pluginIds || (pluginIds.includes(PluginID.MEMORY)));
                     console.log("Memory on: ", isMemoryOn)
@@ -440,7 +442,13 @@ export function useSendService() {
                     } else if (featureFlags.ragEnabled && featureFlags.ragEvaluation && (pluginIds?.includes(PluginID.RAG) && pluginIds?.includes(PluginID.RAG_EVAL))) {
                         options = { ...(options || {}), ragEvaluation: true };
                     }
-                                                      // Advanced Rag is default off for assistant use 
+
+                    // Disable RAG if large text was pasted and file was created
+                    if (message.data?.largeTextChoice === 'file') {
+                        options = { ...(options || {}), skipRag: true, skipDocumentCache: false };
+                    }
+
+                                                      // Advanced Rag is default off for assistant use
                     if (!featureFlags.cachedDocuments || options?.assistantId || options?.groupId) {
                         options = { ...(options || {}), skipDocumentCache : true};
                     }
