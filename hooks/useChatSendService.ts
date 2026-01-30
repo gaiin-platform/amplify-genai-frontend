@@ -443,15 +443,10 @@ export function useSendService() {
                         options = { ...(options || {}), ragEvaluation: true };
                     }
 
-                    // Disable RAG if large text was pasted and file was created
-                    if (message.data?.largeTextChoice === 'file') {
-                        options = { ...(options || {}), skipRag: true, skipDocumentCache: false };
-                    }
-
-                                                      // Advanced Rag is default off for assistant use
-                    if (!featureFlags.cachedDocuments || options?.assistantId || options?.groupId) {
-                        options = { ...(options || {}), skipDocumentCache : true};
-                    }
+                    // Advanced Rag is default off for assistant use
+                    //if (!featureFlags.cachedDocuments || options?.assistantId || options?.groupId) {
+                       // options = { ...(options || {}), skipDocumentCache : true};
+                    //}
 
 
                     if (!featureFlags.codeInterpreterEnabled) {
