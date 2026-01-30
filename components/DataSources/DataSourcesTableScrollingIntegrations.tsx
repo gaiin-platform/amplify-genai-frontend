@@ -687,9 +687,26 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                 header: 'Size',
                 size: 60,
                 enableColumnFilter: false,
-                Cell: ({cell}) => (
-                    <span>{cell.getValue<string>()}</span>
-                ),
+                
+                Cell: ({cell}) => {
+                    const rawSize = cell.getValue<string | number>();
+
+                    // Format size to human-readable (KB, MB, GB)
+                    const formatSize = (size: string | number): string => {
+                        if (size === "N/A" || !size) return "N/A";
+
+                        const bytes = typeof size === 'string' ? parseInt(size, 10) : size;
+                        if (isNaN(bytes)) return "N/A";
+
+                        if (bytes < 1024) return `${bytes} B`;
+                        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+                        if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+                        return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+                    };
+
+                    return <span>{formatSize(rawSize)}</span>;
+                },
+            
                 Edit: ({cell, column, table}) => <>{cell.getValue<string>()}</>,
                 },
                 {

@@ -18,7 +18,7 @@ import toast from 'react-hot-toast';
 import { ActiveTabs } from '../ReusableComponents/ActiveTabs';
 import LegacyWorkspaces from '../Workspace/LegacyWorkspace';
 import { capitalize } from '@/utils/app/data';
-import { IconCurrencyDollar, IconMoonStars, IconSun } from '@tabler/icons-react';
+import { IconCurrencyDollar, IconMoonStars, IconSun, IconX } from '@tabler/icons-react';
 import ExpansionComponent from '../Chat/ExpansionComponent';
 import { IntegrationTabs } from '../Integrations/IntegrationsTab';
 import { ApiKeys } from './AccountComponents/ApiKeys';
@@ -471,7 +471,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                         </div>
 
                       <div className='settings-card-content'>
-                      <FlagsMap 
+                      <FlagsMap
                         id={'featureOptionFlags'}
                         flags={featureOptionFlags.filter((f: Flag) => Object.keys(initSettingsRef.current ? initSettingsRef.current.featureOptions: {}).includes(f.key))}
                         state={featureOptions}
@@ -480,8 +480,84 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                         }}
                       />
                       </div>
+
+                      {/* Large Text Paste Preferences Reset */}
+                      {initSettingsRef.current?.largeTextPastePreferences &&
+                       Object.keys(initSettingsRef.current.largeTextPastePreferences).length > 0 && (
+                        <div className="mt-4 p-3 border border-neutral-300 dark:border-neutral-600 rounded bg-neutral-50 dark:bg-neutral-800/30">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <div className="font-medium text-sm text-black dark:text-white">Large Text Paste Preferences</div>
+                              <div className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                                Your saved preferences for different text types and sizes:
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => {
+                                const currentSettings = getSettings(featureFlags);
+                                const updatedSettings: Settings = {
+                                  ...currentSettings,
+                                  largeTextPastePreferences: {}
+                                };
+                                saveSettings(updatedSettings);
+                                initSettingsRef.current = updatedSettings;
+                                toast.success('Large text preferences cleared');
+                                setHasUnsavedChanges(true);
+                              }}
+                              className="ml-3 px-3 py-1.5 text-sm border rounded border-neutral-400 dark:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors whitespace-nowrap"
+                            >
+                              Clear All
+                            </button>
+                          </div>
+                          <div className="space-y-2">
+                            {Object.entries(initSettingsRef.current.largeTextPastePreferences).map(([key, value]) => {
+                              // Parse the key: "extension-sizeRange"
+                              const [extension, sizeRange] = key.split('-');
+                              const sizeInKB = parseInt(sizeRange) / 1000;
+                              const choiceLabel = value === 'file' ? 'File attachment' : value === 'block' ? 'Text block' : 'Plain text';
+
+                              return (
+                                <div key={key} className="flex items-center justify-between text-xs bg-white dark:bg-neutral-800 px-3 py-2 rounded border border-neutral-200 dark:border-neutral-700 group hover:border-neutral-300 dark:hover:border-neutral-600 transition-colors">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono font-medium text-blue-600 dark:text-blue-400">
+                                      {extension.toUpperCase()}
+                                    </span>
+                                    <span className="text-neutral-500 dark:text-neutral-400">•</span>
+                                    <span className="text-neutral-600 dark:text-neutral-300">
+                                      {sizeInKB > 0 ? `${sizeInKB}+ KB` : '0-100 KB'}
+                                    </span>
+                                    <span className="text-neutral-500 dark:text-neutral-400">→</span>
+                                    <span className="font-medium text-neutral-700 dark:text-neutral-200">
+                                      {choiceLabel}
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      const currentSettings = getSettings(featureFlags);
+                                      const updatedPrefs = { ...currentSettings.largeTextPastePreferences };
+                                      delete updatedPrefs[key];
+                                      const updatedSettings: Settings = {
+                                        ...currentSettings,
+                                        largeTextPastePreferences: updatedPrefs
+                                      };
+                                      saveSettings(updatedSettings);
+                                      initSettingsRef.current = updatedSettings;
+                                      toast.success(`Removed preference for ${extension.toUpperCase()}`);
+                                      setHasUnsavedChanges(true);
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded"
+                                    title="Remove this preference"
+                                  >
+                                    <IconX size={14} className="text-neutral-600 dark:text-neutral-400" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    
+
                   </>
                 },
               ///////////////////////////////////////////////////////////////////////////////

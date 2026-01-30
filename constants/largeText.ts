@@ -6,8 +6,10 @@
  * Thresholds that determine when text is considered "large"
  */
 export const LARGE_TEXT_THRESHOLDS = {
-  /** Character count threshold */
-  CHARACTERS: 500,
+  /** Minimum character count threshold for text block creation */
+  MIN_CHARACTERS: 500,
+  /** Maximum character count threshold before creating file attachment (100KB) */
+  MAX_CHARACTERS: 100000,
   /** Line count threshold */
   LINES: 20,
 } as const;
@@ -95,6 +97,6 @@ export function extractPlaceholderNumber(placeholder: string): number {
  * Default threshold configuration for backward compatibility
  */
 export const DEFAULT_LARGE_TEXT_THRESHOLD = {
-  characters: LARGE_TEXT_THRESHOLDS.CHARACTERS,
+  characters: LARGE_TEXT_THRESHOLDS.MIN_CHARACTERS,
   lines: LARGE_TEXT_THRESHOLDS.LINES,
 } as const;

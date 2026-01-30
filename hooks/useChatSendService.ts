@@ -303,8 +303,10 @@ export function useSendService() {
                     if (selectedConversation?.promptTemplate && isBasePrompt(selectedConversation.promptTemplate.id)) {
                         console.log("Artifacts disabled for base prompt template: ", selectedConversation.promptTemplate.name);
                     }
-                    const isSmartMessagesOn = featureOptions.includeFocusedMessages && (!pluginIds || (pluginIds.includes(PluginID.SMART_MESSAGES)));
-                    console.log("Smart Messages on: ", isSmartMessagesOn)
+
+                    // Disable Smart Messages if large text was pasted
+                    const hasLargeTextPaste = !!message.data?.largeTextChoice;
+                    const isSmartMessagesOn = !hasLargeTextPaste && featureOptions.includeFocusedMessages && (!pluginIds || (pluginIds.includes(PluginID.SMART_MESSAGES)));
 
                     const isMemoryOn = featureFlags.memory && featureOptions.includeMemory && (!pluginIds || (pluginIds.includes(PluginID.MEMORY)));
                     console.log("Memory on: ", isMemoryOn)
@@ -441,17 +443,10 @@ export function useSendService() {
                         options = { ...(options || {}), ragEvaluation: true };
                     }
 
-                    // Check if any attached documents are massive
-                    const hasMassiveDocument = documents?.some(doc => doc.metadata?.isMassive);
-
                     // Advanced Rag is default off for assistant use
-                    // BUT: For massive documents, force skipDocumentCache=false to route through document cache
-                    if (hasMassiveDocument) {
-                        options = { ...(options || {}), skipDocumentCache: false, skipRag: true };
-                        console.log('[MASSIVE DOC ROUTING] Forcing skipDocumentCache=false and skipRag=true for massive document');
-                    } else if (!featureFlags.cachedDocuments || options?.assistantId || options?.groupId) {
-                        options = { ...(options || {}), skipDocumentCache : true};
-                    }
+                    //if (!featureFlags.cachedDocuments || options?.assistantId || options?.groupId) {
+                       // options = { ...(options || {}), skipDocumentCache : true};
+                    //}
 
 
                     if (!featureFlags.codeInterpreterEnabled) {
