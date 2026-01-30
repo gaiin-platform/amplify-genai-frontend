@@ -342,7 +342,7 @@ export const ChatInput = ({
         textSize: number;
         modelLimit?: number;
         maxChars: number;
-        resolve: (choice: 'file' | 'block' | 'plain') => void;
+        resolve: (value: { choice: 'file' | 'block' | 'plain'; rememberChoice: boolean }) => void;
         reject: () => void;
     } | null>(null);
 
