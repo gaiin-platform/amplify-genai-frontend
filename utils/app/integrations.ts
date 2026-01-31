@@ -38,6 +38,7 @@ import {
     IconPlus,
     IconFileImport,
   } from '@tabler/icons-react';
+import { capitalize } from './data';
 
 
 
@@ -214,3 +215,13 @@ export const getOperationIcon = (name: string | undefined) => {
     if (!integrations) return [];
     return integrations.filter((i: string) => i.includes("drive") || i.includes("sharepoint"));
   }
+
+  export  const getIntegrationName = (integration: string) => {
+    switch (integration) {
+        case "microsoft_drive":
+            return "OneDrive";
+        case "microsoft_sharepoint":
+            return "SharePoint";
+    }
+    return capitalize(integration.split('_')[0]);
+}

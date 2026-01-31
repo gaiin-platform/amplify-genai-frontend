@@ -123,6 +123,9 @@ export type IntegrationFileRecord = {
   size: string;
   downloadLink?: string;
   type?: string;
+  sensitivity?: number;
+  sensitivityLabel?: string;
+  attentionNote?: string;
 }
 
 

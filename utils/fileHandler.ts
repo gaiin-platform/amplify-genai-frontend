@@ -35,7 +35,8 @@ export interface FileProcessorOptions {
     onSetKey: (document: AttachedDocument, key: string) => void;
     onSetMetadata: (document: AttachedDocument, metadata: any) => void;
     onSetAbortController: (document: AttachedDocument, abortController: AbortController) => void;
-    
+    onSensitivityBlock?: (fileName: string, labelName: string) => void;
+
     // Services and configuration
     statsService: any;
     featureFlags: any;
@@ -379,7 +380,8 @@ export function processSingleFile(
         groupId,
         ragEnabled,
         props,
-        []
+        [],
+        options.onSensitivityBlock
     );
 }
 /**

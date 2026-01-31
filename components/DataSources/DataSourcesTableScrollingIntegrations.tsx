@@ -30,6 +30,7 @@ interface Props {
     enableDownload?: boolean;
     // New props for selection mode
     onItemSelected?: (file: IntegrationFileRecord, isChecked: boolean) => void;
+    onBatchItemSelected?: (files: IntegrationFileRecord[]) => void;
     isItemSelected?: (fileId: string, isFolder: boolean) => boolean;
     isItemAutoSelected?: (fileId: string, isFolder: boolean) => boolean;
     onFolderPathChange?: (folderHistory: Array<{id: string | null, name: string}>) => void;
@@ -44,6 +45,7 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                                                   disallowedFileExtensions,
                                                   enableDownload,
                                                   onItemSelected,
+                                                  onBatchItemSelected,
                                                   isItemSelected,
                                                   isItemAutoSelected,
                                                   onFolderPathChange,
@@ -192,7 +194,7 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
     // Render the breadcrumb bar.
     const renderBreadcrumbs = () => {
         return !folderHistory ? null : (
-        <div className="bottom-2 flex items-center p-2 pb-5 border-b">
+        <div className="bottom-2 flex items-center p-2 pb-2 border-b">
             {folderHistory.length > 0 && (
             <>
             <ActionButton
@@ -203,7 +205,7 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                     }}
                     title="Navigate to root">
                     <IconArrowNarrowLeft size={20} />
-            </ActionButton> 
+            </ActionButton>
             {folderHistory.map((item, index) => (
                 <React.Fragment key={item.id || index}>
                     <span className="mx-1 text-gray-500">/</span>
@@ -222,7 +224,7 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
             ))}
             </>
             )}
-            
+
         </div>
         );
     };
@@ -258,6 +260,13 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
 
     // Batch selection functions
     const toggleFileSelection = (id: string) => {
+        // Find the file record to check sensitivity
+        const fileRecord = data.find(f => f.id === id);
+        if (fileRecord && !isFolder(fileRecord) && fileRecord.sensitivity === 4) {
+            toast.error(fileRecord.attentionNote || 'This file contains sensitive data and cannot be selected.');
+            return;
+        }
+
         const newSelected = new Set(selectedForBatch);
         if (newSelected.has(id)) {
             newSelected.delete(id);
@@ -271,7 +280,11 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
         if (selectedForBatch.size === data.length) {
             setSelectedForBatch(new Set());
         } else {
-            setSelectedForBatch(new Set(data.map(file => file.id)));
+            // Exclude Level 4 sensitive files from "Select All"
+            const selectableFiles = data.filter(file =>
+                isFolder(file) || !file.sensitivity || file.sensitivity < 4
+            );
+            setSelectedForBatch(new Set(selectableFiles.map(file => file.id)));
         }
     };
 
@@ -425,6 +438,11 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
 
     // Extract file processing logic from onFileSelected
     const processFileUpload = async (item: IntegrationFileRecord): Promise<void> => {
+        // Block Level 4 sensitive files
+        if (item.sensitivity === 4) {
+            throw new Error(item.attentionNote || 'This file contains sensitive data and cannot be accessed.');
+        }
+
         const downloadLink = await getDownloadLinkData(item.id, false);
 
         if (!downloadLink) {
@@ -484,6 +502,12 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
     };
 
     const onFileSelected = async (item: IntegrationFileRecord) => {
+        // Block Level 4 sensitive files immediately
+        if (item.sensitivity === 4) {
+            toast.error(item.attentionNote || 'This file contains sensitive data and cannot be accessed.');
+            return;
+        }
+
         setLoadingMessage("Preparing Document for Upload...");
         // have to get a download link because we need to get the file contents which is only doable by saving it in our internal servers
 
@@ -491,43 +515,92 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
         // console.log("downloadLink: ", downloadLink);
         if (downloadLink) {
             try {
-                
+
                 const response = await fetch(downloadLink);
                 if (!response.ok) throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
-                
+
                 const fileBlob = await response.blob();
 
                 const extension = getExtensionFromFilename(item.name);
-                const actualMimeType = extension ? 
-                    getFileTypeFromExtension(extension) : 
+                const actualMimeType = extension ?
+                    getFileTypeFromExtension(extension) :
                     (fileBlob.type || "application/octet-stream");
 
                 const file = new File(
                     [fileBlob],
                     item.name,
-                    { 
+                    {
                       type: actualMimeType,
                       lastModified: new Date().getTime()
                     }
                   );
-             
+
                 statsService.attachFileEvent(file, featureFlags.uploadDocuments);
-     
+
                 setLoadingMessage("");
 
                 if (onDataSourceSelected) onDataSourceSelected(file);
-            
+
               } catch (error) {
                 console.error('Error fetching or displaying file:', error);
                 alert("Error fetching the file contents at this time. Please try again later...");
                 return;
               }
-       
+
         }
         setLoadingMessage("");
-       
+
     }
 
+
+    // Check if we're inside a folder and if the parent folder is NOT selected
+    const currentFolderId = folderHistory.length > 0 ? folderHistory[folderHistory.length - 1].id : null;
+    const isCurrentFolderSelected = currentFolderId && isItemSelected
+        ? isItemSelected(currentFolderId, true)
+        : false;
+
+    // Check if all items in the current folder are already selected
+    const areAllItemsSelected = () => {
+        if (!isItemSelected || data.length === 0) return false;
+
+        // Filter out Level 4 sensitive files (which can't be selected)
+        const selectableItems = data.filter(item => {
+            const itemIsFolder = isFolder(item);
+            const isSensitive = !itemIsFolder && item.sensitivity === 4;
+            return !isSensitive;
+        });
+
+        if (selectableItems.length === 0) return false;
+
+        // Check if all selectable items are selected
+        return selectableItems.every(item => {
+            const itemIsFolder = isFolder(item);
+            return isItemSelected(item.id, itemIsFolder);
+        });
+    };
+
+    const allItemsAlreadySelected = areAllItemsSelected();
+    const shouldShowSelectAllItems = onItemSelected && currentFolderId && !isCurrentFolderSelected && !allItemsAlreadySelected;
+
+    // Handler for "Select All Items" button
+    const handleSelectAllItems = useCallback(() => {
+        
+        // Collect all items to select (exclude Level 4 sensitive files)
+        const itemsToSelect = data.filter(item => {
+            const itemIsFolder = isFolder(item);
+            const isSensitiveFile = !itemIsFolder && item.sensitivity === 4;
+            return !isSensitiveFile;
+        });
+
+        // Use batch selection if available, otherwise fall back to sequential
+        if (onBatchItemSelected) {
+            onBatchItemSelected(itemsToSelect);
+        } else {
+            itemsToSelect.forEach(item => {
+                onItemSelected?.(item, true);
+            });
+        }
+    }, [data, onItemSelected, onBatchItemSelected]);
 
     //should be memoized or stable
     const allColumns = useMemo<MRT_ColumnDef<IntegrationFileRecord>[]>(
@@ -535,10 +608,24 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
             {
                 accessorKey: 'name',
                 header: 'Name',
-                Header: shouldShowSelectMultiple ? () => (
+                enableSorting: false, // Disable sorting on Name column
+                Header: (shouldShowSelectMultiple || shouldShowSelectAllItems) ? () => (
                     <div className="flex items-center gap-1">
                         <span>Name</span>
-                        {!isSelectMultipleMode && (
+                        {shouldShowSelectAllItems && !isSelectMultipleMode && (
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleSelectAllItems();
+                                }}
+                                className="text-xs px-1.5 py-0.5 ml-1 mr-3 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors whitespace-nowrap"
+                                title="Select all items in this folder individually"
+                            >
+                                Select All Items
+                            </button>
+                        )}
+                        {shouldShowSelectMultiple && !isSelectMultipleMode && (
                             <button
                                 onClick={(e) => {
                                     e.preventDefault();
@@ -606,10 +693,15 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                   return (
                     <div className="flex flex-row items-center gap-2">
                       {/* Checkbox for assistant data source selection (existing) */}
-                      {onItemSelected && (
+                      {/* Don't show checkbox for Level 4 sensitive files */}
+                      {onItemSelected && !(!itemIsFolder && record.sensitivity === 4) && (
                         <div
                           onClick={(e) => e.stopPropagation()}
-                          title={isAutoSelected ? "To deselect items within, uncheck the parent folder." : undefined}
+                          title={
+                            isAutoSelected
+                              ? "To deselect items within, uncheck the parent folder."
+                              : undefined
+                          }
                         >
                           <input
                             type="checkbox"
@@ -623,7 +715,8 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                       )}
 
                       {/* Checkbox for batch selection (new - ChatInput context) */}
-                      {isSelectMultipleMode && shouldShowSelectMultiple && (
+                      {/* Don't show checkbox for Level 4 sensitive files */}
+                      {isSelectMultipleMode && shouldShowSelectMultiple && !(!itemIsFolder && record.sensitivity === 4) && (
                         <div onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
@@ -659,9 +752,33 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                             </span>
                           </div>
                         ) : (
-                          <div className="flex flex-row items-center">
-                            <span>{displayName}</span>
-                            {enableDownload && (
+                          <div className="flex flex-row items-center gap-2">
+                            <span
+                              className={record.sensitivity === 4 ? "text-gray-500 dark:text-gray-500" : ""}
+                              title={record.sensitivity === 4 ? "This file cannot be accessed due to sensitivity restrictions" : undefined}
+                            >
+                              {displayName}
+                            </span>
+                            {/* Sensitivity indicator text label - moved to right of filename */}
+                            {record.sensitivity && record.sensitivity > 1 && (
+                              <span
+                                className={`text-xs font-medium flex-shrink-0 ${
+                                  record.sensitivity === 4 ? 'text-red-500' :
+                                  record.sensitivity === 3 ? 'text-orange-500' :
+                                  'text-yellow-600 dark:text-yellow-500'
+                                }`}
+                                title={
+                                  record.sensitivity === 4 ? 'Level 4 - Confidential (Access Restricted)' :
+                                  record.sensitivity === 3 ? 'Level 3 - Private/Internal' :
+                                  'Level 2 - Personal'
+                                }
+                              >
+                                {record.sensitivity === 4 ? 'Level 4 Critical' :
+                                 record.sensitivity === 3 ? 'Level 3' :
+                                 'Level 2'}
+                              </span>
+                            )}
+                            {enableDownload && record.sensitivity !== 4 && (
                               <div className="ml-auto">
                                 <ActionButton
                                   title="Download File"
@@ -687,6 +804,7 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                 header: 'Size',
                 size: 60,
                 enableColumnFilter: false,
+                enableSorting: false,
                 Cell: ({cell}) => (
                     <span>{cell.getValue<string>()}</span>
                 ),
@@ -695,13 +813,13 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                 {
                     accessorKey: 'mimeType',
                     header: 'Type',
-                    //enableSorting: false,
                     size: 100,
                     maxSize: 100,
+                    enableSorting: false,
                     Edit: ({cell, column, table}) => <>{cell.getValue<string>()}</>,
                 },
         ],
-        [enableDownload, featureFlags.uploadDocuments, isItemSelected, onItemSelected, isSelectMultipleMode, selectedForBatch, data, shouldShowSelectMultiple],
+        [enableDownload, featureFlags.uploadDocuments, isItemSelected, onItemSelected, isSelectMultipleMode, selectedForBatch, data, shouldShowSelectMultiple, shouldShowSelectAllItems, isItemAutoSelected, handleSelectAllItems],
     );
 
     const columns = allColumns.filter(
@@ -742,39 +860,50 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
             showAlertBanner: isError,
             sorting,
         },
-        mantineTableBodyRowProps: ({ row }) => ({
-            onClick: (event) => {
-              event.preventDefault();
-              const record = row.original;
-              const itemIsFolder = isFolder(record);
+        mantineTableBodyRowProps: ({ row }) => {
+            const record = row.original;
+            const itemIsFolder = isFolder(record);
+            const isLevel4Sensitive = !itemIsFolder && record.sensitivity === 4;
 
-              // If in select multiple mode, toggle selection instead of normal behavior
-              if (isSelectMultipleMode && shouldShowSelectMultiple) {
-                toggleFileSelection(record.id);
-                return;
-              }
+            return {
+              onClick: (event) => {
+                event.preventDefault();
 
-              if (itemIsFolder) {
-                // Use functional update to avoid stale closure
-                setFolderHistory((prevHistory) => {
-                  const newHistory = [...prevHistory, { id: record.id, name: record.name }];
-                  onFolderPathChange?.(newHistory);
-                  return newHistory;
-                });
-                setIsLoading(true);
-                fetchFiles(record.id);
-              } else {
-                if (!featureFlags.uploadDocuments) {
-                    toast("Uploading documents is disabled.");
-                } else if (onDataSourceSelected) {
-                    onFileSelected(record);
+                // Block Level 4 sensitive files
+                if (isLevel4Sensitive) {
+                  toast.error(record.attentionNote || 'This file contains sensitive data and cannot be accessed.');
+                  return;
                 }
-              }
-            },
-            sx: {
-              cursor: 'pointer',
-            },
-          }),
+
+                // If in select multiple mode, toggle selection instead of normal behavior
+                if (isSelectMultipleMode && shouldShowSelectMultiple) {
+                  toggleFileSelection(record.id);
+                  return;
+                }
+
+                if (itemIsFolder) {
+                  // Use functional update to avoid stale closure
+                  setFolderHistory((prevHistory) => {
+                    const newHistory = [...prevHistory, { id: record.id, name: record.name }];
+                    onFolderPathChange?.(newHistory);
+                    return newHistory;
+                  });
+                  setIsLoading(true);
+                  fetchFiles(record.id);
+                } else {
+                  if (!featureFlags.uploadDocuments) {
+                      toast("Uploading documents is disabled.");
+                  } else if (onDataSourceSelected) {
+                      onFileSelected(record);
+                  }
+                }
+              },
+              sx: {
+                cursor: isLevel4Sensitive ? 'not-allowed' : 'pointer',
+                opacity: isLevel4Sensitive ? 0.6 : 1,
+              },
+            };
+          },
         mantineTableContainerProps: {
             ref: tableContainerRef,
             sx: {maxHeight:  height ?? '400px'}
@@ -796,10 +925,12 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                     primaryShade: 1,
                 }}
             >
-                <ScrollArea onScroll={() =>{}}>
-                    <MantineReactTable table={table} />
-                </ScrollArea>
-                {renderBreadcrumbs()}
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                    <ScrollArea onScroll={() =>{}} style={{ flex: 1 }}>
+                        <MantineReactTable table={table} />
+                    </ScrollArea>
+                    {renderBreadcrumbs()}
+                </div>
             </MantineProvider>
 
             {/* Batch Process Modal */}

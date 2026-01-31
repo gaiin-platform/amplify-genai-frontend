@@ -4,6 +4,132 @@ import { IMAGE_FILE_TYPES } from "./const";
 import toast from "react-hot-toast";
 import { capitalize } from "./data";
 import { embeddingDocumentStatus, clearEmbeddingStatusCache } from "@/services/adminService";
+import JSZip from "jszip";
+
+/**
+ * Extract Microsoft Information Protection (MIP) sensitivity label from Office files.
+ * Office files (.docx, .xlsx, .pptx) are ZIP archives containing XML metadata.
+ *
+ * @param file - The Office file to check
+ * @returns Object with sensitivity level and label name, or null if no label found
+ */
+export const extractSensitivityLabel = async (file: File): Promise<{ level: number; labelName: string } | null> => {
+    try {
+        const extension = file.name.split('.').pop()?.toLowerCase();
+
+        // Only check Office Open XML files (not .doc, .xls, .ppt which use different format)
+        if (!extension || !['docx', 'xlsx', 'pptx', 'xlsm', 'docm', 'pptm'].includes(extension)) {
+            return null;
+        }
+
+        console.log(`[SENSITIVITY CHECK] Checking file: ${file.name} (${file.size} bytes)`);
+
+        // Read file as array buffer
+        const arrayBuffer = await file.arrayBuffer();
+        console.log(`[SENSITIVITY CHECK] Read ${arrayBuffer.byteLength} bytes from ${file.name}`);
+
+        // Check if file is actually empty or too small to be a valid Office file
+        if (arrayBuffer.byteLength < 100) {
+            console.warn(`[SENSITIVITY CHECK] File ${file.name} is too small (${arrayBuffer.byteLength} bytes) to be a valid Office document`);
+            return null;
+        }
+
+        // Check for ZIP file signature (PK\x03\x04)
+        const view = new Uint8Array(arrayBuffer);
+        const hasZipSignature = view[0] === 0x50 && view[1] === 0x4B && view[2] === 0x03 && view[3] === 0x04;
+
+        if (!hasZipSignature) {
+            console.warn(`[SENSITIVITY CHECK] File ${file.name} does not have ZIP signature. First bytes: ${Array.from(view.slice(0, 4)).map(b => '0x' + b.toString(16)).join(' ')}`);
+            console.warn(`[SENSITIVITY CHECK] This may be an old Office format (.doc, .xls, .ppt) which doesn't support MIP labels`);
+            return null; // Old Office format or corrupted file
+        }
+
+        console.log(`[SENSITIVITY CHECK] Valid ZIP signature found in ${file.name}`);
+
+        // Load as ZIP using JSZip with lenient options
+        const zip = await JSZip.loadAsync(arrayBuffer, {
+            checkCRC32: false, // Don't validate checksums - be lenient
+        });
+
+        console.log(`[SENSITIVITY CHECK] Successfully loaded ZIP structure from ${file.name}`);
+
+        // Extract custom properties XML where MIP labels are stored
+        const customPropsFile = zip.file('docProps/custom.xml');
+
+        if (!customPropsFile) {
+            console.log(`[SENSITIVITY CHECK] No custom.xml found in ${file.name} - file has no sensitivity label`);
+            return null;
+        }
+
+        const customPropsXml = await customPropsFile.async('string');
+        console.log(`[SENSITIVITY CHECK] Found custom.xml in ${file.name}, size: ${customPropsXml.length} chars`);
+
+        // Look for MIP label properties
+        // Format: <property name="MSIP_Label_<GUID>_Name"><vt:lpwstr>Level 4 Critical</vt:lpwstr></property>
+        const labelNameMatch = customPropsXml.match(/MSIP_Label_[a-f0-9-]+_Name">\s*<vt:lpwstr>([^<]+)<\/vt:lpwstr>/i);
+
+        if (!labelNameMatch) {
+            console.log(`[SENSITIVITY CHECK] No MIP label found in custom.xml of ${file.name}`);
+            return null;
+        }
+
+        const labelName = labelNameMatch[1].trim();
+        console.log(`[SENSITIVITY CHECK] ✓ Found label: "${labelName}" in ${file.name}`);
+
+        // Determine sensitivity level (same logic as backend)
+        const labelNameLower = labelName.toLowerCase();
+
+        // Check exact "level X" patterns first
+        if (labelNameLower.includes('level 4')) {
+            console.warn(`[SENSITIVITY CHECK] ⚠️ LEVEL 4 DETECTED: "${labelName}"`);
+            return { level: 4, labelName };
+        }
+        if (labelNameLower.includes('level 3')) {
+            console.log(`[SENSITIVITY CHECK] Level 3 detected: "${labelName}"`);
+            return { level: 3, labelName };
+        }
+        if (labelNameLower.includes('level 2')) {
+            console.log(`[SENSITIVITY CHECK] Level 2 detected: "${labelName}"`);
+            return { level: 2, labelName };
+        }
+        if (labelNameLower.includes('level 1')) {
+            console.log(`[SENSITIVITY CHECK] Level 1 detected: "${labelName}"`);
+            return { level: 1, labelName };
+        }
+
+        // Fallback keyword matching
+        const level4Keywords = ['critical', 'confidential', 'restricted', 'secret', 'highly confidential', 'classified', 'sensitive', 'proprietary'];
+        if (level4Keywords.some(keyword => labelNameLower.includes(keyword))) {
+            console.warn(`[SENSITIVITY CHECK] ⚠️ LEVEL 4 DETECTED (keyword): "${labelName}"`);
+            return { level: 4, labelName };
+        }
+
+        const level3Keywords = ['internal', 'private', 'company', 'organization'];
+        if (level3Keywords.some(keyword => labelNameLower.includes(keyword))) {
+            console.log(`[SENSITIVITY CHECK] Level 3 detected (keyword): "${labelName}"`);
+            return { level: 3, labelName };
+        }
+
+        if (labelNameLower.includes('personal')) {
+            console.log(`[SENSITIVITY CHECK] Level 2 detected (keyword): "${labelName}"`);
+            return { level: 2, labelName };
+        }
+
+        const level1Keywords = ['public', 'non-sensitive', 'general', 'unrestricted'];
+        if (level1Keywords.some(keyword => labelNameLower.includes(keyword))) {
+            console.log(`[SENSITIVITY CHECK] Level 1 detected (keyword): "${labelName}"`);
+            return { level: 1, labelName };
+        }
+
+        console.log(`[SENSITIVITY CHECK] Label "${labelName}" did not match any level patterns`);
+        return null;
+
+    } catch (error) {
+        console.error(`[SENSITIVITY CHECK] Error checking sensitivity label for ${file.name}:`, error);
+        console.error(`[SENSITIVITY CHECK] File will be allowed through (fail-open policy)`);
+        return null; // Fail open - don't block on errors
+    }
+}
 
 export const downloadDataSourceFile = async (dataSource: DataSource, groupId: string | undefined = undefined) => {
     const response = await getFileDownloadUrl(dataSource.id, groupId); // support images too 

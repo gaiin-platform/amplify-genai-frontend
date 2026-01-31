@@ -1,5 +1,5 @@
 import React, { FC, useContext, useState, useEffect } from 'react';
-import { IconAlertTriangle, IconFolder, IconFolders } from '@tabler/icons-react';
+import { IconAlertTriangle, IconFolder, IconFolders, IconTrash } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { capitalize } from '@/utils/app/data';
 import DataSourcesTableScrollingIntegrations from '@/components/DataSources/DataSourcesTableScrollingIntegrations';
@@ -14,7 +14,7 @@ import { SchedulerPanel, SchedulerAlarmButton } from '@/components/ReusableCompo
 import { getScheduledTask } from '@/services/scheduledTasksService';
 import { cronToDriveRescanSchedule } from '@/utils/app/scheduledTasks';
 import { AssistantDefinition } from '@/types/assistant';
-import { getDriveFileIntegrationTypes } from '@/utils/app/integrations';
+import { getDriveFileIntegrationTypes, getIntegrationName } from '@/utils/app/integrations';
 import { translateIntegrationIcon } from '@/components/Integrations/IntegrationsDialog';
 
 
@@ -84,6 +84,8 @@ export const AssistantDriveDataSources: FC<Props> = ({
   const [currentFolderPath, setCurrentFolderPath] = useState<string[]>([]);
   const [currentFolderHistory, setCurrentFolderHistory] = useState<Array<{id: string | null, name: string}>>([]);
 
+  const [shiftUp, setShiftUp] = useState(false);
+
   // Add state for the rescan scheduler
   const [showRescanScheduler, setShowRescanScheduler] = useState(false);
   const [rescanSchedule, setRescanSchedule] = useState<DriveRescanSchedule>({
@@ -101,7 +103,9 @@ export const AssistantDriveDataSources: FC<Props> = ({
   };
 
   const getSelectedParentFolder = (integrationData: IntegrationDriveData, currentPath: string[]) => {
-    return currentPath.find(folderId => Object.keys(integrationData.folders).includes(folderId));
+    const selectedFolders = Object.keys(integrationData.folders);
+    const result = currentPath.find(folderId => selectedFolders.includes(folderId));
+    return result;
   };
 
   const getSelectedParentFolderName = (selectedFolderId: string, folderHistory: Array<{id: string | null, name: string}>) => {
@@ -289,10 +293,10 @@ export const AssistantDriveDataSources: FC<Props> = ({
   const handleFileSelection = (file: IntegrationFileRecord, isChecked: boolean) => {
     const isFolder = /folder|directory|site|library/i.test(file.mimeType);
     const currentIntegration = selectedIntegration as keyof DriveFilesDataSources;
-    
+
     // Create a proper deep copy FIRST before any modifications
     const updatedSelectionDs: DriveFilesDataSources = {};
-    
+
     // Deep copy each integration
     Object.keys(selectedDataSources).forEach(key => {
       const integrationKey = key as keyof DriveFilesDataSources;
@@ -303,7 +307,7 @@ export const AssistantDriveDataSources: FC<Props> = ({
         };
       }
     });
-    
+
     // Initialize integration object if it doesn't exist (on the COPY, not original)
     if (!updatedSelectionDs[currentIntegration]) {
       updatedSelectionDs[currentIntegration] = {
@@ -321,7 +325,7 @@ export const AssistantDriveDataSources: FC<Props> = ({
         // Check if folder exists in init data to preserve existing data
         const initFolderData = initDriveDataSources?.[currentIntegration]?.folders?.[file.id];
         integrationData.folders[file.id] = initFolderData || {};
-        
+
       } else {
         // Deselect folder
         delete integrationData.folders[file.id];
@@ -348,6 +352,51 @@ export const AssistantDriveDataSources: FC<Props> = ({
     onSelectedDataSourcesChange(updatedSelectionDs);
   };
 
+  // Batch selection handler for "Select All Items"
+  const handleBatchFileSelection = (files: IntegrationFileRecord[]) => {
+    const currentIntegration = selectedIntegration as keyof DriveFilesDataSources;
+
+    // Create a proper deep copy
+    const updatedSelectionDs: DriveFilesDataSources = {};
+
+    // Deep copy each integration
+    Object.keys(selectedDataSources).forEach(key => {
+      const integrationKey = key as keyof DriveFilesDataSources;
+      if (selectedDataSources[integrationKey]) {
+        updatedSelectionDs[integrationKey] = {
+          folders: { ...selectedDataSources[integrationKey]!.folders },
+          files: { ...selectedDataSources[integrationKey]!.files }
+        };
+      }
+    });
+
+    // Initialize integration object if it doesn't exist
+    if (!updatedSelectionDs[currentIntegration]) {
+      updatedSelectionDs[currentIntegration] = {
+        folders: {},
+        files: {}
+      };
+    }
+
+    const integrationData = updatedSelectionDs[currentIntegration]!;
+
+    // Add all files in a single batch
+    files.forEach(file => {
+      const isFolder = /folder|directory|site|library/i.test(file.mimeType);
+
+      if (isFolder) {
+        const initFolderData = initDriveDataSources?.[currentIntegration]?.folders?.[file.id];
+        integrationData.folders[file.id] = initFolderData || {};
+      } else {
+        const initFileData = initDriveDataSources?.[currentIntegration]?.files?.[file.id];
+        integrationData.files[file.id] = initFileData || { type: file.type ?? file.mimeType };
+      }
+    });
+
+    // Single state update for all files
+    onSelectedDataSourcesChange(updatedSelectionDs);
+  };
+
   const isItemSelected = (fileId: string, isFolder: boolean) => {
     const integrationData = selectedDataSources[selectedIntegration as keyof DriveFilesDataSources];
     if (!integrationData) return false;
@@ -371,18 +420,22 @@ export const AssistantDriveDataSources: FC<Props> = ({
 
   const isItemAutoSelected = (fileId: string, isFolder: boolean) => {
     const integrationData = selectedDataSources[selectedIntegration as keyof DriveFilesDataSources];
-    if (!integrationData) return false;
+    if (!integrationData) {
+      return false;
+    }
 
     // Check if item is directly selected
     const isDirectlySelected = isFolder
       ? Object.keys(integrationData.folders).includes(fileId)
       : Object.keys(integrationData.files).includes(fileId);
 
+
     if (isDirectlySelected) return false; // Not auto-selected, it's directly selected
 
     // Check if a parent folder is selected (auto-selection)
     const currentPath = getCurrentFolderPath();
-    return !!getSelectedParentFolder(integrationData, currentPath);
+    const hasSelectedParent = !!getSelectedParentFolder(integrationData, currentPath);
+    return hasSelectedParent;
   };
 
   const getSelectionsCount = (integration: string) => {
@@ -558,6 +611,8 @@ export const AssistantDriveDataSources: FC<Props> = ({
   return (
     <div className="my-2">
     <ExpansionComponent title="Attach Drive Data Sources"
+    onOpen={() => setShiftUp(true)}
+    onClose={() => setShiftUp(false)}
     closedWidget= { <IconFolders size={18} />}
     content={
         (connectedDriveIntegrations?.length === 0) ?
@@ -662,19 +717,24 @@ export const AssistantDriveDataSources: FC<Props> = ({
             style={{ height, minWidth, minHeight: '400px' }}
           >
             <div className="relative">
-              {/* Deselect All Button */}
+              {/* Reset Button */}
               {(() => {
                 const { folderCount, fileCount } = getSelectionsCount(selectedIntegration);
                 const hasSelections = folderCount > 0 || fileCount > 0;
 
                 if (hasSelections) {
+              
+                  const integrationName = getIntegrationName(selectedIntegration);
+                  console.log('integrationName: ', selectedIntegration);
                   return (
                     <div className="absolute top-2 right-2 z-10">
                       <button
                         onClick={handleDeselectAll}
-                        className="px-3 py-1 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-md transition-colors border border-red-200 dark:border-red-800"
+                        title={`Remove all items selected within ${integrationName}`}
+                        className="px-3 py-1 mr-10 mt-2 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-md transition-colors border border-red-200 dark:border-red-800 flex items-center gap-1.5"
                       >
-                        Deselect All
+                        <IconTrash size={16} />
+                        Reset
                       </button>
                     </div>
                   );
@@ -686,6 +746,7 @@ export const AssistantDriveDataSources: FC<Props> = ({
                   key={selectedIntegration} // Force re-render when integration changes
                   driveId={selectedIntegration}
                   onItemSelected={handleFileSelection}
+                  onBatchItemSelected={handleBatchFileSelection}
                   onFolderPathChange={handleFolderPathChange}
                   disallowedFileExtensions={disallowedFileExtensions}
                   height={height}
@@ -713,7 +774,9 @@ export const AssistantDriveDataSources: FC<Props> = ({
         </div>
     }
     />
-    {renderSelectionPreview()}
+    {<div style={{"transform": shiftUp ? "translateY(-70px)" : ""}}> 
+      {renderSelectionPreview()}
+    </div>}
     </div>
   );
 };
@@ -725,7 +788,7 @@ export const cleanupRemovedDatasources = async (
     initDriveDataSources: DriveFilesDataSources,
     currentIntegrationDataSources: DriveFilesDataSources
     ) => {
-    console.log("Cleaning up any unchecked drive datasources...");
+    // console.log("Cleaning up any unchecked drive datasources...");
     const deletionPromises: Promise<void>[] = [];
     
     // Iterate through each integration provider (google, microsoft, etc.)
