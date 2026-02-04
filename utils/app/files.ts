@@ -292,7 +292,10 @@ export const startFileReprocessingWithPolling = async (options: FileReprocessing
     const result = await reprocessFile(key);
     if (result.success) {
       toast(successMessage);
-      
+
+      // Add to local cache for immediate loading indicator (survives component remount)
+      addToReprocessCache(key);
+
       // Start polling for status updates
       startFileStatusPolling({ key, fileType, setPollingFiles, setEmbeddingStatus, onSuccess, onError });
     } else {
@@ -321,6 +324,64 @@ export const startFileReprocessingWithPolling = async (options: FileReprocessing
 
 // Threshold for showing refresh vs reprocess button (in minutes)
 const REPROCESS_THRESHOLD_MINUTES = 5;
+
+// Local cache key for tracking recently triggered reprocessing
+const REPROCESS_CACHE_KEY = 'recent_reprocess_triggers';
+
+/**
+ * Add file to local cache when reprocess is triggered
+ * This provides immediate loading feedback before server updates timestamp
+ */
+const addToReprocessCache = (fileKey: string): void => {
+  try {
+    const cache = getReprocessCache();
+    cache[fileKey] = Date.now();
+    localStorage.setItem(REPROCESS_CACHE_KEY, JSON.stringify(cache));
+    console.log(`[REPROCESS CACHE] Added ${fileKey} to cache at ${new Date().toISOString()}`);
+  } catch (error) {
+    console.error('[REPROCESS CACHE] Failed to add to cache:', error);
+  }
+};
+
+/**
+ * Get all recently triggered reprocessing from cache
+ */
+const getReprocessCache = (): { [key: string]: number } => {
+  try {
+    const cached = localStorage.getItem(REPROCESS_CACHE_KEY);
+    return cached ? JSON.parse(cached) : {};
+  } catch (error) {
+    console.error('[REPROCESS CACHE] Failed to read cache:', error);
+    return {};
+  }
+};
+
+/**
+ * Check if file was recently triggered for reprocessing (from local cache)
+ */
+const isInReprocessCache = (fileKey: string): boolean => {
+  try {
+    const cache = getReprocessCache();
+    const timestamp = cache[fileKey];
+
+    if (!timestamp) return false;
+
+    const minutesSince = (Date.now() - timestamp) / (60 * 1000);
+    const isRecent = minutesSince <= REPROCESS_THRESHOLD_MINUTES;
+
+    // Clean up old entries
+    if (!isRecent) {
+      delete cache[fileKey];
+      localStorage.setItem(REPROCESS_CACHE_KEY, JSON.stringify(cache));
+    
+    }
+
+    return isRecent;
+  } catch (error) {
+    console.error('[REPROCESS CACHE] Failed to check cache:', error);
+    return false;
+  }
+};
 
 /**
  * Helper function to check how many minutes have passed since a timestamp
@@ -411,29 +472,46 @@ export const getFileAction = (
 };
 
 /**
- * Check if a file was recently reprocessed (within the threshold)
- * This is used to show a loading indicator instead of the reprocess button
- * @deprecated Use getFileAction() instead for better UX
+ * Check if a file should show a loading indicator
+ * Shows loader if file is actively being processed or was recently reprocessed
+ *
+ * This provides real-time feedback across component remounts (e.g., closing/reopening selector)
+ * by checking local cache (immediate feedback) and server timestamps.
+ *
+ * @param fileKey File identifier (used for cache lookup)
+ * @param createdAt ISO timestamp string of when the file was created
+ * @param status Current processing status from server
+ * @param metadata Optional metadata containing lastUpdated timestamp
+ * @returns true if loading indicator should be shown, false otherwise
  */
-export const isRecentlyReprocessed = (createdAt: string, status: string, metadata?: { lastUpdated?: string; failedChunks?: number; totalChunks?: number }): boolean => {
-  // Don't show loader for completed or failed files
+export const shouldShowLoadingIndicator = (fileKey: string, createdAt: string, status: string, metadata?: { lastUpdated?: string; failedChunks?: number; totalChunks?: number }): boolean => {
+
+  // Never show loader for completed or failed files
   if (status === 'completed' || status === 'failed') {
-    return false;
+ 
   }
 
-  // For other statuses (processing, pending, etc.), check if it's within threshold
+  // PRIORITY 1: Check local cache first (immediate feedback, survives remount)
+  // If user just clicked reprocess, show loader even if server hasn't updated yet
+  if (isInReprocessCache(fileKey)) return true;
+
+  // PRIORITY 2: Check server timestamp (in case cache was cleared or expired)
+  // For ALL other statuses (processing, starting, not_found, terminated, etc.),
+  // ONLY show loader if recently updated within 5 minutes
   const minutesSince = getMinutesSinceTimestamp(createdAt, metadata);
-  
-  // If we can't parse the time, don't show loader
-  if (minutesSince === null) {
-    return false;
-  }
-  
+
+ 
+  // If we can't parse the time, don't show loader (safe default)
+  if (minutesSince === null) return false;
+
   // Handle future timestamps (shouldn't happen but be defensive)
-  if (minutesSince < 0) {
-    return true; // Treat future timestamps as "recently processed"
-  }
+  if (minutesSince < 0) return true; // Treat future timestamps as "recently processed"
   
-  // Return true if the file was processed within the threshold
-  return minutesSince <= REPROCESS_THRESHOLD_MINUTES;
+
+  // Show loader ONLY if file was updated within threshold (likely still processing)
+  // This prevents showing loader for files stuck in 'processing' status for days
+  const shouldShow = minutesSince <= REPROCESS_THRESHOLD_MINUTES;
+
+  return shouldShow;
 };
+

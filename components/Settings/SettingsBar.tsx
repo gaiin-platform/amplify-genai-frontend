@@ -80,8 +80,6 @@ export const SettingsBar = () => {
         });
         homeDispatch({ field: 'folders', value: folders });
         homeDispatch({ field: 'prompts', value: prompts });
-
-        window.location.reload();
     };
 
     const handleClearConversations = () => {

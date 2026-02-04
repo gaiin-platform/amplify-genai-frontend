@@ -1,5 +1,6 @@
 import React, {useContext, useEffect, useMemo, useRef, useState} from 'react';
-import {IconDownload, IconTrash, IconRefresh, IconLoader2, IconCheck, IconX, IconReload} from "@tabler/icons-react";
+import {IconDownload, IconTrash, IconRefresh, IconLoader2, IconCheck, IconX} from "@tabler/icons-react";
+import ReprocessButton from './ReprocessButton';
 import toast from 'react-hot-toast';
 import {Checkbox} from '@/components/ReusableComponents/CheckBox';
 import {
@@ -15,7 +16,7 @@ import {MantineProvider} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
 import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags, getFileDownloadUrl} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
-import { downloadDataSourceFile, deleteDatasourceFile, extractKey, getDocumentStatusConfig, getFileAction, startFileReprocessingWithPolling, startFileStatusPolling } from '@/utils/app/files';
+import { downloadDataSourceFile, deleteDatasourceFile, extractKey, getDocumentStatusConfig, getFileAction, shouldShowLoadingIndicator, startFileReprocessingWithPolling, startFileStatusPolling } from '@/utils/app/files';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
 import { IMAGE_FILE_TYPES } from '@/utils/app/const';
@@ -77,7 +78,7 @@ const DataSourcesTable = () => {
     const fetchedStatusKeys = useRef<Set<string>>(new Set());
     // Track files being reprocessed/polled
     const [pollingFiles, setPollingFiles] = useState<Set<string>>(new Set());
-    
+
     // Multi-select delete state
     const [isDeleteMode, setIsDeleteMode] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -565,7 +566,7 @@ const DataSourcesTable = () => {
 
                     return (
                         <div className="flex items-center justify-start gap-2">
-                            <span 
+                            <span
                                 className={`${config.color} text-xs px-1.5 py-0.5 rounded font-normal whitespace-nowrap`}
                                 title={tooltipText}
                             >
@@ -578,14 +579,18 @@ const DataSourcesTable = () => {
                             </span>
                             {/* Show loader if actively polling, or action button based on status/time */}
                             {!IMAGE_FILE_TYPES.includes(fileType) && (() => {
-                                // Show spinner if actively polling this file
-                                if (pollingFiles.has(cell.row.original.id)) {
+                                // Show spinner if:
+                                // 1. Actively polling (pollingFiles state - immediate feedback)
+                                // 2. In local reprocess cache (immediate feedback, survives remount)
+                                // 3. Recently updated within 5 min based on server timestamp
+                                if (pollingFiles.has(cell.row.original.id) ||
+                                    shouldShowLoadingIndicator(cell.row.original.id, cell.row.original.createdAt, status, metadata)) {
                                     return <LoadingIcon style={{ width: "18px", height: "18px" }} />;
                                 }
-                                
+
                                 // Determine which action to show
                                 const action = getFileAction(cell.row.original.createdAt, status, metadata);
-                                
+
                                 if (action === 'refresh') {
                                     // Within 5 min: Show refresh button (check status + start polling)
                                     return (
@@ -606,22 +611,16 @@ const DataSourcesTable = () => {
                                         </ActionButton>
                                     );
                                 }
-                                
+
                                 if (action === 'reprocess') {
                                     // After 5 min or failed: Show reprocess button
                                     return (
-                                        <ActionButton
-                                            title='Regenerate text extraction and embeddings for this file.'
-                                            handleClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                if (confirm("Are you sure you want to regenerate the text extraction and embeddings for this file?")) {
-                                                    fileReprocessing(cell.row.original.id);
-                                                }
-                                            }}
-                                        >
-                                            <IconReload size={16} />
-                                        </ActionButton>
+                                        <ReprocessButton
+                                            fileId={cell.row.original.id}
+                                            metadata={cell.row.original.data}
+                                            onReprocess={fileReprocessing}
+                                            status={status}
+                                        />
                                     );
                                 }
                                 

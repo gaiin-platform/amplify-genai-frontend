@@ -1,5 +1,6 @@
 import React, {FC, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
-import {IconDownload, IconTrash, IconLoader2, IconCheck, IconX, IconReload, IconRefresh} from "@tabler/icons-react";
+import {IconDownload, IconTrash, IconLoader2, IconCheck, IconX, IconRefresh} from "@tabler/icons-react";
+import ReprocessButton from './ReprocessButton';
 import toast from 'react-hot-toast';
 import {Checkbox} from '@/components/ReusableComponents/CheckBox';
 import {
@@ -17,7 +18,7 @@ import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags} from "@/service
 import {TagsList} from "@/components/Chat/TagsList";
 import {DataSource} from "@/types/chat";
 import { v4 as uuidv4 } from 'uuid';
-import { deleteDatasourceFile, downloadDataSourceFile, extractKey, getDocumentStatusConfig, getFileAction, startFileReprocessingWithPolling, startFileStatusPolling } from '@/utils/app/files';
+import { deleteDatasourceFile, downloadDataSourceFile, extractKey, getDocumentStatusConfig, getFileAction, shouldShowLoadingIndicator, startFileReprocessingWithPolling, startFileStatusPolling } from '@/utils/app/files';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
 import { IMAGE_FILE_TYPES } from '@/utils/app/const';
@@ -93,7 +94,14 @@ const DataSourcesTableScrolling: FC<Props> = ({
     const fetchedStatusKeys = useRef<Set<string>>(new Set());
     // Track files being reprocessed/polled
     const [pollingFiles, setPollingFiles] = useState<Set<string>>(new Set());
-    
+
+    // Backdoor click tracking for "not_found" status (-----)
+    // Click 5 times consecutively to force show reprocess button
+    // Use ref to store the Set so it persists across renders
+    const showReprocessForFilesRef = useRef<Set<string>>(new Set());
+    const [forceUpdate, setForceUpdate] = useState(0);
+    const clickCountsRef = useRef<Map<string, { count: number; lastClick: number }>>(new Map());
+
     // Multi-select delete state
     const [isDeleteMode, setIsDeleteMode] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -102,6 +110,38 @@ const DataSourcesTableScrolling: FC<Props> = ({
     // Multi-select mode state
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [selectedForAction, setSelectedForAction] = useState<Set<string>>(new Set());
+
+    // Backdoor handler: Click "-----" status 5 times to force show reprocess button
+    const handleStatusClick = (e: React.MouseEvent, fileId: string, status: string) => {
+        // Only activate backdoor for "not_found" status
+        if (status !== 'not_found') return;
+
+        // CRITICAL: Stop event propagation to prevent row click
+        e.preventDefault();
+        e.stopPropagation();
+
+        const now = Date.now();
+        const fileData = clickCountsRef.current.get(fileId) || { count: 0, lastClick: 0 };
+        const timeSinceLastClick = now - fileData.lastClick;
+
+        // Reset counter if more than 3 seconds since last click
+        if (timeSinceLastClick > 3000 && fileData.count > 0) {
+            fileData.count = 0;
+        }
+
+        // Increment count
+        fileData.count += 1;
+        fileData.lastClick = now;
+        clickCountsRef.current.set(fileId, fileData);
+
+        if (fileData.count >= 5) {
+            // Add to ref Set and force re-render
+            showReprocessForFilesRef.current.add(fileId);
+            setForceUpdate(prev => prev + 1); // Trigger re-render
+            // Reset counter
+            clickCountsRef.current.set(fileId, { count: 0, lastClick: now });
+        }
+    };
 
     const getTypeFromCommonName = (commonName: string) => {
         const foundType = Object.entries(mimeTypeToCommonName)
@@ -789,9 +829,10 @@ const DataSourcesTableScrolling: FC<Props> = ({
 
                     return (
                         <div className="flex items-center justify-start gap-2">
-                            <span 
-                                className={`${config.color} text-xs px-1.5 py-0.5 rounded font-normal whitespace-nowrap`}
+                            <span
+                                className={`${config.color} text-xs px-1.5 py-0.5 rounded font-normal whitespace-nowrap ${status === 'not_found' ? 'cursor-pointer select-none hover:opacity-70 active:scale-95 transition-all' : ''}`}
                                 title={tooltipText}
+                                onClick={(e) => handleStatusClick(e, cell.row.original.id, status)}
                             >
                                 {capitalize(config.text)}
                                 {metadata?.failedChunks !== undefined && metadata?.totalChunks !== undefined && (
@@ -802,14 +843,19 @@ const DataSourcesTableScrolling: FC<Props> = ({
                             </span>
                             {/* Show loader if actively polling, or action button based on status/time */}
                             {!IMAGE_FILE_TYPES.includes(fileType) && (() => {
-                                // Show spinner if actively polling this file
-                                if (pollingFiles.has(cell.row.original.id)) {
+                                // Show spinner if:
+                                // 1. Actively polling (pollingFiles state - immediate feedback)
+                                // 2. In local reprocess cache (immediate feedback, survives remount)
+                                // 3. Recently updated within 5 min based on server timestamp
+                                if (pollingFiles.has(cell.row.original.id) ||
+                                    shouldShowLoadingIndicator(cell.row.original.id, cell.row.original.createdAt, status, metadata)) {
                                     return <LoadingIcon style={{ width: "18px", height: "18px" }} />;
                                 }
-                                
+
                                 // Determine which action to show
                                 const action = getFileAction(cell.row.original.createdAt, status, metadata);
-                                
+                                const isForceShow = showReprocessForFilesRef.current.has(cell.row.original.id);
+
                                 if (action === 'refresh') {
                                     // Within 5 min: Show refresh button (check status + start polling)
                                     return (
@@ -830,22 +876,17 @@ const DataSourcesTableScrolling: FC<Props> = ({
                                         </ActionButton>
                                     );
                                 }
-                                
+
                                 if (action === 'reprocess') {
                                     // After 5 min or failed: Show reprocess button
                                     return (
-                                        <ActionButton
-                                            title='Regenerate text extraction and embeddings for this file.'
-                                            handleClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                if (confirm("Are you sure you want to regenerate the text extraction and embeddings for this file?")) {
-                                                    fileReprocessing(cell.row.original.id);
-                                                }
-                                            }}
-                                        >
-                                            <IconReload size={16} />
-                                        </ActionButton>
+                                        <ReprocessButton
+                                            fileId={cell.row.original.id}
+                                            metadata={cell.row.original.data}
+                                            onReprocess={fileReprocessing}
+                                            status={status}
+                                            forceShow={isForceShow}
+                                        />
                                     );
                                 }
                                 

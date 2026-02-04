@@ -1,5 +1,6 @@
 import React, {FC, useContext, useEffect, useState} from 'react';
-import { IconCircleX, IconCheck, IconWorld, IconSitemap, IconReload } from '@tabler/icons-react';
+import { IconCircleX, IconCheck, IconWorld, IconSitemap } from '@tabler/icons-react';
+import ReprocessButton from '../DataSources/ReprocessButton';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
@@ -7,7 +8,7 @@ import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import Search from '../Search';
 import { embeddingDocumentStatus } from '@/services/adminService';
-import { extractKey, getDocumentStatusConfig, shouldShowReprocessButton, isRecentlyReprocessed, startFileReprocessingWithPolling } from '@/utils/app/files';
+import { extractKey, getDocumentStatusConfig, shouldShowReprocessButton, shouldShowLoadingIndicator, startFileReprocessingWithPolling } from '@/utils/app/files';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
 import { IMAGE_FILE_TYPES } from '@/utils/app/const';
 import HomeContext from '@/pages/api/home/home.context';
@@ -281,36 +282,33 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
 
     const reprocessButton = (doc: AttachedDocument) => {
         if (IMAGE_FILE_TYPES.includes(doc.type)) return null;
-        
+
         const key = extractKey(doc);
         const status = embeddingStatus?.[key];
         const metadata = embeddingStatus?.metadata?.[key];
         const createdAt = doc.metadata?.createdAt || new Date().toISOString();
-        
-        // Show loader if recently reprocessed (within last 5 minutes) or currently polling
-        if (isRecentlyReprocessed(createdAt, status || 'unknown', metadata) || pollingFiles.has(key)) {
+
+        // Show loader if:
+        // 1. Actively polling (pollingFiles state - immediate feedback)
+        // 2. In local reprocess cache (immediate feedback, survives remount)
+        // 3. Recently updated within 5 min based on server timestamp
+        if (pollingFiles.has(key) || shouldShowLoadingIndicator(key, createdAt, status || 'unknown', metadata)) {
             return <LoadingIcon style={{ width: "16px", height: "16px", color: lightMode === 'dark' ? 'white' : 'gray'}} />;
         }
-        
+
         // Show reprocess button if conditions are met
         if (!shouldShowReprocessButton(createdAt, status || 'unknown', metadata)) {
             return null;
         }
-        
-        return (
-        <ActionButton
-            title='Regenerate text extraction and embeddings for this file.'
-            handleClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (confirm("Are you sure you want to regenerate the text extraction and embeddings for this file?")) {
-                    fileReprocessing(key);
-                }
-            }}
-        > 
-            <IconReload size={16} />
-        </ActionButton>)
 
+        return (
+            <ReprocessButton
+                fileId={key}
+                metadata={doc.metadata}
+                onReprocess={fileReprocessing}
+                status={status}
+            />
+        );
     }
 
     const embeddingStatusIndicator = (doc: AttachedDocument) => {

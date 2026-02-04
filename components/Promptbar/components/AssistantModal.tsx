@@ -43,9 +43,6 @@ import { DriveFilesDataSources } from '@/types/integrations';
 import { determineWebsiteScanCron, manageScheduledTasks, updateScheduledTasks, determineDriveScanCron, AssistantScheduledTaskUses } from '@/utils/app/scheduledTasks';
 import { validateUrl } from '@/utils/app/data';
 
-// Threshold for massive documents that cannot be used with assistants
-// Assistants require RAG indexing, which will crash with documents >= 400K tokens
-const MASSIVE_DOCUMENT_TOKEN_THRESHOLD = 400000;
 
 /**
  * Validates if a document is too large for assistant use.
