@@ -278,7 +278,7 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetad
                     <span className="font-semibold">{blockedFile.fileName}</span> can not be uploaded.
                   </p>
                   <p className="text-sm text-gray-700 dark:text-gray-300">
-                    This file is marked as <span className="font-semibold text-red-600 dark:text-red-400">"{blockedFile.labelName}"</span> and contains sensitive data that should not be uploaded to Amplify.
+                    This file is marked as <span className="font-semibold text-red-600 dark:text-red-400">&quot;{blockedFile.labelName}&quot;</span> and contains sensitive data that should not be uploaded to Amplify.
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     Level 4 (Critical/Confidential) files are restricted for security compliance.
