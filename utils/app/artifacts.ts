@@ -9,11 +9,24 @@ import { convert, ConversionOptions } from "@/services/downloadService";
 import { LatestExportFormat } from "@/types/export";
 import { Conversation } from "@/types/chat";
 
+const sanitizeFilename = (filename: string): string => {
+    // Remove or replace characters that are problematic in filenames
+    // Keep: letters, numbers, dots, hyphens, underscores, spaces
+    return filename
+        .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_') // Replace illegal characters with underscore
+        .replace(/\s+/g, '_') // Replace spaces with underscores
+        .replace(/_{2,}/g, '_') // Replace multiple underscores with single
+        .replace(/^\.+/, '') // Remove leading dots
+        .trim();
+};
+
 const downloadBlob = (blob: Blob, filename: string) => {
+        const sanitized = sanitizeFilename(filename);
+        console.log(`[DOWNLOAD] Original: "${filename}" -> Sanitized: "${sanitized}"`);
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = filename;
+        a.download = sanitized;
         a.click();
         URL.revokeObjectURL(url);
     };
@@ -61,17 +74,21 @@ export const downloadArtifacts = async (artifactName: string, textContent: strin
             };
 
             const result = await convert(conversionOptions, downloadData);
+            console.log("[DOWNLOAD] Conversion result:", result);
 
             if (result.success) {
                 const downloadUrl = result.data.url;
+                console.log("[DOWNLOAD] Download URL:", downloadUrl);
 
                 // Check if the file is ready and download it
                 const checkReady = async (url: string, triesLeft: number = 60): Promise<void> => {
                     try {
                         const response = await fetch(url);
+                        console.log("[DOWNLOAD] Fetch response status:", response.status, response.statusText);
                         if (response.ok) {
                             // Create a temporary anchor element to trigger download
                             const blob = await response.blob();
+                            console.log("[DOWNLOAD] Downloaded blob size:", blob.size, "type:", blob.type);
                             downloadBlob(blob, `${artifactName}.docx`);
                         } else if (triesLeft > 0) {
                             setTimeout(() => checkReady(url, triesLeft - 1), 1000);
