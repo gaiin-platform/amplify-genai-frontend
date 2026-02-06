@@ -197,6 +197,13 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
     const downloadMenuRef = useRef<HTMLDivElement>(null);
     const downloadHoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+    // Copy menu state (similar to ChatMessage)
+    const [showCopyMenu, setShowCopyMenu] = useState(false);
+    const [copyMenuPosition, setCopyMenuPosition] = useState({ x: 0, y: 0 });
+    const copyMenuRef = useRef<HTMLDivElement>(null);
+    const copyHoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const artifactContentRef = useRef<HTMLDivElement>(null);
+
 
     useEffect(() => {
         const fetchEmails = async () => {
@@ -326,7 +333,50 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
         if (selectArtifactList && index < selectArtifactList.length && index >= 0) setVersionIndex(index);
     };
 
-    const copyOnClick = () => {
+    // Copy formatted text with rich formatting preserved (like manual copy)
+    const copyFormattedText = () => {
+        statsService.copyArtifactEvent();
+        if (!artifactContentRef.current) {
+            // Fallback to raw content if ref not available
+            if (navigator.clipboard && selectArtifactList) {
+                navigator.clipboard.writeText(getArtifactContents());
+            }
+            return;
+        }
+
+        try {
+            // Create a range and selection to copy the content with formatting
+            const range = document.createRange();
+            range.selectNodeContents(artifactContentRef.current);
+
+            const selection = window.getSelection();
+            if (!selection) return;
+
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            // Execute copy command - this preserves rich text formatting
+            document.execCommand('copy');
+
+            // Clear selection
+            selection.removeAllRanges();
+
+            setMessageCopied(true);
+            setTimeout(() => {
+                setMessageCopied(false);
+            }, 2000);
+        } catch (error) {
+            console.error('Copy failed:', error);
+            // Fallback to plain text
+            if (navigator.clipboard && selectArtifactList) {
+                navigator.clipboard.writeText(getArtifactContents());
+            }
+        }
+
+        setShowCopyMenu(false);
+    };
+
+    const copyRawMarkdown = () => {
         statsService.copyArtifactEvent();
         if (!navigator.clipboard) return;
         if (selectArtifactList) {
@@ -338,7 +388,81 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
                 }, 2000);
             });
         }
+        setShowCopyMenu(false);
     };
+
+    const copyOnClick = () => {
+        // Default behavior: copy formatted text
+        copyFormattedText();
+    };
+
+    const calculateCopyMenuPosition = (buttonElement: HTMLElement) => {
+        const rect = buttonElement.getBoundingClientRect();
+        const menuWidth = 180;
+        const menuHeight = 80;
+        const padding = 10;
+
+        let x = rect.left;
+        let y = rect.bottom + 5;
+
+        // Check right edge
+        if (x + menuWidth > window.innerWidth) {
+            x = rect.right - menuWidth;
+        }
+
+        // Check bottom edge
+        if (y + menuHeight > window.innerHeight) {
+            y = rect.top - menuHeight - 5;
+        }
+
+        // Check left/top edges
+        if (x < padding) x = padding;
+        if (y < padding) y = padding;
+
+        return { x, y };
+    };
+
+    const handleCopyHoverStart = (e: React.MouseEvent<HTMLButtonElement>) => {
+        const button = e.currentTarget;
+        if (copyHoverTimeoutRef.current) {
+            clearTimeout(copyHoverTimeoutRef.current);
+        }
+        copyHoverTimeoutRef.current = setTimeout(() => {
+            const position = calculateCopyMenuPosition(button);
+            setCopyMenuPosition(position);
+            setShowCopyMenu(true);
+        }, 500);
+    };
+
+    const handleCopyHoverEnd = () => {
+        if (copyHoverTimeoutRef.current) {
+            clearTimeout(copyHoverTimeoutRef.current);
+            copyHoverTimeoutRef.current = null;
+        }
+        setTimeout(() => {
+            if (copyMenuRef.current) {
+                const isHoveringMenu = copyMenuRef.current.matches(':hover');
+                if (!isHoveringMenu) {
+                    setShowCopyMenu(false);
+                }
+            } else {
+                setShowCopyMenu(false);
+            }
+        }, 100);
+    };
+
+    const handleCopyMenuMouseLeave = () => {
+        setShowCopyMenu(false);
+    };
+
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (copyHoverTimeoutRef.current) {
+                clearTimeout(copyHoverTimeoutRef.current);
+            }
+        };
+    }, []);
 
     const handleEditArtifact = (editedContent: string) => {
         statsService.editArtifactEvent();
@@ -793,7 +917,8 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                     <div className="flex flex-col flex-1 px-2 min-w-0" id="artifactsTextDisplay">
                         
                         {!isEditing && !isPreviewing &&  selectArtifactList && (
-                            <div className="mt-8 flex flex-grow overflow-y-auto overflow-x-hidden justify-center" style={{height: innerHeight - 140}} 
+                            <div className="mt-8 flex flex-grow overflow-y-auto overflow-x-hidden justify-center" style={{height: innerHeight - 140}}
+                                 ref={artifactContentRef}
                             >
                                 <ArtifactContentBlock
                                     artifactIsStreaming={artifactIsStreaming}
@@ -929,12 +1054,14 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                                 className="enhanced-chat-icon-button"
                                 id="copyArtifact"
                                 onClick={copyOnClick}
-                                title="Copy Artifact"
+                                onMouseEnter={handleCopyHoverStart}
+                                onMouseLeave={handleCopyHoverEnd}
+                                title="Copy Artifact (hover for options)"
                                 disabled={artifactIsStreaming}
                             >
                                 <IconCopy size={24}/>
                             </button>
-                        
+
                         )}
 
                         <button
@@ -1053,6 +1180,35 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                 >
                     <IconDownload size={16} />
                     <span className="whitespace-nowrap">Download as Word</span>
+                </button>
+            </div>
+        )}
+
+        {/* Copy menu - appears on hover */}
+        {showCopyMenu && (
+            <div
+                ref={copyMenuRef}
+                className="fixed bg-white dark:bg-[#343541] border border-gray-200 dark:border-gray-600 rounded-md shadow-xl z-[100] min-w-[180px]"
+                style={{
+                    top: `${copyMenuPosition.y}px`,
+                    left: `${copyMenuPosition.x}px`,
+                }}
+                onMouseLeave={handleCopyMenuMouseLeave}
+            >
+                <button
+                    className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-[#40414f] text-sm flex items-center gap-2 text-gray-800 dark:text-gray-200 transition-colors"
+                    onClick={copyFormattedText}
+                >
+                    <IconCopy size={16} />
+                    <span className="whitespace-nowrap">Copy Formatted</span>
+                </button>
+                <div className="border-t border-gray-200 dark:border-gray-600"></div>
+                <button
+                    className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-[#40414f] text-sm flex items-center gap-2 text-gray-800 dark:text-gray-200 transition-colors"
+                    onClick={copyRawMarkdown}
+                >
+                    <IconCopy size={16} />
+                    <span className="whitespace-nowrap">Copy Markdown</span>
                 </button>
             </div>
         )}
