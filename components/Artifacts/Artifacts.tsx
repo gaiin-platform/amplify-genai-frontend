@@ -748,6 +748,18 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
                         if (response.ok) {
                             const blob = await response.blob();
                             console.log("[DOWNLOAD WORD] Downloaded blob size:", blob.size, "type:", blob.type);
+
+                            // Check if the blob is actually a Word document
+                            const isWordDoc = blob.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                                            blob.type === 'application/msword';
+
+                            if (!isWordDoc) {
+                                console.error("[DOWNLOAD WORD] Backend returned non-Word document. MIME type:", blob.type);
+                                console.error("[DOWNLOAD WORD] Falling back to text download.");
+                                handleDownloadAsText();
+                                return;
+                            }
+
                             const blobUrl = URL.createObjectURL(blob);
                             const a = document.createElement('a');
                             a.href = blobUrl;

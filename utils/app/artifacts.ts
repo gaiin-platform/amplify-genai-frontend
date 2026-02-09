@@ -89,6 +89,20 @@ export const downloadArtifacts = async (artifactName: string, textContent: strin
                             // Create a temporary anchor element to trigger download
                             const blob = await response.blob();
                             console.log("[DOWNLOAD] Downloaded blob size:", blob.size, "type:", blob.type);
+
+                            // Check if the blob is actually a Word document
+                            const isWordDoc = blob.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                                            blob.type === 'application/msword';
+
+                            if (!isWordDoc) {
+                                console.error("[DOWNLOAD] Backend returned non-Word document. MIME type:", blob.type);
+                                console.error("[DOWNLOAD] Falling back to text download.");
+                                // Fallback to plain text download
+                                const textBlob = new Blob([textContent], { type: 'text/plain' });
+                                downloadBlob(textBlob, `${artifactName}.txt`);
+                                return;
+                            }
+
                             downloadBlob(blob, `${artifactName}.docx`);
                         } else if (triesLeft > 0) {
                             setTimeout(() => checkReady(url, triesLeft - 1), 1000);
