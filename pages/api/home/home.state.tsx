@@ -18,6 +18,7 @@ import { Artifact } from '@/types/artifacts';
 import { ShareItem } from '@/types/export';
 import { ExtractedFact } from '@/types/memory';
 import { Features } from '@/types/features';
+import { PromptCostAlert } from '@/components/Admin/AdminUI';
 
 export interface HomeInitialState {
   defaultAccount: Account | undefined;
@@ -75,13 +76,22 @@ export interface HomeInitialState {
   syncingPrompts: boolean;
   hiddenGroupFolders: FolderInterface[];
   powerPointTemplateOptions: string[];
-  amplifyUsers: string[];
+  amplifyUsers: { [key: string]: string };
   extractedFacts: ExtractedFact[];
   memoryExtractionEnabled: boolean;
   supportEmail: string;
   aiEmailDomain: string;
   ragOn: boolean;
   isStandalonePromptCreation: boolean;
+  promptCostAlert: PromptCostAlert | null;
+  promptCostAlertModal: {
+    isOpen: boolean;
+    message: string;
+    cost: string;
+    prompts: number;
+    onConfirm: () => void;
+    onDeny: () => void;
+  } | null;
 }
 
 export const initialState: HomeInitialState = {
@@ -151,11 +161,13 @@ export const initialState: HomeInitialState = {
   syncingPrompts: true,
   hiddenGroupFolders: [],
   powerPointTemplateOptions: [],
-  amplifyUsers: [],
+  amplifyUsers: {},
   extractedFacts: [],
   memoryExtractionEnabled: true,
   supportEmail: '',
   aiEmailDomain: '',
   ragOn: false,
-  isStandalonePromptCreation: false
+  isStandalonePromptCreation: false,
+  promptCostAlert: null,
+  promptCostAlertModal: null
 };

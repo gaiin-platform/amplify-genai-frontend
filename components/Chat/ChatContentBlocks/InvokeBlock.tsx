@@ -1,5 +1,4 @@
-import { IconFileCheck } from '@tabler/icons-react';
-import { useSession } from 'next-auth/react';
+
 import React, { useContext, useEffect, useRef } from 'react';
 
 import { useSendService } from '@/hooks/useChatSendService';
@@ -84,7 +83,6 @@ const InvokeBlock: React.FC<Props> = ({
     foldersRef.current = folders;
   }, [folders]);
 
-  const { data: session, status } = useSession();
 
   const { handleSend } = useSendService();
 

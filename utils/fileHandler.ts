@@ -1,9 +1,11 @@
-import { COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS } from './app/const';
+
+import { getMimeTypeFromExtension } from './app/fileTypeTranslations';
 import { handleFile } from '@/components/Chat/AttachFile';
 import { resolveRagEnabled } from '@/types/features';
 import { AttachedDocument } from '@/types/attacheddocument';
 import JSZip from 'jszip';
 import { v4 as uuidv4 } from 'uuid';
+import { IMAGE_FILE_TYPES } from './app/const';
 // ============================================================================
 // INTERFACES
 // ============================================================================
@@ -33,7 +35,8 @@ export interface FileProcessorOptions {
     onSetKey: (document: AttachedDocument, key: string) => void;
     onSetMetadata: (document: AttachedDocument, metadata: any) => void;
     onSetAbortController: (document: AttachedDocument, abortController: AbortController) => void;
-    
+    onSensitivityBlock?: (fileName: string, labelName: string) => void;
+
     // Services and configuration
     statsService: any;
     featureFlags: any;
@@ -65,21 +68,9 @@ export function getFileExtension(filename: string): string {
     }
     return filename.split('.').pop()?.toLowerCase() || '';
 }
-/**
- * Get the default disallowed file extensions based on image support
- */
-export function getDisallowedExtensions(supportsImages: boolean = true): string[] {
-    return [
-        ...COMMON_DISALLOWED_FILE_EXTENSIONS,
-        ...(supportsImages ? [] : IMAGE_FILE_EXTENSIONS)
-    ];
-}
-/**
- * Utility function to get disallowed extensions for a specific context
- * This replicates the logic from ChatInput's getDisallowedFileExtensions()
- */
-export function getDisallowedExtensionsForModel(supportsImages: boolean = true): string[] {
-    return getDisallowedExtensions(supportsImages);
+
+export function isImageFile(file: any): boolean {
+    return file?.type && IMAGE_FILE_TYPES.includes(file.type);
 }
 /**
  * Validate a file based on the provided options
@@ -111,11 +102,11 @@ export function validateFileByName(
         pptFormat: 'This file type is not supported. Please save the file as pptx.',
         ...customErrorMessages
     };
-    // Check for empty extension
+
+    // Allow files without extensions - they will be handled as octet-stream
     if (extension === '') {
         return {
-            isValid: false,
-            errorMessage: errorMessages.unsupportedType,
+            isValid: true,
             extension
         };
     }
@@ -199,37 +190,6 @@ export async function extractZipFiles(zipFile: File): Promise<File[]> {
         console.error('Failed to extract ZIP file:', error);
         throw new Error('Failed to extract ZIP file. Please ensure it\'s a valid ZIP archive.');
     }
-}
-/**
- * Get MIME type from file extension
- */
-function getMimeTypeFromExtension(extension: string): string | null {
-    const mimeTypes: { [key: string]: string } = {
-        'txt': 'text/plain',
-        'md': 'text/markdown',
-        'json': 'application/json',
-        'js': 'text/javascript',
-        'ts': 'text/typescript',
-        'jsx': 'text/javascript',
-        'tsx': 'text/typescript',
-        'html': 'text/html',
-        'css': 'text/css',
-        'pdf': 'application/pdf',
-        'doc': 'application/msword',
-        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'xls': 'application/vnd.ms-excel',
-        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'ppt': 'application/vnd.ms-powerpoint',
-        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        'jpg': 'image/jpeg',
-        'jpeg': 'image/jpeg',
-        'png': 'image/png',
-        'gif': 'image/gif',
-        'webp': 'image/webp',
-        'svg': 'image/svg+xml'
-    };
-    
-    return mimeTypes[extension.toLowerCase()] || null;
 }
 /**
  * Process a ZIP file asynchronously and attach the extracted files (not the ZIP itself)
@@ -420,7 +380,8 @@ export function processSingleFile(
         groupId,
         ragEnabled,
         props,
-        []
+        [],
+        options.onSensitivityBlock
     );
 }
 /**

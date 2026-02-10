@@ -159,7 +159,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                           autofillOn=false, embed=false, additionalGroupData, children}) => {
     const {t} = useTranslation('promptbar');
     const { data: session } = useSession();
-    const userEmail = session?.user?.email ?? '';
+    const userEmail = session?.user?.email ?? ''; // Kept as email to avoid breaking changes, updates in the backend handle username translation
     const { state: { prompts, featureFlags, amplifyUsers, aiEmailDomain } , setLoadingMessage} = useContext(HomeContext);
 
     const isGroupAst = loc.includes("admin");
@@ -274,7 +274,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [isLoading, setIsLoading] = useState(false);
     const [name, setName] = useState(definition.name);
     const [description, setDescription] = useState(definition.description);
-    const [opsLanguageVersion, setOpsLanguageVersion] = useState(definition.data?.opsLanguageVersion || "v1");
+    const [opsLanguageVersion, setOpsLanguageVersion] = useState(() => {
+        const loadedVersion = definition.data?.opsLanguageVersion || "v1";
+        return loadedVersion;
+    });
     const [content, setContent] = useState(definition.instructions);
     const [disclaimer, setDisclaimer] = useState(definition.disclaimer ?? "");
     const [dataSources, setDataSources] = useState(initialDs);
@@ -414,8 +417,6 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     useEffect(() => {
         if (baseWorkflowTemplateId) {
             setOpsLanguageVersion("v4");
-        } else {
-            setOpsLanguageVersion("v1");
         }
     }, [baseWorkflowTemplateId]);
 
@@ -756,7 +757,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                     newAssistant.data.workflowTemplateId = response.data.templateId;
                     newAssistant.data.baseWorkflowTemplateId = baseWorkflowTemplateId;
                     setLoadingMessage(loadingMessage);
-                    newAssistant.data.opsLanguageVersion = "v4";
+                    // Only set to v4 if user hasn't already selected Agent
+                    if (opsLanguageVersion !== "v4") {
+                        newAssistant.data.opsLanguageVersion = "v4";
+                    }
                 } else {
                     alert("Unable to register assistant workflow template, please try again later...");
                     setIsLoading(false);
@@ -767,7 +771,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 console.log("--Workflow no changes--")
                 newAssistant.data.baseWorkflowTemplateId = baseWorkflowTemplateId;
                 newAssistant.data.workflowTemplateId = astWorkflowTemplateId;
-                if (astWorkflowTemplateId) newAssistant.data.opsLanguageVersion = "v4";
+                // Only force v4 if user hasn't already selected Agent and there's a workflow template that requires it
+                if (astWorkflowTemplateId && opsLanguageVersion !== "v4") newAssistant.data.opsLanguageVersion = "v4";
             }
             
             // Email Events
@@ -1514,10 +1519,16 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     content={
                                     <AddEmailWithAutoComplete
                                         id={`allowedSenders`}
-                                        emails={curAllowedSenders}
-                                        allEmails={amplifyUsers.filter((user: string) => user !== userEmail)}
+                                        emails={curAllowedSenders.map(username => amplifyUsers[username] || username)}
+                                        allEmails={Object.values(amplifyUsers).filter((email: string) => email !== userEmail)}
                                         handleUpdateEmails={(updatedEmails: Array<string>) => {
-                                            setCurAllowedSenders(updatedEmails);
+                                            // For email events, we likely need actual emails, not usernames
+                                            // But let's convert to usernames for consistency with backend
+                                            const usernames = updatedEmails.map(email => {
+                                                const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
+                                                return username || email; // Fallback to email if no mapping found
+                                            });
+                                            setCurAllowedSenders(usernames);
                                         }}
                                         displayEmails={true}
                                     />} 
@@ -1722,7 +1733,31 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         }}
                                         disabled={disableEdit}
                                     />}
-                                       
+
+                                    {/* API Integration Summary */}
+                                    { featureFlags.integrations && (selectedApis.length > 0 || builtInAgentTools.length > 0 || apiInfo.length > 0) &&
+                                    <div className="mt-3 px-3 py-2 rounded-md bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600">
+                                        <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1">Selected Integrations:</div>
+                                        <div className="text-xs text-neutral-700 dark:text-neutral-300 space-y-0.5">
+                                            {selectedApis.length > 0 && (
+                                                <div>
+                                                    <span className="font-medium">APIs:</span> {selectedApis.map(api => api.name || api.functionName || 'Unnamed').join(', ')}
+                                                </div>
+                                            )}
+                                            {builtInAgentTools.length > 0 && (
+                                                <div>
+                                                    <span className="font-medium">Tools:</span> {builtInAgentTools.join(', ')}
+                                                </div>
+                                            )}
+                                            {apiInfo.length > 0 && (
+                                                <div>
+                                                    <span className="font-medium">Custom APIs:</span> {apiInfo.map(api => api.name || 'Unnamed').join(', ')}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    }
+
                                 </div>
                                 }
                             />

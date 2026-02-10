@@ -62,7 +62,6 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { WorkflowDefinition } from "@/types/workflow";
 import { saveWorkflowDefinitions } from "@/utils/app/workflows";
-import SharedItemsList from "@/components/Share/SharedItemList";
 // import { Market } from "@/components/Market/Market";
 import { useSession, signIn, signOut, getSession } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
@@ -73,7 +72,6 @@ import { deleteAssistant, listAssistants } from '@/services/assistantService';
 import { filterAstsByFeatureFlags, getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
 import { fetchAllRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import {killRequest as killReq} from "@/services/chatService";
-import { DefaultUser } from 'next-auth';
 import { addDateAttribute, getFullTimestamp, getDateName } from '@/utils/app/date';
 import HomeContext, {  ClickContext, Processor } from './home.context';
 import { ReservedTags } from '@/types/tags';
@@ -131,7 +129,7 @@ const Home = ({
     const [hasAcceptedDataDisclosure, sethasAcceptedDataDisclosure] = useState<boolean | null> (null);
 
     const { data: session, status } = useSession();
-    const [user, setUser] = useState<DefaultUser | null>(null);
+    const [user, setUser] = useState<any>(null);
 
     const isLoading = status === "loading";
     const userError = null;
@@ -688,7 +686,7 @@ const Home = ({
 
 
     useEffect (() => {
-        if (!user && session?.user) setUser(session.user as DefaultUser);
+        if (!user && session?.user) setUser(session.user);
     }, [session])
 
 
@@ -791,8 +789,14 @@ const Home = ({
             console.log("Fetching Amplify Users...");
             try {
                 const response = await fetchEmailSuggestions("*");
-                if (response && response.emails) {
-                    dispatch({ field: 'amplifyUsers', value: response.emails});  
+                if (response && response.user_email_map) {
+                    const updatedUserEmailMap = Object.fromEntries(
+                        Object.entries(response.user_email_map).map(([key, value]) => [
+                            key, 
+                            value && value !== '' ? value : key
+                        ])
+                    );
+                    dispatch({ field: 'amplifyUsers', value: updatedUserEmailMap});  
                 } else {
                     console.log("Failed to fetch amplify users.");
                 }
@@ -819,9 +823,13 @@ const Home = ({
                         const storageData = data[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE];
                             // honor users selection if it exists
                         if (!storageSelection && storageData) {
-                            dispatch({ field: 'storageSelection', value: storageData as ConversationStorage}); 
+                            dispatch({ field: 'storageSelection', value: storageData as ConversationStorage});
                             saveStorageSettings(storageData as ConversationStorage);
                         }
+                    }
+                    if (AdminConfigTypes.PROMPT_COST_ALERT in data) {
+                        const promptCostData = data[AdminConfigTypes.PROMPT_COST_ALERT];
+                        dispatch({ field: 'promptCostAlert', value: promptCostData});
                     }
 
                 } else {
@@ -845,6 +853,12 @@ const Home = ({
                         serverSettings.theme = localTheme;
                         
                         saveSettings(serverSettings);
+                        
+                        // Apply chat color palette from server settings to DOM
+                        if (serverSettings.chatColorPalette) {
+                            document.body.setAttribute('data-chat-palette', serverSettings.chatColorPalette);
+                        }
+                        
                         window.dispatchEvent(new Event('updateFeatureSettings'));
                     }
                 } else {
@@ -1379,7 +1393,7 @@ const Home = ({
                                         if (user && user.email) {
                                             if (inputEmail.toLowerCase() === user.email.toLowerCase()) {
                                                 if (hasScrolledToBottom) {
-                                                    saveDataDisclosureDecision(user.email, true);
+                                                    saveDataDisclosureDecision(true);
                                                     sethasAcceptedDataDisclosure(true);
                                                 } else {
                                                     alert('You must scroll to the bottom of the disclosure before accepting.');
@@ -1398,7 +1412,7 @@ const Home = ({
                                     if ( user && user.email ) {
                                         if (inputEmail.toLowerCase() === user.email.toLowerCase()) {
                                             if (hasScrolledToBottom) {
-                                                saveDataDisclosureDecision(user.email, true);
+                                                saveDataDisclosureDecision(true);
                                                 sethasAcceptedDataDisclosure(true);
                                             } else {
                                                 alert('You must scroll to the bottom of the disclosure before accepting.');
@@ -1482,6 +1496,8 @@ const Home = ({
                             <UserMenu
                                 email={user?.email}
                                 name={session?.user?.name}
+                                username={(session?.user as any)?.username}
+
                             />
 
 

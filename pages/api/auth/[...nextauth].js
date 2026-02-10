@@ -1,5 +1,7 @@
 import NextAuth from "next-auth"
 import CognitoProvider from "next-auth/providers/cognito"
+import { signIn } from "next-auth/react";
+import { decodeJwt } from "jose";
 
 export const authOptions = {
     // Configure one or more authentication providers
@@ -22,19 +24,21 @@ export const authOptions = {
         // newUser: '/auth/new-user' // New users will be directed here on first sign in (leave the property out if not of interest)
     },
     callbacks: {
-        async jwt({ token, account }) {
+        async signIn({ account, profile }) {
+            return true;
+        },
+        async jwt({ token, profile, account }) {
+            const attr = process.env.IMMUTABLE_ID_ATTRIBUTE;
+            if (profile && attr && profile[attr]) {
+                token.immutableId = profile[attr];
+            }
             // Persist the OAuth access_token to the token right after signin
-
             if (account) {
                 // New token
                 token.accessTokenExpiresAt = account.expires_at * 1000;
                 token.accessToken = account.access_token;
                 token.refreshToken = account.refresh_token;
-            }
-            else if (Date.now() < token.accessTokenExpiresAt) {
-                // Valid token
-            }
-            else {
+            } else if (Date.now() > token.accessTokenExpiresAt) {
                 // Expired token
                 const newToken = await refreshAccessToken(token);
                 token.accessToken = newToken.accessToken;
@@ -43,13 +47,54 @@ export const authOptions = {
                 token.error = newToken.error;
             }
 
+            // This is so we don't constantly call the upgrade/create endpoint
+            if (token.upgradedOrCreated) {
+                return token;
+            }
+
+            // check if the account needs to be upgraded/created
+            try {
+                // if (!profile?.[attr]) return token;
+                const response = await fetch((process.env.API_BASE_URL || "") + '/user/create', {
+                // This is a hard coded value for local testing
+                // const response = await fetch('http://localhost:3015/dev/user/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token.accessToken}`
+                    },
+                    body: JSON.stringify({
+                        data: {
+                        token: {...token, accessToken: undefined, refreshToken: undefined},
+                        profile
+                        },
+                        immutable_id_field: attr
+                    }),
+                    signal: null,
+                });
+            
+                if (!response.ok) {
+                    // Should we fail here?
+                    throw new Error(`Failed to call: ${response.status}`);
+                }
+                
+                token.upgradedOrCreated = true;
+                const result = await response.json();
+
+            } catch (error) {
+                console.error('Error calling /user/create: ', error);
+            }
+
             return token
         },
+
         async session({ session, token, user }) {
             // Send properties to the client, like an access_token from a provider.
-            session.accessToken = token.accessToken
-            session.error = token.error
-            return session
+            session.accessToken = token.accessToken;
+            session.error = token.error;
+            session.upgradedOrCreated = !!token.upgradedOrCreated;
+            session.user.username = token.immutableId;
+            return session;
         }
     },
     secret: process.env.NEXTAUTH_SECRET,

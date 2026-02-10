@@ -1,6 +1,7 @@
-import { FC, useState, useCallback } from "react";
+import { FC, useState, useCallback, useContext } from "react";
 import { EmailsAutoComplete } from "./EmailsAutoComplete";
 import { IconPlus, IconTrash, IconCheck, IconX } from "@tabler/icons-react";
+import HomeContext from "@/pages/api/home/home.context";
 
 interface AddEmailsProps {
     id: String;
@@ -12,28 +13,32 @@ interface AddEmailsProps {
 }
 
 export const AddEmailWithAutoComplete: FC<AddEmailsProps> = ({ id, emails, allEmails, handleUpdateEmails, displayEmails = false, disableEdit = false}) => {
+    const { state: { amplifyUsers }, dispatch: homeDispatch } = useContext(HomeContext);
     const [hoveredUser, setHoveredUser] = useState<string | null>(null);
     const [input, setInput] = useState<string>('');
 
     // Flexible validation for usernames/systemIds/emails
     const isValidEntry = (entry: string): boolean => {
         const trimmed = entry.trim();
-        return trimmed.length > 0 && 
-               !trimmed.includes(' ') && // No spaces
-               trimmed.length >= 2;      // Minimum length
+        // Accept emails, system IDs, or any valid username (2+ chars, no spaces)
+        const isEmail = /^\S+@\S+\.\S+$/.test(trimmed);
+        const isSystemId = /^[a-zA-Z0-9-]+-\d{6}$/.test(trimmed);
+        const isValidUsername = trimmed.length >= 2 && !trimmed.includes(' ');
+        
+        return isEmail || isSystemId || isValidUsername;
     };
 
     // Get validation state for current input
     const getValidationState = (currentInput: string): 'valid' | 'invalid' | 'neutral' => {
         const trimmed = currentInput.trim();
         if (!trimmed) return 'neutral';
-        
+
         if (trimmed.includes(',')) {
             const parts = trimmed.split(',').map(p => p.trim()).filter(p => p);
-            if (parts.some(part => isValidEntry(part) && !emails.includes(part))) return 'valid';
+            if (parts.some(part => isValidEntry(part) && !emails.some(e => e.toLowerCase() === part.toLowerCase()))) return 'valid';
         }
-        
-        if (emails.includes(trimmed)) return 'invalid'; // Duplicate
+
+        if (emails.some(e => e.toLowerCase() === trimmed.toLowerCase())) return 'invalid'; // Duplicate
         return isValidEntry(trimmed) ? 'valid' : 'invalid';
     };
 
@@ -43,8 +48,8 @@ export const AddEmailWithAutoComplete: FC<AddEmailsProps> = ({ id, emails, allEm
             .map(entry => entry.trim())
             .filter(entry => entry);
 
-        const validEntries = entries.filter(entry => 
-            isValidEntry(entry) && !emails.includes(entry)
+        const validEntries = entries.filter(entry =>
+            isValidEntry(entry) && !emails.some(e => e.toLowerCase() === entry.toLowerCase())
         );
         
         if (validEntries.length > 0) {
@@ -70,10 +75,21 @@ export const AddEmailWithAutoComplete: FC<AddEmailsProps> = ({ id, emails, allEm
 
     // Handle input blur
     const handleBlurAdd = useCallback(() => {
-        if (input.trim()) {
-            processEntries(input, true);
+        const trimmed = input.trim();
+        if (!trimmed) return;
+
+        // Only auto-add on blur if the input matches a known user in amplifyUsers (case-insensitive)
+        const trimmedLower = trimmed.toLowerCase();
+        const isKnownUser = amplifyUsers && (
+            // Check if input matches a username (key) or email (value) in amplifyUsers
+            Object.keys(amplifyUsers).some(key => key.toLowerCase() === trimmedLower) ||
+            Object.values(amplifyUsers).some(val => val.toLowerCase() === trimmedLower)
+        );
+
+        if (isKnownUser && !emails.some(e => e.toLowerCase() === trimmedLower)) {
+            processEntries(trimmed, true);
         }
-    }, [input, processEntries]);
+    }, [input, processEntries, amplifyUsers, emails]);
 
     // Handle paste event with multiple entries
     const handlePaste = useCallback((pastedText: string) => {
@@ -113,20 +129,10 @@ export const AddEmailWithAutoComplete: FC<AddEmailsProps> = ({ id, emails, allEm
                     onBlur={handleBlurAdd}
                     onPaste={handlePaste}
                     onSuggestionSelected={(suggestion: string) => {
-                        // Parse existing input for complete entries
-                        const existingEntries = input.split(',')
-                            .map(entry => entry.trim())
-                            .filter(entry => entry && isValidEntry(entry) && !emails.includes(entry));
-                        
-                        // Combine existing entries with the suggestion
-                        const allNewEntries = [...existingEntries];
-                        if (!emails.includes(suggestion) && !allNewEntries.includes(suggestion)) {
-                            allNewEntries.push(suggestion);
-                        }
-                        
-                        // Add all entries in a single update
-                        if (allNewEntries.length > 0) {
-                            handleUpdateEmails([...emails, ...allNewEntries]);
+                        // When a suggestion is selected, only add the suggestion itself
+                        // The partial input should be replaced, not added as a separate entry
+                        if (!emails.includes(suggestion)) {
+                            handleUpdateEmails([...emails, suggestion]);
                         }
                         
                         // Clear input

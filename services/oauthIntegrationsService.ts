@@ -54,20 +54,27 @@ export const checkActiveIntegrations = async (integrations: string[]) => {
     const integrationSecrets: IntegrationSecretsMap = {};
     const availableIntegrations: IntegrationsMap = {};
   
-    for (const i of integrations) {
+    // Make all API calls in parallel
+    const promises = integrations.map(i => {
       const op = {
         method: 'GET',
         path: "",
         op: `/${i}/integrations`,
         service: i
       };
-      const response = await doRequestOp(op);
+      return doRequestOp(op).then(response => ({ integration: i, response }));
+    });
+
+    const results = await Promise.all(promises);
+    
+    // Process results
+    results.forEach(({ integration, response }) => {
       if (response.success && response.data) {
         const data = response.data;
-        availableIntegrations[i as IntegrationProviders] = data.integrations;
-        if (data.secrets) integrationSecrets[i as IntegrationProviders] = data.secrets;
+        availableIntegrations[integration as IntegrationProviders] = data.integrations;
+        if (data.secrets) integrationSecrets[integration as IntegrationProviders] = data.secrets;
       }
-    }
+    });
   
     return { integrationLists: availableIntegrations, secrets: integrationSecrets};
 };

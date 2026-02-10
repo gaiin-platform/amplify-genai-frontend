@@ -21,6 +21,7 @@ import Checkbox from "@/components/ReusableComponents/CheckBox";
 import Search from "@/components/Search";
 import { useSession } from "next-auth/react";
 import { amplifyAssistants } from "@/utils/app/amplifyAssistants";
+import { getUserIdentifier } from "@/utils/app/data";
 
 
 interface Props {
@@ -28,6 +29,7 @@ interface Props {
 
     admins: string[];
     ampGroups: Amplify_Groups;
+    amplifyUsers: { [key: string]: string };
 
     astGroups: Ast_Group_Data[];
     setAstGroups: (g: Ast_Group_Data[]) => void;
@@ -48,13 +50,13 @@ interface Props {
     updateUnsavedConfigs: (t: AdminConfigTypes) => void;
 }
 
-export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId, setAmplifyAstGroupId,
+export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyUsers, amplifyAstGroupId, setAmplifyAstGroupId,
                                            astGroups, setAstGroups, changedAstGroups, setChangedAstGroups, 
                                            templates, setTemplates, changedTemplates, setChangedTemplates,
                                            stillLoadingData, isAvailableCheck, admin_text, updateUnsavedConfigs}) => {
     const { state: { statsService }, setLoadingMessage } = useContext(HomeContext);
     const { data: session } = useSession();
-    const userEmail = session?.user?.email;
+    const userEmail = getUserIdentifier(session?.user) ?? "Unknown";
 
     const [hoveredAstGroup, setHoveredAstGroup] = useState<string>('');  
     const [keyReplacementLoading, setKeyReplacementLoading] = useState<string>(''); 
@@ -513,7 +515,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
                                                 {group.groupName}
                                             </td>
                                             <td className="text-center border border-neutral-500 p-2 break-words max-w-[200px]">
-                                                {group.createdBy}
+                                                {amplifyUsers[group.createdBy] || group.createdBy}
                                             </td>
 
                                             <td className="w-[164px] border border-neutral-500 px-4 py-2"

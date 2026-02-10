@@ -15,6 +15,18 @@ export interface Message {
   topicData?: messageTopicData;
   configuredTools?: any[];
   timestamp?: string; // ISO timestamp for when the message was created
+  // Tool-related fields for MCP and function calling
+  tool_calls?: ToolCall[];
+  tool_call_id?: string; // For tool response messages
+}
+
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
 }
 
 export enum MessageType {
@@ -38,7 +50,7 @@ export const newMessage = (data: any) => {
   }
 }
 
-export type Role = 'assistant' | 'user' | 'system';
+export type Role = 'assistant' | 'user' | 'system' | 'tool';
 
 export type CustomFunction = {
   name: string;
@@ -115,6 +127,8 @@ export interface ChatBody {
   [key: string]: any;
   codeInterpreterAssistantId?: string;
   projectId?: string;
+  tools?: any[]; // Tool definitions in OpenAI function format
+  enableWebSearch?: boolean; // Enable backend web search tool execution
 }
 
 export interface Conversation {

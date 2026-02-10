@@ -17,12 +17,13 @@ import { OpenAIEndpointsTab } from "./AdminComponents/OpenAIEndpoints";
 import { FeatureFlagsTab } from "./AdminComponents/FeatureFlags";
 import { emptySupportedModel, SupportedModelsTab } from "./AdminComponents/SupportedModels";
 import { ConfigurationsTab } from "./AdminComponents/Configurations";
-import { Integration, IntegrationProviders, integrationProviders, integrationProvidersList, IntegrationSecretsMap, IntegrationsMap, ProviderSettingsMap } from "@/types/integrations";
+import { Integration, IntegrationProviders, integrationProviders, integrationProvidersList, IntegrationSecretsMap, IntegrationsMap, ProviderSettingsMap, AdminWebSearchConfig } from "@/types/integrations";
 import { checkActiveIntegrations } from "@/services/oauthIntegrationsService";
 import { IntegrationsTab } from "./AdminComponents/Integrations";
 import { EmbeddingsTab } from "./AdminComponents/Embeddings";
 import { OpsTab } from "./AdminComponents/Ops";
 import { Pptx_TEMPLATES, Ast_Group_Data, FeatureDataTab, } from "./AdminComponents/FeatureData";
+import { CriticalErrorTrackingTab } from "./AdminComponents/Critical_Error_Tracking";
 import { ConversationStorage } from "@/types/conversationStorage";
 
 
@@ -66,6 +67,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [rateLimit, setRateLimit] = useState<{period: PeriodType, rate: string}>({...noRateLimit, rate: '0'});
     const [promptCostAlert, setPromptCostAlert] = useState<PromptCostAlert>({isActive:false, alertMessage: '', cost: 0});
     const [emailSupport, setEmailSupport] = useState<EmailSupport>({isActive:false, email:''});
+    const [criticalErrorsConfig, setCriticalErrorsConfig] = useState<CriticalErrorsConfig>({isActive:false, email:''});
     const [aiEmailDomain, setAiEmailDomain] = useState<string>('');
 
     const [defaultConversationStorage, setDefaultConversationStorage] = useState<ConversationStorage>('future-local');
@@ -97,6 +99,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [integrations, setIntegrations] = useState<IntegrationsMap | null >(null);
     const [integrationSecrets, setIntegrationSecrets] = useState<IntegrationSecretsMap>({});
     const [providerSettings, setProviderSettings] = useState<ProviderSettingsMap>({});
+    const [webSearchConfig, setWebSearchConfig] = useState<AdminWebSearchConfig | null>(null);
     const [hasChildModalOpen, setHasChildModalOpen] = useState<boolean>(false);
 
     const mergeIntegrationLists = ( supported: Integration[] | undefined,
@@ -139,7 +142,6 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
        
         const getConfigs = async () => {
             setLoadData(false);
-                //   statsService.openSettingsEvent(); 
             setLoadingMessage("Loading Admin Interface...");
             setStillLoadingData(true);
             const nonlazyReq = getAdminConfigs(); // start longer call
@@ -192,8 +194,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 setPromptCostAlert(data[AdminConfigTypes.PROMPT_COST_ALERT || promptCostAlert]);
                 setDefaultConversationStorage(data[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE] || defaultConversationStorage);
                 setEmailSupport(data[AdminConfigTypes.EMAIL_SUPPORT || emailSupport]);
+                setCriticalErrorsConfig(data[AdminConfigTypes.CRITICAL_ERRORS] || criticalErrorsConfig);
                 setAiEmailDomain(data[AdminConfigTypes.AI_EMAIL_DOMAIN] || aiEmailDomain);
                 setDefaultModels(data[AdminConfigTypes.DEFAULT_MODELS] || {});
+                setWebSearchConfig(data[AdminConfigTypes.WEB_SEARCH] || null);
                 setLoadingMessage("");
             
                 const nonlazyResult = await nonlazyReq;
@@ -237,7 +241,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         if (open && loadData) getConfigs();
 
         const fetchEmails = async () => {
-            setAllEmails(amplifyUsers);
+            setAllEmails(Object.values(amplifyUsers)); // Extract email values for display
         };
         if (!allEmails) fetchEmails();
       
@@ -261,6 +265,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return defaultConversationStorage;
             case AdminConfigTypes.EMAIL_SUPPORT:
                 return emailSupport;
+            case AdminConfigTypes.CRITICAL_ERRORS:
+                // Only send fields the backend expects, exclude subscription_status (read-only)
+                const isActive = Boolean(criticalErrorsConfig.isActive);
+                return {
+                    isActive,
+                    email: isActive ? String(criticalErrorsConfig.email || "") : ""
+                };
             case AdminConfigTypes.AI_EMAIL_DOMAIN:
                 return aiEmailDomain;
             case AdminConfigTypes.APP_SECRETS:
@@ -284,7 +295,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         (sanitizedModel as any)[field] = value;
                     });
                     
-                    const floatFields = ["outputTokenCost", "inputTokenCost", "cachedTokenCost"] as const;
+                    const floatFields = ["outputTokenCost", "inputTokenCost", "inputCachedTokenCost", "inputWriteCachedTokenCost"] as const;
                     floatFields.forEach((field) => {
                         const value = typeof model[field] === 'string' 
                             ? parseFloat(String(model[field])) || 0.0 
@@ -328,6 +339,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 Object.keys(ampGroups).forEach((key: string) => {
                     if (!ampGroups[key].isBillingGroup) ampGroups[key].isBillingGroup = false;
                     if (!ampGroups[key].rateLimit) ampGroups[key].rateLimit = noRateLimit;
+                    delete ampGroups[key].groupName;
                 });
                 return ampGroups;
             case AdminConfigTypes.PPTX_TEMPLATES:
@@ -449,6 +461,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             let flags: any = result.data;
             homeDispatch({ field: 'featureFlags', value: flags});
             localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
+            window.dispatchEvent(new Event('updateFeatureSettings'));
         }
     }
 
@@ -474,6 +487,11 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             alert("The Support Email feature cannot be activated without providing an email address. Please add an email address or disable the feature.");
             return false;
         }
+
+        if (criticalErrorsConfig.isActive && !criticalErrorsConfig.email) {
+            alert("Critical Error Notifications cannot be activated without providing an email address. Please add an email address or disable the feature.");
+            return false;
+        }
         return true;
     }
 
@@ -487,6 +505,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         saveAction([AdminConfigTypes.PPTX_TEMPLATES], saveUpdatePptx); 
         saveAction([AdminConfigTypes.EMAIL_SUPPORT], () => homeDispatch({ field: 'supportEmail', value: emailSupport.email}));
         saveAction([AdminConfigTypes.AI_EMAIL_DOMAIN], () => homeDispatch({ field: 'aiEmailDomain', value: aiEmailDomain}));
+        saveAction([AdminConfigTypes.PROMPT_COST_ALERT], () => homeDispatch({ field: 'promptCostAlert', value: promptCostAlert}));
         if (!storageSelection) saveAction([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () => homeDispatch({ field: 'storageSelection', value: defaultConversationStorage})); 
     }
 
@@ -497,9 +516,6 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         }
         const collectUpdateData =  Array.from(unsavedConfigs).map((type: AdminConfigTypes) => ({type: type, data: getConfigTypeData(type)}));
         console.log("Saving...", collectUpdateData);
-        
-        // Enhanced logging for admin data
-        const adminData = collectUpdateData.find(item => item.type === AdminConfigTypes.ADMINS);
 
         if (!validateSavedData()) return;
         // console.log(" testing: ", testEndpointsRef.current);
@@ -521,48 +537,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             if (result.data && result.data[AdminConfigTypes.ADMINS]) {
                 const adminResult = result.data[AdminConfigTypes.ADMINS];
                 
-                if (adminResult.success) {
-                    
-                    // VERIFY WHAT ACTUALLY GOT SAVED
-                    if (adminData && adminData.data.length > 0) {
-                        // Delay to allow backend processing to complete
-                        setTimeout(async () => {
-                            try {
-                                // Fetch current admin configurations to see what's actually saved
-                                const response = await getAdminConfigs(true); // Use existing service
-                                
-                                if (response.success && response.data) {
-                                    const actualSavedAdmins = response.data[AdminConfigTypes.ADMINS] || [];
-                                    
-                                    // Compare what was sent vs what's actually saved
-                                    const sentSet = new Set(adminData.data);
-                                    const savedSet = new Set(actualSavedAdmins);
-                                    
-                                    const notSaved = adminData.data.filter((admin: string) => !savedSet.has(admin));
-                                    const unexpectedlyAdded = actualSavedAdmins.filter((admin: string) => !sentSet.has(admin));
-                                    
-                                    if (notSaved.length > 0) {
-                                        toast(`⚠️ ${notSaved.length} admin(s) were rejected: ${notSaved.join(', ')}`, {
-                                            icon: '⚠️',
-                                            duration: 8000
-                                        });
-                                    }
-                                    
-                                    // Update local state to match what's actually in the database
-                                    if (actualSavedAdmins.length !== adminData.data.length) {
-                                        setAdmins(actualSavedAdmins);
-                                    }
-                                } else {
-                                    console.error("❌ Failed to fetch current admin configs for verification:", response);
-                                }
-                            } catch (error) {
-                                console.error("❌ Verification error:", error);
-                            }
-                        }, 1000); // 1 second delay
-                    }
-                } else {
-                    console.warn("⚠️ Admin validation issues:", adminResult);
-                    toast(`Admin save completed with warnings. Check console for details.`, {
+                if (!adminResult.success && adminResult.error) {
+                    toast(`Admin configuration warning: ${adminResult.error}`, {
                         icon: '⚠️',
                         duration: 5000
                     });
@@ -575,36 +551,16 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             setUnsavedConfigs(new Set());
             testEndpointsRef.current = [];
         } else {
-            // Enhanced error logging
-            console.error("❌ Save failed. Full response:", result);
-            
-            if (adminData) {
-                console.error("❌ Failed to save admin emails:", adminData.data);
-            }
-            
             if (result.data && Object.keys(result.data).length !== unsavedConfigs.size) {
                 const unsucessful: AdminConfigTypes[] = [];
                 Array.from(unsavedConfigs).forEach(key => {
                     if ((!(key in result.data)) || (!result.data[key].success)) {
                         unsucessful.push(key);
-                        
-                        // Log specific failure details for admins
-                        if (key === AdminConfigTypes.ADMINS && result.data[key]) {
-                            console.error("❌ Admin save failure details:", result.data[key]);
-                            if (result.data[key].error) {
-                                console.error("📝 Admin validation error:", result.data[key].error);
-                            }
-                            if (result.data[key].message) {
-                                console.error("💬 Admin save message:", result.data[key].message);
-                            }
-                        }
                     }
                 });
                 
-                // should always be true
                 if (unsucessful.length > 0) {
                     const errorMsg = `The following configurations were unable to be saved: \n${unsucessful.join(', ')}`;
-                    console.error("❌ Unsuccessful saves:", errorMsg);
                     alert(errorMsg);
                     
                     // Additional admin-specific error display
@@ -711,6 +667,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     setAdmins={setAdmins}
                     ampGroups={ampGroups}
                     setAmpGroups={setAmpGroups}
+                    amplifyUsers={amplifyUsers}
                     rateLimit={rateLimit}
                     setRateLimit={setRateLimit}
                     promptCostAlert={promptCostAlert}
@@ -827,6 +784,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     features={features}
                     setFeatures={setFeatures}
                     ampGroups={ampGroups}
+                    amplifyUsers={amplifyUsers}
                     allEmails={allEmails}
                     admin_text={admin_text}
                     updateUnsavedConfigs={updateUnsavedConfigs}
@@ -842,6 +800,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     stillLoadingData={stillLoadingData}
                     admins={admins}
                     ampGroups={ampGroups}
+                    amplifyUsers={amplifyUsers}
                     astGroups={astGroups}
                     setAstGroups={setAstGroups}
                     amplifyAstGroupId={amplifyAstGroupId}
@@ -886,6 +845,20 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             },
 
             ///////////////////////////////////////////////////////////////////////////////
+            // Critical Error Tracking
+
+            ...( featureFlags.criticalErrorTracking || features.criticalErrorTracking?.enabled
+                ? [{ label: tabTitle('Critical Errors'),
+                content:
+                <CriticalErrorTrackingTab
+                    stillLoadingData={stillLoadingData}
+                    criticalErrorsConfig={criticalErrorsConfig}
+                    setCriticalErrorsConfig={setCriticalErrorsConfig}
+                    updateUnsavedConfigs={updateUnsavedConfigs}
+                />
+            }] : []),
+
+            ///////////////////////////////////////////////////////////////////////////////
   
             // Integrations Tab - only included if included in the feature flags list
             ...(integrations ? 
@@ -898,8 +871,6 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         setIntegrations={setIntegrations}
                         integrationSecrets={integrationSecrets}
                         setIntegrationSecrets={setIntegrationSecrets}
-                        providerSettings={providerSettings}
-                        setProviderSettings={setProviderSettings}
                         azureAdminConsentProvided={providerSettings[integrationProviders.Microsoft]?.azure_admin_consent_provided || false}
                         setAzureAdminConsentProvided={(value: boolean) => {
                             const updated = {
@@ -910,9 +881,12 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             updateUnsavedConfigs(AdminConfigTypes.INTEGRATIONS);
                         }}
                         updateUnsavedConfigs={updateUnsavedConfigs}
+                        webSearchConfig={webSearchConfig}
+                        setWebSearchConfig={setWebSearchConfig}
                     />
                 }
                 ] : []),
+
 
         ]
         }
@@ -981,6 +955,7 @@ interface AmplifyGroupSelectProps {
   }
   
 export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, selected, setSelected, isDisabled = false, label = 'Amplify Groups'}) => {
+
     const [isOpen, setIsOpen] = useState(false);
     const [selectedGroups, setSelectedGroups] = useState<string[]>(selected);
     const [dropdownDirection, setDropdownDirection] = useState<'down' | 'up'>('down');
@@ -1085,7 +1060,7 @@ export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, 
 
 
 export interface Amplify_Group { // can be a cognito group 
-    groupName : string; 
+    groupName?: string; 
     members : string[];
     createdBy : string;
     includeFromOtherGroups? : string[]; // if is a cognito group, this will always be Absent
@@ -1100,10 +1075,20 @@ export interface Amplify_Groups {
 export interface PromptCostAlert {
     isActive: boolean;
     alertMessage: string;
-    cost: Number;
+    cost: number;
 }
 
 export interface EmailSupport {
     isActive: boolean;
     email: string;
+}
+
+export interface CriticalErrorsConfig {
+    isActive: boolean;
+    email: string;
+    subscription_status?: {
+        status: 'confirmed' | 'pending' | 'not_subscribed' | 'error';
+        subscription_arn: string | null;
+        message: string;
+    };
 }
