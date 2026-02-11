@@ -29,10 +29,9 @@ import {
 
 interface Props {
   open: boolean;
-  canAddApiKeys?: boolean;
 }
 
-export const ToolApiKeysTab: FC<Props> = ({ open, canAddApiKeys = false }) => {
+export const ToolApiKeysTab: FC<Props> = ({ open }) => {
   const [configuredKeys, setConfiguredKeys] = useState<MaskedToolApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [addingProvider, setAddingProvider] = useState<ToolProvider | null>(null);
@@ -117,36 +116,6 @@ export const ToolApiKeysTab: FC<Props> = ({ open, canAddApiKeys = false }) => {
   };
 
   if (!open) return null;
-
-  if (!canAddApiKeys) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <div className="flex items-center gap-2">
-            <IconSearch className="w-6 h-6 text-blue-500" />
-            <h2 className="text-xl font-semibold text-black dark:text-white">
-              Web Search Tools
-            </h2>
-          </div>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
-            Web search API keys are managed by your administrator.
-          </p>
-        </div>
-        <div className="p-4 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg">
-          <div className="flex items-start gap-3">
-            <IconInfoCircle className="w-5 h-5 text-neutral-500 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-neutral-600 dark:text-neutral-400">
-              <p>
-                Your administrator has configured web search for this application.
-                You can enable web search in your conversations using the plugins menu
-                in the chat input.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (loading) {
     return (
