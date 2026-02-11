@@ -301,7 +301,7 @@ export const IntegrationTabs: FC<Props> = ({ open, depth=0, allowedIntegrations=
             )),
             ...(featureFlags.webSearch && canAddWebSearchApiKey && (allowedIntegrations.length === 0 || allowedIntegrations.includes('web_search')) ? [{
               label: 'Web Search',
-              content: <ToolApiKeysTab open={open} canAddApiKeys={canAddWebSearchApiKey} />
+              content: <ToolApiKeysTab open={open} />
             }] : [])
           ]
         }
