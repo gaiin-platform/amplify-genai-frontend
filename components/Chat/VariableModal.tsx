@@ -14,6 +14,8 @@ import { Conversation } from '@/types/chat';
 import React from 'react';
 import { Modal } from '../ReusableComponents/Modal';
 import { ModelSelect } from './ModelSelect';
+import { filterModels } from '@/utils/app/models';
+import { getSettings } from '@/utils/app/settings';
 
 interface Props {
     models: Model[];
@@ -100,7 +102,7 @@ export const VariableModal: FC<Props> = ({
                                          }) => {
 
     const {
-        state: { prompts, conversations },
+        state: { prompts, conversations, availableModels, featureFlags },
     } = useContext(HomeContext);
 
     const promptsRef = useRef(prompts);
@@ -460,15 +462,27 @@ export const VariableModal: FC<Props> = ({
         return (str.length > n) ? str.slice(0, n-1) + '...' : str;
     }
 
+    // Calculate dynamic height based on number of variables
+    const calculateModalHeight = () => {
+        const maxHeight = window.innerHeight * 0.85;
+        const minHeight = 300;
+
+        // Rough estimate: 150px header/footer + ~150px per variable + model selector
+        const estimatedHeight = 150 + (variables.length * 150) + (showModelSelector ? 100 : 0);
+
+        return Math.max(minHeight, Math.min(maxHeight, estimatedHeight));
+    };
+
     return (
-            <Modal 
+            <Modal
                 title={prompt ? prompt.name : ""}
-                height={() => window.innerHeight * 0.75}
+                height={calculateModalHeight}
                 width={() => window.innerWidth * 0.55}
-                onCancel={()=>onClose(false)} 
+                onCancel={()=>onClose(false)}
                 onSubmit={() => {
                     handleSubmit();
                 }}
+                resizeOnVarChange={variables.length}
                 content={
 
                 <>
@@ -636,17 +650,31 @@ export const VariableModal: FC<Props> = ({
                     </div>
                 ))}
 
-                {showModelSelector && models && (
-                    <div className="relative" style={{overflow: 'visible', zIndex: 1}}>
-                    <ModelSelect
-                        isTitled={true}
-                        modelId={selectedModel.id}
-                        handleModelChange={(modelId:string) => {
-                            handleModelChange(modelId)
-                        }}
-                    />
-                    </div>
-                )}
+                {showModelSelector && (() => {
+                    // Replicate ModelSelect's exact filtering logic
+                    const filteredModels = models && models.length > 0
+                        ? models
+                        : filterModels(availableModels, getSettings(featureFlags).hiddenModelIds);
+
+                    return (
+                        <div className="mb-4">
+                            <div className="mb-2 text-sm font-bold text-black dark:text-neutral-200">
+                                Model
+                            </div>
+                            <select
+                                className="w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                value={selectedModel?.id || ''}
+                                onChange={(e) => handleModelChange(e.target.value)}
+                            >
+                                {filteredModels.sort((a, b) => a.name.localeCompare(b.name)).map((model) => (
+                                    <option key={model.id} value={model.id}>
+                                        {model.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    );
+                })()}
                 <div className="mb-2 mt-6 text-sm font-bold text-black dark:text-neutral-200">
                     Required fields are marked with *
                 </div>

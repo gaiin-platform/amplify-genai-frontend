@@ -28,6 +28,7 @@ export interface WebSearchProviderConfig {
 export interface AdminWebSearchConfig {
     provider: WebSearchProvider;
     isEnabled: boolean;
+    allowUserWebSearchKeys: boolean;
     maskedKey?: string;
     lastUpdated?: string;
 }

@@ -136,7 +136,7 @@ export const CodeBlock: FC<Props> = memo(({ language, value }) => {
 
 
   return (
-    <div ref={codeBlockRef} className="codeblock relative font-sans text-[16px]" style={{ width: '100%', minWidth: 0 }}>
+    <div ref={codeBlockRef} className="codeblock relative font-sans text-[16px]" style={{ width: '100%', minWidth: 0, maxWidth: '100%', overflowX: 'auto' }}>
       <div className="flex items-center justify-between py-1.5 px-4">
         <span className="text-xs lowercase text-white">{language}</span>
 

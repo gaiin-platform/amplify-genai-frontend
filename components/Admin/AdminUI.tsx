@@ -349,6 +349,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     integrations: integrations,
                     provider_settings: providerSettings
                 };
+            case AdminConfigTypes.WEB_SEARCH:
+                // Only send allowed fields to backend (exclude maskedKey, lastUpdated, isEnabled)
+                if (!webSearchConfig) return null;
+                return {
+                    provider: webSearchConfig.provider,
+                    allowUserWebSearchKeys: webSearchConfig.allowUserWebSearchKeys
+                };
             case AdminConfigTypes.OPENAI_ENDPOINTS:
                 const toTest:{key: string, url: string, model:string}[] = [];
                 
@@ -502,10 +509,11 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
         saveAction([AdminConfigTypes.FEATURE_FLAGS], saveUpdateFeatureFlags);
         saveAction([AdminConfigTypes.AVAILABLE_MODELS, AdminConfigTypes.DEFAULT_MODELS], saveUpdateAvailableModels);
-        saveAction([AdminConfigTypes.PPTX_TEMPLATES], saveUpdatePptx); 
+        saveAction([AdminConfigTypes.PPTX_TEMPLATES], saveUpdatePptx);
         saveAction([AdminConfigTypes.EMAIL_SUPPORT], () => homeDispatch({ field: 'supportEmail', value: emailSupport.email}));
         saveAction([AdminConfigTypes.AI_EMAIL_DOMAIN], () => homeDispatch({ field: 'aiEmailDomain', value: aiEmailDomain}));
         saveAction([AdminConfigTypes.PROMPT_COST_ALERT], () => homeDispatch({ field: 'promptCostAlert', value: promptCostAlert}));
+        saveAction([AdminConfigTypes.WEB_SEARCH], () => homeDispatch({ field: 'canAddWebSearchApiKey', value: webSearchConfig?.allowUserWebSearchKeys ?? false}));
         if (!storageSelection) saveAction([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () => homeDispatch({ field: 'storageSelection', value: defaultConversationStorage})); 
     }
 
@@ -860,8 +868,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
             ///////////////////////////////////////////////////////////////////////////////
   
-            // Integrations Tab - only included if included in the feature flags list
-            ...(integrations ? 
+            // Integrations Tab - only included if integrations are deployed or webSearch is enabled
+            ...(integrations || featureFlags.webSearch || features.webSearch?.enabled ?
                 [
                 {label: tabTitle("Integrations"),
                     content:
@@ -882,7 +890,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         }}
                         updateUnsavedConfigs={updateUnsavedConfigs}
                         webSearchConfig={webSearchConfig}
-                        setWebSearchConfig={setWebSearchConfig}
+                        setWebSearchConfig={(config: AdminWebSearchConfig | null) => {
+                            setWebSearchConfig(config);
+                            updateUnsavedConfigs(AdminConfigTypes.WEB_SEARCH);
+                        }}
                     />
                 }
                 ] : []),

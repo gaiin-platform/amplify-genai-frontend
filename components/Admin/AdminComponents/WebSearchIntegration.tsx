@@ -5,6 +5,7 @@
  */
 
 import { FC, useState } from 'react';
+import Checkbox from '@/components/ReusableComponents/CheckBox';
 import {
     IconSearch,
     IconKey,
@@ -34,6 +35,7 @@ interface Props {
 export const WebSearchIntegration: FC<Props> = ({ config, setConfig }) => {
     const [selectedProvider, setSelectedProvider] = useState<WebSearchProvider | null>(null);
     const [apiKey, setApiKey] = useState('');
+    const [allowUserKeys, setAllowUserKeys] = useState(config?.allowUserWebSearchKeys ?? false);
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -64,6 +66,7 @@ export const WebSearchIntegration: FC<Props> = ({ config, setConfig }) => {
             setConfig({
                 provider: selectedProvider,
                 isEnabled: true,
+                allowUserWebSearchKeys: allowUserKeys,
                 maskedKey: `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}`,
                 lastUpdated: new Date().toISOString()
             });
@@ -92,6 +95,17 @@ export const WebSearchIntegration: FC<Props> = ({ config, setConfig }) => {
         setDeleting(false);
     };
 
+    const handleAllowUserKeysChange = (isChecked: boolean) => {
+        setAllowUserKeys(isChecked);
+        // Update the config immediately if it exists
+        if (config) {
+            setConfig({
+                ...config,
+                allowUserWebSearchKeys: isChecked
+            });
+        }
+    };
+
     return (
         <div className="admin-style-settings-card">
             <div className="admin-style-settings-card-header">
@@ -105,7 +119,7 @@ export const WebSearchIntegration: FC<Props> = ({ config, setConfig }) => {
             </div>
 
             {/* Info Box */}
-            <div className="mx-4 my-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="mx-4 my-4 p-4 bg-blue-50 dark:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded-lg">
                 <div className="flex items-start gap-3">
                     <IconInfoCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-blue-700 dark:text-blue-300">
@@ -119,9 +133,22 @@ export const WebSearchIntegration: FC<Props> = ({ config, setConfig }) => {
                 </div>
             </div>
 
+            {/* Allow Users to Add Their Own Keys Checkbox */}
+            <div className="mx-4 mb-4">
+                <Checkbox
+                    id="allowUserWebSearchKeys"
+                    label="Allow users to add their own web search API keys"
+                    checked={allowUserKeys}
+                    onChange={handleAllowUserKeysChange}
+                />
+                <p className="ml-6 text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                    When enabled, users can configure their own API keys in addition to using the admin-provided key.
+                </p>
+            </div>
+
             {/* Current Configuration */}
             {config && config.isEnabled && (
-                <div className="mx-4 mb-4 p-4 border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                <div className="mx-4 mb-4 p-4 border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/90 rounded-lg">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <IconCheck className="w-5 h-5 text-green-500" />

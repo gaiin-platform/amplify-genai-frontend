@@ -625,7 +625,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
       )}
 
       <div className="text-black dark:text-white">
-        {showSettings && <SettingDialog open={showSettings} onClose={() => setShowSettings(false)} />}
+        {showSettings && <SettingDialog open={showSettings} onClose={() => { settingsActiveTab.current = undefined; setShowSettings(false); }} openToTab={settingsActiveTab.current} />}
         {/* Allow this to render upon every open  */}
         {showAssistantAdmin && featureFlagsRef.current.assistantAdminInterface && 
          <AssistantAdminUI

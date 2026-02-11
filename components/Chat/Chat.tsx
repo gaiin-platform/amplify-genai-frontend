@@ -249,7 +249,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             autoFocus
                         />
                     ) : (
-                        <span className={`cursor-pointer hover:opacity-70 inline-block ${isSticky ? 'w-4' : '-ml-0.5'} text-center`} onClick={() => setShowTempEdit(true)}>
+                        <span className={`cursor-pointer hover:opacity-70 inline-block ${isSticky ? 'w-4 mr-1' : '-ml-0.5'} text-center`} onClick={() => setShowTempEdit(true)}>
                             {selectedConversation?.temperature}
                         </span>
                     )}

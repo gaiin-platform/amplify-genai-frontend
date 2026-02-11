@@ -49,6 +49,7 @@ export interface HomeInitialState {
   showChatbar: boolean;
   showPromptbar: boolean;
   showUserMenu: boolean;
+  activeAssistantGalleryTab: 'group' | 'individual' | 'templates';
 
   workspaceDirty: boolean; //legacy
   workspaceMetadata: Workspace; //legacy
@@ -84,6 +85,7 @@ export interface HomeInitialState {
   ragOn: boolean;
   isStandalonePromptCreation: boolean;
   promptCostAlert: PromptCostAlert | null;
+  canAddWebSearchApiKey: boolean;
   promptCostAlertModal: {
     isOpen: boolean;
     message: string;
@@ -138,6 +140,7 @@ export const initialState: HomeInitialState = {
   showPromptbar: false,
   showChatbar: false,
   showUserMenu: false,
+  activeAssistantGalleryTab: 'group',
   currentFolder: undefined,
   messageError: false,
   searchTerm: '',
@@ -169,5 +172,6 @@ export const initialState: HomeInitialState = {
   ragOn: false,
   isStandalonePromptCreation: false,
   promptCostAlert: null,
-  promptCostAlertModal: null
+  promptCostAlertModal: null,
+  canAddWebSearchApiKey: false
 };

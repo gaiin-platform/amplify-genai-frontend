@@ -67,6 +67,7 @@ import { useSession, signIn, signOut, getSession } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
+import { AssistantGallery } from "@/components/AssistantGallery/AssistantGallery";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { deleteAssistant, listAssistants } from '@/services/assistantService';
 import { filterAstsByFeatureFlags, getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
@@ -831,6 +832,12 @@ const Home = ({
                         const promptCostData = data[AdminConfigTypes.PROMPT_COST_ALERT];
                         dispatch({ field: 'promptCostAlert', value: promptCostData});
                     }
+                    if (AdminConfigTypes.WEB_SEARCH in data) {
+                        const webSearchData = data[AdminConfigTypes.WEB_SEARCH];
+                        if (webSearchData && webSearchData.allowUserWebSearchKeys !== undefined) {
+                            dispatch({ field: 'canAddWebSearchApiKey', value: webSearchData.allowUserWebSearchKeys });
+                        }
+                    }
 
                 } else {
                     console.log("Failed to fetch user app configs.");
@@ -1503,7 +1510,6 @@ const Home = ({
 
                             <TabSidebar
                                 side={"left"}
-                                footerComponent={null}
                             >
                                 <Tab icon={<IconMessage />} title="Chats"><Chatbar /></Tab>
                                 <Tab icon={<IconSparkles />} title="Assistants"><Promptbar /></Tab>
@@ -1521,6 +1527,9 @@ const Home = ({
                                 )} */}
                                 {page === 'home' && (
                                     <MyHome />
+                                )}
+                                {page === 'assistantGallery' && (
+                                    <AssistantGallery />
                                 )}
                             </div>
                             

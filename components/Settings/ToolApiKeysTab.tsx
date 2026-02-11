@@ -145,7 +145,7 @@ export const ToolApiKeysTab: FC<Props> = ({ open }) => {
       </div>
 
       {/* Info Box */}
-      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+      <div className="p-4 bg-blue-50 dark:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded-lg">
         <div className="flex items-start gap-3">
           <IconInfoCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-blue-700 dark:text-blue-300">
