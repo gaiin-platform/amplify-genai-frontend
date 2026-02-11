@@ -34,7 +34,6 @@ export const GroupTypeSelector: FC<Props> = ({ groupOptionsData, setSelected, gr
 
     if (!groupOptionsData) return null;
 
-    console.log("groupOptionsData", groupOptionsData);
 
     return (
         <div className='flex flex-col text-black dark:text-neutral-100'>

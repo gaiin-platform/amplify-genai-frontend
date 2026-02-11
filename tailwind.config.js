@@ -9,6 +9,25 @@ module.exports = {
   darkMode: 'class',
   theme: {
     extend: {
+      keyframes: {
+        fadeInUp: {
+          '0%': { opacity: '0', transform: 'translateY(10px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        fadeInScale: {
+          '0%': { opacity: '0', transform: 'scale(0.95)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        slideInRight: {
+          '0%': { opacity: '0', transform: 'translateX(-20px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
+      },
+      animation: {
+        fadeInUp: 'fadeInUp 0.4s ease-out',
+        fadeInScale: 'fadeInScale 0.5s ease-out',
+        slideInRight: 'slideInRight 0.4s ease-out',
+      },
       // Override default Tailwind colors with CSS custom properties
       // This allows runtime theme switching while using standard Tailwind classes
       colors: {

@@ -85,6 +85,9 @@ export const handleStartConversationWithPrompt = (handleNewConversation:any, pro
   // remove duplicates 
   tags = Array.from(new Set(tags));
 
+  // Check if assistant has enforced model
+  const enforcedModel = prompt.data?.assistant?.definition?.data?.model;
+  
   handleNewConversation(
       {
         name: prompt.name + " " + dateTimeString(),
@@ -94,6 +97,7 @@ export const handleStartConversationWithPrompt = (handleNewConversation:any, pro
         tools: [],
         tags: tags,
         ...(rootPrompt != null && {prompt: rootPrompt}),
+        ...(enforcedModel && {model: enforcedModel}),
       })
 }
 

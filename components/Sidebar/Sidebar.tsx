@@ -5,6 +5,7 @@ import Search from '../Search';
 import { KebabMenu } from '@/components/Sidebar/components/KebabMenu';
 import { SortType } from '@/types/folder';
 import HomeContext from '@/pages/api/home/home.context';
+import { GroupAssistantsButton } from '../GroupAssistants/GroupAssistantsButton';
 
 
 interface Props<T> {
@@ -128,11 +129,14 @@ const Sidebar = <T,>({
           </div>
         </div>
         {side === 'right' && addItemButton('')}
+
         <Search
           placeholder={t('Search...') || ''}
           searchTerm={searchTerm}
           onSearch={handleSearchTerm}
         />
+
+        {side === 'right' && <GroupAssistantsButton />}
 
         <KebabMenu
           label={side === 'left' ? "Conversations": "Prompts"} 
@@ -168,7 +172,7 @@ const Sidebar = <T,>({
             )}
           </div>
         </div>
-        {footerComponent}
+
       </div>
       {footerComponent && (
         <div 
@@ -178,6 +182,7 @@ const Sidebar = <T,>({
           {footerComponent}
         </div>
       )}
+    
     </div>
   );
 };

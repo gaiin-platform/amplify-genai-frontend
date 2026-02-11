@@ -49,6 +49,7 @@ export interface HomeInitialState {
   showChatbar: boolean;
   showPromptbar: boolean;
   showUserMenu: boolean;
+  activeAssistantGalleryTab: 'group' | 'individual' | 'templates';
 
   workspaceDirty: boolean; //legacy
   workspaceMetadata: Workspace; //legacy
@@ -139,6 +140,7 @@ export const initialState: HomeInitialState = {
   showPromptbar: false,
   showChatbar: false,
   showUserMenu: false,
+  activeAssistantGalleryTab: 'group',
   currentFolder: undefined,
   messageError: false,
   searchTerm: '',
