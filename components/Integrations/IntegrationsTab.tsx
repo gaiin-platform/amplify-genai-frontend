@@ -18,12 +18,13 @@ interface Props {
   onSupportedIntegrations?: (integrations: IntegrationsMap) => void;
   onConnectedIntegrations?: (integrations: string[]) => void;
   onTabChange?: (tab: string) => void;
+  openToSubTab?: string;
 }
 
 export const IntegrationTabs: FC<Props> = ({ open, depth=0, allowedIntegrations=[], onTabChange: integrationTabChange = () => {},
-                                             onSupportedIntegrations = () => {}, onConnectedIntegrations = () => {}}) => {
+                                             onSupportedIntegrations = () => {}, onConnectedIntegrations = () => {}, openToSubTab }) => {
   const { t } = useTranslation('settings');
-  const { state: { featureFlags } } = useContext(HomeContext);
+  const { state: { featureFlags, canAddWebSearchApiKey } } = useContext(HomeContext);
   const lastActiveTab = useRef<number | undefined>(undefined);
 
   const [connectingStates, setConnectingStates] = useState<{[key: string]: boolean}>({});
@@ -287,17 +288,20 @@ export const IntegrationTabs: FC<Props> = ({ open, depth=0, allowedIntegrations=
     <ActiveTabs
         id="SettingsIntegrationsTab"
         depth={depth}
-        initialActiveTab={lastActiveTab.current}
-        onTabChange={(i: number, label: string) => integrationTabChange(label)}
+        initialActiveTab={openToSubTab || lastActiveTab.current}
+        onTabChange={(i: number, label: string) => {
+          lastActiveTab.current = i;
+          integrationTabChange(label);
+        }}
         tabs={[
             ...(Object.keys(integrations).sort().map((name: string, i: number) =>
                         ({label: capitalize(name),
                         content: <>{renderContent(name, i)}</>
                         })
             )),
-            ...(featureFlags.webSearch && (allowedIntegrations.length === 0 || allowedIntegrations.includes('web_search')) ? [{
+            ...(featureFlags.webSearch && canAddWebSearchApiKey && (allowedIntegrations.length === 0 || allowedIntegrations.includes('web_search')) ? [{
               label: 'Web Search',
-              content: <ToolApiKeysTab open={open} />
+              content: <ToolApiKeysTab open={open} canAddApiKeys={canAddWebSearchApiKey} />
             }] : [])
           ]
         }

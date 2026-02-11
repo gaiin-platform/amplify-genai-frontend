@@ -13,7 +13,7 @@ import toast from "react-hot-toast";
 import { WebSearchIntegration } from "./WebSearchIntegration";
 
 interface Props {
-    integrations: IntegrationsMap;
+    integrations: IntegrationsMap | null;
     setIntegrations: (i: IntegrationsMap) => void;
 
     integrationSecrets: IntegrationSecretsMap;
@@ -86,7 +86,7 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
         {/* Web Search Integration */}
         {featureFlags.webSearch && <WebSearchIntegration config={webSearchConfig} setConfig={setWebSearchConfig} />}
 
-        <div className="admin-style-settings-card">
+        {integrations && <div className="admin-style-settings-card">
         <div className="admin-style-settings-card-header">
             <div className="flex flex-row items-center gap-3 mb-2">
                 <h3 className="admin-style-settings-card-title">OAuth Integrations</h3>
@@ -184,7 +184,7 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
                 <br className="mb-4"></br>
             </div>
         )}
-    </div>
+    </div>}
     </>
 
 }

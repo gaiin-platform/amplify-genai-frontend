@@ -92,6 +92,9 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
   // prevent recalling the getSettings function
   if (initSettingsRef.current === null) initSettingsRef.current = getSettings(featureFlags);
 
+  // Parse openToTab for sub-tab navigation (e.g., "Integrations:Web Search")
+  const [mainTab, subTab] = openToTab ? openToTab.split(':') : [undefined, undefined];
+
   useEffect(() => {
     initSettingsRef.current = getSettings(featureFlags);
   }, [featureFlags]);
@@ -356,7 +359,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
         <>
         <ActiveTabs
             id="SettingsTabs"
-            initialActiveTab={openToTab}
+            initialActiveTab={mainTab}
             onTabChange={(tabIndex: number) => setTrackTab(tabIndex)}
             tabs={[
       
@@ -517,7 +520,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
               // Integrations Tab
               ...(featureFlags.integrations ? [{label: `Integrations`,
                 title: "Manage your integration connections",
-                content: <IntegrationTabs open={open} depth={1}/>
+                content: <IntegrationTabs open={open} depth={1} openToSubTab={subTab}/>
               }] : []),
 
               ///////////////////////////////////////////////////////////////////////////////
