@@ -84,7 +84,11 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
 
     return <>
         {/* Web Search Integration */}
-        {featureFlags.webSearch && <WebSearchIntegration config={webSearchConfig} setConfig={setWebSearchConfig} />}
+        {featureFlags.webSearch && <WebSearchIntegration
+            config={webSearchConfig}
+            setConfig={setWebSearchConfig}
+            updateUnsavedConfigs={() => updateUnsavedConfigs(AdminConfigTypes.WEB_SEARCH)}
+        />}
 
         {integrations && <div className="admin-style-settings-card">
         <div className="admin-style-settings-card-header">

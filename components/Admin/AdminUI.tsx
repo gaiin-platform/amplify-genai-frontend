@@ -350,12 +350,24 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     provider_settings: providerSettings
                 };
             case AdminConfigTypes.WEB_SEARCH:
-                // Only send allowed fields to backend (exclude maskedKey, lastUpdated, isEnabled)
+                // Return null to remove the config, otherwise send the configuration
                 if (!webSearchConfig) return null;
-                return {
-                    provider: webSearchConfig.provider,
+
+                const configData: any = {
                     allowUserWebSearchKeys: webSearchConfig.allowUserWebSearchKeys
                 };
+
+                // Only include provider if it's set
+                if (webSearchConfig.provider) {
+                    configData.provider = webSearchConfig.provider;
+                }
+
+                // Include api_key if it exists (new/updated key)
+                if ('api_key' in webSearchConfig && webSearchConfig.api_key) {
+                    configData.api_key = webSearchConfig.api_key;
+                }
+
+                return configData;
             case AdminConfigTypes.OPENAI_ENDPOINTS:
                 const toTest:{key: string, url: string, model:string}[] = [];
                 
