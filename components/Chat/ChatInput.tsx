@@ -11,7 +11,8 @@ import {
     IconUpload,
     IconCheck,
     IconX,
-    IconWorldSearch
+    IconWorldSearch,
+    IconGripHorizontal
 } from '@tabler/icons-react';
 import SaveActionsModal from './SaveActionsModal';
 import {
@@ -271,6 +272,55 @@ export const ChatInput = ({
     // Drag and drop state management
     const [isDragging, setIsDragging] = useState(false);
     const [dragCounter, setDragCounter] = useState(0);
+
+    // Textarea resize state
+    const [textareaHeight, setTextareaHeight] = useState<number>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('chatInputHeight');
+            return saved ? parseInt(saved, 10) : UI_CONFIG.TEXTAREA_MAX_HEIGHT;
+        }
+        return UI_CONFIG.TEXTAREA_MAX_HEIGHT;
+    });
+    const [isResizing, setIsResizing] = useState(false);
+    const resizeStartY = useRef<number>(0);
+    const resizeStartHeight = useRef<number>(0);
+
+    // Resize handlers
+    const handleResizeStart = (e: React.MouseEvent) => {
+        e.preventDefault();
+        setIsResizing(true);
+        resizeStartY.current = e.clientY;
+        resizeStartHeight.current = textareaHeight;
+    };
+
+    useEffect(() => {
+        if (!isResizing) return;
+
+        const handleResizeMove = (e: MouseEvent) => {
+            const deltaY = resizeStartY.current - e.clientY; // Inverted: dragging up increases height
+            const newHeight = Math.max(
+                60, // Min height - can shrink quite small (about 2 lines)
+                Math.min(800, resizeStartHeight.current + deltaY) // Max height 800px
+            );
+            setTextareaHeight(newHeight);
+        };
+
+        const handleResizeEnd = () => {
+            setIsResizing(false);
+            // Save to localStorage
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('chatInputHeight', String(textareaHeight));
+            }
+        };
+
+        document.addEventListener('mousemove', handleResizeMove);
+        document.addEventListener('mouseup', handleResizeEnd);
+
+        return () => {
+            document.removeEventListener('mousemove', handleResizeMove);
+            document.removeEventListener('mouseup', handleResizeEnd);
+        };
+    }, [isResizing, textareaHeight]);
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     //const [assistant, setAssistant] = useState<Assistant>(selectedAssistant || DEFAULT_ASSISTANT);
@@ -811,11 +861,11 @@ export const ChatInput = ({
             textareaRef.current.style.height = 'inherit';
             textareaRef.current.style.height = `${textareaRef.current?.scrollHeight}px`;
             textareaRef.current.style.overflow = `${
-                textareaRef?.current?.scrollHeight > UI_CONFIG.TEXTAREA_MAX_HEIGHT ? 'auto' : 'hidden'
+                textareaRef?.current?.scrollHeight > textareaHeight ? 'auto' : 'hidden'
             }`;
         }
 
-    }, [content]);
+    }, [content, textareaHeight]);
 
     useEffect(() => {
         const handleOutsideClick = (e: MouseEvent) => {
@@ -1017,17 +1067,17 @@ export const ChatInput = ({
                 const cursorPos = textarea.selectionStart;
                 const currentContent = content || '';
                 
-                const { newContent, hasLargeText } = handleLargeTextPaste(
-                    pastedText,
-                    currentContent,
-                    cursorPos,
-                    textareaRef
-                );
+                // const { newContent, hasLargeText } = handleLargeTextPaste(
+                //     pastedText,
+                //     currentContent,
+                //     cursorPos,
+                //     textareaRef
+                // );
                 
-                if (hasLargeText) {
-                    e.preventDefault();
-                    setContent(newContent);
-                }
+                // if (hasLargeText) {
+                //     e.preventDefault();
+                //     setContent(newContent);
+                // }
             }
             // If text is not large, let the default paste behavior handle it
         }
@@ -1317,6 +1367,20 @@ export const ChatInput = ({
 
 
 
+                    {/* Resize Grip Handle - only show when there's substantial text */}
+                    {textareaRef?.current && textareaRef.current.scrollHeight > 100 && (
+                        <div
+                            className={`w-full flex justify-center py-1 cursor-ns-resize select-none ${isResizing ? 'bg-blue-100 dark:bg-blue-900/20' : 'hover:bg-gray-100 dark:hover:bg-gray-700/30'} transition-colors`}
+                            onMouseDown={handleResizeStart}
+                            style={{transform: 'translateY(24px)'}}
+                            title="Drag to resize input area"
+                        >
+                            <div className="flex items-center gap-1 text-gray-400 dark:text-gray-500">
+                                <IconGripHorizontal size={20} stroke={1.5} />
+                            </div>
+                        </div>
+                    )}
+
                     <div className="relative mx-2 flex w-full flex-grow sm:mx-4 bg-neutral-100 dark:bg-[#3d3e4c] rounded-md" style={{transform: 'translateY(24px)'}}>
 
                         {/* Only show AssistantsInUse when AttachmentDisplay is NOT shown */}
@@ -1510,9 +1574,9 @@ export const ChatInput = ({
                                 style={{
                                     resize: 'none',
                                     bottom: `${textareaRef?.current?.scrollHeight}px`,
-                                    maxHeight: `${UI_CONFIG.TEXTAREA_MAX_HEIGHT}px`,
+                                    maxHeight: `${textareaHeight}px`,
                                     overflow: `${
-                                        textareaRef.current && textareaRef.current.scrollHeight > UI_CONFIG.TEXTAREA_MAX_HEIGHT
+                                        textareaRef.current && textareaRef.current.scrollHeight > textareaHeight
                                             ? 'auto'
                                             : 'hidden'
                                     }`,
