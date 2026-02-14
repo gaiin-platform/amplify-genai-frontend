@@ -1,5 +1,5 @@
 import React, {FC, useContext, useEffect, useState} from 'react';
-import { IconCircleX, IconCheck, IconWorld, IconSitemap, IconReload } from '@tabler/icons-react';
+import { IconCircleX, IconCheck, IconWorld, IconSitemap, IconReload, IconDatabase } from '@tabler/icons-react';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
@@ -36,6 +36,8 @@ const getIcon = (document:AttachedDocument) => {
             return <IconSitemap className="text-blue-500" size={18}/>
         case 'website/url':
             return <IconWorld className="text-blue-500" size={18}/>
+        case 'bedrock/knowledge-base':
+            return <IconDatabase className="text-purple-500" size={18}/>
         default:
             return null;
     }
