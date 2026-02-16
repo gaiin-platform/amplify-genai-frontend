@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { getSession, useSession, signIn } from 'next-auth/react';
 import { useTranslation } from 'next-i18next';
-import { IconMessage, IconSend, IconChevronUp, IconChevronDown, IconSquare, Icon3dCubeSphere, IconLoader2 } from '@tabler/icons-react';
+import { IconMessage, IconSend, IconChevronUp, IconChevronDown, IconSquare, Icon3dCubeSphere, IconLoader2, IconBrain } from '@tabler/icons-react';
 import { getAvailableModels } from '@/services/adminService';
 import { sendDirectAssistantMessage, lookupAssistant } from '@/services/assistantService';
 import { getSettings } from '@/utils/app/settings';
@@ -83,6 +83,9 @@ const AssistantPage = ({
   const messageStateRef = useRef<any>({});
   const [responseStatus, setResponseStatus] = useState<string>('');
   const [astResponding, setAstResponding] = useState<string>('');
+  const [reasoningText, setReasoningText] = useState<string>('');
+  const [messageReasoning, setMessageReasoning] = useState<{ [key: number]: string }>({});
+  const [expandedReasoning, setExpandedReasoning] = useState<{ [key: number]: boolean }>({});
   const [editing, setEditing] = useState<number | null>(null);
   const [editedContent, setEditedContent] = useState("");
   const [abortController, setAbortController] = useState<AbortController>(new AbortController());
@@ -216,10 +219,10 @@ const AssistantPage = ({
     }
   }, [lightMode]);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when messages change or reasoning updates
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, reasoningText, isProcessing]);
 
   // Initialize the page
   useEffect(() => {
@@ -349,12 +352,25 @@ const AssistantPage = ({
     initializePage();
   }, [chatEndpoint, assistantSlug]);
 
-  const handleResponseStatus = (status: string) => {
+  const handleResponseStatus = (status: string, meta?: any) => {
     // console.log("status recieved:", status);
     if (status.includes("responding")) {
       setAstResponding(status);
+      // Save reasoning to the current message and clear temp reasoning
+      if (reasoningText) {
+        const currentMessageIndex = messages.length; // The assistant message we just added
+        setMessageReasoning(prev => ({ ...prev, [currentMessageIndex]: reasoningText }));
+        setReasoningText('');
+      }
     } else {
-      setResponseStatus(status);
+      // Check if this is a reasoning message
+      if (meta?.id === "reasoning") {
+        // Accumulate reasoning chunks instead of replacing
+        setReasoningText(prev => prev + status);
+        setResponseStatus('Thinking...');
+      } else {
+        setResponseStatus(status);
+      }
     }
   }
 
@@ -503,6 +519,7 @@ const AssistantPage = ({
       setAgentStatus('');
       setResponseStatus('');
       setAstResponding('');
+      setReasoningText('');
     }
   };
 
@@ -530,24 +547,48 @@ const AssistantPage = ({
 
     // Create a wrapper for handleMessageState that uses the correct index
     const handleMessageStateWithIndex = (state: any) => {
-      console.log('🔵 [handleMessageStateWithIndex] Called with state for index:', assistantMessageIndex);
-      console.log('🔵 [handleMessageStateWithIndex] State:', JSON.stringify(state, null, 2));
-      console.log('🔵 [handleMessageStateWithIndex] Has agentRun?', !!state?.agentRun);
-      if (state?.agentRun) {
-        console.log('🔵 [handleMessageStateWithIndex] AgentRun details:', {
-          sessionId: state.agentRun.sessionId,
-          startTime: state.agentRun.startTime,
-          endTime: state.agentRun.endTime
+      try {
+        // 🔍 DEBUG: Log state details to diagnose allocation overflow
+        const currentStateKeyCount = Object.keys(messageStateRef.current || {}).length;
+        const incomingStateKeys = Object.keys(state || {});
+        console.log(`🔍 [handleMessageStateWithIndex] Called for index ${assistantMessageIndex}:`, {
+          currentStateKeyCount,
+          incomingStateKeyCount: incomingStateKeys.length,
+          incomingStateKeys: incomingStateKeys.slice(0, 5),
+          hasAgentRun: !!state?.agentRun,
         });
+
+        if (state?.agentRun) {
+          console.log('🔵 [handleMessageStateWithIndex] AgentRun details:', {
+            sessionId: state.agentRun.sessionId,
+            startTime: state.agentRun.startTime,
+            endTime: state.agentRun.endTime
+          });
+        }
+
+        // Update the ref immediately with the current ref value (not stale React state)
+        const currentState = messageStateRef.current || {};
+        const newState = { ...currentState, [assistantMessageIndex]: state };
+
+        const newStateKeyCount = Object.keys(newState).length;
+        console.log(`🔍 [handleMessageStateWithIndex] After update - newState key count: ${newStateKeyCount}`);
+
+        messageStateRef.current = newState;
+
+        // Also update React state
+        setMessageState(newState);
+
+        console.log(`✅ [handleMessageStateWithIndex] State updated successfully`);
+      } catch (e) {
+        console.error('❌ [handleMessageStateWithIndex] Error updating state:', e);
+        console.error('❌ [handleMessageStateWithIndex] Error details:', {
+          errorName: e instanceof Error ? e.name : 'Unknown',
+          errorMessage: e instanceof Error ? e.message : String(e),
+          currentStateKeyCount: Object.keys(messageStateRef.current || {}).length,
+          assistantMessageIndex,
+        });
+        throw e; // Re-throw to see full stack
       }
-
-      // Update the ref immediately with the current ref value (not stale React state)
-      const newState = { ...messageStateRef.current, [assistantMessageIndex]: state };
-      messageStateRef.current = newState;
-      console.log('🔵 [handleMessageStateWithIndex] Updated messageStateRef.current:', JSON.stringify(messageStateRef.current, null, 2));
-
-      // Also update React state
-      setMessageState(newState);
     };
 
     try {
@@ -564,6 +605,14 @@ const AssistantPage = ({
       const options = {groupType:  requiredGroupType ? groupType : undefined, groupId: assistantDefinition?.data?.groupId,
                        accountId: defaultAccount?.id, rateLimit: defaultAccount?.rateLimit
                       };
+
+      // Debug: log messages array size to detect potential memory issues
+      const totalContentSize = messages.reduce((acc, m) => acc + (m.content?.length || 0), 0);
+      console.log(`📊 [Request] Sending ${messages.length} messages, total content size: ${totalContentSize} bytes`);
+      if (totalContentSize > 100000) {
+        console.warn(`⚠️ [Request] Large conversation history: ${totalContentSize} bytes`);
+      }
+
       // Send the message to the assistant with conversation history and selected model
       const result = await sendDirectAssistantMessage(
         chatEndpoint,
@@ -596,35 +645,46 @@ const AssistantPage = ({
         throw new Error("Invalid response format - no response body");
       }
       
+      // Declare variables outside try block so they're accessible in catch for error logging
+      let text = '';
+      let chunkCount = 0;
+      let totalBytesReceived = 0;
+      let largestChunkSize = 0;
+      const streamStartTime = Date.now();
+
       // Process the streaming response
       try {
         const data = response.body;
         const reader = data.getReader();
         const decoder = new TextDecoder();
         let done = false;
-        let text = '';
-        let chunkCount = 0;
 
         // Set a timeout to check if we're getting any data
         const streamTimeout = setTimeout(() => {
           if (chunkCount === 0) {
-            console.warn('No chunks received after 15 seconds, setting fallback response');
-            // If no chunks have been received after 15 seconds, show a fallback message
+            console.warn(`⏰ [Stream] No chunks received after 90 seconds. Stream started ${Date.now() - streamStartTime}ms ago`);
+            // If no chunks have been received after 90 seconds, show a fallback message
             setMessages(prev => {
               const newMessages = [...prev];
               if (newMessages.length > 0 && newMessages[newMessages.length - 1].role === 'assistant') {
                 newMessages[newMessages.length - 1] = {
                   role: 'assistant',
-                  content: 'I received your message but haven\'t been able to generate a response yet. Please wait a moment or try again.'
+                  content: 'I received your message but haven\'t been able to generate a response yet. Please continue to wait a moment or try again.'
                 };
               }
               return newMessages;
             });
           }
-        }, 15000);
+        }, 90000);
 
         console.log('🟢 [Stream] Starting to read stream...');
-        console.log('🟢 [Stream] Current messageState:', JSON.stringify(messageState, null, 2));
+        console.log('🟢 [Stream] Response status:', response.status, response.statusText);
+
+        // Throttle UI updates to reduce memory pressure from frequent setMessages calls
+        let lastUpdateTime = 0;
+        const UPDATE_INTERVAL_MS = 50; // Update UI at most every 50ms
+        let lastProgressLog = 0;
+        const PROGRESS_LOG_INTERVAL_MS = 5000; // Log progress every 5 seconds
 
         while (!done) {
           const { value, done: doneReading } = await reader.read();
@@ -657,32 +717,92 @@ const AssistantPage = ({
 
           if (value) {
             chunkCount++;
+            const rawChunkSize = value.length;
+            totalBytesReceived += rawChunkSize;
+            if (rawChunkSize > largestChunkSize) {
+              largestChunkSize = rawChunkSize;
+            }
+
+            // Log first chunk details
+            if (chunkCount === 1) {
+              console.log(`🟢 [Stream] First chunk received after ${Date.now() - streamStartTime}ms, size: ${rawChunkSize} bytes`);
+            }
+
+            // Log if individual chunk is suspiciously large
+            if (rawChunkSize > 100000) {
+              console.warn(`⚠️ [Stream] Large chunk #${chunkCount}: ${rawChunkSize} bytes`);
+            }
+
             const chunkValue = decoder.decode(value, { stream: true });
 
-            // Normal streaming (if not agent run)
+            // Debug: track text size to catch allocation overflow early
+            const prevLength = text.length;
             text += chunkValue;
 
-            // Update the assistant message as it streams in
-            setMessages(prev => {
-              // Make a copy of the messages array
-              const newMessages = [...prev];
-              // Update the last message (the assistant's message)
-              if (newMessages.length > 0) {
-                newMessages[newMessages.length - 1] = {
-                  role: 'assistant',
-                  content: text
-                };
-              }
-              return newMessages;
-            });
+            // Periodic progress logging
+            const now = Date.now();
+            if (now - lastProgressLog >= PROGRESS_LOG_INTERVAL_MS) {
+              lastProgressLog = now;
+              console.log(`📊 [Stream] Progress: ${chunkCount} chunks, ${totalBytesReceived} bytes received, text length: ${text.length}, elapsed: ${now - streamStartTime}ms`);
+            }
+
+            // Log warning if text is getting large
+            if (text.length > 100000 && prevLength <= 100000) {
+              console.warn(`⚠️ [Stream] Text exceeded 100KB: ${text.length} bytes, chunk count: ${chunkCount}, raw bytes: ${totalBytesReceived}`);
+            }
+            if (text.length > 500000 && prevLength <= 500000) {
+              console.warn(`⚠️ [Stream] Text exceeded 500KB: ${text.length} bytes, chunk count: ${chunkCount}, raw bytes: ${totalBytesReceived}`);
+            }
+            if (text.length > 1000000 && prevLength <= 1000000) {
+              console.error(`🚨 [Stream] Text exceeded 1MB: ${text.length} bytes, chunk count: ${chunkCount}, raw bytes: ${totalBytesReceived}`);
+            }
+            if (now - lastUpdateTime >= UPDATE_INTERVAL_MS) {
+              lastUpdateTime = now;
+              // Update the assistant message as it streams in
+              setMessages(prev => {
+                // Make a copy of the messages array
+                const newMessages = [...prev];
+                // Update the last message (the assistant's message)
+                if (newMessages.length > 0) {
+                  newMessages[newMessages.length - 1] = {
+                    role: 'assistant',
+                    content: text
+                  };
+                }
+                return newMessages;
+              });
+            }
           }
         }
-        
+
+        // Log stream completion stats
+        const streamDuration = Date.now() - streamStartTime;
+        console.log(`✅ [Stream] Complete:`, {
+          duration: `${streamDuration}ms`,
+          chunks: chunkCount,
+          totalBytesReceived: `${totalBytesReceived} bytes (${(totalBytesReceived / 1024).toFixed(1)} KB)`,
+          largestChunk: `${largestChunkSize} bytes`,
+          finalTextLength: `${text.length} bytes (${(text.length / 1024).toFixed(1)} KB)`,
+          avgChunkSize: chunkCount > 0 ? `${Math.round(totalBytesReceived / chunkCount)} bytes` : 'N/A'
+        });
+
+        // Final update to ensure last content is displayed
+        setMessages(prev => {
+          const newMessages = [...prev];
+          if (newMessages.length > 0) {
+            newMessages[newMessages.length - 1] = {
+              role: 'assistant',
+              content: text
+            };
+          }
+          return newMessages;
+        });
+
         clearTimeout(streamTimeout);
-        
+
         // If we got here but didn't receive any chunks, add a fallback message
         if (chunkCount === 0) {
-          console.warn('Stream completed but no chunks were received');
+          console.warn('⚠️ [Stream] Completed but no chunks were received');
           setMessages(prev => {
             const newMessages = [...prev];
             if (newMessages.length > 0 && newMessages[newMessages.length - 1].role === 'assistant') {
@@ -711,10 +831,29 @@ const AssistantPage = ({
           }
         }
       } catch (streamError) {
-        console.error('Error processing stream:', streamError);
         const errorMessage = streamError instanceof Error ? streamError.message : String(streamError);
+        const errorName = streamError instanceof Error ? streamError.name : 'Unknown';
+
+        // 🚨 Enhanced error logging
+        console.error(`❌ [Stream] Error processing stream:`, {
+          errorName,
+          errorMessage,
+          errorType: streamError?.constructor?.name,
+          textLengthAtError: text?.length || 0,
+          chunkCountAtError: chunkCount,
+          totalBytesAtError: totalBytesReceived,
+          elapsedMs: Date.now() - streamStartTime,
+          isAllocationError: errorMessage.includes('allocation'),
+          fullError: streamError
+        });
+
+        // Log stack trace separately for better visibility
+        if (streamError instanceof Error && streamError.stack) {
+          console.error(`❌ [Stream] Stack trace:`, streamError.stack);
+        }
+
         const isAbortError = errorMessage.includes('abort') || errorMessage.includes('aborted');
-        
+
         // Only show error message if it's not an abort error
         if (!isAbortError) {
           // Update the last message to show the error
@@ -748,9 +887,15 @@ const AssistantPage = ({
       // Only reset processing state if agent is not running
       // Agent polling handles its own cleanup
       if (!isAgentRunning) {
+        // Save any remaining reasoning text to the message
+        if (reasoningText) {
+          const currentMessageIndex = messages.length;
+          setMessageReasoning(prev => ({ ...prev, [currentMessageIndex]: reasoningText }));
+        }
         setIsProcessing(false);
         setResponseStatus('');
         setAstResponding('');
+        setReasoningText('');
       }
     }
   };
@@ -878,17 +1023,29 @@ const AssistantPage = ({
   const handleSaveEdit = () => {
     if (editing !== null) {
       const updatedMessages = [...messages.slice(0, editing)];
-    
+
       updatedMessages[editing] = {
         ...updatedMessages[editing],
         content: editedContent,
         role: 'user'
       };
       setMessages(updatedMessages);
+
+      // Clear reasoning for messages after the edit point
+      const newReasoning: { [key: number]: string } = {};
+      Object.keys(messageReasoning).forEach(oldIndex => {
+        const idx = parseInt(oldIndex);
+        if (idx < editing) {
+          newReasoning[idx] = messageReasoning[idx];
+        }
+      });
+      setMessageReasoning(newReasoning);
+      setExpandedReasoning({});
+
       setEditing(null);
       handleSendMessage(editedContent);
     }
-    
+
   };
 
   const handleDeleteMessage = (index: number) => {
@@ -896,9 +1053,35 @@ const AssistantPage = ({
     if (messages[index].role === 'user' && index < messages.length - 1 && messages[index + 1].role === 'assistant') {
       const updatedMessages = messages.filter((_, i) => i !== index && i !== index + 1);
       setMessages(updatedMessages);
+
+      // Rebuild reasoning map with updated indices
+      const newReasoning: { [key: number]: string } = {};
+      Object.keys(messageReasoning).forEach(oldIndex => {
+        const idx = parseInt(oldIndex);
+        if (idx < index) {
+          newReasoning[idx] = messageReasoning[idx];
+        } else if (idx > index + 1) {
+          newReasoning[idx - 2] = messageReasoning[idx];
+        }
+      });
+      setMessageReasoning(newReasoning);
+      setExpandedReasoning({});
     } else {
       const updatedMessages = messages.filter((_, i) => i !== index);
       setMessages(updatedMessages);
+
+      // Rebuild reasoning map with updated indices
+      const newReasoning: { [key: number]: string } = {};
+      Object.keys(messageReasoning).forEach(oldIndex => {
+        const idx = parseInt(oldIndex);
+        if (idx < index) {
+          newReasoning[idx] = messageReasoning[idx];
+        } else if (idx > index) {
+          newReasoning[idx - 1] = messageReasoning[idx];
+        }
+      });
+      setMessageReasoning(newReasoning);
+      setExpandedReasoning({});
     }
   };
 
@@ -943,6 +1126,7 @@ const AssistantPage = ({
     setAgentStatus('');
     setResponseStatus('');
     setAstResponding('');
+    setReasoningText('');
   };
 
   // Loading state
@@ -1204,8 +1388,29 @@ const AssistantPage = ({
                           messageEndRef={messageEndRef}
                         />
                       </div>
+
+                      {/* Collapsible thinking section */}
+                      {messageReasoning[index] && (
+                        <div className="mt-2">
+                          <button
+                            onClick={() => setExpandedReasoning(prev => ({ ...prev, [index]: !prev[index] }))}
+                            className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                          >
+                            <IconBrain size={14} />
+                            <span>{expandedReasoning[index] ? 'Hide' : 'View'} Thinking</span>
+                            {expandedReasoning[index] ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+                          </button>
+                          {expandedReasoning[index] && (
+                            <div className="mt-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 px-4 py-3 rounded-lg">
+                              <div className="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
+                                {messageReasoning[index]}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    
+
                     {/* Assistant message action buttons */}
                     {!isProcessing && !editing && (
                       <div className="flex mt-1 space-x-1 justify-start">
@@ -1253,6 +1458,19 @@ const AssistantPage = ({
                     </div>
                   </div>
                 </div>
+                {/* Reasoning bubble appears below the status */}
+                {reasoningText && (
+                  <div className="flex justify-start mt-2 animate-fade-in">
+                    <div className="relative max-w-2xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 px-4 py-3 rounded-lg shadow-sm">
+                      <div className="flex items-start gap-2">
+                        <IconBrain className="w-5 h-5 text-blue-500 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                        <div className="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
+                          {reasoningText}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             <div ref={messagesEndRef} />
