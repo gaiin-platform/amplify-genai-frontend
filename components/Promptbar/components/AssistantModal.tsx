@@ -420,6 +420,13 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         }
     }, [baseWorkflowTemplateId]);
 
+    // Automatically set opsLanguageVersion to v4 when APIs are selected
+    useEffect(() => {
+        if (selectedApis && selectedApis.length > 0 && opsLanguageVersion !== "v4") {
+            setOpsLanguageVersion("v4");
+        }
+    }, [selectedApis]);
+
     // Handle sitemap cleanup when all children are removed
     useEffect(() => {
         if (!definition.data?.websiteUrls || websiteUrls.length === 0) return;
