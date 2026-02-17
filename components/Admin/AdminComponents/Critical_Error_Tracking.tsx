@@ -221,6 +221,12 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
                 e.function_name.toLowerCase().includes(search) ||
                 e.current_user.toLowerCase().includes(search)
             );
+        })
+        .sort((a, b) => {
+            // Sort by most recent occurrence (last_occurrence or timestamp)
+            const timeA = a.last_occurrence || a.timestamp;
+            const timeB = b.last_occurrence || b.timestamp;
+            return timeB - timeA; // Descending order (most recent first)
         });
 
     const criticalCount = errors.filter(e => e.severity === "CRITICAL").length;
