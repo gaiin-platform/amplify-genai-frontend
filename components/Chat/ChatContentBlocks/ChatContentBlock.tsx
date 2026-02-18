@@ -1,6 +1,7 @@
 import {MemoizedReactMarkdown} from "@/components/Markdown/MemoizedReactMarkdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
+import {visit} from 'unist-util-visit';
 import LatexBlock from "./LatexBlock";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {CodeBlock} from "@/components/Markdown/CodeBlock";
@@ -24,6 +25,8 @@ import DOMPurify from  "dompurify";
 import React from "react";
 import InvokeBlock from '@/components/Chat/ChatContentBlocks/InvokeBlock';
 import { DateToggle } from "@/components/ReusableComponents/DateToggle";
+import { MCPToolResultBlock } from "./MCPToolResultBlock";
+import { JupyterNotebookBlock } from "./JupyterNotebookBlock";
 
 
 
@@ -34,6 +37,38 @@ interface Props {
     selectedConversation: Conversation|undefined;
     handleCustomLinkClick: (message:Message, href: string) => void,
 }
+
+// Rehype plugin to make inline styles dark-mode compatible
+const rehypeDarkModeStyles = () => {
+    return (tree: any) => {
+        visit(tree, 'element', (node: any) => {
+            if (node.properties && node.properties.style) {
+                const style = node.properties.style;
+
+                // Handle string styles (e.g., "background: white; color: black;")
+                if (typeof style === 'string') {
+                    // Remove hardcoded background colors and replace with class-based approach
+                    const cleanedStyle = style
+                        .replace(/background(-color)?:\s*white\s*;?/gi, '')
+                        .replace(/background(-color)?:\s*#fff(fff)?\s*;?/gi, '')
+                        .replace(/color:\s*black\s*;?/gi, '')
+                        .replace(/color:\s*#000(000)?\s*;?/gi, '');
+
+                    node.properties.style = cleanedStyle;
+
+                    // Add dark-mode compatible class
+                    if (!node.properties.className) {
+                        node.properties.className = [];
+                    }
+                    if (typeof node.properties.className === 'string') {
+                        node.properties.className = [node.properties.className];
+                    }
+                    node.properties.className.push('dark-mode-content');
+                }
+            }
+        });
+    };
+};
 
 const ChatContentBlock: React.FC<Props> = (
     {selectedConversation,
@@ -204,10 +239,10 @@ const ChatContentBlock: React.FC<Props> = (
          data-original-content={transformedMessageContent}>
     <MemoizedReactMarkdown
     key={renderKey}
-    className="prose dark:prose-invert flex-1 max-w-none w-full" 
+    className="prose dark:prose-invert flex-1 max-w-none w-full"
     remarkPlugins={[remarkGfm]}
     // @ts-ignore
-    rehypePlugins={[rehypeRaw]}
+    rehypePlugins={[rehypeRaw, rehypeDarkModeStyles]}
     //onMouseUp={handleTextHighlight}
     components={{
         // @ts-ignore
@@ -356,6 +391,29 @@ const ChatContentBlock: React.FC<Props> = (
                         
                     case 'agent':
                         return (<AgentFileBlock filePath={String(children).trim()} message={message} />);
+
+                    case 'mcp_result':
+                        if (featureFlags.mcp) {
+                            try {
+                                const mcpData = JSON.parse(String(children));
+                                return (<MCPToolResultBlock result={mcpData} />);
+                            } catch (e) {
+                                return (<ExpansionComponent title={"MCP Tool Result"} content={String(children)}/>);
+                            }
+                        }
+                        break;
+
+                    case 'jupyter':
+                    case 'jupyter_notebook':
+                        if (featureFlags.mcp) {
+                            try {
+                                const notebookData = JSON.parse(String(children));
+                                return (<JupyterNotebookBlock cells={notebookData.cells || []} title={notebookData.title} />);
+                            } catch (e) {
+                                return (<ExpansionComponent title={"Jupyter Notebook"} content={String(children)}/>);
+                            }
+                        }
+                        break;
 
                     case 'integrationsDialog':
                         if (featureFlags.integrations) {

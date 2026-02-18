@@ -5,7 +5,7 @@ import { fetchAllSystemIds } from '@/services/apiKeysService';
 import HomeContext from '@/pages/api/home/home.context';
 import { Group } from '@/types/groups';
 import { useSession } from 'next-auth/react';
-import { stringToColor } from '@/utils/app/data';
+import { getUserIdentifier, stringToColor } from '@/utils/app/data';
 
 
 interface Props {
@@ -104,11 +104,11 @@ export const EmailsList: FC<Props> = ({
     const [allEmails, setAllEmails] = useState<Array<string> | null>(null)
 
     const { data: session } = useSession();
-    const user = session?.user?.email;
+    const user = session?.user;
 
     useEffect(() => {
         const fetchEmails = async () => {
-            const emailSuggestions =  amplifyUsers;
+            const emailSuggestions = Object.values(amplifyUsers); // Extract email values for display
             //  API sytem users
             const apiSysIds = await fetchAllSystemIds();
             const sysIds = apiSysIds.map((k: any) => k.systemId).filter((k: any) => k);
@@ -116,7 +116,7 @@ export const EmailsList: FC<Props> = ({
             const groupForMembers = groups.map((group:Group) => `#${group.name}`);
             const systemIdMembers = sysIds.map((id:string) => `@${id}`);
             setAllEmails(emailSuggestions ? [...emailSuggestions, ...groupForMembers, 
-                                             ...systemIdMembers].filter((e: string) => e !== user)
+                                             ...systemIdMembers].filter((e: string) => e !== user?.email )
                                                     : []);
         };
         if (!allEmails) fetchEmails();
@@ -131,16 +131,24 @@ export const EmailsList: FC<Props> = ({
             if ( e.startsWith('#') ) {
                 const group = groups.find((g:Group) => g.name === e.slice(1));
                 if (group) entriesWithGroupMembers = [...entriesWithGroupMembers, 
-                                                      ...Object.keys(group.members).filter((e: string) => e !== user)]; 
+                                                      ...Object.keys(group.members).filter((e: string) => e !== getUserIdentifier(user))]; 
             } else if (e.startsWith('@') ) {
                 entriesWithGroupMembers.push(e.slice(1));
             } else {
-                entriesWithGroupMembers.push(e.toLowerCase());
+                // Convert email back to username for storage
+                const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === e);
+                entriesWithGroupMembers.push(username || e.toLowerCase());
             }
         });
 
-        const newEmails = entriesWithGroupMembers.filter(email => (/^\S+@\S+\.\S+$/.test(email) || 
-                             /^[a-zA-Z0-9-]+-\d{6}$/.test(email)) && !emails.includes(email));
+        const newEmails = entriesWithGroupMembers.filter(entry => {
+            // Accept: emails, system IDs, or valid usernames from amplifyUsers
+            const isEmail = /^\S+@\S+\.\S+$/.test(entry);
+            const isSystemId = /^[a-zA-Z0-9-]+-\d{6}$/.test(entry);
+            const isValidUsername = Object.keys(amplifyUsers).includes(entry);
+            
+            return (isEmail || isSystemId || isValidUsername) && !emails.includes(entry);
+        });
         setEmails([...emails, ...newEmails]);
         setInput('');
         setShowModal(false);
@@ -174,7 +182,7 @@ export const EmailsList: FC<Props> = ({
                     <div 
                         key={index}
                         className="flex items-center justify-between bg-white dark:bg-neutral-200 rounded-md px-2 py-0 mr-2 mb-2 shadow-lg"
-                        style={{ backgroundColor: stringToColor(email) }}
+                        style={{ backgroundColor: stringToColor(amplifyUsers[email] || email) }}
                     >
                         <button
                             className="text-gray-800 transition-all"
@@ -188,7 +196,7 @@ export const EmailsList: FC<Props> = ({
                             <IconCircleX size={17} />
                         </button>
                         <div className="ml-1">
-                            <p className="text-gray-800 font-medium text-sm">{email}</p>
+                            <p className="text-gray-800 font-medium text-sm">{amplifyUsers[email] || email}</p>
                         </div>
                     </div>
                 ))}

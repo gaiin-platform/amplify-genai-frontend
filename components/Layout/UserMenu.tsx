@@ -8,16 +8,19 @@ import { AssistantAdminUI } from '../Admin/AssistantAdminUI';
 import { AdminUI } from '../Admin/AdminUI';
 import { UserCostsModal } from '../Admin/UserCostModal';
 import { SettingDialog } from '../Settings/SettingDialog';
-import { getSettings } from '@/utils/app/settings';
+import { getSettings, saveSettings } from '@/utils/app/settings';
 import { Settings } from '@/types/settings';
+import { saveUserSettings } from '@/services/settingsService';
 import SharingDialog from '../Share/SharingDialog';
 import { ThemeService } from '@/utils/whiteLabel/themeService';
 import { Theme } from '@/types/settings';
+import toast from 'react-hot-toast';
 
 
 interface UserMenuProps {
   email: string | null | undefined;
   name?: string | null;
+  username?: string | null;
   cognitoDomain?: string;
   cognitoClientId?: string;
 }
@@ -25,6 +28,7 @@ interface UserMenuProps {
 export const UserMenu: React.FC<UserMenuProps> = ({ 
   email, 
   name,
+  username,
   cognitoDomain,
   cognitoClientId,
 }) => {
@@ -34,6 +38,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   const [currentTone, setCurrentTone] = useState<'userPrimary' | 'userSecondary' | 'assistantPrimary' | 'assistantSecondary'>('userPrimary');
   const menuRef = useRef<HTMLDivElement>(null);
   const settingsActiveTab = useRef<string | undefined>(undefined);
+  const pendingSettingsChanges = useRef<boolean>(false);
 
   const displayName = name || email?.split('@')[0] || 'User';
 
@@ -88,19 +93,44 @@ export const UserMenu: React.FC<UserMenuProps> = ({
     dispatch({ field: 'showUserMenu', value: !showUserMenu });
   };
 
-  const handleClose = () => {
+  const handleClose = async () => {
     dispatch({ field: 'showUserMenu', value: false });
+    // Save pending settings to backend before closing
+    if (pendingSettingsChanges.current) {
+      const currentSettings = getSettings(featureFlags);
+      const result = await saveUserSettings(currentSettings);
+      pendingSettingsChanges.current = false;
+    }
+    
   };
 
   const handleThemeToggle = () => {
     const newTheme: Theme = lightMode === 'dark' ? 'light' : 'dark';
     dispatch({ field: 'lightMode', value: newTheme });
     ThemeService.setTheme(newTheme); // Persist theme preference
+    
+    // Save to localStorage immediately, defer backend save until menu close
+    const currentSettings = getSettings(featureFlags);
+    const updatedSettings: Settings = {
+      ...currentSettings,
+      theme: newTheme
+    };
+    saveSettings(updatedSettings);
+    pendingSettingsChanges.current = true;
   };
 
   // Handle palette change immediately
   const handlePaletteChange = (paletteId: string) => {
     setCurrentPalette(paletteId);
+    
+    // Save to localStorage immediately, defer backend save until menu close
+    const currentSettings = getSettings(featureFlags);
+    const updatedSettings: Settings = {
+      ...currentSettings,
+      chatColorPalette: paletteId
+    };
+    saveSettings(updatedSettings);
+    pendingSettingsChanges.current = true;
   };
 
   // Handle tone cycling - this will be called from ColorPaletteSelector
@@ -114,12 +144,29 @@ export const UserMenu: React.FC<UserMenuProps> = ({
       const nextTone = tones[nextIndex];
       
       setCurrentTone(nextTone);
-      localStorage.setItem('avatarColorTone', nextTone);
+      
+      // Save to localStorage immediately, defer backend save until menu close
+      const currentSettings = getSettings(featureFlags);
+      const updatedSettings: Settings = {
+        ...currentSettings,
+        avatarColorTone: nextTone
+      };
+      saveSettings(updatedSettings);
+      pendingSettingsChanges.current = true;
     } else {
       // Different palette selected, reset to userPrimary
       setCurrentPalette(paletteId);
       setCurrentTone('userPrimary');
-      localStorage.setItem('avatarColorTone', 'userPrimary');
+      
+      // Save to localStorage immediately, defer backend save until menu close
+      const currentSettings = getSettings(featureFlags);
+      const updatedSettings: Settings = {
+        ...currentSettings,
+        chatColorPalette: paletteId,
+        avatarColorTone: 'userPrimary'
+      };
+      saveSettings(updatedSettings);
+      pendingSettingsChanges.current = true;
     }
   };
 
@@ -130,7 +177,17 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   };
 
   useEffect(() => {
-    const handleFeatureFlagsEvent = (event:any) => settingRef.current = getSettings(featureFlags);
+    const handleFeatureFlagsEvent = (event:any) => {
+        settingRef.current = getSettings(featureFlags);
+        // Update palette and tone state from fetched settings
+        const settings = settingRef.current;
+        if (settings.chatColorPalette) {
+            setCurrentPalette(settings.chatColorPalette);
+        }
+        if (settings.avatarColorTone) {
+            setCurrentTone(settings.avatarColorTone);
+        }
+    };
     const handleSettingsEvent = (event:any) => {
         settingsActiveTab.current = event.detail?.openToTab;
         setShowSettings(true);
@@ -141,7 +198,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
         window.removeEventListener('updateFeatureSettings', handleFeatureFlagsEvent)
         window.removeEventListener('openSettingsTrigger', handleSettingsEvent)
     }
-  }, []);
+  }, [featureFlags]);
 
   useEffect(() => {
     if (showUserMenu) {
@@ -162,7 +219,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
         isFetching = true;
 
         try {
-          const result = await doMtdCostOp(email || '');
+          const result = await doMtdCostOp();
           if (result && "MTD Cost" in result && result["MTD Cost"] !== undefined) {
             setMtdCost(`$${result["MTD Cost"].toFixed(2)}`);
           } else {
@@ -198,7 +255,15 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   // Get user initials for avatar
   const getUserInitials = () => {
     if (name) {
-      return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+      let processedName = name;
+      // If name contains comma, flip the parts (Last, First -> First Last)
+      if (name.includes(',')) {
+        const parts = name.split(',').map(part => part.trim());
+        if (parts.length === 2) {
+          processedName = `${parts[1]} ${parts[0]}`;
+        }
+      }
+      return processedName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
     }
     return email?.charAt(0).toUpperCase() || 'U';
   };
@@ -408,6 +473,12 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 
             <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-600/50 pr-10">
               <div className="sidebar-title truncate text-neutral-800 dark:text-neutral-100 mb-0.5">{displayName}</div>
+              {/* {username && (
+                <div className="flex items-center gap-1 truncate text-neutral-600 dark:text-neutral-300 text-xs font-medium mb-0.5">
+                  <IconUser size={12} className="text-neutral-500 dark:text-neutral-400" />
+                  <span className="truncate">{username}</span>
+                </div>
+              )} */}
               <div className="truncate text-neutral-500 dark:text-neutral-400 text-xs font-medium">{email}</div>
             </div>
 
@@ -460,7 +531,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
               </div>
             </div>
 
-            <ColorPaletteSelector onPaletteChange={handlePaletteChange} onToneCycle={handleToneCycle} />
+            <ColorPaletteSelector onPaletteChange={handlePaletteChange} onToneCycle={handleToneCycle} currentPalette={currentPalette} />
 
             <div className="py-1">
               { (
@@ -554,7 +625,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
       )}
 
       <div className="text-black dark:text-white">
-        {showSettings && <SettingDialog open={showSettings} onClose={() => setShowSettings(false)} />}
+        {showSettings && <SettingDialog open={showSettings} onClose={() => { settingsActiveTab.current = undefined; setShowSettings(false); }} openToTab={settingsActiveTab.current} />}
         {/* Allow this to render upon every open  */}
         {showAssistantAdmin && featureFlagsRef.current.assistantAdminInterface && 
          <AssistantAdminUI

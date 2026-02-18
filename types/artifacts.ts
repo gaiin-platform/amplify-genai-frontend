@@ -52,4 +52,13 @@ export enum ArtifactMessageStatus {
     STOPPED = 'stopped',
     COMPLETE = 'complete',
   }
-  
+
+// Pending artifact attached to input (before sending)
+export interface PendingArtifact {
+    key: string; // unique key from saved artifacts
+    artifactId: string;
+    name: string;
+    description: string;
+    artifact?: Artifact; // populated after loading
+    loadingState: 'loading' | 'ready' | 'error';
+}

@@ -52,7 +52,7 @@ interface Props {
 
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
-      if (!disableClickOutside && modalRef.current && !modalRef.current.contains(e.target as Node)) {
+      if (!disableClickOutside && !fullScreen && modalRef.current && !modalRef.current.contains(e.target as Node)) {
         window.addEventListener('mouseup', handleMouseUp);
       }
     };

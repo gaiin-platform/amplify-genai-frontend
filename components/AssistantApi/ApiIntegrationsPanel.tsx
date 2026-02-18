@@ -254,7 +254,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
             option.isEnabled && (
               <button 
                 key={option.id}
-                className="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center gap-2"
+                className="w-full text-left dark:text-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center gap-2"
                 onClick={(e) => {
                   e.stopPropagation();
                   e.preventDefault();

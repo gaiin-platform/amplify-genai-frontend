@@ -15,7 +15,7 @@ import { filterSupportedIntegrationOps } from "@/utils/app/ops";
 import { opLanguageOptionsMap } from "@/types/op";
 import { DefaultModels } from "@/types/model";
 import { fixJsonString } from "@/utils/app/errorHandling";
-import { camelCaseToTitle, stringToColor } from "@/utils/app/data";
+import { camelCaseToTitle, getUserIdentifier, stringToColor } from "@/utils/app/data";
 
 interface AssistantProps {
     definition: string;
@@ -26,7 +26,7 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
     const {state:{selectedConversation, statsService, messageIsStreaming, prompts, featureFlags, chatEndpoint, defaultAccount},  
            dispatch:homeDispatch, getDefaultModel} = useContext(HomeContext);
     const { data: session } = useSession();
-    const user = session?.user;
+    const user = getUserIdentifier(session?.user);
     const renderedRef = useRef<boolean>(false);
 
     const [error, setError] = useState<string | null>(null);
@@ -201,7 +201,7 @@ const AssistantBlock: React.FC<AssistantProps> = ({definition}) => {
 
     const handleCreateAssistant = async () => {
 
-        if(user?.email && assistantDefinition) {
+        if(user && assistantDefinition) {
 
             setLoadingMessage("Creating assistant...");
             setIsLoading(true);

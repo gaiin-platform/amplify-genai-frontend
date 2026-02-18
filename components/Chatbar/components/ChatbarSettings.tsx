@@ -1,4 +1,4 @@
-import { IconFileExport, IconPuzzle, IconBinaryTree2, IconApps, IconSettings, IconHelp, IconCloud, IconRobot, IconUser, IconSettingsBolt, IconDeviceSdCard, IconTools, IconAlarm, IconUsers } from '@tabler/icons-react';
+import { IconFileExport, IconPuzzle, IconDeviceSdCard, IconTools, IconAlarm, IconUsers, IconSearch } from '@tabler/icons-react';
 import { useContext, useEffect, useRef, useState, useCallback } from 'react';
 
 
@@ -27,7 +27,7 @@ export const ChatbarSettings = () => {
     const initTaskRef = useRef<ScheduledTask | undefined>(undefined);
 
     const {
-        state: { featureFlags, syncingPrompts },
+        state: { featureFlags, syncingPrompts, canAddWebSearchApiKey },
     } = useContext(HomeContext);
 
     let settingRef = useRef<Settings | null>(null);
@@ -143,6 +143,18 @@ export const ChatbarSettings = () => {
                 </>
             )}
 
+            {/* Web Search API Keys */}
+            {featureFlags.webSearch && canAddWebSearchApiKey &&(
+                <SidebarButton
+                    text={t('Web Search')}
+                    icon={<IconSearch size={18} />}
+                    onClick={() => {
+                        window.dispatchEvent(new CustomEvent('openSettingsTrigger', {
+                            detail: { openToTab: "Integrations:Web Search" }
+                        }));
+                    }}
+                />
+            )}
 
             <Import onImport={handleImportConversations} />
 

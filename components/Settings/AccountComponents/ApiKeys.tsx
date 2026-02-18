@@ -28,7 +28,7 @@ import { ActiveTabs } from '@/components/ReusableComponents/ActiveTabs';
 import { IconRotateClockwise2 } from '@tabler/icons-react';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import { getUserMtdCosts } from '@/services/mtdCostService';
-import { formatCurrency } from "@/utils/app/data";
+import { formatCurrency, getUserIdentifier } from "@/utils/app/data";
 import { createPortal } from 'react-dom';
 
 
@@ -67,7 +67,9 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
     const { state: { statsService, amplifyUsers}, dispatch: homeDispatch } = useContext(HomeContext);
 
     const { data: session } = useSession();
-    const user = session?.user?.email;
+    const user = session?.user;
+    const userEmail = user?.email;
+    const userIdentifier = getUserIdentifier(user);
     const [apiKeys, setApiKeys] = useState<ApiKey[] | null>(null);
 
     const { t } = useTranslation('settings');
@@ -151,7 +153,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
 
     // Fetch MTD costs for current user
     const fetchMTDCosts = async () => {
-        if (!user) return;
+        if (!userIdentifier) return;
         try {
             const result = await getUserMtdCosts();
             if (result.success && result.data) setMtdCostData(result.data);
@@ -199,7 +201,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
             fetchApiKeys();
             fetchMTDCosts();
         }
-    }, [open, user]);
+    }, [open, userIdentifier]);
 
     useEffect(() => {
             if (accounts && apiKeys) {
@@ -253,8 +255,8 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
 
     useEffect(() => {
         const fetchEmails = async () => {
-            const emailSuggestions =  amplifyUsers;
-            setAllEmails(emailSuggestions ? emailSuggestions.filter((e: string) => e !== user) : []);
+            const emailSuggestions = Object.values(amplifyUsers); // Extract email values for display
+            setAllEmails(emailSuggestions ? emailSuggestions.filter((e: string) => e !== userEmail) : []);
         };
         if (!allEmails) fetchEmails();
     }, []);
@@ -266,8 +268,8 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
 
     useEffect(() => {
         if (apiKeys) {
-        setDelegateApiKeys(apiKeys.filter((k: ApiKey) => k.delegate === user));
-        setOwnerApiKeys(apiKeys.filter((k: ApiKey) => k.owner === user));
+        setDelegateApiKeys(apiKeys.filter((k: ApiKey) => k.delegate === userIdentifier));
+        setOwnerApiKeys(apiKeys.filter((k: ApiKey) => k.owner === userIdentifier));
         }
     }, [apiKeys]);
 
@@ -277,9 +279,9 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
         setIsCreating(true);
         
         const data = {
-            'owner' : user,
+            'owner' : userIdentifier,
             'account' : selectedAccount,
-            'delegate': delegateInput.length > 0 ? delegateInput : null,
+            'delegate': delegateInput.length > 0 ? (Object.keys(amplifyUsers).find(key => amplifyUsers[key] === delegateInput) || delegateInput) : null,
             'appName' : appName,
             'appDescription' : appDescription,
             'rateLimit' : rateLimitObj(rateLimitPeriod, rateLimitRate),
@@ -760,7 +762,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                             <Label 
                                                                 label={apiKey.account ? `${apiKey.account.name} - ${apiKey.account.id}` : ''} 
                                                                 widthPx='180px' 
-                                                                editableField={apiKey.active && (user !== apiKey.delegate)? 'account' : undefined} 
+                                                                editableField={apiKey.active && (userIdentifier !== apiKey.delegate)? 'account' : undefined} 
                                                                 apiKey={apiKey} 
                                                                 accounts={validAccounts}
                                                             />

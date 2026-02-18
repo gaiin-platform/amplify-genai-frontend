@@ -362,3 +362,18 @@ pre:has(div.codeblock) {
 
 /* Note: Unfortunately, CSS cannot style text inside textarea based on content patterns.
    The italic styling for angle bracket placeholders is handled in React components. */
+
+/* Dark mode content - for LLM-generated inline HTML with hardcoded styles */
+.dark-mode-content {
+  background-color: white !important;
+  color: #1f2937 !important; /* gray-800 for readability on white */
+  padding: 40px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.dark .dark-mode-content {
+  background-color: #1f2937 !important; /* gray-800 */
+  color: #f3f4f6 !important; /* gray-100 */
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
+}

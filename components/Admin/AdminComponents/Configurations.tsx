@@ -14,7 +14,7 @@ import { useSession } from "next-auth/react";
 import InputsMap from "@/components/ReusableComponents/InputMap";
 import { AddEmailWithAutoComplete } from "@/components/Emails/AddEmailsAutoComplete";
 import { ConversationStorage } from "@/types/conversationStorage";
-import { capitalize } from "@/utils/app/data";
+import { capitalize, getUserIdentifier } from "@/utils/app/data";
 import { CsvUpload } from "@/components/ReusableComponents/CsvUpload";
 import { CsvPreviewModal } from "@/components/ReusableComponents/CsvPreviewModal";
 import { useCsvUpload } from "@/hooks/useCsvUpload";
@@ -27,6 +27,8 @@ interface Props {
 
     ampGroups: Amplify_Groups;
     setAmpGroups: (g: Amplify_Groups) => void;
+    
+    amplifyUsers: { [key: string]: string };
 
     rateLimit: {period: PeriodType, rate: string};
     setRateLimit: (l: {period: PeriodType, rate: string}) => void;
@@ -50,14 +52,14 @@ interface Props {
     onModalStateChange?: (hasOpenModal: boolean) => void;   
 }
 
-export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setAmpGroups, allEmails,
+export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setAmpGroups, amplifyUsers, allEmails,
                                               rateLimit, setRateLimit, promptCostAlert, setPromptCostAlert,
                                               defaultConversationStorage, setDefaultConversationStorage,
                                               emailSupport, setEmailSupport, aiEmailDomain, setAiEmailDomain,
                                               admin_text, updateUnsavedConfigs, onModalStateChange}) => {
 
     const { data: session } = useSession();
-    const userEmail = session?.user?.email;
+    const userEmail = getUserIdentifier(session?.user);
 
     const [isDeleting, setIsDeleting] = useState<boolean>(false);
     const [deleteUsersList, setDeleteUsersList] = useState<string[]>([]);
@@ -227,9 +229,16 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                             <div className="w-full mb-4">
                                 <AddEmailWithAutoComplete
                                     id={String(AdminConfigTypes.ADMINS)}
-                                    emails={admins}
+                                    emails={admins.map(username => amplifyUsers[username] || username)}
                                     allEmails={allEmails ?? []}
-                                    handleUpdateEmails={(updatedAdmins: Array<string>) => handleUpdateAdmins(updatedAdmins)}
+                                    handleUpdateEmails={(updatedEmails: Array<string>) => {
+                                        // Convert emails back to usernames for storage
+                                        const usernames = updatedEmails.map(email => {
+                                            const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
+                                            return username || email;
+                                        });
+                                        handleUpdateAdmins(usernames);
+                                    }}
                                 />
                             </div>
                         )}
@@ -280,7 +289,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                     </div>
                                     )}
                                 </div>
-                                <span className="truncate pr-8 py-2 mr-1">{user}</span>
+                                <span className="truncate pr-8 py-2 mr-1">{amplifyUsers[user] || user}</span>
                             
                                 </div>
                             </div>
@@ -408,16 +417,16 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 />
                 <div className={`ml-6 flex flex-col ${promptCostAlert.isActive ? "" :'opacity-30'}`}>
                     <div className="text-md w-full text-center">Alert Message</div>
-                    <InfoBox 
+                    <InfoBox
                         content={
-                        <span className="text-sm w-full text-center"> 
-                            To include dynamic values like the total cost or the number of prompts in the alert message, use placeholders in the following format: {"<placeholderName>"}.
+                        <span className="text-sm w-full text-center">
+                            To include dynamic values in the alert message, use placeholders in the following format: {"<placeholderName>"}.
                             <br className="mt-1"></br>
-                                Optional Supported Tags:<br></br>
+                                Supported Placeholders:<br></br>
                             <div className="flex justify-center text-start">
-                                &nbsp;&nbsp;&nbsp;&nbsp; * {"<totalCost>"}: Displays the calculated cost of sending the prompt.
+                                &nbsp;&nbsp;&nbsp;&nbsp; * {"<totalCost>"}: The estimated total cost (e.g., &quot;$0.05&quot;)
                                 <br></br>
-                                &nbsp;&nbsp;&nbsp;&nbsp; * {"<prompts>"}: Displays the number of prompts needed to send their prompt.
+                                &nbsp;&nbsp;&nbsp;&nbsp; * {"<prompts>"}: Number of context windows needed (e.g., &quot;2&quot; if tokens exceed 1x context window)
                             </div>
                         </span>
                         }
@@ -475,7 +484,8 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                     alert(`There already exists a group with the name ${name}.\n\n Please change the group name to create the Amplify Group.`);
                                 } else {
                                     setAmpGroupSearchTerm('');
-                                    handleUpdateAmpGroups({...ampGroups, [name] : isAddingAmpGroups});
+                                    const {groupName, ...groupData} = isAddingAmpGroups;
+                                    handleUpdateAmpGroups({...ampGroups, [name] : groupData});
                                     setIsAddingAmpGroups(null);
                                 }
                             }}
@@ -514,17 +524,22 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                         <div className="ml-4 flex-grow flex flex-col mt-[-32px] max-w-[40%]">
                             <AddEmailWithAutoComplete
                                 id={`${String(AdminConfigTypes.AMPLIFY_GROUPS)}_ADD`}
-                                emails={isAddingAmpGroups.members}
+                                emails={isAddingAmpGroups.members.map(username => amplifyUsers[username] || username)}
                                 allEmails={allEmails ?? []}
-                                handleUpdateEmails={(updatedEmails: Array<string>) => 
-                                    setIsAddingAmpGroups({...isAddingAmpGroups, members : updatedEmails})
-                                }
+                                handleUpdateEmails={(updatedEmails: Array<string>) => {
+                                    // Convert emails back to usernames for storage
+                                    const usernames = updatedEmails.map(email => {
+                                        const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
+                                        return username || email;
+                                    });
+                                    setIsAddingAmpGroups({...isAddingAmpGroups, members : usernames});
+                                }}
                             />
                             <div className="h-[40px] rounded-r border border-neutral-500 pl-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 overflow-x-auto">
                             {isAddingAmpGroups.members.map((user, idx) => (
                                 <div key={idx} className="flex items-center gap-1 mr-1">
                                     <span className="flex flex-row gap-4 py-2 mr-4"> 
-                                        {user} 
+                                        {amplifyUsers[user] || user} 
                                         <button
                                         className={`text-red-500 hover:text-red-800 `}
                                         onClick={() => {
@@ -588,33 +603,33 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                     </tr>
                                     </thead>
                                     <tbody>
-                                    {Object.values(ampGroups)
-                                            .filter((group: Amplify_Group) => ampGroupSearchTerm ? 
-                                                    group.groupName.toLowerCase().includes(ampGroupSearchTerm) : true)
-                                            .map((group: Amplify_Group) => 
-                                        <tr key={group.groupName}
-                                            onMouseEnter={() => setHoveredAmpGroup(group.groupName)}
+                                    {Object.entries(ampGroups)
+                                            .filter(([groupName, group]: [string, Amplify_Group]) => ampGroupSearchTerm ? 
+                                                    groupName.toLowerCase().includes(ampGroupSearchTerm) : true)
+                                            .map(([groupName, group]: [string, Amplify_Group]) => 
+                                        <tr key={groupName}
+                                            onMouseEnter={() => setHoveredAmpGroup(groupName)}
                                             onMouseLeave={() => setHoveredAmpGroup('')}>
                                             <td className="border border-neutral-500 px-4 py-2 break-words max-w-[200px]" id="groupName">
-                                                {group.groupName}
+                                                {groupName}
                                             </td>
 
                                             <td className="flex-grow border border-neutral-500 pl-1 pr-2 max-w-[300px]">
 
-                                            <div className={`flex items-center ${addingMembersTo === group.groupName ? "flex-col":'flex-row'}`}>
+                                            <div className={`flex items-center ${addingMembersTo === groupName ? "flex-col":'flex-row'}`}>
                                             <div
-                                                className={`flex items-center ${addingMembersTo === group.groupName ? "flex-wrap": "overflow-x-auto"}`} >
+                                                className={`flex items-center ${addingMembersTo === groupName ? "flex-wrap": "overflow-x-auto"}`} >
                                                 {group.members?.map((user, idx) => (
                                                 <div key={idx} className="flex items-center gap-1 mr-1"
                                                     onMouseEnter={() => {
                                                         if (group.includeFromOtherGroups !== undefined)
-                                                            setHoveredAmpMember( {ampGroup: group.groupName,     
+                                                            setHoveredAmpMember( {ampGroup: groupName,     
                                                                                     username: user})
                                                     }}
                                                     onMouseLeave={() => setHoveredAmpMember(null)}>
                                                     
                                                     <span className="flex flex-row gap-1 py-2 mr-4"> {idx > 0 && <label className="opacity-60">|</label>}
-                                                        { hoveredAmpMember?.ampGroup === group.groupName && hoveredAmpMember?.username === user ?
+                                                        { hoveredAmpMember?.ampGroup === groupName && hoveredAmpMember?.username === user ?
                                                         <button
                                                         className={`text-red-500 hover:text-red-800 `}
                                                         onClick={() => {
@@ -622,17 +637,17 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                                             (u) => u !== user
                                                             );
                                                             const updatedGroup = {...group, members: updatedMembers}
-                                                            handleUpdateAmpGroups({...ampGroups, [group.groupName] : updatedGroup});
+                                                            handleUpdateAmpGroups({...ampGroups, [groupName] : updatedGroup});
                                                         }} >
                                                         <IconTrash size={16} />
                                                         </button> : <div className="w-[16px]"></div>}
-                                                        {user} 
+                                                        {amplifyUsers[user] || user} 
                                                     </span>
                                                 </div>
                                                 ))}
                                             </div>
 
-                                            {addingMembersTo === group.groupName && 
+                                            {addingMembersTo === groupName && 
                                                 group.includeFromOtherGroups !== undefined ? (
                                                 <div className="flex flex-row pr-3 ml-2 mt-2" style={{ width: '100%' }}>
                                                 <ActionButton
@@ -644,11 +659,16 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                                 
                                                 <div className=""> <AddEmailWithAutoComplete
                                                     id={`${String(AdminConfigTypes.AMPLIFY_GROUPS)}_EDIT`}
-                                                    emails={group.members ?? []}
+                                                    emails={(group.members ?? []).map(username => amplifyUsers[username] || username)}
                                                     allEmails={allEmails ?? []}
-                                                    handleUpdateEmails={(updatedMembers: Array<string>) => {
-                                                        const updatedGroup = {...group, members: updatedMembers}
-                                                        handleUpdateAmpGroups({...ampGroups, [group.groupName] : updatedGroup});
+                                                    handleUpdateEmails={(updatedEmails: Array<string>) => {
+                                                        // Convert emails back to usernames for storage
+                                                        const usernames = updatedEmails.map(email => {
+                                                            const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
+                                                            return username || email;
+                                                        });
+                                                        const updatedGroup = {...group, members: usernames}
+                                                        handleUpdateAmpGroups({...ampGroups, [groupName] : updatedGroup});
                                                     }}
                                                 /> </div>
                                                 </div>
@@ -656,7 +676,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                                 (group.includeFromOtherGroups !== undefined ?
                                                 <button
                                                 className="ml-auto flex items-center px-2 text-blue-500 hover:text-blue-600 flex-shrink-0"
-                                                onClick={() => setAddingMembersTo(group.groupName)}
+                                                onClick={() => setAddingMembersTo(groupName)}
                                                 >
                                                 <IconPlus size={18} />
                                                 {!(group.members && group.members.length > 0) && (
@@ -671,11 +691,11 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                                 {group.includeFromOtherGroups !== undefined ?
                                                 <AmplifyGroupSelect 
                                                     groups={Object.keys(ampGroups).filter((k: string) => 
-                                                                                k != group.groupName)}
+                                                                                k != groupName)}
                                                     selected={group.includeFromOtherGroups}
                                                     setSelected={(selectedGroups: string[]) => {
                                                         const updatedGroup = {...group, includeFromOtherGroups: selectedGroups}
-                                                        handleUpdateAmpGroups({...ampGroups, [group.groupName] : updatedGroup});
+                                                        handleUpdateAmpGroups({...ampGroups, [groupName] : updatedGroup});
                                                     }}
                                                 /> : <div className="text-center">N/A</div>
                                                 }
@@ -687,7 +707,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                                     className="cursor-pointer flex items-center justify-center w-full"
                                                     onClick={() => {
                                                         const updatedGroup = {...group, isBillingGroup: !group.isBillingGroup};
-                                                        handleUpdateAmpGroups({...ampGroups, [group.groupName]: updatedGroup});
+                                                        handleUpdateAmpGroups({...ampGroups, [groupName]: updatedGroup});
                                                     }}>
                                                     {group.isBillingGroup ? 
                                                         <IconCheck className="text-green-600 hover:opacity-60" size={18} /> 
@@ -696,10 +716,10 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                             </td>
 
                                             <td className="text-center border border-neutral-500 px-1 py-2"
-                                                onMouseEnter={() => setHoveredRateLimit(group.groupName)}
+                                                onMouseEnter={() => setHoveredRateLimit(groupName)}
                                                 onMouseLeave={() => setHoveredRateLimit(null)}>
                                                 <div className="flex items-center justify-center">
-                                                    {editingRateLimit === group.groupName ? (
+                                                    {editingRateLimit === groupName ? (
                                                         <div className="flex flex-row gap-2">
                                                             <RateLimiter
                                                                 period={tempRateLimitPeriod}
@@ -715,7 +735,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                                                     e.stopPropagation();
                                                                     const updatedRateLimit = rateLimitObj(tempRateLimitPeriod, tempRateLimitRate);
                                                                     const updatedGroup = {...group, rateLimit: updatedRateLimit};
-                                                                    handleUpdateAmpGroups({...ampGroups, [group.groupName]: updatedGroup});
+                                                                    handleUpdateAmpGroups({...ampGroups, [groupName]: updatedGroup});
                                                                     setEditingRateLimit(null);
                                                                 }}
                                                             >
@@ -747,13 +767,13 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                                                     return formatRateLimit(rateLimit);
                                                                 }
                                                             })()}</span>
-                                                            {hoveredRateLimit === group.groupName && (
+                                                            {hoveredRateLimit === groupName && (
                                                                 <button
                                                                     type="button"
                                                                     id="editRateLimit"
                                                                     className="text-neutral-400 hover:text-neutral-200"
                                                                     onClick={() => {
-                                                                        setEditingRateLimit(group.groupName);
+                                                                        setEditingRateLimit(groupName);
                                                                         const rateLimit = group.rateLimit;
                                                                         if (!rateLimit) {
                                                                             setTempRateLimitPeriod('Unlimited');
@@ -779,18 +799,18 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                             </td>
 
                                             <td className="text-center border border-neutral-500 px-4 py-2 break-words max-w-[300px]">
-                                                {group.createdBy}
+                                                {amplifyUsers[group.createdBy] || group.createdBy}
                                             </td>
 
                                             <td className="">
                                                 <div className="w-[50px] flex-shrink-0">
-                                                {hoveredAmpGroup === group.groupName && group.includeFromOtherGroups !== undefined ?
+                                                {hoveredAmpGroup === groupName && group.includeFromOtherGroups !== undefined ?
                                                 <button
                                                     title={"Delete Amplify Group"}
                                                     type="button"
                                                     className="ml-2 p-1 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none"
                                                     onClick={() => {
-                                                        const { [group.groupName]: _, ...remainingGroups } = ampGroups;
+                                                        const { [groupName]: _, ...remainingGroups } = ampGroups;
                                                         handleUpdateAmpGroups(remainingGroups);
                                                     }}
                                                     >

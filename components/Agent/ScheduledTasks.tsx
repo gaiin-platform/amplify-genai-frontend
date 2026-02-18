@@ -23,6 +23,8 @@ import { getAgentTools } from '@/services/agentService';
 import ApiIntegrationsPanel from '../AssistantApi/ApiIntegrationsPanel';
 import { AgentTool } from '@/types/agentTools';
 import { OpDef } from '@/types/op';
+import { listAstWorkflowTemplates } from '@/services/assistantWorkflowService';
+import { AstWorkflow } from '@/types/assistantWorkflows';
 
 const emptyTask = (): ScheduledTask => {
   return {
@@ -69,8 +71,10 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   const [isLogsExpanded, setIsLogsExpanded] = useState(false);
   const [showActionSetList, setShowActionSetList] = useState(false);
   const [showApiToolList, setShowApiToolList] = useState(false);
+  const [showWorkflowList, setShowWorkflowList] = useState(false);
   const [availableApis, setAvailableApis] = useState<any[] | null>(null);
   const [availableAgentTools, setAvailableAgentTools] = useState<Record<string, any> | null>(null);
+  const [availableWorkflows, setAvailableWorkflows] = useState<AstWorkflow[] | null>(null);
 
   const [isTestingTask, setIsTestingTask] = useState(false);
 
@@ -106,6 +110,15 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           });
       }
   }, [availableAgentTools]);
+
+  useEffect(() => {
+      if (featureFlags.assistantWorkflows && availableWorkflows === null) {
+          listAstWorkflowTemplates(true, false).then((response) => {
+              const workflows = response.success ? response.data?.templates ?? [] : [];
+              setAvailableWorkflows(workflows);
+          });
+      }
+  }, [availableWorkflows]);
 
   // Fetch tasks (mock for now)
   const fetchTasks = async () => {
@@ -227,6 +240,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
     setIsLoadingTask(false);
   };
 
+
   const handleRunTask = async (taskId: string) => {
     setIsViewingLogs(true);
     setIsTestingTask(true);
@@ -238,7 +252,19 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         toast.success("Task execution started.");
         
         let attempts = 0;
-        const maxAttempts = 200;
+        const maxAttempts = 80; // Reduced from 200
+        let trackedExecutionId: string | null = null;
+        let hasFoundRunning = false; // Track if we've seen 'running' status
+        
+        const getPollingInterval = () => {
+          if (!hasFoundRunning) {
+            // Phase 1: Waiting for execution to start - poll slowly
+            return Math.min(3000 + (attempts * 500), 6000); // 3s to 6s
+          } else {
+            // Phase 2: Execution running - poll faster
+            return 1500; // 1.5s
+          }
+        };
         
         const pollForLogs = async () => {
           attempts++;
@@ -246,33 +272,99 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           try {
             const fetchedLogs = await fetchTaskLogs(taskId, false);
             
-            // Look for any new logs created after task start that are in an end state
-            const completedLog = fetchedLogs.find((log: TaskExecutionRecord) => 
-              log.executedAt > startTime && 
-              ['success', 'failure', 'timeout'].includes(log.status)
-            );
+            // Get all execution logs (both old 'execution-' and new 'scheduled-task-' formats)
+            const executionLogs = fetchedLogs
+              .filter((log: TaskExecutionRecord) => 
+                log.executionId.startsWith('execution-') || 
+                log.executionId.startsWith('scheduled-task-')
+              )
+              .sort((a: TaskExecutionRecord, b: TaskExecutionRecord) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime());
 
-            if (completedLog) {
-              toast(`Task completed with status: ${completedLog.status}`);
-              setTimeout(() => {
-                setSelectedLogId(completedLog.executionId);
-                setIsTestingTask(false);
-              }, 1000);
-              return; // Stop polling
+            // If we haven't tracked an execution yet, find one to track
+            if (!trackedExecutionId && executionLogs.length > 0) {
+              // FIXED: Look for ANY new log first (running OR completed)
+              let logToTrack = executionLogs.find((log: TaskExecutionRecord) => log.executedAt > startTime);
+              
+              // Fallback: if no new log, look for running logs
+              if (!logToTrack) {
+                logToTrack = executionLogs.find((log: TaskExecutionRecord) => log.status === 'running');
+              }
+              
+              if (logToTrack) {
+                trackedExecutionId = logToTrack.executionId;
+
+                // Mark if we found a running status
+                if (logToTrack.status === 'running') {
+                  hasFoundRunning = true;
+                }
+
+                // FIXED: Check completion immediately for fast executions
+                const isAlreadyCompleted = ['success', 'failure', 'timeout'].includes(logToTrack.status);
+                if (isAlreadyCompleted && logToTrack.executedAt > startTime) {
+                  toast(`Task completed with status: ${logToTrack.status}`);
+                  setSelectedLogId(logToTrack.executionId);
+                  setIsTestingTask(false);
+                  return; // Stop polling
+                }
+              }
             }
 
-            // Continue polling if we haven't reached max attempts
-            if (attempts <= maxAttempts) {
-              setTimeout(pollForLogs, 2500);
+            // If we're tracking an execution, focus only on that specific log
+            if (trackedExecutionId) {
+              const trackedLog = fetchedLogs.find((log: TaskExecutionRecord) => 
+                log.executionId === trackedExecutionId
+              );
+
+              if (trackedLog) {
+                // Update running status if we see it
+                if (trackedLog.status === 'running' && !hasFoundRunning) {
+                  hasFoundRunning = true;
+                }
+
+                // Check for completion - be extra thorough
+                const isCompleted = ['success', 'failure', 'timeout'].includes(trackedLog.status);
+
+                if (isCompleted) {
+                  toast(`Task completed with status: ${trackedLog.status}`);
+                  setSelectedLogId(trackedLog.executionId);
+                  setIsTestingTask(false);
+                  return; // Stop polling
+                }
+              }
+            }
+
+            // FAILSAFE: Also check for ANY completed log after a few attempts
+            if (!trackedExecutionId && attempts > 2) {
+              const anyCompleted = executionLogs.find((log: TaskExecutionRecord) =>
+                ['success', 'failure', 'timeout'].includes(log.status) &&
+                log.executedAt > startTime
+              );
+              if (anyCompleted) {
+                toast(`Task completed with status: ${anyCompleted.status}`);
+                setSelectedLogId(anyCompleted.executionId);
+                setIsTestingTask(false);
+                return; // Stop polling
+              }
+            }
+
+            // Continue polling if not completed and within limits
+            if (attempts < maxAttempts) {
+              const interval = getPollingInterval();
+              setTimeout(pollForLogs, interval);
             } else {
               toast.error("Timeout waiting for task completion logs. Please check logs manually.");
               setIsTestingTask(false);
             }
             
           } catch (error) {
-            console.error("Error fetching logs:", error);
-            toast.error("Failed to fetch task logs");
-            setIsTestingTask(false);
+            console.error("Error polling for logs:", error);
+            // Don't stop polling on single error, but increment attempts
+            if (attempts < maxAttempts) {
+              setTimeout(pollForLogs, 5000); // Wait longer on error
+            } else {
+              toast.error("Error monitoring task execution. Please check logs manually.");
+              setIsTestingTask(false);
+            }
           }
         };
 
@@ -382,7 +474,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                       key={task.taskId}
                       className={`px-2 py-1 rounded-lg cursor-pointer flex flex-row ${
                         selectedTask.taskId === task.taskId
-                          ? 'bg-blue-100 dark:bg-blue-900'
+                          ? 'bg-blue-100 dark:bg-blue-200'
                           : 'hover:bg-gray-200 dark:hover:bg-gray-700'
                       }`}
                       onClick={() => handleLoadTask(task.taskId)}>
@@ -396,7 +488,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                           <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${
                             task.active 
                               ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
-                              : 'text-gray-500'
+                              : 'text-gray-500 dark:text-gray-400'
                           }`}>
                             {task.active ? 'Active' : 'Inactive'}
                           </span>
@@ -435,10 +527,15 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
     setSelectedTask({...selectedTask, objectInfo: {objectId: name, objectName: name, data: {op: opSpecs}}});
     setShowApiToolList(false);
   }
+
+  const handleWorkflowSelect = (templateId: string) => {
+    // Find the workflow template name from available workflows
+    const workflow = availableWorkflows?.find(w => w.templateId === templateId);
+    const workflowName = workflow?.name || `Workflow Template: ${templateId}`;
+    setSelectedTask({...selectedTask, objectInfo: {objectId: templateId, objectName: workflowName, data: {templateId: templateId}}});
+    setShowWorkflowList(false);
+  }
   
-  // useEffect(() => {
-  //   console.log("selectedTask", selectedTask);
-  // }, [selectedTask]);
 
   const isDisabled = () => {
     if (!selectedTask.taskType) return false;
@@ -511,7 +608,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         );
       case "apiTool":
 
-      return (
+        return (
         <div className="flex flex-col mb-4 relative">
           <div 
             onClick={() => !isEnforced && setShowApiToolList(!showApiToolList)}
@@ -575,6 +672,63 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           )}
         </div>
       );
+      case "workflow":
+        if (!featureFlags.assistantWorkflows) return <></>;
+        return (
+          <div className="flex flex-col mb-4 relative">
+            <div 
+              onClick={() => !isEnforced && setShowWorkflowList(!showWorkflowList)}
+              className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow flex justify-between items-center
+              ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}
+              ${isEnforced ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              <span>{selectedTask.objectInfo?.objectName || 'Select Workflow Template'}</span>
+              <IconChevronDown 
+                size={18} 
+                className={`transition-transform ${showWorkflowList && !isEnforced ? 'rotate-180' : ''}`}
+              />
+            </div>
+            
+            {featureFlags.assistantWorkflows && showWorkflowList && !isEnforced && (
+              <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-[#343541] border border-neutral-300 dark:border-neutral-700 rounded-lg shadow-lg">
+                <div className="p-3" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                  {availableWorkflows === null ? (
+                    <div className="text-center py-4 text-neutral-500 dark:text-neutral-400">
+                      Loading workflows...
+                    </div>
+                  ) : availableWorkflows.length === 0 ? (
+                    <div className="text-center py-4 text-neutral-500 dark:text-neutral-400">
+                      No workflow templates available
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {availableWorkflows.map((workflow) => (
+                        <div
+                          key={workflow.templateId}
+                          className={`p-3 rounded-lg cursor-pointer border transition-colors ${
+                            selectedTask.objectInfo?.data?.templateId === workflow.templateId
+                              ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-700'
+                              : 'hover:bg-gray-50 border-transparent dark:hover:bg-gray-700'
+                          }`}
+                          onClick={() => handleWorkflowSelect(workflow.templateId)}
+                        >
+                          <div className="font-medium text-neutral-800 dark:text-neutral-200">
+                            {workflow.name}
+                          </div>
+                          {workflow.description && (
+                            <div className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                              {workflow.description}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
         
       default:
         return <></>
@@ -735,6 +889,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               <option value="assistant">Assistant</option>
               {featureFlags.actionSets && <option value="actionSet">Action Set</option>}
               {featureFlags.integrations &&  <option value="apiTool">API Action</option>}
+              {featureFlags.assistantWorkflows && <option value="workflow">Workflow</option>}
             </select>
           </div>
 
@@ -865,6 +1020,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
       setSelectedLogDetails(null);
     }
   }, [selectedLogId, selectedTask.taskId]);
+
 
   const renderLogsContent = () => {
 

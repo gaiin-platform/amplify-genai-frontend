@@ -75,6 +75,8 @@ export const fileExtensionToType: { [key: string]: string } = {
     'cpp': 'C++',
     'cs': 'C#',
     'ts': 'TypeScript',
+    'jsx': 'JavaScript',
+    'tsx': 'TypeScript',
     'html': 'HTML',
     'css': 'CSS',
     'json': 'JSON',
@@ -205,6 +207,10 @@ export const mimeTypeToCommonName: MimeTypeMapping = {
     'application/vnd.google-apps.fusiontable' : "Google Fusion Tables",
     'application/vnd.google-apps.map' : "Google My Maps",
     'application/vnd.google-apps.drive-sdk' : "Google Drive SDK",
+    'sharepoint.site': "SharePoint Site",
+    'sharepoint.library': "SharePoint Library",
+    "inode/directory": "Directory",
+
 };
 
 // Programmatically create the inverse mapping
@@ -230,4 +236,37 @@ export const getFirstMimeTypeFromCommonName = (commonName: string): string | nul
 // Helper function to get all mime types for a common name
 export const getAllMimeTypesFromCommonName = (commonName: string): string[] => {
     return commonNameToMimeTypes[commonName] || [];
+};
+
+// Helper function to get MIME type from file extension
+export const getMimeTypeFromExtension = (extension: string): string => {
+    if (!extension) return 'application/octet-stream';
+    
+    const ext = extension.startsWith('.') ? extension.substring(1) : extension;
+    const typeName = fileExtensionToType[ext.toLowerCase()];
+    
+    if (!typeName) return 'application/octet-stream';
+    
+    // Convert type name to lowercase and check programmingLanguagesMimeTypes
+    const mimeType = programmingLanguagesMimeTypes[typeName.toLowerCase()];
+    
+    if (mimeType) return mimeType;
+    
+    // Common fallbacks for known types
+    const commonMimeTypes: { [key: string]: string } = {
+        'text file': 'text/plain',
+        'pdf document': 'application/pdf',
+        'word document': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'excel spreadsheet': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'powerpoint presentation': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'csv file': 'text/csv',
+        'jpeg image': 'image/jpeg',
+        'png image': 'image/png',
+        'gif image': 'image/gif',
+        'svg image': 'image/svg+xml',
+        'webp image': 'image/webp',
+        'zip archive': 'application/zip'
+    };
+    
+    return commonMimeTypes[typeName.toLowerCase()] || 'application/octet-stream';
 };

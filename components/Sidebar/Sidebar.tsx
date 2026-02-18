@@ -5,6 +5,7 @@ import Search from '../Search';
 import { KebabMenu } from '@/components/Sidebar/components/KebabMenu';
 import { SortType } from '@/types/folder';
 import HomeContext from '@/pages/api/home/home.context';
+import { GroupAssistantsButton } from '../GroupAssistants/GroupAssistantsButton';
 
 
 interface Props<T> {
@@ -128,11 +129,14 @@ const Sidebar = <T,>({
           </div>
         </div>
         {side === 'right' && addItemButton('')}
+
         <Search
           placeholder={t('Search...') || ''}
           searchTerm={searchTerm}
           onSearch={handleSearchTerm}
         />
+
+        {side === 'right' && <GroupAssistantsButton />}
 
         <KebabMenu
           label={side === 'left' ? "Conversations": "Prompts"} 
@@ -141,32 +145,34 @@ const Sidebar = <T,>({
           setFolderSort={setFolderSort}
         />
         
-        <div className="relative flex-grow w-[268px] enhanced-sidebar overflow-y-auto" id="sidebarScroll" style={{ height: 'calc(100vh - 170px)', display: 'flex', flexDirection: 'column' }}>
-          {items?.length > 0 && (
-            <div className="flex border-b dark:border-white/20 pb-3 mb-2">
-              {folderComponent}
-            </div>
-          )}
+        <div className="relative flex-grow w-[268px] enhanced-sidebar overflow-y-auto" id="sidebarScroll" style={{ height: 'calc(100vh - 170px)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {items?.length > 0 && (
+              <div className="flex border-b dark:border-white/20 pb-3 mb-2">
+                {folderComponent}
+              </div>
+            )}
 
-          {items?.length > 0 ? (
-              <div
-              onDrop={handleDrop}
-              onDragOver={allowDrop}
-              onDragEnter={highlightDrop}
-              onDragLeave={removeHighlight}
-            >
-              {itemComponent}
-            </div>
-          ) : (
-            <div className="empty-state mt-8">
-              <IconMistOff className="empty-state-icon mx-auto mb-3" size={24} />
-              <span className="empty-state-text">
-                {t('No data.')}
-              </span>
-            </div>
-          )}
+            {items?.length > 0 ? (
+                <div
+                onDrop={handleDrop}
+                onDragOver={allowDrop}
+                onDragEnter={highlightDrop}
+                onDragLeave={removeHighlight}
+              >
+                {itemComponent}
+              </div>
+            ) : (
+              <div className="empty-state mt-8">
+                <IconMistOff className="empty-state-icon mx-auto mb-3" size={24} />
+                <span className="empty-state-text">
+                  {t('No data.')}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
-        {footerComponent}
+
       </div>
       {footerComponent && (
         <div 
@@ -176,6 +182,7 @@ const Sidebar = <T,>({
           {footerComponent}
         </div>
       )}
+    
     </div>
   );
 };

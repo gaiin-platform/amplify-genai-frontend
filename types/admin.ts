@@ -19,14 +19,16 @@ export enum AdminConfigTypes {
     EMAIL_SUPPORT = 'emailSupport',
     AI_EMAIL_DOMAIN = 'aiEmailDomain',
     INTEGRATIONS = 'integrations',
+    WEB_SEARCH = 'webSearchConfig',
     DEFAULT_CONVERSATION_STORAGE = 'defaultConversationStorage',
-    DEFAULT_MODELS = 'defaultModels'
+    DEFAULT_MODELS = 'defaultModels',
+    CRITICAL_ERRORS = 'criticalErrors',
 
   }
 
   // As tabs get added please keep track of where each config data lives
 export type AdminTab = 'Configurations' | 'Feature Flags' | 'Feature Data' | 'Embeddings' | 'Supported Models' |
-                        'Application Variables' | 'OpenAi Endpoints' | 'Ops' | 'Integrations';
+                        'Application Variables' | 'OpenAi Endpoints' | 'Ops' | 'Integrations' | 'Critical Errors';
 
   //////////////////// Keep track of admin changes and the tabs they belong to ////////////////////
 
@@ -78,7 +80,12 @@ export const adminDataTabMap: Record<AdminTab, string[]> = {
     ],
 
     'Integrations' : [
-      AdminConfigTypes.INTEGRATIONS
+      AdminConfigTypes.INTEGRATIONS,
+      AdminConfigTypes.WEB_SEARCH
+    ],
+
+    'Critical Errors' : [
+      AdminConfigTypes.CRITICAL_ERRORS
     ],
   
   };
@@ -119,6 +126,7 @@ export interface Embedding  {
         key: string;
         size: number;
         user: string;
+        chunkNumber?: number;
     }
     terminated?: boolean;
 
@@ -140,7 +148,8 @@ export interface EmbeddingsConfig  {
     outputTokenLimit: number; // max num of tokens a model will respond with (most models have preset max of 4096)
     outputTokenCost: number;
     inputTokenCost: number;
-    cachedTokenCost: number;
+    inputCachedTokenCost: number;
+    inputWriteCachedTokenCost: number;
     description: string;
     exclusiveGroupAvailability: string[];
     supportsImages: boolean;

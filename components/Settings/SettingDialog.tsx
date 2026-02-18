@@ -23,6 +23,7 @@ import ExpansionComponent from '../Chat/ExpansionComponent';
 import { IntegrationTabs } from '../Integrations/IntegrationsTab';
 import { ApiKeys } from './AccountComponents/ApiKeys';
 import { Accounts } from './AccountComponents/Account';
+import { MCPServersTab } from './MCPServersTab';
 import { Account, noCoaAccount } from '@/types/accounts';
 import { getAccounts } from '@/services/accountService';
 import { noRateLimit } from '@/types/rateLimit';
@@ -90,6 +91,9 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
   let initSettingsRef = useRef<Settings | null>(null);
   // prevent recalling the getSettings function
   if (initSettingsRef.current === null) initSettingsRef.current = getSettings(featureFlags);
+
+  // Parse openToTab for sub-tab navigation (e.g., "Integrations:Web Search")
+  const [mainTab, subTab] = openToTab ? openToTab.split(':') : [undefined, undefined];
 
   useEffect(() => {
     initSettingsRef.current = getSettings(featureFlags);
@@ -274,9 +278,10 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
 
     const [accountsUnsavedChanges, setAccountsUnsavedChanges] = useState(false);
     const [apiUnsavedChanges, setApiUnsavedChanges] = useState(false);
+    const [mcpUnsavedChanges, setMcpUnsavedChanges] = useState(false);
    
     const handleClose = () => {
-      if ((accountsUnsavedChanges || apiUnsavedChanges || hasUnsavedChanges) && !confirm("You have unsaved changes.\n\nYou will lose any unsaved data, would you still like to close Settings?")) return;
+      if ((accountsUnsavedChanges || apiUnsavedChanges || mcpUnsavedChanges || hasUnsavedChanges) && !confirm("You have unsaved changes.\n\nYou will lose any unsaved data, would you still like to close Settings?")) return;
       
       // Reset all state variables to their original values when closing
       if (initSettingsRef.current) {
@@ -288,6 +293,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
       window.dispatchEvent(new Event('cleanupApiKeys'));
       setAccountsUnsavedChanges(false);
       setApiUnsavedChanges(false);
+      setMcpUnsavedChanges(false);
       setHasUnsavedChanges(false);
       onClose();
       
@@ -329,7 +335,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
     }, [trackTab]);
 
     const otherChanges = () => {
-    return accountsUnsavedChanges || apiUnsavedChanges;
+    return accountsUnsavedChanges || apiUnsavedChanges || mcpUnsavedChanges;
     }
 
 
@@ -353,7 +359,7 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
         <>
         <ActiveTabs
             id="SettingsTabs"
-            initialActiveTab={openToTab}
+            initialActiveTab={mainTab}
             onTabChange={(tabIndex: number) => setTrackTab(tabIndex)}
             tabs={[
       
@@ -512,9 +518,16 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
 
               ///////////////////////////////////////////////////////////////////////////////
               // Integrations Tab
-              ...(featureFlags.integrations ? [{label: `Integrations`, 
+              ...(featureFlags.integrations ? [{label: `Integrations`,
                 title: "Manage your integration connections",
-                content: <IntegrationTabs open={open} depth={1}/>
+                content: <IntegrationTabs open={open} depth={1} openToSubTab={subTab}/>
+              }] : []),
+
+              ///////////////////////////////////////////////////////////////////////////////
+              // MCP Servers Tab
+              ...(featureFlags.mcp ? [{label: `MCP Servers${mcpUnsavedChanges ? " *" : ""}`,
+                title: mcpUnsavedChanges ? "Contains unsaved form data" : "Connect to MCP servers for extended tool capabilities",
+                content: <MCPServersTab open={open} setUnsavedChanges={setMcpUnsavedChanges}/>
               }] : []),
 
               ///////////////////////////////////////////////////////////////////////////////
@@ -601,7 +614,8 @@ const renderModelPricing = (availableModels: Record<ModelKey, any[]>) => {
                       >
                         <label className="px-2">{model.name}</label>
                       </td>
-                      {["inputTokenCost", "outputTokenCost", "cachedTokenCost"].map((s: string, idx: number) => (
+                      {["inputTokenCost", "outputTokenCost", "inputCachedTokenCost", "inputWriteCachedTokenCost"]
+                        .map((s: string, idx: number) => (
                         <td
                           key={idx}
                           className="border border-neutral-500 py-2"

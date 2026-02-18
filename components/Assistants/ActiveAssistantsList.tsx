@@ -12,22 +12,6 @@ import { Prompt } from '@/types/prompt';
 interface Props {
 }
 
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
-
-const LoadingIcon = styled(FiCommand)`
-  color: #777777;
-  font-size: 1.1rem;
-  font-weight: bold;
-  animation: ${animate} 2s infinite;
-`;
-
 
 export const ActiveAssistantsList: FC<Props> = ({}) => {
     const {state: {selectedConversation, prompts, selectedAssistant}, dispatch: homeDispatch} = useContext(HomeContext);
@@ -67,6 +51,8 @@ export const ActiveAssistantsList: FC<Props> = ({}) => {
     useEffect(() => {
         if(selectedAssistant){
             setActiveAssistant(selectedAssistant);
+            if (selectedConversation && selectedConversation.groupType) delete selectedConversation.groupType;
+ 
         }
     }, [selectedAssistant]);
 

@@ -1,5 +1,5 @@
 import React, {FC, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
-import {IconDownload, IconRefresh, IconTrash, IconLoader2, IconCheck, IconX} from "@tabler/icons-react";
+import {IconDownload, IconTrash, IconLoader2, IconCheck, IconX, IconReload, IconRefresh} from "@tabler/icons-react";
 import toast from 'react-hot-toast';
 import {Checkbox} from '@/components/ReusableComponents/CheckBox';
 import {
@@ -17,14 +17,15 @@ import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags} from "@/service
 import {TagsList} from "@/components/Chat/TagsList";
 import {DataSource} from "@/types/chat";
 import { v4 as uuidv4 } from 'uuid';
-import { deleteDatasourceFile, downloadDataSourceFile, extractKey, getDocumentStatusConfig, startFileReprocessingWithPolling } from '@/utils/app/files';
+import { deleteDatasourceFile, downloadDataSourceFile, extractKey, getDocumentStatusConfig, getFileAction, startFileReprocessingWithPolling, startFileStatusPolling } from '@/utils/app/files';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
 import { IMAGE_FILE_TYPES } from '@/utils/app/const';
-import { embeddingDocumentStaus } from '@/services/adminService';
+import { embeddingDocumentStatus } from '@/services/adminService';
 import { capitalize } from '@/utils/app/data';
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
+import { animate } from '../Loader/LoadingIcon';
 
 
 interface Props {
@@ -35,14 +36,6 @@ interface Props {
     height?: string;
 }
 
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
 
 const LoadingIcon = styled(FiCommand)`
   color: #777777;
@@ -94,7 +87,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
     const tableContainerRef = useRef<HTMLDivElement>(null);
     
     // Embedding status state
-    const [embeddingStatus, setEmbeddingStatus] = useState<{[key: string]: string} | null>(null);
+    const [embeddingStatus, setEmbeddingStatus] = useState<{[key: string]: string} & { metadata?: {[key: string]: any}} | null>(null);
     const [isLoadingStatus, setIsLoadingStatus] = useState(false);
     // Cache to track which files have had their status fetched
     const fetchedStatusKeys = useRef<Set<string>>(new Set());
@@ -105,6 +98,10 @@ const DataSourcesTableScrolling: FC<Props> = ({
     const [isDeleteMode, setIsDeleteMode] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+
+    // Multi-select mode state
+    const [isSelectMode, setIsSelectMode] = useState(false);
+    const [selectedForAction, setSelectedForAction] = useState<Set<string>>(new Set());
 
     const getTypeFromCommonName = (commonName: string) => {
         const foundType = Object.entries(mimeTypeToCommonName)
@@ -127,10 +124,12 @@ const DataSourcesTableScrolling: FC<Props> = ({
             setIsLoading(true);
 
             let existingData = data;
+            let currentPageKeys = pageKeys;
 
             const globalFilterQuery = globalFilter ? globalFilter : null;
 
             if (globalFilterQuery) {
+                currentPageKeys = [];
                 setPageKeys([]); //reset page keys if global filter is set
                 setLastPageIndex(0);
                 existingData = [];
@@ -140,6 +139,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 : 'createdAt#desc';
 
             if (sortingKey !== prevSorting) {
+                currentPageKeys = [];
                 setPageKeys([]); //reset page keys if sorting changes
                 setLastPageIndex(0);
                 setPrevSorting(sortingKey);
@@ -147,6 +147,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
             }
 
             if (columnFilters !== previousColumnFilters) {
+                currentPageKeys = [];
                 setPageKeys([]); //reset page keys if column filters change
                 setLastPageIndex(0);
                 setPreviousColumnFilters(columnFilters);
@@ -156,7 +157,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
             let sortIndex = 'createdAt'
 
             const pageKeyIndex = pagination.pageIndex - 1;
-            const pageKey = pageKeyIndex >= 0 ? pageKeys[pageKeyIndex] : null;
+            const pageKey = pageKeyIndex >= 0 ? currentPageKeys[pageKeyIndex] : null;
             let forwardScan =
                 ((lastPageIndex < pagination.pageIndex) || !pageKey) ? false : true;
 
@@ -221,12 +222,16 @@ const DataSourcesTableScrolling: FC<Props> = ({
             const result = await queryUserFiles(
                 query, null);
 
-            if (!result.success) {
+            if (!result.success || !result.data) {
                 setIsError(true);
+                setIsLoading(false);
+                setIsRefetching(false);
+                return;
             }
+            
             // dont show assistant icons in the data source table
-            const items = result.data?.items;
-            const updatedWithCommonNames = items?.map((file: any) => {
+            const items = result.data.items || [];
+            const updatedWithCommonNames = items.map((file: any) => {
                 const commonName = mimeTypeToCommonName[file.type];
                 return {
                     ...file,
@@ -235,12 +240,13 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 };
             });
 
-            if ((pageKeyIndex >= pageKeys.length - 1 || pageKeys.length === 0) && result.data.pageKey) {
-                setPageKeys([...pageKeys, result.data.pageKey]);
+            if ((pageKeyIndex >= currentPageKeys.length - 1 || currentPageKeys.length === 0) && result.data.pageKey) {
+                const updatedPageKeys = [...currentPageKeys, result.data.pageKey];
+                setPageKeys(updatedPageKeys);
                 setHasMoreData(true);
             }
 
-            setHasMoreData(result.data.pageKey !== null && result.data.items.length === pagination.pageSize);
+            setHasMoreData(result.data.pageKey !== null && items.length === pagination.pageSize);
 
             setData([...existingData, ...updatedWithCommonNames]);
 
@@ -347,14 +353,16 @@ const DataSourcesTableScrolling: FC<Props> = ({
 
                 // Make concurrent calls for each chunk
                 const statusPromises = chunks.map(chunk => 
-                    embeddingDocumentStaus(chunk)
+                    embeddingDocumentStatus(chunk)
                         .then(response => {
                             if (response?.success && response?.data) {
                                 // Merge results into existing state as they come in
                                 setEmbeddingStatus(prevStatus => {
                                     const newStatus = {
                                         ...prevStatus,
-                                        ...response.data
+                                        ...response.data,
+                                        // Include metadata if available
+                                        ...(response.metadata && { metadata: { ...prevStatus?.metadata, ...response.metadata } })
                                     };
                                     
                                     // Mark these keys as fetched AFTER state update
@@ -488,6 +496,50 @@ const DataSourcesTableScrolling: FC<Props> = ({
         setSelectedIds(newSelected);
     }
 
+    // Select mode functions
+    const toggleSelectAllForAction = () => {
+        if (selectedForAction.size === data.length) {
+            setSelectedForAction(new Set());
+        } else {
+            setSelectedForAction(new Set(data.map(file => file.id)));
+        }
+    }
+
+    const toggleSelectForAction = (id: string) => {
+        const newSelected = new Set(selectedForAction);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedForAction(newSelected);
+    }
+
+    const handleBatchSelect = () => {
+        if (selectedForAction.size === 0 || !onDataSourceSelected) return;
+
+        // Call onDataSourceSelected for each selected file
+        Array.from(selectedForAction).forEach(id => {
+            const file = data.find(f => f.id === id);
+            if (file) {
+                onDataSourceSelected({
+                    id: file.id,
+                    type: file.type,
+                    name: file.name,
+                    metadata: {
+                        createdAt: file.createdAt,
+                        tags: file.tags,
+                        totalTokens: file.totalTokens,
+                    }
+                });
+            }
+        });
+
+        // Reset state
+        setSelectedForAction(new Set());
+        setIsSelectMode(false);
+    }
+
     const fileReprocessing = async (key: string) => {
         // Find the document that will be reprocessed to get its type
         const reprocessedDoc = data.find(file => file.id === key);
@@ -530,7 +582,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: '__id', //access nested data with dot notation
                 header: ' ',
-                width: 18,
                 size: 18,
                 maxSize: 18,
                 enableSorting: false,
@@ -551,7 +602,83 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: 'name', //access nested data with dot notation
                 header: 'Name',
-                width: 200,
+                Header: () => (
+                    <div className="flex items-center gap-1">
+                        <span>Name</span>
+                        {onDataSourceSelected && !isSelectMode && (
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setIsSelectMode(true);
+                                }}
+                                className="text-xs px-1.5 py-0.5 mx-6 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors whitespace-nowrap"
+                            >
+                                Select Multiple
+                            </button>
+                        )}
+                        {isSelectMode && (
+                            <>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        toggleSelectAllForAction();
+                                    }}
+                                    className="text-xs px-1.5 py-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors whitespace-nowrap"
+                                >
+                                    {selectedForAction.size === data.length && data.length > 0 ? 'Deselect All' : 'Select All'}
+                                </button>
+                                <span className="text-xs text-gray-500 whitespace-nowrap">
+                                    ({selectedForAction.size})
+                                </span>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleBatchSelect();
+                                    }}
+                                    disabled={selectedForAction.size === 0}
+                                    className="p-0.5 rounded hover:bg-green-100 dark:hover:bg-green-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                    title="Confirm Selection"
+                                >
+                                    <IconCheck size={16} className="text-green-600 dark:text-green-400" />
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setIsSelectMode(false);
+                                        setSelectedForAction(new Set());
+                                    }}
+                                    className="p-0.5 ml-[-4px] mr-3 rounded hover:bg-red-100 dark:hover:bg-red-900 transition-colors"
+                                    title="Cancel"
+                                >
+                                    <IconX size={16} className="text-red-600 dark:text-red-400" />
+                                </button>
+                            </>
+                        )}
+                    </div>
+                ),
+                Cell: ({cell}) => (
+                    <div className="flex items-center gap-2">
+                        {isSelectMode && (
+                            <div onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                toggleSelectForAction(cell.row.original.id);
+                            }}>
+                                <Checkbox
+                                    id={`select-checkbox-${cell.row.original.id}`}
+                                    label=""
+                                    checked={selectedForAction.has(cell.row.original.id)}
+                                    onChange={() => toggleSelectForAction(cell.row.original.id)}
+                                />
+                            </div>
+                        )}
+                        <span>{cell.getValue<string>()}</span>
+                    </div>
+                ),
                 size: 200,
                 //enableSorting: false,
                 maxSize: 300,
@@ -559,7 +686,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: 'id', //access nested data with dot notation
                 header: ' ',
-                width: 18,
                 size: 18,
                 maxSize: 18,
                 enableSorting: false,
@@ -580,7 +706,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: 'createdAt',
                 header: 'Created',
-                width: 100,
                 size: 100,
                 //enableSorting: false,
                 enableColumnFilter: false,
@@ -609,7 +734,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 accessorKey: 'commonType',
                 header: 'Type',
                 //enableSorting: false,
-                width: 100,
                 size: 100,
                 maxSize: 100,
                 Edit: ({cell, column, table}) => <>{cell.getValue<string>()}</>,
@@ -617,7 +741,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: 'embeddingStatus', //embedding status column
                 header: 'Status',
-                width: 150,
                 size: 150,
                 maxSize: 150,
                 enableSorting: false,
@@ -647,30 +770,88 @@ const DataSourcesTableScrolling: FC<Props> = ({
                         return null;
                     }
 
+                    const metadata = embeddingStatus?.metadata?.[key];
+                    let tooltipText = capitalize(config.text);
+                    
+                    // Add metadata details to tooltip if available
+                    if (metadata) {
+                        const details = [];
+                        if (metadata.failedChunks !== undefined && metadata.totalChunks !== undefined) {
+                            details.push(`${metadata.failedChunks}/${metadata.totalChunks} chunks failed`);
+                        }
+                        if (metadata.lastUpdated) {
+                            details.push(`Updated: ${new Date(metadata.lastUpdated).toLocaleString()}`);
+                        }
+                        if (details.length > 0) {
+                            tooltipText += `\n${details.join('\n')}`;
+                        }
+                    }
+
                     return (
                         <div className="flex items-center justify-start gap-2">
-                            <span className={`${config.color} text-xs px-1.5 py-0.5 rounded font-normal whitespace-nowrap`}>
+                            <span 
+                                className={`${config.color} text-xs px-1.5 py-0.5 rounded font-normal whitespace-nowrap`}
+                                title={tooltipText}
+                            >
                                 {capitalize(config.text)}
+                                {metadata?.failedChunks !== undefined && metadata?.totalChunks !== undefined && (
+                                    <span className="ml-1 text-xs opacity-75">
+                                        ({metadata.failedChunks}/{metadata.totalChunks})
+                                    </span>
+                                )}
                             </span>
-                            {/* Show refresh button for non-completed, non-image files */}
-                            {status !== 'completed' && !IMAGE_FILE_TYPES.includes(fileType) && (
-                                pollingFiles.has(cell.row.original.id) ? (
-                                    <LoadingIcon style={{ width: "18px", height: "18px" }} />
-                                ) : (
-                                    <ActionButton
-                                        title='Regenerate text extraction and embeddings for this file.'
-                                        handleClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            if (confirm("Are you sure you want to regenerate the text extraction and embeddings for this file?")) {
-                                                fileReprocessing(cell.row.original.id);
-                                            }
-                                        }}
-                                    > 
-                                        <IconRefresh size={16} />
-                                    </ActionButton>
-                                )
-                            )}
+                            {/* Show loader if actively polling, or action button based on status/time */}
+                            {!IMAGE_FILE_TYPES.includes(fileType) && (() => {
+                                // Show spinner if actively polling this file
+                                if (pollingFiles.has(cell.row.original.id)) {
+                                    return <LoadingIcon style={{ width: "18px", height: "18px" }} />;
+                                }
+                                
+                                // Determine which action to show
+                                const action = getFileAction(cell.row.original.createdAt, status, metadata);
+                                
+                                if (action === 'refresh') {
+                                    // Within 5 min: Show refresh button (check status + start polling)
+                                    return (
+                                        <ActionButton
+                                            title='Check status update - file may still be processing'
+                                            handleClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                startFileStatusPolling({
+                                                    key: extractKey(cell.row.original),
+                                                    fileType: cell.row.original.type,
+                                                    setPollingFiles,
+                                                    setEmbeddingStatus
+                                                });
+                                            }}
+                                        >
+                                            <IconRefresh size={16} className="text-blue-500" />
+                                        </ActionButton>
+                                    );
+                                }
+                                
+                                if (action === 'reprocess') {
+                                    // After 5 min or failed: Show reprocess button
+                                    return (
+                                        <ActionButton
+                                            title='Regenerate text extraction and embeddings for this file.'
+                                            handleClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                if (confirm("Are you sure you want to regenerate the text extraction and embeddings for this file?")) {
+                                                    fileReprocessing(cell.row.original.id);
+                                                }
+                                            }}
+                                        >
+                                            <IconReload size={16} />
+                                        </ActionButton>
+                                    );
+                                }
+                                
+                                // Completed files: show nothing
+                                return null;
+                            })()}
                         </div>
                     );
                 },
@@ -678,7 +859,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: 'delete',
                 header: '',
-                width: 18,
                 size: 18,
                 maxSize: 18,
                 enableSorting: false,
@@ -715,7 +895,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 },   
             },
         ],
-        [embeddingStatus, fetchedStatusKeys, isDeleteMode, selectedIds, pollingFiles],
+        [embeddingStatus, fetchedStatusKeys, isDeleteMode, selectedIds, isSelectMode, selectedForAction, pollingFiles],
     );
 
     const columns = allColumns.filter(
@@ -769,8 +949,10 @@ const DataSourcesTableScrolling: FC<Props> = ({
         },
         mantineTableBodyRowProps: ({row}) => ({
             onClick: (event) => {
-                //console.log("Data Source Selected", row.original);
-                if(onDataSourceSelected){
+                // If in select mode, toggle selection instead of normal behavior
+                if (isSelectMode) {
+                    toggleSelectForAction(row.original.id);
+                } else if(onDataSourceSelected){
                     onDataSourceSelected({
                         id: row.original.id,
                         type: row.original.type,
@@ -794,17 +976,27 @@ const DataSourcesTableScrolling: FC<Props> = ({
         mantineToolbarAlertBannerProps: isError
             ? {color: 'red', children: 'Error loading data'}
             : undefined,
+        mantineTableHeadCellProps: {
+            sx: {
+                '& .mantine-ActionIcon-root': {
+                    color: lightMode === 'light' ? '#374151' : undefined, // darker gray in light mode
+                },
+                '& svg': {
+                    color: lightMode === 'light' ? '#374151' : undefined, // darker gray in light mode
+                }
+            }
+        },
         ...(tableParams || {})
     });
 
     return (
         <div className="relative">
-            {/* Delete Mode Controls - Positioned to appear in toolbar area */}
+            {/* Multi-Select Mode Controls - Positioned to appear in toolbar area */}
             <div className="absolute right-2 z-10 flex items-center gap-2" style={{ transform: 'translateY(10px)' }}>
                 {!showDeleteConfirmation ? (
-                    <>  
+                    <>
                         {isDeleteMode ? (
-                            <div className="flex items-center gap-2">
+                            <div className="ml-2 flex items-center gap-2" style={{transform: 'translateY(32px)'}}>
                                 <button
                                     onClick={(e) => {
                                         e.preventDefault();
@@ -825,7 +1017,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
                                         setShowDeleteConfirmation(true);
                                     }}
                                     disabled={selectedIds.size === 0}
-                                    className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors text-sm"
+                                    className="px-3 py-1.5 rounded bg-red-600 text-white hover:bg-red-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors text-sm"
                                 >
                                     Delete
                                 </button>
@@ -836,24 +1028,24 @@ const DataSourcesTableScrolling: FC<Props> = ({
                                         setIsDeleteMode(false);
                                         setSelectedIds(new Set());
                                     }}
-                                    className="p-1.5 rounded hover:bg-gray-600 dark:hover:bg-black transition-colors"
+                                    className="p-1.5 rounded hover:bg-gray-300 dark:hover:bg-black transition-colors"
                                     title="Cancel"
                                 >
                                     <IconX size={18} />
                                 </button>
                             </div>
                         ) :
-                        <div style={{ transform: 'translateY(6px)' }}>
+                        <div style={{ transform: 'translateY(6px)' }} className="flex gap-2">
                             <button
                                 onClick={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
                                     setIsDeleteMode(true);
                                 }}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded hover:bg-gray-600 dark:hover:bg-black transition-colors"
+                                className="flex items-center bg-white dark:bg-opacity-0 gap-2 px-3 py-1.5 rounded hover:bg-gray-200 dark:hover:bg-black transition-colors"
                             >
                                 <IconTrash size={18} />
-                                <span className="text-sm text-neutral-200 font-bold">{'Delete Multiple'}</span>
+                                <span className="text-sm text-neutral-600 dark:text-neutral-300 font-bold">{'Delete Multiple'}</span>
                             </button>
                         </div>
                         }
