@@ -12,7 +12,8 @@ import {
     IconCheck,
     IconX,
     IconWorldSearch,
-    IconGripHorizontal
+    IconGripHorizontal,
+    IconLayoutList
 } from '@tabler/icons-react';
 import SaveActionsModal from './SaveActionsModal';
 import {
@@ -44,6 +45,7 @@ import { LayeredAssistant } from '@/types/layeredAssistant';
 import {COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
+import {ConversationContextManager} from "@/components/Chat/ConversationContextManager";
 import {getAssistants} from "@/utils/app/assistants";
 import { isImageFile, isVideoFile, processDragDropFiles, processPastedFiles } from '@/utils/fileHandler';
 import AssistantsInUse from "@/components/Chat/AssistantsInUse";
@@ -324,6 +326,7 @@ export const ChatInput = ({
     }, [isResizing, textareaHeight]);
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
+    const [showContextManager, setShowContextManager] = useState(false);
     //const [assistant, setAssistant] = useState<Assistant>(selectedAssistant || DEFAULT_ASSISTANT);
     const [availableAssistants, setAvailableAssistants] = useState<Assistant[]>([DEFAULT_ASSISTANT]);
 
@@ -371,6 +374,7 @@ export const ChatInput = ({
     const dataSourceSelectorRef = useRef<HTMLDivElement | null>(null);
     const actionSelectorRef = useRef<HTMLDivElement | null>(null);
     const assistantSelectorRef = useRef<HTMLDivElement | null>(null);
+    const contextManagerRef = useRef<HTMLDivElement | null>(null);
 
     const [isWorkflowOn, setWorkflowOn] = useState(false);
 
@@ -914,6 +918,8 @@ export const ChatInput = ({
                 !actionSelectorRef.current.contains(e.target as Node)) setShowOpsPopup(false);
 
             if (assistantSelectorRef.current && !assistantSelectorRef.current.contains(e.target as Node)) setShowAssistantSelect(false);
+
+            if (contextManagerRef.current && !contextManagerRef.current.contains(e.target as Node)) setShowContextManager(false);
         };
 
         window.addEventListener('click', handleOutsideClick);
@@ -1006,6 +1012,16 @@ export const ChatInput = ({
         setShowPromptList(false);
         setShowMessageSelectDialog(false);
         setShowQiDialog(false);
+        setShowContextManager(false);
+    }
+
+    const handleUpdateRemovedDocuments = (updatedRemovedDocumentIds: string[]) => {
+        if (selectedConversation) {
+            handleUpdateConversation(selectedConversation, {
+                key: 'removedDocumentIds',
+                value: updatedRemovedDocumentIds
+            });
+        }
     }
 
     // Drag and drop handlers
@@ -1317,6 +1333,17 @@ export const ChatInput = ({
                                     (file: File) => { handleFile(file, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController, featureFlags.uploadDocuments, undefined, resolveRagEnabled(featureFlags, ragOn) )}
                                     : undefined
                                 }
+                            />
+                        </div>
+                    )}
+
+                    {showContextManager && (
+                        <div ref={contextManagerRef} className="rounded bg-white dark:bg-[#343541]"
+                             style={{transform: 'translateY(70px)', maxHeight: '500px', overflow: 'hidden'}}>
+                            <ConversationContextManager
+                                conversation={selectedConversation}
+                                onUpdateRemovedDocuments={handleUpdateRemovedDocuments}
+                                onClose={() => setShowContextManager(false)}
                             />
                         </div>
                     )}
@@ -1777,7 +1804,21 @@ export const ChatInput = ({
                             />
                         </div>}
 
-                        
+                        <button
+                            className="chat-input-button rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                            id="contextManager"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleCloseAllPopups();
+                                setShowContextManager(!showContextManager);
+                            }}
+                            onKeyDown={(e) => {
+                            }}
+                            title="Manage Conversation Context"
+                        >
+                            <IconLayoutList size={20}/>
+                        </button>
+
                         { featureFlags.actionSets && 
                         <>
                         {/* Add Action button toggles the operations popup */}
