@@ -151,4 +151,5 @@ export interface Conversation {
   artifacts?:  { [key: string]: Artifact[]};
   projectId?: string;
   date?: string;
+  removedDocumentIds?: string[];
 }
