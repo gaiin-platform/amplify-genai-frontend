@@ -6,6 +6,7 @@
 >
 > - Deploy the [backend](https://github.com/gaiin-platform/amplify-genai-backend) first, then rebuild and deploy the frontend container.
 > - Existing deployments **must** run `populate_parameter_store.py` in the backend repo before upgrading.
+> - **If you have the `amplify-lambda-basic-ops` service**, you must handle the `/user-data` endpoint migration before deploying. See the [Migration Guide](https://github.com/gaiin-platform/amplify-genai-backend/blob/main/scripts/MIGRATION_README.md) for detailed steps.
 > - See the [Migration Guide](https://github.com/gaiin-platform/amplify-genai-backend/blob/main/scripts/MIGRATION_README.md) for required steps.
 
 ## Overview
