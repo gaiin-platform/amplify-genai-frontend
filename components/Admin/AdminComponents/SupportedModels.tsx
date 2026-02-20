@@ -504,8 +504,12 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                         <div className="w-[30px]">
                                         {hoveredAvailModel === availModel.id && (!isAddingAvailModel 
                                         || (isAddingAvailModel.action === 'Adding' && JSON.stringify(isAddingAvailModel.model) === JSON.stringify(emptySupportedModel()))) ?
-                                        <div className="flex flex-row gap-1" onMouseEnter={() => setHoveredModelIcons(availModel.id)} 
-                                                                             onMouseLeave={() => setHoveredModelIcons('')}> 
+                                        <div
+                                          className="flex flex-row gap-1"
+                                          onMouseEnter={() => setHoveredModelIcons(availModel.id)}
+                                          onMouseLeave={() => setHoveredModelIcons('')}
+                                          role="presentation"
+                                        > 
                                         <ActionButton
                                             handleClick={() => {setIsAddingAvailModel( {model: availModel, action: "Editing" })}}
                                             title="Edit Model Data">

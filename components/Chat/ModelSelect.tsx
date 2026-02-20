@@ -180,7 +180,15 @@ const getIcons = (model: Model) => {
           <label className="mb-2 text-left text-neutral-700 dark:text-neutral-400">
             {t('Model')}
           </label>
-          <div id="legendHover" className='ml-auto relative' onMouseEnter={() => setShowLegend(true) } onMouseLeave={() => setShowLegend(false)}>
+          <div
+            id="legendHover"
+            className='ml-auto relative'
+            onMouseEnter={() => setShowLegend(true)}
+            onMouseLeave={() => setShowLegend(false)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowLegend(!showLegend); } }}
+          >
             <IconInfoCircle size={19} className='mr-1 mt-[-4px] flex-shrink-0 text-gray-600 dark:text-gray-300' />
             {showLegend && legend(showPricingBreakdown, featureFlags)}
             {showLegend && legend(showPricingBreakdown, featureFlags)}
@@ -232,6 +240,9 @@ const getIcons = (model: Model) => {
                 key={model.id}
                 id={model.id}
                 onClick={() => handleOptionClick(model.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOptionClick(model.id); }}}
+                role="button"
+                tabIndex={0}
                 className="flex cursor-pointer items-center justify-between px-4 py-2 text-neutral-900 hover:bg-neutral-100 dark:text-white dark:hover:bg-neutral-600"
                 title={model.description}
               >
@@ -350,7 +361,10 @@ const Legend = ({ showPricingBreakdown, featureFlags }: { showPricingBreakdown: 
        View the full pricing breakdown: Click on the gear icon on the left sidebar, go to <strong>Settings</strong>, and scroll down to  
        <strong className='text-blue-500 dark:text-blue-400 cursor-pointer hover:underline'
        onClick={() => {window.dispatchEvent(new CustomEvent('openSettingsTrigger', {detail: {openToTab: "Configurations"}}));
-                     }}>{" View Model Pricing"}
+                     }}
+       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.dispatchEvent(new CustomEvent('openSettingsTrigger', {detail: {openToTab: "Configurations"}})); }}}
+       role="button"
+       tabIndex={0}>{" View Model Pricing"}
        </strong> tab.
       </div>}
     </div>

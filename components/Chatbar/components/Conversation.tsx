@@ -53,6 +53,16 @@ export const ConversationComponent = ({ conversation}: Props) => {
   const [isChecked, setIsChecked] = useState(false);
   const conversationRef = useRef<HTMLDivElement>(null);
 
+  // Ref for autofocus element
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  // Focus management for accessibility
+  useEffect(() => {
+    if (isRenaming && renameInputRef.current) {
+      renameInputRef.current.focus();
+    }
+  }, [isRenaming]);
+
   useEffect(() => {
     
     if (selectedConversation?.id === conversation.id) {
@@ -211,7 +221,7 @@ export const ConversationComponent = ({ conversation}: Props) => {
             value={renameValue}
             onChange={(e) => setRenameValue(e.target.value)}
             onKeyDown={handleEnterDown}
-            autoFocus
+            ref={renameInputRef}
           />
         </div>
       ) : (

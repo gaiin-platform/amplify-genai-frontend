@@ -225,7 +225,7 @@ const StepCard: React.FC<StepCardProps> = ({
     <div
       draggable={step.tool !== 'terminate'}
       className={`
-        relative bg-white dark:bg-gray-800 border rounded-lg p-4 
+        relative bg-white dark:bg-gray-800 border rounded-lg p-4
         transition-all duration-200 cursor-pointer
         ${isHovered ? 'shadow-lg border-blue-300 dark:border-blue-600' : 'border-gray-200 dark:border-gray-700'}
         ${step.tool === 'terminate' ? 'opacity-75' : ''}
@@ -243,6 +243,9 @@ const StepCard: React.FC<StepCardProps> = ({
       onDrop={handleDrop}
       onDragEnd={handleDragEnd}
       onClick={() => onEdit(step)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit(step); }}}
+      role="button"
+      tabIndex={0}
     >
       {/* Drag Handle */}
       <div 
@@ -959,7 +962,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   const modalContent = (
     <div className={`${lightMode} fixed inset-0 z-[9999] flex items-center justify-center`}>
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onClick={onClose} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); }}} role="button" tabIndex={0} />
       
       {/* Modal */}
       <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 max-w-7xl w-full mx-4 flex flex-col max-h-[90vh]">
@@ -988,11 +991,24 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
           />
           
           {/* Resize Handle */}
+          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
           <div
             className={`w-1 bg-gray-300 dark:bg-gray-600 hover:bg-blue-400 dark:hover:bg-blue-500 cursor-col-resize transition-all duration-150 ${
               isResizing ? 'bg-blue-500 dark:bg-blue-400 w-2' : ''
             }`}
+            role="separator"
+            aria-orientation="vertical"
+            tabIndex={0}
             onMouseDown={handleMouseDown}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                e.preventDefault();
+                // Simple keyboard resize - adjust by 50px increments
+                const delta = e.key === 'ArrowLeft' ? -50 : 50;
+                const newWidth = Math.max(200, Math.min(600, leftPanelWidth + delta));
+                setLeftPanelWidth(newWidth);
+              }
+            }}
             title="Drag to resize Tool Selection panel"
           >
             {/* Optional: Add subtle grip dots for visual hint */}
@@ -1029,7 +1045,6 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
               <div className="mb-4">
                 <label className="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200">
                   Workflow Template Name <span className="text-red-500">*</span>
-                </label>
                 <input
                   type="text"
                   value={workflow.name}
@@ -1038,6 +1053,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                   className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   title="Give your workflow template a descriptive name that clearly explains what it does"
                 />
+                </label>
                 {!workflow.name.trim() && (
                   <p className="text-xs text-red-500 mt-1">Workflow name is required</p>
                 )}
@@ -1047,7 +1063,6 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
               <div className="mb-4">
                 <label className="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200">
                   Description
-                </label>
                 <textarea
                   value={workflow.description}
                   onChange={(e) => setWorkflow(prev => ({ ...prev, description: e.target.value }))}
@@ -1056,6 +1071,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                   rows={2}
                   title="Describe what this workflow accomplishes and when to use it"
                 />
+                </label>
               </div>
 
               {/* Accessibility Checkbox */}
@@ -1129,7 +1145,10 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                               <div className="flex justify-center my-3">
                                 <IconArrowDown size={16} className="text-gray-400" />
                               </div>
+                              {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
                               <div
+                                role="region"
+                                aria-label="Drop zone for workflow tools"
                                 onDragOver={(e) => {
                                   e.preventDefault();
                                   e.dataTransfer.dropEffect = 'copy';

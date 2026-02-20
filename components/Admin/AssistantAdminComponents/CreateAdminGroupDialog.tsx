@@ -304,13 +304,13 @@ interface MemberAccessProps {
 
 export const accessInfoBox = <InfoBox color='#085bd6' content={
     <span className="ml-2 text-xs text-gray-600 dark:text-gray-400">
-        <label className='font-bold text-[0.8rem]'> Read Access </label>
+        <span className='font-bold text-[0.8rem]'> Read Access </span>
         can view assistants in the prompt bar and engage in conversation. They do not have access to the admin interface.
         <br className='mb-2'></br>
-        <label className='font-bold text-[0.8rem'> Write Access </label>
+        <span className='font-bold text-[0.8rem'> Write Access </span>
         have the ability to view and chat with assistants. They can also create and edit assistants and have access to the admin interface.
         <br className='mb-2'></br>
-        <label className='font-bold text-[0.8rem'> Admin Access </label> have full administrative control. They can delete the group, manage members, and modify access levels. Admins are responsible for all aspects of group management and inherit all permissions from above.
+        <span className='font-bold text-[0.8rem'> Admin Access </span> have full administrative control. They can delete the group, manage members, and modify access levels. Admins are responsible for all aspects of group management and inherit all permissions from above.
 
     </span>}
 />
@@ -336,9 +336,9 @@ export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupM
     };
 
     return <div className='flex flex-col gap-2 mb-6'>
-        <label className='font-bold'>Add Members </label>
+        <span className='font-bold'>Add Members </span>
         {accessInfoBox}
-        <label className='text-sm font-normal'>List group members and their permission levels.</label>
+        <span className='text-sm font-normal'>List group members and their permission levels.</span>
         <>{includeGroupInfoBox}</>
         
         <AddEmailWithAutoComplete
@@ -364,7 +364,9 @@ export const AddMemberAccess: FC<MemberAccessProps> = ({ groupMembers, setGroupM
                         {Object.entries(groupMembers).map(([username, access]) => (
                             <tr key={username}>
                                 <td className="border px-4 py-2 " style={{ width: width }}>
+                                    {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
                                     <div className='flex items-center  '
+                                        role="group"
                                         onMouseEnter={() => {
                                             setHoveredUser(username)
                                         }}

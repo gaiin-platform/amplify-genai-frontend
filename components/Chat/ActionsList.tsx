@@ -181,6 +181,9 @@ const ActionsList: React.FC<ActionsListProps> = ({
                             : 'border-blue-100 dark:border-[#565869] hover:bg-blue-100 dark:hover:bg-[#4a4b59]'}
                             transition-colors ${onActionClick ? 'cursor-pointer' : ''} ${isCollapsed ? 'flex-shrink-0' : ''}`}
                         onClick={() => onActionClick && onActionClick(action, index)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onActionClick && onActionClick(action, index); }}}
+                        role="button"
+                        tabIndex={0}
                     >
                         <div className="flex items-center gap-1.5">
                             <span className={`${confirmDeleteIndex === index ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>

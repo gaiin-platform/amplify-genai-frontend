@@ -691,9 +691,9 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                 <>
                                     <div key={`${selectedGroup?.id}_Assistants`}>
                                         <div className="mb-4 flex flex-row items-center justify-between bg-transparent rounded-t border-b border-neutral-400  dark:border-white/20">
-                                            {selectedGroup.assistants.length === 0 && <label className='text-center text-black dark:text-white text-lg'
+                                            {selectedGroup.assistants.length === 0 && <div className='text-center text-black dark:text-white text-lg'
                                                 style={{ width: `${innderWindow.width * 0.75}px` }}>
-                                                You currently do not have any assistants in this group. </label>}
+                                                You currently do not have any assistants in this group. </div>}
 
                                             <div className="overflow-hidden">
                                                 <div className="flex flex-row gap-1 flex-nowrap ml-2 pr-2">

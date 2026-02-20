@@ -35,7 +35,14 @@ export const BatchProcessModal: FC<Props> = ({ progress, onCancel, onRetry, onCl
   const modalContent = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black bg-opacity-50" onClick={progress.isComplete ? onClose : undefined} />
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+      <div
+        className="absolute inset-0 bg-black bg-opacity-50"
+        onClick={progress.isComplete ? onClose : undefined}
+        onKeyDown={progress.isComplete ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); }} : undefined}
+        role={progress.isComplete ? "button" : undefined}
+        tabIndex={progress.isComplete ? 0 : undefined}
+      />
 
       {/* Modal */}
       <div className="relative bg-white dark:bg-[#343541] rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col">

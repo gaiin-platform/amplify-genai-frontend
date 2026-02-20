@@ -675,6 +675,14 @@ if __name__ == "__main__":
                                                 <div
                                                     className="flex justify-between items-center cursor-pointer font-semibold px-2 py-1 bg-gray-200 dark:bg-neutral-700 rounded"
                                                     onClick={() => setExpandedApps(prev => ({ ...prev, [appName]: !prev[appName] }))}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                            e.preventDefault();
+                                                            setExpandedApps(prev => ({ ...prev, [appName]: !prev[appName] }));
+                                                        }
+                                                    }}
+                                                    role="button"
+                                                    tabIndex={0}
                                                 >
                                                     <span>{appName}</span>
                                                     <span>{expandedApps[appName] ? "▾" : "▸"}</span>
@@ -694,6 +702,18 @@ if __name__ == "__main__":
                                                                             loadFunctionDetails(fn);
                                                                         }
                                                                     }}
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                                            e.preventDefault();
+                                                                            if (hasUnsavedChanges) {
+                                                                                setPendingFnToLoad(fn);
+                                                                            } else {
+                                                                                loadFunctionDetails(fn);
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    role="button"
+                                                                    tabIndex={0}
                                                                 >
                                                                     <div className="font-semibold">{fn.name}</div>
                                                                     <div className="text-xs text-gray-600 dark:text-gray-400">{fn.description}</div>
@@ -1292,7 +1312,7 @@ Output only a markdown code block like this:
                                         onChange={(e) => updateNewTestCase({ ...newTestCase, inputJson: e.target.value })}
                                     />
                                     <div className="col-span-2 flex gap-4 items-center">
-                                        <label className="text-sm font-semibold">Match Type:</label>
+                                        <span className="text-sm font-semibold">Match Type:</span>
                                         <label className="flex items-center gap-1">
                                             <input
                                                 type="radio"
@@ -1716,49 +1736,57 @@ Output only a markdown code block like this:
                                 <h2 className="text-md font-semibold mt-4 mb-2">Publish Function</h2>
                                 <div className="border rounded p-4 space-y-3">
                                     <div>
-                                        <label className="block text-sm font-medium mb-1">Path</label>
-                                        <input
-                                            type="text"
-                                            className="w-full border rounded p-2 dark:bg-[#40414F] dark:text-white"
-                                            placeholder="e.g. cars/list"
-                                            value={publishPath}
-                                            onChange={(e) => setPublishPath(e.target.value)}
-                                        />
+                                        <label className="block text-sm font-medium mb-1">
+                                            Path
+                                            <input
+                                                type="text"
+                                                className="w-full border rounded p-2 dark:bg-[#40414F] dark:text-white mt-1"
+                                                placeholder="e.g. cars/list"
+                                                value={publishPath}
+                                                onChange={(e) => setPublishPath(e.target.value)}
+                                            />
+                                        </label>
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium mb-1">Version</label>
-                                        <input
-                                            type="text"
-                                            className="w-full border rounded p-2 dark:bg-[#40414F] dark:text-white"
-                                            value={publishVersion}
-                                            onChange={(e) => setPublishVersion(e.target.value)}
-                                        />
+                                        <label className="block text-sm font-medium mb-1">
+                                            Version
+                                            <input
+                                                type="text"
+                                                className="w-full border rounded p-2 dark:bg-[#40414F] dark:text-white mt-1"
+                                                value={publishVersion}
+                                                onChange={(e) => setPublishVersion(e.target.value)}
+                                            />
+                                        </label>
                                     </div>
 
                                     <div className="flex items-center gap-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={assistantAccessible}
-                                            onChange={(e) => setAssistantAccessible(e.target.checked)}
-                                        />
-                                        <label className="text-sm">Assistant Accessible</label>
+                                        <label className="text-sm flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={assistantAccessible}
+                                                onChange={(e) => setAssistantAccessible(e.target.checked)}
+                                            />
+                                            Assistant Accessible
+                                        </label>
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium mb-1">Access</label>
-                                        <select
-                                            className="w-full border rounded p-2 dark:bg-[#40414F] dark:text-white"
-                                            value={access}
-                                            //@ts-ignore
-                                            onChange={(e) => setAccess(e.target.value)}
-                                            
-                                        >   {featureFlags.publicizePythonFunctionApis && 
-                                              <option value="public">Public</option>
-                                            }
-                                              <option value="private">Private</option>
-                                           
-                                        </select>
+                                        <label className="block text-sm font-medium mb-1">
+                                            Access
+                                            <select
+                                                className="w-full border rounded p-2 dark:bg-[#40414F] dark:text-white mt-1"
+                                                value={access}
+                                                //@ts-ignore
+                                                onChange={(e) => setAccess(e.target.value)}
+
+                                            >   {featureFlags.publicizePythonFunctionApis &&
+                                                  <option value="public">Public</option>
+                                                }
+                                                  <option value="private">Private</option>
+
+                                            </select>
+                                        </label>
                                     </div>
 
                                     <button

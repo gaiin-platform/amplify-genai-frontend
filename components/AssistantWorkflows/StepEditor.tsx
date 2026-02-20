@@ -203,9 +203,9 @@ const StepEditor: React.FC<StepEditorProps> = ({
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <IconRobot size={20} className="text-green-600 dark:text-green-400" />
-                  <label className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                  <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
                     AI Step Generator
-                  </label>
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -221,10 +221,11 @@ const StepEditor: React.FC<StepEditorProps> = ({
               
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200">
+                  <label className="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200" htmlFor="stepEditorAiDescription">
                     Describe your desired step:
                   </label>
                   <textarea
+                    id="stepEditorAiDescription"
                     value={aiDescription}
                     onChange={(e) => setAiDescription(e.target.value)}
                     className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
@@ -287,7 +288,6 @@ const StepEditor: React.FC<StepEditorProps> = ({
       <div className={`mb-4 ${isTerminate ? 'opacity-50' : ''}`}>
         <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200">
           Step Name
-        </label>
         <input
           disabled={isTerminate}
           type="text"
@@ -296,13 +296,13 @@ const StepEditor: React.FC<StepEditorProps> = ({
           className="w-full p-2 border border-gray-300 rounded-lg bg-white dark:bg-[#40414F] dark:border-neutral-600 text-gray-900 dark:text-white"
           placeholder="Name for this step (used for references)"
         />
+        </label>
       </div>
 
       {/* Description */}
       <div className={`mb-4 ${isTerminate ? 'opacity-50' : ''}`}>
         <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200">
           Description
-        </label>
         <input
           type="text"
           value={step.description}
@@ -311,15 +311,17 @@ const StepEditor: React.FC<StepEditorProps> = ({
           placeholder="What this step does"
           disabled={isTerminate}
         />
+        </label>
       </div>
 
       {/* Tool */}
       {allowToolSelection && (
         <div className={`mb-4 ${isTerminate ? 'opacity-50' : ''}`}>
-          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200">
+          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200" htmlFor={`tool-selector-${stepIndex}`}>
             Tool
           </label>
           <button
+            id={`tool-selector-${stepIndex}`}
             disabled={isTerminate}
             type="button"
             className={`w-full p-2 border border-gray-300 text-left rounded-lg bg-white dark:bg-[#40414F] dark:border-neutral-600 text-gray-900 dark:text-white ${isTerminate ? "" : "hover:bg-gray-50 dark:hover:bg-[#4a4b59] transition-colors"}`}
@@ -332,10 +334,11 @@ const StepEditor: React.FC<StepEditorProps> = ({
 
       {/* Instructions */}
       <div className="mb-4">
-        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200">
+        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200" htmlFor={`stepInstructions-${stepIndex}`}>
           Instructions
         </label>
         <textarea
+          id={`stepInstructions-${stepIndex}`}
           value={step.instructions}
           onChange={(e) => updateStep({ instructions: e.target.value })}
           className="w-full p-2 border border-gray-300 rounded-lg bg-white dark:bg-[#40414F] dark:border-neutral-600 text-gray-900 dark:text-white"
@@ -346,10 +349,11 @@ const StepEditor: React.FC<StepEditorProps> = ({
 
       {/* Action Segment */}
       <div className={`mb-4 ${isTerminate ? 'opacity-40' : ''}`}>
-        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200">
+        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200" htmlFor={`actionSegment-${stepIndex}`}>
           Action Segment
         </label>
         <input
+          id={`actionSegment-${stepIndex}`}
           type="text"
           value={step.actionSegment ?? ''}
           onChange={(e) => updateStep({ actionSegment: e.target.value || undefined })}
@@ -372,10 +376,11 @@ const StepEditor: React.FC<StepEditorProps> = ({
       {/* Argument Instructions */}
       <div className="mb-4">
         <div className="flex justify-between items-center mb-2">
-          <label className="block text-sm font-medium dark:text-neutral-200">
+          <label className="block text-sm font-medium dark:text-neutral-200" htmlFor={`arg-instructions-${stepIndex}`}>
             Argument Instructions
           </label>
         </div>
+        <div id={`arg-instructions-${stepIndex}`}>
         {Object.keys(step.args || {}).length === 0 ? (
           <div className="text-neutral-500 dark:text-neutral-400">
             No Arguments
@@ -383,10 +388,12 @@ const StepEditor: React.FC<StepEditorProps> = ({
         ) : (
           Object.entries(step.args)
             .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
+            // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
             .map(([key, value], argIndex) => (
-              <div 
-                key={argIndex} 
+              <div
+                key={argIndex}
                 className="w-full flex mb-2 last:mb-0"
+                role="group"
                 onMouseEnter={() => setHoveredArgIndex(`${stepIndex}-${argIndex}`)}
                 onMouseLeave={() => setHoveredArgIndex(null)}
               >
@@ -437,12 +444,13 @@ const StepEditor: React.FC<StepEditorProps> = ({
               </div>
             ))
         )}
+        </div>
       </div>
 
       {/* Argument Values */}
       <div className="mb-4">
         <div className="flex justify-between items-center mb-2">
-          <label className="block text-sm font-medium dark:text-neutral-200">
+          <label className="block text-sm font-medium dark:text-neutral-200" htmlFor={`arg-values-${stepIndex}`}>
             Argument Values - Set fixed values for specific parameters (overrides AI decision-making)
           </label>
           <div className="flex flex-col items-end">
@@ -467,6 +475,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
             </button>
           </div>
         </div>
+        <div id={`arg-values-${stepIndex}`}>
         {Object.keys(step.values || {}).length === 0 ? (
           <div className="text-neutral-500 dark:text-neutral-400">
             No values set
@@ -474,10 +483,12 @@ const StepEditor: React.FC<StepEditorProps> = ({
         ) : (
           Object.entries(step.values || {})
             .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
+            // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
             .map(([key, value], valueIndex) => (
-              <div 
-                key={valueIndex} 
+              <div
+                key={valueIndex}
                 className="flex mb-2 last:mb-0"
+                role="group"
                 onMouseEnter={() => setHoveredValueIndex(`${stepIndex}-${valueIndex}`)}
                 onMouseLeave={() => setHoveredValueIndex(null)}
               >
@@ -489,12 +500,14 @@ const StepEditor: React.FC<StepEditorProps> = ({
                       <label
                         className="border border-gray-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center bg-gray-100 dark:bg-[#40414F] text-gray-700 dark:text-neutral-200"
                         title="Select argument from available parameters"
+                        htmlFor={`argument-select-${stepIndex}-${valueIndex}`}
                       >
                         Argument
                       </label>
                       <div className="w-full rounded-r border border-gray-500 dark:border-neutral-800 flex items-center bg-white dark:bg-[#40414F] text-gray-900 dark:text-neutral-100 shadow focus:outline-none">
                         <select
                           className="w-full border-0 px-4 py-1 bg-white dark:bg-[#40414F] text-gray-900 dark:text-neutral-100 focus:outline-none"
+                          id={`argument-select-${stepIndex}-${valueIndex}`}
                           value={key}
                           onChange={(e) => {
                             const newKey = e.target.value;
@@ -519,12 +532,14 @@ const StepEditor: React.FC<StepEditorProps> = ({
                       {/* Value Input */}
                       <label
                         className="border border-gray-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center bg-gray-100 dark:bg-[#40414F] text-gray-700 dark:text-neutral-200"
+                        htmlFor={`value-input-${stepIndex}-${valueIndex}`}
                       >
                         Value
                       </label>
                       <div className="w-full rounded-r border border-gray-500 dark:border-neutral-800 flex items-center bg-white dark:bg-[#40414F] text-gray-900 dark:text-neutral-100 shadow focus:outline-none">
                         <input
                           className="w-full border-0 px-4 py-1 bg-white dark:bg-[#40414F] text-gray-900 dark:text-neutral-100 focus:outline-none"
+                          id={`value-input-${stepIndex}-${valueIndex}`}
                           placeholder="Value content"
                           value={value}
                           onChange={(e) => {
@@ -551,6 +566,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
               </div>
             ))
         )}
+        </div>
       </div>
 
       {/* Tool Picker Modal */}

@@ -664,6 +664,7 @@ export const ChatMessage: FC<Props> = memo(({
             ref={messageRef}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
+            role="presentation"
         >
 
             {isDownloadDialogVisible && (
@@ -1052,6 +1053,7 @@ export const ChatMessage: FC<Props> = memo(({
                         left: `${copyMenuPosition.x}px`,
                     }}
                     onMouseLeave={handleMenuMouseLeave}
+                    role="presentation"
                 >
                     <button
                         className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-[#40414f] text-sm flex items-center gap-2 text-gray-800 dark:text-gray-200 transition-colors"

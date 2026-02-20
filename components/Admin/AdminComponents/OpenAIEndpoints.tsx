@@ -258,9 +258,13 @@ export const OpenAIEndpointsTab: FC<Props> = ({openAiEndpoints, setOpenAiEndpoin
                         </div> 
 
                         {modelData[modelName].endpoints.map((endpoint: Endpoint, index:number) => 
-                            <div id={`urlKeyHover-${modelName}-${index}`} className="flex flex-row mr-10 mt-2" key={index}
+                            <div
+                                id={`urlKeyHover-${modelName}-${index}`}
+                                className="flex flex-row mr-10 mt-2"
+                                key={index}
                                 onMouseEnter={() => setHoveredEndpoint({ model: modelName, index })}
                                 onMouseLeave={() => setHoveredEndpoint(null)}
+                                role="presentation"
                             >
                                 <div className="min-w-[30px] flex items-center"> 
                                     {isDeletingEndpoint === modelName ? (

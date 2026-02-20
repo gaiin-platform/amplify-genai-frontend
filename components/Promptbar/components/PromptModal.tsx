@@ -384,101 +384,101 @@ export const PromptModal: FC<Props> = ({ prompt, onCancel, onSave, onUpdatePromp
             </div>
               <div className="mt-2 flex flex-col gap-3">
               <div className="ml-2 inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100 mr-8">
-                <input
-                    type="radio"
-                    id="promptTemplateCheck"
-                    name="template"
-                    className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
-                    value={MessageType.PROMPT}
-                    checked={selectedTemplate === MessageType.PROMPT}
-                    onChange={() => setSelectedTemplate(MessageType.PROMPT)}
-                />
-                <label className="ml-2">
-                  Prompt Template
+                <label className="ml-2 flex items-center">
+                    <input
+                        type="radio"
+                        id="promptTemplateCheck"
+                        name="template"
+                        className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50 mr-2"
+                        value={MessageType.PROMPT}
+                        checked={selectedTemplate === MessageType.PROMPT}
+                        onChange={() => setSelectedTemplate(MessageType.PROMPT)}
+                    />
+                    Prompt Template
                 </label>
               </div>
 
                 {featureFlags.rootPromptCreate && (
                     <div className="ml-2 inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100">
-                      <input
-                          type="radio"
-                          id="customInstructionsCheck"
-                          name="template"
-                          className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
-                          value={MessageType.ROOT}
-                          checked={selectedTemplate === MessageType.ROOT}
-                          onChange={() => setSelectedTemplate(MessageType.ROOT)}
-                      />
-                      <label className="ml-2">
-                        Custom Instructions
+                      <label className="ml-2 flex items-center">
+                          <input
+                              type="radio"
+                              id="customInstructionsCheck"
+                              name="template"
+                              className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50 mr-2"
+                              value={MessageType.ROOT}
+                              checked={selectedTemplate === MessageType.ROOT}
+                              onChange={() => setSelectedTemplate(MessageType.ROOT)}
+                          />
+                          Custom Instructions
                       </label>
                     </div>
                 )}
 
                 {featureFlags.promptPrefixCreate && (
                     <div className="ml-2 inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100">
-                      <input
-                          type="radio"
-                          name="template"
-                          id="promptPrefixCheck"
-                          className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
-                          value={MessageType.PREFIX_PROMPT}
-                          checked={selectedTemplate === MessageType.PREFIX_PROMPT}
-                          onChange={() => setSelectedTemplate(MessageType.PREFIX_PROMPT)}
-                      />
-                      <label className="ml-2">
-                        Prompt Prefix
+                      <label className="ml-2 flex items-center">
+                          <input
+                              type="radio"
+                              name="template"
+                              id="promptPrefixCheck"
+                              className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50 mr-2"
+                              value={MessageType.PREFIX_PROMPT}
+                              checked={selectedTemplate === MessageType.PREFIX_PROMPT}
+                              onChange={() => setSelectedTemplate(MessageType.PREFIX_PROMPT)}
+                          />
+                          Prompt Prefix
                       </label>
                     </div>
                 )}
 
                 {featureFlags.outputTransformerCreate && (
                     <div className="ml-2 inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100">
-                      <input
-                          type="radio"
-                          name="template"
-                          id="outputTransformerCheck"
-                          className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
-                          value={MessageType.OUTPUT_TRANSFORMER}
-                          checked={selectedTemplate === MessageType.OUTPUT_TRANSFORMER}
-                          onChange={() => setSelectedTemplate(MessageType.OUTPUT_TRANSFORMER)}
-                      />
-                      <label className="ml-2">
-                        Output Transformer
+                      <label className="ml-2 flex items-center">
+                          <input
+                              type="radio"
+                              name="template"
+                              id="outputTransformerCheck"
+                              className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50 mr-2"
+                              value={MessageType.OUTPUT_TRANSFORMER}
+                              checked={selectedTemplate === MessageType.OUTPUT_TRANSFORMER}
+                              onChange={() => setSelectedTemplate(MessageType.OUTPUT_TRANSFORMER)}
+                          />
+                          Output Transformer
                       </label>
                     </div>
                 )}
 
                 {featureFlags.followUpCreate && (
                     <div className="ml-2 inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100">
-                      <input
-                          type="radio"
-                          name="template"
-                          id="followUpButtonCheck"
-                          className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
-                          value={MessageType.FOLLOW_UP}
-                          checked={selectedTemplate === MessageType.FOLLOW_UP}
-                          onChange={() => setSelectedTemplate(MessageType.FOLLOW_UP)}
-                      />
-                      <label className="ml-2">
-                        Follow-up Button
+                      <label className="ml-2 flex items-center">
+                          <input
+                              type="radio"
+                              name="template"
+                              id="followUpButtonCheck"
+                              className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50 mr-2"
+                              value={MessageType.FOLLOW_UP}
+                              checked={selectedTemplate === MessageType.FOLLOW_UP}
+                              onChange={() => setSelectedTemplate(MessageType.FOLLOW_UP)}
+                          />
+                          Follow-up Button
                       </label>
                     </div>
                 )}
 
               {featureFlags.workflowCreate && (
               <div className="ml-2 inline-flex items-center cursor-pointer text-neutral-900 dark:text-neutral-100">
-                <input
-                    type="radio"
-                    name="template"
-                    id="automationTemplateCheck"
-                    className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50"
-                    value={MessageType.AUTOMATION}
-                    checked={selectedTemplate === MessageType.AUTOMATION}
-                    onChange={() => setSelectedTemplate(MessageType.AUTOMATION)}
-                />
-                <label className="ml-2">
-                  Automation Template
+                <label className="ml-2 flex items-center">
+                    <input
+                        type="radio"
+                        name="template"
+                        id="automationTemplateCheck"
+                        className="form-radio rounded-lg border border-neutral-500 shadow focus:outline-none dark:border-neutral-800 dark:bg-[#40414F] dark:ring-offset-neutral-300 dark:border-opacity-50 mr-2"
+                        value={MessageType.AUTOMATION}
+                        checked={selectedTemplate === MessageType.AUTOMATION}
+                        onChange={() => setSelectedTemplate(MessageType.AUTOMATION)}
+                    />
+                    Automation Template
                 </label>
               </div>
               )}

@@ -490,6 +490,9 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
                                     <div
                                         className="flex items-start gap-3 p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                                         onClick={() => toggleExpanded(error.error_id)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpanded(error.error_id); }}}
+                                        role="button"
+                                        tabIndex={0}
                                     >
                                         <div className="mt-1 text-gray-600 dark:text-gray-400">
                                             {isExpanded ? <IconChevronDown size={20} /> : <IconChevronRight size={20} />}
@@ -569,9 +572,9 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
                                             <div className="p-6 space-y-6">
                                                 {/* Error ID */}
                                                 <div>
-                                                    <label className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2 block">
+                                                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2 block">
                                                         Error ID
-                                                    </label>
+                                                    </span>
                                                     <div className="flex items-center gap-2">
                                                         <code className="flex-1 text-sm bg-white dark:bg-gray-900 px-3 py-2 rounded border border-gray-200 dark:border-gray-700 font-mono">
                                                             {error.error_id}
@@ -588,9 +591,9 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
 
                                                 {/* Full Error Message */}
                                                 <div>
-                                                    <label className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2 block">
+                                                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2 block">
                                                         Error Message
-                                                    </label>
+                                                    </span>
                                                     <pre className="text-sm bg-white dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-700 overflow-x-auto whitespace-pre-wrap leading-relaxed">
                                                         {error.error_message}
                                                     </pre>
@@ -599,10 +602,10 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
                                                 {/* Stack Trace */}
                                                 {error.stack_trace && (
                                                     <div>
-                                                        <label className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2 block flex items-center gap-2">
+                                                        <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2 block flex items-center gap-2">
                                                             <IconDatabase size={14} />
                                                             Stack Trace
-                                                        </label>
+                                                        </span>
                                                         <div className="relative">
                                                             <pre className="text-xs bg-gray-900 dark:bg-black text-green-400 dark:text-green-500 p-4 rounded-lg border border-gray-700 overflow-x-auto max-h-80 overflow-y-auto font-mono leading-relaxed">
                                                                 {error.stack_trace}
@@ -628,10 +631,10 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
                                                     
                                                     return (
                                                         <div>
-                                                            <label className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2 block flex items-center gap-2">
+                                                            <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2 block flex items-center gap-2">
                                                                 <IconUser size={14} />
                                                                 Affected Users ({userCount > trackedCount ? `${userCount}+ total, ${trackedCount} tracked` : userCount})
-                                                            </label>
+                                                            </span>
                                                             <div className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
                                                                 {userCount > 15 && (
                                                                     <div className="mb-2 p-2 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 text-xs rounded flex items-center gap-2">
@@ -669,10 +672,10 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
                                                 {/* Resolution History */}
                                                 {error.resolution_history && error.resolution_history.length > 0 && (
                                                     <div>
-                                                        <label className="text-xs font-bold text-orange-700 dark:text-orange-300 uppercase tracking-wider mb-2 block flex items-center gap-2">
+                                                        <span className="text-xs font-bold text-orange-700 dark:text-orange-300 uppercase tracking-wider mb-2 block flex items-center gap-2">
                                                             <IconAlertTriangle size={14} className="animate-pulse" />
                                                             ⚠️ Previously Resolved {error.resolution_history.length} Time(s) - Error Has RETURNED!
-                                                        </label>
+                                                        </span>
                                                         <div className="space-y-2">
                                                             {error.resolution_history.map((resolution, idx) => (
                                                                 <div key={idx} className="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-lg border border-orange-200 dark:border-orange-800">
@@ -702,9 +705,9 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
                                                 {/* Context */}
                                                 {error.context && Object.keys(error.context).length > 0 && (
                                                     <div>
-                                                        <label className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2 block">
+                                                        <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2 block">
                                                             Context & Metadata
-                                                        </label>
+                                                        </span>
                                                         <div className="bg-white dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
                                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                                 {Object.entries(error.context).map(([key, value]) => (
@@ -724,11 +727,12 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
 
                                                 {/* Resolution Form */}
                                                 <div className="pt-4 border-t-2 border-gray-200 dark:border-gray-700">
-                                                    <label className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-3 block flex items-center gap-2">
+                                                    <label htmlFor={`resolution-${error.error_id}`} className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-3 block flex items-center gap-2">
                                                         <IconCheck size={14} />
                                                         Resolve This Error
                                                     </label>
                                                     <textarea
+                                                        id={`resolution-${error.error_id}`}
                                                         value={resolutionNotes[error.error_id] || ""}
                                                         onChange={(e) => setResolutionNotes({ ...resolutionNotes, [error.error_id]: e.target.value })}
                                                         placeholder="Describe what you did to fix this error... (e.g., 'Increased database connection pool from 10 to 50', 'Restarted affected service', 'Fixed S3 bucket permissions')"

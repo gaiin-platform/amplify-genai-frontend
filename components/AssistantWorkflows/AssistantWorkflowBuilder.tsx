@@ -614,6 +614,9 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                   : 'hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
               onClick={() => handleLoadTemplate(template.templateId)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleLoadTemplate(template.templateId); }}}
+              role="button"
+              tabIndex={0}
               title="Click to preview this workflow template, click again to deselect">
               <div className="flex flex-col truncate">
                 <div className="font-medium text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
@@ -803,9 +806,9 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
             {error}
           </div> )}
         <div className="flex justify-between items-center mb-2">
-          <label className="block text-sm font-medium dark:text-neutral-200">
+          <div className="block text-sm font-medium dark:text-neutral-200">
             Workflow Steps
-          </label>
+          </div>
           <button
             onClick={() => {
               // Add a new step
@@ -867,10 +870,11 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
               const actionColor = step.actionSegment ? getSegmentColor(step.actionSegment) : "";
               return (
                 <React.Fragment key={index}>
-                  <div 
-                    className={`p-4 bg-white border-t border-neutral-300 dark:border-neutral-700 dark:bg-[#343541] 
+                  {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
+                  <div
+                    className={`p-4 bg-white border-t border-neutral-300 dark:border-neutral-700 dark:bg-[#343541]
                     ${expandedSteps.includes(index) ? '' : 'hover:bg-neutral-200 dark:hover:bg-gray-700'}
-                    ${isTerminateStep(step) && !expandedSteps.includes(index) ? 'opacity-50' : ''} 
+                    ${isTerminateStep(step) && !expandedSteps.includes(index) ? 'opacity-50' : ''}
                     ${draggedIndex === index ? 'opacity-50' : ''}
                     flex flex-row relative`}
                   draggable={!isTerminateStep(step) && !expandedSteps.includes(index)}
@@ -881,6 +885,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                   onDragEnd={handleDragEnd}
                   onMouseEnter={() => setHoveredStepIndex(index)}
                   onMouseLeave={() => setHoveredStepIndex(null)}
+                  role="application"
                 >
                   <div className='flex flex-col w-full'>
                     <ExpansionComponent
@@ -996,7 +1001,6 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
       <div className="my-4">
         <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
           Template Name
-        </label>
         <input
           type="text"
           value={selectedWorkflow.name}
@@ -1005,6 +1009,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           placeholder="Name your workflow template"
           title="Choose a descriptive name for this workflow template that explains its purpose"
         />
+        </label>
       </div>
       
       <div className="mb-4">
@@ -1023,7 +1028,6 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
       <div className="mb-4">
         <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
           Description
-        </label>
         <textarea
           value={selectedWorkflow.description}
           onChange={(e) => setSelectedWorkflow({...selectedWorkflow, description: e.target.value})}
@@ -1032,6 +1036,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           placeholder="Describe what this workflow does"
           title="Explain what this workflow does and when to use it"
         />
+        </label>
       </div>
       
       {renderWorkflowSteps()}
@@ -1268,7 +1273,6 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                   <div>
                     <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
                       Workflow Name
-                    </label>
                     <input
                       type="text"
                       value={workflowBuilderWorkflow.name}
@@ -1279,12 +1283,12 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                       className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
                       placeholder="Enter workflow name"
                     />
+                    </label>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
                       Description
-                    </label>
                     <textarea
                       value={workflowBuilderWorkflow.description}
                       onChange={(e) => setWorkflowBuilderWorkflow({
@@ -1295,6 +1299,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                       rows={2}
                       placeholder="Describe what this workflow does"
                     />
+                    </label>
                   </div>
 
                   <div>

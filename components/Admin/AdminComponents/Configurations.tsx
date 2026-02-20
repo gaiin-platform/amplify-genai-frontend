@@ -258,6 +258,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                 className="flex items-center"
                                 onMouseEnter={() => setHoveredUser(user)}
                                 onMouseLeave={() => setHoveredUser(null)}
+                                role="presentation"
                                 >
                                 <div className="min-w-[28px] flex items-center ml-2">
                                 {hoveredUser === user && !isDeleting && (
@@ -373,11 +374,11 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 
                 <div className="settings-theme-options">
                     {["future-local", "future-cloud"].map((storage) => (
-                        <label className="settings-theme-option" key={storage}>
-                            <input 
-                                type="radio" 
+                        <label className="settings-theme-option" key={storage} htmlFor={`conversationStorage-${storage}`} aria-label={`${capitalize(storage.split('-')[1])} storage`}>
+                            <input
+                                type="radio"
                                 name="conversationStorage"
-                                id="conversationStorageCheck"
+                                id={`conversationStorage-${storage}`}
                                 value={storage}
                                 checked={defaultConversationStorage === storage}
                                 onChange={(event) => handleUpdateDefaultConversationStorage(event.target.value as ConversationStorage)}
@@ -510,7 +511,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 {isAddingAmpGroups && 
                     <div className="ml-6 flex flex-row flex-shrink-0 mr-4 ">
                         <label className="flex-shrink-0 border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
-                        >Group Name </label>
+                        >Group Name
                         <input
                         title={"Group names must be unique"}
                         id="groupName"
@@ -521,6 +522,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                         }}
                         value={isAddingAmpGroups.groupName}
                         />
+                        </label>
                         <div className="ml-4 flex-grow flex flex-col mt-[-32px] max-w-[40%]">
                             <AddEmailWithAutoComplete
                                 id={`${String(AdminConfigTypes.AMPLIFY_GROUPS)}_ADD`}
@@ -623,12 +625,13 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                                 <div key={idx} className="flex items-center gap-1 mr-1"
                                                     onMouseEnter={() => {
                                                         if (group.includeFromOtherGroups !== undefined)
-                                                            setHoveredAmpMember( {ampGroup: groupName,     
+                                                            setHoveredAmpMember( {ampGroup: groupName,
                                                                                     username: user})
                                                     }}
-                                                    onMouseLeave={() => setHoveredAmpMember(null)}>
+                                                    onMouseLeave={() => setHoveredAmpMember(null)}
+                                                    role="presentation">
                                                     
-                                                    <span className="flex flex-row gap-1 py-2 mr-4"> {idx > 0 && <label className="opacity-60">|</label>}
+                                                    <span className="flex flex-row gap-1 py-2 mr-4"> {idx > 0 && <span className="opacity-60">|</span>}
                                                         { hoveredAmpMember?.ampGroup === groupName && hoveredAmpMember?.username === user ?
                                                         <button
                                                         className={`text-red-500 hover:text-red-800 `}
@@ -839,7 +842,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
             {adminCsvUpload.showUpload && createPortal(
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     {/* Backdrop */}
-                    <div className="absolute inset-0 bg-black bg-opacity-50" onClick={adminCsvUpload.handleCancel} />
+                    <div className="absolute inset-0 bg-black bg-opacity-50" onClick={adminCsvUpload.handleCancel} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); adminCsvUpload.handleCancel(); }}} role="button" tabIndex={0} />
                     
                     {/* Modal Content */}
                     <div className="relative max-w-2xl w-full max-h-[90vh] overflow-y-auto">

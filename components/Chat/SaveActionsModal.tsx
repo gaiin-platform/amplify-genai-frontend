@@ -94,38 +94,38 @@ export const SaveActionsModal: FC<SaveActionsModalProps> = ({
           <div className="mb-4">
             <label className="block text-sm font-bold mb-2">
               Tags
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="Add a tag..."
-                className="flex-grow rounded-lg border border-neutral-500 px-3 py-1 dark:bg-[#40414F] dark:text-neutral-100"
-                value={newTagInput}
-                onChange={(e) => setNewTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && newTagInput.trim()) {
-                    e.preventDefault();
-                    if (!tags.includes(newTagInput.trim())) {
-                      setTags([...tags, newTagInput.trim()]);
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  type="text"
+                  placeholder="Add a tag..."
+                  className="flex-grow rounded-lg border border-neutral-500 px-3 py-1 dark:bg-[#40414F] dark:text-neutral-100"
+                  value={newTagInput}
+                  onChange={(e) => setNewTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newTagInput.trim()) {
+                      e.preventDefault();
+                      if (!tags.includes(newTagInput.trim())) {
+                        setTags([...tags, newTagInput.trim()]);
                     }
                     setNewTagInput('');
                   }
                 }}
                 disabled={saving}
               />
-              <button
-                className="text-gray-600 hover:text-black dark:hover:text-white"
-                onClick={() => {
-                  if (newTagInput.trim() && !tags.includes(newTagInput.trim())) {
-                    setTags([...tags, newTagInput.trim()]);
-                  }
-                  setNewTagInput('');
-                }}
-                disabled={saving}
-              >
-                <IconPlus size={20} />
-              </button>
-            </div>
+                <button
+                  className="text-gray-600 hover:text-black dark:hover:text-white"
+                  onClick={() => {
+                    if (newTagInput.trim() && !tags.includes(newTagInput.trim())) {
+                      setTags([...tags, newTagInput.trim()]);
+                    }
+                    setNewTagInput('');
+                  }}
+                  disabled={saving}
+                >
+                  <IconPlus size={20} />
+                </button>
+              </div>
+            </label>
             <div className="flex flex-wrap mt-2 gap-2">
               {tags.map((tag, index) => (
                 <div
@@ -148,9 +148,9 @@ export const SaveActionsModal: FC<SaveActionsModalProps> = ({
           </div>
           
           <div className="mb-2">
-            <label className="block text-sm font-bold mb-2">
+            <div className="block text-sm font-bold mb-2">
               Actions to Save
-            </label>
+            </div>
             <div className="bg-gray-100 dark:bg-neutral-800 rounded p-2 text-sm">
               <ul className="list-disc pl-4">
                 {actions.map((action, index) => (

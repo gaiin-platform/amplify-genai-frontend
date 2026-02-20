@@ -140,7 +140,7 @@ export const ConversationsStorage: FC<Props> = ({ open }) => {
                 </div>
                 
                 <div className="storage-option-choices">
-                  <label className={`storage-choice ${selectedOption === 'local-only' ? 'storage-choice-selected' : ''}`}>
+                  <label className={`storage-choice ${selectedOption === 'local-only' ? 'storage-choice-selected' : ''}`} htmlFor="local-only" aria-label="All Conversations Local">
                     <input
                       type="radio"
                       id="local-only"
@@ -157,7 +157,7 @@ export const ConversationsStorage: FC<Props> = ({ open }) => {
                     <div className="storage-choice-indicator"></div>
                   </label>
                   
-                  <label className={`storage-choice ${selectedOption === 'future-local' ? 'storage-choice-selected' : ''}`}>
+                  <label className={`storage-choice ${selectedOption === 'future-local' ? 'storage-choice-selected' : ''}`} htmlFor="future-local" aria-label="Only Future Conversations Local">
                     <input
                       type="radio"
                       id="future-local"
@@ -190,7 +190,7 @@ export const ConversationsStorage: FC<Props> = ({ open }) => {
                 </div>
                 
                 <div className="storage-option-choices">
-                  <label className={`storage-choice ${selectedOption === 'cloud-only' ? 'storage-choice-selected' : ''}`}>
+                  <label className={`storage-choice ${selectedOption === 'cloud-only' ? 'storage-choice-selected' : ''}`} htmlFor="cloud-only" aria-label="All Conversations Cloud">
                     <input
                       type="radio"
                       id="cloud-only"
@@ -207,7 +207,7 @@ export const ConversationsStorage: FC<Props> = ({ open }) => {
                     <div className="storage-choice-indicator"></div>
                   </label>
                   
-                  <label className={`storage-choice ${selectedOption === 'future-cloud' ? 'storage-choice-selected' : ''}`}>
+                  <label className={`storage-choice ${selectedOption === 'future-cloud' ? 'storage-choice-selected' : ''}`} htmlFor="future-cloud" aria-label="Only Future Conversations Cloud">
                     <input
                       type="radio"
                       id="future-cloud"

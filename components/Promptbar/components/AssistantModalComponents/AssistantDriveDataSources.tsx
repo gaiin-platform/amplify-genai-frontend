@@ -188,57 +188,57 @@ export const AssistantDriveDataSources: FC<Props> = ({
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Frequency
+                <select
+                  value={rescanSchedule.frequency}
+                  onChange={(e) => handleRescanScheduleChange({
+                    ...rescanSchedule,
+                    frequency: e.target.value as DriveRescanSchedule['frequency']
+                  })}
+                  className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm mt-2"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
               </label>
-              <select
-                value={rescanSchedule.frequency}
-                onChange={(e) => handleRescanScheduleChange({
-                  ...rescanSchedule,
-                  frequency: e.target.value as DriveRescanSchedule['frequency']
-                })}
-                className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm"
-              >
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-              </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Time
+                <input
+                  type="time"
+                  value={rescanSchedule.time}
+                  onChange={(e) => handleRescanScheduleChange({
+                    ...rescanSchedule,
+                    time: e.target.value
+                  })}
+                  className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm mt-2"
+                />
               </label>
-              <input
-                type="time"
-                value={rescanSchedule.time}
-                onChange={(e) => handleRescanScheduleChange({
-                  ...rescanSchedule,
-                  time: e.target.value
-                })}
-                className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm"
-              />
             </div>
 
             {rescanSchedule.frequency === 'weekly' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Day of Week
+                  <select
+                    value={rescanSchedule.dayOfWeek}
+                    onChange={(e) => handleRescanScheduleChange({
+                      ...rescanSchedule,
+                      dayOfWeek: parseInt(e.target.value)
+                    })}
+                    className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm mt-2"
+                  >
+                    <option value={0}>Sunday</option>
+                    <option value={1}>Monday</option>
+                    <option value={2}>Tuesday</option>
+                    <option value={3}>Wednesday</option>
+                    <option value={4}>Thursday</option>
+                    <option value={5}>Friday</option>
+                    <option value={6}>Saturday</option>
+                  </select>
                 </label>
-                <select
-                  value={rescanSchedule.dayOfWeek}
-                  onChange={(e) => handleRescanScheduleChange({
-                    ...rescanSchedule,
-                    dayOfWeek: parseInt(e.target.value)
-                  })}
-                  className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm"
-                >
-                  <option value={0}>Sunday</option>
-                  <option value={1}>Monday</option>
-                  <option value={2}>Tuesday</option>
-                  <option value={3}>Wednesday</option>
-                  <option value={4}>Thursday</option>
-                  <option value={5}>Friday</option>
-                  <option value={6}>Saturday</option>
-                </select>
               </div>
             )}
 
@@ -246,19 +246,19 @@ export const AssistantDriveDataSources: FC<Props> = ({
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Day of Month
+                  <select
+                    value={rescanSchedule.dayOfMonth}
+                    onChange={(e) => handleRescanScheduleChange({
+                      ...rescanSchedule,
+                      dayOfMonth: parseInt(e.target.value)
+                    })}
+                    className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm mt-2"
+                  >
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                      <option key={day} value={day}>{day}</option>
+                    ))}
+                  </select>
                 </label>
-                <select
-                  value={rescanSchedule.dayOfMonth}
-                  onChange={(e) => handleRescanScheduleChange({
-                    ...rescanSchedule,
-                    dayOfMonth: parseInt(e.target.value)
-                  })}
-                  className="w-full p-2 border border-gray-300 dark:border-[#454652] rounded-md bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm"
-                >
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                    <option key={day} value={day}>{day}</option>
-                  ))}
-                </select>
               </div>
             )}
           </>

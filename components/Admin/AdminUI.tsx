@@ -622,13 +622,14 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             {refreshingTypes.includes(type) ? <>{loadingIcon()}</> : <IconRefresh size={16}/>}
         </button>
 
-    const isAvailableCheck = (isAvailable: boolean, handleClick: () => void, styling: string = '') => 
-        <button title={isAvailable ? "Click to set as unavailable"        
-                                   : "Click to set as available" } 
-            className={`cursor-pointer dark:text-neutral-200 text-neutral-900 ${styling}`} 
-            onClick={handleClick}>
-            {isAvailable ? <IconCheck className='text-green-600 hover:opacity-60' size={18} /> 
-                         : <IconX  className='text-red-600 hover:opacity-60' size={18} />}       
+    const isAvailableCheck = (isAvailable: boolean, handleClick: () => void, styling: string = '', id?: string) =>
+        <button title={isAvailable ? "Click to set as unavailable"
+                                   : "Click to set as available" }
+            className={`cursor-pointer dark:text-neutral-200 text-neutral-900 ${styling}`}
+            onClick={handleClick}
+            id={id}>
+            {isAvailable ? <IconCheck className='text-green-600 hover:opacity-60' size={18} />
+                         : <IconX  className='text-red-600 hover:opacity-60' size={18} />}
         </button>
                                                                                                             // parsing should happen in the change
     
@@ -1047,13 +1048,14 @@ export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, 
             <ul className={`absolute z-[99999] max-h-60 w-full overflow-auto rounded-lg border-2 border-neutral-500 bg-white shadow-xl dark:border-neutral-900 dark:bg-[#40414F] ${
                 dropdownDirection === 'up' ? 'bottom-full mb-0.5' : 'top-full mt-0.5'
               }`}
-                style={{ 
+                style={{
                   zIndex: 99999,
                   isolation: 'isolate',
                   transform: 'translateZ(0)'
                 }}
                 onMouseEnter={(e) => e.stopPropagation()}
-                onMouseLeave={(e) => e.stopPropagation()}>
+                onMouseLeave={(e) => e.stopPropagation()}
+                role="listbox">
               {groups.sort((a, b) => a.localeCompare(b))
                      .map((g) => (
                 <li
@@ -1063,6 +1065,9 @@ export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, 
                     e.stopPropagation();
                     toggleGroup(g);
                   }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggleGroup(g); }}}
+                  role="button"
+                  tabIndex={0}
                   onMouseEnter={(e) => e.stopPropagation()}
                   onMouseLeave={(e) => e.stopPropagation()}
                 >

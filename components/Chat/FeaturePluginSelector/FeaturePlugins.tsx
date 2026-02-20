@@ -137,11 +137,19 @@ const FeaturePlugin = ({ plugins, setPlugins }: Props) => {
 
     return ( hide ? <></> :
         <>
-            <div className="relative inline-block z-20 max-h-full" 
+            <div className="relative inline-block z-20 max-h-full"
                 id="selectEnabledFeaturesDrag"
+                role="button"
+                tabIndex={0}
                 draggable="true"
                 onMouseDown={startDragging}
                 onMouseUp={stopDragging}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    startDragging(e as any);
+                  }
+                }}
                 style={{
                     cursor: isDragging? "grabbing": "move",
                     transform: `translate(${positionRef.current.x}px, ${positionRef.current.y}px)`,

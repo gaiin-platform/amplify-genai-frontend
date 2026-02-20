@@ -39,9 +39,13 @@ const ToolItem: React.FC<ToolItemProps> = ({ toolId, toolInfo, index, selected, 
         borderRadius: '8px',
       }}
     >
-      <div 
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+      <div
         className={`flex flex-row ${onClick ? 'cursor-pointer hover:bg-gray-200/70 dark:hover:bg-gray-600/50 rounded-md transition-colors duration-150' : ''}`}
         onClick={handleMainClick}
+        onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleMainClick(); }} : undefined}
+        role={onClick ? "button" : undefined}
+        tabIndex={onClick ? 0 : undefined}
       >
         {onChange ?
           <Checkbox

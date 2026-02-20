@@ -153,8 +153,11 @@ const Sidebar = <T,>({
               </div>
             )}
 
+            {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
             {items?.length > 0 ? (
                 <div
+                role="region"
+                aria-label="Items list drop zone"
                 onDrop={handleDrop}
                 onDragOver={allowDrop}
                 onDragEnter={highlightDrop}

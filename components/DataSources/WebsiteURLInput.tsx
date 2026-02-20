@@ -157,15 +157,15 @@ export const WebsiteURLInput: React.FC<WebsiteURLInputProps> = ({ onAddURL }) =>
                             <div className="flex items-center gap-2">
                                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                                     Max Pages:
-                                </label>
-                                <select
-                                    value={unlimitedPages ? "unlimited" : "limited"}
-                                    onChange={(e) => setUnlimitedPages(e.target.value === "unlimited")}
-                                    className="rounded-lg border border-neutral-500 px-2 py-1 text-neutral-900 text-sm focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+                                    <select
+                                        value={unlimitedPages ? "unlimited" : "limited"}
+                                        onChange={(e) => setUnlimitedPages(e.target.value === "unlimited")}
+                                        className="ml-2 rounded-lg border border-neutral-500 px-2 py-1 text-neutral-900 text-sm focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                 >
                                     <option value="limited">Limit to specific number</option>
                                     <option value="unlimited">⚠️ Get ALL URLs</option>
                                 </select>
+                                </label>
                                 {!unlimitedPages && (
                                     <>
                                         <input
@@ -367,11 +367,10 @@ export const WebsiteScanScheduler: React.FC<WebsiteScanSchedulerProps> = ({ init
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             Frequency
-                          </label>
-                          <select
-                            value={schedule.frequency}
-                            onChange={(e) => {
-                              const frequency = e.target.value as WebsiteScanSchedule['frequency'];
+                            <select
+                              value={schedule.frequency}
+                              onChange={(e) => {
+                                const frequency = e.target.value as WebsiteScanSchedule['frequency'];
                               const scanFrequency = 
                                 frequency === 'daily' ? 1 :
                                 frequency === 'weekly' ? 7 :
@@ -386,6 +385,7 @@ export const WebsiteScanScheduler: React.FC<WebsiteScanSchedulerProps> = ({ init
                             <option value="weekly">Weekly</option>
                             <option value="monthly">Monthly</option>
                           </select>
+                          </label>
                         </div>
 
                         {/* {urlItem.isSitemap && (

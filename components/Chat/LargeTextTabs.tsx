@@ -47,8 +47,8 @@ export const LargeTextTabs: React.FC<LargeTextTabsProps> = ({
             key={block.id}
             className={`
               flex flex-row items-center justify-between border rounded-md px-2 py-1.5 shadow-md dark:shadow-lg
-              ${isEditing 
-                ? 'bg-blue-100 border-blue-400 dark:bg-blue-900/40 dark:border-blue-500' 
+              ${isEditing
+                ? 'bg-blue-100 border-blue-400 dark:bg-blue-900/40 dark:border-blue-500'
                 : 'bg-white border-gray-200 dark:bg-[#40414F] dark:border-neutral-500'
               }
               ${!isEditing && isHovered ? 'hover:bg-gray-50 dark:hover:bg-gray-600' : ''}
@@ -58,6 +58,9 @@ export const LargeTextTabs: React.FC<LargeTextTabsProps> = ({
             onMouseEnter={() => setHoveredBlock(block.id)}
             onMouseLeave={() => setHoveredBlock('')}
             onClick={() => !isEditing && onEditBlock(block.id)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); !isEditing && onEditBlock(block.id); }}}
+            role="button"
+            tabIndex={0}
             title={getTabLabel(block)}
           >
             {/* Icon */}

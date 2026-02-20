@@ -122,6 +122,14 @@ export const SitemapUrlSelectionModal: React.FC<SitemapUrlSelectionModalProps> =
     <div
       className={`${lightMode} fixed inset-0 z-[9999] flex items-center justify-center p-4`}
       onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }}
+      role="button"
+      tabIndex={0}
     >
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" />
@@ -130,6 +138,14 @@ export const SitemapUrlSelectionModal: React.FC<SitemapUrlSelectionModalProps> =
       <div
         className="relative bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}
+        role="button"
+        tabIndex={0}
       >
         
         {/* Header */}
@@ -226,7 +242,15 @@ export const SitemapUrlSelectionModal: React.FC<SitemapUrlSelectionModalProps> =
                       ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-600'
                       : 'bg-gray-50 dark:bg-gray-600 border-gray-200 dark:border-gray-500 hover:bg-gray-100 dark:hover:bg-gray-500'
                   }`}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => toggleUrl(url)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleUrl(url);
+                    }
+                  }}
                 >
                   <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
                     selectedUrls.has(url)

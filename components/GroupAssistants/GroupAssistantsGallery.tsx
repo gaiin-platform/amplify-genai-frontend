@@ -231,11 +231,13 @@ export const GroupAssistantsGallery: FC<GroupAssistantsGalleryProps> = () => {
                                 // Skip if no assistants and no admin access (shouldn't happen due to filter, but safety check)
                                 if (filteredAssistants.length === 0 && !hasAdminAccess) return null;
 
+                                // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
                                 return (
                                     <div
                                         key={`${group.id}_${groupIdx}`}
                                         ref={(el) => cardsRef.current[groupIdx] = el}
                                         className="masonry-item"
+                                        role="group"
                                         onMouseEnter={() => setHoveredGroupId(group.id)}
                                         onMouseLeave={() => setHoveredGroupId(null)}
                                     >

@@ -352,7 +352,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
 
                         {/* Custom Name input field */}
                         <div className="mb-4">
-                            <label className="flex items-center justify-between font-medium text-sm text-gray-900 dark:text-white mb-2">
+                            <label htmlFor="custom-name" className="flex items-center justify-between font-medium text-sm text-gray-900 dark:text-white mb-2">
                               <div className="flex items-center">
                                 <IconTags size={14} stroke={1.5} className="text-blue-500 mr-2" />
                                 Custom Name
@@ -362,6 +362,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                               </span>
                             </label>
                             <input
+                              id="custom-name"
                               type="text"
                               placeholder="Enter a custom name..."
                               value={customName}
@@ -374,7 +375,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
 
                         {/* Custom Description input field */}
                         <div className="mb-6">
-                            <label className="flex items-center justify-between font-medium text-sm text-gray-900 dark:text-white mb-2">
+                            <label htmlFor="custom-description" className="flex items-center justify-between font-medium text-sm text-gray-900 dark:text-white mb-2">
                               <div className="flex items-center">
                                 <IconInfoCircle size={14} stroke={1.5} className="text-blue-500 mr-2" />
                                 Custom Description
@@ -384,6 +385,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                               </span>
                             </label>
                             <textarea
+                              id="custom-description"
                               placeholder="Enter special notes for the AI on how to use this action..."
                               value={customDescription}
                               onChange={(e) => setCustomDescription(e.target.value)}

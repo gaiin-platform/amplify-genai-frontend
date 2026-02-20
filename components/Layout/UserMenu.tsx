@@ -362,7 +362,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
         title="User Menu"
         id="userMenu"
       >
-        <div 
+        <div
           className="cursor-pointer animate-pop"
           style={{
             background: getAvatarGradient(),
@@ -388,6 +388,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
             e.currentTarget.style.background = getAvatarGradient();
             e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
           }}
+          role="presentation"
         >
           {/* White ring */}
           <div
@@ -448,9 +449,12 @@ export const UserMenu: React.FC<UserMenuProps> = ({
       {showUserMenu && (
         <div className="fixed inset-0 z-[9998] flex items-start justify-end p-4 mt-[-1px]">
           {/* Backdrop */}
-          <div 
+          <div
             className="absolute inset-0 bg-black bg-opacity-25"
             onClick={handleClose}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClose(); }}}
+            role="button"
+            tabIndex={0}
           />
 
           {/* Menu */}

@@ -1374,6 +1374,9 @@ export const ChatInput = ({
                             onMouseDown={handleResizeStart}
                             style={{transform: 'translateY(24px)'}}
                             title="Drag to resize input area"
+                            role="separator"
+                            aria-orientation="horizontal"
+                            tabIndex={0}
                         >
                             <div className="flex items-center gap-1 text-gray-400 dark:text-gray-500">
                                 <IconGripHorizontal size={20} stroke={1.5} />
@@ -1381,7 +1384,7 @@ export const ChatInput = ({
                         </div>
                     )}
 
-                    <div className="relative mx-2 flex w-full flex-grow sm:mx-4 bg-neutral-100 dark:bg-[#3d3e4c] rounded-md" style={{transform: 'translateY(24px)'}}>
+                    <div className="relative z-10 mx-2 flex w-full flex-grow sm:mx-4 rounded-md mb-1">
 
                         {/* Only show AssistantsInUse when AttachmentDisplay is NOT shown */}
                         {!((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
@@ -1408,35 +1411,35 @@ export const ChatInput = ({
                         }}/>} */}
                      {/* Unified Attachment Display - Files, Large Text, and Assistant */}
                      {((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
-                        <div style={{transform: 'translateY(-4px)'}}>
-                            <AttachmentDisplay
-                                documents={documents}
-                                documentStates={documentState}
-                                onCancelUpload={onCancelUpload}
-                                setDocuments={setDocuments}
-                                largeTextBlocks={largeTextBlocks}
-                                onRemoveBlock={handleRemoveLargeTextBlock}
-                                onEditBlock={handleEditBlock}
-                                currentlyEditingId={editingBlockId || undefined}
-                                showLargeTextPreview={showLargeTextPreview || isEditing}
-                                selectedAssistant={selectedAssistant || undefined}
-                                onRemoveAssistant={() => homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT})}
-                            />
-                        </div>
+                        <AttachmentDisplay
+                            documents={documents}
+                            documentStates={documentState}
+                            onCancelUpload={onCancelUpload}
+                            setDocuments={setDocuments}
+                            largeTextBlocks={largeTextBlocks}
+                            onRemoveBlock={handleRemoveLargeTextBlock}
+                            onEditBlock={handleEditBlock}
+                            currentlyEditingId={editingBlockId || undefined}
+                            showLargeTextPreview={showLargeTextPreview || isEditing}
+                            selectedAssistant={selectedAssistant || undefined}
+                            onRemoveAssistant={() => homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT})}
+                        />
                      )}
 
                     </div>
 
-                    <div 
+                    {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
+                    <div
                         className={`relative mx-2 flex w-full flex-grow flex-col rounded-md border shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4 transition-colors duration-200 ${
-                            isDragging 
-                                ? 'border-blue-400 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-900/20' 
+                            isDragging
+                                ? 'border-blue-400 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-900/20'
                                 : 'border-black/10 bg-white dark:border-gray-900/50 dark:bg-[#40414F]'
                         }`}
                         onDragEnter={handleDragEnter}
                         onDragLeave={handleDragLeave}
                         onDragOver={handleDragOver}
                         onDrop={handleDrop}
+                        role="application"
                     >
                         {/* Drag and drop overlay */}
                         {isDragging && (

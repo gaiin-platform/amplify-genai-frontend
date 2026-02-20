@@ -258,7 +258,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                         </div>
                         
                         <div className="accounts-input-group">
-                            <label className="accounts-input-label">Rate Limit</label>
+                            <div className="accounts-input-label">Rate Limit</div>
                             <div className="accounts-rate-limit-wrapper">
                                 <RateLimiter
                                     period={accountRateLimitPeriod}

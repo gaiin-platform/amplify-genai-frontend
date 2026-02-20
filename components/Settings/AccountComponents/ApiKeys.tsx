@@ -671,18 +671,18 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                              <div className="absolute right-6  ml-auto pl-2 flex flex-row items-center gap-2">
                                   <label className="text-sm font-medium dark:text-neutral-200 whitespace-nowrap">
                                       Filter by purpose
+                                      <select
+                                          className="w-auto px-2 py-1 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white ml-2"
+                                          value={selectedPurposeFilter}
+                                          onChange={(e) => setSelectedPurposeFilter(e.target.value)}
+                                      >
+                                          {getAvailablePurposes().map((purpose, i) => (
+                                              <option key={i} value={purpose}>
+                                                  {purpose === 'All' ? 'All' : formatPurpose(purpose)}
+                                              </option>
+                                          ))}
+                                      </select>
                                   </label>
-                                <select 
-                                    className="w-auto px-2 py-1 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
-                                    value={selectedPurposeFilter}
-                                    onChange={(e) => setSelectedPurposeFilter(e.target.value)}
-                                >
-                                    {getAvailablePurposes().map((purpose, i) => (
-                                        <option key={i} value={purpose}>
-                                            {purpose === 'All' ? 'All' : formatPurpose(purpose)}
-                                        </option>
-                                    ))}
-                                </select>
                             </div>
                         )}
                 </div>
@@ -727,7 +727,17 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                         e.preventDefault();
                                                         e.stopPropagation();
                                                         setExpandedKey(isExpanded ? null : apiKey.api_owner_id);
-                                                    }}>
+                                                    }}
+                                                     onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            setExpandedKey(isExpanded ? null : apiKey.api_owner_id);
+                                                        }
+                                                    }}
+                                                     role="button"
+                                                     tabIndex={0}
+                                                >
                                                     <div className='flex items-center gap-3 flex-1 min-w-0'>
                                                         <IconUser 
                                                             style={{ strokeWidth: 2.5 }} 
@@ -855,7 +865,17 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                     e.preventDefault();
                                     e.stopPropagation();
                                     setExpandedKey(isExpanded ? null : apiKey.api_owner_id);
-                                 }}>
+                                 }}
+                                 onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setExpandedKey(isExpanded ? null : apiKey.api_owner_id);
+                                    }
+                                 }}
+                                 role="button"
+                                 tabIndex={0}
+                            >
                                 <div className='flex items-center gap-3 flex-1 min-w-0'>
                                     <IconUser 
                                         style={{ strokeWidth: 2.5 }} 
@@ -1180,8 +1200,10 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
 
     const formattedLabel = displayLabel && isDate? displayLabel?.replace(' at ', ' \n at ') : displayLabel;
 
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     return (
         <div
+            role="group"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             ref={labelRef}
@@ -1456,11 +1478,14 @@ const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
                 id: "viewAmplifyAPI",
                 content:
                 <div>
+                {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
                 <iframe
                     src={fileContentsRef.current}
+                    title="Amplify API documentation"
                     width={`${window.innerWidth * .85 }px`}
                     height={`${window.innerHeight * 0.5}px`}
                     onError={() => docError()}
+                    role="application"
                     style={{ border: 'none' }} />   
                 </div>},
                    {label: `Downloads`, 
@@ -1509,7 +1534,7 @@ const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
         <>
             <div className='mt-2 ml-5 flex flex-row gap-2 mx-2 flex justify-center'>
                 <div className='mt-[-3px] text-sm py-2 mr-2 text-[0.8]'>API Tools and Resources</div>
-                <label className='mt-2 text-xs '>|</label>
+                <div className='mt-2 text-xs '>|</div>
                     <ActionButton
                     handleClick={() => handleShowApiDoc()}
                     id="amplifyDocumentationButton"
@@ -1521,7 +1546,7 @@ const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
                      </ActionButton> 
                 { keyManager && ( 
                     <>
-                    <label className='mt-2 text-xs '>|</label>
+                    <div className='mt-2 text-xs '>|</div>
                      <ActionButton
                         handleClick={()=> handleStartConversation(keyManager)}
                         title='Chat with Amplify API Key Manager'>
@@ -1535,7 +1560,7 @@ const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
 
                 { apiAst && ( 
                     <>
-                    <label className='mt-2 text-xs '>|</label>
+                    <div className='mt-2 text-xs '>|</div>
                      <ActionButton
                         handleClick={()=> handleStartConversation(apiAst)}
                         title='Chat with Amplify API Assistant'>

@@ -644,11 +644,22 @@ const DataSourcesTable = () => {
                 Cell: ({cell}) => {
                     if (isDeleteMode) {
                         return (
-                            <div onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                toggleSelectId(cell.row.original.id);
-                            }}>
+                            <div
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    toggleSelectId(cell.row.original.id);
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        toggleSelectId(cell.row.original.id);
+                                    }
+                                }}
+                                role="button"
+                                tabIndex={0}
+                            >
                                 <Checkbox
                                     id={`delete-checkbox-${cell.row.original.id}`}
                                     label=""

@@ -44,7 +44,7 @@ interface Props {
     changedTemplates: string[];
     setChangedTemplates: (c: string[]) => void;
 
-    isAvailableCheck: (isAvailable: boolean, handleClick: () => void, styling?: string) => JSX.Element
+    isAvailableCheck: (isAvailable: boolean, handleClick: () => void, styling?: string, id?: string) => JSX.Element
 
     admin_text: string;
     updateUnsavedConfigs: (t: AdminConfigTypes) => void;
@@ -283,7 +283,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyUsers, ampl
             <div className="mx-6 flex flex-row gap-20">
                     <div className="flex flex-row gap-2">
                         <IconFileTypePdf className="ml-1 mt-1" size={18}/>
-                        <label className="mt-0.5 text-[1rem]" title="Upload pdf file"> Data Disclosure</label>
+                        <label htmlFor="data_disclosure" className="mt-0.5 text-[1rem]" title="Upload pdf file"> Data Disclosure</label>
                         <div className="max-h-20"> 
                             <FileUpload
                             id={"data_disclosure"}
@@ -301,7 +301,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyUsers, ampl
 
                 <div className="flex flex-col gap-2">
                     <div className="flex flex-row gap-1">
-                        <label className="ml-1  mt-0.5 text-[1rem] mb-1.5"> API Documentation</label>
+                        <span className="ml-1  mt-0.5 text-[1rem] mb-1.5"> API Documentation</span>
                         <button className="mt-[-2px] rounded-sm p-1 text-black dark:text-white hover:opacity-80"
                             onClick={() => {
                                 // if (!showUploadApiDocs && !apiPresignedUrls) handleApiDocPresigned();
@@ -344,7 +344,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyUsers, ampl
                             label="API CSV"
                         /></>
 
-                        <> <label className="mt-1 ml-5" title="Postman Collection JSON File">
+                        <> <label htmlFor="api_documentation_json" className="mt-1 ml-5" title="Postman Collection JSON File">
                             <IconFileCode className="flex-shrink-0" size={19}/></label> 
                         <FileUpload
                             id={"api_documentation_json"}
@@ -382,7 +382,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyUsers, ampl
 
             <div className="ml-6">
                 <div className="flex flex-row gap-2">
-                    <label className="text-[1rem] font-bold"> Amplify Group Assistants</label>
+                    <span className="text-[1rem] font-bold"> Amplify Group Assistants</span>
                     {amplifyAstGroupId || isCreatingAmpAstGroup || stillLoadingData ?
                             <div className={`mt-1.5 ml-0.5 ${isCreatingAmpAstGroup || stillLoadingData? "bg-gray-400 dark:bg-gray-500 animate-pulse" : "bg-green-400 dark:bg-green-300"}`} 
                             style={{width: '8px', height: '8px', borderRadius: '50%'}}
@@ -441,11 +441,11 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyUsers, ampl
                                     }}
                                 />
                                 }
-                                <label className="mt-0.5 text-[0.9rem]"> {ast} :</label> 
+                                <span className="mt-0.5 text-[0.9rem]"> {ast} :</span> 
                             </div>
-                            <label className="mt-0.5 ml-3"> 
+                            <span className="mt-0.5 ml-3">
                                 {(amplifyAssistants as any)[ast].description}
-                            </label>
+                            </span>
 
                             {!creatingAmpAsts && !stillLoadingData && amplifyAstGroupId && 
                             <button 
@@ -469,7 +469,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyUsers, ampl
                     }
                 </div>
 
-                <label className="text-[1rem] font-bold"> Groups</label>
+                <span className="text-[1rem] font-bold"> Groups</span>
                 <div className="ml-6 mt-4">
                     
                 {astGroups.length > 0 ?
@@ -668,23 +668,24 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyUsers, ampl
                         }}
                     /></div>
                     <label className="h-[40px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
-                    >Template Name </label>
+                    htmlFor="featureDataTemplateNameInput">Template Name
                     <input
                     title={!uploadedTemplate ? "Template name will auto-populate once a template has been uploaded"
                                             : "" }
                     className={`h-[40px] w-[250px] ${admin_text}`}
-                    id="templateNameInput"
+                    id="featureDataTemplateNameInput"
                     placeholder={"Template Name"}
                     value={isAddingTemplate.name}
                     disabled={true}
                     />
-                    <label id="statusAvailability" className="ml-4 h-[40px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
+                    </label>
+                    <label htmlFor="featureDataTemplateAvailableToggle" id="statusAvailability" className="ml-4 h-[40px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
                     >Available </label>
 
                     
                     {isAvailableCheck(isAddingTemplate.isAvailable, () => {
                         setIsAddingTemplate({...isAddingTemplate, isAvailable: !isAddingTemplate.isAvailable});
-                    }, "h-[40px] px-1 items-center bg-gray-200 dark:bg-[#40414F]")} 
+                    }, "h-[40px] px-1 items-center bg-gray-200 dark:bg-[#40414F]", "featureDataTemplateAvailableToggle")} 
 
                     <div className="ml-4 flex flex-col mt-[-45px]">
                         <InfoBox 

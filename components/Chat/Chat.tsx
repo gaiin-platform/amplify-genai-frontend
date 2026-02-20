@@ -226,6 +226,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [showTempEdit, setShowTempEdit] = useState(false);
         const [showLengthEdit, setShowLengthEdit] = useState(false);
 
+        // Refs for autofocus elements
+        const tempEditRef = useRef<HTMLInputElement>(null);
+        const lengthEditRef = useRef<HTMLSelectElement>(null);
+
+        // Focus management for accessibility
+        useEffect(() => {
+            if (showTempEdit && tempEditRef.current) {
+                tempEditRef.current.focus();
+            }
+        }, [showTempEdit]);
+
+        useEffect(() => {
+            if (showLengthEdit && lengthEditRef.current) {
+                lengthEditRef.current.focus();
+            }
+        }, [showLengthEdit]);
+
         const getResponseLengthLabel = (ratio: number): string => {
             if (ratio <= 1.5) return 'Concise';
             if (ratio <= 4.5) return 'Average';
@@ -246,10 +263,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             onChange={(e) => selectedConversation && handleUpdateConversation(selectedConversation, {key: 'temperature', value: parseFloat(e.target.value)})}
                             className="text-center bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-sm"
                             onBlur={() => setShowTempEdit(false)}
-                            autoFocus
+                            ref={tempEditRef}
                         />
                     ) : (
-                        <span className={`cursor-pointer hover:opacity-70 inline-block ${isSticky ? 'w-4 mr-1' : '-ml-0.5'} text-center`} onClick={() => setShowTempEdit(true)}>
+                        <span className={`cursor-pointer hover:opacity-70 inline-block ${isSticky ? 'w-4 mr-1' : '-ml-0.5'} text-center`} onClick={() => setShowTempEdit(true)}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowTempEdit(true); }}}
+                              role="button"
+                              tabIndex={0}>
                             {selectedConversation?.temperature}
                         </span>
                     )}
@@ -266,14 +286,17 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             }}
                             className="px-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-sm"
                             onBlur={() => setShowLengthEdit(false)}
-                            autoFocus
+                            ref={lengthEditRef}
                         >
                             <option>Concise</option>
                             <option>Average</option>
                             <option>Verbose</option>
                         </select>
                     ) : (
-                        <span className={`mx-0.5 cursor-pointer hover:opacity-70 inline-block ${isSticky ? 'w-16' : '-mr-1'} text-center`} onClick={() => setShowLengthEdit(true)}>
+                        <span className={`mx-0.5 cursor-pointer hover:opacity-70 inline-block ${isSticky ? 'w-16' : '-mr-1'} text-center`} onClick={() => setShowLengthEdit(true)}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowLengthEdit(true); }}}
+                              role="button"
+                              tabIndex={0}>
                             {getResponseLengthLabel(responseSliderState)}
                         </span>
                     )}
@@ -1437,7 +1460,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                             </>
                                         ) : (
                                             // Floating pill
-                                            <div 
+                                            // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+                                            <div
                                                 className={`
                                                     relative flex items-center transition-all duration-300 ease-in-out cursor-pointer
                                                     rounded-full bg-white dark:bg-[#454757] shadow-lg hover:shadow-xl
@@ -1445,6 +1469,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     ${isPillExpanded ? 'px-6' : 'px-3'}
                                                 `}
                                                 id="chatUpperMenu"
+                                                role="group"
                                                 onMouseEnter={() => setIsPillExpanded(true)}
                                                 onMouseLeave={() => setIsPillExpanded(false)}
                                             >

@@ -79,11 +79,12 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
         <div id="viewFilesMenu" className="md:flex rounded-t-xl border dark:border-[#454652] bg-[#e5e7eb] dark:bg-[#343541]">
             <ul className="w-[160px] p-1 flex-column space-y space-y-4 text-sm font-medium text-gray-500 dark:text-gray-400 md:me-4 mb-4 md:mb-0">
                 <li>
-                    <a href="#"
-                       id="fileSection"
-                       className={pageClasses("files")}
-                       onClick={swapPage("files")}
-                       aria-current="page">
+                    <button
+                        type="button"
+                        id="fileSection"
+                        className={pageClasses("files")}
+                        onClick={swapPage("files")}
+                        aria-current="page">
                         <div className="group flex flex-row items-center pointer">
                             <div>
                                 <IconFiles className="icon-pop-group"/>
@@ -92,13 +93,14 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                                 Files
                             </div>
                         </div>
-                    </a>
+                    </button>
                 </li>
                 <li>
-                    <a href="#"
-                       id="tagSection"
-                       className={pageClasses("tags")}
-                       onClick={swapPage("tags")}
+                    <button
+                        type="button"
+                        id="tagSection"
+                        className={pageClasses("tags")}
+                        onClick={swapPage("tags")}
                     >
                         <div className="group flex flex-row items-center pointer">
                             <div>
@@ -108,13 +110,14 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                                 Tags
                             </div>
                         </div>
-                    </a>
+                    </button>
                 </li>
                 <li>
-                    <a href="#"
-                       id="docsSection"
-                       className={pageClasses("docs")}
-                       onClick={swapPage("docs")}
+                    <button
+                        type="button"
+                        id="docsSection"
+                        className={pageClasses("docs")}
+                        onClick={swapPage("docs")}
                     >
                         <div className="group flex flex-row items-center pointer">
                             <div>
@@ -124,13 +127,14 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                                 Docs
                             </div>
                         </div>
-                    </a>
+                    </button>
                 </li>
                 <li>
-                    <a href="#"
-                       id="slideSection"
-                       className={pageClasses("slides")}
-                       onClick={swapPage("slides")}
+                    <button
+                        type="button"
+                        id="slideSection"
+                        className={pageClasses("slides")}
+                        onClick={swapPage("slides")}
                     >
                         <div className="group flex flex-row items-center pointer">
                             <div>
@@ -140,7 +144,7 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                                 Slides
                             </div>
                         </div>
-                    </a>
+                    </button>
                 </li>
                 
                 
@@ -152,7 +156,8 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                 (userIntegrations && 
                     userIntegrations.map((key) => (
                     <li key={key}>
-                        <a href="#"
+                        <button
+                            type="button"
                             className={pageClasses(key)}
                             onClick={swapPage(key)}>
                             <div className="group flex flex-row items-center pointer shrink-0">
@@ -163,7 +168,7 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                                     {getIntegrationName(key)}
                                 </div>
                             </div>
-                        </a>
+                        </button>
                     </li>
                 )))
                 }

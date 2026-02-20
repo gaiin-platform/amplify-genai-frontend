@@ -1443,6 +1443,8 @@ const Home = ({
                                 }}
                                 onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
                                 onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                                onFocus={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
+                                onBlur={(e) => e.currentTarget.style.backgroundColor = 'white'}
                             >
                                 Accept
                             </button>
@@ -1587,6 +1589,8 @@ const Home = ({
                         }}
                         onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
                         onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                        onFocus={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
+                        onBlur={(e) => e.currentTarget.style.backgroundColor = 'white'}
                     >
                         Login
                     </button>

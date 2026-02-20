@@ -189,14 +189,16 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
                       <IconDownload size={24}/>
                     </DownloadFileButton>
                     {pdfError ? ( <div>Unfortunately, we are unable to display the PDF at this time...</div>) 
-                              : pdfUrl && pdfUrl !== "" ? 
+                              : pdfUrl && pdfUrl !== "" ?
                                         (<iframe
                                             className='mt-6'
                                             id="Generated_PDF"
+                                            title="Generated PDF document"
                                             width="625"
                                             height="450"
                                             src={pdfUrl}
                                             onError={() => setPdfError(true)}
+                                            role="application"
                                             style={{ border: 'none' }} /> )
                                         : <div>Loading...</div>}
                              
@@ -234,16 +236,18 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
                 presigned_url={presigned_url}>
                   <IconDownload size={24}/>
                 </DownloadFileButton>
-                <img 
-                    src={presigned_url} 
-                    alt={fileName} 
-                    loading="lazy" 
-                    style={{ maxWidth: '100%', height: 'auto', display: 'block'}} 
+                {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
+                <img
+                    src={presigned_url}
+                    alt={fileName}
+                    loading="lazy"
+                    style={{ maxWidth: '100%', height: 'auto', display: 'block'}}
                     onError={(e) => {
                         // Display error text or handle the error as desired
                         e.currentTarget.alt = 'Unfortunately, we are unable to display the image at this time...';
                         e.currentTarget.src = ''; // Remove the broken image src or replace with a placeholder image
                     }}
+                    role="img"
                 />
             </div>
             );

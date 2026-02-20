@@ -188,13 +188,17 @@ const QiModal: React.FC<QiModalProps> = ({qiSummary, onSubmit, onCancel, type, c
                             </div>
 
                             {dataSourceCount > 0 && <div className="ml-1 mt-4 flex flex-row gap-3">
-                                <input type="checkbox" checked={includeDataSources} onChange={(e) => setIncludeDataSources(e.target.checked)} />
-                                <label className="text-sm font-bold text-black dark:text-neutral-200">Include Data Sources</label>
+                                <label className="text-sm font-bold text-black dark:text-neutral-200 flex items-center gap-3">
+                                    <input type="checkbox" checked={includeDataSources} onChange={(e) => setIncludeDataSources(e.target.checked)} />
+                                    Include Data Sources
+                                </label>
                             </div>}
 
                             <div className="ml-1 mt-4 flex flex-row gap-3">
-                                <input type="checkbox" checked={includeUser} onChange={(e) => setIncludeUser(e.target.checked)} />
-                                <label className="text-sm font-bold text-black dark:text-neutral-200">Include my User ID for potential follow-up</label>
+                                <label className="text-sm font-bold text-black dark:text-neutral-200 flex items-center gap-3">
+                                    <input type="checkbox" checked={includeUser} onChange={(e) => setIncludeUser(e.target.checked)} />
+                                    Include my User ID for potential follow-up
+                                </label>
                             </div>
 
 

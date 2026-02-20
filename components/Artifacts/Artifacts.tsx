@@ -911,7 +911,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                 }
 
 
-            <label id="artifactsLabel" className="mt-4 text-[36px] text-center"> Artifacts</label>
+            <h1 id="artifactsLabel" className="mt-4 text-[36px] text-center"> Artifacts</h1>
             <div className='absolute top-5 mr-auto ml-8 w-[26px]'> 
                 
                 <ActionButton
@@ -1160,6 +1160,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                     left: `${downloadMenuPosition.x}px`,
                 }}
                 onMouseLeave={handleDownloadMenuMouseLeave}
+                role="presentation"
             >
                 <button
                     className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-[#40414f] text-sm flex items-center gap-2 text-gray-800 dark:text-gray-200 transition-colors"
@@ -1206,6 +1207,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                     left: `${copyMenuPosition.x}px`,
                 }}
                 onMouseLeave={handleCopyMenuMouseLeave}
+                role="presentation"
             >
                 <button
                     className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-[#40414f] text-sm flex items-center gap-2 text-gray-800 dark:text-gray-200 transition-colors"

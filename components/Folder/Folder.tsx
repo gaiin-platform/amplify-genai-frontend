@@ -19,6 +19,7 @@ import {
   ReactElement,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 
@@ -60,6 +61,16 @@ const Folder = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
+
+  // Ref for autofocus element
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  // Focus management for accessibility
+  useEffect(() => {
+    if (isRenaming && renameInputRef.current) {
+      renameInputRef.current.focus();
+    }
+  }, [isRenaming]);
   // Check if this folder is today's folder
   const todaysDateName = getDateName();
   const isTodaysFolder = currentFolder.name === todaysDateName;
@@ -209,8 +220,10 @@ const Folder = ({
 
   return (
     <>
+        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
         <div className="relative flex items-center enhanced-folder"
-            id="folderContainer"  
+            id="folderContainer"
+            role="group"
             onMouseEnter={() => !isTodaysFolder && setIsHovered(true)}
             onMouseLeave={() => !isTodaysFolder && setIsHovered(false)}
         >
@@ -224,7 +237,7 @@ const Folder = ({
                 value={renameValue}
                 onChange={(e) => setRenameValue(e.target.value)}
                 onKeyDown={handleEnterDown}
-                autoFocus
+                ref={renameInputRef}
               />
             </div>
           ) : (

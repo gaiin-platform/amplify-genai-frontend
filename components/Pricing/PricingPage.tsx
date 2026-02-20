@@ -194,6 +194,7 @@ const PricingPage: React.FC = () => {
               className={`pricing-card ${tier.popular ? 'pricing-card-popular' : ''} ${tier.enterprise ? 'pricing-card-enterprise' : ''} ${hoveredCard === tier.id ? 'pricing-card-hovered' : ''}`}
               onMouseEnter={() => setHoveredCard(tier.id)}
               onMouseLeave={() => setHoveredCard(null)}
+              role="presentation"
               style={{
                 animationDelay: `${index * 0.2}s`
               }}

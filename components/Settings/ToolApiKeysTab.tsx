@@ -4,7 +4,7 @@
  * Allows users to configure their own API keys for tools like web search.
  */
 
-import { FC, useEffect, useState } from 'react';
+import { FC, useEffect, useState, useRef } from 'react';
 import {
   IconKey,
   IconTrash,
@@ -39,6 +39,16 @@ export const ToolApiKeysTab: FC<Props> = ({ open }) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<ToolProvider | null>(null);
+
+  // Ref for autofocus element
+  const apiKeyInputRef = useRef<HTMLInputElement>(null);
+
+  // Focus management for accessibility
+  useEffect(() => {
+    if (addingProvider && apiKeyInputRef.current) {
+      apiKeyInputRef.current.focus();
+    }
+  }, [addingProvider]);
 
   // Load configured keys
   useEffect(() => {
@@ -232,7 +242,7 @@ export const ToolApiKeysTab: FC<Props> = ({ open }) => {
                       onChange={e => setNewApiKey(e.target.value)}
                       placeholder={provider.apiKeyPlaceholder || 'Enter API key'}
                       className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      autoFocus
+                      ref={apiKeyInputRef}
                     />
                     {error && (
                       <p className="text-sm text-red-500 mt-1 flex items-center gap-1">

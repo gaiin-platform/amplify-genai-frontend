@@ -56,11 +56,20 @@ export const UserTagsList: FC<Props> = ({
                             key={i}
                             className="cursor-pointer flex items-center justify-between bg-white dark:bg-neutral-200 rounded-md p-2 mr-2 mb-2 shadow-lg"
                             style={{ flex: 'none', backgroundColor: stringToColor(tag) }} // Prevent flex-shrink which can distort items
-                            onClick={(e) =>{
+                            onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 onTagSelected(tag);
                             }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onTagSelected(tag);
+                                }
+                            }}
+                            role="button"
+                            tabIndex={0}
                         >
                             <button
                                 className="text-gray-800 transition-all color-gray-800"

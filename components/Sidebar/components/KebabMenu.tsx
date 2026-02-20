@@ -457,9 +457,13 @@ interface Props {
 
     return (
         <React.Fragment>
-        <div className="flex items-center pb-1" style={{pointerEvents: isMenuOpen ? 'none' : 'auto'}}
-         onMouseEnter={() => setShowReSync(true)}
-         onMouseLeave={() => setShowReSync(false)}>
+        <div
+          className="flex items-center pb-1"
+          style={{pointerEvents: isMenuOpen ? 'none' : 'auto'}}
+          onMouseEnter={() => setShowReSync(true)}
+          onMouseLeave={() => setShowReSync(false)}
+          role="presentation"
+        >
           <div className="flex w-full items-center ml-1 text-black dark:text-neutral-200">
             <span className="sidebar-title text-xs uppercase tracking-wide opacity-60">{label}</span>
             { isConvSide && !actionItem && !isSyncing && (showReSync || isMenuOpen) &&
@@ -575,7 +579,7 @@ interface Props {
                                 <div className={`border-b dark:border-white/20 p-2 ${isShowingAllFolders() ? 'opacity-50' : ''}`}>
                                   <div className="w-full flex flex-col gap-1">
                                     <div className="flex items-center justify-between">
-                                      <label className="sidebar-text text-xs text-gray-600 dark:text-gray-300">Hide folders older than:</label>
+                                      <div className="sidebar-text text-xs text-gray-600 dark:text-gray-300">Hide folders older than:</div>
                                     </div>
                                     <div className="flex flex-row flex-wrap gap-1 mt-1">
                                       {[7, 14, 30, 90].map((days) => (

@@ -167,12 +167,14 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
         if (attachment.type === 'file') {
           const document = attachment.data as AttachedDocument;
           const isComplete = isFileComplete(document);
-          
+
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
           return (
             <div
               key={attachment.id}
               className={`${isComplete ? 'bg-white' : 'bg-yellow-400'} flex flex-row items-center justify-between border bg-white rounded-md px-1 py-1 shadow-md dark:shadow-lg`}
               style={{ maxWidth: DISPLAY_CONFIG.MAX_ATTACHMENT_WIDTH }}
+              role="group"
               onMouseEnter={() => setHoveredItem(attachment.id)}
               onMouseLeave={() => setHoveredItem('')}
             >
@@ -212,11 +214,13 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
                    assistant.definition.name;
           };
           
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
           return (
             <div
               key={attachment.id}
               className="relative enhanced-assistant-badge flex flex-row items-center justify-between rounded-full px-3 py-1.5"
               style={{ maxWidth: UI_CONFIG.ASSISTANT_MAX_WIDTH + 'px' }}
+              role="group"
               onMouseEnter={() => setHoveredItem(attachment.id)}
               onMouseLeave={() => setHoveredItem('')}
             >
@@ -250,8 +254,8 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
               key={attachment.id}
               className={`
                 flex flex-row items-center justify-between border rounded-md px-2 py-1.5 shadow-md dark:shadow-lg
-                ${isEditing 
-                  ? 'bg-blue-100 border-blue-400 dark:bg-blue-900/40 dark:border-blue-500' 
+                ${isEditing
+                  ? 'bg-blue-100 border-blue-400 dark:bg-blue-900/40 dark:border-blue-500'
                   : 'bg-white border-gray-200 dark:bg-[#40414F] dark:border-neutral-500'
                 }
                 ${!isEditing && isHovered ? 'hover:bg-gray-50 dark:hover:bg-gray-600' : ''}
@@ -261,6 +265,9 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
               onMouseEnter={() => setHoveredItem(attachment.id)}
               onMouseLeave={() => setHoveredItem('')}
               onClick={() => !isEditing && onEditBlock && onEditBlock(block.id)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); !isEditing && onEditBlock && onEditBlock(block.id); }}}
+              role="button"
+              tabIndex={0}
             >
               {/* Icon */}
               <div className="flex-shrink-0 mr-2">

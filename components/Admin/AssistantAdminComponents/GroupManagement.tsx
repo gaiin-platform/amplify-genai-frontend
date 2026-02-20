@@ -512,7 +512,7 @@ export const GroupManagement: FC<ManagementProps> = ({ selectedGroup, setSelecte
                         width='840px'
                     />
                 }
-                <label className="font-bold">Group Members</label>
+                <div className="font-bold">Group Members</div>
 
                 <div className="flex justify-between gap-6 items-center">
                     <Search

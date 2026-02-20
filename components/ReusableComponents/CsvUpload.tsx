@@ -111,14 +111,24 @@ export const CsvUpload = <T = string,>({
                 {/* File Upload Area */}
                 <div
                     className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                        dragActive 
-                            ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' 
+                        dragActive
+                            ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20'
                             : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
                     } ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
+                    role="button"
+                    tabIndex={0}
                     onDragEnter={handleDrag}
                     onDragLeave={handleDrag}
                     onDragOver={handleDrag}
                     onDrop={handleDrop}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            // Trigger file input click
+                            const input = e.currentTarget.querySelector('input[type="file"]') as HTMLInputElement;
+                            input?.click();
+                        }
+                    }}
                 >
                     <input
                         type="file"

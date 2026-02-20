@@ -76,9 +76,12 @@ export const LargeTextDisplay: React.FC<LargeTextDisplayProps> = ({
   // Render inline variant
   if (variant === 'inline') {
     return (
-      <div 
+      <div
         className="inline-large-text-display cursor-pointer border border-blue-200 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/20 rounded px-2 py-1 my-1 inline-block max-w-full"
         onClick={onClick}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick && onClick(); }}}
+        role="button"
+        tabIndex={0}
       >
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-blue-700 dark:text-blue-300">

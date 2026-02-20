@@ -3,6 +3,7 @@ import {QueryClient, QueryClientProvider} from 'react-query';
 import { SessionProvider } from "next-auth/react"
 import {appWithTranslation} from 'next-i18next';
 import type {AppProps} from 'next/app';
+import Head from 'next/head';
 import {Inter} from 'next/font/google';
 import { useEffect } from 'react';
 
@@ -36,6 +37,9 @@ function App({ Component, pageProps }: AppProps) {
             refetchOnWindowFocus={true}
             refetchWhenOffline={false}
         >
+            <Head>
+                <title>Amplify GenAI</title>
+            </Head>
             <div className={inter.className}>
                 <Toaster/>
                 <QueryClientProvider client={queryClient}>

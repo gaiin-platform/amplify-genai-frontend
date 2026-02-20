@@ -102,9 +102,12 @@ const AgentImageBlock: React.FC<Props> = ({ filePath, message }) => {
   return (
     <>
       {fullscreen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4"
           onClick={() => setFullscreen(false)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFullscreen(false); }}}
+          role="button"
+          tabIndex={0}
         >
           <div className="relative max-w-screen-xl max-h-screen overflow-auto bg-white dark:bg-gray-800 p-2 rounded-lg">
             <div className="flex justify-between items-center mb-2 p-2 bg-gray-100 dark:bg-gray-700 rounded-t-lg">
@@ -134,6 +137,9 @@ const AgentImageBlock: React.FC<Props> = ({ filePath, message }) => {
               alt={fileName}
               className="max-w-full h-auto object-contain"
               onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); }}}
+              role="button"
+              tabIndex={0}
             />
           </div>
         </div>

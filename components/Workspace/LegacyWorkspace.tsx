@@ -135,6 +135,14 @@ const LegacyWorkspaces: FC<Props> = () => {
                       key={index}
                       className="legacy-workspace-card"
                       onClick={() => handleFetchShare(item)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleFetchShare(item);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
                     >
                       <div className="legacy-workspace-card-content">
                         <div className="legacy-workspace-card-header flex">

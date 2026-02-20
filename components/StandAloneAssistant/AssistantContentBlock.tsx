@@ -207,7 +207,8 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
             return (
               <img
                 src={safeSrc}
-                style={{ maxWidth: '100%', height: 'auto', display: 'block'}} 
+                alt={alt || "Generated image content"}
+                style={{ maxWidth: '100%', height: 'auto', display: 'block'}}
                 {...props}
               >
                 {children}

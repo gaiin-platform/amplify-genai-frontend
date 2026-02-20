@@ -312,10 +312,12 @@ export const ItemSelect: FC<Props> = (
             const showCaret = numVisibleSections > 1;
             const isHovered = hoveredSection === itemType;
             
+            // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
             return (
-                <div 
+                <div
                     className="relative mt-6 flex flex-col transition-all duration-300"
                     style={{ height: sectionHeight }}
+                    role="group"
                     onMouseEnter={() => setHoveredSection(itemType)}
                     onMouseLeave={() => setHoveredSection(null)}
                 >

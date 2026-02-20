@@ -140,7 +140,20 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
         content={
         <div className="mb-4 p-4 border border-gray-300 rounded ">
           <div className="flex items-center w-full">
-            <label style={{transform: 'translateY(4px)'}} className="text-sm font-bold">Name:</label>
+            <label style={{transform: 'translateY(4px)'}} className="text-sm font-bold">Name:
+            <input
+              className="mt-2 mb-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
+              placeholder="Name"
+              value={api.name}
+              onChange={(e) => {
+                const newApiInfo = [...apiInfo];
+                newApiInfo[index].name = e.target.value;
+                newApiInfo[index].id = e.target.value;
+                setApiInfo(newApiInfo);
+              }}
+              required
+            />
+            </label>
             <button
               className="ml-auto mt-[-2px] px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
               onClick={() => {
@@ -151,18 +164,6 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
               Remove API
             </button>
           </div>
-          <input
-            className="mt-2 mb-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
-            placeholder="Name"
-            value={api.name}
-            onChange={(e) => {
-              const newApiInfo = [...apiInfo];
-              newApiInfo[index].name = e.target.value;
-              newApiInfo[index].id = e.target.value;
-              setApiInfo(newApiInfo);
-            }}
-            required
-          />
           <HTTPRequestSelect
             requestType={api.requestType}
             handleChange={(val) => {
@@ -183,7 +184,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
             required
           />
           <div className="mt-2">
-            <label className="text-sm font-bold">AI Chosen Parameters:</label>
+            <div className="text-sm font-bold">AI Chosen Parameters:</div>
             <button
               className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
               onClick={() => {
@@ -255,7 +256,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
             ))}
           </div>
           <div className="mt-2">
-            <label className="text-sm font-bold">Headers:</label>
+            <div className="text-sm font-bold">Headers:</div>
             <button
               className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
               onClick={() => {
@@ -310,7 +311,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
             ))}
           </div>
           <div className="mt-2">
-            <label className="text-sm font-bold">Body:</label>
+            <label className="text-sm font-bold">Body:
             <textarea
               className="mt-1 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
               placeholder="Request Body (JSON)"
@@ -326,6 +327,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
               }}
               rows={4}
             />
+            </label>
             <button
               className="mt-1 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
               onClick={() => {
@@ -347,7 +349,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
             </button>
           </div>
           <div className="mt-2">
-            <label className="text-sm font-bold">Authentication:</label>
+            <label className="text-sm font-bold">Authentication:
             <select
               className="ml-2 rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
               value={api.auth.type || ""}
@@ -362,6 +364,7 @@ export const APIComponent: React.FC<APIState> = ({ apiInfo, setApiInfo, disabled
               <option value="basic">Basic Auth</option>
               <option value="bearer">Bearer Token</option>
             </select>
+            </label>
           </div>
           {api.auth.type === 'basic' && (
             <div className="mt-2">

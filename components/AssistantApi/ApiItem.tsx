@@ -104,9 +104,13 @@ const ApiItem: React.FC<ApiItemProps> = ({
         borderRadius: '8px',
       }}
     >
-      <div 
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+      <div
         className={`flex flex-row ${onClick ? 'cursor-pointer hover:bg-gray-200/70 dark:hover:bg-gray-600/50 rounded-md transition-colors duration-150' : ''}`}
         onClick={handleMainClick}
+        onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleMainClick(); }} : undefined}
+        role={onClick ? "button" : undefined}
+        tabIndex={onClick ? 0 : undefined}
       >
         { onChange ?
         <Checkbox
@@ -144,7 +148,7 @@ const ApiItem: React.FC<ApiItemProps> = ({
 
       {/* Configuration Section - Expandable */}
       {allowConfiguration && isConfigExpanded && hasConfiguration() && (
-        <div className="relative py-3 mb-4 border-t border-b border-neutral-200 dark:border-neutral-600 800/80 bg-gray-100 dark:bg-gray-700 rounded-md mt-2" onClick={(e) => e.stopPropagation()}>
+        <div className="relative py-3 mb-4 border-t border-b border-neutral-200 dark:border-neutral-600 800/80 bg-gray-100 dark:bg-gray-700 rounded-md mt-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); }}} role="button" tabIndex={0}>
           <div className="absolute right-2 top-2 z-10">
             {isConfigExpanded && 
             <ActionButton
@@ -166,7 +170,7 @@ const ApiItem: React.FC<ApiItemProps> = ({
 
       {showDetails && <>
         {api.description && <p className="break-words">{api.description}</p>}
-        <details className="mt-2" onClick={(e) => e.stopPropagation()}>
+        <details className="mt-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); }}} role="button" tabIndex={0}>
           <summary className="cursor-pointer text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200">Specification</summary>
           <pre className="whitespace-pre-wrap break-words overflow-x-auto max-w-full text-sm">{JSON.stringify(api, null, 2)}</pre>
         </details>

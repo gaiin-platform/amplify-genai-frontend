@@ -134,6 +134,15 @@ export const PromptStatus: React.FC<PromptStatusProps> = ({ status }) => {
                 e.stopPropagation();
                 setDetailsOpen(!detailsOpen);
             }}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDetailsOpen(!detailsOpen);
+                }
+            }}
+            role="button"
+            tabIndex={0}
           >
               <div className="flex flex-row relative overflow-hidden">
                   {renderAnimatedBackground()}

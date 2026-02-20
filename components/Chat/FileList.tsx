@@ -374,6 +374,9 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                 onMouseEnter={() => setHovered(id)}
                 onMouseLeave={() => setHovered('')}
                 onClick={onClick}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick && onClick(); }}}
+                role="button"
+                tabIndex={0}
             >
                 <div className="ml-1 flex-1 flex items-center justify-between" style={{ overflow: 'hidden' }}>
                     <p className={`truncate font-medium text-${textSize} text-black-800 dark:text-white flex flex-row items-center gap-1 flex-1 min-w-0`} style={{
@@ -429,6 +432,7 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
             className={`${hovered === document.id ? 'hover:bg-gray-200 dark:hover:bg-gray-500' : ''} bg-gray-50 dark:bg-[#35363f] flex flex-row items-center border dark:border-neutral-600 dark:text-white rounded-sm px-1 py-1 ml-1 mr-1 mb-1`}
             onMouseEnter={() => setHovered(document.id)}
             onMouseLeave={() => setHovered('')}
+            role="presentation"
         >
             <div className="ml-4 flex-1 flex items-center justify-between" style={{ overflow: 'hidden' }}>
                 <p className={`truncate font-medium text-xs text-gray-700 dark:text-gray-300 flex flex-row items-center gap-1 flex-1 min-w-0`} style={{

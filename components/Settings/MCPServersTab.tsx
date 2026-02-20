@@ -269,9 +269,9 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
 
           {/* Quick Presets */}
           <div className="mb-4">
-            <label className="block text-sm text-neutral-600 dark:text-neutral-400 mb-2">
+            <div className="block text-sm text-neutral-600 dark:text-neutral-400 mb-2">
               Quick Start (select a preset)
-            </label>
+            </div>
             <div className="flex flex-wrap gap-2">
               {MCP_SERVER_PRESETS.map(preset => (
                 <button
@@ -290,41 +290,41 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
             <div>
               <label className="block text-sm text-neutral-600 dark:text-neutral-400 mb-1">
                 Server Name
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={e => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="My Jupyter Server"
+                  className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 mt-1"
+                />
               </label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={e => setFormData({ ...formData, name: e.target.value })}
-                placeholder="My Jupyter Server"
-                className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
             </div>
 
             <div>
               <label className="block text-sm text-neutral-600 dark:text-neutral-400 mb-1">
                 Server URL
+                <input
+                  type="text"
+                  value={formData.url}
+                  onChange={e => setFormData({ ...formData, url: e.target.value })}
+                  placeholder="http://localhost:8888/mcp"
+                  className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 mt-1"
+                />
               </label>
-              <input
-                type="text"
-                value={formData.url}
-                onChange={e => setFormData({ ...formData, url: e.target.value })}
-                placeholder="http://localhost:8888/mcp"
-                className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
             </div>
 
             <div>
               <label className="block text-sm text-neutral-600 dark:text-neutral-400 mb-1">
                 Transport
+                <select
+                  value={formData.transport}
+                  onChange={e => setFormData({ ...formData, transport: e.target.value as 'http' | 'sse' })}
+                  className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 mt-1"
+                >
+                  <option value="http">HTTP (Recommended)</option>
+                  <option value="sse">SSE (Server-Sent Events)</option>
+                </select>
               </label>
-              <select
-                value={formData.transport}
-                onChange={e => setFormData({ ...formData, transport: e.target.value as 'http' | 'sse' })}
-                className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-              >
-                <option value="http">HTTP (Recommended)</option>
-                <option value="sse">SSE (Server-Sent Events)</option>
-              </select>
             </div>
 
             {error && (

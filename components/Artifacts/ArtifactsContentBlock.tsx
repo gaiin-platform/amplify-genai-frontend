@@ -271,7 +271,8 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
                 return (
                     <img
                         src={safeSrc}
-                        style={{ maxWidth: '100%', height: 'auto', display: 'block'}} 
+                        alt={alt || 'Content image'}
+                        style={{ maxWidth: '100%', height: 'auto', display: 'block'}}
                         {...props}>
                             {children}
                         </img>

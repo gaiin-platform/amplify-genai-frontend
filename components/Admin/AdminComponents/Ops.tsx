@@ -247,6 +247,7 @@ return <>
                     {newOps.map((op: OpDef, i:number) => 
                         <div key={i} onMouseEnter={() => setHoveredNewOp(i)}
                                         onMouseLeave={() => setHoveredNewOp(-1)}
+                                        role="presentation"
                         >
                             <div className="flex flex-col gap-2" id="opsInfo">
                                 {i > 0 && <hr></hr>}
@@ -304,7 +305,7 @@ return <>
                                     {["POST", "PUT", "PATCH"].includes(op.method ?? '') && 
                                     <>
                                     <div className="flex flex-row gap-2">
-                                        <label className="text-md text-black dark:text-neutral-200">Parameters</label>
+                                        <div className="text-md text-black dark:text-neutral-200">Parameters</div>
                                         <button 
                                             title={'Add OP Parameter'} disabled={isRegisteringOps}
                                             id="addOpParameter"
@@ -327,7 +328,8 @@ return <>
                                             return (
                                             <div className="flex flex-col gap-2 border border-neutral-300 dark:border-neutral-600 p-3 rounded-md" key={pIndex}
                                             onMouseEnter={() => setHoveredParam({opIdx: i, paramIdx: pIndex})}
-                                            onMouseLeave={() => setHoveredParam(null)}>
+                                            onMouseLeave={() => setHoveredParam(null)}
+                                            role="presentation">
                                                 
                                                 
                                                 {/* Parameter Name */}
@@ -395,8 +397,8 @@ return <>
 
                                                 {/* Parameter Description */}
                                                 <div className="flex flex-col">
-                                                    <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Description</label>
-                                                    <textarea 
+                                                    <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Description
+                                                    <textarea
                                                         title="Parameter Description"
                                                         className={`w-full ${admin_text}`}
                                                         placeholder={"Parameter Description"}
@@ -412,9 +414,10 @@ return <>
                                                             );
                                                             setNewOps(updateOps);
                                                         }}
-                                                        rows={2} 
+                                                        rows={2}
                                                         disabled={isRegisteringOps}
                                                     />
+                                                    </label>
                                                 </div>
 
                                                 {/* Required Checkbox */}

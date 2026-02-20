@@ -166,11 +166,12 @@ export const PluginSelector: FC<Props> = ({
         <div
           key={p ? p.id : 'none'}
           id="enabledFeatureIndex"
-          ref={el => (optionsRef.current[index] = el)}  
+          ref={el => (optionsRef.current[index] = el)}
+          role="button"
           tabIndex={0}
           className={`border-b border-neutral-600 p-1 ${isActivePlugin(p) ? "text-neutral-600 dark:text-neutral-300" : "text-neutral-400 dark:text-neutral-600"} hover:text-black dark:hover:text-white transition-all duration-200 ease-out ${
-            animatingIndex === index 
-              ? 'transform scale-125 shadow-lg bg-blue-100 dark:bg-blue-900/50' 
+            animatingIndex === index
+              ? 'transform scale-125 shadow-lg bg-blue-100 dark:bg-blue-900/50'
               : ''
           }`}
           onClick={() => handleClickWithAnimation(p, index)}
@@ -196,6 +197,9 @@ export const PluginSelector: FC<Props> = ({
       <div
         className='flex w-full text-neutral-700 dark:text-neutral-100 bg-neutral-100 dark:bg-neutral-600'
         onClick={() => setShowPluginSelect(false)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowPluginSelect(false); }}}
+        role="button"
+        tabIndex={0}
         id="closeEnabledFeaturesMenu"
         title='Close'
       >    

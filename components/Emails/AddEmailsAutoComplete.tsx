@@ -177,6 +177,7 @@ export const AddEmailWithAutoComplete: FC<AddEmailsProps> = ({ id, emails, allEm
                 {emails
                     .map((user, index) => (
                     <div key={index} className="border border-neutral-500 flex items-center">
+                        {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
                         <div
                         className="flex items-center"
                         onMouseEnter={() => setHoveredUser(user)}

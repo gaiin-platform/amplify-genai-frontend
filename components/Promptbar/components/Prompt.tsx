@@ -196,8 +196,10 @@ export const PromptComponent = ({ prompt }: Props) => {
 
     // @ts-ignore
     // @ts-ignore
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     return (
         <div className="relative flex items-center"
+            role="group"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => {
                 setIsDeleting(false);

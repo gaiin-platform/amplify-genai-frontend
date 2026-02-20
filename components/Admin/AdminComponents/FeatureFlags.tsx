@@ -101,8 +101,7 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, am
                 <div className="ml-6 flex flex-row flex-shrink-0 mr-4 ">
                 <div title={"Feature names must be unique. Words separated by spaces will be converted to camelCase format. "}>
                     <label className="mt-1.5 flex-shrink-0 border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center items-center h-[38px]"
-                        >Feature Name 
-                    </label>
+                        >Feature Name
                     <input
                     className={`mt-1.5 w-[160px] h-[38px] ${admin_text}`}
                     id="featureNameInput"
@@ -110,13 +109,13 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, am
                     onChange={(e) =>  setIsAddingFeature({...isAddingFeature, name: e.target.value})}
                     value={isAddingFeature.name}
                     />
+                    </label>
                 </div>
                 <label className="ml-4 mt-1.5 h-[40px] border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
-                >Status </label>
-
-                <button title={isAddingFeature.featureData.enabled ? "Click to disabled"        
+                >Status
+                <button title={isAddingFeature.featureData.enabled ? "Click to disabled"
                                                                     : "Click to enabled" }
-                    id="statusToggle" 
+                    id="statusToggle"
                     className={`mt-1.5 h-[40px] w-[80px] px-1 items-center cursor-pointer
                                 bg-gray-200 dark:bg-[#40414F] ${isAddingFeature.featureData.enabled
                                 ? 'text-green-500 hover:text-green-600' : 'text-red-600 hover:text-red-700' }`}
@@ -125,8 +124,9 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, am
                         const updatedData = {...isAddingFeature.featureData, enabled: !enabled};
                         setIsAddingFeature({...isAddingFeature, featureData: updatedData});
                     }}>
-                {isAddingFeature.featureData.enabled ? 'Enabled' : 'Disabled'}       
+                {isAddingFeature.featureData.enabled ? 'Enabled' : 'Disabled'}
                 </button>
+                </label>
 
                 <div className="ml-4 flex-grow flex flex-col mt-[-32px] max-w-[40%]">
                     <AddEmailWithAutoComplete
@@ -260,9 +260,10 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, am
                                         {featureData.userExceptions?.map((user, idx) => (
                                         <div key={idx} className="flex items-center gap-1 mr-1"
                                             onMouseEnter={() => setHoveredException({ feature: featureName, username: user })}
-                                            onMouseLeave={() => setHoveredException(null)}>
+                                            onMouseLeave={() => setHoveredException(null)}
+                                            role="presentation">
                                             
-                                            <span className="flex flex-row gap-1 py-2 mr-4"> {idx > 0 && <label className="opacity-60">|</label>}
+                                            <span className="flex flex-row gap-1 py-2 mr-4"> {idx > 0 && <span className="opacity-60">|</span>}
                                                 {hoveredException?.feature === featureName && 
                                                     hoveredException?.username === user ?
                                                 <button

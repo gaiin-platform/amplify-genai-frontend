@@ -35,6 +35,9 @@ export const PromptList: FC<Props> = ({
             e.stopPropagation();
             onSelect();
           }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onSelect(); }}}
+          role="button"
+          tabIndex={0}
           onMouseEnter={() => onMouseOver(index)}
         >
           {prompt.name}

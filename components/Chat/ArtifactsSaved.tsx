@@ -206,11 +206,14 @@ return (
                 ) : (
                 <ul id="artifactsList" className="suggestions-list ">
                 {availableArtifacts.map((artifact, index) => (
-                    <li key={index} onClick={() => { if (loadingItem === -1 ) handleAddArtifactToConversation(artifact.key, index)}} 
+                    <li key={index} onClick={() => { if (loadingItem === -1 ) handleAddArtifactToConversation(artifact.key, index)}}
                     onMouseEnter={() => setHoveredItem(index)} onMouseLeave={() => setHoveredItem(-1)}
                     title={`${artifact.description}\n - ${artifact.sharedBy ? `Shared by: ${artifact.sharedBy}` : artifact.createdAt}`}
                     id="artifactInList"
-                    className="p-2.5 text-black dark:text-neutral-200 border-b border-neutral-300 dark:border-b-neutral-600 hover:bg-neutral-200 dark:hover:bg-[#343541]/90 flex flex-row gap-2">
+                    className="p-2.5 text-black dark:text-neutral-200 border-b border-neutral-300 dark:border-b-neutral-600 hover:bg-neutral-200 dark:hover:bg-[#343541]/90 flex flex-row gap-2"
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (loadingItem === -1 ) handleAddArtifactToConversation(artifact.key, index); }}}
+                    role="button"
+                    tabIndex={0}>
                       <label className='truncate flex-grow' style={{maxWidth: hoveredItem === index || loadingItem === index ? '200px' : '224px', cursor: loadingItem === index ? 'default': 'pointer'}}> {artifact.name}</label>
                 
                       { loadingItem === index ? 

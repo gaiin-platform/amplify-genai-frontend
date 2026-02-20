@@ -92,7 +92,10 @@ export const PromptFolders = ({sort}: Props) => {
           />
         ))}
 
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <div
+        role="region"
+        aria-label="Drop zone to remove from folder"
         onDragEnter={() => setIsNullFolderHovered(true)}
         onDragLeave={() => setIsNullFolderHovered(false)}
         onMouseLeave={() => setIsNullFolderHovered(false)}

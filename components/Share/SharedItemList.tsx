@@ -271,8 +271,10 @@ const SharedItemsList: FC<{}> = () => {
                                         </div>
                                     </div>
 
-                                    {hoveredItem === item && ( 
+                                    {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
+                                    {hoveredItem === item && (
                                         <div className="ml-2 flex-shrink-0 flex flex-row items-center bg-neutral-200 dark:bg-[#343541]/90 rounded-lg p-1"
+                                            role="group"
                                             onMouseEnter={() => {
                                                 setHoveredItem(item)
                                                 setIsButtonHover(false)

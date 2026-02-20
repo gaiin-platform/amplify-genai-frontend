@@ -548,9 +548,12 @@ const Mermaid: React.FC<MermaidProps> = ({ chart, currentMessage }) => {
                                     <line x1="8" y1="11" x2="14" y2="11"></line>
                                 </svg>
                             </button>
-                            <div 
-                                className="text-gray-400 cursor-pointer" 
+                            <div
+                                className="text-gray-400 cursor-pointer"
                                 onClick={() => setHeight(Math.min(4000, height + 100))}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setHeight(Math.min(4000, height + 100)); }}}
+                                role="button"
+                                tabIndex={0}
                                 title="Zoom in"
                             >
                                 <IconZoomIn size={18} />
@@ -621,15 +624,17 @@ const Mermaid: React.FC<MermaidProps> = ({ chart, currentMessage }) => {
                                 <span className="ml-2">Rendering diagram...</span>
                             </div>
                         ) : (
+                            // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
                             svgDataUrl ? (
-                                <img 
+                                <img
                                     style={{ height: `${height}px` }}
                                     src={svgDataUrl}
-                                    alt={`${diagramType || 'Mermaid'} diagram`} 
+                                    alt={`${diagramType || 'Mermaid'} diagram`}
                                     className="mx-auto"
                                     onError={() => {
                                         setError('Failed to display diagram. The SVG might be malformed.');
                                     }}
+                                    role="img"
                                 />
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400">

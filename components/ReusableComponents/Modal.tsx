@@ -99,7 +99,9 @@ interface Props {
                         className={`modal-content inline-block transform rounded-lg border border-gray-300 dark:border-neutral-600 bg-neutral-100 text-left align-bottom shadow-xl transition-all dark:bg-[#2b2c36] px-6 sm:align-middle relative flex flex-col`}
                         style={{width: `${innderWindow.width}px`, height: `${innderWindow.height}px`, transform: transform || undefined}}
                         id="modal"
-                        role="dialog"  
+                        role="dialog"
+                        aria-labelledby={title ? "modalTitle" : undefined}
+                        aria-label={title ? undefined : "Dialog"}
                         >
 
                         <div className='flex flex-row pt-4' >

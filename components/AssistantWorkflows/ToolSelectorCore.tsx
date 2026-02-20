@@ -139,6 +139,9 @@ export const ToolSelectorCore: React.FC<ToolSelectorCoreProps> = ({
         e.dataTransfer.setData('tool', JSON.stringify(serializableTool));
       } : undefined}
       onClick={handleSelect}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelect(); }}}
+      role="button"
+      tabIndex={0}
       className={`p-4 border rounded-lg transition-colors ${
         variant === 'panel' ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
       } ${
@@ -222,7 +225,6 @@ export const ToolSelectorCore: React.FC<ToolSelectorCoreProps> = ({
           <div>
             <label className="block text-xs font-semibold text-gray-800 dark:text-gray-200 mb-2">
               Tool Type
-            </label>
             <select
               value={selectedToolType}
               onChange={(e) => setSelectedToolType(e.target.value)}
@@ -235,13 +237,13 @@ export const ToolSelectorCore: React.FC<ToolSelectorCoreProps> = ({
                 </option>
               ))}
             </select>
+            </label>
           </div>
           
           {/* Search Filter */}
           <div>
             <label className="block text-xs font-semibold text-gray-800 dark:text-gray-200 mb-2">
               Search Tools
-            </label>
             <div className="relative">
               <IconSearch size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
@@ -253,6 +255,7 @@ export const ToolSelectorCore: React.FC<ToolSelectorCoreProps> = ({
                 title="Search by tool name, description, or tags"
               />
             </div>
+            </label>
           </div>
           
           {/* Smart Tag Filter */}

@@ -31,10 +31,17 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({
     const suggestionRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
+    // Focus management for accessibility
+    useEffect(() => {
+        if (inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, []);
+
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (suggestionRef.current && !suggestionRef.current.contains(event.target as Node)) {
-                setSuggestions([]); 
+                setSuggestions([]);
             }
         };
 
@@ -152,22 +159,24 @@ export const EmailsAutoComplete: FC<EmailModalProps> = ({
                 }}
 
                 placeholder={`Enter usernames/emails${addMultipleUsers ? ' (separate with commas, Enter/blur to add)' : ""}`}
-                autoFocus
             />
             {suggestions.length > 0 && (
-                <div ref={suggestionRef}  
+                <div ref={suggestionRef}
                 className="sm:w-full sm:max-w-[440px] absolute z-[9999] border border-neutral-300 rounded overflow-y-auto bg-white dark:border-neutral-600 bg-neutral-100 dark:bg-[#202123]"
                 style={{ height: `${calculateHeight(suggestions.length)}px`}}
+                role="listbox"
                 onMouseDown={(e) => e.stopPropagation()}>
                     <ul className="suggestions-list">
                     {suggestions.map((suggestion, index) => (
-                        <li key={index} 
+                        <li key={index}
                         onMouseDown={(e) => {
                             e.preventDefault(); // Prevent blur from firing
                             e.stopPropagation(); // Prevent event from bubbling to modal backdrop
                             handleSuggestionClick(suggestion);
                         }}
-                        className="cursor-pointer p-1 border-b border-neutral-300 dark:border-b-neutral-600 hover:bg-neutral-200 dark:hover:bg-[#343541]/90">
+                        className="cursor-pointer p-1 border-b border-neutral-300 dark:border-b-neutral-600 hover:bg-neutral-200 dark:hover:bg-[#343541]/90"
+                        role="option"
+                        aria-selected={false}>
 
                             {suggestion}
                         </li>

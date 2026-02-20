@@ -697,6 +697,14 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                       {onItemSelected && !(!itemIsFolder && record.sensitivity === 4) && (
                         <div
                           onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }
+                          }}
+                          role="button"
+                          tabIndex={0}
                           title={
                             isAutoSelected
                               ? "To deselect items within, uncheck the parent folder."
@@ -717,7 +725,17 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                       {/* Checkbox for batch selection (new - ChatInput context) */}
                       {/* Don't show checkbox for Level 4 sensitive files */}
                       {isSelectMultipleMode && shouldShowSelectMultiple && !(!itemIsFolder && record.sensitivity === 4) && (
-                        <div onClick={(e) => e.stopPropagation()}>
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }
+                          }}
+                          role="button"
+                          tabIndex={0}
+                        >
                           <input
                             type="checkbox"
                             id={`batch-checkbox-${record.id}`}
@@ -747,6 +765,22 @@ const DataSourcesTableScrollingIntegrations: FC<Props> = ({ driveId,
                                 setIsLoading(true);
                                 fetchFiles(record.id);
                               }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  // Use functional update to avoid stale closure
+                                  setFolderHistory((prevHistory) => {
+                                    const newHistory = [...prevHistory, { id: record.id, name: record.name }];
+                                    onFolderPathChange?.(newHistory);
+                                    return newHistory;
+                                  });
+                                  setIsLoading(true);
+                                  fetchFiles(record.id);
+                                }
+                              }}
+                              role="button"
+                              tabIndex={0}
                             >
                               {displayName}
                             </span>

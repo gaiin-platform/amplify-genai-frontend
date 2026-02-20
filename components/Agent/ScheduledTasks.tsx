@@ -445,10 +445,11 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         ) : (
           <div className="space-y-4">
               <div className="mb-3">
-            <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
+            <label htmlFor="type-filter" className="block text-sm font-medium mb-1 dark:text-neutral-200">
               Filter by type
             </label>
-            <select 
+            <select
+              id="type-filter"
               className="w-full px-2 py-1 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
               value={selectedTypeFilter}
               onChange={(e) => setSelectedTypeFilter(e.target.value)}
@@ -477,7 +478,10 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                           ? 'bg-blue-100 dark:bg-blue-200'
                           : 'hover:bg-gray-200 dark:hover:bg-gray-700'
                       }`}
-                      onClick={() => handleLoadTask(task.taskId)}>
+                      onClick={() => handleLoadTask(task.taskId)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleLoadTask(task.taskId); }}}
+                      role="button"
+                      tabIndex={0}>
                       <div className="flex flex-col truncate w-full">
                         <div className="font-medium text-neutral-800 dark:text-neutral-200">
                          {task.taskName}  
@@ -584,8 +588,11 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         if (!featureFlags.actionSets) return <></>;
         return (
           <div className="flex flex-col mb-4 relative">
-            <div 
+            <div
               onClick={() => !isEnforced && setShowActionSetList(!showActionSetList)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); !isEnforced && setShowActionSetList(!showActionSetList); }}}
+              role="button"
+              tabIndex={isEnforced ? -1 : 0}
               className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow flex justify-between items-center
               ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}
               ${isEnforced ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
@@ -610,8 +617,11 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
 
         return (
         <div className="flex flex-col mb-4 relative">
-          <div 
+          <div
             onClick={() => !isEnforced && setShowApiToolList(!showApiToolList)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); !isEnforced && setShowApiToolList(!showApiToolList); }}}
+            role="button"
+            tabIndex={isEnforced ? -1 : 0}
             className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow flex justify-between items-center
             ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}
             ${isEnforced ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
@@ -676,8 +686,11 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         if (!featureFlags.assistantWorkflows) return <></>;
         return (
           <div className="flex flex-col mb-4 relative">
-            <div 
+            <div
               onClick={() => !isEnforced && setShowWorkflowList(!showWorkflowList)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); !isEnforced && setShowWorkflowList(!showWorkflowList); }}}
+              role="button"
+              tabIndex={isEnforced ? -1 : 0}
               className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow flex justify-between items-center
               ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}
               ${isEnforced ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
@@ -711,6 +724,9 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                               : 'hover:bg-gray-50 border-transparent dark:hover:bg-gray-700'
                           }`}
                           onClick={() => handleWorkflowSelect(workflow.templateId)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleWorkflowSelect(workflow.templateId); }}}
+                          role="button"
+                          tabIndex={0}
                         >
                           <div className="font-medium text-neutral-800 dark:text-neutral-200">
                             {workflow.name}
@@ -804,10 +820,11 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           )}
           
           <div className="my-4">
-            <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
+            <label htmlFor="task-name" className="block text-sm font-medium mb-1 dark:text-neutral-200">
               Task Name
             </label>
             <input
+              id="task-name"
               disabled={isDisabled()}
               title={getTitleComment()}
               type="text"
@@ -819,10 +836,11 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           </div>
           
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
+            <label htmlFor="task-description" className="block text-sm font-medium mb-1 dark:text-neutral-200">
               Description
             </label>
             <textarea
+              id="task-description"
               value={selectedTask.description}
               onChange={(e) => setSelectedTask({...selectedTask, description: e.target.value})}
               className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
@@ -832,10 +850,11 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           </div>
 
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
+            <label htmlFor="task-instructions" className="block text-sm font-medium mb-1 dark:text-neutral-200">
               Task Instructions
             </label>
             <textarea
+              id="task-instructions"
               value={selectedTask.taskInstructions}
               onChange={(e) => setSelectedTask({...selectedTask, taskInstructions: e.target.value})}
               className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
@@ -844,13 +863,13 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             />
           </div>
           
-          {!isDisabled() && 
+          {!isDisabled() &&
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
+            <div className="block text-sm font-medium mb-1 dark:text-neutral-200">
               Task Schedule
-            </label>
-            <CronScheduleBuilder 
-              value={selectedTask.cronExpression} 
+            </div>
+            <CronScheduleBuilder
+              value={selectedTask.cronExpression}
               onChange={(cronExpression) => setSelectedTask({...selectedTask, cronExpression})}
               dateRange={selectedTask.dateRange}
               onRangeChange={(range: ScheduleDateRange) => setSelectedTask(prevTask => ({...prevTask, dateRange: range ? { ...range } : undefined})) }
@@ -869,16 +888,17 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             </label>
           </div>
           
-          <div className="mb-4" 
+          <div className="mb-4"
                title={`${isDisabled() ? "This Task has been preconfigured and cannot to be changed." : ""}`}>
-            <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
+            <label htmlFor="task-type" className="block text-sm font-medium mb-1 dark:text-neutral-200">
               Task Type
-            </label> 
+            </label>
             <select
+              id="task-type"
               disabled={isDisabled() }
               value={selectedTask.taskType ?? ''}
               onChange={(e) => {
-                const updatedSelectedTask = {...selectedTask, 
+                const updatedSelectedTask = {...selectedTask,
                                              objectInfo: {objectId: '', objectName: ''},
                                              taskType: e.target.value as ScheduledTaskType}
                 setSelectedTask(updatedSelectedTask);
@@ -900,10 +920,11 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
 
           
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
+            <label htmlFor="task-tags" className="block text-sm font-medium mb-1 dark:text-neutral-200">
               Tags (comma separated)
             </label>
             <input
+              id="task-tags"
               type="text"
               value={selectedTask.tags?.join(', ') || ''}
               onChange={(e) => setSelectedTask({...selectedTask, tags: e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag)})}
@@ -937,14 +958,15 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
+                <label htmlFor="notification-emails" className="block text-sm font-medium mb-1 dark:text-neutral-200">
                   Notification Email Addresses
                 </label>
                 <input
+                  id="notification-emails"
                   type="text"
                   value={selectedTask.notifyEmailAddresses?.join(', ') || ''}
                   onChange={(e) => setSelectedTask({
-                    ...selectedTask, 
+                    ...selectedTask,
                     notifyEmailAddresses: e.target.value.split(',').map(email => email.trim()).filter(email => email)
                   })}
                   className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"

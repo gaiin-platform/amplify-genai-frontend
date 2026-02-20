@@ -167,13 +167,15 @@ export const ChatFolders = ({ sort, searchTerm, conversations }: Props) => {
 
 
         {/* Droppable Zone for setting folderId to null */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <div
+        role="region"
+        aria-label="Drop zone to remove from folder"
         onDragEnter={() => setIsNullFolderHovered(true)}
         onDragLeave={() => setIsNullFolderHovered(false)}
         onMouseLeave={() => setIsNullFolderHovered(false)}
-
         className="h-[4px]" style={{transform: "translateY(6px)"}}
-        onDrop={(e) => handleDrop(e, undefined)} 
+        onDrop={(e) => handleDrop(e, undefined)}
         onDragOver={(e) => e.preventDefault()} 
       >
           {isNullFolderHovered &&  <IconCirclePlus className="text-green-400" size={16}/>}

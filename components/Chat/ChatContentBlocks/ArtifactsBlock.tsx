@@ -145,8 +145,11 @@ export const ArtifactsBlock: React.FC<Props> = ({message, messageIndex}) => {
                             <div className="mr-4 mt-1 text-gray-500 hover:text-neutral-900 flex-none"
                                 id="removeArtifactFromConversation"
                                 onClick={(e) => {
-                                    e.stopPropagation(); 
+                                    e.stopPropagation();
                                     handleRemoveArtifact(artifact)}}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); handleRemoveArtifact(artifact); }}}
+                                role="button"
+                                tabIndex={0}
                                 title="Remove Artifact from Conversation"
                             >
                                 <IconX size={18} />

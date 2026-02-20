@@ -37,12 +37,12 @@ const MessageSelectModal: React.FC<Props> = ({setConversation, onSubmit, onCance
       <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
           <div className="dark:border-neutral-600 inline-block overflow-hidden rounded-lg border border-gray-300 bg-white px-4 pt-5 text-left align-bottom shadow-xl transition-all dark:bg-[#22232b] sm:my-8 sm:w-full sm:max-w-[600px] sm:align-middle "
            style={{ transform: 'translateY(+26%)', position: 'relative' }}>
-            <label className="mr-2 text-lg font-bold text-black dark:text-neutral-200">Select Conversation Range for Quality Improvement Summary</label>
+            <div className="mr-2 text-lg font-bold text-black dark:text-neutral-200">Select Conversation Range for Quality Improvement Summary</div>
     
             <div className="flex justify-center w-full mt-6">
                     {/* Inline-flex for tight wrapping with border */}
                     <div className="inline-flex flex-row gap-3 border border-gray-500 p-2 items-center">
-                        <label className="mx-3 text-xl text-black dark:text-neutral-200">Submit entire conversation?</label>
+                        <div className="mx-3 text-xl text-black dark:text-neutral-200">Submit entire conversation?</div>
                         <>
                             <style>
                                 {`.switch { position: relative; display: inline-block; width: 36px; height: 12px; }
@@ -53,8 +53,8 @@ const MessageSelectModal: React.FC<Props> = ({setConversation, onSubmit, onCance
                                 input:checked + .slider:before { transform: translateX(20px); background-color: #0475f0;}
                                 input:focus + .slider { box-shadow: 0 0 1px }`}
                             </style>
-                            <label className="switch mr-3">
-                                <input type="checkbox" checked={useEntireConv} onChange={() => {
+                            <label className="switch mr-3" htmlFor="use-entire-conv" aria-label="Use entire conversation">
+                                <input type="checkbox" id="use-entire-conv" checked={useEntireConv} onChange={() => {
                                     setUseEntireConv(!useEntireConv);
                                     setStartIndex(!useEntireConv ? null : 0);
                                 }} />
@@ -66,15 +66,15 @@ const MessageSelectModal: React.FC<Props> = ({setConversation, onSubmit, onCance
 
 
             { <div className={`mt-6 text-black dark:text-neutral-200 flex flex-col max-h-[225px]  ${useEntireConv ? 'opacity-30 pointer-events-none' : ''} `}>
-                <label className="ml-10 text-lg">Select the starting message for conversation submission. </label>
+                <div className="ml-10 text-lg">Select the starting message for conversation submission. </div>
                 <div className="px-10 mt-4 mb-2 flex flex-row gap-20 border-b border-gray-300">
                     #
-                    <label className="text-md font-bold">Your Prompts</label>
+                    <div className="text-md font-bold">Your Prompts</div>
                 </div>
                 <div className="overflow-y-auto overflow-x-hidden">
                     {messages.map((message, index) => (
                         <div key={index} className="flex flex-row gap-20">
-                            <label className="ml-10 py-2">{index + 1}</label>
+                            <div className="ml-10 py-2">{index + 1}</div>
                             <button
                                 onClick={() => {
                                     setStartIndex(index);

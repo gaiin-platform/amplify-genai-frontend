@@ -976,12 +976,14 @@ const AssistantPage = ({
       case '':
         return <IconLoader2 className="text-blue-600 dark:text-blue-300 animate-spin" size={30} />;
       case astIconUrl:
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
         return astIconUrl && (
-          <img 
-            src={astIconUrl} 
-            alt="Assistant icon" 
+          <img
+            src={astIconUrl}
+            alt="Assistant icon"
             className="w-[54px] h-[54px] object-cover rounded"
             onError={() => setAstIconUrl(null)}
+            role="img"
           />
         );
     }
@@ -1177,6 +1179,8 @@ const AssistantPage = ({
               }}
               onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
               onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
+              onFocus={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
+              onBlur={(e) => e.currentTarget.style.backgroundColor = 'white'}
             >
               Login
             </button>
@@ -1263,7 +1267,9 @@ const AssistantPage = ({
           )}
         </div>
         
+        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
         <div className="absolute bottom-2 left-4 flex items-center group"
+             role="group"
              onMouseEnter={() => setIsHoveringSettings(true)}
              onMouseLeave={() => setIsHoveringSettings(false)}>
           <button 

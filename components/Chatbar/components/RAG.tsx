@@ -55,9 +55,12 @@ export const RAG = () => {
                 onClick={() => setIsChanging(true)}
             />
 
+            {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
             {isChanging && (
                 <div
                     className="z-100 fixed inset-0 flex items-center justify-center bg-black bg-opacity-50"
+                    role="dialog"
+                    aria-modal="true"
                     onKeyDown={handleEnter}
                 >
                     <div className="fixed inset-0 z-10 overflow-hidden">

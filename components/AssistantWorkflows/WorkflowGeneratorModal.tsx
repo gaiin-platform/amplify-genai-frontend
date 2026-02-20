@@ -303,7 +303,7 @@ Generate ONLY the JSON, no additional text.`;
   const modalContent = (
     <div className={`${lightMode} fixed inset-0 z-[9999] flex items-center justify-center`}>
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onClick={handleClose} />
+      <div className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onClick={handleClose} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClose(); }}} role="button" tabIndex={0} />
       
       {/* Modal */}
       <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 max-w-4xl w-full mx-4 flex flex-col max-h-[90vh]">
@@ -344,7 +344,6 @@ Generate ONLY the JSON, no additional text.`;
               <div>
                 <label className="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200">
                   Describe Your Workflow
-                </label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -353,13 +352,14 @@ Generate ONLY the JSON, no additional text.`;
                   placeholder="e.g., Create a workflow that processes customer feedback, analyzes sentiment, and sends notifications based on the results..."
                   title="Describe your desired workflow in natural language. Be specific about the steps and tools you want to use for better AI generation results."
                 />
+                </label>
               </div>
 
               {/* Tool Selection */}
               <div>
-                <label className="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200">
+                <div className="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200">
                   Pre-Select Tools (Optional)
-                </label>
+                </div>
                 <div 
                   className="text-sm text-gray-600 dark:text-gray-400 mb-3"
                   title="Selecting tools beforehand helps the AI create more specific and accurate workflow steps"

@@ -22,10 +22,22 @@ export const WorkspaceLegacyMessage: React.FC<Props> = ({  }) => {
                     <li>
                         <strong>Navigate to Settings:</strong> Click on the gear icon followed by the settings button. Select the 
                         <strong className='text-[13px] text-blue-500 dark:text-blue-400 cursor-pointer hover:underline'
-                                onClick={() => window.dispatchEvent(new CustomEvent('homeChatBarTabSwitch', 
+                                onClick={() => window.dispatchEvent(new CustomEvent('homeChatBarTabSwitch',
                                         { detail: { tab: "Settings" , side: "left", action: () => {
                                         window.dispatchEvent(new CustomEvent('openSettingsTrigger', {detail: {openToTab: "Legacy Workspaces"}}));
-                                        }} } ))}>{" Legacy Workspaces"}
+                                        }} } ))}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        window.dispatchEvent(new CustomEvent('homeChatBarTabSwitch',
+                                            { detail: { tab: "Settings" , side: "left", action: () => {
+                                            window.dispatchEvent(new CustomEvent('openSettingsTrigger', {detail: {openToTab: "Legacy Workspaces"}}));
+                                            }} } ));
+                                    }
+                                }}
+                                role="button"
+                                tabIndex={0}
+                        >{" Legacy Workspaces"}
                         </strong>
                     </li>
                     <li className='mt-3' >

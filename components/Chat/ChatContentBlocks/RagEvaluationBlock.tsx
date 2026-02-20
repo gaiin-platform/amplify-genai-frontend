@@ -38,7 +38,7 @@ const RagEvaluationBlock: React.FC<Props> = (
                 <div className="px-4 space-y-6">
                     {/* Overall Quality Score */}
                     <div className="flex flex-col items-center space-y-2 px-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                        <label className="text-lg font-semibold">Overall Quality</label>
+                        <div className="text-lg font-semibold">Overall Quality</div>
                         <div className="flex items-center">
                             <div 
                                 className="text-3xl font-bold" 

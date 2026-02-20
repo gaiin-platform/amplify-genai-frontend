@@ -40,9 +40,12 @@ const ImageModal: React.FC<{
     }, [onClose]);
 
     return (
-        <div 
+        <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75"
             onClick={onClose}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); }}}
+            role="button"
+            tabIndex={0}
         >
             <div className="relative max-w-4xl max-h-[90vh] p-2 bg-white dark:bg-gray-800 rounded-lg shadow-xl">
                 <button 
@@ -57,11 +60,14 @@ const ImageModal: React.FC<{
                 </div>
                 
                 <div className="overflow-auto max-h-[calc(90vh-60px)]">
-                    <img 
-                        src={imageUrl} 
-                        alt={fileName} 
+                    <img
+                        src={imageUrl}
+                        alt={fileName}
                         className="max-w-full h-auto object-contain"
                         onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); }}}
+                        role="button"
+                        tabIndex={0}
                     />
                 </div>
             </div>
@@ -213,8 +219,8 @@ export const DataSourcesBlock: React.FC<Props> = (
                             
                             {isImage ? (
                                 <>
-                                    <div 
-                                        className="absolute inset-0 bg-cover bg-center cursor-pointer" 
+                                    <div
+                                        className="absolute inset-0 bg-cover bg-center cursor-pointer"
                                         style={{backgroundImage: imageUrl}}
                                         onClick={() => {
                                             setSelectedImage({
@@ -222,6 +228,12 @@ export const DataSourcesBlock: React.FC<Props> = (
                                                 name: d.name
                                             });
                                         }}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedImage({
+                                                url: getFullImageUrl(cacheKey),
+                                                name: d.name
+                                            }); }}}
+                                        role="button"
+                                        tabIndex={0}
                                     ></div>
                                     {/* Zoom icon indicator */}
                                     <div className="absolute bottom-10 right-2 p-1 bg-black bg-opacity-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">

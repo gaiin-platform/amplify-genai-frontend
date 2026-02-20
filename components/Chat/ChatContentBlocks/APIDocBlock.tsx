@@ -54,7 +54,9 @@ export const ApiDocBlock: React.FC<Props> = ({content}) => {
                         src={docFileContents}
                         width="560"
                         height="400"
+                        title="API documentation PDF"
                         onError={() => {}}
+                        role="application"
                         style={{ border: 'none' }} /> 
                         } /> }
                 </div> ,

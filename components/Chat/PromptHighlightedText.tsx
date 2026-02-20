@@ -1559,7 +1559,10 @@ const handleParagraphSelection = (range: Range) => {
     return (
        (!messageIsStreaming && !artifactIsStreaming ? 
         <div ref={containerRef} className="absolute z-50" style={{  top: position.top, left: position.left}}
-          onClick={(e) => e.preventDefault()} >
+          onClick={(e) => e.preventDefault()}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); }}}
+          role="button"
+          tabIndex={0} >
 
              <div className="flex flex-row items-center rounded border border-neutral-800 dark:border-neutral-500 bg-neutral-100 dark:bg-[#282834] z-30"
                 style={{ boxShadow: '0 8px 12px rgba(0, 0, 0, 0.3)',  borderRadius: `${selected && !showRevertRef.current ? '9999px' : "20px"} 20px 20px ${selected && !showRevertRef.current ? '9999px' : "20px"}` }} >

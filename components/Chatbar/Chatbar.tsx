@@ -236,8 +236,11 @@ export const Chatbar = () => {
     if (archiveDays <= 0) return null;
 
     return (
-      <div 
+      <div
         onClick={handleClick}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(); }}}
+        role="button"
+        tabIndex={0}
         title="Click to manage archive settings (Kebab Menu → Folders → Archive)"
         className="border-t border-b border-neutral-300 dark:border-neutral-600 py-1 px-3 cursor-pointer hover:opacity-80 transition-colors"
       >

@@ -527,11 +527,12 @@ If people need help with prompt engineering, which is how you converse effective
         return (<nav ref={scrollRef} className="sticky top-0 z-50 pl-20 flex px-5 py-3 text-gray-700 border border-gray-200 bg-gray-50 dark:bg-gray-800 dark:border-gray-700" aria-label="Breadcrumb">
             <ol className="inline-flex items-center space-x-1 md:space-x-2 rtl:space-x-reverse">
                 <li className="inline-flex items-center">
-                    <a onClick={
+                    <button onClick={
                         (e) => {
                             handleNavCategory("");
                         }}
-                       className="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600 dark:text-gray-400 dark:hover:text-white">
+                       type="button"
+                       className="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600 dark:text-gray-400 dark:hover:text-white cursor-pointer bg-transparent border-none p-0">
                         <div className="flex flex-row items-center">
                             <div>
                                 <IconHome size={18}/>
@@ -540,7 +541,7 @@ If people need help with prompt engineering, which is how you converse effective
                                 Home
                             </div>
                         </div>
-                    </a>
+                    </button>
                 </li>
                 {breadCrumbs.filter((crumb)=>crumb.name.trim().length > 0).map((crumb, index) => (
                     <li key={index}>
@@ -548,17 +549,17 @@ If people need help with prompt engineering, which is how you converse effective
                             <svg className="rtl:rotate-180 block w-3 h-3 mx-1 text-gray-400 " aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
                                 <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m1 9 4-4-4-4"/>
                             </svg>
-                            <a href="#"
-                               onClick={
+                            <button onClick={
                                    (e) => {
                                        e.stopPropagation();
                                        e.preventDefault();
                                        crumb.nav();
                                    }
                                }
-                               className="ms-1 text-sm font-medium text-gray-700 hover:text-blue-600 md:ms-2 dark:text-gray-400 dark:hover:text-white">
+                               type="button"
+                               className="ms-1 text-sm font-medium text-gray-700 hover:text-blue-600 md:ms-2 dark:text-gray-400 dark:hover:text-white cursor-pointer bg-transparent border-none p-0">
                                 {formatCategoryName(crumb.name)}
-                            </a>
+                            </button>
                         </div>
                     </li>
                 ))}
@@ -835,17 +836,17 @@ If people need help with prompt engineering, which is how you converse effective
 
                                         </button>
 
-                                        <a href="#"
-                                           onClick={(e) => {
+                                        <button onClick={(e) => {
                                                e.stopPropagation();
                                                e.preventDefault();
                                                window.open("https://coursera.org/learn/prompt-engineering");
 
                                            }
                                            }
-                                           className="mt-4 text-blue-600 dark:text-blue-500 hover:underline font-medium text-lg inline-flex items-center">
+                                           type="button"
+                                           className="mt-4 text-blue-600 dark:text-blue-500 hover:underline font-medium text-lg inline-flex items-center cursor-pointer bg-transparent border-none p-0">
                                             Learn more about writing great prompts
-                                        </a>
+                                        </button>
 
                                     </div>
                                     <div>
@@ -947,19 +948,33 @@ If people need help with prompt engineering, which is how you converse effective
                                                              onClick={(e) => {
                                                                  e.preventDefault();
                                                                  setSearchCategory(item.id);
-                                                             }
-                                                             }
+                                                             }}
+                                                             onKeyDown={(e) => {
+                                                                 if (e.key === 'Enter' || e.key === ' ') {
+                                                                     e.preventDefault();
+                                                                     setSearchCategory(item.id);
+                                                                 }
+                                                             }}
+                                                             role="button"
+                                                             tabIndex={0}
                                                              className="m-3 max-w-sm bg-white border border-gray-200 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700">
                                                             <div className="">
 
                                                             </div>
 
                                                             <div className="p-5">
-                                                                <a href="#">
-                                                                    <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                                                                <button
+                                                                    type="button"
+                                                                    className="text-left bg-transparent border-none p-0 cursor-pointer"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        e.preventDefault();
+                                                                        setSearchCategory(item.id);
+                                                                    }}>
+                                                                    <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400">
                                                                         {item.name}
                                                                     </h5>
-                                                                </a>
+                                                                </button>
                                                                 <p className="mb-3 font-normal text-gray-700 dark:text-gray-400">
                                                                     {item.description}
                                                                 </p>
@@ -998,7 +1013,7 @@ If people need help with prompt engineering, which is how you converse effective
                                                                 <div className="w-full h-full">
                                                                     <img className="rounded-t-lg"
                                                                          src="https://admissions.vanderbilt.edu/wp-content/uploads/sites/4/2021/06/20181108JR003-scaled.jpg"
-                                                                         alt=""/>
+                                                                         alt="Vanderbilt University campus"/>
                                                                 </div>
                                                                 <div
                                                                     className="m-3 absolute inset-x-0 bottom-0 left-0 h-12 w-12 p-1 rounded-full border-2">
@@ -1006,16 +1021,18 @@ If people need help with prompt engineering, which is how you converse effective
                                                                 </div>
                                                             </div>
                                                             <div className="p-5">
-                                                                <a href="#" onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    e.preventDefault();
-                                                                    handleViewItemDetails(item);
-                                                                }
-                                                                }>
-                                                                    <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                                                                <button
+                                                                    type="button"
+                                                                    className="text-left bg-transparent border-none p-0 cursor-pointer"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        e.preventDefault();
+                                                                        handleViewItemDetails(item);
+                                                                    }}>
+                                                                    <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400">
                                                                         {item.name}
                                                                     </h5>
-                                                                </a>
+                                                                </button>
                                                                 <div
                                                                     className="mb-3 font-normal text-gray-700 dark:text-gray-400">
                                                                     {item.description.length > 300 ? item.description.substring(0, 250) + "..." : item.description}
@@ -1124,7 +1141,7 @@ If people need help with prompt engineering, which is how you converse effective
                                                                 <div className="w-full h-full">
                                                                     <img className="rounded-t-lg"
                                                                          src="https://admissions.vanderbilt.edu/wp-content/uploads/sites/4/2021/06/20181108JR003-scaled.jpg"
-                                                                         alt=""/>
+                                                                         alt="Vanderbilt University campus"/>
                                                                 </div>
                                                                 <div
                                                                     className="m-3 absolute inset-x-0 bottom-0 left-0 h-12 w-12 p-1 rounded-full border-2">
@@ -1132,11 +1149,18 @@ If people need help with prompt engineering, which is how you converse effective
                                                                 </div>
                                                             </div>
                                                             <div className="p-5">
-                                                                <a href="#">
-                                                                    <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                                                                <button
+                                                                    type="button"
+                                                                    className="text-left bg-transparent border-none p-0 cursor-pointer"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        e.preventDefault();
+                                                                        // This appears to be in a different context where we might want to navigate to the item
+                                                                    }}>
+                                                                    <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400">
                                                                         {item.name}
                                                                     </h5>
-                                                                </a>
+                                                                </button>
                                                                 <p className="mb-3 font-normal text-gray-700 dark:text-gray-400">
                                                                     {item.description}
                                                                 </p>
@@ -1146,10 +1170,16 @@ If people need help with prompt engineering, which is how you converse effective
                                                                 <p className="mt-2 mb-3 font-normal text-gray-700 dark:text-gray-400">
                                                                     By: {item.author}
                                                                 </p>
-                                                                <a href="#"
-                                                                   className="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        e.preventDefault();
+                                                                        handleGetItem(item);
+                                                                    }}
+                                                                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800 cursor-pointer">
                                                                     <IconDownload/> Get
-                                                                </a>
+                                                                </button>
                                                             </div>
                                                         </div>
 

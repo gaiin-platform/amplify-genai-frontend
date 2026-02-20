@@ -377,9 +377,10 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                         <div className="settings-card-content">
                           <div className="settings-theme-options">
                             {["dark", "light"].map((color) => (
-                                <label className="settings-theme-option" id={"theme"+color} key={color}>
+                                <label className="settings-theme-option" htmlFor={"theme-"+color} key={color} aria-label={`${color.charAt(0).toUpperCase() + color.slice(1)} theme`}>
                                   <input
                                       type="radio"
+                                      id={"theme-"+color}
                                       name="theme"
                                       value={color}
                                       checked={theme === color}
@@ -408,10 +409,10 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                       { Object.keys(allAvailableModels).length > 0 && <>
                       
                       <div className='py-2 flex flex-row w-full'>
-                            <label className='ml-12 text-[0.75rem]'>Include All</label>
+                            <div className='ml-12 text-[0.75rem]'>Include All</div>
                             <div className='flex-grow'>
                               <div className='flex flex-col text-center mt-[-52px]'> Available Models 
-                                  <label className='ml-2 text-xs mb-2 mt-[-4px]'>{"(Displayed models are shown in blue)"}</label>
+                                  <div className='ml-2 text-xs mb-2 mt-[-4px]'>{"(Displayed models are shown in blue)"}</div>
                               </div>
                             </div> 
                       </div>      
@@ -628,7 +629,7 @@ const renderModelPricing = (availableModels: Record<ModelKey, any[]>) => {
                                 .toFixed(2)
                                 .replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`
                             ) : (
-                              <label className="opacity-60">N/A</label>
+                              <div className="opacity-60">N/A</div>
                             )}
                           </div>
                         </td>

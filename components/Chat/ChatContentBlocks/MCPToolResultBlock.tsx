@@ -187,12 +187,14 @@ const ImageContent: FC<{ data: string; mimeType?: string }> = memo(({ data, mime
       </div>
       {expanded && (
         <div className="p-3 flex justify-center">
+          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
           <img
             src={src}
             alt="Tool output"
             className="max-w-full h-auto rounded"
             style={{ maxHeight: '500px' }}
             onError={() => setError(true)}
+            role="img"
           />
         </div>
       )}
