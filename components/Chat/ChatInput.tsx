@@ -473,10 +473,7 @@ export const ChatInput = ({
     };
 
     const addDocument = (document: AttachedDocument) => {
-        let newDocuments = documents || [];
-        newDocuments.push(document);
-        setDocuments(newDocuments);
-
+        setDocuments(prevDocuments => [...(prevDocuments || []), document]);
         console.log("Document attached.");
     }
 
@@ -937,15 +934,17 @@ export const ChatInput = ({
     }
 
     const handleSetKey = (document: AttachedDocument, key: string) => {
-
-        const newDocuments = documents ? documents?.map((d) => {
-            if (d.id === document.id) {
-                return {...d, key: key};
+        setDocuments(prevDocuments => {
+            if (!prevDocuments || prevDocuments.length === 0) {
+                return [{...document, key: key}];
             }
-            return d;
-        }) : [{...document, key: key}];
-
-        setDocuments(newDocuments);
+            return prevDocuments.map((d) => {
+                if (d.id === document.id) {
+                    return {...d, key: key};
+                }
+                return d;
+            });
+        });
 
     }
     const handleGetQiSummary = async (conversation:Conversation) => {
