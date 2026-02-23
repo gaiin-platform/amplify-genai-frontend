@@ -77,8 +77,9 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     const [features, setFeatures] = useState<FeatureFlagConfig>({}); 
 
-    const [appVars, setAppVars] = useState<{ [key: string]: string }>({});    
-    const [appSecrets, setAppSecrets] = useState<{ [key: string]: string }>({});  
+    const [appVars, setAppVars] = useState<{ [key: string]: string }>({});
+    const [appSecrets, setAppSecrets] = useState<{ [key: string]: string }>({});
+    const [userDocumentationUrl, setUserDocumentationUrl] = useState<string>('');
     const [refreshingTypes, setRefreshingTypes] = useState< AdminConfigTypes[]>([]);
 
 
@@ -198,6 +199,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 setAiEmailDomain(data[AdminConfigTypes.AI_EMAIL_DOMAIN] || aiEmailDomain);
                 setDefaultModels(data[AdminConfigTypes.DEFAULT_MODELS] || {});
                 setWebSearchConfig(data[AdminConfigTypes.WEB_SEARCH] || null);
+                setUserDocumentationUrl(data[AdminConfigTypes.USER_DOCUMENTATION_URL] || '');
                 setLoadingMessage("");
             
                 const nonlazyResult = await nonlazyReq;
@@ -368,6 +370,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 }
 
                 return configData;
+            case AdminConfigTypes.USER_DOCUMENTATION_URL:
+                return userDocumentationUrl;
             case AdminConfigTypes.OPENAI_ENDPOINTS:
                 const toTest:{key: string, url: string, model:string}[] = [];
                 
@@ -526,6 +530,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         saveAction([AdminConfigTypes.AI_EMAIL_DOMAIN], () => homeDispatch({ field: 'aiEmailDomain', value: aiEmailDomain}));
         saveAction([AdminConfigTypes.PROMPT_COST_ALERT], () => homeDispatch({ field: 'promptCostAlert', value: promptCostAlert}));
         saveAction([AdminConfigTypes.WEB_SEARCH], () => homeDispatch({ field: 'canAddWebSearchApiKey', value: webSearchConfig?.allowUserWebSearchKeys ?? false}));
+        saveAction([AdminConfigTypes.USER_DOCUMENTATION_URL], () => homeDispatch({ field: 'userDocumentationUrl', value: userDocumentationUrl}));
         if (!storageSelection) saveAction([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () => homeDispatch({ field: 'storageSelection', value: defaultConversationStorage})); 
     }
 
@@ -778,6 +783,29 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             obscure={true}
                             />      
                         </div> : <>No Application Variables Retrieved</>}
+                </div>
+
+                <br className="mt-4"></br>
+
+                <div className="admin-style-settings-card">
+                    <div className="admin-style-settings-card-header">
+                        <div className="flex flex-row items-center gap-3 mb-2">
+                            <h3 className="admin-style-settings-card-title">User Documentation URL</h3>
+                        </div>
+                        <p className="admin-style-settings-card-description">Configure the URL for user documentation (displayed when userDocumentation feature flag is enabled)</p>
+                    </div>
+                    <div className="mx-4">
+                        <input
+                            type="text"
+                            placeholder="https://your-documentation-url.com"
+                            value={userDocumentationUrl}
+                            onChange={(e) => {
+                                setUserDocumentationUrl(e.target.value);
+                                updateUnsavedConfigs(AdminConfigTypes.USER_DOCUMENTATION_URL);
+                            }}
+                            className="w-full rounded border border-neutral-500 px-4 py-2 dark:bg-[#40414F] dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
+                        />
+                    </div>
                 </div>
                 </>
             },

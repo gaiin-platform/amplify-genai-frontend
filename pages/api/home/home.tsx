@@ -840,6 +840,12 @@ const Home = ({
                             dispatch({ field: 'canAddWebSearchApiKey', value: webSearchData.allowUserWebSearchKeys });
                         }
                     }
+                    if (AdminConfigTypes.USER_DOCUMENTATION_URL in data) {
+                        const docUrl = data[AdminConfigTypes.USER_DOCUMENTATION_URL];
+                        if (docUrl) {
+                            dispatch({ field: 'userDocumentationUrl', value: docUrl });
+                        }
+                    }
 
                 } else {
                     console.log("Failed to fetch user app configs.");
