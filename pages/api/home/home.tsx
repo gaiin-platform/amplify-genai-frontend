@@ -254,7 +254,9 @@ const Home = ({
     useEffect(() => {
         const callbackUrl = router.query.callbackUrl as string;
         if (session && callbackUrl) {
-            router.push(callbackUrl);
+            if (callbackUrl.startsWith('/') && !callbackUrl.startsWith('//')) {
+                router.push(callbackUrl);
+            }
         }
     }, [session, router]);
 
