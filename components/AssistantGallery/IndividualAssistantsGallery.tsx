@@ -1,10 +1,11 @@
 import { FC, useContext, useState, useRef, useEffect } from 'react';
-import { IconRobot, IconSparkles, IconArrowUpRight, IconBolt, IconMailFast, IconApi, IconTemplate, IconWorld, IconFiles, IconBrandGoogleDrive, IconClock } from '@tabler/icons-react';
+import { IconRobot, IconSparkles, IconArrowUpRight, IconBolt, IconMailFast, IconApi, IconTemplate, IconWorld, IconFiles, IconBrandGoogleDrive, IconClock, IconEdit, IconEye } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { Prompt } from '@/types/prompt';
 import { handleStartConversationWithPrompt } from '@/utils/app/prompts';
 import { isAssistant, getAssistant } from '@/utils/app/assistants';
 import Search from '@/components/Search/Search';
+import { AssistantModal } from '@/components/Promptbar/components/AssistantModal';
 
 // Helper to check if data source is website/sitemap
 const isWebsiteDs = (document: any) => {
@@ -146,6 +147,9 @@ export const IndividualAssistantsGallery: FC = () => {
 
     const promptsRef = useRef(prompts);
     const [searchTerm, setSearchTerm] = useState('');
+    const [hoveredAssistantId, setHoveredAssistantId] = useState<string | null>(null);
+    const [showModal, setShowModal] = useState(false);
+    const [selectedAssistant, setSelectedAssistant] = useState<Prompt | null>(null);
 
     useEffect(() => {
         promptsRef.current = prompts;
@@ -170,6 +174,16 @@ export const IndividualAssistantsGallery: FC = () => {
 
         statsService.startConversationEvent(startPrompt);
         handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt);
+    };
+
+    const handleOpenModal = (e: React.MouseEvent, assistant: Prompt) => {
+        e.stopPropagation(); // Prevent triggering the card's onClick
+        setSelectedAssistant(assistant);
+        setShowModal(true);
+    };
+
+    const canEdit = (assistant: Prompt) => {
+        return !assistant.data || !assistant.data.noEdit;
     };
 
     return (
@@ -238,6 +252,8 @@ export const IndividualAssistantsGallery: FC = () => {
                                         <button
                                             key={assistant.id}
                                             onClick={() => handleStartConversation(assistant)}
+                                            onMouseEnter={() => setHoveredAssistantId(assistant.id)}
+                                            onMouseLeave={() => setHoveredAssistantId(null)}
                                             className="group relative rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-xl hover:scale-[1.02] transition-all duration-300 text-left opacity-0 animate-fadeInUp"
                                             style={{ animationDelay: `${idx * 30}ms`, animationFillMode: 'forwards' }}
                                         >
@@ -259,7 +275,7 @@ export const IndividualAssistantsGallery: FC = () => {
                                             </div>
 
                                             {/* White body section */}
-                                            <div className="bg-white dark:bg-gray-800 p-4 pt-3">
+                                            <div className="bg-white dark:bg-gray-800 p-4 pt-3 relative">
                                                 {hasDescription && (
                                                     <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-3 mb-3">
                                                         {assistant.description}
@@ -284,6 +300,21 @@ export const IndividualAssistantsGallery: FC = () => {
                                                         })}
                                                     </div>
                                                 )}
+
+                                                {/* Edit/View Icon Button - Bottom Right */}
+                                                <button
+                                                    onClick={(e) => handleOpenModal(e, assistant)}
+                                                    className={`absolute bottom-3 right-3 p-2 rounded-lg bg-white dark:bg-gray-700 border-2 border-indigo-500 dark:border-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200 z-20 ${
+                                                        hoveredAssistantId === assistant.id ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                                                    }`}
+                                                    title={canEdit(assistant) ? "Edit Assistant" : "View Assistant"}
+                                                >
+                                                    {canEdit(assistant) ? (
+                                                        <IconEdit size={16} className="text-indigo-500 dark:text-indigo-400" />
+                                                    ) : (
+                                                        <IconEye size={16} className="text-indigo-500 dark:text-indigo-400" />
+                                                    )}
+                                                </button>
                                             </div>
                                         </button>
                                     );
@@ -293,6 +324,15 @@ export const IndividualAssistantsGallery: FC = () => {
                     )}
                 </div>
             </div>
+
+            {/* Assistant Modal */}
+            {showModal && selectedAssistant && (
+                <AssistantModal
+                    assistant={selectedAssistant}
+                    onCancel={() => setShowModal(false)}
+                    onSave={() => setShowModal(false)}
+                    onUpdateAssistant={() => { } } loadingMessage={''} loc={''}                />
+            )}
         </div>
     );
 };
