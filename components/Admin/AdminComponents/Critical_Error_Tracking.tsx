@@ -708,11 +708,11 @@ export const CriticalErrorTrackingTab: FC<Props> = ({
                                                         <div className="bg-white dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
                                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                                 {Object.entries(error.context).map(([key, value]) => (
-                                                                    <div key={key} className="flex flex-col">
+                                                                    <div key={key} className="flex flex-col min-w-0">
                                                                         <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">
                                                                             {key}
                                                                         </span>
-                                                                        <span className="text-sm text-gray-900 dark:text-gray-100 font-mono">
+                                                                        <span className="text-sm text-gray-900 dark:text-gray-100 font-mono break-all overflow-hidden">
                                                                             {typeof value === 'object' ? JSON.stringify(value) : String(value)}
                                                                         </span>
                                                                     </div>
