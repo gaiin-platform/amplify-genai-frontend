@@ -64,7 +64,7 @@ export const OpenSidebarButton = ({ onClick, side }: Props) => {
 
   const closedButton = () => (
     <div 
-          title={`Open ${promptSide() ? 'Chat' : 'Assistant'} Sidebar`}
+          title={`Open Sidebar`}
           className="p-2 text-neutral-800 bg-neutral-100 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700 cursor-pointer animate-pop"
           style={{
               borderRadius: '10px',
