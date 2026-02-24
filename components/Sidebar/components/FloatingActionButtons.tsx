@@ -76,7 +76,7 @@ export const FloatingActionButtons = ({ side, onNewChat, onAssistantGallery }: P
     <>
       <div
         ref={pillRef}
-        className={`fixed ${promptSide() ? 'right-4' : 'left-4'} z-40
+        className={`fixed ${promptSide() ? 'right-4' : 'left-4'} z-30
           bg-neutral-100 dark:bg-gray-800
           rounded-b-[20px]
           shadow-lg

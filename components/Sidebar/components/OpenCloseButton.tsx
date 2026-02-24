@@ -110,7 +110,7 @@ export const OpenSidebarButton = ({ onClick, side }: Props) => {
 
   return (
     <button
-      className={`fixed top-4 ${promptSide() ? 'right-4' : 'left-4'} z-50`}
+      className={`fixed top-4 ${promptSide() ? 'right-4' : 'left-4'} z-40`}
       onClick={onClick}
       id="expandSidebar"
       title="Expand Sidebar"
