@@ -44,6 +44,10 @@ import { AssistantReasoningMessage } from './ChatContentBlocks/AssistantReasonin
 import { LargeTextDisplay } from './LargeTextDisplay';
 import { generatePlaceholderText } from '@/utils/app/largeText';
 import { MCPToolResultBlock } from './ChatContentBlocks/MCPToolResultBlock';
+import QuestionWidget from './QuestionWidget';
+import { hasQuestionsBlock, parseQuestionsBlock, stripQuestionsBlock, serializeAnswers } from '@/utils/questions';
+import { QuestionAnswer } from '@/types/questions';
+import { newMessage } from '@/types/chat';
 
 export interface Props {
     message: Message;
@@ -111,7 +115,6 @@ export const ChatMessage: FC<Props> = memo(({
     const [isDownloadDialogVisible, setIsDownloadDialogVisible] = useState<boolean>(false);
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const [isTyping, setIsTyping] = useState<boolean>(false);
-    const [messageContent, setMessageContent] = useState(message.content);
     const [messagedCopied, setMessageCopied] = useState(false);
     const [editSelection, setEditSelection] = useState<string>("");
     const divRef = useRef<HTMLDivElement>(null);
@@ -124,6 +127,40 @@ export const ChatMessage: FC<Props> = memo(({
     const [copyMenuPosition, setCopyMenuPosition] = useState({ x: 0, y: 0 });
     const copyMenuRef = useRef<HTMLDivElement>(null);
     const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Question Widget State
+    const [questionSet, setQuestionSet] = useState(() => {
+        if (message.role === 'assistant' && hasQuestionsBlock(message.content)) {
+            return parseQuestionsBlock(message.content);
+        }
+        return null;
+    });
+    const [showQuestionWidget, setShowQuestionWidget] = useState(() => {
+        return message.role === 'assistant' && questionSet !== null && !message.data?.questionsAnswered;
+    });
+
+    // Re-detect questions when content changes (for streaming messages)
+    useEffect(() => {
+        if (message.role === 'assistant' && !message.data?.questionsAnswered && !messageIsStreaming) {
+            const hasQuestions = hasQuestionsBlock(message.content);
+            if (hasQuestions && !questionSet) {
+                const parsed = parseQuestionsBlock(message.content);
+                if (parsed) {
+                    setQuestionSet(parsed);
+                    setShowQuestionWidget(true);
+                }
+            }
+        }
+    }, [message.content, message.role, message.data?.questionsAnswered, messageIsStreaming, questionSet]);
+
+    // Strip questions from message content if present (to prevent markdown rendering issues)
+    const displayMessage = questionSet ? {
+        ...message,
+        content: stripQuestionsBlock(message.content)
+    } : message;
+
+    // Keep original content for editing (don't strip questions for edit mode)
+    const [messageContent, setMessageContent] = useState(message.content);
 
     const assistantRecipient = (message.role === "user" && message.data && message.data.assistant) ?
         message.data.assistant : null;
@@ -419,6 +456,7 @@ export const ChatMessage: FC<Props> = memo(({
 
     // needed to avoid editing bug when switching between conversations
     useEffect(() => {
+        // Keep original content for editing (don't strip questions)
         setMessageContent(message.content);
     }, [message.content]);
 
@@ -458,13 +496,70 @@ export const ChatMessage: FC<Props> = memo(({
         try {
             setLoadingMessage("Preparing to Download...");
             downloadDataSourceFile(dataSource);
-            
+
         } catch (e) {
             console.log(e);
             alert("Error downloading file. Please try again.");
         }
         setLoadingMessage("");
     }
+
+    const handleQuestionAnswers = useCallback((answers: Map<string, QuestionAnswer>) => {
+        if (!questionSet || !selectedConversation) return;
+
+        // Serialize answers into a formatted string
+        const formattedAnswers = serializeAnswers(questionSet.questions, answers);
+
+        // Create a new user message with the answers
+        const answerMessage = newMessage({
+            role: 'user',
+            content: formattedAnswers,
+        });
+
+        // Mark this message as having answered questions
+        const updatedMessage = {
+            ...message,
+            data: {
+                ...message.data,
+                questionsAnswered: true,
+            }
+        };
+
+        // Update the conversation with the marked message
+        const updatedMessages = [...selectedConversation.messages];
+        updatedMessages[messageIndex] = updatedMessage;
+
+        // Add the answer message
+        updatedMessages.push(answerMessage);
+
+        const updatedConversation = {
+            ...selectedConversation,
+            messages: updatedMessages,
+        };
+
+        // Hide the widget
+        setShowQuestionWidget(false);
+
+        // Update conversation state
+        handleUpdateSelectedConversation(updatedConversation);
+
+        // Trigger sending the message to get AI response
+        // Use a Prompt object to send through onSendPrompt
+        const answerPrompt: Prompt = {
+            id: `answer-${Date.now()}`,
+            name: 'Question Answers',
+            description: '',
+            content: formattedAnswers,
+            folderId: null,
+            type: undefined,
+            data: {},
+        };
+
+        // Small delay to ensure state is updated
+        setTimeout(() => {
+            onSendPrompt(answerPrompt);
+        }, 100);
+    }, [questionSet, selectedConversation, message, messageIndex, handleUpdateSelectedConversation, onSendPrompt]);
 
 
     const isActionResult = message.data && message.data.actionResult;
@@ -851,11 +946,19 @@ export const ChatMessage: FC<Props> = memo(({
                                             <ChatContentBlock
                                                 messageIsStreaming={messageIsStreaming}
                                                 messageIndex={messageIndex}
-                                                message={message}
+                                                message={displayMessage}
                                                 selectedConversation={selectedConversation}
                                                 handleCustomLinkClick={handleCustomLinkClick}
                                               />
                                           </div>
+
+                                          {/* Render Question Widget if questions exist and not yet answered */}
+                                          {showQuestionWidget && questionSet && !messageIsStreaming && (
+                                            <QuestionWidget
+                                                questions={questionSet.questions}
+                                                onSubmit={handleQuestionAnswers}
+                                            />
+                                          )}
 
                                           <AgentLogBlock
                                             messageIsStreaming={messageIsStreaming}
