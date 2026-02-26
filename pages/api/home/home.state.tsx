@@ -86,6 +86,7 @@ export interface HomeInitialState {
   isStandalonePromptCreation: boolean;
   promptCostAlert: PromptCostAlert | null;
   canAddWebSearchApiKey: boolean;
+  userDocumentationUrl: string;
   promptCostAlertModal: {
     isOpen: boolean;
     message: string;
@@ -173,5 +174,6 @@ export const initialState: HomeInitialState = {
   isStandalonePromptCreation: false,
   promptCostAlert: null,
   promptCostAlertModal: null,
-  canAddWebSearchApiKey: false
+  canAddWebSearchApiKey: false,
+  userDocumentationUrl: ''
 };
