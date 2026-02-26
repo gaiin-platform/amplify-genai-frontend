@@ -449,7 +449,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyUsers, ampl
 
                             {!creatingAmpAsts && !stillLoadingData && amplifyAstGroupId && 
                             <button 
-                                className={`group ml-4 mb-1 mt-[-2px] py-1 px-2 bg-gray-300 dark:bg-gray-600 ${isAddingAst === '' ? "hover:bg-gray-400 hover:dark:bg-gray-700" : ""} mr-[-16px] rounded transition-colors duration-100 cursor-pointer flex flex-row gap-2`}
+                                className={`group ml-4 mb-1 mt-[-2px] py-1 px-2 bg-blue-100 dark:bg-gray-600 ${isAddingAst === '' ? "hover:bg-gray-300 hover:dark:bg-gray-700" : ""} mr-[-16px] rounded transition-colors duration-100 cursor-pointer flex flex-row gap-2`}
                                 onClick={() => {
                                     setIsAddingAst(ast);
                                     handleAddAssistant([(amplifyAssistants as any)[ast]]);
@@ -471,10 +471,13 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyUsers, ampl
 
                 <label className="text-[1rem] font-bold"> Groups</label>
                 <div className="ml-6 mt-4">
-                    
-                {astGroups.length > 0 ?
+
+                {stillLoadingData ?
+                    loading
+                    :
+                    (astGroups.length > 0 ?
                     <>
-                        {showAstGroupSearch && 
+                        {showAstGroupSearch &&
                         <div className="h-[0px] ml-auto mr-20 w-[280px]" style={{transform: 'translateY(-30px)'}}>
                             <Search
                             placeholder={'Search Assistant Admin Groups...'}
@@ -482,15 +485,14 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyUsers, ampl
                             onSearch={(searchTerm: string) => setAstGroupSearchTerm(searchTerm.toLocaleLowerCase())}
                             />
                         </div>}
-                        <ExpansionComponent 
+                        <ExpansionComponent
                         onOpen={() => setShowAstGroupsSearch(true)}
                         onClose={() => {
                             setShowAstGroupsSearch(false);
                             setAstGroupSearchTerm('');
                         }}
-                        title={'Manage Assistant Admin Groups'} 
-                        content={ 
-                            stillLoadingData ? loading :
+                        title={'Manage Assistant Admin Groups'}
+                        content={
                             <>
                                 <table id="assistantAdminGroupsTable" className="modern-table hide-last-column mt-4 w-full mr-10" style={{boxShadow: 'none'}}>
                                     <thead>
@@ -602,7 +604,8 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyUsers, ampl
                     />  </>
                         :
                         <>No Assistant Admin Groups listed. </>
-                    }
+                    )
+                }
                 </div>
             
             </div>

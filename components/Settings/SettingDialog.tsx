@@ -184,9 +184,9 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
 
   }, [theme, featureOptions, hiddenModelIds])
 
-
-
   const handleSave = async () => {
+    // Confirmation is handled in ConversationStorage component
+
     window.dispatchEvent(new Event('settingsSave'));
     if (!hasUnsavedChanges) return;
     if (Object.values(allAvailableModels).every((model: Model) => hiddenModelIds.includes(model.id) || model.id === defaultModelId)) {
@@ -279,9 +279,11 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
     const [accountsUnsavedChanges, setAccountsUnsavedChanges] = useState(false);
     const [apiUnsavedChanges, setApiUnsavedChanges] = useState(false);
     const [mcpUnsavedChanges, setMcpUnsavedChanges] = useState(false);
+    const [storageUnsavedChanges, setStorageUnsavedChanges] = useState(false);
+    const [pendingStorageSelection, setPendingStorageSelection] = useState<string | null>(null);
    
     const handleClose = () => {
-      if ((accountsUnsavedChanges || apiUnsavedChanges || mcpUnsavedChanges || hasUnsavedChanges) && !confirm("You have unsaved changes.\n\nYou will lose any unsaved data, would you still like to close Settings?")) return;
+      if ((accountsUnsavedChanges || apiUnsavedChanges || mcpUnsavedChanges || storageUnsavedChanges || hasUnsavedChanges) && !confirm("You have unsaved changes.\n\nYou will lose any unsaved data, would you still like to close Settings?")) return;
       
       // Reset all state variables to their original values when closing
       if (initSettingsRef.current) {
@@ -294,6 +296,8 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
       setAccountsUnsavedChanges(false);
       setApiUnsavedChanges(false);
       setMcpUnsavedChanges(false);
+      setStorageUnsavedChanges(false);
+      setPendingStorageSelection(null);
       setHasUnsavedChanges(false);
       onClose();
       
@@ -330,12 +334,13 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
         }
     }, [open]);
 
-    useEffect(() => {
-      window.dispatchEvent(new Event('cleanupApiKeys'));
-    }, [trackTab]);
+    // Removed cleanup event from tab switch - only cleanup on modal close
+    // useEffect(() => {
+    //   window.dispatchEvent(new Event('cleanupApiKeys'));
+    // }, [trackTab]);
 
     const otherChanges = () => {
-    return accountsUnsavedChanges || apiUnsavedChanges || mcpUnsavedChanges;
+    return accountsUnsavedChanges || apiUnsavedChanges || mcpUnsavedChanges || storageUnsavedChanges;
     }
 
 
@@ -533,11 +538,16 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
               ///////////////////////////////////////////////////////////////////////////////
               // Conversation Storage
         
-                {label: `Conversation Storage`, 
+                {label: `Conversation Storage${storageUnsavedChanges ? " *" : ""}`, 
                   title: "Enable conversations to sync across devices or keep them private",
                   content: <>
-                    {featureFlags.storeCloudConversations && 
-                          <ConversationsStorage open={open} />
+                    {featureFlags.storeCloudConversations &&
+                          <ConversationsStorage
+                            open={open}
+                            setUnsavedChanges={setStorageUnsavedChanges}
+                            pendingSelection={pendingStorageSelection}
+                            setPendingSelection={setPendingStorageSelection}
+                          />
                         }
                   </>
                   

@@ -27,6 +27,7 @@ const UserMessageEditor: React.FC<Props> = (
         setMessageContent}) => {
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const buttonsRef = useRef<HTMLDivElement>(null);
     const [isTyping, setIsTyping] = useState<boolean>(false);
     const {t} = useTranslation('chat');
 
@@ -49,6 +50,25 @@ const UserMessageEditor: React.FC<Props> = (
         if (textareaRef.current) {
             textareaRef.current.style.height = 'inherit';
             textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+
+            // Focus the textarea
+            textareaRef.current.focus();
+
+            // Only scroll if the buttons are not fully visible in the viewport
+            setTimeout(() => {
+                if (buttonsRef.current) {
+                    const rect = buttonsRef.current.getBoundingClientRect();
+                    const isFullyVisible = rect.bottom <= window.innerHeight && rect.top >= 0;
+
+                    if (!isFullyVisible) {
+                        buttonsRef.current.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'end',
+                            inline: 'nearest'
+                        });
+                    }
+                }
+            }, 100);
         }
     }, [isEditing]);
 
@@ -72,7 +92,7 @@ const UserMessageEditor: React.FC<Props> = (
                                           }}
                                       />
 
-        <div className="mt-10 flex justify-center space-x-4">
+        <div ref={buttonsRef} className="mt-10 flex justify-center space-x-4">
             <button
                 id="saveTextChange"
                 className="h-[40px] rounded-md bg-blue-500 px-4 py-1 text-sm font-medium text-white enabled:hover:bg-blue-600 disabled:opacity-50"

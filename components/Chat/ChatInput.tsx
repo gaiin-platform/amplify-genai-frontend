@@ -441,16 +441,23 @@ export const ChatInput = ({
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const value = e.target.value;
-        const maxLength =  selectedConversation?.model?.inputContextWindow;
 
-        if (maxLength && value.length > maxLength) {
-            alert(
-                t(
-                    `Message limit is {{maxLength}} characters. You have entered {{valueLength}} characters.`,
-                    {maxLength, valueLength: value.length},
-                ),
-            );
-            return;
+        // Rough token-to-character conversion: 1 token ≈ 4 characters
+        // Limit single message to context window size (in characters)
+        const contextWindow = selectedConversation?.model?.inputContextWindow;
+        const maxTokens = selectedConversation?.model?.outputTokenLimit || 2000;
+        if (contextWindow) {
+            let maxChars = (contextWindow * 4); // Convert tokens to approximate characters
+            if (contextWindow !== maxTokens) maxChars -= (maxTokens * 4) // in case of misconfiguration
+            if (value.length > maxChars) {
+                alert(
+                    t(
+                        `Message limit is {{maxTokens}} tokens, approximately ({{maxChars}} characters). You have entered {{valueLength}} characters.`,
+                        {maxTokens: contextWindow, maxChars, valueLength: value.length},
+                    ),
+                );
+                return;
+            }
         }
 
         // Skip placeholder deletion logic when in edit mode
@@ -473,10 +480,7 @@ export const ChatInput = ({
     };
 
     const addDocument = (document: AttachedDocument) => {
-        let newDocuments = documents || [];
-        newDocuments.push(document);
-        setDocuments(newDocuments);
-
+        setDocuments(prevDocuments => [...(prevDocuments || []), document]);
         console.log("Document attached.");
     }
 
@@ -545,16 +549,19 @@ export const ChatInput = ({
             return;
         }
 
-        const maxLength = selectedConversation?.model?.inputContextWindow;
-
-        if (maxLength && content.length > maxLength) {
-            alert(
-                t(
-                    `Message limit is {{maxLength}} characters. You have entered {{valueLength}} characters.`,
-                    {maxLength, valueLength: content.length},
-                ),
-            );
-            return;
+        // Rough token-to-character conversion: 1 token ≈ 4 characters
+        const contextWindow = selectedConversation?.model?.inputContextWindow;
+        if (contextWindow) {
+            const maxChars = contextWindow * 4; // Convert tokens to approximate characters
+            if (content.length > maxChars) {
+                alert(
+                    t(
+                        `Message limit is approximately {{maxTokens}} tokens ({{maxChars}} characters). You have entered {{valueLength}} characters.`,
+                        {maxTokens: contextWindow, maxChars, valueLength: content.length},
+                    ),
+                );
+                return;
+            }
         }
 
         const type = (isWorkflowOn) ? MessageType.AUTOMATION : MessageType.PROMPT;
@@ -627,16 +634,19 @@ export const ChatInput = ({
                 msg.content = extractDocumentsLocally ?
                     handleAppendDocumentsToContent(content, documents) : content;
 
-                const maxLength = selectedConversation?.model.inputContextWindow;
-
-                if (maxLength && msg.content.length > maxLength) {
-                    alert(
-                        t(
-                            `Message limit is {{maxLength}} characters. Your prompt and attached documents are {{valueLength}} characters. Please remove the attached documents or choose smaller excerpts.`,
-                            {maxLength, valueLength: msg.content.length},
-                        ),
-                    );
-                    return;
+                // Rough token-to-character conversion: 1 token ≈ 4 characters
+                const contextWindow = selectedConversation?.model.inputContextWindow;
+                if (contextWindow) {
+                    const maxChars = contextWindow * 4; // Convert tokens to approximate characters
+                    if (msg.content.length > maxChars) {
+                        alert(
+                            t(
+                                `Message limit is approximately {{maxTokens}} tokens ({{maxChars}} characters). Your prompt and attached documents are {{valueLength}} characters. Please remove the attached documents or choose smaller excerpts.`,
+                                {maxTokens: contextWindow, maxChars, valueLength: msg.content.length},
+                            ),
+                        );
+                        return;
+                    }
                 }
             }
         }
@@ -937,15 +947,17 @@ export const ChatInput = ({
     }
 
     const handleSetKey = (document: AttachedDocument, key: string) => {
-
-        const newDocuments = documents ? documents?.map((d) => {
-            if (d.id === document.id) {
-                return {...d, key: key};
+        setDocuments(prevDocuments => {
+            if (!prevDocuments || prevDocuments.length === 0) {
+                return [{...document, key: key}];
             }
-            return d;
-        }) : [{...document, key: key}];
-
-        setDocuments(newDocuments);
+            return prevDocuments.map((d) => {
+                if (d.id === document.id) {
+                    return {...d, key: key};
+                }
+                return d;
+            });
+        });
 
     }
     const handleGetQiSummary = async (conversation:Conversation) => {

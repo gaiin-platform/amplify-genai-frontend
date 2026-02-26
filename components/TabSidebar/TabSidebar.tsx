@@ -1,5 +1,6 @@
 import React, { useState, useEffect, ReactNode, useContext, useRef } from 'react';
 import { CloseSidebarButton, OpenSidebarButton } from "@/components/Sidebar/components/OpenCloseButton";
+import { FloatingActionButtons } from "@/components/Sidebar/components/FloatingActionButtons";
 import HomeContext from '@/pages/api/home/home.context';
 import { AssistantAdminUI } from '../Admin/AssistantAdminUI';
 import { AdminUI } from '../Admin/AdminUI';
@@ -28,7 +29,7 @@ const isMobileBrowser = () => {
 };
 
 export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerComponent }) => {
-    const { state: { featureFlags, showChatbar, showPromptbar }, dispatch: homeDispatch } = useContext(HomeContext);
+    const { state: { featureFlags, showChatbar, showPromptbar }, dispatch: homeDispatch, handleNewConversation } = useContext(HomeContext);
     const featureFlagsRef = useRef(featureFlags);
 
     const chatSide = () => side === 'left';
@@ -169,5 +170,21 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
                 {footerComponent}
             </div>
         </div>
-    ) : ( <OpenSidebarButton onClick={toggleOpen} side={side}/> );
+    ) : (
+        <>
+            <OpenSidebarButton onClick={toggleOpen} side={side}/>
+            {chatSide() && (
+                <FloatingActionButtons
+                    side={side}
+                    onNewChat={() => {
+                        window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false }} ));
+                        handleNewConversation({});
+                    }}
+                    onAssistantGallery={() => {
+                        homeDispatch({ field: 'page', value: 'assistantGallery' });
+                    }}
+                />
+            )}
+        </>
+    );
 };

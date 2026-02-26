@@ -254,7 +254,9 @@ const Home = ({
     useEffect(() => {
         const callbackUrl = router.query.callbackUrl as string;
         if (session && callbackUrl) {
-            router.push(callbackUrl);
+            if (callbackUrl.startsWith('/') && !callbackUrl.startsWith('//')) {
+                router.push(callbackUrl);
+            }
         }
     }, [session, router]);
 
@@ -836,6 +838,12 @@ const Home = ({
                         const webSearchData = data[AdminConfigTypes.WEB_SEARCH];
                         if (webSearchData && webSearchData.allowUserWebSearchKeys !== undefined) {
                             dispatch({ field: 'canAddWebSearchApiKey', value: webSearchData.allowUserWebSearchKeys });
+                        }
+                    }
+                    if (AdminConfigTypes.USER_DOCUMENTATION_URL in data) {
+                        const docUrl = data[AdminConfigTypes.USER_DOCUMENTATION_URL];
+                        if (docUrl) {
+                            dispatch({ field: 'userDocumentationUrl', value: docUrl });
                         }
                     }
 

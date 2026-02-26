@@ -16,10 +16,13 @@ import toast from 'react-hot-toast';
 
 interface Props {
   open: boolean;
+  setUnsavedChanges: (b: boolean) => void;
+  pendingSelection: string | null;
+  setPendingSelection: (selection: string | null) => void;
 }
 
 
-export const ConversationsStorage: FC<Props> = ({ open }) => {
+export const ConversationsStorage: FC<Props> = ({ open, setUnsavedChanges, pendingSelection, setPendingSelection }) => {
 
   const { dispatch: homeDispatch, state:{conversations, selectedConversation, folders, statsService, storageSelection} } = useContext(HomeContext);
 
@@ -29,8 +32,9 @@ export const ConversationsStorage: FC<Props> = ({ open }) => {
     storageRef.current = storageSelection;
   }, [storageSelection]);
 
-  const [selectedOption, setSelectedOption] = useState( storageRef.current || '');
-  const [hasChanges, setHasChanges] = useState(false);
+  // Use pendingSelection from parent if it exists, otherwise use storageSelection
+  const selectedOption = pendingSelection !== null ? pendingSelection : (storageSelection || '');
+  const hasChanges = pendingSelection !== null && pendingSelection !== storageSelection;
 
 
   const { t } = useTranslation('conversationStorage');
@@ -50,14 +54,27 @@ export const ConversationsStorage: FC<Props> = ({ open }) => {
   }, [folders]);
 
   const handleSelectedOptionChanged = (option: string) => {
-      if (!hasChanges) toast('Click "Apply Changes" to save your selection.'); 
-      setSelectedOption(option);
-      setHasChanges(true);
+      // Check if the new selection is different from the original
+      if (option === storageSelection) {
+        // Switched back to original - no changes
+        setPendingSelection(null);
+        setUnsavedChanges(false);
+      } else {
+        // Changed to something different
+        setPendingSelection(option);
+        setUnsavedChanges(true);
+      }
   }
 
 
   const handleSave = async () => {
-    setHasChanges(false);
+    if (!hasChanges) {
+      return;
+    }
+
+    // No confirmation needed here - it's handled in SettingDialog before the event is dispatched
+    setUnsavedChanges(false);
+    setPendingSelection(null);
     saveStorageSettings(selectedOption as ConversationStorage);
     homeDispatch({field: 'storageSelection', value: selectedOption});
 
@@ -71,8 +88,23 @@ export const ConversationsStorage: FC<Props> = ({ open }) => {
       }
     }
     toast("Storage Settings Saved");
-    
   };
+
+  useEffect(() => {
+    window.addEventListener('settingsSave', handleSaveWithConfirmation);
+    return () => window.removeEventListener('settingsSave', handleSaveWithConfirmation);
+  }, [hasChanges, selectedOption]);
+
+  // Reset to original value when modal closes without saving
+  useEffect(() => {
+    const handleCleanup = () => {
+      setPendingSelection(null);
+      setUnsavedChanges(false);
+    };
+
+    window.addEventListener('cleanupApiKeys', handleCleanup);
+    return () => window.removeEventListener('cleanupApiKeys', handleCleanup);
+  }, [setPendingSelection, setUnsavedChanges]);
   
   const confirmationMessage = () => {
     switch (selectedOption) {
@@ -86,6 +118,16 @@ export const ConversationsStorage: FC<Props> = ({ open }) => {
         return "Only new conversations will be uploaded to the cloud. Existing conversations will remain where they are currently stored.";
     }
   }
+
+  const handleSaveWithConfirmation = async () => {
+    if (!hasChanges) return;
+
+    const message = confirmationMessage();
+    const confirmed = confirm(message);
+    if (!confirmed) return;
+
+    await handleSave();
+  };
 
   return ( open ? (
         <div className="settings-card">
@@ -110,20 +152,6 @@ export const ConversationsStorage: FC<Props> = ({ open }) => {
 
           <div className="flex flex-row justify-center text-sm font-bold mt-4 text-black dark:text-neutral-200">
             {t('Where would you like to store your conversations?')}
-            <button
-              type="button"
-              id="applyConversationStorage"
-              title='Apply Conversation Storage Changes To The Current Browser'
-              className={`text-xs ml-10 p-2 py-1 rounded-lg shadow-md focus:outline-none  bg-neutral-100 text-black hover:bg-neutral-200
-                          ${hasChanges ? 'border-2 border-green-500' : 'border border-neutral-800'}`}
-              onClick={() => {
-                  if (confirm(`${confirmationMessage()} \n\n Would you like to continue?`)) handleSave();
-              }}
-              >
-              <>{t('Apply Changes')}
-                {hasChanges && <span className='ml-0.5 text-[0.9rem]'>*</span>}
-              </>
-              </button>
           </div>
        
        <div className="m-4 storage-options-container">
