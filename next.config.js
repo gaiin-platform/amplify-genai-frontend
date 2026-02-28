@@ -44,10 +44,40 @@ const nextConfig = {
 
   // Security headers
   async headers() {
+    // Content Security Policy for Next.js with external services
+    const cspDirectives = [
+      "default-src 'self'",
+      // Scripts: Next.js requires unsafe-inline for hydration
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.mxpnl.com",
+      // Styles: CSS-in-JS requires unsafe-inline
+      "style-src 'self' 'unsafe-inline'",
+      // Images from self, data URIs, and HTTPS sources
+      "img-src 'self' data: blob: https:",
+      // Fonts
+      "font-src 'self' data:",
+      // API connections: Lambda, Cognito, Canvas API, Mixpanel
+      "connect-src 'self' https://avxjw3hiwxhop4rbyvmprg6jku0jtcwq.lambda-url.us-east-1.on.aws https://*.amazoncognito.com https://*.auth.us-east-1.amazoncognito.com https://hdviynn2m4.execute-api.us-east-1.amazonaws.com https://api.mixpanel.com https://*.s3.amazonaws.com wss://*.amazoncognito.com",
+      // Frame ancestors (same as X-Frame-Options: DENY)
+      "frame-ancestors 'none'",
+      // Base URI restriction
+      "base-uri 'self'",
+      // Form action restriction
+      "form-action 'self' https://*.amazoncognito.com",
+      // Object/embed restriction
+      "object-src 'none'",
+      // Upgrade insecure requests
+      "upgrade-insecure-requests",
+    ];
+    const csp = cspDirectives.join('; ');
+
     return [
       {
         source: '/:path*',
         headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: csp,
+          },
           {
             key: 'X-Content-Type-Options',
             value: 'nosniff',
@@ -70,7 +100,7 @@ const nextConfig = {
           },
           {
             key: 'Strict-Transport-Security',
-            value: 'max-age=31536000; includeSubDomains',
+            value: 'max-age=31536000; includeSubDomains; preload',
           },
         ],
       },
