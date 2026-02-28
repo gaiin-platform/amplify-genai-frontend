@@ -14,6 +14,7 @@ import HomeContext from "@/pages/api/home/home.context";
 import {useSession} from "next-auth/react";
 import ActionButton from '../ReusableComponents/ActionButton';
 import { getUserIdentifier } from '@/utils/app/data';
+import toast from 'react-hot-toast';
 
 const SharedItemsList: FC<{}> = () => {
 
@@ -110,6 +111,7 @@ const SharedItemsList: FC<{}> = () => {
                     onImport={(sharedData) => {
                         statsService.sharedItemAcceptedEvent(sharedBy, selectedNote, sharedData);
                         setImportModalOpen(false);
+                        toast.success("Items Imported");
                     }}
                     onCancel={() => {
                         setImportModalOpen(false);
