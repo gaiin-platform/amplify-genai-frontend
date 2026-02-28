@@ -19,7 +19,8 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   }
 
   // Get environment variables needed by the Home component
-  const chatEndpoint = process.env.CHAT_ENDPOINT || 'https://hdviynn2m4.execute-api.us-east-1.amazonaws.com/prod/proxy/llm';
+  // Using Lambda Function URL for faster streaming responses
+  const chatEndpoint = process.env.CHAT_ENDPOINT || 'https://avxjw3hiwxhop4rbyvmprg6jku0jtcwq.lambda-url.us-east-1.on.aws/';
   const mixPanelToken = process.env.MIXPANEL_TOKEN || '';
   const cognitoClientId = process.env.COGNITO_CLIENT_ID || '';
   const cognitoDomain = process.env.COGNITO_DOMAIN || '';
