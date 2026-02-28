@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { GetServerSideProps } from 'next';
 import { useRouter } from 'next/router';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
-import { getSession, useSession, signIn } from 'next-auth/react';
+import { getSession, useSession } from 'next-auth/react';
+import { signInWithProvider } from '@/utils/auth/signin';
 import { useTranslation } from 'next-i18next';
 import { IconMessage, IconSend, IconChevronUp, IconChevronDown, IconSquare, Icon3dCubeSphere, IconLoader2, IconBrain } from '@tabler/icons-react';
 import { getAvailableModels } from '@/services/adminService';
@@ -1162,7 +1163,7 @@ const AssistantPage = ({
               <Logo width={200} height={60} />
             </div>
             <button
-              onClick={() => signIn('cognito')}
+              onClick={() => signInWithProvider()}
               id="loginButton"
               className="shadow-md"
               style={{

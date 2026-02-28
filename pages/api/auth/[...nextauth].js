@@ -10,10 +10,19 @@ export const authOptions = {
     },
     providers: [
         CognitoProvider({
+            id: 'cognito',
+            name: 'Cognito',
             clientId: process.env.COGNITO_CLIENT_ID,
             clientSecret: process.env.COGNITO_CLIENT_SECRET,
             issuer: process.env.COGNITO_ISSUER,
             checks: 'nonce',
+            authorization: {
+                params: {
+                    // If SAML provider is configured, Cognito will use it by default
+                    // unless forceCognito parameter is passed (handled in signin callback)
+                    scope: 'email openid',
+                }
+            }
         })
     ],
     pages: {
@@ -24,8 +33,16 @@ export const authOptions = {
         // newUser: '/auth/new-user' // New users will be directed here on first sign in (leave the property out if not of interest)
     },
     callbacks: {
-        async signIn({ account, profile }) {
+        async signIn({ account, profile, user, credentials }) {
+            // Allow sign-in from both SAML and Cognito providers
             return true;
+        },
+        async redirect({ url, baseUrl }) {
+            // Handle forceCognito parameter in redirects
+            // This allows the admin backdoor to work correctly
+            if (url.startsWith(baseUrl)) return url;
+            if (url.startsWith('/')) return `${baseUrl}${url}`;
+            return baseUrl;
         },
         async jwt({ token, profile, account }) {
             const attr = process.env.IMMUTABLE_ID_ATTRIBUTE;

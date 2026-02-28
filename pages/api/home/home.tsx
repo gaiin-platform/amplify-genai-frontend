@@ -63,7 +63,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { WorkflowDefinition } from "@/types/workflow";
 import { saveWorkflowDefinitions } from "@/utils/app/workflows";
 // import { Market } from "@/components/Market/Market";
-import { useSession, signIn, signOut, getSession } from "next-auth/react"
+import { useSession, signOut, getSession } from "next-auth/react"
+import { signInWithProvider } from '@/utils/auth/signin'
 import Loader from "@/components/Loader/Loader";
 import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
@@ -1580,7 +1581,7 @@ const Home = ({
                         <Logo width={200} height={60} />
                     </div>
                     <button
-                        onClick={() => signIn('cognito')}
+                        onClick={() => signInWithProvider()}
                         id="loginButton"
                         className="shadow-md"
                         style={{
