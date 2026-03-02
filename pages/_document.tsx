@@ -12,8 +12,16 @@ export default function Document(props: Props) {
   return (
     <Html lang={currentLocale}>
       <Head>
+        {/* PWA Meta */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-title" content="Amplify"></meta>
+        <meta name="apple-mobile-web-app-title" content="Amplify" />
+
+        {/* SEO & Accessibility Meta */}
+        <meta name="description" content="Amplify - AI-powered chat assistant for Holy Family University. Access Claude, GPT, and Gemini models in one unified interface." />
+        <meta name="theme-color" content="#202123" />
+
+        {/* Accessibility - ensure text scaling works */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
       </Head>
       <body>
         <Main />

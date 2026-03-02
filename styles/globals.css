@@ -5,6 +5,85 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import 'sidebar-enhancements.css';
 @import 'table-enhancements.css';
+@import 'loading-animations.css';
+
+/* ==========================================================================
+   WCAG 2.2 Accessibility Styles
+   ========================================================================== */
+
+/* Screen reader only - visually hidden but accessible */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Show on focus for skip links */
+.sr-only:focus,
+.sr-only:active,
+.focus\:not-sr-only:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: inherit;
+  margin: inherit;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/* WCAG 2.5.8 - Minimum touch target size (24x24px) */
+a:not(.sr-only),
+button:not(.sr-only) {
+  min-height: 24px;
+  min-width: 24px;
+}
+
+/* Ensure inline links have adequate touch area via padding */
+a:not([class*="btn"]):not([class*="button"]):not(.sr-only) {
+  display: inline-block;
+  padding: 4px 2px;
+  margin: -4px -2px;
+}
+
+/* Focus visible styles - WCAG 2.4.7 */
+:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* High contrast focus for dark backgrounds */
+.dark :focus-visible,
+[class*="dark"] :focus-visible {
+  outline-color: #60a5fa;
+}
+
+/* Reduced motion - WCAG 2.3.3 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-pulse,
+  .animate-spin,
+  .animate-bounce,
+  .animate-gradient-x,
+  .animate-glow,
+  .animate-float {
+    animation: none !important;
+  }
+}
 
 
 ::-webkit-scrollbar-track {

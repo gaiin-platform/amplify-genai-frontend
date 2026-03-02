@@ -52,4 +52,4 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
-tests/chrome_profile/
+tests/chrome_profile/docker-build-context/
