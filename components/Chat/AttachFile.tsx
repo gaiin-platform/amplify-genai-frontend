@@ -1,5 +1,5 @@
 import { IconPlus } from '@tabler/icons-react';
-import {FC, useContext} from 'react';
+import { FC, useContext } from 'react';
 import { getDocument, PDFDocumentProxy, Util } from './JsPDF'
 import * as pdfjs from './JsPDF'
 import readXlsxFile from 'read-excel-file'
@@ -7,8 +7,8 @@ import mammoth from "mammoth";
 import { useTranslation } from 'next-i18next';
 import JSZip from "jszip";
 import { v4 as uuidv4 } from 'uuid';
-import {AttachedDocument, AttachedDocumentMetadata} from '@/types/attacheddocument';
-import {addFile, checkContentReady, deleteFile} from "@/services/fileService";
+import { AttachedDocument, AttachedDocumentMetadata } from '@/types/attacheddocument';
+import { addFile, checkContentReady, deleteFile } from "@/services/fileService";
 import { getMimeTypeFromExtension } from '@/utils/app/fileTypeTranslations';
 import HomeContext from "@/pages/api/home/home.context";
 import React from 'react';
@@ -18,46 +18,46 @@ import { processInputFiles } from '@/utils/fileHandler';
 interface Props {
     onAttach: (data: AttachedDocument) => void;
     onUploadProgress?: (data: AttachedDocument, progress: number) => void;
-    onSetKey?: (data:AttachedDocument, key:string) => void;
-    onSetMetadata?: (data:AttachedDocument, metadata:any) => void;
-    onSetAbortController?: (data:AttachedDocument, abortController:AbortController) => void;
-    id:string;
-    disallowedFileExtensions?:string[];
-    allowedFileExtensions?:string[];
-    groupId?:string;
-    disableRag?:boolean;
-    className?:string;
-    props?:any;
+    onSetKey?: (data: AttachedDocument, key: string) => void;
+    onSetMetadata?: (data: AttachedDocument, metadata: any) => void;
+    onSetAbortController?: (data: AttachedDocument, abortController: AbortController) => void;
+    id: string;
+    disallowedFileExtensions?: string[];
+    allowedFileExtensions?: string[];
+    groupId?: string;
+    disableRag?: boolean;
+    className?: string;
+    props?: any;
 }
 
 
-const cleanUpFile = async (key:string) => {
+const cleanUpFile = async (key: string) => {
     const result = await deleteFile(key);
     console.log("Delete file result", result);
 }
 
-export const handleFile = async (file:any,
-                          onAttach:any,
-                          onUploadProgress:any,
-                          onSetKey:any,
-                          onSetMetadata:any,
-                          onSetAbortController:any,
-                          uploadDocuments:boolean,
-                        //   extractDocumentsLocally:boolean,
-                        groupId:string | undefined, 
-                        ragEnabled:boolean,
-                        props:any = {},
-                        tags:string[] = []
-                      ) => {
+export const handleFile = async (file: any,
+    onAttach: any,
+    onUploadProgress: any,
+    onSetKey: any,
+    onSetMetadata: any,
+    onSetAbortController: any,
+    uploadDocuments: boolean,
+    //   extractDocumentsLocally:boolean,
+    groupId: string | undefined,
+    ragEnabled: boolean,
+    props: any = {},
+    tags: string[] = []
+) => {
 
     try {
-        let type:string = file.type;
+        let type: string = file.type;
         const extension = file.name.split('.').pop()?.toLowerCase();
-        
+
         console.log(`[FILE UPLOAD DEBUG] Initial file.type: "${file.type}", extension: "${extension}", fileName: "${file.name}"`);
 
-      // If no type is detected, try to infer it from the file extension
-      if (!type) {
+        // If no type is detected, try to infer it from the file extension
+        if (!type) {
             type = getMimeTypeFromExtension(extension || '');
             console.log(`[FILE UPLOAD DEBUG] Inferred type from extension: "${type}"`);
         }
@@ -65,7 +65,7 @@ export const handleFile = async (file:any,
         let size = file.size;
         const fileName = file.name.replace(/[_\s]+/g, '_');;
 
-        let document:AttachedDocument = {id:uuidv4(), name: fileName, type: type, raw:"", data: props, groupId};
+        let document: AttachedDocument = { id: uuidv4(), name: fileName, type: type, raw: "", data: props, groupId };
         console.log(`document.type: "${document.type}"`);
         console.log("document", document);
         console.log("file", file);
@@ -84,14 +84,14 @@ export const handleFile = async (file:any,
 
         if (Array.isArray(document)) {
             document.forEach(
-                (doc)=>onAttach(doc)
+                (doc) => onAttach(doc)
             )
         } else {
             onAttach(document);
         }
         let docKey = null;
         let cleanupPerformed = false;
-        
+
         const safeCleanUp = async (key: string) => {
             if (!cleanupPerformed && key) {
                 cleanupPerformed = true;
@@ -99,11 +99,11 @@ export const handleFile = async (file:any,
                 await cleanUpFile(key);
             }
         };
-        
+
         if (uploadDocuments) {
             try {
-
-                const {key, response, statusUrl, metadataUrl, contentUrl, abortController} = await addFile(document, file,
+                console.log('[UPLOAD DEBUG] Starting addFile for:', document.name, 'type:', document.type);
+                const { key, response, statusUrl, metadataUrl, contentUrl, abortController } = await addFile(document, file,
                     (progress: number) => {
                         if (onUploadProgress && progress < 95) {
                             onUploadProgress(document, progress);
@@ -112,28 +112,30 @@ export const handleFile = async (file:any,
                             onUploadProgress(document, 95);
                         }
                     }, ragEnabled, tags);
+                console.log('[UPLOAD DEBUG] addFile returned - key:', key, 'metadataUrl:', metadataUrl, 'statusUrl:', statusUrl);
                 docKey = key;
                 if (onSetAbortController) onSetAbortController(document, () => {
-                                            abortController?.abort()                                    
-                                            // Only set cleanup timeout if not already aborted
-                                            if (!abortController?.signal?.aborted) {
-                                              console.log("Deleting file from server in 45 seconds", key);
-                                                setTimeout(async () => {
-                                                    safeCleanUp(key);
-                                                }, 45000);
-                                            }
-                                          });
+                    abortController?.abort()
+                    // Only set cleanup timeout if not already aborted
+                    if (!abortController?.signal?.aborted) {
+                        console.log("Deleting file from server in 45 seconds", key);
+                        setTimeout(async () => {
+                            safeCleanUp(key);
+                        }, 45000);
+                    }
+                });
 
                 if (onSetKey) {
                     document.key = key;
                     onSetKey(document, key);
                 }
 
+                console.log('[UPLOAD DEBUG] Waiting for S3 upload response...');
                 await response;
-                                    
+                console.log('[UPLOAD DEBUG] S3 upload complete. Polling metadataUrl:', metadataUrl);
                 const readyStatus = await checkContentReady(metadataUrl, 120, abortController);
 
-                if (readyStatus && readyStatus.success){
+                if (readyStatus && readyStatus.success) {
 
                     if (readyStatus.metadata) {
                         // console.log("metadata", readyStatus.metadata);
@@ -141,7 +143,7 @@ export const handleFile = async (file:any,
 
                         // Check if document.metadata exists and has the key "totalItems"
                         if (document.metadata) {
-                            if (!document.metadata.isImage && (!(document.metadata.totalItems) || document.metadata.totalItems < 1)) {
+                            if (!document.metadata.isImage && !(document.metadata as any).isVideo && (!(document.metadata.totalItems) || document.metadata.totalItems < 1)) {
                                 alert("I was unable to extract any text from the provided document. If this is a PDF, please OCR the PDF before uploading it.");
                             }
                         }
@@ -151,11 +153,12 @@ export const handleFile = async (file:any,
 
                     onUploadProgress(document, 100);
                 } else if (!abortController?.signal?.aborted) {
-                  alert("Upload failed");
-                  safeCleanUp(key);
+                    alert("Upload failed");
+                    safeCleanUp(key);
                 }
             }
             catch (e) {
+                console.error('[UPLOAD DEBUG] Error in upload flow:', e);
                 // @ts-ignore
                 if (e.message !== 'Abort') {
                     alert("Upload file aborted");
@@ -174,67 +177,67 @@ export const handleFile = async (file:any,
     }
 }
 
-export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetadata, onSetKey , onSetAbortController, allowedFileExtensions, disallowedFileExtensions, groupId, disableRag, className = "", props = {}}) => {
+export const AttachFile: FC<Props> = ({ id, onAttach, onUploadProgress, onSetMetadata, onSetKey, onSetAbortController, allowedFileExtensions, disallowedFileExtensions, groupId, disableRag, className = "", props = {} }) => {
     const { t } = useTranslation('sidebar');
 
-    const {state: { featureFlags, statsService, ragOn } } = useContext(HomeContext);
+    const { state: { featureFlags, statsService, ragOn } } = useContext(HomeContext);
 
     const uploadDocuments = featureFlags.uploadDocuments;
 
     return (
         <>
-          <input
-            id={id}
-            className="sr-only"
-            tabIndex={-1}
-            type="file"
-            accept="*"
-            multiple 
-            onChange={(e) => {
-              if (!e.target.files?.length) return;
-    
-              // Changed to handle multiple files
-              const files = Array.from(e.target.files);
-    
-              // Process files using centralized file processor
-              processInputFiles(files, {
-                disallowedExtensions: disallowedFileExtensions,
-                allowedExtensions: allowedFileExtensions,
-                onAttach,
-                onUploadProgress: onUploadProgress ?? (() => {}),
-                onSetKey: onSetKey ?? (() => {}),
-                onSetMetadata: onSetMetadata ?? (() => {}),
-                onSetAbortController: onSetAbortController ?? (() => {}),
-                statsService,
-                featureFlags,
-                ragOn,
-                uploadDocuments,
-                groupId,
-                disableRag,
-                props
-              });
-    
-              e.target.value = ''; // Clear the input after files are handled
-            }}
-          />
-    
-          <button
-            className={`${className} left-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
-            id="uploadFile"
-            onClick={() => {
-              const importFile = document.querySelector('#' + id) as HTMLInputElement;
-              if (importFile) {
-                importFile.click();
-              }
-            }}
-            onKeyDown={(e) => {}}
-            title="Upload File"
-          >
-            <IconPlus size={20} />
-          </button>
+            <input
+                id={id}
+                className="sr-only"
+                tabIndex={-1}
+                type="file"
+                accept="*"
+                multiple
+                onChange={(e) => {
+                    if (!e.target.files?.length) return;
+
+                    // Changed to handle multiple files
+                    const files = Array.from(e.target.files);
+
+                    // Process files using centralized file processor
+                    processInputFiles(files, {
+                        disallowedExtensions: disallowedFileExtensions,
+                        allowedExtensions: allowedFileExtensions,
+                        onAttach,
+                        onUploadProgress: onUploadProgress ?? (() => { }),
+                        onSetKey: onSetKey ?? (() => { }),
+                        onSetMetadata: onSetMetadata ?? (() => { }),
+                        onSetAbortController: onSetAbortController ?? (() => { }),
+                        statsService,
+                        featureFlags,
+                        ragOn,
+                        uploadDocuments,
+                        groupId,
+                        disableRag,
+                        props
+                    });
+
+                    e.target.value = ''; // Clear the input after files are handled
+                }}
+            />
+
+            <button
+                className={`${className} left-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
+                id="uploadFile"
+                onClick={() => {
+                    const importFile = document.querySelector('#' + id) as HTMLInputElement;
+                    if (importFile) {
+                        importFile.click();
+                    }
+                }}
+                onKeyDown={(e) => { }}
+                title="Upload File"
+            >
+                <IconPlus size={20} />
+            </button>
         </>
-      );
-    };
+    );
+};
 
 
 
