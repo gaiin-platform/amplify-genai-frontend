@@ -84,8 +84,11 @@ const AssistantPage = ({
   const [responseStatus, setResponseStatus] = useState<string>('');
   const [astResponding, setAstResponding] = useState<string>('');
   const [reasoningText, setReasoningText] = useState<string>('');
+  const reasoningTextRef = useRef<string>(''); // Use ref for immediate updates
   const [messageReasoning, setMessageReasoning] = useState<{ [key: number]: string }>({});
   const [expandedReasoning, setExpandedReasoning] = useState<{ [key: number]: boolean }>({});
+  const currentAssistantIndexRef = useRef<number | null>(null);
+  const sendingRef = useRef<boolean>(false); // Prevent duplicate sends
   const [editing, setEditing] = useState<number | null>(null);
   const [editedContent, setEditedContent] = useState("");
   const [abortController, setAbortController] = useState<AbortController>(new AbortController());
@@ -299,7 +302,7 @@ const AssistantPage = ({
         
         // lookupAssistant takes only the path as argument
         const assistantResult = await lookupAssistant(assistantSlug);
-        console.log("assistantResult", assistantResult);
+        // console.log("assistantResult", assistantResult);
         
         if (!assistantResult) {
           throw new Error('No response from assistant lookup service');
@@ -353,20 +356,29 @@ const AssistantPage = ({
   }, [chatEndpoint, assistantSlug]);
 
   const handleResponseStatus = (status: string, meta?: any) => {
-    // console.log("status recieved:", status);
     if (status.includes("responding")) {
       setAstResponding(status);
       // Save reasoning to the current message and clear temp reasoning
-      if (reasoningText) {
-        const currentMessageIndex = messages.length; // The assistant message we just added
-        setMessageReasoning(prev => ({ ...prev, [currentMessageIndex]: reasoningText }));
+      if (reasoningTextRef.current && currentAssistantIndexRef.current !== null) {
+        const index = currentAssistantIndexRef.current;
+        const reasoning = reasoningTextRef.current; // Capture before clearing
+
+        // Use the captured value directly in the setState callback
+        setMessageReasoning(prev => {
+          const updated = { ...prev, [index]: reasoning }; // Use captured value
+          return updated;
+        });
+
+        // Clear AFTER setting state
         setReasoningText('');
+        reasoningTextRef.current = '';
       }
     } else {
       // Check if this is a reasoning message
       if (meta?.id === "reasoning") {
-        // Accumulate reasoning chunks instead of replacing
-        setReasoningText(prev => prev + status);
+        // Accumulate reasoning chunks using ref for immediate access
+        reasoningTextRef.current += status;
+        setReasoningText(reasoningTextRef.current);
         setResponseStatus('Thinking...');
       } else {
         setResponseStatus(status);
@@ -378,7 +390,6 @@ const AssistantPage = ({
   const startAgentPolling = async (sessionId: string) => {
     // Prevent duplicate polling
     if (runningAgentSessionRef.current === sessionId) {
-      console.log(`Agent polling already in progress for session ${sessionId}`);
       return;
     }
 
@@ -524,22 +535,33 @@ const AssistantPage = ({
   };
 
   // Handle sending a message
-  const handleSendMessage = async (inputContent: string) => {
-    if (!inputContent.trim() || isProcessing || !chatEndpoint) return;
+  const handleSendMessage = async (inputContent: string, messagesOverride?: any[]) => {
+    if (!inputContent.trim() || isProcessing || !chatEndpoint || sendingRef.current) return;
 
-    // Add user message to the chat
-    const userMessage = { role: 'user', content: inputContent };
-    setMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
-    setIsProcessing(true);
+    // Set sending flag to prevent duplicate rapid sends
+    sendingRef.current = true;
+
+    // If messagesOverride provided (e.g., from edit), use it; otherwise add new user message
+    let messagesToSend: any[];
+    if (messagesOverride) {
+      // Edit mode: messages already updated, just send them
+      messagesToSend = messagesOverride;
+      setMessages(messagesOverride);
+      setIsProcessing(true);
+    } else {
+      // Normal mode: add new user message
+      const userMessage = { role: 'user', content: inputContent };
+      setMessages(prev => [...prev, userMessage]);
+      messagesToSend = [...messages, userMessage];
+      setInputMessage('');
+      setIsProcessing(true);
+    }
 
     // Calculate the assistant message index BEFORE adding it
-    // After adding user message, messages will be: [...oldMessages, userMessage]
-    // After adding assistant placeholder: [...oldMessages, userMessage, assistantPlaceholder]
-    // So assistant index = messages.length (current) + 1 (for assistant message we're about to add)
-    const assistantMessageIndex = messages.length + 1;
-    console.log('🟢 [handleSendMessage] Calculated assistant message index:', assistantMessageIndex);
-    console.log('🟢 [handleSendMessage] Current messages.length:', messages.length);
+    const assistantMessageIndex = messagesToSend.length;
+
+    // Track the current assistant message index for reasoning
+    currentAssistantIndexRef.current = assistantMessageIndex;
 
     // Add a placeholder for the assistant message BEFORE the API call
     // This ensures messageState indices are correct when metaHandler callbacks fire
@@ -548,45 +570,16 @@ const AssistantPage = ({
     // Create a wrapper for handleMessageState that uses the correct index
     const handleMessageStateWithIndex = (state: any) => {
       try {
-        // 🔍 DEBUG: Log state details to diagnose allocation overflow
-        const currentStateKeyCount = Object.keys(messageStateRef.current || {}).length;
-        const incomingStateKeys = Object.keys(state || {});
-        console.log(`🔍 [handleMessageStateWithIndex] Called for index ${assistantMessageIndex}:`, {
-          currentStateKeyCount,
-          incomingStateKeyCount: incomingStateKeys.length,
-          incomingStateKeys: incomingStateKeys.slice(0, 5),
-          hasAgentRun: !!state?.agentRun,
-        });
-
-        if (state?.agentRun) {
-          console.log('🔵 [handleMessageStateWithIndex] AgentRun details:', {
-            sessionId: state.agentRun.sessionId,
-            startTime: state.agentRun.startTime,
-            endTime: state.agentRun.endTime
-          });
-        }
-
         // Update the ref immediately with the current ref value (not stale React state)
         const currentState = messageStateRef.current || {};
         const newState = { ...currentState, [assistantMessageIndex]: state };
-
-        const newStateKeyCount = Object.keys(newState).length;
-        console.log(`🔍 [handleMessageStateWithIndex] After update - newState key count: ${newStateKeyCount}`);
 
         messageStateRef.current = newState;
 
         // Also update React state
         setMessageState(newState);
-
-        console.log(`✅ [handleMessageStateWithIndex] State updated successfully`);
       } catch (e) {
-        console.error('❌ [handleMessageStateWithIndex] Error updating state:', e);
-        console.error('❌ [handleMessageStateWithIndex] Error details:', {
-          errorName: e instanceof Error ? e.name : 'Unknown',
-          errorMessage: e instanceof Error ? e.message : String(e),
-          currentStateKeyCount: Object.keys(messageStateRef.current || {}).length,
-          assistantMessageIndex,
-        });
+        console.error('Error updating message state:', e);
         throw e; // Re-throw to see full stack
       }
     };
@@ -606,12 +599,6 @@ const AssistantPage = ({
                        accountId: defaultAccount?.id, rateLimit: defaultAccount?.rateLimit
                       };
 
-      // Debug: log messages array size to detect potential memory issues
-      const totalContentSize = messages.reduce((acc, m) => acc + (m.content?.length || 0), 0);
-      console.log(`📊 [Request] Sending ${messages.length} messages, total content size: ${totalContentSize} bytes`);
-      if (totalContentSize > 100000) {
-        console.warn(`⚠️ [Request] Large conversation history: ${totalContentSize} bytes`);
-      }
 
       // Send the message to the assistant with conversation history and selected model
       const result = await sendDirectAssistantMessage(
@@ -620,7 +607,7 @@ const AssistantPage = ({
         assistantName,
         inputContent,
         activeModel, // Send the complete model object
-        messages,
+        messagesToSend,
         options,
         messageState,
         handleMessageStateWithIndex, // Use the wrapper with correct index
@@ -659,32 +646,11 @@ const AssistantPage = ({
         const decoder = new TextDecoder();
         let done = false;
 
-        // Set a timeout to check if we're getting any data
-        const streamTimeout = setTimeout(() => {
-          if (chunkCount === 0) {
-            console.warn(`⏰ [Stream] No chunks received after 90 seconds. Stream started ${Date.now() - streamStartTime}ms ago`);
-            // If no chunks have been received after 90 seconds, show a fallback message
-            setMessages(prev => {
-              const newMessages = [...prev];
-              if (newMessages.length > 0 && newMessages[newMessages.length - 1].role === 'assistant') {
-                newMessages[newMessages.length - 1] = {
-                  role: 'assistant',
-                  content: 'I received your message but haven\'t been able to generate a response yet. Please continue to wait a moment or try again.'
-                };
-              }
-              return newMessages;
-            });
-          }
-        }, 90000);
-
-        console.log('🟢 [Stream] Starting to read stream...');
-        console.log('🟢 [Stream] Response status:', response.status, response.statusText);
+        // Stream timeout removed - real errors are caught in the catch block below
 
         // Throttle UI updates to reduce memory pressure from frequent setMessages calls
         let lastUpdateTime = 0;
         const UPDATE_INTERVAL_MS = 50; // Update UI at most every 50ms
-        let lastProgressLog = 0;
-        const PROGRESS_LOG_INTERVAL_MS = 5000; // Log progress every 5 seconds
 
         while (!done) {
           const { value, done: doneReading } = await reader.read();
@@ -697,21 +663,19 @@ const AssistantPage = ({
 
           // If agent run detected in messageState, stop normal streaming and start polling
           if (agentRun && agentRun.sessionId && !agentRun.endTime) {
-            clearTimeout(streamTimeout);
-
             // Start agent polling
             setIsAgentRunning(true);
             setAgentStatus('Starting agent...');
             setResponseStatus('Starting agent...');
 
             try {
-              console.log('🚀 [Stream] Starting agent polling...');
               // Start polling (this function handles everything including setting isProcessing to false)
               await startAgentPolling(agentRun.sessionId);
             } catch (pollingError) {
-              console.error('❌ [Stream] Error during agent polling:', pollingError);
+              console.error('Error during agent polling:', pollingError);
               // startAgentPolling handles its own error display in messages
             }
+            sendingRef.current = false; // Reset before early return
             return; // Exit early, agent polling handles cleanup
           }
 
@@ -723,39 +687,10 @@ const AssistantPage = ({
               largestChunkSize = rawChunkSize;
             }
 
-            // Log first chunk details
-            if (chunkCount === 1) {
-              console.log(`🟢 [Stream] First chunk received after ${Date.now() - streamStartTime}ms, size: ${rawChunkSize} bytes`);
-            }
-
-            // Log if individual chunk is suspiciously large
-            if (rawChunkSize > 100000) {
-              console.warn(`⚠️ [Stream] Large chunk #${chunkCount}: ${rawChunkSize} bytes`);
-            }
-
             const chunkValue = decoder.decode(value, { stream: true });
-
-            // Debug: track text size to catch allocation overflow early
-            const prevLength = text.length;
             text += chunkValue;
 
-            // Periodic progress logging
             const now = Date.now();
-            if (now - lastProgressLog >= PROGRESS_LOG_INTERVAL_MS) {
-              lastProgressLog = now;
-              console.log(`📊 [Stream] Progress: ${chunkCount} chunks, ${totalBytesReceived} bytes received, text length: ${text.length}, elapsed: ${now - streamStartTime}ms`);
-            }
-
-            // Log warning if text is getting large
-            if (text.length > 100000 && prevLength <= 100000) {
-              console.warn(`⚠️ [Stream] Text exceeded 100KB: ${text.length} bytes, chunk count: ${chunkCount}, raw bytes: ${totalBytesReceived}`);
-            }
-            if (text.length > 500000 && prevLength <= 500000) {
-              console.warn(`⚠️ [Stream] Text exceeded 500KB: ${text.length} bytes, chunk count: ${chunkCount}, raw bytes: ${totalBytesReceived}`);
-            }
-            if (text.length > 1000000 && prevLength <= 1000000) {
-              console.error(`🚨 [Stream] Text exceeded 1MB: ${text.length} bytes, chunk count: ${chunkCount}, raw bytes: ${totalBytesReceived}`);
-            }
             if (now - lastUpdateTime >= UPDATE_INTERVAL_MS) {
               lastUpdateTime = now;
               // Update the assistant message as it streams in
@@ -775,17 +710,6 @@ const AssistantPage = ({
           }
         }
 
-        // Log stream completion stats
-        const streamDuration = Date.now() - streamStartTime;
-        console.log(`✅ [Stream] Complete:`, {
-          duration: `${streamDuration}ms`,
-          chunks: chunkCount,
-          totalBytesReceived: `${totalBytesReceived} bytes (${(totalBytesReceived / 1024).toFixed(1)} KB)`,
-          largestChunk: `${largestChunkSize} bytes`,
-          finalTextLength: `${text.length} bytes (${(text.length / 1024).toFixed(1)} KB)`,
-          avgChunkSize: chunkCount > 0 ? `${Math.round(totalBytesReceived / chunkCount)} bytes` : 'N/A'
-        });
-
         // Final update to ensure last content is displayed
         setMessages(prev => {
           const newMessages = [...prev];
@@ -798,11 +722,8 @@ const AssistantPage = ({
           return newMessages;
         });
 
-        clearTimeout(streamTimeout);
-
         // If we got here but didn't receive any chunks, add a fallback message
         if (chunkCount === 0) {
-          console.warn('⚠️ [Stream] Completed but no chunks were received');
           setMessages(prev => {
             const newMessages = [...prev];
             if (newMessages.length > 0 && newMessages[newMessages.length - 1].role === 'assistant') {
@@ -832,25 +753,7 @@ const AssistantPage = ({
         }
       } catch (streamError) {
         const errorMessage = streamError instanceof Error ? streamError.message : String(streamError);
-        const errorName = streamError instanceof Error ? streamError.name : 'Unknown';
-
-        // 🚨 Enhanced error logging
-        console.error(`❌ [Stream] Error processing stream:`, {
-          errorName,
-          errorMessage,
-          errorType: streamError?.constructor?.name,
-          textLengthAtError: text?.length || 0,
-          chunkCountAtError: chunkCount,
-          totalBytesAtError: totalBytesReceived,
-          elapsedMs: Date.now() - streamStartTime,
-          isAllocationError: errorMessage.includes('allocation'),
-          fullError: streamError
-        });
-
-        // Log stack trace separately for better visibility
-        if (streamError instanceof Error && streamError.stack) {
-          console.error(`❌ [Stream] Stack trace:`, streamError.stack);
-        }
+        console.error('Error processing stream:', streamError);
 
         const isAbortError = errorMessage.includes('abort') || errorMessage.includes('aborted');
 
@@ -888,14 +791,21 @@ const AssistantPage = ({
       // Agent polling handles its own cleanup
       if (!isAgentRunning) {
         // Save any remaining reasoning text to the message
-        if (reasoningText) {
-          const currentMessageIndex = messages.length;
-          setMessageReasoning(prev => ({ ...prev, [currentMessageIndex]: reasoningText }));
+        if (reasoningTextRef.current && currentAssistantIndexRef.current !== null) {
+          const index = currentAssistantIndexRef.current;
+          const reasoning = reasoningTextRef.current; // Capture before setState
+          setMessageReasoning(prev => {
+            const updated = { ...prev, [index]: reasoning }; // Use captured value
+            return updated;
+          });
         }
         setIsProcessing(false);
         setResponseStatus('');
         setAstResponding('');
         setReasoningText('');
+        reasoningTextRef.current = '';
+        currentAssistantIndexRef.current = null; // Clear the ref
+        sendingRef.current = false; // Reset sending flag
       }
     }
   };
@@ -1022,14 +932,14 @@ const AssistantPage = ({
 
   const handleSaveEdit = () => {
     if (editing !== null) {
-      const updatedMessages = [...messages.slice(0, editing)];
+      // Keep messages up to and including the edited message, then update it
+      const updatedMessages = [...messages.slice(0, editing + 1)];
 
       updatedMessages[editing] = {
         ...updatedMessages[editing],
         content: editedContent,
         role: 'user'
       };
-      setMessages(updatedMessages);
 
       // Clear reasoning for messages after the edit point
       const newReasoning: { [key: number]: string } = {};
@@ -1043,9 +953,10 @@ const AssistantPage = ({
       setExpandedReasoning({});
 
       setEditing(null);
-      handleSendMessage(editedContent);
-    }
 
+      // Use handleSendMessage with messagesOverride to avoid duplication
+      handleSendMessage(editedContent, updatedMessages);
+    }
   };
 
   const handleDeleteMessage = (index: number) => {
@@ -1086,14 +997,9 @@ const AssistantPage = ({
   };
 
   const handleCopyMessage = (content: string) => {
-    navigator.clipboard.writeText(content)
-      .then(() => {
-        // Show toast or feedback
-        console.log('Copied to clipboard');
-      })
-      .catch(err => {
-        console.error('Failed to copy: ', err);
-      });
+    navigator.clipboard.writeText(content).catch(err => {
+      console.error('Failed to copy: ', err);
+    });
   };
 
   const handleDownloadMessage = (content: string) => {
@@ -1117,7 +1023,6 @@ const AssistantPage = ({
     // If agent is running, trigger kill event for agent polling
     if (isAgentRunning) {
       window.dispatchEvent(new Event('killChatRequest'));
-      console.log('Dispatched killChatRequest event to abort agent polling');
     }
 
     // Reset all state
@@ -1318,24 +1223,31 @@ const AssistantPage = ({
                         {editing === index ? (
                           <>
                           <textarea
-                            className="w-full p-3 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-[#40414f] text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all resize-none"
+                            className="w-full p-4 border-2 border-blue-400 dark:border-blue-500 rounded-lg bg-white dark:bg-[#40414f] text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-600 dark:focus:border-blue-400 shadow-lg transition-all resize-y text-base leading-relaxed"
                             value={editedContent}
                             id="editUserMessage"
                             onChange={(e) => setEditedContent(e.target.value)}
-                            rows={4}
+                            rows={Math.max(10, Math.ceil(editedContent.length / 80))}
                             placeholder="Edit your message..."
-                            
+                            autoFocus
+                            style={{
+                              minHeight: '200px',
+                              maxHeight: '500px',
+                              width: editedContent.length > 500 ? window.innerWidth / 2: '100%',
+                              fontSize: '15px',
+                              lineHeight: '1.6'
+                            }}
                           />
                           <div className="flex justify-end mt-3 space-x-2">
                           <button
-                            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 rounded-md text-xs font-medium transition-colors duration-200 flex items-center border border-transparent dark:border-gray-700"
+                            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center border border-transparent dark:border-gray-700"
                             id="cancelEdit"
                             onClick={() => setEditing(null)}
                           >
                             Cancel
                           </button>
                           <button
-                            className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:hover:bg-blue-800/60 dark:text-blue-200 rounded-md text-xs font-medium transition-colors duration-200 flex items-center border border-blue-200 dark:border-blue-800"
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center shadow-md"
                             id="saveEdit"
                             onClick={handleSaveEdit}
                           >
@@ -1379,6 +1291,8 @@ const AssistantPage = ({
                 ) : (
                   <>
                     <div className="w-full">
+                      
+
                       <div className="amplify-assistant-message rounded-lg inline-block">
                         <AssistantContentBlock
                           message={message}
@@ -1388,27 +1302,6 @@ const AssistantPage = ({
                           messageEndRef={messageEndRef}
                         />
                       </div>
-
-                      {/* Collapsible thinking section */}
-                      {messageReasoning[index] && (
-                        <div className="mt-2">
-                          <button
-                            onClick={() => setExpandedReasoning(prev => ({ ...prev, [index]: !prev[index] }))}
-                            className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
-                          >
-                            <IconBrain size={14} />
-                            <span>{expandedReasoning[index] ? 'Hide' : 'View'} Thinking</span>
-                            {expandedReasoning[index] ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
-                          </button>
-                          {expandedReasoning[index] && (
-                            <div className="mt-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 px-4 py-3 rounded-lg">
-                              <div className="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
-                                {messageReasoning[index]}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
 
                     {/* Assistant message action buttons */}
@@ -1437,8 +1330,31 @@ const AssistantPage = ({
                         >
                           <IconMail size={16} />
                         </ActionButton>
+                        {/* Collapsible thinking section */}
+                      {messageReasoning[index] && (
+                        <div className="relative ml-4 mt-1">
+                          <button
+                            onClick={() => setExpandedReasoning(prev => ({ ...prev, [index]: !prev[index] }))}
+                            className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                          >
+                            <IconBrain size={16} />
+                            <span>{expandedReasoning[index] ? 'Hide' : 'View'} Thinking</span>
+                            {expandedReasoning[index] ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+                          </button>
+                          {expandedReasoning[index] && (
+                            <div className="absolute left-0 top-full mt-1 z-10 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 px-4 py-3 rounded-lg shadow-lg"
+                                 style={{width: window.innerWidth * 0.6}}>
+                              <div className="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap max-h-[400px] overflow-y-auto">
+                                {messageReasoning[index]}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       </div>
                     )}
+
+                    
                   </>
                 )}
               </div>

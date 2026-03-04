@@ -166,21 +166,6 @@ export const sendDirectAssistantMessage = async (
     // Add the current message to the history
     const allMessages = [...formattedPreviousMessages, userMessage];
 
-    // 🔍 DEBUG: Log message history details
-    const totalContentSize = allMessages.reduce((acc, m) => acc + (m.content?.length || 0), 0);
-    const largestMessage = allMessages.reduce((max, m) => Math.max(max, m.content?.length || 0), 0);
-    console.log(`🔍 [assistantService] Preparing request:`, {
-      messageCount: allMessages.length,
-      totalContentSize: `${totalContentSize} bytes (${(totalContentSize / 1024).toFixed(1)} KB)`,
-      largestMessageSize: `${largestMessage} bytes`,
-      modelId: model?.id,
-      maxTokens: model?.outputTokenLimit || 4000
-    });
-
-    if (totalContentSize > 50000) {
-      console.warn(`⚠️ [assistantService] Large message history detected: ${(totalContentSize / 1024).toFixed(1)} KB`);
-    }
-
     const chatBody = {
       model: model,
       prompt: DEFAULT_SYSTEM_PROMPT,
@@ -193,6 +178,7 @@ export const sendDirectAssistantMessage = async (
       skipRag: false,
       skipCodeInterpreter: false,
       disableReasoning: true,
+      enableWebSearch: false, // for now
       skipMemory: true, // Skip memory processing
       ...options,
     };
@@ -218,16 +204,8 @@ export const sendDirectAssistantMessage = async (
           // 🔍 DEBUG: Log sizes before deepMerge to find allocation overflow source
           const messageStateKeys = Object.keys(messageState || {});
           const stateKeys = Object.keys(state || {});
-          console.log(`🔍 [assistantService.state] Before deepMerge:`, {
-            messageStateKeyCount: messageStateKeys.length,
-            incomingStateKeyCount: stateKeys.length,
-            incomingStateKeys: stateKeys.slice(0, 10), // First 10 keys
-          });
 
           const mergedState = deepMerge(messageState, state);
-
-          console.log(`🔍 [assistantService.state] After deepMerge - merged key count:`, Object.keys(mergedState || {}).length);
-
           handleMessageState(mergedState);
         } catch (e) {
           console.error('❌ [assistantService] Error in state handler:', e);
@@ -240,13 +218,10 @@ export const sendDirectAssistantMessage = async (
     };
 
     console.log(`🚀 [assistantService] Sending request to ${chatEndpoint}...`);
-    const requestStartTime = Date.now();
 
     // @ts-ignore
     const response = await sendChatRequestWithDocuments(chatEndpoint, session.accessToken, chatBody, controller.signal, metaHandler);
 
-    console.log(`✅ [assistantService] Request completed in ${Date.now() - requestStartTime}ms, status: ${response.status}`);
-    
     return {
       success: response.ok,
       response
@@ -402,7 +377,6 @@ export const getSiteMapUrls = async (sitemap: string, maxPages?: number) => {
   if (maxPages) {
     data.maxPages = maxPages;
   }
-  console.log("data", data);
   const op = {
       method: 'POST',
       path: URL_PATH,

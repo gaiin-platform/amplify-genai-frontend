@@ -739,6 +739,9 @@ export function useSendService() {
                                     value: updatedConversation,
                                 });
                             } catch (error: any) {
+                                console.error(`❌ [STREAM] Error name: ${error?.name}, message: ${error?.message}`);
+                                console.error(`❌ [STREAM] Error stack:`, error?.stack);
+
                                 if (selectedConversation.isLocal) {
                                     const updatedConversations: Conversation[] = conversationsRef.current.map(
                                         (conversation: Conversation) => {
