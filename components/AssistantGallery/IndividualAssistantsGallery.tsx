@@ -356,9 +356,9 @@ export const IndividualAssistantsGallery: FC = () => {
                                                     )}
 
                                                     {/* Edit/View Icon Button - Bottom Right */}
-                                                    <button
+                                                    <div
                                                         onClick={(e) => handleOpenModal(e, assistant)}
-                                                        className={`absolute bottom-3 right-3 p-2 rounded-lg bg-white dark:bg-gray-700 border-2 border-indigo-500 dark:border-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200 z-20 ${
+                                                        className={`absolute bottom-3 right-3 p-2 rounded-lg bg-white dark:bg-gray-700 border-2 border-indigo-500 dark:border-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200 z-20 cursor-pointer ${
                                                             hoveredAssistantId === assistant.id ? 'opacity-100' : 'opacity-0 pointer-events-none'
                                                         }`}
                                                         title={isEditable ? "Edit Assistant" : "View Assistant"}
@@ -368,7 +368,7 @@ export const IndividualAssistantsGallery: FC = () => {
                                                         ) : (
                                                             <IconEye size={16} className="text-indigo-500 dark:text-indigo-400" />
                                                         )}
-                                                    </button>
+                                                    </div>
                                                 </div>
                                             </button>
                                         );
@@ -386,7 +386,11 @@ export const IndividualAssistantsGallery: FC = () => {
                     assistant={selectedAssistant}
                     onCancel={() => setShowModal(false)}
                     onSave={() => setShowModal(false)}
-                    onUpdateAssistant={() => { } } loadingMessage={''} loc={''}                />
+                    onUpdateAssistant={() => { }}
+                    loadingMessage={''}
+                    loc={''}
+                    disableEdit={!canEdit(selectedAssistant)}
+                />
             )}
         </div>
     );
