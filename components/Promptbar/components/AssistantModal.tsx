@@ -1242,7 +1242,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                            
                             <div className="mt-6 h-0 text-center flex items-center justify-center gap-2 w-full">
                                 <IconAlertTriangle size={16} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                                <p className="text-xs text-blue-700 dark:text-blue-300">
+                                <p className="text-xs text-blue-700 dark:text-blue-500">
                                 {"When making changes to the assistant's data sources, please allow a few minutes after saving for the updates to take effect."}
                                 </p>
                             </div>
@@ -1445,14 +1445,16 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             { definition.dataSources?.length > 0  &&
                              <div className="mt-4">
                                 <br></br>
-                                <ExistingFileList 
+                                <ExistingFileList
                                     label={'Assistant Data Sources'}
                                     allowRemoval={!disableEdit}
+                                    allowResize={true}
+                                    groupId={assistant.groupId}
                                     documents={dataSources.filter((ds:AttachedDocument) => (preexistingDocumentIds.includes(ds.id)))} 
                                     setDocuments={(docs) => {
                                         const newDocs = dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)));
                                         setDataSources([...docs, ...newDocs] as any[]);
-                                    }} 
+                                    }}
                                     onRemoval={(doc) => {
                                         // since websites are assistant specific scraped data sources we need to delete upon removal
                                         if (isWebsiteDs(doc) ) {
