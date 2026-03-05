@@ -87,6 +87,19 @@ export function getDisallowedExtensionsForModel(supportsImages: boolean = true, 
     return getDisallowedExtensions(supportsImages, supportsVideo);
 }
 /**
+ * Check if an AttachedDocument is an image file based on its name or type
+ */
+export function isImageFile(doc: AttachedDocument): boolean {
+    const extension = getFileExtension(doc.name);
+    if (extension && IMAGE_FILE_EXTENSIONS.includes(extension)) {
+        return true;
+    }
+    if (doc.type && IMAGE_FILE_TYPES.includes(doc.type)) {
+        return true;
+    }
+    return false;
+}
+/**
  * Validate a file based on the provided options
  */
 export function validateFile(

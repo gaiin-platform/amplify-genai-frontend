@@ -131,8 +131,6 @@ export const handleFile = async (file: any,
         if (uploadDocuments) {
             try {
                 const { key, response, statusUrl, metadataUrl, contentUrl, abortController } = await addFile(document, file,
-                    console.log('[UPLOAD DEBUG] Starting addFile for:', document.name, 'type:', document.type);
-                const { key, response, statusUrl, metadataUrl, contentUrl, abortController } = await addFile(document, file,
                     (progress: number) => {
                         if (onUploadProgress && progress < 95) {
                             onUploadProgress(document, progress);
