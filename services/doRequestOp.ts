@@ -60,6 +60,8 @@ export const doRequestOp = async (opData: opData, abortSignal = null) => {
 
             opData.url = `http://localhost:${port}/${stage}${opData.path}${opData.op}`;
             console.log("Function running locally at:", opData.url);
+            // Store original path for compression check before clearing
+            (opData as any).originalPath = opData.path;
             opData.path = "";
             opData.op = "";
         }

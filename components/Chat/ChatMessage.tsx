@@ -10,7 +10,7 @@ import {
     IconHighlight,
     IconLibrary,
 } from '@tabler/icons-react';
-import React, {FC, memo, useContext, useEffect, useRef, useState} from 'react';
+import React, {FC, memo, useCallback, useContext, useEffect, useRef, useState} from 'react';
 import {useTranslation} from 'next-i18next';
 import {isRemoteConversation, saveConversations, updateConversation} from '@/utils/app/conversation';
 import {Conversation, DataSource, Message} from '@/types/chat';
@@ -43,6 +43,7 @@ import RagEvaluationBlock from './ChatContentBlocks/RagEvaluationBlock';
 import { AssistantReasoningMessage } from './ChatContentBlocks/AssistantReasoningMessage';
 import { LargeTextDisplay } from './LargeTextDisplay';
 import { generatePlaceholderText } from '@/utils/app/largeText';
+import { MCPToolResultBlock } from './ChatContentBlocks/MCPToolResultBlock';
 
 export interface Props {
     message: Message;
@@ -99,6 +100,14 @@ export const ChatMessage: FC<Props> = memo(({
 
     const markdownComponentRef = useRef<HTMLDivElement>(null);
 
+    // Callback ref to set both divRef and markdownComponentRef
+    const setContentRef = useCallback((el: HTMLDivElement | null) => {
+        // @ts-ignore - We need to set both refs to the same element
+        divRef.current = el;
+        // @ts-ignore - We need to set both refs to the same element
+        markdownComponentRef.current = el;
+    }, []);
+
     const [isDownloadDialogVisible, setIsDownloadDialogVisible] = useState<boolean>(false);
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const [isTyping, setIsTyping] = useState<boolean>(false);
@@ -111,6 +120,10 @@ export const ChatMessage: FC<Props> = memo(({
     const [isHighlightDisplay, setIsHighlightDisplay] = useState(false);
 
     const [feedbackText, setFeedbackText] = useState('');
+    const [showCopyMenu, setShowCopyMenu] = useState(false);
+    const [copyMenuPosition, setCopyMenuPosition] = useState({ x: 0, y: 0 });
+    const copyMenuRef = useRef<HTMLDivElement>(null);
+    const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const assistantRecipient = (message.role === "user" && message.data && message.data.assistant) ?
         message.data.assistant : null;
@@ -252,9 +265,66 @@ export const ChatMessage: FC<Props> = memo(({
         if (isRemoteConversation(updatedConversation)) uploadConversation(updatedConversation, foldersRef.current);
     };
 
-    const copyOnClick = () => {
-        if (!navigator.clipboard) return;
+    // Copy formatted text with rich formatting preserved (like manual copy)
+    const copyFormattedText = () => {
+        if (!markdownComponentRef.current) {
+            // Fallback to raw content if ref not available
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(message.content);
+            }
+            return;
+        }
 
+        try {
+            // Create a range and selection to copy the content with formatting
+            const range = document.createRange();
+            range.selectNodeContents(markdownComponentRef.current);
+
+            const selection = window.getSelection();
+            if (!selection) return;
+
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            // Execute copy command - this preserves rich text formatting
+            document.execCommand('copy');
+
+            // Clear selection
+            selection.removeAllRanges();
+
+            setMessageCopied(true);
+            setTimeout(() => {
+                setMessageCopied(false);
+            }, 2000);
+        } catch (error) {
+            console.error('Copy failed:', error);
+            // Fallback to plain text
+            if (navigator.clipboard && markdownComponentRef.current) {
+                navigator.clipboard.writeText(markdownComponentRef.current.innerText || message.content);
+            }
+        }
+
+        setShowCopyMenu(false);
+    };
+
+    const copyRawMarkdown = () => {
+        if (!navigator.clipboard) return;
+        navigator.clipboard.writeText(message.content).then(() => {
+            setMessageCopied(true);
+            setTimeout(() => {
+                setMessageCopied(false);
+            }, 2000);
+        });
+        setShowCopyMenu(false);
+    };
+
+    const copyOnClick = () => {
+        // Default behavior: copy formatted text
+        copyFormattedText();
+    };
+
+    const copyUserMessage = () => {
+        if (!navigator.clipboard) return;
         navigator.clipboard.writeText(message.content).then(() => {
             setMessageCopied(true);
             setTimeout(() => {
@@ -262,6 +332,89 @@ export const ChatMessage: FC<Props> = memo(({
             }, 2000);
         });
     };
+
+    const calculateMenuPosition = (buttonElement: HTMLElement) => {
+        const rect = buttonElement.getBoundingClientRect();
+        const menuWidth = 180;
+        const menuHeight = 80;
+        const padding = 10;
+
+        // Start position: bottom-left of button
+        let x = rect.left;
+        let y = rect.bottom + 5;
+
+        // If menu would go off right edge, align to right side of button
+        if (x + menuWidth > window.innerWidth) {
+            x = rect.right - menuWidth;
+        }
+
+        // If menu would go off bottom edge, position above button
+        if (y + menuHeight > window.innerHeight) {
+            y = rect.top - menuHeight - 5;
+        }
+
+        // Ensure menu doesn't go off left edge
+        if (x < padding) {
+            x = padding;
+        }
+
+        // Ensure menu doesn't go off top edge
+        if (y < padding) {
+            y = padding;
+        }
+
+        return { x, y };
+    };
+
+    const handleCopyHoverStart = (e: React.MouseEvent<HTMLButtonElement>) => {
+        const button = e.currentTarget;
+
+        // Clear any existing timeout
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+        }
+
+        // Set timeout to show menu after 500ms
+        hoverTimeoutRef.current = setTimeout(() => {
+            const position = calculateMenuPosition(button);
+            setCopyMenuPosition(position);
+            setShowCopyMenu(true);
+        }, 500);
+    };
+
+    const handleCopyHoverEnd = () => {
+        // Clear timeout if user stops hovering before menu shows
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+            hoverTimeoutRef.current = null;
+        }
+
+        // Add a small delay before hiding to allow moving to menu
+        setTimeout(() => {
+            // Check if mouse is over the menu
+            if (copyMenuRef.current) {
+                const isHoveringMenu = copyMenuRef.current.matches(':hover');
+                if (!isHoveringMenu) {
+                    setShowCopyMenu(false);
+                }
+            } else {
+                setShowCopyMenu(false);
+            }
+        }, 100);
+    };
+
+    const handleMenuMouseLeave = () => {
+        setShowCopyMenu(false);
+    };
+
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+            }
+        };
+    }, []);
 
 
     // needed to avoid editing bug when switching between conversations
@@ -606,12 +759,12 @@ export const ChatMessage: FC<Props> = memo(({
                                         {messagedCopied ? (
                                             <IconCheck
                                                 size={20}
-                                                className="text-green-500 dark:text-green-400"
+                                                className="ml-1 text-green-500 dark:text-green-400"
                                             />
                                         ) : (
                                             <button
                                                 className={"enhanced-chat-icon-button"}
-                                                onClick={copyOnClick}
+                                                onClick={copyUserMessage}
                                                 title="Copy Prompt"
                                                 id="copyPrompt"
                                             >
@@ -665,7 +818,7 @@ export const ChatMessage: FC<Props> = memo(({
                             )}
                         </div>
                     ) : ( // Assistant message
-                        <div className="flex flex-col w-full" ref={markdownComponentRef}>
+                        <div className="flex flex-col w-full">
                             <div className="flex flex-row w-full">
                                 <div className="flex flex-col w-full">
                                     {(selectedConversation?.messages?.length === messageIndex + 1) && (
@@ -693,8 +846,7 @@ export const ChatMessage: FC<Props> = memo(({
                                     {!isEditing && !isHighlightDisplay && (
                                       <>
                                           <div className="flex flex-grow"
-                                               
-                                               ref={divRef}
+                                               ref={setContentRef}
                                           >
                                             <ChatContentBlock
                                                 messageIsStreaming={messageIsStreaming}
@@ -710,6 +862,18 @@ export const ChatMessage: FC<Props> = memo(({
                                             message={message}
                                             conversationId={selectedConversation?.id || ""}
                                           />
+
+                                          {/* Render MCP Tool Results with images and rich content */}
+                                          {featureFlags.mcp && message.data?.mcpToolResults && message.data.mcpToolResults.length > 0 && (
+                                            <div className="mcp-tool-results my-4">
+                                              {message.data.mcpToolResults.map((result: any, idx: number) => (
+                                                <MCPToolResultBlock
+                                                  key={idx}
+                                                  result={result}
+                                                />
+                                              ))}
+                                            </div>
+                                          )}
 
                                           {featureFlags.artifacts &&
                                             <ArtifactsBlock
@@ -765,13 +929,14 @@ export const ChatMessage: FC<Props> = memo(({
                                     {messagedCopied ? (
                                         <IconCheck
                                             size={20}
-                                            className="text-green-500 dark:text-green-400"
+                                            className="ml-1 text-green-500 dark:text-green-400"
                                         />
                                     ) : (
                                         <button
                                         className={"enhanced-chat-icon-button"}
                                             onClick={copyOnClick}
-                                            title="Copy Response"
+                                            onMouseEnter={handleCopyHoverStart}
+                                            onMouseLeave={handleCopyHoverEnd}
                                             id="copyResponse"
                                         >
                                             <IconCopy size={20}/>
@@ -876,6 +1041,35 @@ export const ChatMessage: FC<Props> = memo(({
                 </div>
 
             </div>
+
+            {/* Copy Context Menu */}
+            {showCopyMenu && (
+                <div
+                    ref={copyMenuRef}
+                    className="fixed bg-white dark:bg-[#343541] border border-gray-200 dark:border-gray-600 rounded-md shadow-xl z-[100] min-w-[180px]"
+                    style={{
+                        top: `${copyMenuPosition.y}px`,
+                        left: `${copyMenuPosition.x}px`,
+                    }}
+                    onMouseLeave={handleMenuMouseLeave}
+                >
+                    <button
+                        className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-[#40414f] text-sm flex items-center gap-2 text-gray-800 dark:text-gray-200 transition-colors"
+                        onClick={copyFormattedText}
+                    >
+                        <IconCopy size={16} />
+                        <span className="whitespace-nowrap">Copy Formatted</span>
+                    </button>
+                    <div className="border-t border-gray-200 dark:border-gray-600"></div>
+                    <button
+                        className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-[#40414f] text-sm flex items-center gap-2 text-gray-800 dark:text-gray-200 transition-colors"
+                        onClick={copyRawMarkdown}
+                    >
+                        <IconCopy size={16} />
+                        <span className="whitespace-nowrap">Copy Markdown</span>
+                    </button>
+                </div>
+            )}
         </div>
     );
 });

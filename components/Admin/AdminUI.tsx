@@ -17,7 +17,7 @@ import { OpenAIEndpointsTab } from "./AdminComponents/OpenAIEndpoints";
 import { FeatureFlagsTab } from "./AdminComponents/FeatureFlags";
 import { emptySupportedModel, SupportedModelsTab } from "./AdminComponents/SupportedModels";
 import { ConfigurationsTab } from "./AdminComponents/Configurations";
-import { Integration, IntegrationProviders, integrationProviders, integrationProvidersList, IntegrationSecretsMap, IntegrationsMap, ProviderSettingsMap } from "@/types/integrations";
+import { Integration, IntegrationProviders, integrationProviders, integrationProvidersList, IntegrationSecretsMap, IntegrationsMap, ProviderSettingsMap, AdminWebSearchConfig } from "@/types/integrations";
 import { checkActiveIntegrations } from "@/services/oauthIntegrationsService";
 import { IntegrationsTab } from "./AdminComponents/Integrations";
 import { EmbeddingsTab } from "./AdminComponents/Embeddings";
@@ -77,8 +77,9 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     const [features, setFeatures] = useState<FeatureFlagConfig>({}); 
 
-    const [appVars, setAppVars] = useState<{ [key: string]: string }>({});    
-    const [appSecrets, setAppSecrets] = useState<{ [key: string]: string }>({});  
+    const [appVars, setAppVars] = useState<{ [key: string]: string }>({});
+    const [appSecrets, setAppSecrets] = useState<{ [key: string]: string }>({});
+    const [userDocumentationUrl, setUserDocumentationUrl] = useState<string>('');
     const [refreshingTypes, setRefreshingTypes] = useState< AdminConfigTypes[]>([]);
 
 
@@ -99,6 +100,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [integrations, setIntegrations] = useState<IntegrationsMap | null >(null);
     const [integrationSecrets, setIntegrationSecrets] = useState<IntegrationSecretsMap>({});
     const [providerSettings, setProviderSettings] = useState<ProviderSettingsMap>({});
+    const [webSearchConfig, setWebSearchConfig] = useState<AdminWebSearchConfig | null>(null);
     const [hasChildModalOpen, setHasChildModalOpen] = useState<boolean>(false);
 
     const mergeIntegrationLists = ( supported: Integration[] | undefined,
@@ -196,6 +198,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 setCriticalErrorsConfig(data[AdminConfigTypes.CRITICAL_ERRORS] || criticalErrorsConfig);
                 setAiEmailDomain(data[AdminConfigTypes.AI_EMAIL_DOMAIN] || aiEmailDomain);
                 setDefaultModels(data[AdminConfigTypes.DEFAULT_MODELS] || {});
+                setWebSearchConfig(data[AdminConfigTypes.WEB_SEARCH] || null);
+                setUserDocumentationUrl(data[AdminConfigTypes.USER_DOCUMENTATION_URL] || '');
                 setLoadingMessage("");
             
                 const nonlazyResult = await nonlazyReq;
@@ -347,6 +351,27 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     integrations: integrations,
                     provider_settings: providerSettings
                 };
+            case AdminConfigTypes.WEB_SEARCH:
+                // Return null to remove the config, otherwise send the configuration
+                if (!webSearchConfig) return null;
+
+                const configData: any = {
+                    allowUserWebSearchKeys: webSearchConfig.allowUserWebSearchKeys
+                };
+
+                // Only include provider if it's set
+                if (webSearchConfig.provider) {
+                    configData.provider = webSearchConfig.provider;
+                }
+
+                // Include api_key if it exists (new/updated key)
+                if ('api_key' in webSearchConfig && webSearchConfig.api_key) {
+                    configData.api_key = webSearchConfig.api_key;
+                }
+
+                return configData;
+            case AdminConfigTypes.USER_DOCUMENTATION_URL:
+                return userDocumentationUrl;
             case AdminConfigTypes.OPENAI_ENDPOINTS:
                 const toTest:{key: string, url: string, model:string}[] = [];
                 
@@ -459,6 +484,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             let flags: any = result.data;
             homeDispatch({ field: 'featureFlags', value: flags});
             localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
+            window.dispatchEvent(new Event('updateFeatureSettings'));
         }
     }
 
@@ -499,9 +525,12 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
         saveAction([AdminConfigTypes.FEATURE_FLAGS], saveUpdateFeatureFlags);
         saveAction([AdminConfigTypes.AVAILABLE_MODELS, AdminConfigTypes.DEFAULT_MODELS], saveUpdateAvailableModels);
-        saveAction([AdminConfigTypes.PPTX_TEMPLATES], saveUpdatePptx); 
+        saveAction([AdminConfigTypes.PPTX_TEMPLATES], saveUpdatePptx);
         saveAction([AdminConfigTypes.EMAIL_SUPPORT], () => homeDispatch({ field: 'supportEmail', value: emailSupport.email}));
         saveAction([AdminConfigTypes.AI_EMAIL_DOMAIN], () => homeDispatch({ field: 'aiEmailDomain', value: aiEmailDomain}));
+        saveAction([AdminConfigTypes.PROMPT_COST_ALERT], () => homeDispatch({ field: 'promptCostAlert', value: promptCostAlert}));
+        saveAction([AdminConfigTypes.WEB_SEARCH], () => homeDispatch({ field: 'canAddWebSearchApiKey', value: webSearchConfig?.allowUserWebSearchKeys ?? false}));
+        saveAction([AdminConfigTypes.USER_DOCUMENTATION_URL], () => homeDispatch({ field: 'userDocumentationUrl', value: userDocumentationUrl}));
         if (!storageSelection) saveAction([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () => homeDispatch({ field: 'storageSelection', value: defaultConversationStorage})); 
     }
 
@@ -755,6 +784,29 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             />      
                         </div> : <>No Application Variables Retrieved</>}
                 </div>
+
+                <br className="mt-4"></br>
+
+                <div className="admin-style-settings-card">
+                    <div className="admin-style-settings-card-header">
+                        <div className="flex flex-row items-center gap-3 mb-2">
+                            <h3 className="admin-style-settings-card-title">User Documentation URL</h3>
+                        </div>
+                        <p className="admin-style-settings-card-description">Configure the URL for user documentation (displayed when userDocumentation feature flag is enabled)</p>
+                    </div>
+                    <div className="mx-4">
+                        <input
+                            type="text"
+                            placeholder="https://your-documentation-url.com"
+                            value={userDocumentationUrl}
+                            onChange={(e) => {
+                                setUserDocumentationUrl(e.target.value);
+                                updateUnsavedConfigs(AdminConfigTypes.USER_DOCUMENTATION_URL);
+                            }}
+                            className="w-full rounded border border-neutral-500 px-4 py-2 dark:bg-[#40414F] dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
+                        />
+                    </div>
+                </div>
                 </>
             },
 
@@ -856,8 +908,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
             ///////////////////////////////////////////////////////////////////////////////
   
-            // Integrations Tab - only included if included in the feature flags list
-            ...(integrations ? 
+            // Integrations Tab - only included if integrations are deployed or webSearch is enabled
+            ...(integrations || featureFlags.webSearch || features.webSearch?.enabled ?
                 [
                 {label: tabTitle("Integrations"),
                     content:
@@ -867,8 +919,6 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         setIntegrations={setIntegrations}
                         integrationSecrets={integrationSecrets}
                         setIntegrationSecrets={setIntegrationSecrets}
-                        providerSettings={providerSettings}
-                        setProviderSettings={setProviderSettings}
                         azureAdminConsentProvided={providerSettings[integrationProviders.Microsoft]?.azure_admin_consent_provided || false}
                         setAzureAdminConsentProvided={(value: boolean) => {
                             const updated = {
@@ -879,6 +929,11 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             updateUnsavedConfigs(AdminConfigTypes.INTEGRATIONS);
                         }}
                         updateUnsavedConfigs={updateUnsavedConfigs}
+                        webSearchConfig={webSearchConfig}
+                        setWebSearchConfig={(config: AdminWebSearchConfig | null) => {
+                            setWebSearchConfig(config);
+                            updateUnsavedConfigs(AdminConfigTypes.WEB_SEARCH);
+                        }}
                     />
                 }
                 ] : []),
@@ -1071,7 +1126,7 @@ export interface Amplify_Groups {
 export interface PromptCostAlert {
     isActive: boolean;
     alertMessage: string;
-    cost: Number;
+    cost: number;
 }
 
 export interface EmailSupport {

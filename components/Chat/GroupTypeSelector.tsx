@@ -1,4 +1,4 @@
-import { FC, useState } from 'react';
+import { FC, useEffect, useState } from 'react';
 
 import { AstGroupTypeData } from '@/types/groups';
 import { IconExclamationCircle } from '@tabler/icons-react';
@@ -17,6 +17,23 @@ export const GroupTypeSelector: FC<Props> = ({ groupOptionsData, setSelected, gr
         setSelectedOption(option);
         setSelected(groupOptionsData[option].isDisabled ? undefined : option);
     };
+
+    useEffect(() => {
+        const newOptions = Object.keys(groupOptionsData || {});
+        // Check if the options have actually changed by comparing sorted keys
+        const currentOptionsSorted = [...groupOptions].sort().join(',');
+        const newOptionsSorted = [...newOptions].sort().join(',');
+
+        if (currentOptionsSorted !== newOptionsSorted) {
+            setGroupOptions(newOptions);
+            // Reset selection when options change since the old selection is no longer valid
+            setSelectedOption(null);
+            setSelected(undefined);
+        }
+    }, [groupOptionsData]);
+
+    if (!groupOptionsData) return null;
+
 
     return (
         <div className='flex flex-col text-black dark:text-neutral-100'>

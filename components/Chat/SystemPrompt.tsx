@@ -54,17 +54,23 @@ export const SystemPrompt: FC<Props> = ({
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
-    const maxLength = conversation.model.inputContextWindow;
 
-    if (value.length > maxLength) {
-      alert(
-        t(
-          `Prompt limit is {{maxLength}} characters. You have entered {{valueLength}} characters.`,
-          { maxLength, valueLength: value.length },
-        ),
-      );
-      return;
-    }
+    // Rough token-to-character conversion: 1 token ≈ 4 characters
+    const contextWindow = conversation?.model?.inputContextWindow;
+        const maxTokens = conversation?.model?.outputTokenLimit || 2000;
+        if (contextWindow) {
+            let maxChars = (contextWindow * 4); // Convert tokens to approximate characters
+            if (contextWindow !== maxTokens) maxChars -= (maxTokens * 4) // in case of misconfiguration
+            if (value.length > maxChars) {
+                alert(
+                    t(
+                        `Message limit is {{maxTokens}} tokens, approximately ({{maxChars}} characters). You have entered {{valueLength}} characters.`,
+                        {maxTokens: contextWindow, maxChars, valueLength: value.length},
+                    ),
+                );
+                return;
+            }
+        }
 
     setValue(value);
     updatePromptListVisibility(value);

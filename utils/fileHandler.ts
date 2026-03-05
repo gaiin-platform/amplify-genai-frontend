@@ -5,6 +5,7 @@ import { resolveRagEnabled } from '@/types/features';
 import { AttachedDocument } from '@/types/attacheddocument';
 import JSZip from 'jszip';
 import { v4 as uuidv4 } from 'uuid';
+import { IMAGE_FILE_TYPES } from './app/const';
 // ============================================================================
 // INTERFACES
 // ============================================================================
@@ -28,20 +29,21 @@ export interface FileProcessorOptions {
     // Validation options
     disallowedExtensions?: string[];
     allowedExtensions?: string[];
-    
+
     // Callback functions
     onAttach: (document: AttachedDocument) => void;
     onUploadProgress: (document: AttachedDocument, progress: number) => void;
     onSetKey: (document: AttachedDocument, key: string) => void;
     onSetMetadata: (document: AttachedDocument, metadata: any) => void;
     onSetAbortController: (document: AttachedDocument, abortController: AbortController) => void;
-    
+    onSensitivityBlock?: (fileName: string, labelName: string) => void;
+
     // Services and configuration
     statsService: any;
     featureFlags: any;
     ragOn?: boolean;
     uploadDocuments: boolean;
-    
+
     // Optional parameters
     groupId?: string;
     disableRag?: boolean;
@@ -171,21 +173,21 @@ export async function extractZipFiles(zipFile: File): Promise<File[]> {
         const contents = await zip.loadAsync(zipFile);
         const extractedFiles: File[] = [];
         const entries = Object.entries(contents.files);
-        
+
         for (const [relativePath, zipEntry] of entries) {
             // Skip directories, hidden files, and system files
-            if (!zipEntry.dir && 
-                !relativePath.startsWith('.') && 
+            if (!zipEntry.dir &&
+                !relativePath.startsWith('.') &&
                 !relativePath.includes('__MACOSX') &&
                 !relativePath.includes('.DS_Store')) {
-                
+
                 try {
                     const blobContent = await zipEntry.async('blob');
                     if (blobContent && blobContent.size > 0) {
                         // Determine file type based on extension
                         const extension = getFileExtension(relativePath);
                         const mimeType = getMimeTypeFromExtension(extension);
-                        
+
                         // Create a new File with the extracted content
                         const extractedFile = new File([blobContent], relativePath, {
                             type: mimeType || blobContent.type || 'application/octet-stream'
@@ -219,10 +221,10 @@ export async function processZipFileAsync(
     } = options;
     try {
         console.log(`Processing ZIP file: ${zipFile.name}`);
-        
+
         // Extract files from ZIP
         const extractedFiles = await extractZipFiles(zipFile);
-        
+
         if (extractedFiles.length === 0) {
             alert('No valid files found in the ZIP archive.');
             return;
@@ -235,13 +237,13 @@ export async function processZipFileAsync(
         }
         // Limit the number of files to process
         const filesToProcess = extractedFiles.slice(0, maxFilesFromZip);
-        
+
         console.log(`Processing ${filesToProcess.length} files from ZIP: ${zipFile.name}`);
         let processedCount = 0;
         // Process each extracted file individually (not the ZIP file itself)
         for (let i = 0; i < filesToProcess.length; i++) {
             const extractedFile = filesToProcess[i];
-            
+
             // Report progress if callback provided
             if (onZipProgress) {
                 onZipProgress(i + 1, filesToProcess.length);
@@ -264,8 +266,8 @@ export async function processZipFileAsync(
                     fileOptions.statsService.attachFileEvent(extractedFile, fileOptions.uploadDocuments);
                     // Resolve RAG configuration
                     const ragEnabled = resolveRagConfiguration(
-                        fileOptions.featureFlags, 
-                        fileOptions.ragOn || false, 
+                        fileOptions.featureFlags,
+                        fileOptions.ragOn || false,
                         fileOptions.disableRag
                     );
                     const zipFileName = zipFile.name.replace(/\.zip$/i, '');
@@ -284,7 +286,7 @@ export async function processZipFileAsync(
                         fileOptions.props || {},
                         tags
                     );
-                    
+
                     processedCount++;
                 } else {
                     console.warn(`Skipping invalid file from ZIP: ${extractedFile.name} - ${validation.errorMessage}`);
@@ -292,12 +294,12 @@ export async function processZipFileAsync(
             }
         }
         console.log(`Completed processing ZIP file: ${zipFile.name}. Processed ${processedCount} valid files.`);
-        
+
         // Notify completion with count of successfully processed files
         if (onZipExtractionComplete) {
             onZipExtractionComplete(processedCount);
         }
-        
+
     } catch (error) {
         console.error('Error processing ZIP file:', error);
         alert(`Failed to process ZIP file: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -350,8 +352,8 @@ export function processSingleFile(
         props = {}
     } = options;
     // Generate filename for pasted files if needed
-    const processedFile = generateFileName ? 
-        new File([file], generateFileName(file), { type: file.type }) : 
+    const processedFile = generateFileName ?
+        new File([file], generateFileName(file), { type: file.type }) :
         file;
     // Check if it's a ZIP file and process accordingly
     if (getFileExtension(processedFile.name) === 'zip') {
@@ -392,7 +394,8 @@ export function processSingleFile(
         groupId,
         ragEnabled,
         props,
-        []
+        [],
+        options.onSensitivityBlock
     );
 }
 /**
@@ -403,7 +406,7 @@ export function processFiles(
     options: FileProcessorOptions
 ): void {
     const fileArray = Array.from(files);
-    
+
     fileArray.forEach((file) => {
         processSingleFile(file, options);
     });

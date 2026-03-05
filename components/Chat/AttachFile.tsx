@@ -1,11 +1,10 @@
 import { IconPlus } from '@tabler/icons-react';
-import { FC, useContext } from 'react';
+import { FC, useContext, useState } from 'react';
 import { getDocument, PDFDocumentProxy, Util } from './JsPDF'
 import * as pdfjs from './JsPDF'
 import readXlsxFile from 'read-excel-file'
 import mammoth from "mammoth";
 import { useTranslation } from 'next-i18next';
-import JSZip from "jszip";
 import { v4 as uuidv4 } from 'uuid';
 import { AttachedDocument, AttachedDocumentMetadata } from '@/types/attacheddocument';
 import { addFile, checkContentReady, deleteFile } from "@/services/fileService";
@@ -14,6 +13,8 @@ import HomeContext from "@/pages/api/home/home.context";
 import React from 'react';
 import { resolveRagEnabled } from '@/types/features';
 import { processInputFiles } from '@/utils/fileHandler';
+import { ConfirmModal } from '../ReusableComponents/ConfirmModal';
+import { extractSensitivityLabel } from '@/utils/app/files';
 
 interface Props {
     onAttach: (data: AttachedDocument) => void;
@@ -47,10 +48,36 @@ export const handleFile = async (file: any,
     groupId: string | undefined,
     ragEnabled: boolean,
     props: any = {},
-    tags: string[] = []
+    tags: string[] = [],
+    onSensitivityBlock?: (fileName: string, labelName: string) => void
 ) => {
 
     try {
+        // SECURITY CHECK: Extract and check Microsoft Information Protection (MIP) sensitivity label
+        // This checks Office files (.docx, .xlsx, .pptx) for embedded sensitivity labels
+        // and blocks Level 4 (Critical/Confidential) files from being uploaded
+        const sensitivityInfo = await extractSensitivityLabel(file);
+
+        if (sensitivityInfo) {
+            console.log(`[SENSITIVITY CHECK] File "${file.name}" has sensitivity level ${sensitivityInfo.level}: ${sensitivityInfo.labelName}`);
+
+            if (sensitivityInfo.level === 4) {
+                console.warn(`[SENSITIVITY CHECK] 🚫 BLOCKED Level 4 file upload attempt: ${file.name}`);
+
+                // Use callback if provided, otherwise fall back to alert
+                if (onSensitivityBlock) {
+                    onSensitivityBlock(file.name, sensitivityInfo.labelName);
+                } else {
+                    alert(
+                        `can not upload "${file.name}"\n\n` +
+                        `This file is marked as "${sensitivityInfo.labelName}" and contains sensitive data that should not be uploaded to Amplify.\n\n` +
+                        `Level 4 (Critical/Confidential) files are restricted for security compliance.`
+                    );
+                }
+                return; // Exit immediately - do not upload
+            }
+        }
+
         let type: string = file.type;
         const extension = file.name.split('.').pop()?.toLowerCase();
 
@@ -64,6 +91,7 @@ export const handleFile = async (file: any,
 
         let size = file.size;
         const fileName = file.name.replace(/[_\s]+/g, '_');;
+
 
         let document: AttachedDocument = { id: uuidv4(), name: fileName, type: type, raw: "", data: props, groupId };
         console.log(`document.type: "${document.type}"`);
@@ -102,7 +130,8 @@ export const handleFile = async (file: any,
 
         if (uploadDocuments) {
             try {
-                console.log('[UPLOAD DEBUG] Starting addFile for:', document.name, 'type:', document.type);
+                const { key, response, statusUrl, metadataUrl, contentUrl, abortController } = await addFile(document, file,
+                    console.log('[UPLOAD DEBUG] Starting addFile for:', document.name, 'type:', document.type);
                 const { key, response, statusUrl, metadataUrl, contentUrl, abortController } = await addFile(document, file,
                     (progress: number) => {
                         if (onUploadProgress && progress < 95) {
@@ -184,6 +213,13 @@ export const AttachFile: FC<Props> = ({ id, onAttach, onUploadProgress, onSetMet
 
     const uploadDocuments = featureFlags.uploadDocuments;
 
+    // State for sensitivity block modal
+    const [blockedFile, setBlockedFile] = useState<{ fileName: string; labelName: string } | null>(null);
+
+    const handleSensitivityBlock = (fileName: string, labelName: string) => {
+        setBlockedFile({ fileName, labelName });
+    };
+
     return (
         <>
             <input
@@ -208,6 +244,7 @@ export const AttachFile: FC<Props> = ({ id, onAttach, onUploadProgress, onSetMet
                         onSetKey: onSetKey ?? (() => { }),
                         onSetMetadata: onSetMetadata ?? (() => { }),
                         onSetAbortController: onSetAbortController ?? (() => { }),
+                        onSensitivityBlock: handleSensitivityBlock,
                         statsService,
                         featureFlags,
                         ragOn,
@@ -235,6 +272,30 @@ export const AttachFile: FC<Props> = ({ id, onAttach, onUploadProgress, onSetMet
             >
                 <IconPlus size={20} />
             </button>
+
+            {/* Sensitivity Block Modal */}
+            {blockedFile && (
+                <ConfirmModal
+                    title="🔒 Sensitive File Detected"
+                    message={
+                        <div className="space-y-3">
+                            <p className="font-medium text-gray-900 dark:text-white">
+                                <span className="font-semibold">{blockedFile.fileName}</span> can not be uploaded.
+                            </p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300">
+                                This file is marked as <span className="font-semibold text-red-600 dark:text-red-400">&quot;{blockedFile.labelName}&quot;</span> and contains sensitive data that should not be uploaded to Amplify.
+                            </p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                Level 4 (Critical/Confidential) files are restricted for security compliance.
+                            </p>
+                        </div>
+                    }
+                    confirmLabel="Understood"
+                    onConfirm={() => setBlockedFile(null)}
+                    width={500}
+                    height={280}
+                />
+            )}
         </>
     );
 };

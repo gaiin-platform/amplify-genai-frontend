@@ -19,9 +19,11 @@ export enum AdminConfigTypes {
     EMAIL_SUPPORT = 'emailSupport',
     AI_EMAIL_DOMAIN = 'aiEmailDomain',
     INTEGRATIONS = 'integrations',
+    WEB_SEARCH = 'webSearchConfig',
     DEFAULT_CONVERSATION_STORAGE = 'defaultConversationStorage',
     DEFAULT_MODELS = 'defaultModels',
     CRITICAL_ERRORS = 'criticalErrors',
+    USER_DOCUMENTATION_URL = 'userDocumentationUrl',
 
   }
 
@@ -69,6 +71,7 @@ export const adminDataTabMap: Record<AdminTab, string[]> = {
     'Application Variables' : [
       AdminConfigTypes.APP_VARS,
       AdminConfigTypes.APP_SECRETS,
+      AdminConfigTypes.USER_DOCUMENTATION_URL,
     ],
     'OpenAi Endpoints' : [
       AdminConfigTypes.OPENAI_ENDPOINTS,
@@ -79,7 +82,8 @@ export const adminDataTabMap: Record<AdminTab, string[]> = {
     ],
 
     'Integrations' : [
-      AdminConfigTypes.INTEGRATIONS
+      AdminConfigTypes.INTEGRATIONS,
+      AdminConfigTypes.WEB_SEARCH
     ],
 
     'Critical Errors' : [

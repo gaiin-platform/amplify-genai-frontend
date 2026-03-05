@@ -114,12 +114,12 @@ export const sendDirectAssistantMessage = async (
   assistantId: string,
   assistantName: string,
   message: string,
-  model: any, 
+  model: any,
   previousMessages: Array<{role: string, content: string}> = [],
   options: any,
   messageState: any,
   handleMessageState: (state: any) => void,
-  setResponseStatus: (status: string) => void,
+  setResponseStatus: (status: string, meta?: any) => void,
   controller: AbortController
 ) => {
   try {
@@ -165,34 +165,63 @@ export const sendDirectAssistantMessage = async (
     
     // Add the current message to the history
     const allMessages = [...formattedPreviousMessages, userMessage];
-    
+
     const chatBody = {
       model: model,
       prompt: DEFAULT_SYSTEM_PROMPT,
       messages: allMessages,
       temperature: 0.7,
-      maxTokens: model?.outputTokenLimit ? Math.round(model.outputTokenLimit / 2) : 2000,
+      maxTokens: model?.outputTokenLimit ? model.outputTokenLimit : 4000,
       // Pass assistantId directly in the top level and in options
       assistantId: assistantId,
       assistantName: assistantName,
       skipRag: false,
       skipCodeInterpreter: false,
+      disableReasoning: true,
+      enableWebSearch: false, // for now
       skipMemory: true, // Skip memory processing
       ...options,
     };
 
+    // 🔍 DEBUG: Estimate JSON body size
+    try {
+      const estimatedBodySize = JSON.stringify(chatBody).length;
+      console.log(`🔍 [assistantService] Request body size: ${estimatedBodySize} bytes (${(estimatedBodySize / 1024).toFixed(1)} KB)`);
+      if (estimatedBodySize > 100000) {
+        console.warn(`⚠️ [assistantService] Very large request body: ${(estimatedBodySize / 1024).toFixed(1)} KB`);
+      }
+    } catch (e) {
+      console.error(`❌ [assistantService] Failed to stringify chatBody:`, e);
+    }
+
     const metaHandler: MetaHandler = {
       status: (meta: any) => {
-        setResponseStatus(meta.message ?? "");
+        setResponseStatus(meta.message ?? "", meta);
       },
       mode: (modeName: string) => {},
-      state: (state: any) => handleMessageState(deepMerge(messageState, state)),
+      state: (state: any) => {
+        try {
+          // 🔍 DEBUG: Log sizes before deepMerge to find allocation overflow source
+          const messageStateKeys = Object.keys(messageState || {});
+          const stateKeys = Object.keys(state || {});
+
+          const mergedState = deepMerge(messageState, state);
+          handleMessageState(mergedState);
+        } catch (e) {
+          console.error('❌ [assistantService] Error in state handler:', e);
+          console.error('❌ [assistantService] messageState keys:', Object.keys(messageState || {}));
+          console.error('❌ [assistantService] incoming state keys:', Object.keys(state || {}));
+          throw e; // Re-throw to see in stack trace
+        }
+      },
       shouldAbort: () => false
     };
-    // console.log("chatBody", chatBody);
+
+    console.log(`🚀 [assistantService] Sending request to ${chatEndpoint}...`);
+
     // @ts-ignore
     const response = await sendChatRequestWithDocuments(chatEndpoint, session.accessToken, chatBody, controller.signal, metaHandler);
-    
+
     return {
       success: response.ok,
       response
@@ -348,7 +377,6 @@ export const getSiteMapUrls = async (sitemap: string, maxPages?: number) => {
   if (maxPages) {
     data.maxPages = maxPages;
   }
-  console.log("data", data);
   const op = {
       method: 'POST',
       path: URL_PATH,

@@ -159,9 +159,9 @@ export function useChatService() {
                 alert("The assistant you sent the message to is currently unavailable. Please try again in a minute.");
             }
             else {
+                console.error(`Error sending chat request to ${targetEndpoint}: ${e}`);
                 alert("The chat service is currently unavailable. Please try again in a minute.");
             }
-            console.error(e);
             return Promise.reject(e);
         });
 

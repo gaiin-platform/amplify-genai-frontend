@@ -35,6 +35,7 @@ import { AddEmailWithAutoComplete } from "../Emails/AddEmailsAutoComplete";
 import { Group } from "@/types/groups";
 import { includeGroupInfoBox } from "../Emails/EmailsList";
 import { Conversation } from "@/types/chat";
+import { LatestExportFormat } from "@/types/export";
 import React from "react";
 import { ArtifactPreview } from "./ArtifactPreview";
 import { CodeBlockDetails, extractCodeBlocksAndText } from "@/utils/app/codeblock";
@@ -191,6 +192,17 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
     const [messagedCopied, setMessageCopied] = useState(false);
     const [innerHeight, setInnerHeight] = useState(window.innerHeight);
     const [isLoading, setIsLoading] = useState<string>('');
+    const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+    const [downloadMenuPosition, setDownloadMenuPosition] = useState({ x: 0, y: 0 });
+    const downloadMenuRef = useRef<HTMLDivElement>(null);
+    const downloadHoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Copy menu state (similar to ChatMessage)
+    const [showCopyMenu, setShowCopyMenu] = useState(false);
+    const [copyMenuPosition, setCopyMenuPosition] = useState({ x: 0, y: 0 });
+    const copyMenuRef = useRef<HTMLDivElement>(null);
+    const copyHoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const artifactContentRef = useRef<HTMLDivElement>(null);
 
 
     useEffect(() => {
@@ -296,6 +308,15 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
         };
     }, []);
 
+    // Cleanup download hover timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (downloadHoverTimeoutRef.current) {
+                clearTimeout(downloadHoverTimeoutRef.current);
+            }
+        };
+    }, []);
+
     const cleanUp = () => {
         homeDispatch({field: "selectedArtifacts", value: undefined});
     }
@@ -312,7 +333,50 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
         if (selectArtifactList && index < selectArtifactList.length && index >= 0) setVersionIndex(index);
     };
 
-    const copyOnClick = () => {
+    // Copy formatted text with rich formatting preserved (like manual copy)
+    const copyFormattedText = () => {
+        statsService.copyArtifactEvent();
+        if (!artifactContentRef.current) {
+            // Fallback to raw content if ref not available
+            if (navigator.clipboard && selectArtifactList) {
+                navigator.clipboard.writeText(getArtifactContents());
+            }
+            return;
+        }
+
+        try {
+            // Create a range and selection to copy the content with formatting
+            const range = document.createRange();
+            range.selectNodeContents(artifactContentRef.current);
+
+            const selection = window.getSelection();
+            if (!selection) return;
+
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            // Execute copy command - this preserves rich text formatting
+            document.execCommand('copy');
+
+            // Clear selection
+            selection.removeAllRanges();
+
+            setMessageCopied(true);
+            setTimeout(() => {
+                setMessageCopied(false);
+            }, 2000);
+        } catch (error) {
+            console.error('Copy failed:', error);
+            // Fallback to plain text
+            if (navigator.clipboard && selectArtifactList) {
+                navigator.clipboard.writeText(getArtifactContents());
+            }
+        }
+
+        setShowCopyMenu(false);
+    };
+
+    const copyRawMarkdown = () => {
         statsService.copyArtifactEvent();
         if (!navigator.clipboard) return;
         if (selectArtifactList) {
@@ -324,7 +388,81 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
                 }, 2000);
             });
         }
+        setShowCopyMenu(false);
     };
+
+    const copyOnClick = () => {
+        // Default behavior: copy formatted text
+        copyFormattedText();
+    };
+
+    const calculateCopyMenuPosition = (buttonElement: HTMLElement) => {
+        const rect = buttonElement.getBoundingClientRect();
+        const menuWidth = 180;
+        const menuHeight = 80;
+        const padding = 10;
+
+        let x = rect.left;
+        let y = rect.bottom + 5;
+
+        // Check right edge
+        if (x + menuWidth > window.innerWidth) {
+            x = rect.right - menuWidth;
+        }
+
+        // Check bottom edge
+        if (y + menuHeight > window.innerHeight) {
+            y = rect.top - menuHeight - 5;
+        }
+
+        // Check left/top edges
+        if (x < padding) x = padding;
+        if (y < padding) y = padding;
+
+        return { x, y };
+    };
+
+    const handleCopyHoverStart = (e: React.MouseEvent<HTMLButtonElement>) => {
+        const button = e.currentTarget;
+        if (copyHoverTimeoutRef.current) {
+            clearTimeout(copyHoverTimeoutRef.current);
+        }
+        copyHoverTimeoutRef.current = setTimeout(() => {
+            const position = calculateCopyMenuPosition(button);
+            setCopyMenuPosition(position);
+            setShowCopyMenu(true);
+        }, 500);
+    };
+
+    const handleCopyHoverEnd = () => {
+        if (copyHoverTimeoutRef.current) {
+            clearTimeout(copyHoverTimeoutRef.current);
+            copyHoverTimeoutRef.current = null;
+        }
+        setTimeout(() => {
+            if (copyMenuRef.current) {
+                const isHoveringMenu = copyMenuRef.current.matches(':hover');
+                if (!isHoveringMenu) {
+                    setShowCopyMenu(false);
+                }
+            } else {
+                setShowCopyMenu(false);
+            }
+        }, 100);
+    };
+
+    const handleCopyMenuMouseLeave = () => {
+        setShowCopyMenu(false);
+    };
+
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (copyHoverTimeoutRef.current) {
+                clearTimeout(copyHoverTimeoutRef.current);
+            }
+        };
+    }, []);
 
     const handleEditArtifact = (editedContent: string) => {
         statsService.editArtifactEvent();
@@ -438,6 +576,80 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
         setShareWith([]);
     }
 
+    const calculateDownloadMenuPosition = (buttonElement: HTMLElement) => {
+        const rect = buttonElement.getBoundingClientRect();
+        const menuWidth = 200;
+        const menuHeight = 160;
+        const padding = 10;
+
+        // Start position: bottom-left of button
+        let x = rect.left;
+        let y = rect.bottom + 5;
+
+        // If menu would go off right edge, align to right side of button
+        if (x + menuWidth > window.innerWidth) {
+            x = rect.right - menuWidth;
+        }
+
+        // If menu would go off bottom edge, position above button
+        if (y + menuHeight > window.innerHeight) {
+            y = rect.top - menuHeight - 5;
+        }
+
+        // Ensure menu doesn't go off left edge
+        if (x < padding) {
+            x = padding;
+        }
+
+        // Ensure menu doesn't go off top edge
+        if (y < padding) {
+            y = padding;
+        }
+
+        return { x, y };
+    };
+
+    const handleDownloadHoverStart = (e: React.MouseEvent<HTMLButtonElement>) => {
+        const button = e.currentTarget;
+
+        // Clear any existing timeout
+        if (downloadHoverTimeoutRef.current) {
+            clearTimeout(downloadHoverTimeoutRef.current);
+        }
+
+        // Set timeout to show menu after 500ms
+        downloadHoverTimeoutRef.current = setTimeout(() => {
+            const position = calculateDownloadMenuPosition(button);
+            setDownloadMenuPosition(position);
+            setShowDownloadMenu(true);
+        }, 500);
+    };
+
+    const handleDownloadHoverEnd = () => {
+        // Clear timeout if user stops hovering before menu shows
+        if (downloadHoverTimeoutRef.current) {
+            clearTimeout(downloadHoverTimeoutRef.current);
+            downloadHoverTimeoutRef.current = null;
+        }
+
+        // Add a small delay before hiding to allow moving to menu
+        setTimeout(() => {
+            // Check if mouse is over the menu
+            if (downloadMenuRef.current) {
+                const isHoveringMenu = downloadMenuRef.current.matches(':hover');
+                if (!isHoveringMenu) {
+                    setShowDownloadMenu(false);
+                }
+            } else {
+                setShowDownloadMenu(false);
+            }
+        }, 100);
+    };
+
+    const handleDownloadMenuMouseLeave = () => {
+        setShowDownloadMenu(false);
+    };
+
     const handleDownloadArtifact = async () => {
         statsService.downloadArtifactEvent();
         setIsLoading('Downloading Artifact...');
@@ -445,8 +657,140 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
         const artifactContent = getArtifactContents();
         await downloadArtifacts(artifact.name.replace(/\s+/g, '_'), artifactContent, codeBlocks);
         setIsLoading('');
-
+        setShowDownloadMenu(false);
     }
+
+    const handleDownloadAsText = async () => {
+        statsService.downloadArtifactEvent();
+        setIsLoading('Downloading as Text...');
+        const artifact = selectArtifactList[versionIndex];
+        const artifactContent = getArtifactContents();
+        const blob = new Blob([artifactContent], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${artifact.name.replace(/\s+/g, '_')}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setIsLoading('');
+        setShowDownloadMenu(false);
+    };
+
+    const handleDownloadAsMarkdown = async () => {
+        statsService.downloadArtifactEvent();
+        setIsLoading('Downloading as Markdown...');
+        const artifact = selectArtifactList[versionIndex];
+        const artifactContent = getArtifactContents();
+        const blob = new Blob([artifactContent], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${artifact.name.replace(/\s+/g, '_')}.md`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setIsLoading('');
+        setShowDownloadMenu(false);
+    };
+
+    const handleDownloadAsWord = async () => {
+        statsService.downloadArtifactEvent();
+        setIsLoading('Downloading as Word...');
+        const artifact = selectArtifactList[versionIndex];
+        const artifactContent = getArtifactContents();
+
+        // Force Word conversion regardless of content
+        const exportedConversations: Conversation[] = [{
+            id: artifact.artifactId,
+            name: artifact.name,
+            messages: [{
+                role: 'assistant',
+                content: artifactContent,
+                id: `artifact-msg-${Date.now()}`,
+                type: undefined,
+                data: undefined
+            }],
+            model: { id: 'artifact', name: 'Artifact' },
+            prompt: '',
+            temperature: 0.5,
+            folderId: '',
+            promptTemplate: null
+        } as Conversation];
+
+        const downloadData: LatestExportFormat = {
+            version: 4,
+            history: exportedConversations,
+            folders: [],
+            prompts: [],
+        };
+
+        const conversionOptions = {
+            assistantHeader: "",
+            conversationHeader: "",
+            format: "docx",
+            messageHeader: "",
+            userHeader: "",
+            includeConversationName: false
+        };
+
+        try {
+            const { convert } = await import('@/services/downloadService');
+            const result = await convert(conversionOptions, downloadData);
+            console.log("[DOWNLOAD WORD] Conversion result:", result);
+
+            if (result.success) {
+                const downloadUrl = result.data.url;
+                console.log("[DOWNLOAD WORD] Download URL:", downloadUrl);
+
+                const checkReady = async (url: string, triesLeft: number = 60): Promise<void> => {
+                    try {
+                        const response = await fetch(url);
+                        console.log("[DOWNLOAD WORD] Fetch response status:", response.status, response.statusText);
+                        if (response.ok) {
+                            const blob = await response.blob();
+                            console.log("[DOWNLOAD WORD] Downloaded blob size:", blob.size, "type:", blob.type);
+
+                            // Check if the blob is actually a Word document
+                            const isWordDoc = blob.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                                            blob.type === 'application/msword';
+
+                            if (!isWordDoc) {
+                                console.error("[DOWNLOAD WORD] Backend returned non-Word document. MIME type:", blob.type);
+                                console.error("[DOWNLOAD WORD] Falling back to text download.");
+                                handleDownloadAsText();
+                                return;
+                            }
+
+                            const blobUrl = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = blobUrl;
+                            a.download = `${artifact.name.replace(/\s+/g, '_')}.docx`;
+                            a.click();
+                            URL.revokeObjectURL(blobUrl);
+                        } else if (triesLeft > 0) {
+                            setTimeout(() => checkReady(url, triesLeft - 1), 1000);
+                        } else {
+                            console.error("Unable to download Word file. Falling back to text.");
+                            handleDownloadAsText();
+                        }
+                    } catch (e) {
+                        console.error("Failed to download Word file:", e);
+                        handleDownloadAsText();
+                    }
+                };
+
+                await checkReady(downloadUrl);
+            } else {
+                console.error("Word conversion failed. Falling back to text.");
+                handleDownloadAsText();
+            }
+        } catch (error) {
+            console.error("Error during Word download:", error);
+            handleDownloadAsText();
+        }
+
+        setIsLoading('');
+        setShowDownloadMenu(false);
+    };
 
     const handleUploadAsFile = async () => {
         statsService.uploadArtifactAsFileEvent();
@@ -585,7 +929,8 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                     <div className="flex flex-col flex-1 px-2 min-w-0" id="artifactsTextDisplay">
                         
                         {!isEditing && !isPreviewing &&  selectArtifactList && (
-                            <div className="mt-8 flex flex-grow overflow-y-auto overflow-x-hidden justify-center" style={{height: innerHeight - 140}} 
+                            <div className="mt-8 flex flex-grow overflow-y-auto overflow-x-hidden justify-center" style={{height: innerHeight - 140}}
+                                 ref={artifactContentRef}
                             >
                                 <ArtifactContentBlock
                                     artifactIsStreaming={artifactIsStreaming}
@@ -721,19 +1066,22 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                                 className="enhanced-chat-icon-button"
                                 id="copyArtifact"
                                 onClick={copyOnClick}
-                                title="Copy Artifact"
+                                onMouseEnter={handleCopyHoverStart}
+                                onMouseLeave={handleCopyHoverEnd}
+                                title="Copy Artifact (hover for options)"
                                 disabled={artifactIsStreaming}
                             >
                                 <IconCopy size={24}/>
                             </button>
-                        
+
                         )}
 
                         <button
                             className="enhanced-chat-icon-button"
                             id="downlaodArtifact"
                             onClick={handleDownloadArtifact}
-                            title="Download Artifact"
+                            onMouseEnter={handleDownloadHoverStart}
+                            onMouseLeave={handleDownloadHoverEnd}
                             disabled={artifactIsStreaming}
                         >
                             <IconDownload size={24}/>
@@ -801,6 +1149,81 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                 </div>
             )}
         </div>
+
+        {/* Download Options Menu */}
+        {showDownloadMenu && (
+            <div
+                ref={downloadMenuRef}
+                className="fixed bg-white dark:bg-[#343541] border border-gray-200 dark:border-gray-600 rounded-md shadow-xl z-[100] min-w-[200px]"
+                style={{
+                    top: `${downloadMenuPosition.y}px`,
+                    left: `${downloadMenuPosition.x}px`,
+                }}
+                onMouseLeave={handleDownloadMenuMouseLeave}
+            >
+                <button
+                    className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-[#40414f] text-sm flex items-center gap-2 text-gray-800 dark:text-gray-200 transition-colors"
+                    onClick={handleDownloadArtifact}
+                    title="Amplify decides best download format"
+                >
+                    <IconDownload size={16} />
+                    <span className="whitespace-nowrap">Recommended Download</span>
+                </button>
+                <div className="border-t border-gray-200 dark:border-gray-600"></div>
+                <button
+                    className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-[#40414f] text-sm flex items-center gap-2 text-gray-800 dark:text-gray-200 transition-colors"
+                    onClick={handleDownloadAsText}
+                >
+                    <IconDownload size={16} />
+                    <span className="whitespace-nowrap">Download as Text</span>
+                </button>
+                <div className="border-t border-gray-200 dark:border-gray-600"></div>
+                <button
+                    className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-[#40414f] text-sm flex items-center gap-2 text-gray-800 dark:text-gray-200 transition-colors"
+                    onClick={handleDownloadAsMarkdown}
+                >
+                    <IconDownload size={16} />
+                    <span className="whitespace-nowrap">Download as Markdown</span>
+                </button>
+                <div className="border-t border-gray-200 dark:border-gray-600"></div>
+                <button
+                    className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-[#40414f] text-sm flex items-center gap-2 text-gray-800 dark:text-gray-200 transition-colors"
+                    onClick={handleDownloadAsWord}
+                >
+                    <IconDownload size={16} />
+                    <span className="whitespace-nowrap">Download as Word</span>
+                </button>
+            </div>
+        )}
+
+        {/* Copy menu - appears on hover */}
+        {showCopyMenu && (
+            <div
+                ref={copyMenuRef}
+                className="fixed bg-white dark:bg-[#343541] border border-gray-200 dark:border-gray-600 rounded-md shadow-xl z-[100] min-w-[180px]"
+                style={{
+                    top: `${copyMenuPosition.y}px`,
+                    left: `${copyMenuPosition.x}px`,
+                }}
+                onMouseLeave={handleCopyMenuMouseLeave}
+            >
+                <button
+                    className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-[#40414f] text-sm flex items-center gap-2 text-gray-800 dark:text-gray-200 transition-colors"
+                    onClick={copyFormattedText}
+                >
+                    <IconCopy size={16} />
+                    <span className="whitespace-nowrap">Copy Formatted</span>
+                </button>
+                <div className="border-t border-gray-200 dark:border-gray-600"></div>
+                <button
+                    className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-[#40414f] text-sm flex items-center gap-2 text-gray-800 dark:text-gray-200 transition-colors"
+                    onClick={copyRawMarkdown}
+                >
+                    <IconCopy size={16} />
+                    <span className="whitespace-nowrap">Copy Markdown</span>
+                </button>
+            </div>
+        )}
 
     </div>
 

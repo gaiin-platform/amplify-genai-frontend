@@ -420,6 +420,13 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         }
     }, [baseWorkflowTemplateId]);
 
+    // Automatically set opsLanguageVersion to v4 when APIs are selected
+    useEffect(() => {
+        if (selectedApis && selectedApis.length > 0 && opsLanguageVersion !== "v4") {
+            setOpsLanguageVersion("v4");
+        }
+    }, [selectedApis]);
+
     // Handle sitemap cleanup when all children are removed
     useEffect(() => {
         if (!definition.data?.websiteUrls || websiteUrls.length === 0) return;
@@ -1235,7 +1242,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                            
                             <div className="mt-6 h-0 text-center flex items-center justify-center gap-2 w-full">
                                 <IconAlertTriangle size={16} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                                <p className="text-xs text-blue-700 dark:text-blue-300">
+                                <p className="text-xs text-blue-700 dark:text-blue-500">
                                 {"When making changes to the assistant's data sources, please allow a few minutes after saving for the updates to take effect."}
                                 </p>
                             </div>
@@ -1438,14 +1445,16 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             { definition.dataSources?.length > 0  &&
                              <div className="mt-4">
                                 <br></br>
-                                <ExistingFileList 
+                                <ExistingFileList
                                     label={'Assistant Data Sources'}
                                     allowRemoval={!disableEdit}
+                                    allowResize={true}
+                                    groupId={assistant.groupId}
                                     documents={dataSources.filter((ds:AttachedDocument) => (preexistingDocumentIds.includes(ds.id)))} 
                                     setDocuments={(docs) => {
                                         const newDocs = dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)));
                                         setDataSources([...docs, ...newDocs] as any[]);
-                                    }} 
+                                    }}
                                     onRemoval={(doc) => {
                                         // since websites are assistant specific scraped data sources we need to delete upon removal
                                         if (isWebsiteDs(doc) ) {
@@ -1733,7 +1742,31 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         }}
                                         disabled={disableEdit}
                                     />}
-                                       
+
+                                    {/* API Integration Summary */}
+                                    { featureFlags.integrations && (selectedApis.length > 0 || builtInAgentTools.length > 0 || apiInfo.length > 0) &&
+                                    <div className="mt-3 px-3 py-2 rounded-md bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600">
+                                        <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1">Selected Integrations:</div>
+                                        <div className="text-xs text-neutral-700 dark:text-neutral-300 space-y-0.5">
+                                            {selectedApis.length > 0 && (
+                                                <div>
+                                                    <span className="font-medium">APIs:</span> {selectedApis.map(api => api.name || api.functionName || 'Unnamed').join(', ')}
+                                                </div>
+                                            )}
+                                            {builtInAgentTools.length > 0 && (
+                                                <div>
+                                                    <span className="font-medium">Tools:</span> {builtInAgentTools.join(', ')}
+                                                </div>
+                                            )}
+                                            {apiInfo.length > 0 && (
+                                                <div>
+                                                    <span className="font-medium">Custom APIs:</span> {apiInfo.map(api => api.name || 'Unnamed').join(', ')}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    }
+
                                 </div>
                                 }
                             />

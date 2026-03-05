@@ -69,6 +69,7 @@ import { IntegrationsDialog } from '../Integrations/IntegrationsDialog';
 import { TemperatureSlider } from './Sliders/Temperature';
 import { ResponseTokensSlider } from './Sliders/ResponseTokens';
 import { storageRemove } from '@/utils/app/storage';
+import { Assistant } from '@/types/assistant';
 
 
 interface Props {
@@ -98,7 +99,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 folders,
                 extractedFacts,
                 defaultAccount,
-                isStandalonePromptCreation
+                isStandalonePromptCreation,
+                promptCostAlertModal
             },
             setLoadingMessage,
             handleUpdateConversation,
@@ -221,6 +223,64 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const chat_button_blue_color = "text-[#1dbff5] dark:text-[#8edffa]"
 
         const [showOnEditMessagePrompt, setShowOnEditMessagePrompt] = useState< {editedMessage: Message, index: number}| null>(null);
+        const [showTempEdit, setShowTempEdit] = useState(false);
+        const [showLengthEdit, setShowLengthEdit] = useState(false);
+
+        const getResponseLengthLabel = (ratio: number): string => {
+            if (ratio <= 1.5) return 'Concise';
+            if (ratio <= 4.5) return 'Average';
+            return 'Verbose';
+        };
+
+        const renderChatSettings = (isSticky: boolean = false) => {
+            return (
+                <>
+                    <span>Temp: </span>
+                    {showTempEdit ? (
+                        <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="1"
+                            value={selectedConversation?.temperature}
+                            onChange={(e) => selectedConversation && handleUpdateConversation(selectedConversation, {key: 'temperature', value: parseFloat(e.target.value)})}
+                            className="text-center bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-sm"
+                            onBlur={() => setShowTempEdit(false)}
+                            autoFocus
+                        />
+                    ) : (
+                        <span className={`cursor-pointer hover:opacity-70 inline-block ${isSticky ? 'w-4 mr-1' : '-ml-0.5'} text-center`} onClick={() => setShowTempEdit(true)}>
+                            {selectedConversation?.temperature}
+                        </span>
+                    )}
+                    {isSticky && <span className="ml-0.5"> | </span>}
+
+                    {showLengthEdit ? (
+                        <select
+                            value={getResponseLengthLabel(responseSliderState)}
+                            onChange={(e) => {
+                                const ratio = e.target.value === 'Concise' ? 1 : e.target.value === 'Average' ? 3 : 6;
+                                setResponseSliderState(ratio);
+                                handleResponseTokenChange(ratio);
+                                setShowLengthEdit(false);
+                            }}
+                            className="px-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-sm"
+                            onBlur={() => setShowLengthEdit(false)}
+                            autoFocus
+                        >
+                            <option>Concise</option>
+                            <option>Average</option>
+                            <option>Verbose</option>
+                        </select>
+                    ) : (
+                        <span className={`mx-0.5 cursor-pointer hover:opacity-70 inline-block ${isSticky ? 'w-16' : '-mr-1'} text-center`} onClick={() => setShowLengthEdit(true)}>
+                            {getResponseLengthLabel(responseSliderState)}
+                        </span>
+                    )}
+                    {isSticky && <span > | </span>}
+                </>
+            );
+        };
 
         const [isIntegrationsOpen, setIsIntegrationsOpen] = useState<boolean>(false);
         const [selectedConversationState, setSelectedConversationState] = useState<Conversation | undefined>(selectedConversation);
@@ -307,6 +367,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) {
                 if (selectedConversation?.model?.id !== selectedModelId) setSelectedModelId(selectedConversation?.model?.id);
             }
+            const groupType = selectedConversation?.groupType;
+            if (groupType && !selectedAssistant?.definition?.data?.groupTypeData?.[groupType]) {
+                delete selectedConversation.groupType;
+            } 
+
         }, [selectedAssistant, selectedConversation]);
 
 
@@ -815,7 +880,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const handleScrollUp = () => {
             if (modelSelectRef && modelSelectRef.current) {
                 const rect = modelSelectRef.current.getBoundingClientRect();
-                
+
                 // Check if the element is fully in view, partially in view, or not visible
                 const inView = (
                     rect.top >= 0 &&
@@ -823,13 +888,61 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     rect.bottom <= (windowInnerDims.height || document.documentElement.clientHeight) &&
                     rect.right <= (windowInnerDims.width || document.documentElement.clientWidth)
                 );
-        
+
                 if (!inView) {
                     modelSelectRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
                 }
             }
         };
-        
+
+        const isModelSelectorInView = () => {
+            if (modelSelectRef && modelSelectRef.current) {
+                const rect = modelSelectRef.current.getBoundingClientRect();
+                return (
+                    rect.top >= 0 &&
+                    rect.left >= 0 &&
+                    rect.bottom <= (windowInnerDims.height || document.documentElement.clientHeight) &&
+                    rect.right <= (windowInnerDims.width || document.documentElement.clientWidth)
+                );
+            }
+            return false;
+        };
+
+        const handleToggleSettings = () => {
+            const inView = isModelSelectorInView();
+
+            // If model selector is in view and settings are shown, hide it
+            // If model selector is NOT in view, show settings (or keep them shown)
+            if (inView && showSettings) {
+                setShowSettings(false);
+            } else {
+                setShowSettings(true);
+            }
+
+            if (!messageIsStreaming) handleScrollUp();
+        };
+
+        const enforcesGroupTypes = () => selectedAssistant?.definition?.data && Object.keys(selectedAssistant?.definition?.data?.groupTypeData || {}).length > 0;
+                                                    
+        const getGroupTypeSelector = (ast: Assistant | null) => {
+            if (selectedConversation && ast) {
+
+             return <GroupTypeSelector
+                groupOptionsData={ast?.definition?.data?.groupTypeData || {}}
+                setSelected={(type: string | undefined) => {
+                    // set selectedConversations with type
+                    homeDispatch({ field: 'selectedConversation', value: {...selectedConversation, groupType: type} })
+                    handleUpdateConversation(selectedConversation, {
+                        key: 'groupType',
+                        value: type,
+                    }) 
+                }}
+                groupUserTypeQuestion={ast?.definition?.data?.groupUserTypeQuestion || ''}
+             />
+            }
+                
+         return null;
+        }
 
         const onClearAll = () => {
             if (
@@ -1135,22 +1248,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     
                                                 </div>
                                                 
-                                                { selectedAssistant?.definition?.data && Object.keys(selectedAssistant?.definition?.data?.groupTypeData || {}).length > 0 ? 
-                                                    <>
-                                                        <GroupTypeSelector
-                                                            groupOptionsData={selectedAssistant.definition.data.groupTypeData}
-                                                            setSelected={(type: string | undefined) => {
-                                                                // set selectedConversations with type
-                                                                homeDispatch({ field: 'selectedConversation', value: {...selectedConversation, groupType: type} })
-                                                                handleUpdateConversation(selectedConversation, {
-                                                                    key: 'groupType',
-                                                                    value: type,
-                                                                }) 
-                                                            }}
-                                                            groupUserTypeQuestion={selectedAssistant.definition.data.groupUserTypeQuestion}
-                                                        />
-                                                        
-                                                    </> :
+                                                { enforcesGroupTypes() ? <> {getGroupTypeSelector(selectedAssistant)} </> :
                                                     ( showAdvancedConvSettings && 
                                                     <>
                                                         <SystemPrompt
@@ -1274,9 +1372,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();
-                                                        setShowSettings(true);
-                                                        if (!messageIsStreaming) handleScrollUp();
-                                                        
+                                                        handleToggleSettings();
                                                     }}
                                                 >
                                                     {selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
@@ -1286,9 +1382,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                                         
                                                 </button>
 
-                                                <div className='flex flex-row'>
-                                                    {t('Temp')} : {`${selectedConversation?.temperature} | `}
-                                                
+                                                <div className='flex flex-row items-center'>
+                                                    {renderChatSettings(true)}
+
                                                     <button
                                                         className="ml-2 cursor-pointer hover:opacity-50"
                                                         disabled={messageIsStreaming}
@@ -1359,9 +1455,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();
-                                                        setShowSettings(true);
-                                                        if (!messageIsStreaming) handleScrollUp();
-                                                        
+                                                        handleToggleSettings();
                                                     }}
                                                 >
                                                     {selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
@@ -1379,8 +1473,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         ${isPillExpanded ? 'max-w-[600px] opacity-100 ml-4' : 'max-w-0 opacity-0 ml-0'}
                                                     `}>
 
-                                                    {t('Temp')} : {selectedConversation?.temperature}
-                                                
+                                                    {renderChatSettings()}
+
                                                     <button
                                                         className="ml-2 cursor-pointer hover:opacity-50"
                                                         disabled={messageIsStreaming}
@@ -1435,7 +1529,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     </div>
                                     <div ref={modelSelectRef}></div>
                                     
-                                        <div 
+                                        <div
                                             className="flex flex-col md:gap-6 md:py-3 md:pt-6 lg:px-0 mx-16 ">
                                             { showSettings && !availableAstModelId(selectedAssistant?.definition?.data?.model) &&
                                                 <div
@@ -1462,7 +1556,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     
 
 
-                                    {selectedConversationState?.messages?.map((message: Message, index: number) => (
+                                    {selectedConversationState?.messages?.map((message: Message, index: number) => {
+                                        // Don't render raw tool messages as chat bubbles; they're internal context for the LLM.
+                                        // Tool results (e.g., message.data.mcpToolResults) are still rendered via MCPToolResultBlock inside MemoizedChatMessage.
+                                        if (message.role === 'tool') return null;
+                                        return (
                                         <MemoizedChatMessage
                                                 key={index}
                                                 message={message}
@@ -1478,22 +1576,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     if (editedMessage.role != "assistant") {
                                                         const lastUserMessageIndex = selectedConversationState?.messages
                                                                                                                .map(msg => msg.role)
-                                                                                                               .lastIndexOf('user');                                                                                                    
+                                                                                                               .lastIndexOf('user');
 
                                                         if (index === lastUserMessageIndex) {
                                                             routeMessage(editedMessage, selectedConversationState?.messages.length - index, []);
                                                         } else {
-                                                            // ask to fork or overwrite 
+                                                            // ask to fork or overwrite
                                                             setShowOnEditMessagePrompt({editedMessage: editedMessage, index: index});
                                                         }
-                                                        
+
                                                     } else {
                                                         console.log("updateMessage");
                                                         updateMessage(selectedConversationState, editedMessage, index);
                                                     }
                                                 }}
                                             />
-                                    ))}
+                                        );
+                                    })}
 
                                     {loading && <ChatLoader/>}
 
@@ -1580,8 +1679,22 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
             </div>
 
+            {/* Prompt Cost Alert Modal */}
+            {promptCostAlertModal?.isOpen && (
+                <ConfirmModal
+                    title="💰 Estimated Prompt Cost"
+                    message={promptCostAlertModal.message}
+                    confirmLabel="Continue"
+                    denyLabel="Cancel"
+                    onConfirm={promptCostAlertModal.onConfirm}
+                    onDeny={promptCostAlertModal.onDeny}
+                    width={500}
+                    height={220}
+                />
+            )}
+
             </>
         );
     });
-    
+
 Chat.displayName = 'Chat';

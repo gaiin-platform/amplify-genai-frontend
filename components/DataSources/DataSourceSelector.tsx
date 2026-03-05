@@ -10,7 +10,7 @@ import HomeContext from '@/pages/api/home/home.context';
 import { capitalize } from '@/utils/app/data';
 import DataSourcesTableScrollingIntegrations from './DataSourcesTableScrollingIntegrations';
 import { translateIntegrationIcon } from '../Integrations/IntegrationsDialog';
-import { getDriveFileIntegrationTypes } from '@/utils/app/integrations';
+import { getDriveFileIntegrationTypes, getIntegrationName } from '@/utils/app/integrations';
 
 interface Props {
     onDataSourceSelected: (dataSource: DataSource) => void;
@@ -56,15 +56,6 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
         
     }, [loading]);
 
-    const getIntegrationName = (integration: string) => {
-        switch (integration) {
-            case "microsoft_drive":
-                return "OneDrive";
-            case "microsoft_sharepoint":
-                return "SharePoint";
-        }
-        return capitalize(integration.split('_')[0]);
-    }
 
     useEffect(() => {
         if (selectRef.current) {

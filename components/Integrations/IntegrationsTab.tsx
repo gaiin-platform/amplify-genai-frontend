@@ -1,7 +1,7 @@
 import { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import HomeContext from '@/pages/api/home/home.context';
-import { IconCheck, IconLoader2} from '@tabler/icons-react';
+import { IconCheck, IconLoader2 } from '@tabler/icons-react';
 
 import { deleteUserIntegration, getAvailableIntegrations, getOauthRedirect, getConnectedIntegrations } from '@/services/oauthIntegrationsService';
 import { ActiveTabs } from '../ReusableComponents/ActiveTabs';
@@ -9,6 +9,7 @@ import { Integration, IntegrationProviders, IntegrationsMap } from '@/types/inte
 import { capitalize } from '@/utils/app/data';
 import { Loader } from '@mantine/core';
 import { translateIntegrationIcon } from './IntegrationsDialog';
+import { ToolApiKeysTab } from '../Settings/ToolApiKeysTab';
 
 interface Props {
   open: boolean;
@@ -17,12 +18,13 @@ interface Props {
   onSupportedIntegrations?: (integrations: IntegrationsMap) => void;
   onConnectedIntegrations?: (integrations: string[]) => void;
   onTabChange?: (tab: string) => void;
+  openToSubTab?: string;
 }
 
 export const IntegrationTabs: FC<Props> = ({ open, depth=0, allowedIntegrations=[], onTabChange: integrationTabChange = () => {},
-                                             onSupportedIntegrations = () => {}, onConnectedIntegrations = () => {}}) => {
+                                             onSupportedIntegrations = () => {}, onConnectedIntegrations = () => {}, openToSubTab }) => {
   const { t } = useTranslation('settings');
-  const { dispatch: homeDispatch, state: { statsService} } = useContext(HomeContext);
+  const { state: { featureFlags, canAddWebSearchApiKey } } = useContext(HomeContext);
   const lastActiveTab = useRef<number | undefined>(undefined);
 
   const [connectingStates, setConnectingStates] = useState<{[key: string]: boolean}>({});
@@ -286,14 +288,22 @@ export const IntegrationTabs: FC<Props> = ({ open, depth=0, allowedIntegrations=
     <ActiveTabs
         id="SettingsIntegrationsTab"
         depth={depth}
-        initialActiveTab={lastActiveTab.current}
-        onTabChange={(i: number, label: string) => integrationTabChange(label)}
+        initialActiveTab={openToSubTab || lastActiveTab.current}
+        onTabChange={(i: number, label: string) => {
+          lastActiveTab.current = i;
+          integrationTabChange(label);
+        }}
         tabs={[
             ...(Object.keys(integrations).sort().map((name: string, i: number) =>
                         ({label: capitalize(name),
                         content: <>{renderContent(name, i)}</>
                         })
-            ))]
+            )),
+            ...(featureFlags.webSearch && canAddWebSearchApiKey && (allowedIntegrations.length === 0 || allowedIntegrations.includes('web_search')) ? [{
+              label: 'Web Search',
+              content: <ToolApiKeysTab open={open} />
+            }] : [])
+          ]
         }
     />
   );

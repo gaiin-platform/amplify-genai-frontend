@@ -1,7 +1,8 @@
-import { FC, useState } from "react";
+import { FC, useState, useContext } from "react";
+import HomeContext from '@/pages/api/home/home.context';
 import {  titleLabel } from "../AdminUI";
 import { AdminConfigTypes} from "@/types/admin";
-import { IntegrationsMap, Integration, integrationProviders, IntegrationSecretsMap, IntegrationProviders, IntegrationSecrets, ProviderSettingsMap} from "@/types/integrations";
+import { IntegrationsMap, Integration, integrationProviders, IntegrationSecretsMap, IntegrationProviders, IntegrationSecrets, ProviderSettingsMap, AdminWebSearchConfig} from "@/types/integrations";
 import { IconCheck, IconX, IconPlus } from "@tabler/icons-react";
 import { capitalize } from "@/utils/app/data";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
@@ -9,34 +10,26 @@ import InputsMap from "@/components/ReusableComponents/InputMap";
 import { translateIntegrationIcon } from "@/components/Integrations/IntegrationsDialog";
 import { registerIntegrationSecrets } from "@/services/oauthIntegrationsService";
 import toast from "react-hot-toast";
+import { WebSearchIntegration } from "./WebSearchIntegration";
 
 interface Props {
-    integrations: IntegrationsMap;
+    integrations: IntegrationsMap | null;
     setIntegrations: (i: IntegrationsMap) => void;
 
     integrationSecrets: IntegrationSecretsMap;
     setIntegrationSecrets: (s: IntegrationSecretsMap) => void;
 
-    providerSettings: ProviderSettingsMap;
-    setProviderSettings: (s: ProviderSettingsMap) => void;
-
     azureAdminConsentProvided: boolean;
     setAzureAdminConsentProvided: (value: boolean) => void;
+
+    webSearchConfig: AdminWebSearchConfig | null;
+    setWebSearchConfig: (config: AdminWebSearchConfig | null) => void;
 
     updateUnsavedConfigs: (t: AdminConfigTypes) => void;
 }
 
-export const IntegrationsTab: FC<Props> = ({
-    integrations,
-    setIntegrations,
-    integrationSecrets,
-    setIntegrationSecrets,
-    providerSettings,
-    setProviderSettings,
-    azureAdminConsentProvided,
-    setAzureAdminConsentProvided,
-    updateUnsavedConfigs
-}) => {
+export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integrationSecrets, setIntegrationSecrets, azureAdminConsentProvided, setAzureAdminConsentProvided, webSearchConfig, setWebSearchConfig, updateUnsavedConfigs}) => {
+    const { state: { featureFlags } } = useContext(HomeContext);
 
     const [secretsHasChanges, setSecretsHasChanges] = useState<string[]>([]);
     const [isRegisteringSecrets, setIsRegisteringSecrets] = useState<string>('');
@@ -89,12 +82,20 @@ export const IntegrationsTab: FC<Props> = ({
         return secrets ? secrets[key] ?? "" : "";    
     }
 
-    return <div className="admin-style-settings-card">
+    return <>
+        {/* Web Search Integration */}
+        {featureFlags.webSearch && <WebSearchIntegration
+            config={webSearchConfig}
+            setConfig={setWebSearchConfig}
+            updateUnsavedConfigs={() => updateUnsavedConfigs(AdminConfigTypes.WEB_SEARCH)}
+        />}
+
+        {integrations && <div className="admin-style-settings-card">
         <div className="admin-style-settings-card-header">
             <div className="flex flex-row items-center gap-3 mb-2">
-                <h3 className="admin-style-settings-card-title">Integrations</h3>
+                <h3 className="admin-style-settings-card-title">OAuth Integrations</h3>
             </div>
-            <p className="admin-style-settings-card-description">Configure and manage third-party integrations</p>
+            <p className="admin-style-settings-card-description">Configure and manage OAuth third-party integrations (Google Drive, Microsoft OneDrive, etc.)</p>
         </div>
 
         {Object.entries(integrations).map(([name, integrationList]: [string, Integration[]]) => 
@@ -187,6 +188,7 @@ export const IntegrationsTab: FC<Props> = ({
                 <br className="mb-4"></br>
             </div>
         )}
-    </div>
+    </div>}
+    </>
 
 }

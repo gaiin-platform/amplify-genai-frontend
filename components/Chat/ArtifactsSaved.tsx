@@ -187,7 +187,7 @@ return (
         <button
             className="chat-input-button rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
             onClick={(e) => setIsOpen(!isOpen)}
-            title="Add saved Artifact"
+            title="Add Artifact to conversation"
             >
             <IconLibrary size={iconSize} />
         </button>
@@ -210,7 +210,7 @@ return (
                     onMouseEnter={() => setHoveredItem(index)} onMouseLeave={() => setHoveredItem(-1)}
                     title={`${artifact.description}\n - ${artifact.sharedBy ? `Shared by: ${artifact.sharedBy}` : artifact.createdAt}`}
                     id="artifactInList"
-                    className="p-2.5 border-b border-neutral-300 dark:border-b-neutral-600 hover:bg-neutral-200 dark:hover:bg-[#343541]/90 flex flex-row gap-2">
+                    className="p-2.5 text-black dark:text-neutral-200 border-b border-neutral-300 dark:border-b-neutral-600 hover:bg-neutral-200 dark:hover:bg-[#343541]/90 flex flex-row gap-2">
                       <label className='truncate flex-grow' style={{maxWidth: hoveredItem === index || loadingItem === index ? '200px' : '224px', cursor: loadingItem === index ? 'default': 'pointer'}}> {artifact.name}</label>
                 
                       { loadingItem === index ? 

@@ -211,6 +211,10 @@ export const mimeTypeToCommonName: MimeTypeMapping = {
     'application/vnd.google-apps.fusiontable' : "Google Fusion Tables",
     'application/vnd.google-apps.map' : "Google My Maps",
     'application/vnd.google-apps.drive-sdk' : "Google Drive SDK",
+    'sharepoint.site': "SharePoint Site",
+    'sharepoint.library': "SharePoint Library",
+    "inode/directory": "Directory",
+
 };
 
 // Programmatically create the inverse mapping
