@@ -18,14 +18,17 @@ const addDataToMessages = (messages: Message[], data: { [key: string]: any }) =>
     });
 }
 
-export const createAssistant = async (assistantDefinition: AssistantDefinition, abortSignal = null) => {
+export const createAssistant = async (
+    assistantDefinition: AssistantDefinition
+) => {
     if (!("disclaimer" in assistantDefinition)) assistantDefinition.disclaimer = '';
     const op = {
         method: 'POST',
         path: URL_PATH,
         op: "/create",
         data: { ...assistantDefinition },
-        service: SERVICE_NAME
+        service: SERVICE_NAME,
+        enablePolling: true,  // Enable polling for assistant creation
     };
 
     if (assistantDefinition.provider === 'openai') {
