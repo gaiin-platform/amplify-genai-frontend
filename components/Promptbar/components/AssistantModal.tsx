@@ -840,7 +840,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             const updatedAdditionalGroupData = prepAdditionalData();
             newAssistant.data = {...newAssistant.data, ...updatedAdditionalGroupData};
             
-            const {id, assistantId, provider, data_sources, ast_data} = onCreateAssistant ? await onCreateAssistant(newAssistant) : await createAssistant(newAssistant, null);
+            const {id, assistantId, provider, data_sources, ast_data} = onCreateAssistant ? await onCreateAssistant(newAssistant) : await createAssistant(newAssistant);
             console.log('Assistant created with ID:', assistantId);
 
             
