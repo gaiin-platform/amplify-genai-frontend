@@ -24,6 +24,7 @@ import {
   MCPServerConfig,
   MCPServerFormData,
   MCPTool,
+  MCPOAuth2Config,
   MCP_SERVER_PRESETS,
   validateMCPServerUrl,
 } from '@/types/mcp';
@@ -34,6 +35,8 @@ import {
   testMCPConnection,
   toggleMCPServer,
   refreshMCPServerTools,
+  startMCPOAuth,
+  disconnectMCPOAuth,
 } from '@/services/mcpService';
 
 interface Props {
@@ -50,6 +53,7 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
     url: '',
     transport: 'http',
   });
+  const [authHeader, setAuthHeader] = useState('');
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; tools?: MCPTool[]; error?: string } | null>(null);
@@ -58,6 +62,14 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [expandedServerId, setExpandedServerId] = useState<string | null>(null);
+
+  // OAuth2 state: which server is showing the OAuth form, and its field values
+  const [oauthServerId, setOauthServerId] = useState<string | null>(null);
+  const [oauthForm, setOauthForm] = useState<MCPOAuth2Config>({
+    clientId: '', clientSecret: '', authorizationUrl: '', tokenUrl: '', scopes: ''
+  });
+  const [oauthConnecting, setOauthConnecting] = useState<string | null>(null);
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
 
   // Track unsaved form changes
   useEffect(() => {
@@ -88,6 +100,7 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
   const handleShowAddForm = () => {
     setShowAddForm(true);
     setFormData({ name: '', url: '', transport: 'http' });
+    setAuthHeader('');
     setError(null);
     setTestResult(null);
   };
@@ -95,6 +108,7 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
   const handleCancelAdd = () => {
     setShowAddForm(false);
     setFormData({ name: '', url: '', transport: 'http' });
+    setAuthHeader('');
     setError(null);
     setTestResult(null);
   };
@@ -107,6 +121,7 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
         url: preset.defaultUrl,
         transport: preset.transport,
       });
+      setAuthHeader('');
     }
   };
 
@@ -125,11 +140,15 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
     setError(null);
     setTestResult(null);
 
-    const result = await testMCPConnection(formData);
+    const headers: Record<string, string> = {};
+    if (authHeader.trim()) headers['Authorization'] = authHeader.trim();
+    const result = await testMCPConnection({ ...formData, headers });
     setTesting(false);
 
     if (result.success) {
       setTestResult({ success: true, tools: result.tools });
+    } else if (result.requiresAuth) {
+      setTestResult({ success: false, error: 'Server requires authentication. Add an Authorization header above, or save the server first and connect via OAuth2.' });
     } else {
       setTestResult({ success: false, error: result.error });
     }
@@ -154,7 +173,9 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
     setSaving(true);
     setError(null);
 
-    const result = await addMCPServer(formData);
+    const headers: Record<string, string> = {};
+    if (authHeader.trim()) headers['Authorization'] = authHeader.trim();
+    const result = await addMCPServer({ ...formData, headers });
     setSaving(false);
 
     if (result.success) {
@@ -196,6 +217,9 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
 
     if (result.success) {
       await loadServers();
+    } else if (result.requiresAuth) {
+      await loadServers();
+      setOauthServerId(serverId);
     } else {
       alert(result.error || 'Failed to refresh tools');
     }
@@ -203,6 +227,44 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
 
   const toggleExpanded = (serverId: string) => {
     setExpandedServerId(expandedServerId === serverId ? null : serverId);
+  };
+
+  const handleConnectOAuth = async (serverId: string, manualConfig?: typeof oauthForm) => {
+    // If a manual config is provided its fields must be filled; if not we rely on
+    // backend auto-discovery (just pass serverId with no extra fields).
+    if (manualConfig && (!manualConfig.clientId || !manualConfig.authorizationUrl || !manualConfig.tokenUrl)) {
+      alert('Client ID, Authorization URL and Token URL are required.');
+      return;
+    }
+    setOauthConnecting(serverId);
+    const redirectUri = `${window.location.origin}/mcp-oauth-callback`;
+    const result = await startMCPOAuth(serverId, manualConfig, redirectUri);
+    setOauthConnecting(null);
+    if (result.success && result.authorizationUrl) {
+      // Open the auth URL in a popup; poll for window close then reload servers
+      const popup = window.open(result.authorizationUrl, '_blank', 'width=600,height=700');
+      const timer = setInterval(async () => {
+        if (popup && popup.closed) {
+          clearInterval(timer);
+          setOauthServerId(null);
+          await loadServers();
+        }
+      }, 1000);
+    } else {
+      alert(result.error || 'Failed to start OAuth flow');
+    }
+  };
+
+  const handleDisconnectOAuth = async (serverId: string) => {
+    if (!confirm('Remove the OAuth token for this server?')) return;
+    setDisconnectingId(serverId);
+    const result = await disconnectMCPOAuth(serverId);
+    setDisconnectingId(null);
+    if (result.success) {
+      await loadServers();
+    } else {
+      alert(result.error || 'Failed to disconnect OAuth');
+    }
   };
 
   if (!open) return null;
@@ -325,6 +387,23 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
                 <option value="http">HTTP (Recommended)</option>
                 <option value="sse">SSE (Server-Sent Events)</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm text-neutral-600 dark:text-neutral-400 mb-1">
+                Authorization Header{' '}
+                <span className="text-neutral-400 dark:text-neutral-500 font-normal">(optional)</span>
+              </label>
+              <input
+                type="password"
+                value={authHeader}
+                onChange={e => setAuthHeader(e.target.value)}
+                placeholder="Bearer your-api-key"
+                className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+              <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
+                Sent as the <code className="font-mono">Authorization</code> header. Required for servers like scite.ai.
+              </p>
             </div>
 
             {error && (
@@ -539,6 +618,131 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
                     </div>
                   </div>
                 )}
+
+                {/* OAuth2 section */}
+                <div className="mt-3 border-t border-neutral-100 dark:border-neutral-700 pt-3">
+                  {server.oauthConnected ? (
+                    /* ── Already connected ── */
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                        <IconCheck className="w-3 h-3" />
+                        OAuth connected
+                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleConnectOAuth(server.id)}
+                          disabled={oauthConnecting === server.id}
+                          className="text-xs text-purple-500 hover:text-purple-600 disabled:opacity-50"
+                        >
+                          {oauthConnecting === server.id ? 'Signing in…' : 'Re-authenticate'}
+                        </button>
+                        <button
+                          onClick={() => handleDisconnectOAuth(server.id)}
+                          disabled={disconnectingId === server.id}
+                          className="text-xs text-red-500 hover:text-red-600 disabled:opacity-50"
+                        >
+                          {disconnectingId === server.id ? 'Disconnecting…' : 'Disconnect'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : server.oauthDiscoverable ? (
+                    /* ── Auto-discoverable (e.g. scite.ai) ── */
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => handleConnectOAuth(server.id)}
+                        disabled={oauthConnecting === server.id}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 text-white text-sm rounded"
+                      >
+                        {oauthConnecting === server.id ? (
+                          <><IconLoader2 className="w-4 h-4 animate-spin" />Signing in…</>
+                        ) : (
+                          <><IconPlugConnected className="w-4 h-4" />Sign in with {server.name}</>
+                        )}
+                      </button>
+                      {/* Advanced: manual override */}
+                      <button
+                        onClick={() => setOauthServerId(oauthServerId === server.id ? null : server.id)}
+                        className="text-xs text-neutral-400 hover:text-neutral-500"
+                      >
+                        {oauthServerId === server.id ? 'Hide advanced' : 'Advanced (manual config)'}
+                      </button>
+                      {oauthServerId === server.id && (
+                        <div className="mt-2 space-y-2 p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded border border-neutral-200 dark:border-neutral-700">
+                          {(['clientId', 'clientSecret', 'authorizationUrl', 'tokenUrl', 'scopes'] as const).map(field => (
+                            <div key={field}>
+                              <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-0.5 capitalize">
+                                {field === 'authorizationUrl' ? 'Authorization URL' : field === 'tokenUrl' ? 'Token URL' : field === 'clientId' ? 'Client ID' : field === 'clientSecret' ? 'Client Secret' : 'Scopes'}
+                              </label>
+                              <input
+                                type={field === 'clientSecret' ? 'password' : 'text'}
+                                value={(oauthForm as unknown as Record<string, string>)[field] ?? ''}
+                                onChange={e => setOauthForm({ ...oauthForm, [field]: e.target.value })}
+                                className="w-full px-2 py-1.5 text-sm border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                              />
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => handleConnectOAuth(server.id, oauthForm)}
+                            disabled={oauthConnecting === server.id}
+                            className="px-3 py-1.5 bg-purple-500 text-white text-sm rounded hover:bg-purple-600 disabled:opacity-50 flex items-center gap-2"
+                          >
+                            {oauthConnecting === server.id ? (
+                              <><IconLoader2 className="w-4 h-4 animate-spin" />Signing in…</>
+                            ) : (
+                              <><IconPlugConnected className="w-4 h-4" />Authorize</>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* ── Manual OAuth config ── */
+                    <>
+                      <button
+                        onClick={() => setOauthServerId(oauthServerId === server.id ? null : server.id)}
+                        className="text-xs text-purple-500 hover:text-purple-600 flex items-center gap-1"
+                      >
+                        <IconPlugConnected className="w-3 h-3" />
+                        {oauthServerId === server.id ? 'Cancel OAuth setup' : 'Connect with OAuth2'}
+                      </button>
+
+                      {oauthServerId === server.id && (
+                        <div className="mt-3 space-y-3 p-3 bg-purple-50/50 dark:bg-purple-900/10 rounded border border-purple-200 dark:border-purple-800">
+                          <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">OAuth2 Settings</p>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Client ID</label>
+                              <input type="text" value={oauthForm.clientId} onChange={e => setOauthForm({ ...oauthForm, clientId: e.target.value })} className="w-full px-2 py-1.5 text-sm border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Client Secret</label>
+                              <input type="password" value={oauthForm.clientSecret} onChange={e => setOauthForm({ ...oauthForm, clientSecret: e.target.value })} className="w-full px-2 py-1.5 text-sm border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500" />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Authorization URL</label>
+                            <input type="text" value={oauthForm.authorizationUrl} onChange={e => setOauthForm({ ...oauthForm, authorizationUrl: e.target.value })} placeholder="https://provider.com/oauth/authorize" className="w-full px-2 py-1.5 text-sm border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Token URL</label>
+                            <input type="text" value={oauthForm.tokenUrl} onChange={e => setOauthForm({ ...oauthForm, tokenUrl: e.target.value })} placeholder="https://provider.com/oauth/token" className="w-full px-2 py-1.5 text-sm border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Scopes <span className="text-neutral-400">(space-separated, optional)</span></label>
+                            <input type="text" value={oauthForm.scopes ?? ''} onChange={e => setOauthForm({ ...oauthForm, scopes: e.target.value })} placeholder="read write" className="w-full px-2 py-1.5 text-sm border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500" />
+                          </div>
+                          <button onClick={() => handleConnectOAuth(server.id, oauthForm)} disabled={oauthConnecting === server.id} className="px-3 py-1.5 bg-purple-500 text-white text-sm rounded hover:bg-purple-600 disabled:opacity-50 flex items-center gap-2">
+                            {oauthConnecting === server.id ? (
+                              <><IconLoader2 className="w-4 h-4 animate-spin" />Redirecting…</>
+                            ) : (
+                              <><IconPlugConnected className="w-4 h-4" />Authorize</>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           ))}

@@ -168,6 +168,7 @@ export async function testMCPConnection(
         }
         return {
             success: false,
+            requiresAuth: result.requiresAuth,
             error: result.message || result.error || result.data?.error || 'Connection test failed'
         };
     } catch (e) {
@@ -214,7 +215,7 @@ export async function toggleMCPServer(
  */
 export async function refreshMCPServerTools(
     serverId: string
-): Promise<{ success: boolean; tools?: MCPTool[]; error?: string }> {
+): Promise<{ success: boolean; tools?: MCPTool[]; error?: string; requiresAuth?: boolean }> {
     try {
         const result = await doRequestOp({
             method: 'POST',
@@ -230,7 +231,7 @@ export async function refreshMCPServerTools(
                 tools: (result.data as { tools: MCPTool[] }).tools
             };
         }
-        return { success: false, error: result.message || result.error || 'Failed to refresh tools' };
+        return { success: false, requiresAuth: result.requiresAuth, error: result.message || result.error || 'Failed to refresh tools' };
     } catch (e) {
         console.error('Failed to refresh MCP server tools:', e);
         return { success: false, error: 'Network error' };
@@ -271,4 +272,86 @@ export async function hasMCPServers(): Promise<boolean> {
 export async function hasEnabledMCPServers(): Promise<boolean> {
     const servers = await listMCPServers();
     return servers.some(s => s.enabled);
+}
+
+/**
+ * Start OAuth2 flow for an MCP server.
+ * Returns the authorization URL that the frontend should open in a popup/new tab.
+ */
+export async function startMCPOAuth(
+    serverId: string,
+    oauth?: {
+        clientId?: string;
+        clientSecret?: string;
+        authorizationUrl?: string;
+        tokenUrl?: string;
+        scopes?: string;
+    },
+    redirectUri?: string
+): Promise<{ success: boolean; authorizationUrl?: string; error?: string }> {
+    try {
+        const result = await doRequestOp({
+            method: 'POST',
+            path: URL_PATH,
+            op: '/mcp/server/oauth/start',
+            data: { serverId, ...(oauth ?? {}), ...(redirectUri ? { redirectUri } : {}) },
+            service: SERVICE_NAME
+        });
+
+        if (result.success && result.authorizationUrl) {
+            return { success: true, authorizationUrl: result.authorizationUrl };
+        }
+        return { success: false, error: result.message || result.error || 'Failed to start OAuth' };
+    } catch (e) {
+        console.error('Failed to start MCP OAuth:', e);
+        return { success: false, error: 'Network error' };
+    }
+}
+
+/**
+ * Remove the stored OAuth2 token from an MCP server
+ */
+export async function disconnectMCPOAuth(
+    serverId: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const result = await doRequestOp({
+            method: 'POST',
+            path: URL_PATH,
+            op: '/mcp/server/oauth/disconnect',
+            data: { serverId },
+            service: SERVICE_NAME
+        });
+
+        if (result.success) return { success: true };
+        return { success: false, error: result.message || result.error || 'Failed to disconnect OAuth' };
+    } catch (e) {
+        console.error('Failed to disconnect MCP OAuth:', e);
+        return { success: false, error: 'Network error' };
+    }
+}
+
+/**
+ * Exchange an OAuth2 authorization code for a token.
+ * Called by the frontend callback page after the OAuth provider redirects back.
+ */
+export async function mcpOAuthExchange(
+    code: string,
+    state: string
+): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+        const result = await doRequestOp({
+            method: 'POST',
+            path: URL_PATH,
+            op: '/mcp/server/oauth/exchange',
+            data: { code, state },
+            service: SERVICE_NAME
+        });
+
+        if (result.success) return { success: true, message: result.message };
+        return { success: false, error: result.message || result.error || 'Token exchange failed' };
+    } catch (e) {
+        console.error('Failed to exchange MCP OAuth code:', e);
+        return { success: false, error: 'Network error' };
+    }
 }
