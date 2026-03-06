@@ -26,6 +26,7 @@ const requestOp =
 
         // Accessing itemData parameters from the request
         const reqData = req.body.data || {};
+        const pollRequestId = req.body.pollRequestId;  // Extract pollRequestId at top level
 
         const method = reqData.method || null;
         let payload = reqData.data ? transformPayload.decode(reqData.data) : null;
@@ -64,7 +65,14 @@ const requestOp =
             } else {
                 console.log(`Skipping compression for path: ${reqData.path}`);
             }
-            reqPayload.body = JSON.stringify( { data: payload });
+
+            // Include pollRequestId if present (for polling support)
+            const bodyData: any = { data: payload };
+            if (pollRequestId) {
+                bodyData.pollRequestId = pollRequestId;
+                console.log(`Including pollRequestId in backend request: ${pollRequestId}`);
+            }
+            reqPayload.body = JSON.stringify(bodyData);
 
         }
 
