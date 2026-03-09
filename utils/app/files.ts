@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { capitalize } from "./data";
 import { embeddingDocumentStatus, clearEmbeddingStatusCache } from "@/services/adminService";
 import JSZip from "jszip";
+import { isBedrockKbDatasource } from "./bedrockKb";
 
 /**
  * Extract Microsoft Information Protection (MIP) sensitivity label from Office files.
@@ -132,6 +133,7 @@ export const extractSensitivityLabel = async (file: File): Promise<{ level: numb
 }
 
 export const downloadDataSourceFile = async (dataSource: DataSource, groupId: string | undefined = undefined) => {
+    if (isBedrockKbDatasource(dataSource)) return; // No file to download for Bedrock KB
     const response = await getFileDownloadUrl(dataSource.id, groupId); // support images too 
     if (!response.success) {
         alert("Error downloading file. Please try again.");
@@ -145,6 +147,10 @@ export const downloadDataSourceFile = async (dataSource: DataSource, groupId: st
 }
 
 export const deleteDatasourceFile = async (dataSource: DataSource, showToast: boolean = true) => {
+  if (isBedrockKbDatasource(dataSource)) {
+      // Bedrock KB datasources are references, not files — just remove from the array
+      return { success: true, fileName: dataSource.name || dataSource.id || 'Bedrock KB' };
+  }
   console.log("deleteDatasourceFile: ", dataSource)
   try {
       const response = await deleteFile(dataSource.id || 'none');

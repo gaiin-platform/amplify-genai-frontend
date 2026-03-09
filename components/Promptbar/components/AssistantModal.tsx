@@ -35,6 +35,8 @@ import ApiIntegrationsPanel from '@/components/AssistantApi/ApiIntegrationsPanel
 import { AssistantEmailEvents } from '@/components/Promptbar/components/AssistantModalComponents/AssistantEmailEvents';
 import { AssistantWorkflowDisplay } from './AssistantModalComponents/AssistantWorkflowDisplay';
 import { isWebsiteDs, WebsiteScanScheduler, WebsiteURLInput } from '@/components/DataSources/WebsiteURLInput';
+import { BedrockKBInput } from '@/components/DataSources/BedrockKBInput';
+import { isBedrockKbDatasource, extractKbId } from '@/utils/app/bedrockKb';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import { ScheduledTaskButton } from '@/components/Agent/ScheduledTasks';
 import { deleteFile } from '@/services/fileService';
@@ -684,6 +686,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
           // console.log(dataSources.map((d: any)=> d.name));
 
             newAssistant.dataSources = dataSources.map(ds => {
+                if (isBedrockKbDatasource(ds)) return ds; // Bedrock KB datasources pass through as-is
                 if (isWebsiteDs(ds) && !ds.key) return ds; // signifies needs scraping
                 if (assistant.groupId) {
                     if (!ds.key) ds.key = ds.id;
@@ -1441,6 +1444,42 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 onRescanScheduleChange={setDriveRescanSchedule}
                                 />
                             }
+
+                            {/* Bedrock Knowledge Base Section */}
+                            {featureFlags.bedrockKnowledgeBase && !disableEdit && (
+                                <>
+                                <div className="mt-2 mb-2 font-bold text-black dark:text-neutral-200">
+                                    {t('Attach Bedrock Knowledge Base')}
+                                </div>
+                                <BedrockKBInput
+                                    existingKbIds={dataSources
+                                        .filter(isBedrockKbDatasource)
+                                        .map(ds => extractKbId(ds))}
+                                    onAdd={(ds) => {
+                                        setDataSources([...dataSources, ds as any]);
+                                        setDocumentState({ ...documentState, [ds.id]: 100 });
+                                    }}
+                                />
+                                <FileList
+                                    documents={dataSources.filter((ds: AttachedDocument) =>
+                                        !(preexistingDocumentIds.includes(ds.id)) && isBedrockKbDatasource(ds)
+                                    )}
+                                    documentStates={documentState}
+                                    setDocuments={(docs) => {
+                                        const nonKb = dataSources.filter((ds: AttachedDocument) =>
+                                            !isBedrockKbDatasource(ds) || preexistingDocumentIds.includes(ds.id)
+                                        );
+                                        setDataSources([...docs, ...nonKb] as any[]);
+                                    }}
+                                    allowRemoval={!disableEdit}
+                                    onCancelUpload={(ds: AttachedDocument) => {
+                                        const updatedDocState = { ...documentState };
+                                        delete updatedDocState[ds.id];
+                                        setDocumentState(updatedDocState);
+                                    }}
+                                />
+                                </>
+                            )}
 
                             { definition.dataSources?.length > 0  &&
                              <div className="mt-4">
