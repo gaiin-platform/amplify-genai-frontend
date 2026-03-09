@@ -31,6 +31,7 @@ export interface AdminWebSearchConfig {
     allowUserWebSearchKeys: boolean;
     maskedKey?: string;
     lastUpdated?: string;
+    api_key?: string; // Full API key stored temporarily for save operation (not from backend)
 }
 
 // Configuration for admin web search integrations

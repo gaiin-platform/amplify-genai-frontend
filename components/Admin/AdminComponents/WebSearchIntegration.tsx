@@ -13,7 +13,6 @@ import {
     IconCheck,
     IconX,
     IconExternalLink,
-    IconLoader2,
     IconInfoCircle,
 } from '@tabler/icons-react';
 import {
@@ -21,23 +20,18 @@ import {
     WEB_SEARCH_PROVIDERS,
     AdminWebSearchConfig,
 } from '@/types/integrations';
-import {
-    registerAdminWebSearchKey,
-    deleteAdminWebSearchKey,
-} from '@/services/adminWebSearchService';
 import toast from 'react-hot-toast';
 
 interface Props {
     config: AdminWebSearchConfig | null;
     setConfig: (config: AdminWebSearchConfig | null) => void;
+    updateUnsavedConfigs: () => void;
 }
 
-export const WebSearchIntegration: FC<Props> = ({ config, setConfig }) => {
+export const WebSearchIntegration: FC<Props> = ({ config, setConfig, updateUnsavedConfigs }) => {
     const [selectedProvider, setSelectedProvider] = useState<WebSearchProvider | null>(null);
     const [apiKey, setApiKey] = useState('');
     const [allowUserKeys, setAllowUserKeys] = useState(config?.allowUserWebSearchKeys ?? false);
-    const [saving, setSaving] = useState(false);
-    const [deleting, setDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const handleSelectProvider = (provider: WebSearchProvider) => {
@@ -52,58 +46,57 @@ export const WebSearchIntegration: FC<Props> = ({ config, setConfig }) => {
         setError(null);
     };
 
-    const handleSave = async () => {
+    const handleSave = () => {
         if (!selectedProvider || !apiKey.trim()) return;
 
-        setSaving(true);
-        setError(null);
+        // Update config with the new configuration (local state only)
+        setConfig({
+            provider: selectedProvider,
+            isEnabled: true,
+            allowUserWebSearchKeys: allowUserKeys,
+            api_key: apiKey, // Store full key for later submission
+            maskedKey: `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}`,
+            lastUpdated: new Date().toISOString()
+        });
 
-        const result = await registerAdminWebSearchKey(selectedProvider, apiKey);
+        // Mark configs as unsaved to activate the "Save Changes" button
+        updateUnsavedConfigs();
 
-        if (result.success) {
-            toast.success('Web search API key saved successfully');
-            // Update config with the newly saved configuration
-            setConfig({
-                provider: selectedProvider,
-                isEnabled: true,
-                allowUserWebSearchKeys: allowUserKeys,
-                maskedKey: `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}`,
-                lastUpdated: new Date().toISOString()
-            });
-            handleCancel();
-        } else {
-            setError(result.error || 'Failed to save API key');
-        }
-
-        setSaving(false);
+        handleCancel();
     };
 
-    const handleDelete = async () => {
+    const handleDelete = () => {
         if (!config?.provider) return;
         if (!confirm('Are you sure you want to remove the web search API key? Users will no longer be able to use web search.')) return;
 
-        setDeleting(true);
-        const result = await deleteAdminWebSearchKey(config.provider);
+        // Clear the config (local state only)
+        setConfig(null);
 
-        if (result.success) {
-            toast.success('Web search API key removed');
-            setConfig(null);
-        } else {
-            toast.error(result.error || 'Failed to remove API key');
-        }
+        // Mark configs as unsaved to activate the "Save Changes" button
+        updateUnsavedConfigs();
 
-        setDeleting(false);
+       
     };
 
     const handleAllowUserKeysChange = (isChecked: boolean) => {
         setAllowUserKeys(isChecked);
-        // Update the config immediately if it exists
+        // Update the config and mark as unsaved
         if (config) {
             setConfig({
                 ...config,
                 allowUserWebSearchKeys: isChecked
             });
+        } else {
+            // Create a minimal config just for the allowUserWebSearchKeys setting
+            // This allows saving the checkbox state even without an API key
+            // Note: Don't set a provider - backend will save allowUserWebSearchKeys without requiring a provider
+            setConfig({
+                allowUserWebSearchKeys: isChecked,
+                isEnabled: false // No admin key configured
+            } as AdminWebSearchConfig);
         }
+        // Mark configs as unsaved to activate the "Save Changes" button
+        updateUnsavedConfigs();
     };
 
     return (
@@ -158,14 +151,9 @@ export const WebSearchIntegration: FC<Props> = ({ config, setConfig }) => {
                         </div>
                         <button
                             onClick={handleDelete}
-                            disabled={deleting}
                             className="flex items-center gap-1 px-3 py-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                         >
-                            {deleting ? (
-                                <IconLoader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                                <IconTrash className="w-4 h-4" />
-                            )}
+                            <IconTrash className="w-4 h-4" />
                             Remove
                         </button>
                     </div>
@@ -243,20 +231,11 @@ export const WebSearchIntegration: FC<Props> = ({ config, setConfig }) => {
                                         <div className="flex items-center gap-2">
                                             <button
                                                 onClick={handleSave}
-                                                disabled={saving || !apiKey.trim()}
+                                                disabled={!apiKey.trim()}
                                                 className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                                             >
-                                                {saving ? (
-                                                    <>
-                                                        <IconLoader2 className="w-4 h-4 animate-spin" />
-                                                        Saving...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <IconKey className="w-4 h-4" />
-                                                        Save API Key
-                                                    </>
-                                                )}
+                                                <IconKey className="w-4 h-4" />
+                                                Add API Key
                                             </button>
                                             <button
                                                 onClick={handleCancel}

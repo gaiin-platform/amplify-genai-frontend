@@ -1,4 +1,19 @@
-# Amplify
+# amplify-genai-frontend
+
+> ## :warning: v0.9.0 Breaking Change
+>
+> **Version 0.9.0 requires the backend v0.9.0 to be deployed first.** The backend has migrated all shared environment variables to AWS Parameter Store.
+>
+> - Deploy the [backend](https://github.com/gaiin-platform/amplify-genai-backend) first, then rebuild and deploy the frontend container.
+> - Existing deployments **must** run `populate_parameter_store.py` in the backend repo before upgrading.
+> - **If you have the `amplify-lambda-basic-ops` service**, you must handle the `/user-data` endpoint migration before deploying. See the [Migration Guide](https://github.com/gaiin-platform/amplify-genai-backend/blob/main/scripts/MIGRATION_README.md) for detailed steps.
+> - See the [Migration Guide](https://github.com/gaiin-platform/amplify-genai-backend/blob/main/scripts/MIGRATION_README.md) for required steps.
+
+## Overview
+
+This repository contains the Next.js frontend for the Amplify GenAI platform. It is part of a larger deployment which can be found at https://github.com/gaiin-platform.
+
+For full deployment instructions, see the [Getting Started guide](https://github.com/gaiin-platform/.github/blob/main/profile/README.md).
 
 # Prompting Language Documentation
 
@@ -64,18 +79,12 @@ docker run -p 3000:3000 dev-gen-ai-image
 docker run --env-file ./.env.local  -p 3000:3000 dev-gen-ai-image to pull in env file for multiple azure variables needed
 ```
 
-Pull from ghcr:
-
-```
-docker run -p 3000:3000 ghcr.io/mckaywrigley/chatbot-ui:main
-```
-
 ## Running Locally
 
 **1. Clone Repo**
 
 ```bash
-git clone https://github.com/mckaywrigley/chatbot-ui.git
+git clone https://github.com/gaiin-platform/amplify-genai-frontend.git
 ```
 
 **2. Install Dependencies**
@@ -114,6 +123,7 @@ OpenAI                                                                          
 
 ## Contact
 
-If you have any questions, feel free to reach out to Mckay on [Twitter](https://twitter.com/mckaywrigley).
+If you have any questions or encounter issues, please email amplify@vanderbilt.edu for assistance.
 
-[GCSE]: https://developers.google.com/custom-search/v1/overview
+Copyright (c) 2024-2025 Vanderbilt University
+Authors: Jules White, Allen Karns, Karely Rodriguez, Max Moundas

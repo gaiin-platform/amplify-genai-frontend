@@ -8,7 +8,7 @@ export const COMMON_DISALLOWED_FILE_EXTENSIONS = [
     "mp3","wav","mp4","mov","avi","mkv",
     "rar","7z","tar","gz","tgz","bz2","xz",
     "mkv","tif","tiff","bmp","eps","ps","ai",
-    "psd","heic","heif","ico","ps",
+    "psd","heic","heif","ico","ps","rdata","rds","stan"
 ];
 export const IMAGE_FILE_EXTENSIONS = ["jpg","png", "gif", "jpeg", "webp"];
 

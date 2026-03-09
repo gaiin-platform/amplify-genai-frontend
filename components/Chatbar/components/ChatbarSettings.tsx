@@ -1,4 +1,4 @@
-import { IconFileExport, IconPuzzle, IconDeviceSdCard, IconTools, IconAlarm, IconUsers, IconSearch } from '@tabler/icons-react';
+import { IconFileExport, IconPuzzle, IconDeviceSdCard, IconTools, IconAlarm, IconUsers, IconSearch, IconBook } from '@tabler/icons-react';
 import { useContext, useEffect, useRef, useState, useCallback } from 'react';
 
 
@@ -27,7 +27,7 @@ export const ChatbarSettings = () => {
     const initTaskRef = useRef<ScheduledTask | undefined>(undefined);
 
     const {
-        state: { featureFlags, syncingPrompts, canAddWebSearchApiKey },
+        state: { featureFlags, syncingPrompts, canAddWebSearchApiKey, userDocumentationUrl },
     } = useContext(HomeContext);
 
     let settingRef = useRef<Settings | null>(null);
@@ -152,6 +152,17 @@ export const ChatbarSettings = () => {
                         window.dispatchEvent(new CustomEvent('openSettingsTrigger', {
                             detail: { openToTab: "Integrations:Web Search" }
                         }));
+                    }}
+                />
+            )}
+
+            {/* User Documentation */}
+            {featureFlags.userDocumentation && userDocumentationUrl && (
+                <SidebarButton
+                    text={t('Documentation')}
+                    icon={<IconBook size={18} />}
+                    onClick={() => {
+                        window.open(userDocumentationUrl, '_blank', 'noopener,noreferrer');
                     }}
                 />
             )}

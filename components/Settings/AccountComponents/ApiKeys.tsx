@@ -162,6 +162,10 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
         } 
     };
 
+    const getDisplayId = (userId: string) => {
+        return amplifyUsers[userId] || userId;
+    }
+
 
     // Get MTD cost for specific API key by matching api_owner_id to keyId after #
     const getApiKeyMtdCost = (apiKey: ApiKey) => {
@@ -739,7 +743,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                             <div className="apikeys-item-name flex items-center">
                                                                 {apiKey.applicationName}
                                                                 {apiKey.systemId && <label className={`ml-4 text-green-700 text-xs`}> System ID: {apiKey.systemId}</label>}
-                                                                {apiKey.delegate && <label className={`ml-4 text-amber-500 text-xs`}> Delegate: {apiKey.delegate}</label>}
+                                                                {apiKey.delegate && <label className={`ml-4 text-amber-500 text-xs`}> Delegate: {getDisplayId(apiKey.delegate)}</label>}
                                                                 {mtdDisplay(apiKey)}
                                                             </div>
                                                             <div className='apikeys-item-summary'>
@@ -865,7 +869,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                     <div className='flex flex-col flex-1 min-w-0'>
                                         <div className="apikeys-item-name">
                                             {apiKey.applicationName}
-                                            <label className={`ml-4 text-gray-400 text-xs`}> Owner: {apiKey.owner}</label>
+                                            <label className={`ml-4 text-gray-400 text-xs`}> Owner: {getDisplayId(apiKey.owner)}</label>
                                             {mtdDisplay(apiKey)}
                                         </div>
                                         <div className='apikeys-item-summary'>
@@ -884,7 +888,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                 <div className="apikeys-item-details">
                                     <div>
                                         <span className="apikeys-item-label">Owner:</span>
-                                        <Label label={apiKey.owner} />
+                                        <Label label={getDisplayId(apiKey.owner)} />
                                     </div>
                                     
                                     <div>

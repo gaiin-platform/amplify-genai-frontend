@@ -1,5 +1,7 @@
 import React, {FC, useContext, useEffect, useState} from 'react';
-import { IconCircleX, IconCheck, IconWorld, IconSitemap, IconReload, IconDatabase } from '@tabler/icons-react';
+
+import { IconCircleX, IconCheck, IconWorld, IconSitemap, IconReload, IconChevronDown, IconChevronUp, IconDatabase } from '@tabler/icons-react';
+
 import { AttachedDocument } from '@/types/attacheddocument';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
@@ -144,6 +146,8 @@ interface ExistingProps {
     allowRemoval?: boolean;
     onRemoval?: (document: AttachedDocument) => void;
     boldTitle?: boolean;
+    allowResize?: boolean;
+    groupId?: string;
 }
 
 interface GroupedDataSources {
@@ -176,7 +180,7 @@ const groupDataSourcesBySitemap = (documents: AttachedDocument[]): GroupedDataSo
     return grouped;
 };
 
-export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocuments, allowRemoval = true, boldTitle=true, onRemoval}) => {
+export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocuments, allowRemoval = true, boldTitle=true, onRemoval, allowResize = false, groupId}) => {
     const { dispatch: homeDispatch, state:{lightMode} } = useContext(HomeContext);
 
     const [searchTerm, setSearchTerm] = useState<string>('');
@@ -185,11 +189,12 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
     const [expandedSitemaps, setExpandedSitemaps] = useState<Set<string>>(new Set());
     const [embeddingStatus, setEmbeddingStatus] = useState<{[key: string]: string} & { metadata?: {[key: string]: any}} | null >(null);
     const [pollingFiles, setPollingFiles] = useState<Set<string>>(new Set());
+    const [isExpanded, setIsExpanded] = useState<boolean>(false);
+    const containerRef = React.useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (documents) setDataSources(documents);
     }, [documents, searchTerm]);
-
 
     // Fetch embedding status on first render
     useEffect(() => {
@@ -272,11 +277,21 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
             return;
         }
 
+        // Auto-correct groupId if missing from document but available from assistant
+        let effectiveGroupId = reprocessedDoc.groupId || groupId;
+
+        // If groupId is missing but we have it from the assistant, update the document
+        if (!reprocessedDoc.groupId && groupId) {
+            reprocessedDoc.groupId = groupId;
+            console.log(`Auto-corrected missing groupId for document ${key}, set to: ${groupId}`);
+        }
+
         await startFileReprocessingWithPolling({
             key,
             fileType: reprocessedDoc.type,
             setPollingFiles,
-            setEmbeddingStatus
+            setEmbeddingStatus,
+            groupId: effectiveGroupId
         });
     };
 
@@ -479,7 +494,34 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
 
     const grouped = groupDataSourcesBySitemap(filteredDataSources);
     let itemCounter = 0;
-    
+
+    // Calculate visible items: collapsed sitemaps count as 1, expanded sitemaps count all their pages
+    const sitemapItemCount = Object.entries(grouped.sitemapGroups).reduce((sum, [sitemapUrl, pages]) => {
+        return sum + (expandedSitemaps.has(sitemapUrl) ? pages.length : 1);
+    }, 0);
+    const totalVisibleItems = grouped.directUrls.length + sitemapItemCount + grouped.other.length;
+
+    // Height calculations
+    const ITEM_HEIGHT = 40; // approximate height per item
+    const MAX_ITEMS = 5; // show up to 5 items before needing expand
+    const MAX_HEIGHT = 600; // max height when expanded
+
+    const shouldShowExpandButton = allowResize && totalVisibleItems > MAX_ITEMS;
+
+    const getContainerHeight = () => {
+        if (!allowResize) return '200px';
+
+        if (isExpanded) {
+            // When expanded, show all items up to max height
+            const contentHeight = totalVisibleItems * ITEM_HEIGHT;
+            return `${Math.min(contentHeight, MAX_HEIGHT)}px`;
+        } else {
+            // When collapsed, show only what fits in MAX_ITEMS or fewer
+            const displayItems = Math.min(totalVisibleItems, MAX_ITEMS);
+            return `${displayItems * ITEM_HEIGHT}px`;
+        }
+    };
+
     return (
         <div className='mb-4'>
             <div className="flex flex-row mt-1 mb-2 text-black dark:text-neutral-200">
@@ -495,8 +537,13 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                 />
                 </div>
             </div>
-            
-            <div className="flex flex-col overflow-y-auto pb-2 mt-2 w-full max-h-[200px]">
+
+            <div className="relative">
+                <div
+                    ref={containerRef}
+                    className="flex flex-col overflow-y-auto pb-2 mt-2 w-full"
+                    style={{ maxHeight: getContainerHeight() }}
+                >
                 {/* Direct URLs */}
                 {grouped.directUrls.map((document) => {
                     itemCounter++;
@@ -558,6 +605,27 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                         />
                     );
                 })}
+                </div>
+
+                {/* Expand/Collapse Button */}
+                {shouldShowExpandButton && (
+                    <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="flex items-center justify-center w-full py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-b"
+                    >
+                        {isExpanded ? (
+                            <>
+                                <IconChevronUp size={16} className="mr-1" />
+                                Collapse
+                            </>
+                        ) : (
+                            <>
+                                <IconChevronDown size={16} className="mr-1" />
+                                Expand ({totalVisibleItems - MAX_ITEMS} more)
+                            </>
+                        )}
+                    </button>
+                )}
             </div>
         </div>
     );

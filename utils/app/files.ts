@@ -318,6 +318,7 @@ export interface FilePollingOptions {
   setEmbeddingStatus: (updater: (prev: any) => any) => void;
   onSuccess?: () => void;
   onError?: (error: any) => void;
+  groupId?: string;
 }
 
 // File reprocessing with polling interface
@@ -408,20 +409,21 @@ export const startFileReprocessingWithPolling = async (options: FileReprocessing
     onError,
     successMessage = "File's rag and embeddings regenerated successfully. Please wait a few minutes for the changes to take effect.",
     failureMessage = "Failed to regenerate file's rag and embeddings.",
-    setLoadingMessage
+    setLoadingMessage,
+    groupId
   } = options;
 
   try {
     // Set loading message if provided
     if (setLoadingMessage) setLoadingMessage("Reprocessing File...");
-    
+
     // Add to polling files
     setPollingFiles(prev => new Set(prev).add(key));
-    
+
     // Clear any cached status for this file since we're reprocessing
     await clearEmbeddingStatusCache(key);
-    
-    const result = await reprocessFile(key);
+
+    const result = await reprocessFile(key, groupId);
     if (result.success) {
       toast(successMessage);
       
@@ -542,11 +544,7 @@ export const getFileAction = (
   return 'reprocess';
 };
 
-/**
- * Check if a file was recently reprocessed (within the threshold)
- * This is used to show a loading indicator instead of the reprocess button
- * @deprecated Use getFileAction() instead for better UX
- */
+
 export const isRecentlyReprocessed = (createdAt: string, status: string, metadata?: { lastUpdated?: string; failedChunks?: number; totalChunks?: number }): boolean => {
   // Don't show loader for completed or failed files
   if (status === 'completed' || status === 'failed') {
