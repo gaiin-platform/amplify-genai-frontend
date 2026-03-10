@@ -120,7 +120,7 @@ export const ChatInput = ({
     const {
         state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming,
             prompts,  featureFlags, currentRequestId, chatEndpoint, statsService, availableModels,
-            extractedFacts, memoryExtractionEnabled, ragOn, defaultAccount},
+            extractedFacts, memoryExtractionEnabled, ragOn, defaultAccount, webSearchUserMessage},
         getDefaultModel, handleUpdateConversation,
         dispatch: homeDispatch
     } = useContext(HomeContext);
@@ -1788,10 +1788,18 @@ export const ChatInput = ({
                             onClick={(e) => {
                                 e.stopPropagation();
                                 if (selectedConversation) {
+                                    const newWebSearchState = !isWebSearchEnabledForConversation;
                                     handleUpdateConversation(selectedConversation, {
                                         key: 'data',
-                                        value: {...selectedConversation.data, webSearchEnabled: !isWebSearchEnabledForConversation},
+                                        value: {...selectedConversation.data, webSearchEnabled: newWebSearchState},
                                     });
+                                    // Show toast message when enabling web search (if admin configured one)
+                                    if (newWebSearchState && webSearchUserMessage) {
+                                        toast(webSearchUserMessage, {
+                                            duration: 6000,
+                                            icon: <IconWorldSearch size={35} />,
+                                        });
+                                    }
                                 }
                             }}
                             title={isWebSearchEnabledForConversation

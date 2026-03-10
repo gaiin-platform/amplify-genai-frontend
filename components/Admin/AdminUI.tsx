@@ -369,6 +369,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     configData.api_key = webSearchConfig.api_key;
                 }
 
+                // Include webSearchUserMessage if it exists and is non-empty after trimming
+                if (webSearchConfig.webSearchUserMessage !== undefined &&
+                    webSearchConfig.webSearchUserMessage.trim()) {
+                    configData.webSearchUserMessage = webSearchConfig.webSearchUserMessage.trim();
+                }
+                console.log("Config Data: ", configData);
+
                 return configData;
             case AdminConfigTypes.USER_DOCUMENTATION_URL:
                 return userDocumentationUrl;
@@ -529,7 +536,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         saveAction([AdminConfigTypes.EMAIL_SUPPORT], () => homeDispatch({ field: 'supportEmail', value: emailSupport.email}));
         saveAction([AdminConfigTypes.AI_EMAIL_DOMAIN], () => homeDispatch({ field: 'aiEmailDomain', value: aiEmailDomain}));
         saveAction([AdminConfigTypes.PROMPT_COST_ALERT], () => homeDispatch({ field: 'promptCostAlert', value: promptCostAlert}));
-        saveAction([AdminConfigTypes.WEB_SEARCH], () => homeDispatch({ field: 'canAddWebSearchApiKey', value: webSearchConfig?.allowUserWebSearchKeys ?? false}));
+        saveAction([AdminConfigTypes.WEB_SEARCH], () => {
+            homeDispatch({ field: 'canAddWebSearchApiKey', value: webSearchConfig?.allowUserWebSearchKeys ?? false});
+            homeDispatch({ field: 'webSearchUserMessage', value: webSearchConfig?.webSearchUserMessage?.trim() ?? null});
+        });
         saveAction([AdminConfigTypes.USER_DOCUMENTATION_URL], () => homeDispatch({ field: 'userDocumentationUrl', value: userDocumentationUrl}));
         if (!storageSelection) saveAction([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () => homeDispatch({ field: 'storageSelection', value: defaultConversationStorage})); 
     }

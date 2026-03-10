@@ -836,9 +836,18 @@ const Home = ({
                     }
                     if (AdminConfigTypes.WEB_SEARCH in data) {
                         const webSearchData = data[AdminConfigTypes.WEB_SEARCH];
-                        if (webSearchData && webSearchData.allowUserWebSearchKeys !== undefined) {
-                            dispatch({ field: 'canAddWebSearchApiKey', value: webSearchData.allowUserWebSearchKeys });
+                        if (webSearchData) {
+                            console.log("Web Search Data: ", webSearchData);
+                            if (webSearchData.allowUserWebSearchKeys !== undefined) {
+                                dispatch({ field: 'canAddWebSearchApiKey', value: webSearchData.allowUserWebSearchKeys });
+                            }
+                            
+                            if (webSearchData.webSearchUserMessage !== undefined) {
+                                dispatch({ field: 'webSearchUserMessage', value: webSearchData.webSearchUserMessage });
+                            }
+
                         }
+                        
                     }
                     if (AdminConfigTypes.USER_DOCUMENTATION_URL in data) {
                         const docUrl = data[AdminConfigTypes.USER_DOCUMENTATION_URL];
