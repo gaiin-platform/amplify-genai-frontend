@@ -107,22 +107,30 @@ export const doRequestOp = async (opData: opData, abortSignal: AbortSignal | nul
                 }),
             });
 
+            // If request failed (500, etc), backend might have still created polling record
+            // So we should start polling instead of giving up immediately
             if (!response.ok) {
-                return { success: false, message: `Error calling ${request}: ${response.statusText}` };
+                console.log(`[Polling] Initial request failed with ${response.status}, but polling record may exist - starting polling`);
+                // Don't return error here - fall through to polling logic below
+            } else {
+                // Try to parse response
+                try {
+                    const encodedResult = await response.json();
+                    const initialResult = transformPayload.decode(encodedResult.data);
+
+                    // Check if we got a COMPLETE response (with success field)
+                    if (initialResult.hasOwnProperty('success')) {
+                        // Got immediate result (success=true or success=false)
+                        console.log(`[Polling] Operation completed immediately with success=${initialResult.success}`);
+                        return initialResult;
+                    }
+                } catch (e) {
+                    console.log(`[Polling] Failed to parse initial response, will start polling`);
+                }
             }
 
-            const encodedResult = await response.json();
-            const initialResult = transformPayload.decode(encodedResult.data);
-
-            // Check if we got a COMPLETE response (with success field)
-            if (initialResult.hasOwnProperty('success')) {
-                // Got immediate result (success=true or success=false)
-                console.log(`[Polling] Operation completed immediately with success=${initialResult.success}`);
-                return initialResult;
-            }
-
-            // No success field - Lambda probably timed out, start polling!
-            console.log(`[Polling] No immediate result, starting status polling for requestId: ${pollRequestId}`);
+            // No success field OR request failed - Lambda probably timed out or errored, start polling!
+            console.log(`[Polling] Starting status polling for requestId: ${pollRequestId}`);
 
             // Now poll for completion using the DEPLOYED backend (never localhost for status checks!)
             const startTime = Date.now();
