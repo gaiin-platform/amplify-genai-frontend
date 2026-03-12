@@ -5,6 +5,7 @@ import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
 import { SettingsBar } from "@/components/Settings/SettingsBar";
+import { StorageProgressBar } from "@/components/Settings/StorageProgressBar";
 import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
 import { getIsLocalStorageSelection, saveStorageSettings, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
 import cloneDeep from 'lodash/cloneDeep';
@@ -837,7 +838,7 @@ const Home = ({
                     if (AdminConfigTypes.WEB_SEARCH in data) {
                         const webSearchData = data[AdminConfigTypes.WEB_SEARCH];
                         if (webSearchData) {
-                            console.log("Web Search Data: ", webSearchData);
+                            // console.log("Web Search Data: ", webSearchData);
                             if (webSearchData.allowUserWebSearchKeys !== undefined) {
                                 dispatch({ field: 'canAddWebSearchApiKey', value: webSearchData.allowUserWebSearchKeys });
                             }
@@ -1496,6 +1497,9 @@ const Home = ({
                     getDefaultModel
                 }}
             >
+                {/* Global Storage Progress Bar */}
+                <StorageProgressBar />
+
                 <Head>
                     <title>Amplify</title>
                     <meta name="description" content="ChatGPT but better." />

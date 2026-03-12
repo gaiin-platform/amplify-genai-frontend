@@ -24,7 +24,7 @@ interface Props {
 
 export const ConversationsStorage: FC<Props> = ({ open, setUnsavedChanges, pendingSelection, setPendingSelection }) => {
 
-  const { dispatch: homeDispatch, state:{conversations, selectedConversation, folders, statsService, storageSelection} } = useContext(HomeContext);
+  const { dispatch: homeDispatch, state:{conversations, selectedConversation, folders, statsService, storageSelection, storageProcessing} } = useContext(HomeContext);
 
   const storageRef = useRef(storageSelection);
 
@@ -69,25 +69,84 @@ export const ConversationsStorage: FC<Props> = ({ open, setUnsavedChanges, pendi
 
   const handleSave = async () => {
     if (!hasChanges) {
+      console.log('[ConversationStorage] No changes to save');
       return;
     }
 
-    // No confirmation needed here - it's handled in SettingDialog before the event is dispatched
-    setUnsavedChanges(false);
-    setPendingSelection(null);
-    saveStorageSettings(selectedOption as ConversationStorage);
-    homeDispatch({field: 'storageSelection', value: selectedOption});
+    console.log('[ConversationStorage] Starting save process');
+    console.log('[ConversationStorage] Selected option:', selectedOption);
+    console.log('[ConversationStorage] Current storageSelection:', storageSelection);
+    console.log('[ConversationStorage] Total conversations:', conversationsRef.current.length);
 
-    const updatedConversations = await handleStorageSelection(selectedOption, conversationsRef.current, foldersRef.current, statsService);
-    if (updatedConversations) {
-      homeDispatch({field: 'conversations', value: updatedConversations});
-      saveConversations(updatedConversations);
-      if (selectedConversation) {
-        const updateSelected = updatedConversations.find((c) => c.id === selectedConversation.id);
-        homeDispatch({field: 'selectedConversation', value: updateSelected});
-      }
+    // Show processing bar for "all" options
+    const isAllOption = selectedOption === 'local-only' || selectedOption === 'cloud-only';
+    if (isAllOption) {
+      homeDispatch({
+        field: 'storageProcessing',
+        value: {
+          isProcessing: true,
+          message: selectedOption === 'local-only'
+            ? 'Moving all conversations to local storage...'
+            : 'Moving all conversations to cloud storage...',
+          progress: 0,
+          total: 0,
+        }
+      });
+      // Small delay to ensure the progress bar renders before async work starts
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
-    toast("Storage Settings Saved");
+
+    try {
+      // No confirmation needed here - it's handled in SettingDialog before the event is dispatched
+      setUnsavedChanges(false);
+      setPendingSelection(null);
+
+      saveStorageSettings(selectedOption as ConversationStorage);
+      homeDispatch({field: 'storageSelection', value: selectedOption});
+      const updatedConversations = await handleStorageSelection(
+        selectedOption,
+        conversationsRef.current,
+        foldersRef.current,
+        statsService,
+        (current, total) => {
+          homeDispatch({
+            field: 'storageProcessing',
+            value: {
+              isProcessing: true,
+              message: selectedOption === 'local-only'
+                ? 'Moving all conversations to local storage...'
+                : 'Moving all conversations to cloud storage...',
+              progress: current,
+              total: total,
+            }
+          });
+        }
+      );
+
+      if (updatedConversations) {
+        homeDispatch({field: 'conversations', value: updatedConversations});
+        saveConversations(updatedConversations);
+        if (selectedConversation) {
+          const updateSelected = updatedConversations.find((c) => c.id === selectedConversation.id);
+          homeDispatch({field: 'selectedConversation', value: updateSelected});
+        }
+      }
+
+      toast("Storage Settings Saved");
+    } catch (error) {
+      console.error('[ConversationStorage] Error during save:', error);
+      toast.error('Failed to save storage settings');
+    } finally {
+      homeDispatch({
+        field: 'storageProcessing',
+        value: {
+          isProcessing: false,
+          message: '',
+          progress: 0,
+          total: 0,
+        }
+      });
+    }
   };
 
   useEffect(() => {
@@ -129,7 +188,9 @@ export const ConversationsStorage: FC<Props> = ({ open, setUnsavedChanges, pendi
     await handleSave();
   };
 
-  return ( open ? (
+  return (
+    <>
+      {open && (
         <div className="settings-card">
             <div className="settings-card-header flex flex-row items-center gap-4">
               <h3 className="settings-card-title">{t('Conversation Storage')}</h3>
@@ -252,8 +313,10 @@ export const ConversationsStorage: FC<Props> = ({ open, setUnsavedChanges, pendi
                     <div className="storage-choice-indicator"></div>
                   </label>
                 </div>
-              </div>        
+              </div>
         </div>
       </div>
-  ) : <></>)
+      )}
+    </>
+  )
 };

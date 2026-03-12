@@ -4,8 +4,16 @@ import {authOptions} from "@/pages/api/auth/[...nextauth]";
 import { transformPayload } from "@/utils/app/data";
 import { lzwCompress } from "@/utils/app/lzwCompression";
 
+export const config = {
+    api: {
+        bodyParser: {
+            sizeLimit: '10mb' // Increased limit for large conversations
+        }
+    }
+}
+
 interface reqPayload {
-    method: any, 
+    method: any,
     headers: any,
     body?: any,
 }

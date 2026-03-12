@@ -343,6 +343,10 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
     return accountsUnsavedChanges || apiUnsavedChanges || mcpUnsavedChanges || storageUnsavedChanges;
     }
 
+    const disableSubmit = () => {
+      return !hasUnsavedChanges && !otherChanges();
+    }
+
 
   // Render nothing if the dialog is not open.
   if (!open) {
@@ -358,7 +362,8 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
       onSubmit={() => handleSave()
       }
       submitLabel={"Save"}
-      disableSubmit={!hasUnsavedChanges && !otherChanges()}
+      cancelLabel={disableSubmit() ? "Close" : "Cancel"}
+      disableSubmit={disableSubmit()}
       disableClickOutside={true}
       content={
         <>

@@ -9,61 +9,129 @@ import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from "./const";
 import { Model } from '@/types/model';
 
 
-//handle all local, 
-const handleAllLocal = async (conversations: Conversation[], statsService: any) => {
-    let updatedConversations = await includeRemoteConversationData(conversations, "move back to local storage.", false);
+//handle all local,
+const handleAllLocal = async (conversations: Conversation[], statsService: any, onProgress?: (current: number, total: number) => void) => {
     const remoteConversations = conversations.filter(isRemoteConversation);
+    const localConversations = conversations.filter(isLocalConversation);
+
+    const totalConversations = conversations.length;
+    const remoteCount = remoteConversations.length;
+
+    // Report initial progress
+    if (onProgress && remoteCount > 0) {
+        onProgress(0, totalConversations);
+    }
+
+    let updatedConversations = await includeRemoteConversationData(conversations, "move back to local storage.", false, (current, total) => {
+        // Report fetching progress (this happens quickly as it's a batch fetch)
+        // Map remote fetch progress to first half of progress (0% → 50% of remoteCount conversations)
+        const fetchProgress = Math.floor((current / total) * (remoteCount / 2));
+        if (onProgress) onProgress(fetchProgress, totalConversations);
+    });
+
     const remoteConversationIds = remoteConversations.map(c => c.id);
     deleteMultipleRemoteConversations(remoteConversationIds);
 
-    // include remote conversation returns all the local + remote conversation 
+    // include remote conversation returns all the local + remote conversation
     // if a conversation fails to fetch then it will be missing from updatedConversations
     const missingConversations = remoteConversations.filter(rc => {
             const isMissing = !updatedConversations.some(updatedC => updatedC.id === rc.id);
             if (!isMissing) statsService.moveConversationFromRemoteEvent(rc);
             return isMissing
         });
-   
-    // compress remote conv messages and set isLocal true 
-    updatedConversations = updatedConversations.map((c: Conversation) => {
-                                if (isRemoteConversation(c)) {
-                                    return conversationWithCompressedMessages({...c, isLocal: true});
-                                }
-                                return c;
-                            })
-    if (!missingConversations) {
+
+    // Process ALL conversations - compress remote ones and mark local ones as processed
+    // This shows smooth progress through all conversations
+    let processedCount = remoteCount / 2; // Start from where fetch left off
+    const remoteConversationIdSet = new Set(remoteConversations.map(c => c.id));
+
+    // Process conversations with progress updates (must be async to show progress)
+    const finalConversations: Conversation[] = [];
+    for (const c of updatedConversations) {
+        // Check if this conversation was originally remote (before includeRemoteConversationData modified it)
+        if (remoteConversationIdSet.has(c.id)) {
+            // Re-compress since includeRemoteConversationData already compressed, but ensure isLocal=true
+            finalConversations.push(conversationWithCompressedMessages({...c, isLocal: true}));
+        } else {
+            // Local conversation - no compression needed, just pass through
+            finalConversations.push(c);
+        }
+
+        processedCount++;
+        if (onProgress) {
+            onProgress(Math.floor(processedCount), totalConversations);
+        }
+
+        // Add small delay every 3 conversations to allow UI to update
+        if (Math.floor(processedCount) % 3 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 30));
+        }
+    }
+    updatedConversations = finalConversations;
+
+    if (!missingConversations || missingConversations.length === 0) {
         alert("Successfully moved all conversations to local storage.");
     } else {
         updatedConversations = [...updatedConversations, ...missingConversations];
+        alert(`Successfully moved conversations to local storage. ${missingConversations.length} conversation(s) could not be retrieved.`);
     }
     return updatedConversations;
 }
 
-const handleAllCloud = async (conversations: Conversation[], folders: FolderInterface[], statsService: any) => {
-    const failedToUpload: string[] = [];
-    const updatedConversations: Conversation[] = await Promise.all(conversations.map(
-        async (conversation) => {
-            if (isLocalConversation(conversation)) {
-                const uncompressMessageConv = conversationWithUncompressedMessages(conversation);
-                //Send localConversation to the cloud
-                const uploadResult = await uploadConversation(uncompressMessageConv, folders);
-                if (!uploadResult) {
-                    failedToUpload.push(conversation.name);
-                    return conversation
-                }
-                statsService.moveConversationRemoteEvent(conversation);
-                //strip conversation
-                const newCloudConversation = remoteForConversationHistory(conversation);
-                newCloudConversation.isLocal = false;
-                return newCloudConversation;
-            }
-            return conversation;
-        }
-    ));
+const handleAllCloud = async (conversations: Conversation[], folders: FolderInterface[], statsService: any, onProgress?: (current: number, total: number) => void) => {
+    const localConversations = conversations.filter(isLocalConversation);
+    const remoteConversations = conversations.filter(isRemoteConversation);
 
-    const message = failedToUpload.length > 0 ? `Conversation${failedToUpload.length === 1 ? '': 's'}: ${failedToUpload.join(", ")} failed to move to the cloud.`
-                                              : "Successfully moved all conversations to the cloud."
-    alert(message);
+    const failedToUpload: string[] = [];
+    const totalConversations = conversations.length;
+    let processedCount = 0;
+
+    // Separate local and remote conversations
+    const conversationsToUpload = conversations.filter(isLocalConversation);
+    const alreadyRemoteConversations = conversations.filter(isRemoteConversation);
+
+    const updatedConversations: Conversation[] = [];
+
+    // FIRST: Process local conversations (slow uploads)
+    for (const conversation of conversationsToUpload) {
+        const uncompressMessageConv = conversationWithUncompressedMessages(conversation);
+
+        //Send localConversation to the cloud
+        const uploadResult = await uploadConversation(uncompressMessageConv, folders);
+        if (!uploadResult) {
+            failedToUpload.push(conversation.name);
+            updatedConversations.push(conversation);
+        } else {
+            statsService.moveConversationRemoteEvent(conversation);
+            //strip conversation
+            const newCloudConversation = remoteForConversationHistory(conversation);
+            newCloudConversation.isLocal = false;
+            updatedConversations.push(newCloudConversation);
+        }
+        processedCount++;
+        if (onProgress) onProgress(processedCount, totalConversations);
+    }
+
+    // SECOND: Process already-remote conversations (fast, just add to list)
+    for (const conversation of alreadyRemoteConversations) {
+        updatedConversations.push(conversation);
+        processedCount++;
+        if (onProgress) onProgress(processedCount, totalConversations);
+    }
+
+    if (failedToUpload.length > 0) {
+        const conversationList = failedToUpload.length <= 5
+            ? failedToUpload.join(", ")
+            : `${failedToUpload.slice(0, 5).join(", ")} and ${failedToUpload.length - 5} more`;
+
+        const message = failedToUpload.length === 1
+            ? `Conversation "${failedToUpload[0]}" failed to move to the cloud.\n\nThis is usually because the conversation is too large. Consider:\n- Deleting some messages from this conversation\n- Keeping it stored locally instead`
+            : `${failedToUpload.length} conversations failed to move to the cloud: ${conversationList}.\n\nThese conversations are likely too large. They will remain stored locally.`;
+
+        alert(message);
+    } else {
+        alert("Successfully moved all conversations to the cloud.");
+    }
     return updatedConversations;
     
 }
@@ -101,16 +169,16 @@ export const  handleSelectedConversationStorageChange = (selectedConversation: C
 }
 
 
-export const handleStorageSelection = (selection: String, conversations: Conversation[], folders:FolderInterface[], statsService: any) => {
-    // future storage options is taken care of by saving the storage settings in local storage. 
+export const handleStorageSelection = (selection: String, conversations: Conversation[], folders:FolderInterface[], statsService: any, onProgress?: (current: number, total: number) => void) => {
+    // future storage options is taken care of by saving the storage settings in local storage.
 
     if (selection === 'local-only') {
-        return handleAllLocal(conversations, statsService);
+        return handleAllLocal(conversations, statsService, onProgress);
 
     } else if (selection === 'cloud-only') {
-        return handleAllCloud(conversations, folders, statsService);
+        return handleAllCloud(conversations, folders, statsService, onProgress);
     }
-    
+
 }
 
 
@@ -210,20 +278,24 @@ export const updateWithRemoteConversations = async (remoteConversations: remoteC
 };
 
 
-export const includeRemoteConversationData = async (conversationHistory: Conversation[], failMessage: string, uncompressLocal: boolean) => {
+export const includeRemoteConversationData = async (conversationHistory: Conversation[], failMessage: string, uncompressLocal: boolean, onProgress?: (current: number, total: number) => void) => {
     if (!conversationHistory) return [];
     // Filter and get the ids of remote conversations
     const remoteConversationIds = conversationHistory.filter(c => isRemoteConversation(c)).map(c => c.id);
-    
+
     if (remoteConversationIds.length === 0) return conversationHistory;
-    
+
+    const totalToFetch = remoteConversationIds.length;
+
     const fetchedRemoteConversations = await fetchMultipleRemoteConversations(remoteConversationIds);
+    // Report progress - fetching is complete
+    if (onProgress) onProgress(totalToFetch, totalToFetch);
+
     // console.log(fetchedRemoteConversations);
     // Create a map of remote conversation ids to fetched conversations for quick lookup
     const fetchedRemoteConversationsMap = new Map(fetchedRemoteConversations.data.map((c:Conversation) => [c.id, c]));
 
     const failedToFetchByNoSuchKey: string[] = fetchedRemoteConversations.failedByNoSuchKey;
-    console.log("Currently no such key conversations in history: ", failedToFetchByNoSuchKey);
     const failedToFetch: string[] = fetchedRemoteConversations.failed;
 
     const alertFailed: string[] = [];
@@ -240,14 +312,14 @@ export const includeRemoteConversationData = async (conversationHistory: Convers
         } else if (uncompressLocal) {
             return conversationWithUncompressedMessages(c);
         } else {
-            //leave as is, with compressed messages 
+            //leave as is, with compressed messages
             return c;
         }
-        
+
     }).filter((c): c is Conversation => c !== undefined);
 
     if (alertFailed.length > 0) {
         alert(`Conversation${alertFailed.length === 1 ? '' : 's'}: ${alertFailed.join(", ")} failed to ${failMessage}`);
-    } 
+    }
     return combinedConversations;
 };
