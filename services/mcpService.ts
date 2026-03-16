@@ -168,7 +168,7 @@ export async function testMCPConnection(
         }
         return {
             success: false,
-            requiresAuth: result.requiresAuth,
+            requiresAuth: result.requiresAuth ?? result.data?.requiresAuth,
             error: result.message || result.error || result.data?.error || 'Connection test failed'
         };
     } catch (e) {
@@ -231,7 +231,11 @@ export async function refreshMCPServerTools(
                 tools: (result.data as { tools: MCPTool[] }).tools
             };
         }
-        return { success: false, requiresAuth: result.requiresAuth, error: result.message || result.error || 'Failed to refresh tools' };
+        return {
+            success: false,
+            requiresAuth: result.requiresAuth ?? result.data?.requiresAuth,
+            error: result.message || result.error || 'Failed to refresh tools'
+        };
     } catch (e) {
         console.error('Failed to refresh MCP server tools:', e);
         return { success: false, error: 'Network error' };
@@ -298,8 +302,10 @@ export async function startMCPOAuth(
             service: SERVICE_NAME
         });
 
-        if (result.success && result.authorizationUrl) {
-            return { success: true, authorizationUrl: result.authorizationUrl };
+        const authorizationUrl = result.authorizationUrl || result.data?.authorizationUrl;
+
+        if (result.success && authorizationUrl) {
+            return { success: true, authorizationUrl };
         }
         return { success: false, error: result.message || result.error || 'Failed to start OAuth' };
     } catch (e) {

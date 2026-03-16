@@ -243,13 +243,21 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
     if (result.success && result.authorizationUrl) {
       // Open the auth URL in a popup; poll for window close then reload servers
       const popup = window.open(result.authorizationUrl, '_blank', 'width=600,height=700');
+      if (!popup) {
+        alert('Popup was blocked. Please allow popups for this site and try again.');
+        return;
+      }
       const timer = setInterval(async () => {
         if (popup && popup.closed) {
           clearInterval(timer);
+          clearTimeout(timeoutId);
           setOauthServerId(null);
           await loadServers();
         }
       }, 1000);
+      const timeoutId = window.setTimeout(() => {
+        clearInterval(timer);
+      }, 5 * 60 * 1000);
     } else {
       alert(result.error || 'Failed to start OAuth flow');
     }
@@ -266,6 +274,41 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
       alert(result.error || 'Failed to disconnect OAuth');
     }
   };
+
+  const renderManualOAuthForm = (serverId: string) => (
+    <div className="mt-3 space-y-3 p-3 bg-purple-50/50 dark:bg-purple-900/10 rounded border border-purple-200 dark:border-purple-800">
+      <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">OAuth2 Settings</p>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Client ID</label>
+          <input type="text" value={oauthForm.clientId} onChange={e => setOauthForm({ ...oauthForm, clientId: e.target.value })} className="w-full px-2 py-1.5 text-sm border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500" />
+        </div>
+        <div>
+          <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Client Secret</label>
+          <input type="password" value={oauthForm.clientSecret} onChange={e => setOauthForm({ ...oauthForm, clientSecret: e.target.value })} className="w-full px-2 py-1.5 text-sm border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500" />
+        </div>
+      </div>
+      <div>
+        <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Authorization URL</label>
+        <input type="text" value={oauthForm.authorizationUrl} onChange={e => setOauthForm({ ...oauthForm, authorizationUrl: e.target.value })} placeholder="https://provider.com/oauth/authorize" className="w-full px-2 py-1.5 text-sm border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500" />
+      </div>
+      <div>
+        <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Token URL</label>
+        <input type="text" value={oauthForm.tokenUrl} onChange={e => setOauthForm({ ...oauthForm, tokenUrl: e.target.value })} placeholder="https://provider.com/oauth/token" className="w-full px-2 py-1.5 text-sm border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500" />
+      </div>
+      <div>
+        <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Scopes <span className="text-neutral-400">(space-separated, optional)</span></label>
+        <input type="text" value={oauthForm.scopes ?? ''} onChange={e => setOauthForm({ ...oauthForm, scopes: e.target.value })} placeholder="read write" className="w-full px-2 py-1.5 text-sm border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500" />
+      </div>
+      <button onClick={() => handleConnectOAuth(serverId, oauthForm)} disabled={oauthConnecting === serverId} className="px-3 py-1.5 bg-purple-500 text-white text-sm rounded hover:bg-purple-600 disabled:opacity-50 flex items-center gap-2">
+        {oauthConnecting === serverId ? (
+          <><IconLoader2 className="w-4 h-4 animate-spin" />Redirecting...</>
+        ) : (
+          <><IconPlugConnected className="w-4 h-4" />Authorize</>
+        )}
+      </button>
+    </div>
+  );
 
   if (!open) return null;
 
@@ -667,32 +710,7 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
                         {oauthServerId === server.id ? 'Hide advanced' : 'Advanced (manual config)'}
                       </button>
                       {oauthServerId === server.id && (
-                        <div className="mt-2 space-y-2 p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded border border-neutral-200 dark:border-neutral-700">
-                          {(['clientId', 'clientSecret', 'authorizationUrl', 'tokenUrl', 'scopes'] as const).map(field => (
-                            <div key={field}>
-                              <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-0.5 capitalize">
-                                {field === 'authorizationUrl' ? 'Authorization URL' : field === 'tokenUrl' ? 'Token URL' : field === 'clientId' ? 'Client ID' : field === 'clientSecret' ? 'Client Secret' : 'Scopes'}
-                              </label>
-                              <input
-                                type={field === 'clientSecret' ? 'password' : 'text'}
-                                value={(oauthForm as unknown as Record<string, string>)[field] ?? ''}
-                                onChange={e => setOauthForm({ ...oauthForm, [field]: e.target.value })}
-                                className="w-full px-2 py-1.5 text-sm border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                              />
-                            </div>
-                          ))}
-                          <button
-                            onClick={() => handleConnectOAuth(server.id, oauthForm)}
-                            disabled={oauthConnecting === server.id}
-                            className="px-3 py-1.5 bg-purple-500 text-white text-sm rounded hover:bg-purple-600 disabled:opacity-50 flex items-center gap-2"
-                          >
-                            {oauthConnecting === server.id ? (
-                              <><IconLoader2 className="w-4 h-4 animate-spin" />Signing in…</>
-                            ) : (
-                              <><IconPlugConnected className="w-4 h-4" />Authorize</>
-                            )}
-                          </button>
-                        </div>
+                        renderManualOAuthForm(server.id)
                       )}
                     </div>
                   ) : (
@@ -707,38 +725,7 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
                       </button>
 
                       {oauthServerId === server.id && (
-                        <div className="mt-3 space-y-3 p-3 bg-purple-50/50 dark:bg-purple-900/10 rounded border border-purple-200 dark:border-purple-800">
-                          <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">OAuth2 Settings</p>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Client ID</label>
-                              <input type="text" value={oauthForm.clientId} onChange={e => setOauthForm({ ...oauthForm, clientId: e.target.value })} className="w-full px-2 py-1.5 text-sm border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500" />
-                            </div>
-                            <div>
-                              <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Client Secret</label>
-                              <input type="password" value={oauthForm.clientSecret} onChange={e => setOauthForm({ ...oauthForm, clientSecret: e.target.value })} className="w-full px-2 py-1.5 text-sm border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500" />
-                            </div>
-                          </div>
-                          <div>
-                            <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Authorization URL</label>
-                            <input type="text" value={oauthForm.authorizationUrl} onChange={e => setOauthForm({ ...oauthForm, authorizationUrl: e.target.value })} placeholder="https://provider.com/oauth/authorize" className="w-full px-2 py-1.5 text-sm border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500" />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Token URL</label>
-                            <input type="text" value={oauthForm.tokenUrl} onChange={e => setOauthForm({ ...oauthForm, tokenUrl: e.target.value })} placeholder="https://provider.com/oauth/token" className="w-full px-2 py-1.5 text-sm border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500" />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-neutral-500 dark:text-neutral-400 mb-1">Scopes <span className="text-neutral-400">(space-separated, optional)</span></label>
-                            <input type="text" value={oauthForm.scopes ?? ''} onChange={e => setOauthForm({ ...oauthForm, scopes: e.target.value })} placeholder="read write" className="w-full px-2 py-1.5 text-sm border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500" />
-                          </div>
-                          <button onClick={() => handleConnectOAuth(server.id, oauthForm)} disabled={oauthConnecting === server.id} className="px-3 py-1.5 bg-purple-500 text-white text-sm rounded hover:bg-purple-600 disabled:opacity-50 flex items-center gap-2">
-                            {oauthConnecting === server.id ? (
-                              <><IconLoader2 className="w-4 h-4 animate-spin" />Redirecting…</>
-                            ) : (
-                              <><IconPlugConnected className="w-4 h-4" />Authorize</>
-                            )}
-                          </button>
-                        </div>
+                        renderManualOAuthForm(server.id)
                       )}
                     </>
                   )}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { mcpOAuthExchange } from '@/services/mcpService';
 
@@ -8,15 +8,22 @@ export default function MCPOAuthCallback() {
     const router = useRouter();
     const [status, setStatus] = useState<Status>('loading');
     const [message, setMessage] = useState('');
+    const hasExchangedRef = useRef(false);
 
     useEffect(() => {
         if (!router.isReady) return;
 
-        const { code, state, error, error_description } = router.query;
+        const readQueryValue = (value: string | string[] | undefined) =>
+            Array.isArray(value) ? value[0] : value;
+
+        const code = readQueryValue(router.query.code);
+        const state = readQueryValue(router.query.state);
+        const error = readQueryValue(router.query.error);
+        const errorDescription = readQueryValue(router.query.error_description);
 
         if (error) {
             setStatus('error');
-            setMessage(String(error_description || error));
+            setMessage(String(errorDescription || error));
             return;
         }
 
@@ -25,6 +32,11 @@ export default function MCPOAuthCallback() {
             setMessage('Missing authorization code or state parameter.');
             return;
         }
+
+        if (hasExchangedRef.current) {
+            return;
+        }
+        hasExchangedRef.current = true;
 
         mcpOAuthExchange(String(code), String(state))
             .then(result => {
@@ -40,7 +52,7 @@ export default function MCPOAuthCallback() {
                 setStatus('error');
                 setMessage((err instanceof Error ? err.message : null) || 'An unexpected error occurred.');
             });
-    }, [router.isReady, router.query]);
+    }, [router.isReady, router.query.code, router.query.state, router.query.error, router.query.error_description]);
 
     const color = status === 'success' ? '#2ecc71' : status === 'error' ? '#e74c3c' : '#3498db';
     const heading = status === 'success' ? '✓ Connected' : status === 'error' ? '✕ Authentication Failed' : 'Connecting…';
