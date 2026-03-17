@@ -122,7 +122,8 @@ export const uncompressConversation = (compressedData: number[]) => {
     return JSON.parse(converstion) as Conversation;
   } catch {
     console.log("Failed to uncompress conversations")
-  } 
+    return undefined;
+  }
 }
 
 export const remoteForConversationHistory = (conversation: Conversation) => {
