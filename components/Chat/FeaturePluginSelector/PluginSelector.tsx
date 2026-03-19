@@ -39,6 +39,7 @@ export const PluginSelector: FC<Props> = ({
               if (plugin.id === PluginID.MEMORY && (!featureFlags.memory || !settingRef.current?.featureOptions.includeMemory)) return false;
               if (plugin.id === PluginID.MCP && !featureFlags.mcp) return false;
               if (plugin.id === PluginID.WEB_SEARCH && (!featureFlags.webSearch || !settingRef.current?.featureOptions.includeWebSearch)) return false;
+              if (plugin.id === PluginID.SKILLS && !featureFlags.skills) return false;
               return true; // Include the plugin in the list if no flags block it
           });
   }

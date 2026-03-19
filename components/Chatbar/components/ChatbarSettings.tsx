@@ -1,4 +1,4 @@
-import { IconFileExport, IconPuzzle, IconDeviceSdCard, IconTools, IconAlarm, IconUsers, IconSearch, IconBook } from '@tabler/icons-react';
+import { IconFileExport, IconPuzzle, IconDeviceSdCard, IconTools, IconAlarm, IconUsers, IconSearch, IconBook, IconBrain } from '@tabler/icons-react';
 import { useContext, useEffect, useRef, useState, useCallback } from 'react';
 
 
@@ -17,6 +17,7 @@ import { PythonFunctionModal } from '@/components/Operations/PythonFunctionModal
 import { AssistantWorkflowBuilder } from '@/components/AssistantWorkflows/AssistantWorkflowBuilder';
 import { ScheduledTasks } from '@/components/Agent/ScheduledTasks';
 import { ScheduledTask } from '@/types/scheduledTasks';
+import { SkillsLibrary } from '@/components/Skills';
 
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
@@ -24,6 +25,7 @@ export const ChatbarSettings = () => {
     const [isPyFunctionApiOpen, setIsPyFunctionApiOpen] = useState(false);
     const [isWorkflowBuilderOpen, setIsWorkflowBuilderOpen] = useState(false);
     const [isScheduledTasksOpen, setIsScheduledTasksOpen] = useState(false);
+    const [isSkillsLibraryOpen, setIsSkillsLibraryOpen] = useState(false);
     const initTaskRef = useRef<ScheduledTask | undefined>(undefined);
 
     const {
@@ -140,6 +142,32 @@ export const ChatbarSettings = () => {
                     open={isMemoryDialogOpen}
                     onClose={() => setIsMemoryDialogOpen(false)}
                 />
+                </>
+            )}
+
+            {/* Skills Library */}
+            {featureFlags.skills && (
+                <>
+                <SidebarButton
+                    text={t('Skills')}
+                    icon={<IconBrain size={18} />}
+                    onClick={() => setIsSkillsLibraryOpen(true)}
+                />
+                {isSkillsLibraryOpen && (
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                        <div className="w-full max-w-5xl h-[85vh] bg-white dark:bg-[#343541] rounded-lg shadow-2xl overflow-hidden">
+                            <SkillsLibrary onClose={() => setIsSkillsLibraryOpen(false)} />
+                        </div>
+                        <button
+                            onClick={() => setIsSkillsLibraryOpen(false)}
+                            className="absolute top-4 right-4 p-2 text-white bg-black/50 hover:bg-black/70 rounded-full"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                )}
                 </>
             )}
 
