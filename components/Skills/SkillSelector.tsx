@@ -12,6 +12,7 @@ import { Skill, SKILL_CATEGORIES } from '@/types/skill';
 import { getUserSkills } from '@/services/skillsService';
 
 interface SkillSelectorProps {
+    chatEndpoint: string;
     selectedSkillIds: string[];
     onSelectionChange: (skillIds: string[]) => void;
     onCreateNew?: () => void;
@@ -21,6 +22,7 @@ interface SkillSelectorProps {
 }
 
 export const SkillSelector: FC<SkillSelectorProps> = ({
+    chatEndpoint,
     selectedSkillIds,
     onSelectionChange,
     onCreateNew,
@@ -40,7 +42,7 @@ export const SkillSelector: FC<SkillSelectorProps> = ({
         setError(null);
 
         try {
-            const response = await getUserSkills(true);
+            const response = await getUserSkills(chatEndpoint, true);
             if (response.success && response.data) {
                 setSkills(response.data);
             } else {
@@ -52,7 +54,7 @@ export const SkillSelector: FC<SkillSelectorProps> = ({
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [chatEndpoint]);
 
     useEffect(() => {
         loadSkills();

@@ -29,7 +29,7 @@ export const ChatbarSettings = () => {
     const initTaskRef = useRef<ScheduledTask | undefined>(undefined);
 
     const {
-        state: { featureFlags, syncingPrompts, canAddWebSearchApiKey, userDocumentationUrl },
+        state: { featureFlags, syncingPrompts, canAddWebSearchApiKey, userDocumentationUrl, chatEndpoint },
     } = useContext(HomeContext);
 
     let settingRef = useRef<Settings | null>(null);
@@ -153,10 +153,10 @@ export const ChatbarSettings = () => {
                     icon={<IconBrain size={18} />}
                     onClick={() => setIsSkillsLibraryOpen(true)}
                 />
-                {isSkillsLibraryOpen && (
+                {isSkillsLibraryOpen && chatEndpoint && (
                     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
                         <div className="w-full max-w-5xl h-[85vh] bg-white dark:bg-[#343541] rounded-lg shadow-2xl overflow-hidden">
-                            <SkillsLibrary onClose={() => setIsSkillsLibraryOpen(false)} />
+                            <SkillsLibrary chatEndpoint={chatEndpoint} onClose={() => setIsSkillsLibraryOpen(false)} />
                         </div>
                         <button
                             onClick={() => setIsSkillsLibraryOpen(false)}

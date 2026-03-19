@@ -1820,8 +1820,9 @@ export const ChatInput = ({
                         }
 
                         {/* Skills Toggle - Select skills to use (only show if skills is enabled in FeaturePlugin) */}
-                        { featureFlags.skills && plugins?.some(p => p.id === PluginID.SKILLS) &&
+                        { featureFlags.skills && plugins?.some(p => p.id === PluginID.SKILLS) && chatEndpoint &&
                             <SkillsToggle
+                                chatEndpoint={chatEndpoint}
                                 selectedSkillIds={selectedSkillIds}
                                 onSelectionChange={setSelectedSkillIds}
                             />

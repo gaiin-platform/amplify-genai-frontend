@@ -7,12 +7,14 @@ import { createSkill, getUserSkills } from '@/services/skillsService';
 import { CreateSkillData } from '@/types/skill';
 
 interface SkillsToggleProps {
+    chatEndpoint: string;
     selectedSkillIds: string[];
     onSelectionChange: (skillIds: string[]) => void;
     disabled?: boolean;
 }
 
 export const SkillsToggle: FC<SkillsToggleProps> = ({
+    chatEndpoint,
     selectedSkillIds,
     onSelectionChange,
     disabled = false
@@ -47,7 +49,7 @@ export const SkillsToggle: FC<SkillsToggleProps> = ({
     const handleSaveNewSkill = async (skillData: CreateSkillData) => {
         setSaving(true);
         try {
-            const response = await createSkill(skillData);
+            const response = await createSkill(chatEndpoint, skillData);
             if (response.success && response.data) {
                 // Automatically select the newly created skill
                 onSelectionChange([...selectedSkillIds, response.data.id]);
@@ -90,6 +92,7 @@ export const SkillsToggle: FC<SkillsToggleProps> = ({
             {showSelector && !showEditor && (
                 <div className="absolute bottom-full mb-2 right-0 w-80 z-50 shadow-xl">
                     <SkillSelector
+                        chatEndpoint={chatEndpoint}
                         selectedSkillIds={selectedSkillIds}
                         onSelectionChange={onSelectionChange}
                         onCreateNew={handleCreateNew}
@@ -121,11 +124,13 @@ export const SkillsToggle: FC<SkillsToggleProps> = ({
  * Active Skills Display - Shows currently selected skills in the chat area
  */
 interface ActiveSkillsDisplayProps {
+    chatEndpoint: string;
     skillIds: string[];
     onRemove: (skillId: string) => void;
 }
 
 export const ActiveSkillsDisplay: FC<ActiveSkillsDisplayProps> = ({
+    chatEndpoint,
     skillIds,
     onRemove
 }) => {
@@ -133,13 +138,13 @@ export const ActiveSkillsDisplay: FC<ActiveSkillsDisplayProps> = ({
 
     useEffect(() => {
         const loadSkillNames = async () => {
-            if (skillIds.length === 0) {
+            if (skillIds.length === 0 || !chatEndpoint) {
                 setSkills([]);
                 return;
             }
 
             try {
-                const response = await getUserSkills(true);
+                const response = await getUserSkills(chatEndpoint, true);
                 if (response.success && response.data) {
                     const selectedSkills = response.data.filter(s => skillIds.includes(s.id));
                     setSkills(selectedSkills);
@@ -150,7 +155,7 @@ export const ActiveSkillsDisplay: FC<ActiveSkillsDisplayProps> = ({
         };
 
         loadSkillNames();
-    }, [skillIds]);
+    }, [skillIds, chatEndpoint]);
 
     if (skillIds.length === 0) return null;
 

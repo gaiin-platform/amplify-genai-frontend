@@ -25,12 +25,13 @@ import {
 import { SkillEditor } from './SkillEditor';
 
 interface SkillsLibraryProps {
+    chatEndpoint: string;
     onClose?: () => void;
 }
 
 type ViewMode = 'my-skills' | 'public';
 
-export const SkillsLibrary: FC<SkillsLibraryProps> = ({ onClose }) => {
+export const SkillsLibrary: FC<SkillsLibraryProps> = ({ chatEndpoint, onClose }) => {
     const [skills, setSkills] = useState<Skill[]>([]);
     const [publicSkills, setPublicSkills] = useState<Skill[]>([]);
     const [loading, setLoading] = useState(true);
@@ -53,8 +54,8 @@ export const SkillsLibrary: FC<SkillsLibraryProps> = ({ onClose }) => {
 
         try {
             const [userResponse, publicResponse] = await Promise.all([
-                getUserSkills(true),
-                getPublicSkills(50)
+                getUserSkills(chatEndpoint, true),
+                getPublicSkills(chatEndpoint, 50)
             ]);
 
             if (userResponse.success && userResponse.data) {
@@ -70,7 +71,7 @@ export const SkillsLibrary: FC<SkillsLibraryProps> = ({ onClose }) => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [chatEndpoint]);
 
     useEffect(() => {
         loadSkills();
@@ -115,7 +116,7 @@ export const SkillsLibrary: FC<SkillsLibraryProps> = ({ onClose }) => {
         setSaving(true);
         try {
             if (editingSkill) {
-                const response = await updateSkill(editingSkill.id, skillData);
+                const response = await updateSkill(chatEndpoint, editingSkill.id, skillData);
                 if (response.success) {
                     await loadSkills();
                     setShowEditor(false);
@@ -124,7 +125,7 @@ export const SkillsLibrary: FC<SkillsLibraryProps> = ({ onClose }) => {
                     alert(response.message || 'Failed to update skill');
                 }
             } else {
-                const response = await createSkill(skillData as CreateSkillData);
+                const response = await createSkill(chatEndpoint, skillData as CreateSkillData);
                 if (response.success) {
                     await loadSkills();
                     setShowEditor(false);
@@ -146,7 +147,7 @@ export const SkillsLibrary: FC<SkillsLibraryProps> = ({ onClose }) => {
         }
 
         try {
-            const response = await deleteSkill(skill.id);
+            const response = await deleteSkill(chatEndpoint, skill.id);
             if (response.success) {
                 await loadSkills();
             } else {
@@ -161,7 +162,7 @@ export const SkillsLibrary: FC<SkillsLibraryProps> = ({ onClose }) => {
 
     const handleToggleEnabled = async (skill: Skill) => {
         try {
-            const response = await updateSkill(skill.id, { isEnabled: !skill.isEnabled });
+            const response = await updateSkill(chatEndpoint, skill.id, { isEnabled: !skill.isEnabled });
             if (response.success) {
                 await loadSkills();
             }
@@ -185,7 +186,7 @@ export const SkillsLibrary: FC<SkillsLibraryProps> = ({ onClose }) => {
                 isPublic: false
             };
 
-            const response = await createSkill(newSkillData);
+            const response = await createSkill(chatEndpoint, newSkillData);
             if (response.success) {
                 await loadSkills();
                 setViewMode('my-skills');

@@ -164,7 +164,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const {t} = useTranslation('promptbar');
     const { data: session } = useSession();
     const userEmail = session?.user?.email ?? ''; // Kept as email to avoid breaking changes, updates in the backend handle username translation
-    const { state: { prompts, featureFlags, amplifyUsers, aiEmailDomain } , setLoadingMessage} = useContext(HomeContext);
+    const { state: { prompts, featureFlags, amplifyUsers, aiEmailDomain, chatEndpoint } , setLoadingMessage} = useContext(HomeContext);
 
     const isGroupAst = loc.includes("admin");
 
@@ -1593,9 +1593,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             </div>}
 
                             {/* Skills Section */}
-                            {featureFlags.skills && !disableEdit && (
+                            {featureFlags.skills && !disableEdit && chatEndpoint && (
                                 <div className="mb-4 mt-4">
                                     <SkillsSection
+                                        chatEndpoint={chatEndpoint}
                                         selectedSkills={selectedSkills}
                                         onSkillsChange={setSelectedSkills}
                                         skillSelectionMode={skillSelectionMode}

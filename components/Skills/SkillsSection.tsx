@@ -15,6 +15,7 @@ import { createSkill } from '@/services/skillsService';
 import { CreateSkillData } from '@/types/skill';
 
 interface SkillsSectionProps {
+    chatEndpoint: string;
     selectedSkills: SkillReference[];
     onSkillsChange: (skills: SkillReference[]) => void;
     skillSelectionMode: SkillSelectionMode;
@@ -22,6 +23,7 @@ interface SkillsSectionProps {
 }
 
 export const SkillsSection: FC<SkillsSectionProps> = ({
+    chatEndpoint,
     selectedSkills,
     onSkillsChange,
     skillSelectionMode,
@@ -41,7 +43,7 @@ export const SkillsSection: FC<SkillsSectionProps> = ({
     const loadSkills = async () => {
         setLoading(true);
         try {
-            const response = await getUserSkills(true);
+            const response = await getUserSkills(chatEndpoint, true);
             if (response.success && response.data) {
                 setSkills(response.data);
             }
@@ -77,7 +79,7 @@ export const SkillsSection: FC<SkillsSectionProps> = ({
     const handleCreateNew = async (skillData: CreateSkillData) => {
         setSaving(true);
         try {
-            const response = await createSkill(skillData);
+            const response = await createSkill(chatEndpoint, skillData);
             if (response.success && response.data) {
                 await loadSkills();
                 // Automatically select the newly created skill

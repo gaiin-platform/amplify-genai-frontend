@@ -14,6 +14,7 @@ import {
  * Send a skills request to the backend through the chat endpoint
  */
 const sendSkillsRequest = async <T = any>(
+    chatEndpoint: string,
     action: string,
     data: any = {}
 ): Promise<SkillsResponse<T>> => {
@@ -25,7 +26,6 @@ const sendSkillsRequest = async <T = any>(
             throw new Error("No session available");
         }
 
-        const chatEndpoint = process.env.NEXT_PUBLIC_CHAT_ENDPOINT;
         if (!chatEndpoint) {
             throw new Error("Chat endpoint not configured");
         }
@@ -72,63 +72,66 @@ const sendSkillsRequest = async <T = any>(
 /**
  * Create a new skill
  */
-export const createSkill = async (skillData: CreateSkillData): Promise<SkillsResponse<Skill>> => {
-    return sendSkillsRequest<Skill>('create', skillData);
+export const createSkill = async (chatEndpoint: string, skillData: CreateSkillData): Promise<SkillsResponse<Skill>> => {
+    return sendSkillsRequest<Skill>(chatEndpoint, 'create', skillData);
 };
 
 /**
  * Get all skills for the current user
  * @param includeShared Whether to include skills shared with the user
  */
-export const getUserSkills = async (includeShared: boolean = true): Promise<SkillsResponse<Skill[]>> => {
-    return sendSkillsRequest<Skill[]>('list', { includeShared });
+export const getUserSkills = async (chatEndpoint: string, includeShared: boolean = true): Promise<SkillsResponse<Skill[]>> => {
+    return sendSkillsRequest<Skill[]>(chatEndpoint, 'list', { includeShared });
 };
 
 /**
  * Get a single skill by ID
  */
-export const getSkill = async (skillId: string): Promise<SkillsResponse<Skill>> => {
-    return sendSkillsRequest<Skill>('get', { skillId });
+export const getSkill = async (chatEndpoint: string, skillId: string): Promise<SkillsResponse<Skill>> => {
+    return sendSkillsRequest<Skill>(chatEndpoint, 'get', { skillId });
 };
 
 /**
  * Update an existing skill
  */
 export const updateSkill = async (
+    chatEndpoint: string,
     skillId: string,
     updates: UpdateSkillData
 ): Promise<SkillsResponse<Skill>> => {
-    return sendSkillsRequest<Skill>('update', { skillId, updates });
+    return sendSkillsRequest<Skill>(chatEndpoint, 'update', { skillId, updates });
 };
 
 /**
  * Delete a skill
  */
-export const deleteSkill = async (skillId: string): Promise<SkillsResponse<{ success: boolean }>> => {
-    return sendSkillsRequest<{ success: boolean }>('delete', { skillId });
+export const deleteSkill = async (chatEndpoint: string, skillId: string): Promise<SkillsResponse<{ success: boolean }>> => {
+    return sendSkillsRequest<{ success: boolean }>(chatEndpoint, 'delete', { skillId });
 };
 
 /**
  * Share a skill with another user or group
  */
 export const shareSkill = async (
+    chatEndpoint: string,
     skillId: string,
     shareConfig: ShareSkillConfig
 ): Promise<SkillsResponse<SkillShare>> => {
-    return sendSkillsRequest<SkillShare>('share', { skillId, shareConfig });
+    return sendSkillsRequest<SkillShare>(chatEndpoint, 'share', { skillId, shareConfig });
 };
 
 /**
  * Remove a skill share
  */
-export const unshareSkill = async (shareId: string): Promise<SkillsResponse<void>> => {
-    return sendSkillsRequest<void>('unshare', { shareId });
+export const unshareSkill = async (chatEndpoint: string, shareId: string): Promise<SkillsResponse<void>> => {
+    return sendSkillsRequest<void>(chatEndpoint, 'unshare', { shareId });
 };
 
 /**
  * Auto-select skills based on a message and context
  */
 export const autoSelectSkills = async (
+    chatEndpoint: string,
     message: string,
     context: {
         tags?: string[];
@@ -136,24 +139,25 @@ export const autoSelectSkills = async (
         category?: string;
     } = {}
 ): Promise<SkillsResponse<Skill[]>> => {
-    return sendSkillsRequest<Skill[]>('autoSelect', { message, context });
+    return sendSkillsRequest<Skill[]>(chatEndpoint, 'autoSelect', { message, context });
 };
 
 /**
  * Get public skills for discovery
  */
 export const getPublicSkills = async (
+    chatEndpoint: string,
     limit: number = 50,
     tags?: string[]
 ): Promise<SkillsResponse<Skill[]>> => {
-    return sendSkillsRequest<Skill[]>('getPublic', { limit, tags });
+    return sendSkillsRequest<Skill[]>(chatEndpoint, 'getPublic', { limit, tags });
 };
 
 /**
  * Increment usage count for a skill
  */
-export const incrementSkillUsage = async (skillId: string): Promise<SkillsResponse<void>> => {
-    return sendSkillsRequest<void>('incrementUsage', { skillId });
+export const incrementSkillUsage = async (chatEndpoint: string, skillId: string): Promise<SkillsResponse<void>> => {
+    return sendSkillsRequest<void>(chatEndpoint, 'incrementUsage', { skillId });
 };
 
 /**
