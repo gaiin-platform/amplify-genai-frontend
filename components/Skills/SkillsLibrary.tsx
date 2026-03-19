@@ -205,7 +205,7 @@ export const SkillsLibrary: FC<SkillsLibraryProps> = ({ chatEndpoint, onClose })
 
     if (showEditor) {
         return (
-            <div className="h-full">
+            <div className="h-full max-h-full overflow-hidden">
                 <SkillEditor
                     skill={editingSkill}
                     onSave={handleSaveSkill}
