@@ -305,12 +305,14 @@ export const SkillsSection: FC<SkillsSectionProps> = ({
             {/* Editor modal */}
             {showEditor && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="w-full max-w-4xl max-h-[90vh] bg-white dark:bg-[#343541] rounded-lg shadow-2xl overflow-hidden">
-                        <SkillEditor
-                            onSave={handleCreateNew}
-                            onCancel={() => setShowEditor(false)}
-                            isLoading={saving}
-                        />
+                    <div className="w-full max-w-4xl max-h-[90vh] bg-white dark:bg-[#343541] rounded-lg shadow-2xl flex flex-col overflow-hidden">
+                        <div className="flex-1 overflow-y-auto">
+                            <SkillEditor
+                                onSave={handleCreateNew}
+                                onCancel={() => setShowEditor(false)}
+                                isLoading={saving}
+                            />
+                        </div>
                     </div>
                 </div>
             )}

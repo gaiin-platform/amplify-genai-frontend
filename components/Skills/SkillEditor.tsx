@@ -90,7 +90,7 @@ export const SkillEditor: FC<SkillEditorProps> = ({
     };
 
     return (
-        <div className="flex flex-col h-full bg-white dark:bg-[#343541] rounded-lg shadow-lg overflow-hidden">
+        <div className="flex flex-col min-h-full bg-white dark:bg-[#343541] rounded-lg shadow-lg">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-600">
                 <h2 className="text-xl font-semibold text-neutral-800 dark:text-neutral-200">
@@ -115,7 +115,7 @@ export const SkillEditor: FC<SkillEditorProps> = ({
             </div>
 
             {/* Scrollable Content Area */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto min-h-0">
                 {/* Metadata Section */}
                 <div className="p-4 border-b border-neutral-200 dark:border-neutral-600 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
