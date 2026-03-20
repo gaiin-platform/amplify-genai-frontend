@@ -118,9 +118,9 @@ export const ChatInput = ({
     const { killRequest } = useChatService();
 
     const {
-        state: { selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming,
-            prompts, featureFlags, currentRequestId, chatEndpoint, statsService, availableModels,
-            extractedFacts, memoryExtractionEnabled, ragOn, defaultAccount },
+        state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming,
+            prompts,  featureFlags, currentRequestId, chatEndpoint, statsService, availableModels,
+            extractedFacts, memoryExtractionEnabled, ragOn, defaultAccount, webSearchUserMessage},
         getDefaultModel, handleUpdateConversation,
         dispatch: homeDispatch
     } = useContext(HomeContext);
@@ -1777,28 +1777,37 @@ export const ChatInput = ({
                         }
 
                         {/* Web Search Toggle - Per-Message Control (only show if web search is enabled in FeaturePlugin) */}
-                        {featureFlags.webSearch && plugins?.some(p => p.id === PluginID.WEB_SEARCH) &&
-                            <button
-                                className={`chat-input-button rounded-md p-1.5 transition-all duration-200 ${isWebSearchEnabledForConversation
-                                        ? 'bg-green-500 hover:bg-green-600 text-white shadow-md scale-105'
-                                        : 'text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200'
-                                    }`}
-                                id="toggleWebSearch"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (selectedConversation) {
-                                        handleUpdateConversation(selectedConversation, {
-                                            key: 'data',
-                                            value: { ...selectedConversation.data, webSearchEnabled: !isWebSearchEnabledForConversation },
+                        { featureFlags.webSearch && plugins?.some(p => p.id === PluginID.WEB_SEARCH) &&
+                        <button
+                            className={`chat-input-button rounded-md p-1.5 transition-all duration-200 ${
+                                isWebSearchEnabledForConversation
+                                    ? 'bg-green-500 hover:bg-green-600 text-white shadow-md scale-105'
+                                    : 'text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200'
+                            }`}
+                            id="toggleWebSearch"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (selectedConversation) {
+                                    const newWebSearchState = !isWebSearchEnabledForConversation;
+                                    handleUpdateConversation(selectedConversation, {
+                                        key: 'data',
+                                        value: {...selectedConversation.data, webSearchEnabled: newWebSearchState},
+                                    });
+                                    // Show toast message when enabling web search (if admin configured one)
+                                    if (newWebSearchState && webSearchUserMessage) {
+                                        toast(webSearchUserMessage, {
+                                            duration: 6000,
+                                            icon: <IconWorldSearch size={35} />,
                                         });
                                     }
-                                }}
-                                title={isWebSearchEnabledForConversation
-                                    ? "Web Search enabled for this conversation - Click to disable"
-                                    : "Enable Web Search for this conversation"}
-                            >
-                                <IconWorldSearch size={20} />
-                            </button>
+                                }
+                            }}
+                            title={isWebSearchEnabledForConversation
+                                ? "Web Search enabled for this conversation - Click to disable"
+                                : "Enable Web Search for this conversation"}
+                        >
+                            <IconWorldSearch size={20} />
+                        </button>
                         }
 
                         <div className='flex flex-row gap-2'>

@@ -66,6 +66,12 @@ export interface HomeInitialState {
   inputEmail: string;
   hasScrolledToBottom: boolean;
   storageSelection: string | null;
+  storageProcessing: {
+    isProcessing: boolean;
+    message: string;
+    progress: number;
+    total: number;
+  };
   ops: { [key: string]: Op };
   allFoldersOpenConvs: boolean;
   allFoldersOpenPrompts: boolean;
@@ -86,6 +92,7 @@ export interface HomeInitialState {
   isStandalonePromptCreation: boolean;
   promptCostAlert: PromptCostAlert | null;
   canAddWebSearchApiKey: boolean;
+  webSearchUserMessage: string | null;
   userDocumentationUrl: string;
   promptCostAlertModal: {
     isOpen: boolean;
@@ -155,6 +162,12 @@ export const initialState: HomeInitialState = {
   inputEmail: '',
   hasScrolledToBottom: false,
   storageSelection: null,
+  storageProcessing: {
+    isProcessing: false,
+    message: '',
+    progress: 0,
+    total: 0,
+  },
   allFoldersOpenConvs: false,
   allFoldersOpenPrompts: false,
   checkedItems: [],
@@ -175,5 +188,6 @@ export const initialState: HomeInitialState = {
   promptCostAlert: null,
   promptCostAlertModal: null,
   canAddWebSearchApiKey: false,
+  webSearchUserMessage: null,
   userDocumentationUrl: ''
 };
