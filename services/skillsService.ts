@@ -49,7 +49,16 @@ const sendSkillsRequest = async <T = any>(
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`Skills request failed: ${response.status} - ${errorText}`);
+            let userMessage = `Skills request failed (${response.status})`;
+            try {
+                const errorJson = JSON.parse(errorText);
+                if (errorJson.message) {
+                    userMessage = errorJson.message;
+                }
+            } catch {
+                // errorText is not JSON; use generic message
+            }
+            throw new Error(userMessage);
         }
 
         const result = await response.json();
