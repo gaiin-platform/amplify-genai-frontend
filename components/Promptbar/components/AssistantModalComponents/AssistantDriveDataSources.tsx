@@ -61,6 +61,7 @@ interface Props {
   disallowedFileExtensions?: string[];
   initRescanSchedule: DriveRescanSchedule | null;
   onRescanScheduleChange: (schedule: DriveRescanSchedule) => void; // Add callback prop
+  disableEdit?: boolean;
 }
 
 export const AssistantDriveDataSources: FC<Props> = ({
@@ -71,7 +72,8 @@ export const AssistantDriveDataSources: FC<Props> = ({
   minWidth = '620px',
   disallowedFileExtensions,
   initRescanSchedule,
-  onRescanScheduleChange
+  onRescanScheduleChange,
+  disableEdit = false,
 }) => {
   const { state: { featureFlags } } = useContext(HomeContext);
   const initAstData = initAssistantDefintion.data ?? {};
@@ -606,6 +608,25 @@ export const AssistantDriveDataSources: FC<Props> = ({
 
   if (supportedDriveIntegrations?.length === 0) {
     return null;
+  }
+
+  // Read-only view: just show the selection recap without the expandable picker.
+  // NOTE: We cannot use getCollapsedSummary() here because it depends on
+  // supportedDriveIntegrations which is only populated after <IntegrationTabs>
+  // mounts — and we never render that in disableEdit mode.
+  // renderSelectionPreview() iterates selectedDataSources directly, so it works.
+  if (disableEdit) {
+    const preview = renderSelectionPreview();
+    if (!preview) return null;
+    return (
+      <div className="my-2">
+        <div className="flex items-center gap-2 text-sm font-medium text-black dark:text-neutral-200 mb-1">
+          <IconFolders size={18} className="text-gray-500 dark:text-gray-400" />
+          <span>Drive Data Sources</span>
+        </div>
+        {preview}
+      </div>
+    );
   }
 
   return (

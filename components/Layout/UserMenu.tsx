@@ -10,6 +10,8 @@ import { UserCostsModal } from '../Admin/UserCostModal';
 import { SettingDialog } from '../Settings/SettingDialog';
 import { getSettings, saveSettings } from '@/utils/app/settings';
 import { Settings } from '@/types/settings';
+import { Modal } from '../ReusableComponents/Modal';
+import { LayeredAssistantBuilder } from '../LayeredAssistants/LayeredAssistantBuilder';
 import { saveUserSettings } from '@/services/settingsService';
 import SharingDialog from '../Share/SharingDialog';
 import { ThemeService } from '@/utils/whiteLabel/themeService';
@@ -62,21 +64,39 @@ export const UserMenu: React.FC<UserMenuProps> = ({
    const [showUserCosts, setShowUserCosts] = useState<boolean>(false);
    const [showSettings, setShowSettings] = useState<boolean>(false);
    const [showSharingDialog, setShowSharingDialog] = useState<boolean>(false);
+   const [showLayeredBuilder, setShowLayeredBuilder] = useState<boolean>(false);
+   const [layeredBuilderData, setLayeredBuilderData] = useState<any>(null);
+   const layeredBuilderSaveFnRef = useRef<(() => void) | null>(null);
 
 
     useEffect(() => {
         const handleAstAdminEvent = (event:any) => {
             if (!featureFlagsRef.current.assistantAdminInterface) return;
             const isAstAdminOpen = event.detail.isOpen;
-            setAstGroupModalData(event.detail.data);
-            setShowAssistantAdmin(isAstAdminOpen);  
+            setAstGroupModalData({
+                ...event.detail.data,
+                tabToOpen: event.detail.data?.tabToOpen
+            });
+            setShowAssistantAdmin(isAstAdminOpen);
+        };
+
+        const handleLayeredBuilderEvent = (event: any) => {
+            if (event.detail.isOpen) {
+                setLayeredBuilderData(event.detail.data);
+                setShowLayeredBuilder(true);
+            } else {
+                setShowLayeredBuilder(false);
+                setLayeredBuilderData(null);
+                layeredBuilderSaveFnRef.current = null;
+            }
         };
 
         window.addEventListener('openAstAdminInterfaceTrigger', handleAstAdminEvent);
+        window.addEventListener('openLayeredBuilderTrigger', handleLayeredBuilderEvent);
 
         return () => {
             window.removeEventListener('openAstAdminInterfaceTrigger', handleAstAdminEvent);
-
+            window.removeEventListener('openLayeredBuilderTrigger', handleLayeredBuilderEvent);
         };
     }, []);
 
@@ -349,8 +369,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   }
 
   useEffect(() => {
-    sendEventToHideItemsAroundCodeBase(showAssistantAdmin || showAdminInterface || showUserCosts);
-  }, [showAssistantAdmin, showAdminInterface, showUserCosts]);
+    sendEventToHideItemsAroundCodeBase(showAssistantAdmin || showAdminInterface || showUserCosts || showLayeredBuilder);
+  }, [showAssistantAdmin, showAdminInterface, showUserCosts, showLayeredBuilder]);
 
 
   return (
@@ -627,11 +647,12 @@ export const UserMenu: React.FC<UserMenuProps> = ({
       <div className="text-black dark:text-white">
         {showSettings && <SettingDialog open={showSettings} onClose={() => { settingsActiveTab.current = undefined; setShowSettings(false); }} openToTab={settingsActiveTab.current} />}
         {/* Allow this to render upon every open  */}
-        {showAssistantAdmin && featureFlagsRef.current.assistantAdminInterface && 
+        {showAssistantAdmin && featureFlagsRef.current.assistantAdminInterface &&
          <AssistantAdminUI
             open={showAssistantAdmin}
             openToGroup={astGroupModalData?.group}
             openToAssistant={astGroupModalData?.assistant}
+            tabToOpen={astGroupModalData?.tabToOpen}
         /> }
 
         { featureFlagsRef.current.adminInterface && 
@@ -651,6 +672,38 @@ export const UserMenu: React.FC<UserMenuProps> = ({
             open={showSharingDialog}
             onClose={() => setShowSharingDialog(false)}
         />
+
+        {showLayeredBuilder && layeredBuilderData && (
+            <Modal
+                title={layeredBuilderData.title || 'Layered Assistant Builder'}
+                content={
+                    <LayeredAssistantBuilder
+                        onClose={() => {
+                            setShowLayeredBuilder(false);
+                            setLayeredBuilderData(null);
+                            layeredBuilderSaveFnRef.current = null;
+                        }}
+                        onSave={layeredBuilderData.onSave}
+                        initialData={layeredBuilderData.initialData}
+                        onRegisterSave={(fn: any) => { layeredBuilderSaveFnRef.current = fn; }}
+                        assistants={layeredBuilderData.assistants}
+                    />
+                }
+                fullScreen={true}
+                onCancel={() => {
+                    setShowLayeredBuilder(false);
+                    setLayeredBuilderData(null);
+                    layeredBuilderSaveFnRef.current = null;
+                }}
+                onSubmit={() => { layeredBuilderSaveFnRef.current?.(); }}
+                showSubmit={true}
+                submitLabel="Save"
+                showCancel={true}
+                cancelLabel="Cancel"
+                showClose={true}
+                disableContentAnimation={true}
+            />
+        )}
 
       </div>
     </>

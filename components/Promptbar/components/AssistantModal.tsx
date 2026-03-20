@@ -1432,7 +1432,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 </>
                             )}
 
-                            {featureFlags.integrations && !disableEdit &&!isGroupAst &&
+                            {featureFlags.integrations && !isGroupAst &&
                                 <AssistantDriveDataSources
                                 initAssistantDefintion={definition}
                                 selectedDataSources={integrationDataSources ?? {}}
@@ -1442,6 +1442,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                 initRescanSchedule={driveRescanSchedule}
                                 onRescanScheduleChange={setDriveRescanSchedule}
+                                disableEdit={disableEdit}
                                 />
                             }
 

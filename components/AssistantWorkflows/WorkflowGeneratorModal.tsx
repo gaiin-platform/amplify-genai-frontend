@@ -391,7 +391,7 @@ Generate ONLY the JSON, no additional text.`;
                       {selectedTools.map(tool => (
                         <span
                           key={tool.id}
-                          className="inline-flex items-center px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 rounded"
+                          className="inline-flex items-center px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-900 rounded"
                         >
                           {tool.name}
                           <button

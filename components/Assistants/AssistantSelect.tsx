@@ -2,18 +2,26 @@ import { FC, useEffect, useRef } from 'react';
 
 import { useTranslation } from 'next-i18next';
 import {Assistant, AssistantProviderID} from "@/types/assistant";
+import { LayeredAssistant } from '@/types/layeredAssistant';
 
 interface Props {
     assistant: Assistant | null;
     availableAssistants: Assistant[];
+    layeredAssistants?: LayeredAssistant[];
     onAssistantChange: (assistant: Assistant) => void;
+    onLayeredAssistantChange?: (la: LayeredAssistant) => void;
     onKeyDown: (e: React.KeyboardEvent<HTMLSelectElement>) => void;
 }
+
+// Prefix used to distinguish layered assistant values in the <select>
+const LA_PREFIX = '__la__:';
 
 export const AssistantSelect: FC<Props> = ({
                                             assistant,
                                             availableAssistants,
+                                            layeredAssistants = [],
                                             onAssistantChange,
+                                            onLayeredAssistantChange,
                                             onKeyDown,
                                         }) => {
     const { t } = useTranslation('chat');
@@ -61,21 +69,33 @@ export const AssistantSelect: FC<Props> = ({
         }
     }, []);
 
+    // Determine the current select value — layered assistants use the LA_PREFIX
+    const currentValue = assistant?.definition?.data?.isLayeredAssistant
+        ? `${LA_PREFIX}${assistant.id}`
+        : (assistant?.id || '');
+
+    const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const val = e.target.value;
+        if (val.startsWith(LA_PREFIX)) {
+            const publicId = val.slice(LA_PREFIX.length);
+            const la = layeredAssistants.find(x => x.publicId === publicId);
+            if (la && onLayeredAssistantChange) onLayeredAssistantChange(la);
+        } else {
+            onAssistantChange(
+                availableAssistants.find((a) => a.id === val) as Assistant,
+            );
+        }
+    };
+
     return (
-        <div className="flex flex-col"> 
+        <div className="flex flex-col">
             <div id="selectConversationAssistant" className="mb-1 w-full rounded border border-neutral-200 bg-transparent pr-2 text-neutral-900 dark:border-neutral-600 dark:text-white">
                 <select
                     ref={selectRef}
                     className="w-full cursor-pointer bg-transparent p-2"
                     placeholder={t('Standard Conversation') || ''}
-                    value={assistant?.id || ''}
-                    onChange={(e) => {
-                        onAssistantChange(
-                            availableAssistants.find(
-                                (a) => a.id === e.target.value,
-                            ) as Assistant,
-                        );
-                    }}
+                    value={currentValue}
+                    onChange={handleChange}
                     onKeyDown={(e) => {
                         handleKeyDown(e);
                     }}
@@ -99,6 +119,20 @@ export const AssistantSelect: FC<Props> = ({
                             {a.definition.name}
                         </option>
                     ))}
+
+                    {layeredAssistants.length > 0 && (
+                        <optgroup label="── Layered Assistants ──" className="dark:bg-[#343541] dark:text-white">
+                            {layeredAssistants.map((la) => (
+                                <option
+                                    key={la.publicId || la.id}
+                                    value={`${LA_PREFIX}${la.publicId}`}
+                                    className="dark:bg-[#343541] dark:text-white"
+                                >
+                                    {la.name}
+                                </option>
+                            ))}
+                        </optgroup>
+                    )}
                 </select>
             </div>
         </div>

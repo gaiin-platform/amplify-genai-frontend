@@ -6,6 +6,8 @@ import HomeContext from '@/pages/api/home/home.context';
 
 import Folder from '@/components/Folder';
 import { PromptComponent } from '@/components/Promptbar/components/Prompt';
+import { LayeredAssistantItem } from '@/components/Promptbar/components/LayeredAssistantItem';
+import { isGroupLayeredAssistant } from '@/types/layeredAssistant';
 
 import PromptbarContext from '../PromptBar.context';
 import { sortFoldersByDate, sortFoldersByName } from '@/utils/app/folders';
@@ -19,7 +21,7 @@ interface Props {
 
 export const PromptFolders = ({sort}: Props) => {
   const {
-    state: { folders},
+    state: { folders, layeredAssistants },
   } = useContext(HomeContext);
 
   const foldersRef = useRef(folders);
@@ -49,6 +51,18 @@ export const PromptFolders = ({sort}: Props) => {
 
       handleUpdatePrompt(updatedPrompt);
     }
+  };
+
+  const LayeredAssistantFolderItems = (currentFolder: FolderInterface) => {
+    if (currentFolder.id !== 'layered_assistants') return null;
+    // Only show personal (non-group) layered assistants in the promptbar
+    return layeredAssistants
+      .filter((la: any) => !isGroupLayeredAssistant(la))
+      .map((la: any, index: number) => (
+        <div key={la.publicId || la.id || index} className="ml-5 gap-2 border-l pl-2">
+          <LayeredAssistantItem layeredAssistant={la} />
+        </div>
+      ));
   };
 
   const PromptFolders = (currentFolder: FolderInterface) =>
@@ -88,7 +102,11 @@ export const PromptFolders = ({sort}: Props) => {
             searchTerm={searchTerm}
             currentFolder={folder}
             handleDrop={handleDrop}
-            folderComponent={PromptFolders(folder)}
+            folderComponent={
+              folder.id === 'layered_assistants'
+                ? LayeredAssistantFolderItems(folder)
+                : PromptFolders(folder)
+            }
           />
         ))}
 

@@ -1,4 +1,5 @@
 import {AssistantDefinition, AssistantProviderID} from "@/types/assistant";
+import { LayeredAssistant } from "@/types/layeredAssistant";
 import {Message} from "@/types/chat";
 import {v4 as uuidv4} from 'uuid';
 import { doRequestOp } from "./doRequestOp";
@@ -374,6 +375,55 @@ export const rescanWebsites = async (assistantId: string, forceRescan: boolean =
     return result;
 };
 
+
+// ── Layered Assistants ─────────────────────────────────────────────────────
+
+/**
+ * Create a new layered assistant, or update an existing one.
+ * Pass publicId to update; omit (or pass empty string) to create.
+ */
+export const saveLayeredAssistant = async (layeredAssistant: LayeredAssistant) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/layered/create_or_update",
+        data: {
+            publicId:    layeredAssistant.publicId || "",
+            name:        layeredAssistant.name,
+            description: layeredAssistant.description || "",
+            rootNode:    layeredAssistant.rootNode,
+        },
+        service: SERVICE_NAME,
+    };
+    return await doRequestOp(op);
+};
+
+/**
+ * List all layered assistants belonging to the current user.
+ */
+export const listLayeredAssistants = async () => {
+    const op = {
+        method: 'GET',
+        path: URL_PATH,
+        op: "/layered/list",
+        service: SERVICE_NAME,
+    };
+    return await doRequestOp(op);
+};
+
+/**
+ * Delete a layered assistant by its publicId.
+ */
+export const deleteLayeredAssistant = async (publicId: string) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/layered/delete",
+        data: { publicId },
+        service: SERVICE_NAME,
+    };
+    return await doRequestOp(op);
+};
 
 export const getSiteMapUrls = async (sitemap: string, maxPages?: number) => {
   const data: { sitemap: string, maxPages?: number } = { sitemap }

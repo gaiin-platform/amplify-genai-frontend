@@ -39,7 +39,8 @@ import HomeContext from '@/pages/api/home/home.context';
 import {PromptList} from './PromptList';
 import {VariableModal} from './VariableModal';
 import {DefaultModels, Model, REASONING_LEVELS, ReasoningLevels} from "@/types/model";
-import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
+import {Assistant, AssistantProviderID, DEFAULT_ASSISTANT} from "@/types/assistant";
+import { LayeredAssistant } from '@/types/layeredAssistant';
 import {COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
@@ -119,7 +120,7 @@ export const ChatInput = ({
 
     const {
         state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming,
-            prompts,  featureFlags, currentRequestId, chatEndpoint, statsService, availableModels,
+            prompts, layeredAssistants, featureFlags, currentRequestId, chatEndpoint, statsService, availableModels,
             extractedFacts, memoryExtractionEnabled, ragOn, defaultAccount, webSearchUserMessage},
         getDefaultModel, handleUpdateConversation,
         dispatch: homeDispatch
@@ -412,6 +413,26 @@ export const ChatInput = ({
 
 
 
+
+    const onLayeredAssistantChange = (la: LayeredAssistant) => {
+        setShowAssistantSelect(false);
+        const syntheticAssistant: Assistant = {
+            id: la.publicId!,
+            definition: {
+                name: la.name,
+                description: la.description,
+                assistantId: la.publicId,
+                instructions: '',
+                tools: [],
+                tags: [],
+                fileKeys: [],
+                dataSources: [],
+                provider: AssistantProviderID.AMPLIFY,
+                data: { isLayeredAssistant: true },
+            },
+        };
+        homeDispatch({ field: 'selectedAssistant', value: syntheticAssistant });
+    };
 
     const onAssistantChange = (assistant: Assistant) => {
         setShowAssistantSelect(false);
@@ -1835,6 +1856,11 @@ export const ChatInput = ({
                                     <AssistantSelect
                                         assistant={selectedAssistant || DEFAULT_ASSISTANT}
                                         availableAssistants={availableAssistants}
+                                        layeredAssistants={layeredAssistants}
+                                        onLayeredAssistantChange={(la: LayeredAssistant) => {
+                                            onLayeredAssistantChange(la);
+                                            if (textareaRef && textareaRef.current) textareaRef.current.focus();
+                                        }}
                                         onKeyDown={(e: any) => {
                                             if (e.key === 'Escape') {
                                                 e.preventDefault();

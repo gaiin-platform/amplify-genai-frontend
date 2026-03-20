@@ -6,6 +6,7 @@ import { KebabMenu } from '@/components/Sidebar/components/KebabMenu';
 import { SortType } from '@/types/folder';
 import HomeContext from '@/pages/api/home/home.context';
 import { GroupAssistantsButton } from '../GroupAssistants/GroupAssistantsButton';
+import { LayeredAssistantButton } from '../LayeredAssistants/LayeredAssistantButton';
 
 
 interface Props<T> {
@@ -104,7 +105,7 @@ const Sidebar = <T,>({
       </button>
     );
 
-    return addAssistantButton
+    return <div className='w-full flex flex-col'>{addAssistantButton} {<LayeredAssistantButton />}</div>
   }
 
   return (

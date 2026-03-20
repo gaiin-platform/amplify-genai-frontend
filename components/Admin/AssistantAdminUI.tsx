@@ -1,12 +1,13 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import HomeContext from '@/pages/api/home/home.context';
-import { IconCheck, IconFiles, IconPlus, IconSettings, IconX } from '@tabler/icons-react';
+import { IconCheck, IconEye, IconFiles, IconGitBranch, IconPlus, IconSettings, IconX } from '@tabler/icons-react';
 import { AssistantModal } from '../Promptbar/components/AssistantModal';
 import { Prompt } from '@/types/prompt';
 import { Group, GroupAccessType, AstGroupTypeData, GroupUpdateType, Members } from '@/types/groups';
 import { createEmptyPrompt, savePrompts } from '@/utils/app/prompts';
 import { useSession } from 'next-auth/react';
-import { createAstAdminGroup, fetchAstAdminGroups, updateGroupAssistants } from '@/services/groupsService';
+import { createAstAdminGroup, fetchAstAdminGroups, updateGroupAssistants, listGroupLayeredAssistants } from '@/services/groupsService';
+import { LayeredAssistant } from '@/types/layeredAssistant';
 import { TagsList } from '../Chat/TagsList';
 import ExpansionComponent from '../Chat/ExpansionComponent';
 import { AttachFile, handleFile } from '../Chat/AttachFile';
@@ -33,6 +34,7 @@ import { checkAvailableModelId } from '@/utils/app/models';
 import { AstUserConversation, ConversationTable } from './AssistantAdminComponents/ConversationTable';
 import { Dashboard, DashboardMetrics } from './AssistantAdminComponents/Dashboard';
 import { GroupManagement } from './AssistantAdminComponents/GroupManagement';
+import { GroupLayeredAssistants } from './AssistantAdminComponents/GroupLayeredAssistants';
 import { CreateAdminDialog } from './AssistantAdminComponents/CreateAdminGroupDialog';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { contructGroupData } from '@/utils/app/groups';
@@ -41,16 +43,17 @@ import { filterAstsByFeatureFlags } from '@/utils/app/assistants';
 import { getUserIdentifier } from '@/utils/app/data';
 
 
-const subTabs = ['dashboard', 'conversations', 'edit_assistant', 'group'] as const;
+const subTabs = ['dashboard', 'conversations', 'edit_assistant', 'group', 'layered_assistants'] as const;
 export type SubTabType = typeof subTabs[number];
 
 interface Props {
     open: boolean;
     openToGroup?: Group
     openToAssistant?: Prompt;
+    tabToOpen?: string;
 }
 
-export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant }) => {
+export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant, tabToOpen }) => {
     const { state: { featureFlags, statsService, groups, prompts, folders, syncingPrompts, amplifyUsers }, dispatch: homeDispatch } = useContext(HomeContext);
     const { data: session } = useSession();
     const user = getUserIdentifier(session?.user) ?? "";
@@ -128,7 +131,9 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
     const [activeAstTab, setActiveAstTab] = useState<string | undefined>(selectedAssistant?.data?.assistant?.definition.assistantId);
     const DEFAULT_SUB_TAB = 'dashboard' as SubTabType;
-    const [activeSubTab, setActiveSubTab] = useState<SubTabType>(openToAssistant ? "edit_assistant" : DEFAULT_SUB_TAB);
+    const [activeSubTab, setActiveSubTab] = useState<SubTabType>(
+        tabToOpen === 'layered' ? 'layered_assistants' : (openToAssistant ? "edit_assistant" : DEFAULT_SUB_TAB)
+    );
 
     const [additionalGroupData, setAdditionalGroupData] = useState<any>({});
 
@@ -137,6 +142,9 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
     const [showCreateNewGroup, setShowCreateNewGroup] = useState<boolean>();
     const [showCreateGroupAssistant, setShowCreateGroupAssistant] = useState<string | null>(null);
+
+    const [groupLayeredAssistants, setGroupLayeredAssistants] = useState<LayeredAssistant[]>([]);
+    const [isLoadingLayeredAssistants, setIsLoadingLayeredAssistants] = useState(false);
 
     const fetchEmails = () => {
         const emailSuggestions = Object.values(amplifyUsers); // Extract email values for display
@@ -202,12 +210,32 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
     // if selectedGroup changes then set to conversation tab
     useEffect(() => {
-        if (activeSubTab !== 'group') {
+        if (activeSubTab !== 'group' && activeSubTab !== 'layered_assistants') {
             if ((selectedAssistant && (selectedAssistant.groupId !== selectedGroup?.id || !(selectedGroup?.assistants.find((ast: Prompt) => ast?.data?.assistant?.definition.assistantId === selectedAssistant.data?.assistant?.definition.assistantId))))
                 || (!selectedAssistant && (selectedGroup?.assistants && selectedGroup?.assistants.length > 0))) setSelectedAssistant(selectedGroup?.assistants[0]);
-        } 
+        }
         if (selectedGroup === undefined && adminGroups.length > 0) {
             setSelectedGroup(adminGroups[0]);
+        }
+
+        // Pre-fetch layered assistants for the newly selected group so they are
+        // ready when the user navigates to the Layered Assistants tab.
+        if (selectedGroup?.id) {
+            setGroupLayeredAssistants([]);
+            setIsLoadingLayeredAssistants(true);
+            listGroupLayeredAssistants(selectedGroup.id)
+                .then((result) => {
+                    if (result?.success) {
+                        setGroupLayeredAssistants(
+                            (result.data ?? []).map((la: LayeredAssistant) => ({
+                                ...la,
+                                groupId: la.groupId ?? selectedGroup.id,
+                            }))
+                        );
+                    }
+                })
+                .catch((e) => console.error('Failed to fetch group layered assistants:', e))
+                .finally(() => setIsLoadingLayeredAssistants(false));
         }
 
     }, [selectedGroup]);
@@ -410,7 +438,10 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
     const renderSubTabs = () => (
         <div className="flex flex-col w-full text-[1.05rem]">
             <div className="flex flex-row gap-6 mb-4 px-4 w-full">
-                {subTabs.filter((t: SubTabType) => t !== 'conversations' || selectedGroup?.supportConvAnalysis)
+                {subTabs.filter((t: SubTabType) =>
+                        (t !== 'conversations' || selectedGroup?.supportConvAnalysis)
+                        && t !== 'layered_assistants' // rendered via the 'group' special case
+                    )
                     .map((label: SubTabType) =>
                         label === 'group' ? (
                             <React.Fragment key={label}>
@@ -435,7 +466,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                     </>
                                 }
                                 { activeSubTab !== 'group' &&
-                                <button className={`h-[36px] rounded-xl ml-auto mr-[-16px] whitespace-nowrap transition-all duration-200`}
+                                <button className={`h-[36px] rounded-xl whitespace-nowrap transition-all duration-200`}
                                     key={label}
                                     onClick={() => {
                                         setActiveSubTab(label);
@@ -446,6 +477,19 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                     <div className={`flex flex-row gap-1 text-sm text-white px-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 py-2 rounded-lg shadow-sm`}>
                                         <IconSettings className='mt-0.5' size={16} />
                                         Group Management
+                                    </div>
+                                </button>}
+                                { activeSubTab !== 'layered_assistants' &&
+                                <button className={`h-[36px] rounded-xl ml-auto mr-[-16px] whitespace-nowrap transition-all duration-200`}
+                                    onClick={() => {
+                                        setActiveSubTab('layered_assistants');
+                                        setSelectedAssistant(undefined);
+                                    }}
+                                    title="Manage layered assistants for this group"
+                                >
+                                    <div className={`flex flex-row gap-1 text-sm text-white px-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 transition-all duration-200 py-2 rounded-lg shadow-sm`}>
+                                        <IconGitBranch className='mt-0.5' size={16} />
+                                        Layered Assistants
                                     </div>
                                 </button>}
                             </React.Fragment>
@@ -579,6 +623,17 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                     systemUsers={systemUsers ?? []}
                 />
                     : null;
+
+            case 'layered_assistants':
+                return selectedGroup
+                    ? <GroupLayeredAssistants
+                        selectedGroup={selectedGroup}
+                        layeredAssistants={groupLayeredAssistants}
+                        isLoading={isLoadingLayeredAssistants}
+                        setLayeredAssistants={setGroupLayeredAssistants}
+                      />
+                    : null;
+
             default:
                 return null;
         }

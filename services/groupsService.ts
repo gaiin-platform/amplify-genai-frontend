@@ -1,4 +1,5 @@
 import { AssistantDefinition } from "@/types/assistant";
+import { LayeredAssistant } from "@/types/layeredAssistant";
 import { doRequestOp } from "./doRequestOp";
 
 const URL_PATH = "/groups";
@@ -142,3 +143,75 @@ export const isMemberOfAstAdminGroup = async (groupId: string) => {
     };
     return await doRequestOp(op);
 }
+
+
+// ── Group Layered Assistants ──────────────────────────────────────────────────
+// All three operations are routed through /groups/layered_assistants so the
+// backend calls the LA service as the group system user (astgr/ prefix).
+
+/**
+ * Create or update a group-scoped Layered Assistant.
+ * Pass la.publicId to update an existing one; leave it empty to create new.
+ */
+export const saveGroupLayeredAssistant = async (
+    groupId: string,
+    la: LayeredAssistant,
+): Promise<any> => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/layered_assistants",
+        data: {
+            group_id:         groupId,
+            action:           "create_or_update",
+            layeredAssistant: {
+                publicId:    la.publicId || "",
+                name:        la.name,
+                description: la.description,
+                rootNode:    la.rootNode,
+            },
+        },
+        service: SERVICE_NAME,
+    };
+    return await doRequestOp(op);
+};
+
+/**
+ * List all Layered Assistants belonging to a group.
+ * Any group member (read or write) may call this.
+ */
+export const listGroupLayeredAssistants = async (groupId: string): Promise<any> => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/layered_assistants",
+        data: {
+            group_id: groupId,
+            action:   "list",
+        },
+        service: SERVICE_NAME,
+    };
+    return await doRequestOp(op);
+};
+
+/**
+ * Permanently delete a group-scoped Layered Assistant by its publicId.
+ * Requires write or admin access to the group.
+ */
+export const deleteGroupLayeredAssistant = async (
+    groupId: string,
+    publicId: string,
+): Promise<any> => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/layered_assistants",
+        data: {
+            group_id: groupId,
+            action:   "delete",
+            publicId: publicId,
+        },
+        service: SERVICE_NAME,
+    };
+    return await doRequestOp(op);
+};

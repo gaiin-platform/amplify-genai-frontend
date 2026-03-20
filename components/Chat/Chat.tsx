@@ -100,7 +100,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 extractedFacts,
                 defaultAccount,
                 isStandalonePromptCreation,
-                promptCostAlertModal
+                promptCostAlertModal,
+                layeredAssistants,
             },
             setLoadingMessage,
             handleUpdateConversation,
@@ -1080,15 +1081,19 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
-                    // make sure assistant hasnt been deleted 
-                    if (prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
+                    // make sure assistant hasnt been deleted (check prompts OR layered assistants)
+                    const existsInPrompts = prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
+                    const existsInLayered = layeredAssistants.some((la: any) => la.publicId === assistant.definition.assistantId);
+                    if (existsInPrompts || existsInLayered) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
             }
             else if (!isStandalonePromptCreation && selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages?.length == 0) {
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
-                    // make sure assistant hasnt been deleted 
-                    if (prompts.some((prompt:Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
+                    // make sure assistant hasnt been deleted (check prompts OR layered assistants)
+                    const existsInPrompts = prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
+                    const existsInLayered = layeredAssistants.some((la: any) => la.publicId === assistant.definition.assistantId);
+                    if (existsInPrompts || existsInLayered) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
 
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
