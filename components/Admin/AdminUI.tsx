@@ -729,9 +729,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 />
             },
 ///////////////////////////////////////////////////////////////////////////////
-            // Application Variables
-            { label: tabTitle('Application Variables'),
-                content : 
+            // Application Variables - only shown if feature flag is enabled
+            ...( featureFlags.applicationVariables || features.applicationVariables?.enabled
+                ? [{ label: tabTitle('Application Variables'),
+                content :
                 stillLoadingData ? loading :
                 <>
                 <div className="admin-style-settings-card">
@@ -754,10 +755,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             updateUnsavedConfigs(AdminConfigTypes.APP_SECRETS);
                         }}
                         obscure={true}
-                        />    
+                        />
                     </div> : <>No Application Secrets Retrieved</>}
                 </div>
-                    
+
                 <br className="mt-4"></br>
 
                 <div className="admin-style-settings-card">
@@ -781,7 +782,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                 updateUnsavedConfigs(AdminConfigTypes.APP_VARS);
                             }}
                             obscure={true}
-                            />      
+                            />
                         </div> : <>No Application Variables Retrieved</>}
                 </div>
 
@@ -808,12 +809,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     </div>
                 </div>
                 </>
-            },
+            }] : []),
 
 ///////////////////////////////////////////////////////////////////////////////
-            // OpenAi Endpoints
-            { label: tabTitle('OpenAi Endpoints'),
-                content : 
+            // OpenAi Endpoints - only shown if feature flag is enabled
+            ...( featureFlags.openaiEndpoints || features.openaiEndpoints?.enabled
+                ? [{ label: tabTitle('OpenAi Endpoints'),
+                content :
                 stillLoadingData ? loading :
                 <OpenAIEndpointsTab
                     openAiEndpoints={openAiEndpoints}
@@ -821,7 +823,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     updateUnsavedConfigs={updateUnsavedConfigs}
                 />
 
-            },
+            }] : []),
 
 ///////////////////////////////////////////////////////////////////////////////
             // Feature Flags
