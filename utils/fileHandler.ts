@@ -4,8 +4,7 @@ import { handleFile } from '@/components/Chat/AttachFile';
 import { resolveRagEnabled } from '@/types/features';
 import { AttachedDocument } from '@/types/attacheddocument';
 import JSZip from 'jszip';
-import { v4 as uuidv4 } from 'uuid';
-import { IMAGE_FILE_TYPES } from './app/const';
+import { IMAGE_FILE_TYPES, VIDEO_FILE_TYPES } from './app/const';
 // ============================================================================
 // INTERFACES
 // ============================================================================
@@ -95,6 +94,17 @@ export function isImageFile(doc: AttachedDocument): boolean {
         return true;
     }
     if (doc.type && IMAGE_FILE_TYPES.includes(doc.type)) {
+        return true;
+    }
+    return false;
+}
+
+export function isVideoFile(doc: AttachedDocument): boolean {
+    const extension = getFileExtension(doc.name);
+    if (extension && VIDEO_FILE_EXTENSIONS.includes(extension)) {
+        return true;
+    }
+    if (doc.type && VIDEO_FILE_TYPES.includes(doc.type)) {
         return true;
     }
     return false;

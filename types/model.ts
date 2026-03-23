@@ -7,6 +7,7 @@ export interface Model {
   outputTokenLimit: number;
   supportsImages: boolean;
   supportsVideo?: boolean;
+  supportsImageGeneration?: boolean;
   supportsReasoning: boolean;
   provider: string;
   inputTokenCost: number;

@@ -26,32 +26,32 @@ import {
     useState,
 } from 'react';
 
-import { useTranslation } from 'next-i18next';
-import { parsePromptVariables } from "@/utils/app/prompts";
-import { Conversation, Message, MessageType, newMessage } from '@/types/chat';
-import { Plugin, PluginID, PluginList, Plugins } from '@/types/plugin';
-import { Prompt } from '@/types/prompt';
-import { AttachFile, handleFile } from "@/components/Chat/AttachFile";
-import { FileList } from "@/components/Chat/FileList";
-import { AttachedDocument, AttachedDocumentMetadata } from "@/types/attacheddocument";
-import { setAssistant as setAssistantInMessage } from "@/utils/app/assistants";
+import {useTranslation} from 'next-i18next';
+import {parsePromptVariables} from "@/utils/app/prompts";
+import {Conversation, Message, MessageType, newMessage} from '@/types/chat';
+import {Plugin, PluginID, PluginList, Plugins} from '@/types/plugin';
+import {Prompt} from '@/types/prompt';
+import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
+import {FileList} from "@/components/Chat/FileList";
+import {AttachedDocument, AttachedDocumentMetadata} from "@/types/attacheddocument";
+import {setAssistant as setAssistantInMessage} from "@/utils/app/assistants";
 import HomeContext from '@/pages/api/home/home.context';
-import { PromptList } from './PromptList';
-import { VariableModal } from './VariableModal';
-import { DefaultModels, Model, REASONING_LEVELS, ReasoningLevels } from "@/types/model";
-import { Assistant, DEFAULT_ASSISTANT } from "@/types/assistant";
-import { COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS, VIDEO_FILE_EXTENSIONS } from "@/utils/app/const";
-import { useChatService } from "@/hooks/useChatService";
-import { DataSourceSelector } from "@/components/DataSources/DataSourceSelector";
-import { getAssistants } from "@/utils/app/assistants";
-import { isImageFile, processDragDropFiles, processPastedFiles } from '@/utils/fileHandler';
+import {PromptList} from './PromptList';
+import {VariableModal} from './VariableModal';
+import {DefaultModels, Model, REASONING_LEVELS, ReasoningLevels} from "@/types/model";
+import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
+import {COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS} from "@/utils/app/const";
+import {useChatService} from "@/hooks/useChatService";
+import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
+import {getAssistants} from "@/utils/app/assistants";
+import { isImageFile, isVideoFile, processDragDropFiles, processPastedFiles } from '@/utils/fileHandler';
 import AssistantsInUse from "@/components/Chat/AssistantsInUse";
-import { AssistantSelect } from "@/components/Assistants/AssistantSelect";
+import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
 import QiModal from './QiModal';
 import { QiSummary, QiSummaryType } from '@/types/qi';
-import { LoadingDialog } from "@/components/Loader/LoadingDialog";
-import { ArtifactsSaved } from './ArtifactsSaved';
-import { ArtifactsList } from './ArtifactsList';
+import {LoadingDialog} from "@/components/Loader/LoadingDialog";
+import {ArtifactsSaved} from './ArtifactsSaved';
+import {ArtifactsList} from './ArtifactsList';
 import { PendingArtifact, ArtifactBlockDetail } from '@/types/artifacts';
 import { createQiSummary } from '@/services/qiService';
 import MessageSelectModal from './MesssageSelectModal';
@@ -62,7 +62,7 @@ import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
 import { MemoryPresenter } from "@/components/Chat/MemoryPresenter";
 // import { ProjectList } from './ProjectList';
-import { } from '../../services/memoryService';
+// import { } from '../../services/memoryService';
 import { Settings } from '@/types/settings';
 import { ToggleOptionButtons } from '../ReusableComponents/ToggleOptionButtons';
 import { capitalize } from '@/utils/app/data';
@@ -427,10 +427,10 @@ export const ChatInput = ({
             //remove duplicates if any
             selectedConversation.tags = Array.from(new Set(updatedTags));
 
-            homeDispatch({ field: 'selectedAssistant', value: assistant ? assistant : DEFAULT_ASSISTANT });
+            homeDispatch({field: 'selectedAssistant', value: assistant ? assistant : DEFAULT_ASSISTANT});
             let assistantPrompt: Prompt | undefined = undefined;
 
-            if (assistant) assistantPrompt = promptsRef.current.find((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
+            if (assistant) assistantPrompt =  promptsRef.current.find((prompt:Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
 
             //I do not get the impression that promptTemplates are currently used nonetheless the bases are covered in case they ever come into play (as taken into account in handleStartConversationWithPrompt)
             selectedConversation.promptTemplate = assistantPrompt ?? null;
@@ -491,7 +491,7 @@ export const ChatInput = ({
         }
 
         // This prevents documents that were uploaded from being jammed into the prompt here
-        const toInsert = documents.filter((doc: AttachedDocument) => !doc.key && doc.raw && doc.raw.length > 0);
+        const toInsert = documents.filter((doc:AttachedDocument) => !doc.key && doc.raw && doc.raw.length > 0);
 
         if (toInsert.length > 0) {
             content =
@@ -565,7 +565,7 @@ export const ChatInput = ({
         }
 
         const type = (isWorkflowOn) ? MessageType.AUTOMATION : MessageType.PROMPT;
-
+        
         // Prepare message content and label for large text handling
         let messageContent = content || '';
         let messageLabel = content || '';
@@ -703,6 +703,11 @@ export const ChatInput = ({
         if (!selectedConversation?.model?.supportsImages && hasImages) {
             toast(" This model does not support images");
             updatedDocuments = updatedDocuments?.filter((d: AttachedDocument) => !isImageFile(d));
+        }
+        const hasVideos = updatedDocuments?.some((d) => isVideoFile(d));
+        if (!selectedConversation?.model?.supportsVideo && hasVideos) {
+            toast(" This model does not support videos");
+            updatedDocuments = updatedDocuments?.filter((d: AttachedDocument) => !isVideoFile(d));
         }
         onSend(msg, updatedDocuments || []);
 
@@ -970,11 +975,7 @@ export const ChatInput = ({
     }
 
     const disallowedFileExtensions = useMemo(() => {
-        return [
-            ...COMMON_DISALLOWED_FILE_EXTENSIONS,
-            ...(selectedConversation?.model?.supportsImages ? [] : IMAGE_FILE_EXTENSIONS),
-            ...(selectedConversation?.model?.supportsVideo ? [] : VIDEO_FILE_EXTENSIONS)
-        ];
+        return [ ...COMMON_DISALLOWED_FILE_EXTENSIONS ];
     }, [selectedConversation?.model?.supportsImages, selectedConversation?.model?.supportsVideo]);
 
     const handleCloseAllPopups = () => {
@@ -1199,22 +1200,22 @@ export const ChatInput = ({
 
     return (
         <>
-            {featureFlags.pluginsOnInput &&
+            { featureFlags.pluginsOnInput &&
                 settingRef.current.featureOptions.includePluginSelector &&
-                <div className='relative z-20' style={{ height: 0 }}>
+                <div className='relative z-20' style={{height: 0}}>
                     <FeaturePlugin
                         plugins={plugins}
                         setPlugins={setPlugins}
                     />
                 </div>
             }
-            <div style={{ width: chatContainerWidth }}
-                className="px-20 absolute bottom-0 left-0 border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2">
+            <div style={{width: chatContainerWidth}}
+                 className="px-20 absolute bottom-0 left-0 border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2">
 
                 <div className="relative z-15 flex flex-col gap-2 justify-center items-center stretch mx-2 mt-4 flex flex-row last:mb-2 md:mx-4 md:mt-[52px] md:last:mb-6">
 
                     {!showScrollDownButton && !messageIsStreaming && !artifactIsStreaming && featureFlags.qiSummary && !showDataSourceSelector &&
-                        (selectedConversation && selectedConversation.messages?.length > 0) && (
+                        (selectedConversation && selectedConversation.messages?.length > 0) &&  (
                             <div className="fixed flex flex-row absolute top-0 group prose dark:prose-invert  hover:text-neutral-900 dark:hover:text-neutral-100">
                                 <button
                                     className="mt-5 cursor-pointer border border-gray-300 dark:border-gray-600 rounded px-2 py-1"
@@ -1242,14 +1243,14 @@ export const ChatInput = ({
                     <div className='absolute top-0 left-0 right-0 mx-auto flex justify-center items-center gap-2'>
 
 
-                        {(messageIsStreaming || artifactIsStreaming) && (
+                        {(messageIsStreaming || artifactIsStreaming) &&  (
                             <>
                                 <button
                                     id="stopGenerating"
                                     className="z-20 -mt-4 flex w-fit items-center gap-1 rounded border border-neutral-200 bg-white py-2 px-4 text-black hover:opacity-50 dark:border-neutral-600 dark:bg-[#343541] dark:text-white md:mb-0 "
                                     onClick={handleStopConversation}
                                 >
-                                    <IconPlayerStop className="animate-pulse" fill="blue" size={16} /> {t('Stop Generating')}
+                                    <IconPlayerStop className="animate-pulse" fill="blue" size={16}/> {t('Stop Generating')}
                                 </button>
 
                                 {/*<StatusDisplay statusHistory={status}/>*/}
@@ -1271,7 +1272,7 @@ export const ChatInput = ({
 
                     {showDataSourceSelector && (
                         <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-[#343541]"
-                            style={{ transform: 'translateY(70px)' }}>
+                             style={{transform: 'translateY(70px)'}}>
                             <DataSourceSelector
                                 disallowedFileExtensions={disallowedFileExtensions}
                                 onDataSourceSelected={(d) => {
@@ -1292,92 +1293,92 @@ export const ChatInput = ({
                                 }}
                                 showActionButtons={true}
                                 onIntegrationDataSourceSelected={featureFlags.integrations ?
-                                    (file: File) => { handleFile(file, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController, featureFlags.uploadDocuments, undefined, resolveRagEnabled(featureFlags, ragOn)) }
+                                    (file: File) => { handleFile(file, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController, featureFlags.uploadDocuments, undefined, resolveRagEnabled(featureFlags, ragOn) )}
                                     : undefined
                                 }
                             />
                         </div>
                     )}
 
-                    {featureFlags.actionSets && showOpsPopup && (
-                        <div ref={actionSelectorRef} className="z-50 w-full"
-                            style={{ transform: 'translateY(50px)' }} >
-                            <OperationSelector
-                                initialAction={editingAction ?
-                                    {
-                                        name: editingAction.name,
-                                        customName: editingAction.customName,
-                                        customDescription: editingAction.customDescription,
-                                        parameters: editingAction.parameters || {}
-                                    } :
-                                    undefined
-                                }
-                                editMode={!!editingAction}
-                                onCancel={() => {
-                                    setShowOpsPopup(false);
-                                    setEditingAction(null);
-                                }}
-                                onActionAdded={(operation, parameters, customName, customDescription) => {
-                                    if (editingAction) {
-                                        // Update the existing action
-                                        setAddedActions((prev) => {
-                                            const newActions = [...prev];
-                                            newActions[editingAction.index] = {
+                    { featureFlags.actionSets &&  showOpsPopup && (
+                            <div ref={actionSelectorRef} className="z-50 w-full" 
+                                 style={{transform: 'translateY(50px)'}} >
+                                <OperationSelector
+                                    initialAction={editingAction ? 
+                                        { 
+                                          name: editingAction.name, 
+                                          customName: editingAction.customName,
+                                          customDescription: editingAction.customDescription,
+                                          parameters: editingAction.parameters || {} 
+                                        } : 
+                                        undefined
+                                    }
+                                    editMode={!!editingAction}
+                                    onCancel={() => {
+                                        setShowOpsPopup(false);
+                                        setEditingAction(null);
+                                    }}
+                                    onActionAdded={(operation, parameters, customName, customDescription) => {
+                                        if (editingAction) {
+                                            // Update the existing action
+                                            setAddedActions((prev) => {
+                                                const newActions = [...prev];
+                                                newActions[editingAction.index] = { 
+                                                    name: operation.name,
+                                                    operation,
+                                                    customName,
+                                                    customDescription,
+                                                    parameters
+                                                };
+                                                return newActions;
+                                            });
+                                            console.log(
+                                                `Action Updated: ${operation.name}`,
+                                                customName ? `Custom Name: ${customName}` : '',
+                                                customDescription ? `Custom Description: ${customDescription}` : '',
+                                                'Parameters:', parameters,
+                                                'Operation:', operation
+                                            );
+                                        } else {
+                                            // Add a new action
+                                            setAddedActions((prev) => [...prev, { 
                                                 name: operation.name,
                                                 operation,
                                                 customName,
                                                 customDescription,
                                                 parameters
-                                            };
-                                            return newActions;
-                                        });
-                                        console.log(
-                                            `Action Updated: ${operation.name}`,
-                                            customName ? `Custom Name: ${customName}` : '',
-                                            customDescription ? `Custom Description: ${customDescription}` : '',
-                                            'Parameters:', parameters,
-                                            'Operation:', operation
-                                        );
-                                    } else {
-                                        // Add a new action
-                                        setAddedActions((prev) => [...prev, {
-                                            name: operation.name,
-                                            operation,
-                                            customName,
-                                            customDescription,
-                                            parameters
-                                        }]);
-                                        console.log(
-                                            `Action Added: ${operation.name}`,
-                                            customName ? `Custom Name: ${customName}` : '',
-                                            customDescription ? `Custom Description: ${customDescription}` : '',
-                                            'Parameters:', parameters,
-                                            'Operation:', operation
-                                        );
+                                            }]);
+                                            console.log(
+                                                `Action Added: ${operation.name}`,
+                                                customName ? `Custom Name: ${customName}` : '',
+                                                customDescription ? `Custom Description: ${customDescription}` : '',
+                                                'Parameters:', parameters,
+                                                'Operation:', operation
+                                            );
+                                        }
+                                        // Clear editing state and close the popup
+                                        setEditingAction(null);
+                                        // setShowOpsPopup(false);
+                                    }}
+                                    onActionSetAdded={
+                                       (actionSet) => {
+                                            setAddedActions(actionSet.actions);
+                                        }
                                     }
-                                    // Clear editing state and close the popup
-                                    setEditingAction(null);
-                                    // setShowOpsPopup(false);
-                                }}
-                                onActionSetAdded={
-                                    (actionSet) => {
-                                        setAddedActions(actionSet.actions);
-                                    }
-                                }
-                            />
-                        </div>
-                    )}
+                                />
+                            </div>
+                        )}
 
                     {//TODO: feature flag this
                     }
                     {featureFlags.memory &&
                         <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-[#343541]"
-                            style={{ transform: 'translateY(50px)' }}>
+                             style={{transform: 'translateY(50px)'}}>
                             <MemoryPresenter
                                 isFactsVisible={isFactsVisible}
                                 setIsFactsVisible={setIsFactsVisible}
                             />
-                        </div>}
+                        </div>    }
 
 
 
@@ -1386,7 +1387,7 @@ export const ChatInput = ({
                         <div
                             className={`w-full flex justify-center py-1 cursor-ns-resize select-none ${isResizing ? 'bg-blue-100 dark:bg-blue-900/20' : 'hover:bg-gray-100 dark:hover:bg-gray-700/30'} transition-colors`}
                             onMouseDown={handleResizeStart}
-                            style={{ transform: 'translateY(24px)' }}
+                            style={{transform: 'translateY(24px)'}}
                             title="Drag to resize input area"
                         >
                             <div className="flex items-center gap-1 text-gray-400 dark:text-gray-500">
@@ -1395,20 +1396,20 @@ export const ChatInput = ({
                         </div>
                     )}
 
-                    <div className="relative mx-2 flex w-full flex-grow sm:mx-4 bg-neutral-100 dark:bg-[#3d3e4c] rounded-md" style={{ transform: 'translateY(24px)' }}>
+                    <div className="relative mx-2 flex w-full flex-grow sm:mx-4 bg-neutral-100 dark:bg-[#3d3e4c] rounded-md" style={{transform: 'translateY(24px)'}}>
 
                         {/* Only show AssistantsInUse when AttachmentDisplay is NOT shown */}
                         {!((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
-                            <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts) => {
-                                if (asts.length === 0) {
+                            <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
+                                if(asts.length === 0){
                                     //setAssistant(DEFAULT_ASSISTANT);
-                                    homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
+                                    homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
                                 }
                                 else {
                                     //setAssistant(asts[0]);
-                                    homeDispatch({ field: 'selectedAssistant', value: asts[0] });
+                                    homeDispatch({field: 'selectedAssistant', value: asts[0]});
                                 }
-                            }} />
+                            }}/>
                         )}
 
                         {//TODO: feature flag this
@@ -1420,32 +1421,33 @@ export const ChatInput = ({
                             setSelectedProject(project);
                             setShowProjectList(false);
                         }}/>} */}
-                        {/* Unified Attachment Display - Files, Large Text, and Assistant */}
-                        {((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
-                            <div style={{ transform: 'translateY(-4px)' }}>
-                                <AttachmentDisplay
-                                    documents={documents}
-                                    documentStates={documentState}
-                                    onCancelUpload={onCancelUpload}
-                                    setDocuments={setDocuments}
-                                    largeTextBlocks={largeTextBlocks}
-                                    onRemoveBlock={handleRemoveLargeTextBlock}
-                                    onEditBlock={handleEditBlock}
-                                    currentlyEditingId={editingBlockId || undefined}
-                                    showLargeTextPreview={showLargeTextPreview || isEditing}
-                                    selectedAssistant={selectedAssistant || undefined}
-                                    onRemoveAssistant={() => homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT })}
-                                />
-                            </div>
-                        )}
+                     {/* Unified Attachment Display - Files, Large Text, and Assistant */}
+                     {((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
+                        <div style={{transform: 'translateY(-4px)'}}>
+                            <AttachmentDisplay
+                                documents={documents}
+                                documentStates={documentState}
+                                onCancelUpload={onCancelUpload}
+                                setDocuments={setDocuments}
+                                largeTextBlocks={largeTextBlocks}
+                                onRemoveBlock={handleRemoveLargeTextBlock}
+                                onEditBlock={handleEditBlock}
+                                currentlyEditingId={editingBlockId || undefined}
+                                showLargeTextPreview={showLargeTextPreview || isEditing}
+                                selectedAssistant={selectedAssistant || undefined}
+                                onRemoveAssistant={() => homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT})}
+                            />
+                        </div>
+                     )}
 
                     </div>
 
-                    <div
-                        className={`relative mx-2 flex w-full flex-grow flex-col rounded-md border shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4 transition-colors duration-200 ${isDragging
-                                ? 'border-blue-400 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-900/20'
+                    <div 
+                        className={`relative mx-2 flex w-full flex-grow flex-col rounded-md border shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4 transition-colors duration-200 ${
+                            isDragging 
+                                ? 'border-blue-400 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-900/20' 
                                 : 'border-black/10 bg-white dark:border-gray-900/50 dark:bg-[#40414F]'
-                            }`}
+                        }`}
                         onDragEnter={handleDragEnter}
                         onDragLeave={handleDragLeave}
                         onDragOver={handleDragOver}
@@ -1484,49 +1486,49 @@ export const ChatInput = ({
                         {featureFlags.actionSets && addedActions.length > 0 && (
                             <div className="w-full px-2 py-2 border-b border-black/10 dark:border-gray-700/50">
                                 <ActionsList actions={addedActions}
-                                    onActionClick={
-                                        (a) => {
-                                            // Handle action click
-                                            console.log("Action clicked:", a);
-                                        }
-                                    }
+                                             onActionClick={
+                                                 (a)=>{
+                                                     // Handle action click
+                                                     console.log("Action clicked:", a);
+                                                 }
+                                             }
 
-                                    onConfigureAction={(a, index) => {
-                                        handleCloseAllPopups();
-                                        // Set the action being edited
-                                        setEditingAction({
-                                            ...a,
-                                            index,
-                                            // Get parameters from addedActions if they exist
-                                            parameters: addedActions[index].parameters
-                                        });
-                                        // Open the operations popup with this specific action
-                                        setShowOpsPopup(true);
-                                        console.log("Configure action:", a, "at index", index, "with parameters:", addedActions[index].parameters);
-                                    }}
+                                             onConfigureAction={(a, index)=>{
+                                                    handleCloseAllPopups();
+                                                    // Set the action being edited
+                                                    setEditingAction({
+                                                        ...a, 
+                                                        index,
+                                                        // Get parameters from addedActions if they exist
+                                                        parameters: addedActions[index].parameters
+                                                    });
+                                                    // Open the operations popup with this specific action
+                                                    setShowOpsPopup(true);
+                                                    console.log("Configure action:", a, "at index", index, "with parameters:", addedActions[index].parameters);
+                                             }}
 
-                                    onRemoveAction={
-                                        (i) => {
-                                            // Remove the action from added actions without alert
-                                            setAddedActions((prevActions) => {
-                                                const newActions = [...prevActions];
-                                                newActions.splice(i, 1);
-                                                return newActions;
-                                            });
-                                        }
-                                    }
+                                             onRemoveAction={
+                                                 (i) =>{
+                                                     // Remove the action from added actions without alert
+                                                     setAddedActions((prevActions) => {
+                                                         const newActions = [...prevActions];
+                                                         newActions.splice(i, 1);
+                                                         return newActions;
+                                                     });
+                                                 }
+                                             }
+                                             
+                                             onSaveActions={
+                                                 () => {
+                                                     setShowSaveActionsModal(true);
+                                                 }
+                                             }
 
-                                    onSaveActions={
-                                        () => {
-                                            setShowSaveActionsModal(true);
-                                        }
-                                    }
-
-                                    onClearActions={
-                                        () => {
-                                            setAddedActions([]);
-                                        }
-                                    }
+                                             onClearActions={
+                                                 () => {
+                                                     setAddedActions([]);
+                                                 }
+                                             }
                                 />
                             </div>
                         )}
@@ -1539,7 +1541,7 @@ export const ChatInput = ({
                                     <PromptOptimizerButton
                                         prompt={content || ""}
                                         largeTextBlocks={largeTextBlocks}
-                                        onOptimized={(optimizedPrompt: string) => {
+                                        onOptimized={(optimizedPrompt:string) => {
                                             setContent(optimizedPrompt);
                                             textareaRef.current?.focus();
                                         }}
@@ -1558,7 +1560,7 @@ export const ChatInput = ({
                                     />}
 
                                 {showQiDialog && (
-                                    isQiLoading ? (<LoadingDialog open={isQiLoading} message={"Creating Summary..."} />) :
+                                    isQiLoading ? (  <LoadingDialog open={isQiLoading} message={"Creating Summary..."}/>) :
                                         <QiModal
                                             qiSummary={qiSummary}
                                             onCancel={() => {
@@ -1588,13 +1590,14 @@ export const ChatInput = ({
                                     resize: 'none',
                                     bottom: `${textareaRef?.current?.scrollHeight}px`,
                                     maxHeight: `${textareaHeight}px`,
-                                    overflow: `${textareaRef.current && textareaRef.current.scrollHeight > textareaHeight
+                                    overflow: `${
+                                        textareaRef.current && textareaRef.current.scrollHeight > textareaHeight
                                             ? 'auto'
                                             : 'hidden'
-                                        }`,
+                                    }`,
                                 }}
                                 placeholder={
-                                    isEditing
+                                    isEditing 
                                         ? `Editing large text block - ESC to cancel, Ctrl+Enter to save`
                                         : "Type a message to chat with Amplify..."
                                 }
@@ -1617,7 +1620,7 @@ export const ChatInput = ({
                                             return;
                                         }
                                     }
-
+                                    
                                     // Normal key handling
                                     handleKeyDown(e);
                                 }}
@@ -1649,18 +1652,18 @@ export const ChatInput = ({
                                 <button
                                     id="sendMessage"
                                     className={`chat-input-button left-1 rounded-sm p-1 text-neutral-800 opacity-60  mx-1 
-                                    ${messageIsDisabled || !content ? 'cursor-not-allowed ' : 'hover:bg-neutral-200 hover:text-black dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-white'} 
+                                    ${messageIsDisabled || !content? 'cursor-not-allowed ' : 'hover:bg-neutral-200 hover:text-black dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-white'} 
                                     dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
                                     onClick={handleSend}
                                     title={messageIsDisabled ? "Please address missing information to enable chat"
                                         : !content ? "Enter a message to start chatting" : "Send Prompt"}
-                                    disabled={messageIsDisabled || !content}
+                                    disabled={messageIsDisabled || !content }
                                 >
                                     {messageIsStreaming || artifactIsStreaming ? (
                                         <div
                                             className="h-4 w-4 animate-spin rounded-full border-t-2 border-neutral-800 opacity-60 dark:border-neutral-100"></div>
                                     ) : (
-                                        <IconSend size={18} />
+                                        <IconSend size={18}/>
                                     )}
                                 </button>
                             )}
@@ -1673,7 +1676,7 @@ export const ChatInput = ({
                                         onClick={onScrollDownClick}
                                         title="Scroll Down"
                                     >
-                                        <IconArrowDown size={18} />
+                                        <IconArrowDown size={18}/>
                                     </button>
                                 </div>
                             )}
@@ -1723,57 +1726,57 @@ export const ChatInput = ({
                                 }}
                                 title="Files"
                             >
-                                <IconFiles size={20} />
+                                <IconFiles size={20}/>
                             </button>
                         )}
 
 
 
-                        {featureFlags.uploadDocuments &&
-                            <div style={{ transform: 'translateX(-10px)' }}>
-                                <AttachFile id="__attachFile"
-                                    disallowedFileExtensions={disallowedFileExtensions}
-                                    onAttach={addDocument}
-                                    onSetMetadata={handleSetMetadata}
-                                    onSetKey={handleSetKey}
-                                    onSetAbortController={handleDocumentAbortController}
-                                    onUploadProgress={handleDocumentState}
-                                    className="chat-input-button"
-                                />
-                            </div>}
-
-
-                        {featureFlags.actionSets &&
-                            <>
-                                {/* Add Action button toggles the operations popup */}
-                                <button
-                                    className="chat-input-button rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
-                                    id="addAction"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        // If popup is being closed, reset editing state
-                                        if (showOpsPopup) {
-                                            setEditingAction(null);
-                                        }
-                                        handleCloseAllPopups();
-                                        setShowOpsPopup(!showOpsPopup);
-                                    }}
-                                    onKeyDown={(e) => {
-                                    }}
-                                    title="Add Action"
-                                >
-                                    <IconSettingsAutomation size={20} />
-                                </button>
-
-                            </>}
-
-                        {featureFlags.artifacts &&
-                            <ArtifactsSaved
-                                iconSize={20}
-                                isArtifactsOpen={false}
-                                pendingArtifacts={pendingArtifacts}
-                                onAddPendingArtifact={handleAddPendingArtifact}
+                        { featureFlags.uploadDocuments &&
+                        <div style={{transform: 'translateX(-10px)'}}>
+                            <AttachFile id="__attachFile"
+                                        disallowedFileExtensions={disallowedFileExtensions}
+                                        onAttach={addDocument}
+                                        onSetMetadata={handleSetMetadata}
+                                        onSetKey={handleSetKey}
+                                        onSetAbortController={handleDocumentAbortController}
+                                        onUploadProgress={handleDocumentState}
+                                        className="chat-input-button"
                             />
+                        </div>}
+
+                        
+                        { featureFlags.actionSets && 
+                        <>
+                        {/* Add Action button toggles the operations popup */}
+                        <button
+                            className="chat-input-button rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                            id="addAction"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                // If popup is being closed, reset editing state
+                                if (showOpsPopup) {
+                                    setEditingAction(null);
+                                }
+                                handleCloseAllPopups();
+                                setShowOpsPopup(!showOpsPopup);
+                            }}
+                            onKeyDown={(e) => {
+                            }}
+                            title="Add Action"
+                        >
+                            <IconSettingsAutomation size={20}/>
+                        </button>
+                        
+                        </>}
+
+                        { featureFlags.artifacts &&
+                         <ArtifactsSaved
+                             iconSize={20}
+                             isArtifactsOpen={false}
+                             pendingArtifacts={pendingArtifacts}
+                             onAddPendingArtifact={handleAddPendingArtifact}
+                         />
                         }
 
                         {/* Web Search Toggle - Per-Message Control (only show if web search is enabled in FeaturePlugin) */}
@@ -1815,7 +1818,7 @@ export const ChatInput = ({
                             <button
                                 id="selectAssistants"
                                 className={"chat-input-button rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"}
-                                onClick={(e) => {
+                                onClick={ (e) => {
                                     e.preventDefault();
                                     handleCloseAllPopups();
                                     handleShowAssistantSelector();
@@ -1826,12 +1829,12 @@ export const ChatInput = ({
                                 title="Select Assistants"
 
                             >
-                                <IconAt size={20} />
+                                <IconAt size={20}/>
                             </button>
 
                             {showAssistantSelect && (
                                 <div className="absolute rounded bg-white dark:bg-[#343541]"
-                                    style={{ transform: 'translateX(30px) translateY(-2px)', zIndex: 10 }}>
+                                     style={{transform: 'translateX(30px) translateY(-2px)', zIndex: 10}}>
                                     <AssistantSelect
                                         assistant={selectedAssistant || DEFAULT_ASSISTANT}
                                         availableAssistants={availableAssistants}
@@ -1853,7 +1856,7 @@ export const ChatInput = ({
                             )}
                         </div>
 
-
+                       
                         {/*<div className='flex flex-row gap-2'>
                          {featureFlags.memory && projects.length > 0  &&
                         // settingRef.current.featureOptions.includeMemory &&
@@ -1900,7 +1903,7 @@ export const ChatInput = ({
                                 {featureFlags.memory && !isFactsVisible && selectedConversation &&
                                     selectedConversation.messages?.length > 0 && extractedFacts.length > 0 &&
                                     <button className='relative ml-auto mb-2 text-[1rem] text-[#1dbff5] dark:text-[#8edffa]'
-                                        onClick={() => setIsFactsVisible(true)}>
+                                            onClick={() => setIsFactsVisible(true)}>
                                         {extractedFacts.length} facts detected - Click to view
                                     </button>
                                 }
@@ -1913,19 +1916,18 @@ export const ChatInput = ({
                                                 name: capitalize(lvl),
                                                 title: lvl === 'off'
                                                     ? "Reasoning is disabled. The model will respond without extended thinking, providing faster but potentially less thorough responses."
-                                                    : `The model will use ${{ low: "average amount of", medium: "additional", high: "more" }[lvl]} output tokens when crafting a response. \n${{
-                                                        low: "Optimized for quick responses to simple questions, prioritizing speed",
-                                                        medium: "Balanced approach for everyday questions, offering good accuracy without unnecessary processing time",
-                                                        high: "Provides in-depth analysis for complex problems where thoroughness and precision matter most"
-                                                    }[lvl]}`,
-                                                icon: lvl === 'off' ? undefined : ({ low: IconBulb, medium: IconScale, high: IconBrain }[lvl])
+                                                    : `The model will use ${{low: "average amount of", medium: "additional", high: "more"}[lvl]} output tokens when crafting a response. \n${
+                                                        {low: "Optimized for quick responses to simple questions, prioritizing speed",
+                                                            medium: "Balanced approach for everyday questions, offering good accuracy without unnecessary processing time",
+                                                            high: "Provides in-depth analysis for complex problems where thoroughness and precision matter most"}[lvl]}`,
+                                                icon: lvl === 'off' ? undefined : ({low: IconBulb, medium: IconScale, high: IconBrain}[lvl])
 
                                             }))}
                                             selected={selectedConversation?.data?.reasoningLevel ?? 'low'}
                                             onToggle={(reasonLevel: string) => {
                                                 handleUpdateConversation(selectedConversation, {
                                                     key: 'data',
-                                                    value: { ...selectedConversation.data, reasoningLevel: reasonLevel as ReasoningLevels },
+                                                    value: {...selectedConversation.data, reasoningLevel: reasonLevel as ReasoningLevels},
                                                 })
                                             }}
                                         />
