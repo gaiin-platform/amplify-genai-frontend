@@ -15,6 +15,7 @@ import { resolveRagEnabled } from '@/types/features';
 import { processInputFiles } from '@/utils/fileHandler';
 import { ConfirmModal } from '../ReusableComponents/ConfirmModal';
 import { extractSensitivityLabel } from '@/utils/app/files';
+import { VIDEO_FILE_TYPES } from '@/utils/app/const';
 
 interface Props {
     onAttach: (data: AttachedDocument) => void;
@@ -92,8 +93,33 @@ export const handleFile = async (file: any,
         let size = file.size;
         const fileName = file.name.replace(/[_\s]+/g, '_');;
 
+        // Extract video duration using browser's native HTMLVideoElement (no extra libs needed)
+        let videoDurationSeconds: number | undefined = undefined;
+        if (VIDEO_FILE_TYPES.includes(type)) {
+            try {
+                const objectUrl = URL.createObjectURL(file);
+                const videoEl = window.document.createElement('video');
+                videoEl.preload = 'metadata';
+                videoDurationSeconds = await new Promise<number>((resolve) => {
+                    videoEl.onloadedmetadata = () => {
+                        resolve(isFinite(videoEl.duration) ? videoEl.duration : 0);
+                        URL.revokeObjectURL(objectUrl);
+                    };
+                    videoEl.onerror = () => { resolve(0); URL.revokeObjectURL(objectUrl); };
+                    videoEl.src = objectUrl;
+                });
+                console.log(`[VIDEO DURATION] Extracted duration: ${videoDurationSeconds}s for ${fileName}`);
+            } catch (e) {
+                console.warn('[VIDEO DURATION] Failed to extract video duration:', e);
+                videoDurationSeconds = 0;
+            }
+        }
 
-        let document: AttachedDocument = { id: uuidv4(), name: fileName, type: type, raw: "", data: props, groupId };
+        const dataProps = videoDurationSeconds !== undefined
+            ? { ...props, durationSeconds: videoDurationSeconds }
+            : props;
+
+        let document: AttachedDocument = { id: uuidv4(), name: fileName, type: type, raw: "", data: dataProps, groupId };
         console.log(`document.type: "${document.type}"`);
         console.log("document", document);
         console.log("file", file);
