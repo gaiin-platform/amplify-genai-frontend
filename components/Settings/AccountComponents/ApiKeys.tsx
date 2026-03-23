@@ -1358,7 +1358,7 @@ interface ToolsProps {
 
 
 const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
-    const { state: {prompts, statsService, groups}, dispatch: homeDispatch, handleNewConversation} = useContext(HomeContext);
+    const { state: {prompts, statsService, groups, availableModels}, dispatch: homeDispatch, handleNewConversation} = useContext(HomeContext);
     const promptsRef = useRef(prompts);
 
     useEffect(() => {
@@ -1446,7 +1446,7 @@ const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
             homeDispatch({field: 'selectedAssistant', value: startPrompt.data.assistant});
         }
         statsService.startConversationEvent(startPrompt);
-        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt);
+        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt, availableModels);
         onClose();
     }
 

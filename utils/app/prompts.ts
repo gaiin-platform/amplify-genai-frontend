@@ -41,7 +41,7 @@ const dateTimeString = () => {
   return formattedDate;
 }
 
-export const handleStartConversationWithPrompt = (handleNewConversation:any, prompts:Prompt[], startPrompt: Prompt) => {
+export const handleStartConversationWithPrompt = (handleNewConversation:any, prompts:Prompt[], startPrompt: Prompt, availableModels?: any) => {
 
   let prompt = startPrompt;
 
@@ -82,12 +82,18 @@ export const handleStartConversationWithPrompt = (handleNewConversation:any, pro
   if (prompt.type === MessageType.PREFIX_PROMPT) {
     tags = [...tags, ...(prompt.data?.requiredTags || [])];
   }
-  // remove duplicates 
+  // remove duplicates
   tags = Array.from(new Set(tags));
 
   // Check if assistant has enforced model
-  const enforcedModel = prompt.data?.assistant?.definition?.data?.model;
-  
+  const enforcedModelId = prompt.data?.assistant?.definition?.data?.model;
+
+  // Convert enforced model ID to Model object if availableModels is provided
+  let enforcedModel = undefined;
+  if (enforcedModelId && availableModels) {
+    enforcedModel = availableModels[enforcedModelId];
+  }
+
   handleNewConversation(
       {
         name: prompt.name + " " + dateTimeString(),

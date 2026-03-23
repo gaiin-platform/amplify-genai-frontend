@@ -24,7 +24,7 @@ const softColors = [
 
 export const GroupAssistantsGallery: FC<GroupAssistantsGalleryProps> = () => {
     const {
-        state: { groups, prompts, lightMode, statsService, featureFlags },
+        state: { groups, prompts, lightMode, statsService, featureFlags, availableModels },
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
@@ -173,7 +173,7 @@ export const GroupAssistantsGallery: FC<GroupAssistantsGalleryProps> = () => {
         }
 
         statsService.startConversationEvent(startPrompt);
-        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt);
+        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt, availableModels);
     };
 
     return (

@@ -1435,7 +1435,18 @@ export const ChatInput = ({
                                 currentlyEditingId={editingBlockId || undefined}
                                 showLargeTextPreview={showLargeTextPreview || isEditing}
                                 selectedAssistant={selectedAssistant || undefined}
-                                onRemoveAssistant={() => homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT})}
+                                onRemoveAssistant={() => {
+                                    // Reset assistant to default
+                                    homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
+
+                                    // Clear the promptTemplate from conversation to prevent it from being re-applied
+                                    if (selectedConversation && selectedConversation.promptTemplate) {
+                                        handleUpdateConversation(selectedConversation, {
+                                            key: 'promptTemplate',
+                                            value: null
+                                        });
+                                    }
+                                }}
                             />
                         </div>
                      )}
