@@ -1,6 +1,6 @@
 import { getFileDownloadUrl, deleteFile, reprocessFile } from "@/services/fileService";
 import { DataSource } from "@/types/chat";
-import { IMAGE_FILE_TYPES } from "./const";
+import { IMAGE_FILE_TYPES, VIDEO_FILE_TYPES } from "./const";
 import toast from "react-hot-toast";
 import { capitalize } from "./data";
 import { embeddingDocumentStatus, clearEmbeddingStatusCache } from "@/services/adminService";
@@ -308,6 +308,10 @@ export const extractKey = (ds: any) => {
       return key.split("s3://").pop() || key;
   }
   return key;
+}
+
+export const disableSupportReprocess = (fileType: string) => {
+  return IMAGE_FILE_TYPES.includes(fileType) || VIDEO_FILE_TYPES.includes(fileType);
 }
 
 // Polling options interface

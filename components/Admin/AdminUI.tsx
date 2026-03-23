@@ -306,7 +306,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     });
                     
                     // Ensure boolean fields are booleans
-                    const booleanFields = ["supportsImages", "supportsReasoning", "supportsSystemPrompts", "isAvailable", "isBuiltIn"] as const;
+                    const booleanFields = ["supportsImages", "supportsReasoning", "supportsSystemPrompts", "supportsImageGeneration", "supportsVideo", "isAvailable", "isBuiltIn"] as const;
                     booleanFields.forEach((field) => {
                         (sanitizedModel as any)[field] = Boolean(model[field]);
                     });
