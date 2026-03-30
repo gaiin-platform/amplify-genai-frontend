@@ -145,7 +145,8 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     });
 
     const handleProgress = (progress: AutoLoadProgress) => {
-      setUserCosts(progress.users);
+      // Create a new array reference to ensure React detects the change
+      setUserCosts([...progress.users]);
       setAutoLoadState({
         status: progress.isComplete ? 'completed' : 'loading',
         loadedCount: progress.loadedCount,
@@ -266,18 +267,23 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     return email;
   };
 
-  // Filter users based on search term
-  const filteredUsers = userCosts.filter((user) => {
-    if (!userSearchTerm.trim()) return true;
-    const searchLower = userSearchTerm.toLowerCase();
-    const emailInfo = cleanEmailDisplay(user.email);
-    const displayName = getUserDisplayName(user.email);
-    return (
-      user.email.toLowerCase().includes(searchLower) ||
-      emailInfo.displayName.toLowerCase().includes(searchLower) ||
-      displayName.toLowerCase().includes(searchLower)
-    );
-  });
+  // Filter users based on search term and sort by total cost (highest to lowest)
+  // Using useMemo to ensure sorting happens reactively when userCosts changes
+  const filteredUsers = React.useMemo(() => {
+    return userCosts
+      .filter((user) => {
+        if (!userSearchTerm.trim()) return true;
+        const searchLower = userSearchTerm.toLowerCase();
+        const emailInfo = cleanEmailDisplay(user.email);
+        const displayName = getUserDisplayName(user.email);
+        return (
+          user.email.toLowerCase().includes(searchLower) ||
+          emailInfo.displayName.toLowerCase().includes(searchLower) ||
+          displayName.toLowerCase().includes(searchLower)
+        );
+      })
+      .sort((a, b) => b.totalCost - a.totalCost);
+  }, [userCosts, userSearchTerm]);
 
   // Filter billing groups based on search term
   const filteredBillingGroups = Object.entries(billingGroups).filter(([groupName, group]) => {
@@ -683,9 +689,13 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     totalUsers: userCosts.length,
     totalCost: userCosts.reduce((sum, user) => sum + user.totalCost, 0),
     avgCostPerUser: userCosts.length > 0 ? userCosts.reduce((sum, user) => sum + user.totalCost, 0) / userCosts.length : 0,
-    topSpender: userCosts.length > 0 ? userCosts.reduce((prev, current) => (prev.totalCost > current.totalCost) ? prev : current) : null,
+    // Only calculate top spender from complete data to avoid showing wrong user during progressive loading
+    topSpender: (userCosts.length > 0 && autoLoadState.status === 'completed')
+      ? userCosts.reduce((prev, current) => (prev.totalCost > current.totalCost) ? prev : current)
+      : null,
     // Keep track of filtered counts for display purposes
-    filteredTotalUsers: filteredUsers.length
+    filteredTotalUsers: filteredUsers.length,
+    isLoadingComplete: autoLoadState.status === 'completed' || autoLoadState.status === 'aborted'
   };
 
   const renderAllUsersTab = () => (
@@ -733,8 +743,11 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Top Spender</p>
               <div className="flex items-center space-x-1 max-w-[120px]">
                 {(() => {
+                  if (!usersSummary.isLoadingComplete && autoLoadState.status === 'loading') {
+                    return <span className="text-sm text-gray-500 dark:text-gray-400">Loading...</span>;
+                  }
                   if (!usersSummary.topSpender) return <span className="text-sm font-semibold text-gray-900 dark:text-white">N/A</span>;
-                  
+
                   const emailInfo = cleanEmailDisplay(usersSummary.topSpender.email);
                   const isSystem = isSystemUser(usersSummary.topSpender.email);
                   return (
@@ -752,7 +765,12 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                   );
                 })()}
               </div>
-              <p className="text-xs text-red-600 dark:text-red-400">{usersSummary.topSpender ? formatCurrency(usersSummary.topSpender.totalCost) : 'N/A'}</p>
+              <p className="text-xs text-red-600 dark:text-red-400">
+                {!usersSummary.isLoadingComplete && autoLoadState.status === 'loading'
+                  ? '...'
+                  : usersSummary.topSpender ? formatCurrency(usersSummary.topSpender.totalCost) : 'N/A'
+                }
+              </p>
             </div>
           </div>
         </div>
@@ -790,11 +808,9 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
               Stop Loading
             </button>
           </div>
-          <div className="mt-3 w-full bg-blue-200 dark:bg-blue-900/40 rounded-full h-2 overflow-hidden">
-            <div 
-              className="h-full bg-blue-600 dark:bg-blue-400 transition-all duration-300 ease-out animate-pulse"
-              style={{ width: '100%' }}
-            ></div>
+          <div className="mt-3 w-full bg-blue-200 dark:bg-blue-900/40 rounded-full h-2.5 overflow-hidden relative">
+            {/* Animated gradient bar */}
+            <div className="loading-bar-animated"></div>
           </div>
         </div>
       )}
