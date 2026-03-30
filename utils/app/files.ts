@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import { capitalize } from "./data";
 import { embeddingDocumentStatus, clearEmbeddingStatusCache } from "@/services/adminService";
 import JSZip from "jszip";
-import { isBedrockKbDatasource } from "./bedrockKb";
+import { BEDROCK_KB_TYPE, isBedrockKbDatasource } from "./bedrockKb";
 
 /**
  * Extract Microsoft Information Protection (MIP) sensitivity label from Office files.
@@ -311,7 +311,7 @@ export const extractKey = (ds: any) => {
 }
 
 export const disableSupportReprocess = (fileType: string) => {
-  return IMAGE_FILE_TYPES.includes(fileType) || VIDEO_FILE_TYPES.includes(fileType);
+  return IMAGE_FILE_TYPES.includes(fileType) || VIDEO_FILE_TYPES.includes(fileType) || fileType === BEDROCK_KB_TYPE;
 }
 
 // Polling options interface
