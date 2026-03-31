@@ -84,7 +84,6 @@ interface Props {
   onClose: () => void;
 }
 
-const MTD_USAGE_LIMITS = [25, 50, 100, 250, 500];
 
 export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
   const { state: {amplifyUsers}, dispatch: homeDispatch } = useContext(HomeContext);
@@ -1011,7 +1010,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                                           <tr className="border-b border-gray-200 dark:border-gray-700">
                                             <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Account Info</th>
                                             <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Monthly Cost</th>
-                                            <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Today's Cost</th>
+                                            <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">{"Today's Cost"}</th>
                                             <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Total Cost</th>
                                           </tr>
                                         </thead>
