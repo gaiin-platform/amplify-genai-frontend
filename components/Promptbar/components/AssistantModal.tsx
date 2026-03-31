@@ -1324,29 +1324,31 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 
                             {/* Add Website URLs Section */}
                             {featureFlags.websiteUrls && !disableEdit && (
-                                <> 
-                                <div className="mt-2 mb-2 font-bold text-black dark:text-neutral-200">
-                                    {t('Attach Website Data Sources')}
-                                </div>
-                                {definition.assistantId && dataSources.find((ds:AttachedDocument) => isWebsiteDs(ds) && ds.key) &&
-                                <button
-                                    onClick={() => {
-                                        if (definition.assistantId) {
-                                            toast("Please wait a few minutes for the rescan to complete");
-                                            handleRescan();
-                                        }
-                                    }}
-                                    className={"absolute right-10 p-2 hover:bg-gray-100 dark:hover:bg-[#40414F] rounded-md transition-colors group"}
-                                    style={{zIndex: "20", transform: "translateY(-30px)"}}
-                                    title={"Rescan All Website URLs"}
-                                    >
-                                    <IconRefresh 
-                                        size={22} 
-                                        className={`text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300`} 
-                                    />
-                                </button>}
-                                {featureFlags.scheduledTasks &&
-                                  <WebsiteScanScheduler
+                                <>
+                                <div className="flex items-center justify-between mt-2 mb-2">
+                                    <div className="font-bold text-black dark:text-neutral-200">
+                                        {t('Attach Website Data Sources')}
+                                    </div>
+                                    <div className="flex items-center gap-8">
+                                        {definition.assistantId && dataSources.find((ds:AttachedDocument) => isWebsiteDs(ds) && ds.key) &&
+                                        <button
+                                            onClick={() => {
+                                                if (definition.assistantId) {
+                                                    toast("Please wait a few minutes for the rescan to complete");
+                                                    handleRescan();
+                                                }
+                                            }}
+                                            className="p-2 -mt-7 mr-1 hover:bg-gray-100 dark:hover:bg-[#40414F] rounded-md transition-colors group"
+                                            title={"Rescan All Website URLs"}
+                                            >
+                                            <IconRefresh
+                                                size={22}
+                                                className={`text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300`}
+                                            />
+                                        </button>}
+
+                                        {featureFlags.scheduledTasks &&
+                                          <WebsiteScanScheduler
                                     initAssistantDefintion={definition}
                                     websiteUrls={websiteUrls}
                                     onUpdateWebsiteUrl={(urlItem, updates) => {
@@ -1383,6 +1385,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         }
                                     }}
                                   />}
+                                    </div>
+                                </div>
                                 <WebsiteURLInput
                                     onAddURL={(url, isSitemap, maxPages, exclusions) => {
                                         const webType = isSitemap ? 'website/sitemap' : 'website/url';
