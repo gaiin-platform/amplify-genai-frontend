@@ -22,12 +22,8 @@ const handleAllLocal = async (conversations: Conversation[], statsService: any, 
         onProgress(0, totalConversations);
     }
 
-    let updatedConversations = await includeRemoteConversationData(conversations, "move back to local storage.", false, (current, total) => {
-        // Report fetching progress (this happens quickly as it's a batch fetch)
-        // Map remote fetch progress to first half of progress (0% → 50% of remoteCount conversations)
-        const fetchProgress = Math.floor((current / total) * (remoteCount / 2));
-        if (onProgress) onProgress(fetchProgress, totalConversations);
-    });
+    // Fetch remote conversation data (happens quickly as batch operation)
+    let updatedConversations = await includeRemoteConversationData(conversations, "move back to local storage.", false);
 
     const remoteConversationIds = remoteConversations.map(c => c.id);
     deleteMultipleRemoteConversations(remoteConversationIds);
@@ -40,12 +36,10 @@ const handleAllLocal = async (conversations: Conversation[], statsService: any, 
             return isMissing
         });
 
-    // Process ALL conversations - compress remote ones and mark local ones as processed
-    // This shows smooth progress through all conversations
-    let processedCount = remoteCount / 2; // Start from where fetch left off
+    // Process ALL conversations with progress updates
+    let processedCount = 0;
     const remoteConversationIdSet = new Set(remoteConversations.map(c => c.id));
 
-    // Process conversations with progress updates (must be async to show progress)
     const finalConversations: Conversation[] = [];
     for (const c of updatedConversations) {
         // Check if this conversation was originally remote (before includeRemoteConversationData modified it)
@@ -59,11 +53,11 @@ const handleAllLocal = async (conversations: Conversation[], statsService: any, 
 
         processedCount++;
         if (onProgress) {
-            onProgress(Math.floor(processedCount), totalConversations);
+            onProgress(processedCount, totalConversations);
         }
 
-        // Add small delay every 3 conversations to allow UI to update
-        if (Math.floor(processedCount) % 3 === 0) {
+        // Add small delay every 5 conversations to allow UI to update
+        if (processedCount % 5 === 0) {
             await new Promise(resolve => setTimeout(resolve, 30));
         }
     }
@@ -291,12 +285,12 @@ export const includeRemoteConversationData = async (conversationHistory: Convers
     // Report progress - fetching is complete
     if (onProgress) onProgress(totalToFetch, totalToFetch);
 
-    // console.log(fetchedRemoteConversations);
     // Create a map of remote conversation ids to fetched conversations for quick lookup
-    const fetchedRemoteConversationsMap = new Map(fetchedRemoteConversations.data.map((c:Conversation) => [c.id, c]));
+    // Use safe access - if data is null, treat as empty array
+    const fetchedRemoteConversationsMap = new Map((fetchedRemoteConversations?.data || []).map((c:Conversation) => [c.id, c]));
 
-    const failedToFetchByNoSuchKey: string[] = fetchedRemoteConversations.failedByNoSuchKey;
-    const failedToFetch: string[] = fetchedRemoteConversations.failed;
+    const failedToFetchByNoSuchKey: string[] = fetchedRemoteConversations?.failedByNoSuchKey || [];
+    const failedToFetch: string[] = fetchedRemoteConversations?.failed || [];
 
     const alertFailed: string[] = [];
 

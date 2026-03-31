@@ -9,9 +9,9 @@ import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
 import Search from '../Search';
 import { embeddingDocumentStatus } from '@/services/adminService';
-import { extractKey, getDocumentStatusConfig, shouldShowReprocessButton, isRecentlyReprocessed, startFileReprocessingWithPolling } from '@/utils/app/files';
+import { extractKey, getDocumentStatusConfig, shouldShowReprocessButton, isRecentlyReprocessed, startFileReprocessingWithPolling, disableSupportReprocess } from '@/utils/app/files';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
-import { IMAGE_FILE_TYPES } from '@/utils/app/const';
+import { IMAGE_FILE_TYPES, VIDEO_FILE_TYPES } from '@/utils/app/const';
 import HomeContext from '@/pages/api/home/home.context';
 import { animate } from '../Loader/LoadingIcon';
 
@@ -297,7 +297,7 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
 
 
     const reprocessButton = (doc: AttachedDocument) => {
-        if (IMAGE_FILE_TYPES.includes(doc.type)) return null;
+        if (disableSupportReprocess(doc.type)) return null;
         
         const key = extractKey(doc);
         const status = embeddingStatus?.[key];

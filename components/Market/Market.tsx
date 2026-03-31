@@ -87,6 +87,7 @@ export const Market = ({items}: Props) => {
             prompts,
             statsService,
             featureFlags: {marketItemDelete},
+            availableModels,
         },
         handleNewConversation,
         dispatch: homeDispatch,
@@ -465,7 +466,7 @@ If people need help with prompt engineering, which is how you converse effective
 
         //savePrompts(updatedPrompts);
         startConversationEvent(startTutorialPrompt);
-        handleStartConversationWithPrompt(handleNewConversation, updatedPrompts, startTutorialPrompt);
+        handleStartConversationWithPrompt(handleNewConversation, updatedPrompts, startTutorialPrompt, availableModels);
     }
 
 
@@ -510,7 +511,7 @@ If people need help with prompt engineering, which is how you converse effective
     const doTryItem = async (consersations: Conversation[], folders: FolderInterface[], itemPrompts: Prompt[]) => {
         if (itemPrompts.length > 0) {
             startConversationEvent(itemPrompts[0]);
-            handleStartConversationWithPrompt(handleNewConversation, [...promptsRef.current, ...itemPrompts], itemPrompts[0]);
+            handleStartConversationWithPrompt(handleNewConversation, [...promptsRef.current, ...itemPrompts], itemPrompts[0], availableModels);
         } else {
             alert("There are no prompts to try in this market item.");
         }

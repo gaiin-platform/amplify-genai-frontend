@@ -140,7 +140,7 @@ const getAssistantStyle = (assistant: Prompt, index: number) => {
 
 export const IndividualAssistantsGallery: FC = () => {
     const {
-        state: { prompts, statsService },
+        state: { prompts, statsService, availableModels },
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
@@ -183,7 +183,7 @@ export const IndividualAssistantsGallery: FC = () => {
         }
 
         statsService.startConversationEvent(startPrompt);
-        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt);
+        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt, availableModels);
     };
 
     const handleOpenModal = (e: React.MouseEvent, assistant: Prompt) => {

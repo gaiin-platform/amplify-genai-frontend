@@ -54,7 +54,7 @@ export const PromptComponent = ({ prompt }: Props) => {
     } = useContext(PromptbarContext);
 
     const {
-        state: { statsService, selectedAssistant, checkingItemType, checkedItems, prompts, groups, syncingPrompts, featureFlags},
+        state: { statsService, selectedAssistant, checkingItemType, checkedItems, prompts, groups, syncingPrompts, featureFlags, availableModels},
         dispatch: homeDispatch,
         handleNewConversation,
         setLoadingMessage,
@@ -91,7 +91,7 @@ export const PromptComponent = ({ prompt }: Props) => {
 
 
         statsService.startConversationEvent(startPrompt);
-        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt);
+        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt, availableModels);
 
     }
 

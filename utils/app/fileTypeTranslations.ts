@@ -82,12 +82,16 @@ export const fileExtensionToType: { [key: string]: string } = {
     'json': 'JSON',
     'xml': 'XML',
     
-    // Other common formats
-    'mp3': 'MP3 Audio',
+    // Video formats
     'mp4': 'MP4 Video',
-    'wav': 'WAV Audio',
     'mov': 'MOV Video',
     'avi': 'AVI Video',
+    'mkv': 'MKV Video',
+    'webm': 'WebM Video',
+
+    // Other common formats
+    'mp3': 'MP3 Audio',
+    'wav': 'WAV Audio',
     'epub': 'EPUB Book',
     'sql': 'SQL File'
   };
@@ -265,7 +269,12 @@ export const getMimeTypeFromExtension = (extension: string): string => {
         'gif image': 'image/gif',
         'svg image': 'image/svg+xml',
         'webp image': 'image/webp',
-        'zip archive': 'application/zip'
+        'zip archive': 'application/zip',
+        'mp4 video': 'video/mp4',
+        'mov video': 'video/quicktime',
+        'avi video': 'video/x-msvideo',
+        'mkv video': 'video/x-matroska',
+        'webm video': 'video/webm'
     };
     
     return commonMimeTypes[typeName.toLowerCase()] || 'application/octet-stream';

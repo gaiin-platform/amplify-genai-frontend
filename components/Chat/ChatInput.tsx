@@ -45,7 +45,7 @@ import {COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS} from "@/utils/
 import {useChatService} from "@/hooks/useChatService";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {getAssistants} from "@/utils/app/assistants";
-import { isImageFile, processDragDropFiles, processPastedFiles } from '@/utils/fileHandler';
+import { isImageFile, isVideoFile, processDragDropFiles, processPastedFiles } from '@/utils/fileHandler';
 import AssistantsInUse from "@/components/Chat/AssistantsInUse";
 import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
 import QiModal from './QiModal';
@@ -63,7 +63,7 @@ import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
 import { MemoryPresenter } from "@/components/Chat/MemoryPresenter";
 // import { ProjectList } from './ProjectList';
-import {  } from '../../services/memoryService';
+// import { } from '../../services/memoryService';
 import { Settings } from '@/types/settings';
 import { ToggleOptionButtons } from '../ReusableComponents/ToggleOptionButtons';
 import { capitalize } from '@/utils/app/data';
@@ -71,8 +71,8 @@ import OperationSelector from "@/components/Agent/OperationSelector";
 import ActionsList from "@/components/Chat/ActionsList";
 import { resolveRagEnabled } from '@/types/features';
 import { OpBindings } from '@/types/op';
-import { 
-    LargeTextBlock, 
+import {
+    LargeTextBlock,
     replacePlaceholdersWithText,
     removeLargeTextBlockFromContent
 } from '@/utils/app/largeText';
@@ -104,19 +104,19 @@ interface Props {
 // }
 
 export const ChatInput = ({
-                              onSend,
-                              onRegenerate,
-                              onScrollDownClick,
-                              stopConversationRef,
-                              textareaRef,
-                              handleUpdateModel,
-                              showScrollDownButton,
-                              plugins,
-                              setPlugins
-                          }: Props) => {
-    const {t} = useTranslation('chat');
+    onSend,
+    onRegenerate,
+    onScrollDownClick,
+    stopConversationRef,
+    textareaRef,
+    handleUpdateModel,
+    showScrollDownButton,
+    plugins,
+    setPlugins
+}: Props) => {
+    const { t } = useTranslation('chat');
 
-    const {killRequest} = useChatService();
+    const { killRequest } = useChatService();
 
     const {
         state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming,
@@ -141,7 +141,7 @@ export const ChatInput = ({
     const [filteredModels, setFilteredModels] = useState<Model[]>([]);
 
     useEffect(() => {
-        const handleEvent = (event:any) => {
+        const handleEvent = (event: any) => {
             settingRef.current = getSettings(featureFlags);
             if (Object.keys(availableModels).length > 0) {
                 setFilteredModels(filterModels(availableModels, settingRef.current.hiddenModelIds));
@@ -198,7 +198,7 @@ export const ChatInput = ({
         !artifactIsStreaming;
 
     useEffect(() => {
-       const updateWidth = () => {
+        const updateWidth = () => {
             if (!messageIsStreaming && !artifactIsStreaming) setChatContainerWidth(updateSize());
         }
         window.addEventListener('resize', updateWidth);
@@ -249,8 +249,8 @@ export const ChatInput = ({
     const [qiSummary, setQiSummary] = useState<QiSummary | null>(null)
     const [isInputInFocus, setIsInputInFocus] = useState(false);
     // State to track the list of added actions
-    const [addedActions, setAddedActions] = useState<{ 
-        name: string; 
+    const [addedActions, setAddedActions] = useState<{
+        name: string;
         customName?: string;
         customDescription?: string;
         operation?: any;
@@ -260,13 +260,13 @@ export const ChatInput = ({
     // Show Ops popup toggle state
     const [showOpsPopup, setShowOpsPopup] = useState(false);
     const [editingAction, setEditingAction] = useState<{
-        name: string; 
+        name: string;
         customName?: string;
         customDescription?: string;
         index: number;
         parameters?: OpBindings;
     } | null>(null);
-    
+
     // Action set modal states
     const [showSaveActionsModal, setShowSaveActionsModal] = useState(false);
 
@@ -326,19 +326,19 @@ export const ChatInput = ({
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
     //const [assistant, setAssistant] = useState<Assistant>(selectedAssistant || DEFAULT_ASSISTANT);
     const [availableAssistants, setAvailableAssistants] = useState<Assistant[]>([DEFAULT_ASSISTANT]);
-    
+
     // Large text handling - using custom hook for state management
-    const { 
-        largeTextBlocks, 
-        showLargeTextPreview, 
+    const {
+        largeTextBlocks,
+        showLargeTextPreview,
         hasLargeTextBlocks,
-        handleLargeTextPaste, 
+        handleLargeTextPaste,
         removeLargeTextBlock: removeLargeTextBlockFromHook,
         removeMultipleLargeTextBlocks,
         clearLargeText,
         setLargeTextBlocks
     } = useLargeTextManager();
-    
+
     // Text block editing - using custom hook for edit mode management
     const {
         editMode,
@@ -381,8 +381,8 @@ export const ChatInput = ({
 
     const extractDocumentsLocally = featureFlags.extractDocumentsLocally;
 
-    const filteredPrompts = useMemo(() => 
-        promptsRef.current.filter((prompt:Prompt) =>
+    const filteredPrompts = useMemo(() =>
+        promptsRef.current.filter((prompt: Prompt) =>
             prompt.name.toLowerCase().includes(promptInputValue.toLowerCase())
         ), [promptInputValue, prompts]
     );
@@ -474,7 +474,7 @@ export const ChatInput = ({
                 alert(
                     t(
                         `Message limit is {{maxTokens}} tokens, approximately ({{maxChars}} characters). You have entered {{valueLength}} characters.`,
-                        {maxTokens: contextWindow, maxChars, valueLength: value.length},
+                        { maxTokens: contextWindow, maxChars, valueLength: value.length },
                     ),
                 );
                 return;
@@ -485,10 +485,10 @@ export const ChatInput = ({
         let finalContent = value;
         if (!shouldSkipPlaceholderDeletion) {
             // Check for deleted placeholder characters and remove corresponding blocks
-            const blocksToRemove = largeTextBlocks.filter((block) => 
+            const blocksToRemove = largeTextBlocks.filter((block) =>
                 !value.includes(block.placeholderChar)
             );
-            
+
             if (blocksToRemove.length > 0) {
                 // Remove all deleted blocks at once using the multi-remove function
                 const blockIdsToRemove = blocksToRemove.map(block => block.id);
@@ -578,7 +578,7 @@ export const ChatInput = ({
                 alert(
                     t(
                         `Message limit is approximately {{maxTokens}} tokens ({{maxChars}} characters). You have entered {{valueLength}} characters.`,
-                        {maxTokens: contextWindow, maxChars, valueLength: content.length},
+                        { maxTokens: contextWindow, maxChars, valueLength: content.length },
                     ),
                 );
                 return;
@@ -663,7 +663,7 @@ export const ChatInput = ({
                         alert(
                             t(
                                 `Message limit is approximately {{maxTokens}} tokens ({{maxChars}} characters). Your prompt and attached documents are {{valueLength}} characters. Please remove the attached documents or choose smaller excerpts.`,
-                                {maxTokens: contextWindow, maxChars, valueLength: msg.content.length},
+                                { maxTokens: contextWindow, maxChars, valueLength: msg.content.length },
                             ),
                         );
                         return;
@@ -675,7 +675,7 @@ export const ChatInput = ({
         let updatedDocuments = documents?.map((d) => {
             const metadata = documentMetadata[d.id];
             if (metadata) {
-                return {...d, metadata: metadata};
+                return { ...d, metadata: metadata };
             }
             return d;
         });
@@ -691,7 +691,7 @@ export const ChatInput = ({
                     const baseArtifactId = pa.artifactId.split(':')[0];
 
                     // Preserve the artifact with its original version and update the artifactId
-                    const artifact = {...pa.artifact, artifactId: baseArtifactId};
+                    const artifact = { ...pa.artifact, artifactId: baseArtifactId };
 
                     // Check if this artifactId already exists in conversation
                     if (Object.keys(conversationArtifacts).includes(baseArtifactId)) {
@@ -715,7 +715,7 @@ export const ChatInput = ({
             selectedConversation.artifacts = conversationArtifacts;
 
             // Dispatch to update global state so useSendService can access it
-            homeDispatch({field: 'selectedConversation', value: selectedConversation});
+            homeDispatch({ field: 'selectedConversation', value: selectedConversation });
         }
 
         statsService.userSendChatEvent(msg as Message, selectedConversation?.model?.id ?? '');
@@ -724,6 +724,11 @@ export const ChatInput = ({
         if (!selectedConversation?.model?.supportsImages && hasImages) {
             toast(" This model does not support images");
             updatedDocuments = updatedDocuments?.filter((d: AttachedDocument) => !isImageFile(d));
+        }
+        const hasVideos = updatedDocuments?.some((d) => isVideoFile(d));
+        if (!selectedConversation?.model?.supportsVideo && hasVideos) {
+            toast(" This model does not support videos");
+            updatedDocuments = updatedDocuments?.filter((d: AttachedDocument) => !isVideoFile(d));
         }
         onSend(msg, updatedDocuments || []);
 
@@ -758,20 +763,20 @@ export const ChatInput = ({
 
         if (artifactIsStreaming) {
             console.log("kill artifact even trigger: ");
-            const event = new Event( 'killArtifactRequest');
+            const event = new Event('killArtifactRequest');
             window.dispatchEvent(event);
             timeout = 100;
         } else {
-            const event = new Event( 'killChatRequest');
+            const event = new Event('killChatRequest');
             window.dispatchEvent(event);
         }
 
         setTimeout(() => {
             stopConversationRef.current = false;
-            homeDispatch({field: 'loading', value: false});
-            homeDispatch({field: 'messageIsStreaming', value: false});
-            homeDispatch({field: 'artifactIsStreaming', value: false});
-            homeDispatch({field: 'status', value: []});
+            homeDispatch({ field: 'loading', value: false });
+            homeDispatch({ field: 'messageIsStreaming', value: false });
+            homeDispatch({ field: 'artifactIsStreaming', value: false });
+            homeDispatch({ field: 'status', value: [] });
         }, timeout);
 
     };
@@ -804,7 +809,7 @@ export const ChatInput = ({
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 setActivePromptIndex((prevIndex) =>
-                    prevIndex <  promptsRef.current.length - 1 ? prevIndex + 1 : prevIndex,
+                    prevIndex < promptsRef.current.length - 1 ? prevIndex + 1 : prevIndex,
                 );
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
@@ -814,7 +819,7 @@ export const ChatInput = ({
             } else if (e.key === 'Tab') {
                 e.preventDefault();
                 setActivePromptIndex((prevIndex) =>
-                    prevIndex <  promptsRef.current.length - 1 ? prevIndex + 1 : 0,
+                    prevIndex < promptsRef.current.length - 1 ? prevIndex + 1 : 0,
                 );
             } else if (e.key === 'Enter') {
                 e.preventDefault();
@@ -891,22 +896,21 @@ export const ChatInput = ({
         if (textareaRef && textareaRef.current) {
             textareaRef.current.style.height = 'inherit';
             textareaRef.current.style.height = `${textareaRef.current?.scrollHeight}px`;
-            textareaRef.current.style.overflow = `${
-                textareaRef?.current?.scrollHeight > textareaHeight ? 'auto' : 'hidden'
-            }`;
+            textareaRef.current.style.overflow = `${textareaRef?.current?.scrollHeight > textareaHeight ? 'auto' : 'hidden'
+                }`;
         }
 
     }, [content, textareaHeight]);
 
     useEffect(() => {
         const handleOutsideClick = (e: MouseEvent) => {
-            if ( promptListRef.current &&
+            if (promptListRef.current &&
                 !promptListRef.current.contains(e.target as Node)) setShowPromptList(false);
 
             if (dataSourceSelectorRef.current &&
                 !dataSourceSelectorRef.current.contains(e.target as Node)) setShowDataSourceSelector(false);
-            
-            if (actionSelectorRef.current && 
+
+            if (actionSelectorRef.current &&
                 !actionSelectorRef.current.contains(e.target as Node)) setShowOpsPopup(false);
 
             if (assistantSelectorRef.current && !assistantSelectorRef.current.contains(e.target as Node)) setShowAssistantSelect(false);
@@ -942,7 +946,7 @@ export const ChatInput = ({
 
     const handleDocumentAbortController = (document: AttachedDocument, abortController: any) => {
         setDocumentAborts((prevState) => {
-            let newState = {...prevState, [document.id]: abortController};
+            let newState = { ...prevState, [document.id]: abortController };
             return newState;
         });
     }
@@ -951,7 +955,7 @@ export const ChatInput = ({
         console.log("Progress: " + progress);
 
         setDocumentState((prevState) => {
-            let newState = {...prevState, [document.id]: progress};
+            let newState = { ...prevState, [document.id]: progress };
             newState[document.id] = progress;
             return newState;
         });
@@ -961,7 +965,7 @@ export const ChatInput = ({
     const handleSetMetadata = (document: AttachedDocument, metadata: any) => {
 
         setDocumentMetadata((prevState) => {
-            const newMetadata = {...prevState, [document.id]: metadata};
+            const newMetadata = { ...prevState, [document.id]: metadata };
             return newMetadata;
         });
 
@@ -970,18 +974,18 @@ export const ChatInput = ({
     const handleSetKey = (document: AttachedDocument, key: string) => {
         setDocuments(prevDocuments => {
             if (!prevDocuments || prevDocuments.length === 0) {
-                return [{...document, key: key}];
+                return [{ ...document, key: key }];
             }
             return prevDocuments.map((d) => {
                 if (d.id === document.id) {
-                    return {...d, key: key};
+                    return { ...d, key: key };
                 }
                 return d;
             });
         });
 
     }
-    const handleGetQiSummary = async (conversation:Conversation) => {
+    const handleGetQiSummary = async (conversation: Conversation) => {
         handleCloseAllPopups();
         setShowMessageSelectDialog(false);
         setIsQiLoading(true);
@@ -992,9 +996,8 @@ export const ChatInput = ({
     }
 
     const disallowedFileExtensions = useMemo(() => {
-   
         return [ ...COMMON_DISALLOWED_FILE_EXTENSIONS ];
-    }, [selectedConversation?.model?.supportsImages]);
+    }, [selectedConversation?.model?.supportsImages, selectedConversation?.model?.supportsVideo]);
 
     const handleCloseAllPopups = () => {
         setShowOpsPopup(false);
@@ -1009,7 +1012,7 @@ export const ChatInput = ({
     const handleDragEnter = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         // Only handle file drags
         if (e.dataTransfer.types.includes('Files')) {
             setDragCounter(prev => prev + 1);
@@ -1020,7 +1023,7 @@ export const ChatInput = ({
     const handleDragLeave = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         setDragCounter(prev => {
             const newCounter = prev - 1;
             if (newCounter === 0) {
@@ -1033,7 +1036,7 @@ export const ChatInput = ({
     const handleDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         // Only allow file drops
         if (e.dataTransfer.types.includes('Files')) {
             e.dataTransfer.dropEffect = 'copy';
@@ -1043,7 +1046,7 @@ export const ChatInput = ({
     const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         setIsDragging(false);
         setDragCounter(0);
 
@@ -1099,14 +1102,14 @@ export const ChatInput = ({
             if (textarea) {
                 const cursorPos = textarea.selectionStart;
                 const currentContent = content || '';
-                
+
                 // const { newContent, hasLargeText } = handleLargeTextPaste(
                 //     pastedText,
                 //     currentContent,
                 //     cursorPos,
                 //     textareaRef
                 // );
-                
+
                 // if (hasLargeText) {
                 //     e.preventDefault();
                 //     setContent(newContent);
@@ -1119,13 +1122,13 @@ export const ChatInput = ({
     // Handle individual large text block removal using hook
     const handleRemoveLargeTextBlock = useCallback((blockId: string) => {
         // Determine content to use based on edit state
-        const contentToUse = (isEditing && editingBlockId === blockId) 
-            ? editMode.originalConversationContent 
+        const contentToUse = (isEditing && editingBlockId === blockId)
+            ? editMode.originalConversationContent
             : (content || '');
-            
+
         if (contentToUse) {
             const updatedContent = removeLargeTextBlockFromHook(
-                blockId, 
+                blockId,
                 contentToUse,
                 // Callback to handle edit mode cleanup if the removed block was being edited
                 (removedBlockId) => {
@@ -1144,11 +1147,11 @@ export const ChatInput = ({
     // PluginID.CODE_INTERPRETER is not compatible with Selected Assistants for now
     useEffect(() => { // if code interpreter is toggled in plugin selector, set the selected assistant to the default assistant
         const containsCodeInterpreter = plugins.map((p: Plugin) => p.id).includes(PluginID.CODE_INTERPRETER);
-        if (containsCodeInterpreter) homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
+        if (containsCodeInterpreter) homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
     }, [plugins]);
 
     useEffect(() => { // if selected assistant change is not the default assistant, remove code interpreter from plugins
-        if (selectedAssistant !== DEFAULT_ASSISTANT) setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.CODE_INTERPRETER ));
+        if (selectedAssistant !== DEFAULT_ASSISTANT) setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.CODE_INTERPRETER));
     }, [selectedAssistant]);
 
     // don't remove Memory plugin when extraction is disabled
@@ -1187,7 +1190,7 @@ export const ChatInput = ({
         // will effectively detach ragOn state from rag plugin if feature flag is off 
         // ragOn is used to track the state of the rag plugin throughout the entire app when cached documents is on
         if (featureFlags.cachedDocuments && (containsRag && !ragOn) || (!containsRag && ragOn)) {
-            homeDispatch({field: 'ragOn', value: containsRag});
+            homeDispatch({ field: 'ragOn', value: containsRag });
         }
     }, [plugins]);
 
@@ -1211,7 +1214,7 @@ export const ChatInput = ({
         if (!containsWebSearch && selectedConversation && selectedConversation.data?.webSearchEnabled) {
             handleUpdateConversation(selectedConversation, {
                 key: 'data',
-                value: {...selectedConversation.data, webSearchEnabled: false},
+                value: { ...selectedConversation.data, webSearchEnabled: false },
             });
         }
     }, [plugins, selectedConversation, handleUpdateConversation]);
@@ -1453,7 +1456,18 @@ export const ChatInput = ({
                                 currentlyEditingId={editingBlockId || undefined}
                                 showLargeTextPreview={showLargeTextPreview || isEditing}
                                 selectedAssistant={selectedAssistant || undefined}
-                                onRemoveAssistant={() => homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT})}
+                                onRemoveAssistant={() => {
+                                    // Reset assistant to default
+                                    homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
+
+                                    // Clear the promptTemplate from conversation to prevent it from being re-applied
+                                    if (selectedConversation && selectedConversation.promptTemplate) {
+                                        handleUpdateConversation(selectedConversation, {
+                                            key: 'promptTemplate',
+                                            value: null
+                                        });
+                                    }
+                                }}
                             />
                         </div>
                      )}

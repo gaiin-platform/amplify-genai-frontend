@@ -1358,8 +1358,7 @@ interface ToolsProps {
 
 
 const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
-    const { state: {prompts, statsService}, dispatch: homeDispatch, handleNewConversation} = useContext(HomeContext);
-
+    const { state: {prompts, statsService, groups, availableModels}, dispatch: homeDispatch, handleNewConversation} = useContext(HomeContext);
     const promptsRef = useRef(prompts);
 
     useEffect(() => {
@@ -1370,14 +1369,36 @@ const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
     const csvUrlRef = useRef<string | undefined>(undefined);
     const postmanUrlRef = useRef<string | undefined>(undefined);
     const fileContentsRef = useRef<any>(undefined);
-   
+
     const showDocsRef = useRef<boolean | null>(null);
     // prevent recalling the getSettings function
     if (showDocsRef.current === null) showDocsRef.current = false;
-    
-    const [keyManager, setKeyManager] = useState<Prompt | undefined>(promptsRef.current.find((a: Prompt) => a.data?.tags && a.data.tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER)));
-    const [apiAst, setApiAst] = useState<Prompt | undefined>(promptsRef.current.find((a: Prompt) => a.data?.tags && a.data.tags.includes(ReservedTags.ASSISTANT_API_HELPER)));
 
+    // Helper function to find assistants in AmplifyAssistants groups
+    const findAssistantByTag = (tag: string): Prompt | undefined => {
+        if (!groups) return undefined;
+
+        for (const group of groups) {
+            // Check if this is an AmplifyAssistants group
+            if (group.id?.startsWith('AmplifyAssistants_') && group.assistants) {
+                // Search through assistants in this group
+                const assistant = group.assistants.find((a: Prompt) =>
+                    a.data?.tags && a.data.tags.includes(tag)
+                );
+                if (assistant) return assistant;
+            }
+        }
+        return undefined;
+    };
+
+    const [keyManager, setKeyManager] = useState<Prompt | undefined>(findAssistantByTag(ReservedTags.ASSISTANT_API_KEY_MANAGER));
+    const [apiAst, setApiAst] = useState<Prompt | undefined>(findAssistantByTag(ReservedTags.ASSISTANT_API_HELPER));
+
+    // Update assistants when groups change
+    useEffect(() => {
+        setKeyManager(findAssistantByTag(ReservedTags.ASSISTANT_API_KEY_MANAGER));
+        setApiAst(findAssistantByTag(ReservedTags.ASSISTANT_API_HELPER));
+    }, [groups]);
 
     const isUrlExpired = (url: string): boolean => {
         const regex = /Expires=(\d+)/;
@@ -1425,7 +1446,7 @@ const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
             homeDispatch({field: 'selectedAssistant', value: startPrompt.data.assistant});
         }
         statsService.startConversationEvent(startPrompt);
-        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt);
+        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt, availableModels);
         onClose();
     }
 

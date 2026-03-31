@@ -145,7 +145,8 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     });
 
     const handleProgress = (progress: AutoLoadProgress) => {
-      setUserCosts(progress.users);
+      // Create a new array reference to ensure React detects the change
+      setUserCosts([...progress.users]);
       setAutoLoadState({
         status: progress.isComplete ? 'completed' : 'loading',
         loadedCount: progress.loadedCount,
@@ -266,18 +267,23 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     return email;
   };
 
-  // Filter users based on search term
-  const filteredUsers = userCosts.filter((user) => {
-    if (!userSearchTerm.trim()) return true;
-    const searchLower = userSearchTerm.toLowerCase();
-    const emailInfo = cleanEmailDisplay(user.email);
-    const displayName = getUserDisplayName(user.email);
-    return (
-      user.email.toLowerCase().includes(searchLower) ||
-      emailInfo.displayName.toLowerCase().includes(searchLower) ||
-      displayName.toLowerCase().includes(searchLower)
-    );
-  });
+  // Filter users based on search term and sort by total cost (highest to lowest)
+  // Using useMemo to ensure sorting happens reactively when userCosts changes
+  const filteredUsers = React.useMemo(() => {
+    return userCosts
+      .filter((user) => {
+        if (!userSearchTerm.trim()) return true;
+        const searchLower = userSearchTerm.toLowerCase();
+        const emailInfo = cleanEmailDisplay(user.email);
+        const displayName = getUserDisplayName(user.email);
+        return (
+          user.email.toLowerCase().includes(searchLower) ||
+          emailInfo.displayName.toLowerCase().includes(searchLower) ||
+          displayName.toLowerCase().includes(searchLower)
+        );
+      })
+      .sort((a, b) => b.totalCost - a.totalCost);
+  }, [userCosts, userSearchTerm]);
 
   // Filter billing groups based on search term
   const filteredBillingGroups = Object.entries(billingGroups).filter(([groupName, group]) => {
@@ -397,11 +403,11 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
 
   // CSV Download functions
   const downloadUsersCSV = () => {
-    const headers = ['Email', 'Daily Cost', 'Monthly Cost', 'Total Cost', 'Accounts Count'];
+    const headers = ['Email', 'Monthly Cost', 'Today\'s Cost', 'Total Cost', 'Accounts Count'];
     const csvContent = [
       headers.join(','),
-      ...userCosts.map(user => [
-        user.email,
+      ...filteredUsers.map(user => [
+        getUserDisplayName(user.email),
         user.dailyCost.toFixed(2),
         user.monthlyCost.toFixed(2),
         user.totalCost.toFixed(2),
@@ -419,10 +425,12 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
   };
 
   const downloadGroupsCSV = () => {
-    const headers = ['Group Name', 'Total Cost', 'Daily Cost', 'Monthly Cost', 'Direct Members', 'Indirect Members', 'Total Members', 'Avg Cost Per Member'];
+    const headers = ['Group Name', 'Total Cost', 'Monthly Cost', 'Today\'s Cost', 'Direct Members', 'Indirect Members', 'Total Members', 'Avg Cost Per Member'];
     const csvContent = [
       headers.join(','),
-      ...Object.entries(billingGroups).map(([groupName, group]) => [
+      ...Object.entries(billingGroups)
+        .sort(([, a], [, b]) => b.costs.total - a.costs.total)
+        .map(([groupName, group]) => [
         groupName,
         group.costs.total.toFixed(2),
         group.costs.daily.toFixed(2),
@@ -447,7 +455,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     const history = userHistory[email];
     if (!history) return;
 
-    const headers = ['Month', 'Account', 'Daily Cost', 'Monthly Cost', 'Total Cost'];
+    const headers = ['Month', 'Account', 'Monthly Cost', 'Today\'s Cost', 'Total Cost'];
     const rows: string[] = [headers.join(',')];
 
     // Add current month data first
@@ -487,7 +495,9 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${email.split('@')[0]}-cost-history-${new Date().toISOString().split('T')[0]}.csv`;
+    const displayName = getUserDisplayName(email);
+    const filename = displayName.includes('@') ? displayName.split('@')[0] : displayName;
+    a.download = `${filename}-cost-history-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -683,9 +693,13 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     totalUsers: userCosts.length,
     totalCost: userCosts.reduce((sum, user) => sum + user.totalCost, 0),
     avgCostPerUser: userCosts.length > 0 ? userCosts.reduce((sum, user) => sum + user.totalCost, 0) / userCosts.length : 0,
-    topSpender: userCosts.length > 0 ? userCosts.reduce((prev, current) => (prev.totalCost > current.totalCost) ? prev : current) : null,
+    // Only calculate top spender from complete data to avoid showing wrong user during progressive loading
+    topSpender: (userCosts.length > 0 && autoLoadState.status === 'completed')
+      ? userCosts.reduce((prev, current) => (prev.totalCost > current.totalCost) ? prev : current)
+      : null,
     // Keep track of filtered counts for display purposes
-    filteredTotalUsers: filteredUsers.length
+    filteredTotalUsers: filteredUsers.length,
+    isLoadingComplete: autoLoadState.status === 'completed' || autoLoadState.status === 'aborted'
   };
 
   const renderAllUsersTab = () => (
@@ -733,8 +747,11 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Top Spender</p>
               <div className="flex items-center space-x-1 max-w-[120px]">
                 {(() => {
+                  if (!usersSummary.isLoadingComplete && autoLoadState.status === 'loading') {
+                    return <span className="text-sm text-gray-500 dark:text-gray-400">Loading...</span>;
+                  }
                   if (!usersSummary.topSpender) return <span className="text-sm font-semibold text-gray-900 dark:text-white">N/A</span>;
-                  
+
                   const emailInfo = cleanEmailDisplay(usersSummary.topSpender.email);
                   const isSystem = isSystemUser(usersSummary.topSpender.email);
                   return (
@@ -752,7 +769,12 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                   );
                 })()}
               </div>
-              <p className="text-xs text-red-600 dark:text-red-400">{usersSummary.topSpender ? formatCurrency(usersSummary.topSpender.totalCost) : 'N/A'}</p>
+              <p className="text-xs text-red-600 dark:text-red-400">
+                {!usersSummary.isLoadingComplete && autoLoadState.status === 'loading'
+                  ? '...'
+                  : usersSummary.topSpender ? formatCurrency(usersSummary.topSpender.totalCost) : 'N/A'
+                }
+              </p>
             </div>
           </div>
         </div>
@@ -790,11 +812,9 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
               Stop Loading
             </button>
           </div>
-          <div className="mt-3 w-full bg-blue-200 dark:bg-blue-900/40 rounded-full h-2 overflow-hidden">
-            <div 
-              className="h-full bg-blue-600 dark:bg-blue-400 transition-all duration-300 ease-out animate-pulse"
-              style={{ width: '100%' }}
-            ></div>
+          <div className="mt-3 w-full bg-blue-200 dark:bg-blue-900/40 rounded-full h-2.5 overflow-hidden relative">
+            {/* Animated gradient bar */}
+            <div className="loading-bar-animated"></div>
           </div>
         </div>
       )}
@@ -919,10 +939,10 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                         User
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        Today&apos;s Cost
+                        Monthly Cost
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        Monthly Cost
+                        Today&apos;s Cost
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         Total Cost
@@ -990,8 +1010,8 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                                         <thead>
                                           <tr className="border-b border-gray-200 dark:border-gray-700">
                                             <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Account Info</th>
-                                            <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Daily Cost</th>
                                             <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Monthly Cost</th>
+                                            <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Today's Cost</th>
                                             <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Total Cost</th>
                                           </tr>
                                         </thead>
@@ -1532,24 +1552,6 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
       showSubmit={false}
       content={
         <div className="flex flex-col h-full">
-          <div className="mb-4 px-6 py-3 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Token Total: {groupsSummary ? formatCurrency(groupsSummary.totalCost) : formatCurrency(usersSummary.totalCost)} MTD
-                </h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Last Updated: {groupsSummary?.timestamp ? new Date(groupsSummary.timestamp).toLocaleTimeString() : 'Now'}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {activeTab === 0 ? `${usersSummary.totalUsers} Users` : `${groupsSummary?.totalBillingGroups || 0} Groups`}
-                </p>
-              </div>
-            </div>
-          </div>
-
           <ActiveTabs
             id="cost-management-tabs"
             tabs={tabs}

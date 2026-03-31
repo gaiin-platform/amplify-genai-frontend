@@ -14,7 +14,7 @@ interface PromptGroup {
 
 export const PromptTemplatesGallery: FC = () => {
     const {
-        state: { prompts, statsService },
+        state: { prompts, statsService, availableModels },
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
@@ -96,7 +96,7 @@ export const PromptTemplatesGallery: FC = () => {
 
     const handleStartConversation = (startPrompt: Prompt) => {
         statsService.startConversationEvent(startPrompt);
-        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt);
+        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt, availableModels);
     };
 
     return (
