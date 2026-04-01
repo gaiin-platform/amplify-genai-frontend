@@ -286,6 +286,11 @@ const Home = ({
         setLoadingMessage('');
 
         if (newSelectedConv) {
+            // Ensure messages array exists (defensive check for race conditions)
+            if (!newSelectedConv.messages) {
+                newSelectedConv.messages = [];
+            }
+
             //add last used assistant if there was one used else should be removed
             if (newSelectedConv.messages && newSelectedConv.messages.length > 0) {
                 const lastMessage: Message = newSelectedConv.messages[newSelectedConv.messages.length - 1];

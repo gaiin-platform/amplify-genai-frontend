@@ -398,11 +398,12 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
 
             let updatedConversation: Conversation = {...selectedConversation, artifacts: selectedConversation.artifacts || {}};
            // selectedConversation with the assistant message stripped of artifact block data
-            const messageLen = selectedConversation.messages?.length - 1;
+            const messages = selectedConversation.messages || [];
+            const messageLen = messages.length - 1;
             const responseData = response.body;
             const reader = responseData ? responseData.getReader() : null;
             const decoder = new TextDecoder();
-            let text = selectedConversation.messages[messageLen].content + '\n\n';
+            let text = (messageLen >= 0 && messages[messageLen]?.content) ? messages[messageLen].content + '\n\n' : '';
             let artifactText: string = '';
 
             const placeholderRegex = /\~A(\d+)/g;
@@ -515,9 +516,13 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
 
                 // update selectedConversation to include the completed selectArtifacts
                 updatedConversation.artifacts = {...(updatedConversation.artifacts ?? {}), [artifact.artifactId]: selectArtifacts };
-                const lastMessageData = updatedConversation.messages.slice(-1)[0].data;
-                updatedConversation.messages.slice(-1)[0].data.artifactStatus = controller.signal.aborted ? ArtifactMessageStatus.STOPPED : ArtifactMessageStatus.COMPLETE;
-                updatedConversation.messages.slice(-1)[0].data.artifacts = [...(lastMessageData.artifacts ?? []), artifactDetail];
+                const lastMessage = updatedConversation.messages?.slice(-1)[0];
+                if (lastMessage) {
+                    const lastMessageData = lastMessage.data;
+                    lastMessage.data = lastMessage.data || {};
+                    lastMessage.data.artifactStatus = controller.signal.aborted ? ArtifactMessageStatus.STOPPED : ArtifactMessageStatus.COMPLETE;
+                    lastMessage.data.artifacts = [...(lastMessageData?.artifacts ?? []), artifactDetail];
+                }
                 
                 handleUpdateSelectedConversation(updatedConversation);
             }
