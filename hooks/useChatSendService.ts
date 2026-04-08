@@ -35,6 +35,7 @@ import {
 } from '@/utils/app/memory';
 import { handleAgentRun, handleAgentRunResult, isWaitingForAgentResponse } from '@/utils/app/agent';
 import { lzwCompress } from '@/utils/app/lzwCompression';
+import { resolveContextString } from '@/utils/app/contextConversations';
 import { calculatePromptCostDetailed, formatCost } from '@/utils/app/costEstimation';
 import { WEB_SEARCH_TOOL_DEFINITION } from '@/types/tools';
 import { getEnabledMCPToolsForLLM, handleMCPToolCall } from '@/services/mcpToolExecutor';
@@ -328,9 +329,33 @@ export function useSendService() {
                         return msg;
                     });
 
+                    // ── Cross-conversation context injection ──────────────────
+                    // Resolve context from other conversations (local or cached cloud)
+                    // and prepend as a silent user message. This never touches the
+                    // displayed conversation — it only exists in the outgoing request.
+                    const contextEntries = updatedConversation.contextConversations ?? [];
+                    let messagesForRequest = filteredMessages;
+                    if (contextEntries.length > 0) {
+                        const contextStr = await resolveContextString(
+                            contextEntries,
+                            conversationsRef.current,
+                        );
+                        if (contextStr.trim().length > 0) {
+                            const contextMessage: Message = {
+                                id: `ctx-inject-${Date.now()}`,
+                                role: 'user',
+                                content: `[Additional context from other conversations — use as background knowledge]\n\n${contextStr}\n\n[End of additional context]`,
+                                type: 'context',
+                                data: {},
+                            };
+                            messagesForRequest = [contextMessage, ...filteredMessages];
+                        }
+                    }
+                    // ─────────────────────────────────────────────────────────
+
                     let chatBody: ChatBody = {
                         model: updatedConversation.model,
-                        messages: filteredMessages,
+                        messages: messagesForRequest,
                         prompt: rootPrompt || updatedConversation.prompt || "",
                         temperature: updatedConversation.temperature || DEFAULT_TEMPERATURE,
                         maxTokens: updatedConversation.maxTokens || (Math.round(updatedConversation.model.outputTokenLimit / 2)),
@@ -1328,6 +1353,49 @@ export function useSendService() {
                                 field: 'selectedConversation',
                                 value: updatedConversation,
                             });
+                        }
+
+                        // Auto-remove denied/invalid data sources from message history so the
+                        // context manager badge and ConversationContextManager reflect reality.
+                        const removedDs = currentState?.removedDataSources;
+                        if (removedDs && Array.isArray(removedDs.deniedAccess) && removedDs.deniedAccess.length > 0) {
+                            // Backend now sends originalId (the exact per-user S3 key the frontend stored).
+                            // Collect all denied originalIds directly; fall back to name-matching if missing.
+                            const deniedOriginalIds = new Set<string>();
+                            const deniedNames = new Set<string>();
+                            removedDs.deniedAccess.forEach((d: any) => {
+                                if (d?.originalId) deniedOriginalIds.add(d.originalId);
+                                else if (d?.name) deniedNames.add(d.name);
+                            });
+
+                            // Resolve any name-based fallbacks by scanning message dataSources
+                            const idsToRemove = new Set<string>(deniedOriginalIds);
+                            if (deniedNames.size > 0) {
+                                updatedConversation.messages.forEach((msg: any) => {
+                                    msg.data?.dataSources?.forEach((ds: any) => {
+                                        if (ds.name && deniedNames.has(ds.name)) idsToRemove.add(ds.id);
+                                    });
+                                });
+                            }
+
+                            if (idsToRemove.size > 0) {
+                                const existing = new Set(updatedConversation.removedDocumentIds || []);
+                                idsToRemove.forEach(id => existing.add(id));
+
+                                const cleanedMessages = updatedConversation.messages.map((msg: any) => {
+                                    if (!msg.data?.dataSources?.length) return msg;
+                                    const filtered = msg.data.dataSources.filter((ds: any) => !idsToRemove.has(ds.id));
+                                    if (filtered.length === msg.data.dataSources.length) return msg;
+                                    return { ...msg, data: { ...msg.data, dataSources: filtered } };
+                                });
+
+                                updatedConversation = {
+                                    ...updatedConversation,
+                                    messages: cleanedMessages,
+                                    removedDocumentIds: Array.from(existing)
+                                };
+                                homeDispatch({ field: 'selectedConversation', value: updatedConversation });
+                            }
                         }
 
                         if (selectedConversation.isLocal) {

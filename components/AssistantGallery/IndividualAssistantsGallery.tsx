@@ -387,7 +387,7 @@ export const IndividualAssistantsGallery: FC = () => {
                     onCancel={() => setShowModal(false)}
                     onSave={() => setShowModal(false)}
                     onUpdateAssistant={() => { }}
-                    loadingMessage={''}
+                    loadingMessage="Updating assistant..."
                     loc={''}
                     disableEdit={!canEdit(selectedAssistant)}
                 />

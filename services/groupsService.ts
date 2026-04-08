@@ -145,73 +145,73 @@ export const isMemberOfAstAdminGroup = async (groupId: string) => {
 }
 
 
-// ── Group Layered Assistants ──────────────────────────────────────────────────
-// All three operations are routed through /groups/layered_assistants so the
-// backend calls the LA service as the group system user (astgr/ prefix).
+// ── Group Layered Assistants (consolidated through /groups/update/assistants) ─
 
 /**
- * Create or update a group-scoped Layered Assistant.
- * Pass la.publicId to update an existing one; leave it empty to create new.
+ * Create or update a group-scoped Layered Assistant via the consolidated
+ * update_group_assistants endpoint.  The backend detects `isLayeredAssistant`
+ * and routes to the layered assistant service automatically.
+ *
+ * Returns a normalised response matching the shape:
+ *   { success, data: { assistantId, updatedAt } }
  */
 export const saveGroupLayeredAssistant = async (
     groupId: string,
     la: LayeredAssistant,
 ): Promise<any> => {
-    const op = {
-        method: 'POST',
-        path: URL_PATH,
-        op: "/layered_assistants",
-        data: {
-            group_id:         groupId,
-            action:           "create_or_update",
-            layeredAssistant: {
-                publicId:    la.publicId || "",
-                name:        la.name,
-                description: la.description,
-                rootNode:    la.rootNode,
+    const updateType = la.assistantId ? "UPDATE" : "ADD";
+    const result = await updateGroupAssistants({
+        group_id: groupId,
+        update_type: updateType,
+        assistants: [
+            {
+                isLayeredAssistant: true,
+                layeredAssistant: {
+                    assistantId: la.assistantId || "",
+                    name:        la.name,
+                    description: la.description || "",
+                    rootNode:    la.rootNode,
+                    data: {
+                        ...(la.data ?? {}),
+                        isPublished:         la.isPublished         ?? false,
+                        ...(la.model ? { model: la.model } : {}),
+                        trackConversations:  la.trackConversations  ?? false,
+                        supportConvAnalysis: la.supportConvAnalysis ?? false,
+                        analysisCategories:  la.analysisCategories  ?? [],
+                    },
+                },
             },
-        },
-        service: SERVICE_NAME,
-    };
-    return await doRequestOp(op);
+        ],
+    });
+
+    // Normalise response so callers see { success, data: { assistantId, updatedAt } }
+    if (result?.success && result.assistantData?.length > 0) {
+        const entry = result.assistantData[0];
+        return {
+            success: true,
+            data: {
+                assistantId: entry.assistantId,
+                updatedAt:   new Date().toISOString(),
+            },
+        };
+    }
+    return result;
 };
 
 /**
- * List all Layered Assistants belonging to a group.
- * Any group member (read or write) may call this.
- */
-export const listGroupLayeredAssistants = async (groupId: string): Promise<any> => {
-    const op = {
-        method: 'POST',
-        path: URL_PATH,
-        op: "/layered_assistants",
-        data: {
-            group_id: groupId,
-            action:   "list",
-        },
-        service: SERVICE_NAME,
-    };
-    return await doRequestOp(op);
-};
-
-/**
- * Permanently delete a group-scoped Layered Assistant by its publicId.
- * Requires write or admin access to the group.
+ * Delete a group-scoped Layered Assistant via the consolidated
+ * update_group_assistants endpoint.  The backend detects the `astgr/` prefix
+ * and routes to the layered assistant delete service automatically.
  */
 export const deleteGroupLayeredAssistant = async (
     groupId: string,
-    publicId: string,
+    assistantId: string,
 ): Promise<any> => {
-    const op = {
-        method: 'POST',
-        path: URL_PATH,
-        op: "/layered_assistants",
-        data: {
-            group_id: groupId,
-            action:   "delete",
-            publicId: publicId,
-        },
-        service: SERVICE_NAME,
-    };
-    return await doRequestOp(op);
+    return await updateGroupAssistants({
+        group_id: groupId,
+        update_type: "REMOVE",
+        assistants: [assistantId],
+    });
 };
+
+

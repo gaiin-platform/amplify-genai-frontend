@@ -1123,9 +1123,9 @@ const Home = ({
                     saveFolders(updatedFolders);
 
                     const groupPrompts = filterAstsByFeatureFlags(groupsResult.groupPrompts, flags);
-                    updatedPrompts = [...updatedPrompts.filter((p : Prompt) => !p.groupId ), 
+                    updatedPrompts = [...updatedPrompts.filter((p : Prompt) => !p.groupId ),
                                         ...groupPrompts];
-                    
+
                     groupsLoaded = true;
                     console.log('sync groups complete');
                     checkAndFinalizeUpdates();

@@ -131,6 +131,13 @@ export interface ChatBody {
   enableWebSearch?: boolean; // Enable backend web search tool execution
 }
 
+export interface ConversationContextEntry {
+  conversationId: string;
+  /** 'all' = entire conversation, 'selected' = only the listed messageIds */
+  mode: 'all' | 'selected';
+  selectedMessageIds?: string[];
+}
+
 export interface Conversation {
   id: string;
   name: string;
@@ -152,4 +159,6 @@ export interface Conversation {
   projectId?: string;
   date?: string;
   removedDocumentIds?: string[];
+  /** Cross-conversation context entries — messages from other conversations injected at send time */
+  contextConversations?: ConversationContextEntry[];
 }

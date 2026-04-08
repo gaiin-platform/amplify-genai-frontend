@@ -6,8 +6,8 @@ import { Prompt } from '@/types/prompt';
 import { Group, GroupAccessType, AstGroupTypeData, GroupUpdateType, Members } from '@/types/groups';
 import { createEmptyPrompt, savePrompts } from '@/utils/app/prompts';
 import { useSession } from 'next-auth/react';
-import { createAstAdminGroup, fetchAstAdminGroups, updateGroupAssistants, listGroupLayeredAssistants } from '@/services/groupsService';
-import { LayeredAssistant } from '@/types/layeredAssistant';
+import { createAstAdminGroup, fetchAstAdminGroups, updateGroupAssistants, saveGroupLayeredAssistant, deleteGroupLayeredAssistant } from '@/services/groupsService';
+import { LayeredAssistant, LayeredAssistantNode, isLeafNode, createLayeredAssistant } from '@/types/layeredAssistant';
 import { TagsList } from '../Chat/TagsList';
 import ExpansionComponent from '../Chat/ExpansionComponent';
 import { AttachFile, handleFile } from '../Chat/AttachFile';
@@ -28,13 +28,14 @@ import { InfoBox } from '../ReusableComponents/InfoBox';
 import Checkbox from '../ReusableComponents/CheckBox';
 import { AMPLIFY_ASSISTANTS_GROUP_NAME } from '@/utils/app/amplifyAssistants';
 import { Modal } from '../ReusableComponents/Modal';
+import { LayeredAssistantBuilder } from '../LayeredAssistants/LayeredAssistantBuilder';
 import { getUserAmplifyGroups } from '@/services/adminService';
 import { fetchAllSystemIds } from '@/services/apiKeysService';
 import { checkAvailableModelId } from '@/utils/app/models';
 import { AstUserConversation, ConversationTable } from './AssistantAdminComponents/ConversationTable';
 import { Dashboard, DashboardMetrics } from './AssistantAdminComponents/Dashboard';
 import { GroupManagement } from './AssistantAdminComponents/GroupManagement';
-import { GroupLayeredAssistants } from './AssistantAdminComponents/GroupLayeredAssistants';
+// GroupLayeredAssistants is no longer used as a standalone sub-tab — layered assistants are now shown as tabs in the main tab bar
 import { CreateAdminDialog } from './AssistantAdminComponents/CreateAdminGroupDialog';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { contructGroupData } from '@/utils/app/groups';
@@ -43,17 +44,18 @@ import { filterAstsByFeatureFlags } from '@/utils/app/assistants';
 import { getUserIdentifier } from '@/utils/app/data';
 
 
-const subTabs = ['dashboard', 'conversations', 'edit_assistant', 'group', 'layered_assistants'] as const;
+const subTabs = ['dashboard', 'conversations', 'edit_assistant', 'group', 'edit_layered_assistant', 'la_dashboard', 'la_conversations'] as const;
 export type SubTabType = typeof subTabs[number];
 
 interface Props {
     open: boolean;
     openToGroup?: Group
     openToAssistant?: Prompt;
+    openToLayeredAssistant?: LayeredAssistant;
     tabToOpen?: string;
 }
 
-export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant, tabToOpen }) => {
+export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant, openToLayeredAssistant, tabToOpen }) => {
     const { state: { featureFlags, statsService, groups, prompts, folders, syncingPrompts, amplifyUsers }, dispatch: homeDispatch } = useContext(HomeContext);
     const { data: session } = useSession();
     const user = getUserIdentifier(session?.user) ?? "";
@@ -127,12 +129,16 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
     const [adminGroups, setAdminGroups] = useState<Group[]>(groups.length > 0 ? filteredForAdminAccess(groups) : []);
 
     const [selectedGroup, setSelectedGroup] = useState<Group | undefined>(openToGroup || adminGroups[0]);
-    const [selectedAssistant, setSelectedAssistant] = useState<Prompt | undefined>(openToAssistant || selectedGroup?.assistants[0]);
+    const [selectedAssistant, setSelectedAssistant] = useState<Prompt | undefined>(
+        (tabToOpen === 'layered' || openToLayeredAssistant) ? undefined : (openToAssistant || selectedGroup?.assistants[0])
+    );
+    const [selectedLayeredAssistant, setSelectedLayeredAssistant] = useState<LayeredAssistant | undefined>(openToLayeredAssistant);
 
     const [activeAstTab, setActiveAstTab] = useState<string | undefined>(selectedAssistant?.data?.assistant?.definition.assistantId);
+    const [activeLayeredAstTab, setActiveLayeredAstTab] = useState<string | undefined>(openToLayeredAssistant?.assistantId);
     const DEFAULT_SUB_TAB = 'dashboard' as SubTabType;
     const [activeSubTab, setActiveSubTab] = useState<SubTabType>(
-        tabToOpen === 'layered' ? 'layered_assistants' : (openToAssistant ? "edit_assistant" : DEFAULT_SUB_TAB)
+        (tabToOpen === 'layered' || openToLayeredAssistant) ? 'edit_layered_assistant' : (openToAssistant ? "edit_assistant" : DEFAULT_SUB_TAB)
     );
 
     const [additionalGroupData, setAdditionalGroupData] = useState<any>({});
@@ -140,11 +146,22 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
     const [conversations, setConversations] = useState<AstUserConversation[]>([]);
     const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetrics | null>(null);
 
+    // LA-specific conversation/dashboard data
+    const [laConversations, setLaConversations] = useState<AstUserConversation[]>([]);
+    const [laDashboardMetrics, setLaDashboardMetrics] = useState<DashboardMetrics | null>(null);
+
     const [showCreateNewGroup, setShowCreateNewGroup] = useState<boolean>();
     const [showCreateGroupAssistant, setShowCreateGroupAssistant] = useState<string | null>(null);
+    const [showCreateLayeredAssistant, setShowCreateLayeredAssistant] = useState<boolean>(false);
+    const [newLayeredAssistant, setNewLayeredAssistant] = useState<LayeredAssistant>(createLayeredAssistant());
 
     const [groupLayeredAssistants, setGroupLayeredAssistants] = useState<LayeredAssistant[]>([]);
-    const [isLoadingLayeredAssistants, setIsLoadingLayeredAssistants] = useState(false);
+    const laBuilderSaveFnRef = useRef<(() => void) | null>(null);
+    const selectedLayeredAssistantRef = useRef<LayeredAssistant | undefined>(undefined);
+    // When true, the selectedGroup useEffect should NOT clear selectedLayeredAssistant
+    // (used when we switch group programmatically to open a specific LA)
+    // Pre-set to true if we're mounting directly to a LA so the initial selectedGroup effect doesn't clear it
+    const suppressLaClearRef = useRef(!!openToLayeredAssistant);
 
     const fetchEmails = () => {
         const emailSuggestions = Object.values(amplifyUsers); // Extract email values for display
@@ -195,7 +212,67 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
     useEffect(() => {
         setActiveAstTab(selectedAssistant?.data?.assistant?.definition.assistantId);
+        if (selectedAssistant) {
+            setSelectedLayeredAssistant(undefined);
+            setActiveLayeredAstTab(undefined);
+        }
     }, [selectedAssistant])
+
+    useEffect(() => {
+        setActiveLayeredAstTab(selectedLayeredAssistant?.assistantId);
+        if (selectedLayeredAssistant) {
+            setSelectedAssistant(undefined);
+            setActiveAstTab(undefined);
+            // Always land on Edit when a LA is (re)selected
+            setActiveSubTab('edit_layered_assistant');
+        }
+        // Reset LA data when selection changes
+        setLaConversations([]);
+        setLaDashboardMetrics(null);
+    }, [selectedLayeredAssistant])
+
+    // Sync when the openToLayeredAssistant prop changes while the UI is already mounted
+    // (e.g. clicking "Edit" in the gallery/sidebar when the admin UI is already open)
+    useEffect(() => {
+        if (openToLayeredAssistant) {
+            if (openToGroup) {
+                // Set the flag BEFORE changing the group so the selectedGroup useEffect
+                // skips its LA-clearing logic
+                suppressLaClearRef.current = true;
+                const matchingGroup = adminGroups.find((g: Group) => g.id === openToGroup.id) ?? openToGroup;
+                setSelectedGroup(matchingGroup);
+            }
+            setSelectedLayeredAssistant(openToLayeredAssistant);
+            setActiveLayeredAstTab(openToLayeredAssistant.assistantId);
+            setActiveSubTab('edit_layered_assistant');
+        }
+    }, [openToLayeredAssistant?.assistantId]);
+
+    // Fetch conversations for the selected layered assistant — only when navigating to that tab
+    useEffect(() => {
+        const fetchLaConversations = async () => {
+            if (open && selectedLayeredAssistant?.assistantId && !!selectedGroup?.supportConvAnalysis && activeSubTab === 'la_conversations') {
+                setLoadingActionMessage('Fetching conversations…');
+                const result = await getGroupAssistantConversations(selectedLayeredAssistant.assistantId);
+                setLaConversations(result.success ? (Array.isArray(result.data) ? result.data : []) : []);
+                setLoadingActionMessage('');
+            }
+        };
+        fetchLaConversations();
+    }, [open, selectedLayeredAssistant, activeSubTab]);
+
+    // Fetch dashboard metrics for the selected layered assistant — only when navigating to that tab
+    useEffect(() => {
+        const fetchLaDashboard = async () => {
+            if (open && selectedLayeredAssistant?.assistantId && !!selectedGroup?.supportConvAnalysis && activeSubTab === 'la_dashboard') {
+                setLoadingActionMessage('Fetching dashboard data…');
+                const result = await getGroupAssistantDashboards(selectedLayeredAssistant.assistantId);
+                setLaDashboardMetrics(result?.success ? result.data.dashboardData : null);
+                setLoadingActionMessage('');
+            }
+        };
+        fetchLaDashboard();
+    }, [open, selectedLayeredAssistant, activeSubTab]);
 
     useEffect(() => {
         const nonAdminGroups = groups.filter((g: Group) => g.members[user] === GroupAccessType.READ);
@@ -208,41 +285,46 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         }, []);
     }
 
+    // Keep ref in sync so onSave closures always read the latest selectedLayeredAssistant
+    useEffect(() => {
+        selectedLayeredAssistantRef.current = selectedLayeredAssistant;
+    }, [selectedLayeredAssistant]);
+
     // if selectedGroup changes then set to conversation tab
     useEffect(() => {
-        if (activeSubTab !== 'group' && activeSubTab !== 'layered_assistants') {
-            if ((selectedAssistant && (selectedAssistant.groupId !== selectedGroup?.id || !(selectedGroup?.assistants.find((ast: Prompt) => ast?.data?.assistant?.definition.assistantId === selectedAssistant.data?.assistant?.definition.assistantId))))
-                || (!selectedAssistant && (selectedGroup?.assistants && selectedGroup?.assistants.length > 0))) setSelectedAssistant(selectedGroup?.assistants[0]);
+        if (suppressLaClearRef.current) {
+            // Group was switched programmatically to navigate to a specific LA — don't clear it
+            suppressLaClearRef.current = false;
+            setGroupLayeredAssistants(selectedGroup?.layeredAssistants ?? []);
+            return;
         }
+
+        if (activeSubTab !== 'group' && activeSubTab !== 'edit_layered_assistant') {
+            if ((selectedAssistant && (selectedAssistant.groupId !== selectedGroup?.id || !(selectedGroup?.assistants.find((ast: Prompt) => ast?.data?.assistant?.definition.assistantId === selectedAssistant.data?.assistant?.definition.assistantId))))
+                || (!selectedAssistant && !selectedLayeredAssistant && (selectedGroup?.assistants && selectedGroup?.assistants.length > 0))) setSelectedAssistant(selectedGroup?.assistants[0]);
+        }
+        // Clear layered assistant selection when group changes
+        setSelectedLayeredAssistant(undefined);
+        setActiveLayeredAstTab(undefined);
         if (selectedGroup === undefined && adminGroups.length > 0) {
             setSelectedGroup(adminGroups[0]);
         }
 
-        // Pre-fetch layered assistants for the newly selected group so they are
-        // ready when the user navigates to the Layered Assistants tab.
-        if (selectedGroup?.id) {
-            setGroupLayeredAssistants([]);
-            setIsLoadingLayeredAssistants(true);
-            listGroupLayeredAssistants(selectedGroup.id)
-                .then((result) => {
-                    if (result?.success) {
-                        setGroupLayeredAssistants(
-                            (result.data ?? []).map((la: LayeredAssistant) => ({
-                                ...la,
-                                groupId: la.groupId ?? selectedGroup.id,
-                            }))
-                        );
-                    }
-                })
-                .catch((e) => console.error('Failed to fetch group layered assistants:', e))
-                .finally(() => setIsLoadingLayeredAssistants(false));
-        }
+        // Layered assistants now come from the group list response (no separate fetch).
+        setGroupLayeredAssistants(selectedGroup?.layeredAssistants ?? []);
 
     }, [selectedGroup]);
 
     useEffect(() => {
-        if (selectedAssistant && activeSubTab === 'group') setActiveSubTab(DEFAULT_SUB_TAB)
+        if (selectedAssistant && (activeSubTab === 'group' || activeSubTab === 'edit_layered_assistant')) setActiveSubTab(DEFAULT_SUB_TAB)
     }, [selectedAssistant]);
+
+    // Auto-select first layered assistant when loaded (e.g. when opened via tabToOpen='layered')
+    useEffect(() => {
+        if (activeSubTab === 'edit_layered_assistant' && !selectedLayeredAssistant && groupLayeredAssistants.length > 0) {
+            setSelectedLayeredAssistant(groupLayeredAssistants[0]);
+        }
+    }, [groupLayeredAssistants, activeSubTab, selectedLayeredAssistant]);
 
 
     useEffect(() => {
@@ -427,6 +509,96 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
     }
 
 
+    // ── Layered assistant save / delete (lifted from GroupLayeredAssistants) ──
+    const handleLayeredAssistantSave = async (la: LayeredAssistant): Promise<LayeredAssistant | null> => {
+        if (!selectedGroup) return null;
+        setLoadingActionMessage('Saving Layered Assistant…');
+        try {
+            const withGroup: LayeredAssistant = { ...la, groupId: selectedGroup.id };
+            const result = await saveGroupLayeredAssistant(selectedGroup.id, withGroup);
+            if (result?.success && result.data?.assistantId) {
+                const saved: LayeredAssistant = {
+                    ...withGroup,
+                    assistantId: result.data.assistantId,
+                    updatedAt:   result.data.updatedAt,
+                    astPath:     la.astPath,
+                    astPathData: la.astPathData,
+                };
+                setGroupLayeredAssistants((prev) => {
+                    const exists = prev.some((x) => x.assistantId === saved.assistantId);
+                    return exists
+                        ? prev.map((x) => (x.assistantId === saved.assistantId ? saved : x))
+                        : [...prev, saved];
+                });
+                setSelectedLayeredAssistant(saved);
+                // Keep groups home state in sync so sidebar + gallery reflect the change immediately
+                homeDispatch({
+                    field: 'groups',
+                    value: groups.map((g) => {
+                        if (g.id !== selectedGroup.id) return g;
+                        const las = g.layeredAssistants ?? [];
+                        const exists = las.some((x: LayeredAssistant) => x.assistantId === saved.assistantId);
+                        return {
+                            ...g,
+                            layeredAssistants: exists
+                                ? las.map((x: LayeredAssistant) => (x.assistantId === saved.assistantId ? saved : x))
+                                : [...las, saved],
+                        };
+                    }),
+                });
+                return saved;
+            } else {
+                alert('Failed to save layered assistant. Please try again.');
+            }
+        } catch (e) {
+            console.error('Save failed:', e);
+            alert('Failed to save layered assistant. Please try again.');
+        } finally {
+            setLoadingActionMessage('');
+        }
+        return null;
+    };
+
+    const handleDeleteLayeredAssistant = async (assistantId: string) => {
+        if (!selectedGroup) return;
+        if (!confirm("Are you sure you want to delete this layered assistant? You will not be able to undo this change.\n\nWould you like to continue?")) return;
+        setLoadingActionMessage('Deleting Layered Assistant…');
+        try {
+            const result = await deleteGroupLayeredAssistant(selectedGroup.id, assistantId);
+            if (result?.success) {
+                setGroupLayeredAssistants((prev) => prev.filter((x) => x.assistantId !== assistantId));
+                setSelectedLayeredAssistant(undefined);
+                if (selectedGroup.assistants.length > 0) {
+                    setSelectedAssistant(selectedGroup.assistants[0]);
+                    setActiveSubTab(DEFAULT_SUB_TAB);
+                }
+                // Keep groups home state in sync so sidebar + gallery update immediately
+                homeDispatch({
+                    field: 'groups',
+                    value: groups.map((g) => {
+                        if (g.id !== selectedGroup.id) return g;
+                        return {
+                            ...g,
+                            layeredAssistants: (g.layeredAssistants ?? []).filter(
+                                (x: LayeredAssistant) => x.assistantId !== assistantId
+                            ),
+                        };
+                    }),
+                });
+                toast("Successfully deleted layered assistant.");
+            } else {
+                alert('Failed to delete layered assistant. Please try again.');
+            }
+        } catch (e) {
+            console.error('Delete failed:', e);
+            alert('Failed to delete layered assistant. Please try again.');
+        } finally {
+            setLoadingActionMessage('');
+        }
+    };
+
+    const groupAssistants: Prompt[] = selectedGroup?.assistants ?? [];
+
     if (!open) {
         return null;
     }
@@ -435,12 +607,85 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
         return String(label).replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())
     }
 
-    const renderSubTabs = () => (
+    const renderSubTabs = () => {
+        // ── Layered assistant selected: show Dashboard / Conversations / Edit Assistant / Delete / Group Management ──
+        if (selectedLayeredAssistant) {
+            return (
+                <div className="flex flex-col w-full text-[1.05rem]">
+                    <div className="flex flex-row gap-6 mb-4 px-4 w-full">
+                        {!!selectedGroup?.supportConvAnalysis && <>
+                            <button
+                                className={`${activeSubTab === 'la_dashboard' ? 'text-white flex flex-row gap-1 px-2 bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-200 ' : ' text-neutral-500 bg-gray-300 text-black dark:bg-gray-600 dark:text-white'}
+                                            rounded-md shadow-sm px-4 py-2`}
+                                onClick={() => setActiveSubTab('la_dashboard')}
+                            >
+                                Dashboard
+                            </button>
+                            <button
+                                className={`${activeSubTab === 'la_conversations' ? 'text-white flex flex-row gap-1 px-2 bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-200 ' : ' text-neutral-500 bg-gray-300 text-black dark:bg-gray-600 dark:text-white'}
+                                            rounded-md shadow-sm px-4 py-2`}
+                                onClick={() => setActiveSubTab('la_conversations')}
+                            >
+                                Conversations
+                            </button>
+                        </>}
+
+                        <button
+                            className={`${activeSubTab === 'edit_layered_assistant' ? 'text-white flex flex-row gap-1 px-2 bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-200 ' : ' text-neutral-500 bg-gray-300 text-black dark:bg-gray-600 dark:text-white'}
+                                        rounded-md shadow-sm px-4 py-2`}
+                            onClick={() => setActiveSubTab('edit_layered_assistant')}
+                        >
+                            Edit Assistant
+                        </button>
+
+                        <button
+                            type="button"
+                            className={`flex flex-row gap-2 p-2 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/30 text-red-700 dark:text-red-300 hover:from-red-600 hover:to-red-700 hover:text-white dark:hover:from-red-700 dark:hover:to-red-600 transition-all duration-200 rounded-lg shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500`}
+                            onClick={() => {
+                                if (selectedLayeredAssistant.assistantId) {
+                                    handleDeleteLayeredAssistant(selectedLayeredAssistant.assistantId);
+                                }
+                            }}>
+                            Delete Assistant
+                        </button>
+
+                        <label className='ml-auto mt-2 text-sm flex flex-row gap-3 text-black dark:text-neutral-100'>
+                            <div className={`mt-1.5 ${selectedLayeredAssistant.isPublished ? "bg-green-400 dark:bg-green-300" : "bg-gray-400 dark:bg-gray-500"}`}
+                                style={{ width: '8px', height: '8px', borderRadius: '50%', flexShrink: 0 }}></div>
+                            <div className='overflow-x-auto flex grow whitespace-nowrap'>
+                                {selectedLayeredAssistant.assistantId
+                                    ? `Layered Assistant Id: ${selectedLayeredAssistant.assistantId}`
+                                    : 'No Layered Assistant Id — save to generate one'}
+                            </div>
+                        </label>
+
+                        { activeSubTab !== 'group' &&
+                        <button className={`h-[36px] rounded-xl whitespace-nowrap transition-all duration-200`}
+                            onClick={() => {
+                                setActiveSubTab('group');
+                                setSelectedAssistant(undefined);
+                                setSelectedLayeredAssistant(undefined);
+                                setActiveLayeredAstTab(undefined);
+                            }}
+                            title="Manage users and assistant group types"
+                        >
+                            <div className={`flex flex-row gap-1 text-sm text-white px-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 py-2 rounded-lg shadow-sm`}>
+                                <IconSettings className='mt-0.5' size={16} />
+                                Group Management
+                            </div>
+                        </button>}
+                    </div>
+                </div>
+            );
+        }
+
+        // ── Regular assistant selected (or none): show standard sub-tabs ──
+        return (
         <div className="flex flex-col w-full text-[1.05rem]">
             <div className="flex flex-row gap-6 mb-4 px-4 w-full">
                 {subTabs.filter((t: SubTabType) =>
                         (t !== 'conversations' || selectedGroup?.supportConvAnalysis)
-                        && t !== 'layered_assistants' // rendered via the 'group' special case
+                        && t !== 'edit_layered_assistant' // only shown when layered assistant is selected
                     )
                     .map((label: SubTabType) =>
                         label === 'group' ? (
@@ -455,7 +700,6 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                             Delete Assistant
                                         </button>
                                         <label className='ml-auto mt-2 text-sm flex flex-row gap-3 text-black dark:text-neutral-100'
-                                        // title={"Use the assistant id in "}
                                         >
                                             <div className={`mt-1.5 ${selectedAssistant?.data?.isPublished ? "bg-green-400 dark:bg-green-300" : "bg-gray-400 dark:bg-gray-500"}`}
                                                 style={{ width: '8px', height: '8px', borderRadius: '50%' }}></div>
@@ -479,23 +723,10 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                         Group Management
                                     </div>
                                 </button>}
-                                { activeSubTab !== 'layered_assistants' &&
-                                <button className={`h-[36px] rounded-xl ml-auto mr-[-16px] whitespace-nowrap transition-all duration-200`}
-                                    onClick={() => {
-                                        setActiveSubTab('layered_assistants');
-                                        setSelectedAssistant(undefined);
-                                    }}
-                                    title="Manage layered assistants for this group"
-                                >
-                                    <div className={`flex flex-row gap-1 text-sm text-white px-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 transition-all duration-200 py-2 rounded-lg shadow-sm`}>
-                                        <IconGitBranch className='mt-0.5' size={16} />
-                                        Layered Assistants
-                                    </div>
-                                </button>}
                             </React.Fragment>
                         ) :
                             (selectedAssistant ? (
-                                <button key={label} className={`${activeSubTab === label ? 'text-white flex flex-row gap-1 px-2 bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-200 ' : ' text-neutral-500 bg-gray-300 text-black dark:bg-gray-600 dark:text-white'} 
+                                <button key={label} className={`${activeSubTab === label ? 'text-white flex flex-row gap-1 px-2 bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-200 ' : ' text-neutral-500 bg-gray-300 text-black dark:bg-gray-600 dark:text-white'}
                                                                 rounded-md shadow-sm px-4 py-2 ${!selectedAssistant ? 'hidden' : 'visible'}`}
                                     onClick={() => setActiveSubTab(label)}>
                                     {formatLabel(label)}
@@ -504,8 +735,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                     )}
             </div>
         </div>
-
-    );
+        );
+    };
 
     const renderContent = () => {
         switch (activeSubTab) {
@@ -624,15 +855,90 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                 />
                     : null;
 
-            case 'layered_assistants':
-                return selectedGroup
-                    ? <GroupLayeredAssistants
-                        selectedGroup={selectedGroup}
-                        layeredAssistants={groupLayeredAssistants}
-                        isLoading={isLoadingLayeredAssistants}
-                        setLayeredAssistants={setGroupLayeredAssistants}
-                      />
-                    : null;
+            case 'edit_layered_assistant':
+                if (!selectedLayeredAssistant || !selectedGroup) return null;
+                return (
+                    <div key={`la_edit_${selectedLayeredAssistant.assistantId ?? selectedLayeredAssistant.name}`}
+                         className="flex flex-col h-full">
+                        {/* Builder fills all remaining space */}
+                        <div className="flex-1 min-h-0">
+                            <LayeredAssistantBuilder
+                                onClose={() => {}}
+                                onSave={async (la: LayeredAssistant) => {
+                                    const current = selectedLayeredAssistantRef.current;
+                                    const result = await handleLayeredAssistantSave({
+                                        ...la,
+                                        isPublished:         current?.isPublished,
+                                        model:               current?.model,
+                                        trackConversations:  current?.trackConversations,
+                                        supportConvAnalysis: current?.supportConvAnalysis,
+                                        analysisCategories:  current?.analysisCategories,
+                                    });
+                                    return result ?? null;
+                                }}
+                                onRegisterSave={(fn) => { laBuilderSaveFnRef.current = fn; }}
+                                initialData={selectedLayeredAssistant}
+                                assistants={groupAssistants}
+                                showSaveButton={true}
+                            />
+                        </div>
+                        {/* Config strip (publish, model, conv tracking) + Save button — always pinned to bottom */}
+                        <div className="flex-shrink-0 border-t border-gray-200 dark:border-neutral-600 flex flex-col">
+                            <div className="overflow-y-auto" style={{ maxHeight: '220px' }}>
+                                <LayeredAssistantConvConfigs
+                                    key={selectedLayeredAssistant.assistantId ?? selectedLayeredAssistant.name}
+                                    la={selectedLayeredAssistant}
+                                    onUpdate={(updated: LayeredAssistant) => setSelectedLayeredAssistant(updated)}
+                                    groupConvAnalysisSupport={!!selectedGroup.supportConvAnalysis}
+                                />
+                            </div>
+                            <div className="flex justify-end pt-2 pb-2 px-2 border-t border-gray-100 dark:border-neutral-700">
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        if (laBuilderSaveFnRef.current) laBuilderSaveFnRef.current();
+                                    }}
+                                    className="px-4 py-1.5 border rounded-lg shadow-md border-neutral-500 text-neutral-900 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-neutral-100 dark:text-black dark:hover:bg-neutral-300 transition-all duration-200 hover:scale-105 hover:shadow-lg font-medium"
+                                >
+                                    Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+
+            case 'la_dashboard': {
+                if (!selectedLayeredAssistant || !selectedGroup) return null;
+                // Build { assistantId → name } from the LA's leaf nodes so the chart shows names not IDs
+                const buildLeafNameMap = (node: LayeredAssistantNode): { [id: string]: string } => {
+                    if (isLeafNode(node)) return { [node.assistantId]: node.name };
+                    return (node.children || []).reduce((acc, child) => ({ ...acc, ...buildLeafNameMap(child) }), {} as { [id: string]: string });
+                };
+                const leafNameMap = buildLeafNameMap(selectedLayeredAssistant.rootNode);
+                return laDashboardMetrics ? (
+                    <Dashboard
+                        metrics={laDashboardMetrics}
+                        supportConvAnalysis={!!selectedLayeredAssistant.supportConvAnalysis}
+                        leafNameMap={leafNameMap}
+                    />
+                ) : (
+                    <div className="text-black dark:text-white text-center mt-8">
+                        No dashboard data yet for <strong>{selectedLayeredAssistant.name}</strong>.
+                        <br className="mb-2" />
+                        Enable conversation tracking in the Edit tab to start collecting data.
+                    </div>
+                );
+            }
+
+            case 'la_conversations':
+                if (!selectedLayeredAssistant || !selectedGroup) return null;
+                return (
+                    <ConversationTable
+                        conversations={laConversations}
+                        supportConvAnalysis={!!selectedLayeredAssistant.supportConvAnalysis}
+                        isLayeredAssistant={true}
+                    />
+                );
 
             default:
                 return null;
@@ -731,6 +1037,57 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                 </div>
 
                             )}
+
+                            {selectedGroup && showCreateLayeredAssistant && (
+                                <Modal
+                                    title={`Create New Layered Assistant for ${selectedGroup.name}`}
+                                    content={
+                                        <div className="flex flex-col h-full">
+                                            <div className="flex-1 min-h-0 overflow-hidden">
+                                                <LayeredAssistantBuilder
+                                                    onClose={() => setShowCreateLayeredAssistant(false)}
+                                                    onSave={async (la: LayeredAssistant) => {
+                                                        const merged = {
+                                                            ...la,
+                                                            isPublished:         newLayeredAssistant.isPublished,
+                                                            model:               newLayeredAssistant.model,
+                                                            trackConversations:  newLayeredAssistant.trackConversations,
+                                                            supportConvAnalysis: newLayeredAssistant.supportConvAnalysis,
+                                                            analysisCategories:  newLayeredAssistant.analysisCategories,
+                                                        };
+                                                        const result = await handleLayeredAssistantSave(merged);
+                                                        if (result) {
+                                                            setShowCreateLayeredAssistant(false);
+                                                            setSelectedLayeredAssistant(result);
+                                                            setActiveSubTab('edit_layered_assistant');
+                                                        }
+                                                        return result ?? null;
+                                                    }}
+                                                    onRegisterSave={(fn) => { laBuilderSaveFnRef.current = fn; }}
+                                                    assistants={groupAssistants}
+                                                />
+                                            </div>
+                                            <div className="flex-shrink-0 border-t border-gray-200 dark:border-neutral-600 overflow-y-auto" style={{ maxHeight: '220px' }}>
+                                                <LayeredAssistantConvConfigs
+                                                    la={newLayeredAssistant}
+                                                    onUpdate={(updated: LayeredAssistant) => setNewLayeredAssistant(updated)}
+                                                    groupConvAnalysisSupport={!!selectedGroup.supportConvAnalysis}
+                                                />
+                                            </div>
+                                        </div>
+                                    }
+                                    fullScreen={true}
+                                    onCancel={() => setShowCreateLayeredAssistant(false)}
+                                    onSubmit={() => { laBuilderSaveFnRef.current?.(); }}
+                                    showSubmit={true}
+                                    submitLabel="Save"
+                                    showCancel={true}
+                                    cancelLabel="Cancel"
+                                    showClose={true}
+                                    disableContentAnimation={true}
+                                />
+                            )}
+
                             <div key={`${selectedGroup?.id}_GroupSelect`}>
                                 <GroupSelect
                                     groups={adminGroups}
@@ -746,21 +1103,24 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                 <>
                                     <div key={`${selectedGroup?.id}_Assistants`}>
                                         <div className="mb-4 flex flex-row items-center justify-between bg-transparent rounded-t border-b border-neutral-400  dark:border-white/20">
-                                            {selectedGroup.assistants.length === 0 && <label className='text-center text-black dark:text-white text-lg'
+                                            {selectedGroup.assistants.length === 0 && groupLayeredAssistants.length === 0 && <label className='text-center text-black dark:text-white text-lg'
                                                 style={{ width: `${innderWindow.width * 0.75}px` }}>
                                                 You currently do not have any assistants in this group. </label>}
 
                                             <div className="overflow-hidden">
-                                                <div className="flex flex-row gap-1 flex-nowrap ml-2 pr-2">
-                                                    {selectedGroup.assistants.length > 0 && selectedGroup.assistants.map((ast: Prompt, index: number) => (
+                                                <div className="flex flex-row gap-1 flex-nowrap ml-2 pr-2 items-end">
+                                                    {/* ── Regular Assistant Tabs ── */}
+                                                    {selectedGroup.assistants.length > 0 && selectedGroup.assistants.map((ast: Prompt, index: number) => {
+                                                        const isActive = activeAstTab && activeAstTab === ast.data?.assistant?.definition.assistantId;
+                                                        return (
                                                         <button
-                                                            key={`${ast.name}_${index}`}
+                                                            key={`ast_${ast.name}_${index}`}
                                                             onClick={() => {
                                                                 setSelectedAssistant(ast)
                                                                 setActiveSubTab(DEFAULT_SUB_TAB);
                                                             }}
-                                                            title={selectedAssistant?.data?.isPublished ? 'Published' : 'Unpublished'}
-                                                            className={`group relative rounded-t-lg flex flex-shrink-0 overflow-hidden ${activeAstTab && activeAstTab === ast.data?.assistant?.definition.assistantId ? 
+                                                            title={ast?.data?.isPublished ? 'Published' : 'Unpublished'}
+                                                            className={`group relative rounded-t-lg flex flex-shrink-0 overflow-hidden ${isActive ?
                                                                        'px-4 py-2 text-blue-800 bg-blue-200 bg-opacity-50 dark:border-gray-500 dark:text-white shadow-sm font-medium scale-105' :
                                                                         'py-1 px-1.5 text-gray-400 dark:text-gray-600'}`}
                                                             style={{
@@ -768,46 +1128,105 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                                             }}
                                                         >
                                                             {/* Tab highlight effect */}
-                                                            <span className={`absolute inset-0 ${activeAstTab && activeAstTab === ast.data?.assistant?.definition.assistantId ? 'opacity-100' : 'opacity-0'} 
-                                                                transition-opacity duration-300 bg-gradient-to-br from-blue-100/50 to-blue-200/30 
+                                                            <span className={`absolute inset-0 ${isActive ? 'opacity-100' : 'opacity-0'}
+                                                                transition-opacity duration-300 bg-gradient-to-br from-blue-100/50 to-blue-200/30
                                                                 dark:from-blue-800/20 dark:to-blue-900/10`}></span>
-    
+
                                                             {/* Tab bottom border glow */}
                                                             <span className={`absolute bottom-0 left-0 right-0 h-1 transition-all duration-300 ${
-                                                                activeAstTab && activeAstTab === ast.data?.assistant?.definition.assistantId ? 'opacity-100' : 'opacity-0'
-                                                            }`} 
+                                                                isActive ? 'opacity-100' : 'opacity-0'
+                                                            }`}
                                                             style={{
-                                                                backgroundColor: activeAstTab && activeAstTab === ast.data?.assistant?.definition.assistantId ? 'rgb(10, 130, 221)' : 'transparent',
-                                                                boxShadow: activeAstTab && activeAstTab === ast.data?.assistant?.definition.assistantId ? '0 0 8px rgba(5, 129, 186, 0.58)' : 'none'
+                                                                backgroundColor: isActive ? 'rgb(10, 130, 221)' : 'transparent',
+                                                                boxShadow: isActive ? '0 0 8px rgba(5, 129, 186, 0.58)' : 'none'
                                                             }}></span>
-    
+
                                                             {/* Content wrapper */}
-                                                            <span className={`relative flex items-center justify-center transition-transform duration-300`}>
+                                                            <span className={`relative flex items-center gap-1.5 justify-center transition-transform duration-300`}>
                                                                 <h3 className="text-xl">{ast.name.charAt(0).toUpperCase() + ast.name.slice(1)}</h3>
                                                             </span>
                                                         </button>
+                                                    )})}
 
-                                                    ))
-                                                    }
+                                                    {/* ── Layered Assistant Tabs ── */}
+                                                    {groupLayeredAssistants.map((la, index) => {
+                                                        const isActive = !!(selectedLayeredAssistant && (
+                                                            (la.assistantId && la.assistantId === selectedLayeredAssistant.assistantId) ||
+                                                            (!la.assistantId && la.name === selectedLayeredAssistant.name)
+                                                        ));
+                                                        return (
+                                                        <button
+                                                            key={`la_${la.assistantId ?? la.name}_${index}`}
+                                                            onClick={() => {
+                                                                setSelectedLayeredAssistant(la);
+                                                                setActiveSubTab('edit_layered_assistant');
+                                                            }}
+                                                            title={la.description || 'Layered Assistant'}
+                                                            className={`group relative rounded-t-lg flex flex-shrink-0 overflow-hidden ${isActive ?
+                                                                       'px-4 py-2 text-purple-800 bg-purple-200 bg-opacity-50 dark:border-gray-500 dark:text-white shadow-sm font-medium scale-105' :
+                                                                        'py-1 px-1.5 text-gray-400 dark:text-gray-600'}`}
+                                                            style={{
+                                                                transition: 'background-color 300ms, color 300ms, transform 300ms, box-shadow 300ms, padding 300ms, opacity 300ms'
+                                                            }}
+                                                        >
+                                                            {/* Tab highlight effect */}
+                                                            <span className={`absolute inset-0 ${isActive ? 'opacity-100' : 'opacity-0'}
+                                                                transition-opacity duration-300 bg-gradient-to-br from-purple-100/50 to-purple-200/30
+                                                                dark:from-purple-800/20 dark:to-purple-900/10`}></span>
+
+                                                            {/* Tab bottom border glow */}
+                                                            <span className={`absolute bottom-0 left-0 right-0 h-1 transition-all duration-300 ${
+                                                                isActive ? 'opacity-100' : 'opacity-0'
+                                                            }`}
+                                                            style={{
+                                                                backgroundColor: isActive ? 'rgb(147, 51, 234)' : 'transparent',
+                                                                boxShadow: isActive ? '0 0 8px rgba(147, 51, 234, 0.58)' : 'none'
+                                                            }}></span>
+
+                                                            {/* Content wrapper */}
+                                                            <span className={`relative flex items-center gap-1.5 justify-center transition-transform duration-300`}>
+                                                                <IconGitBranch size={18} className={isActive ? 'text-purple-600 dark:text-purple-300' : ''} />
+                                                                <h3 className="text-xl">{(la.name || 'Untitled').charAt(0).toUpperCase() + (la.name || 'Untitled').slice(1)}</h3>
+                                                            </span>
+                                                        </button>
+                                                    )})}
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center mb-2">
+                                            <div className="flex items-center gap-2 mb-2">
                                                 <button
-                                                    className="flex flex-row gap-1 text-sm text-white px-4 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 py-2 rounded-lg shadow-sm"
+                                                    className="flex flex-row gap-1 text-sm text-white px-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 py-2 rounded-lg shadow-sm"
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();
                                                         setShowCreateGroupAssistant(selectedGroup.name);
                                                     }}
                                                 >
-                                                    <IconPlus className='mt-0.5 mr-2' size={16} /> Create Assistant
+                                                    <IconPlus className='mt-0.5' size={16} /> Assistant
+                                                </button>
+                                                <button
+                                                    className="flex flex-row gap-1 text-sm text-white px-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 transition-all duration-200 py-2 rounded-lg shadow-sm"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        setNewLayeredAssistant(createLayeredAssistant());
+                                                        setShowCreateLayeredAssistant(true);
+                                                    }}
+                                                    disabled={groupAssistants.length === 0}
+                                                    title={groupAssistants.length === 0 ? 'Add at least one group assistant first' : 'Create a new layered assistant'}
+                                                >
+                                                    <IconGitBranch className='mt-0.5' size={16} /> Layered Assistant
                                                 </button>
                                             </div>
                                         </div>
-                                        <div className='overflow-y-auto' style={{ maxHeight: 'calc(100% - 60px)' }}>
-                                            {renderSubTabs()}
-                                            {renderContent()}
+                                        <div className={selectedLayeredAssistant ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}
+                                             style={{ maxHeight: 'calc(100% - 60px)', height: selectedLayeredAssistant ? 'calc(100% - 60px)' : undefined }}>
+                                            <div className={selectedLayeredAssistant ? 'flex-shrink-0' : ''}>
+                                                {renderSubTabs()}
+                                            </div>
+                                            <div className={selectedLayeredAssistant ? 'flex-1 min-h-0 overflow-hidden' : ''}>
+                                                {renderContent()}
+                                            </div>
                                         </div>
                                     </div>
                                 </>
@@ -1045,6 +1464,145 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
         />
     </div>
 }
+
+// ── Layered Assistant config panel ────────────────────────────────────────────
+// Rendered below the LayeredAssistantBuilder in the admin UI.
+// Covers: publish, enforce model, conversation tracking & analysis.
+
+interface LayeredAssistantConvConfigsProps {
+    la: LayeredAssistant;
+    onUpdate: (updated: LayeredAssistant) => void;
+    groupConvAnalysisSupport: boolean;
+}
+
+const LayeredAssistantConvConfigs: FC<LayeredAssistantConvConfigsProps> = ({ la, onUpdate, groupConvAnalysisSupport }) => {
+    const { state: { availableModels } } = useContext(HomeContext);
+
+    const [isPublished,       setIsPublished]       = useState<boolean>(la.isPublished ?? false);
+    const [enforceModel,      setEnforceModel]       = useState<boolean>(!!la.model);
+    const [model,             setModel]              = useState<string | undefined>(la.model);
+    const [trackConversations, setTrackConversations] = useState<boolean>(la.trackConversations ?? false);
+    const [supportConvAnalysis, setSupportConvAnalysis] = useState<boolean>(la.supportConvAnalysis ?? false);
+    const [analysisCategories, setAnalysisCategories] = useState<string[]>(la.analysisCategories ?? []);
+    const buildUpdated = (overrides: Partial<LayeredAssistant>) => ({
+        ...la,
+        isPublished,
+        model,
+        trackConversations,
+        supportConvAnalysis,
+        analysisCategories,
+        ...overrides,
+    });
+
+    const checkAvailableModel = () => checkAvailableModelId(model, availableModels);
+
+    return (
+        <div className="px-2 pt-2 pb-1 flex flex-col gap-1.5">
+
+            {/* ── Publish & Model ── */}
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-neutral-400">
+                Visibility &amp; Model
+            </span>
+            <div className="mb-1 flex flex-row gap-3 text-[1.05rem]">
+                <Checkbox
+                    id="la_isPublished"
+                    label="Publish assistant to read-access members"
+                    checked={isPublished}
+                    onChange={(isChecked: boolean) => {
+                        setIsPublished(isChecked);
+                        onUpdate(buildUpdated({ isPublished: isChecked }));
+                    }}
+                />
+            </div>
+            <div className="mb-1 flex flex-row gap-3 text-[1rem]">
+                <Checkbox
+                    id="la_enforceModel"
+                    label="Enforce Model"
+                    checked={enforceModel}
+                    onChange={(isChecked: boolean) => {
+                        setEnforceModel(isChecked);
+                        const newModel = isChecked ? model : undefined;
+                        setModel(newModel);
+                        onUpdate(buildUpdated({ model: newModel }));
+                    }}
+                />
+            </div>
+            <div className={`ml-6 flex flex-col ${enforceModel ? '' : 'opacity-40'}`}>
+                All conversations will be set to this model and unable to be changed by the user.
+                <ModelSelect
+                    applyModelFilter={false}
+                    isTitled={false}
+                    modelId={checkAvailableModel()}
+                    outlineColor={enforceModel && !model ? 'red-500' : ''}
+                    isDisabled={!enforceModel}
+                    disableMessage=""
+                    handleModelChange={(m: string) => {
+                        setModel(m);
+                        onUpdate(buildUpdated({ model: m }));
+                    }}
+                />
+            </div>
+
+            {/* ── Conversation Tracking & Analysis ── */}
+            {groupConvAnalysisSupport && <>
+                <span className="mt-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-neutral-400">
+                    Conversation Tracking &amp; Analysis
+                </span>
+                {/* Column layout: Track first, then Analyze indented below */}
+                <div className="flex flex-col gap-1">
+                    <Checkbox
+                        id="la_trackConversations"
+                        label="Track Conversations"
+                        checked={trackConversations || supportConvAnalysis}
+                        onChange={(isChecked: boolean) => {
+                            setTrackConversations(isChecked);
+                            // Unchecking track also clears analyze
+                            const newAnalysis = isChecked ? supportConvAnalysis : false;
+                            if (!isChecked) setSupportConvAnalysis(false);
+                            onUpdate(buildUpdated({ trackConversations: isChecked, supportConvAnalysis: newAnalysis }));
+                        }}
+                    />
+                    {/* Analyze: only shown + enabled when track is on */}
+                    <div className={`ml-6 transition-opacity duration-150 ${trackConversations || supportConvAnalysis ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
+                        <Checkbox
+                            id="la_supportConvAnalysis"
+                            label="Analyze Conversations"
+                            checked={supportConvAnalysis}
+                            onChange={(isChecked: boolean) => {
+                                setSupportConvAnalysis(isChecked);
+                                onUpdate(buildUpdated({ supportConvAnalysis: isChecked }));
+                            }}
+                        />
+                    </div>
+                </div>
+                {supportConvAnalysis && (
+                    <div className="ml-1">
+                        <ExpansionComponent
+                            title="Manage Category List"
+                            content={
+                                <TagsList
+                                    label="Categories"
+                                    addMessage="List categories separated by commas:"
+                                    tags={analysisCategories}
+                                    setTags={(cats) => {
+                                        setAnalysisCategories(cats);
+                                        onUpdate(buildUpdated({ analysisCategories: cats }));
+                                    }}
+                                    removeTag={(cat) => {
+                                        const updated = analysisCategories.filter((c) => c !== cat);
+                                        setAnalysisCategories(updated);
+                                        onUpdate(buildUpdated({ analysisCategories: updated }));
+                                    }}
+                                    isDisabled={false}
+                                />
+                            }
+                        />
+                    </div>
+                )}
+            </>}
+        </div>
+    );
+};
 
 interface TypeProps {
     groupTypes: string[];

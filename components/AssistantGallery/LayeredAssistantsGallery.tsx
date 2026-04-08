@@ -112,7 +112,7 @@ const LayeredAssistantCard: FC<CardProps> = ({ la, onSelect, onEdit, onDelete, i
                 </div>
             </div>
 
-            {/* Hover action buttons - top right corner, icons only */}
+            {/* Hover action buttons - top right corner */}
             <div
                 className={`absolute top-3 right-3 flex items-center justify-end gap-1.5 transition-opacity duration-150 ${
                     hovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -155,6 +155,7 @@ export const LayeredAssistantsGallery: FC = () => {
     const [search, setSearch] = useState('');
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
+    // Personal layered assistants only — group LAs are shown in the Group Assistants tab
     const filtered = layeredAssistants.filter(la =>
         !search || la.name.toLowerCase().includes(search.toLowerCase())
     );
@@ -163,10 +164,10 @@ export const LayeredAssistantsGallery: FC = () => {
         setLoadingMessage('Saving layered assistant…');
         try {
             const result = await saveLayeredAssistant(la);
-            if (result?.success && result.data?.publicId) {
-                const saved: LayeredAssistant = { ...la, publicId: result.data.publicId };
-                const updated = layeredAssistants.some(x => x.publicId === saved.publicId)
-                    ? layeredAssistants.map(x => x.publicId === saved.publicId ? saved : x)
+            if (result?.success && result.data?.assistantId) {
+                const saved: LayeredAssistant = { ...la, assistantId: result.data.assistantId };
+                const updated = layeredAssistants.some(x => x.assistantId === saved.assistantId)
+                    ? layeredAssistants.map(x => x.assistantId === saved.assistantId ? saved : x)
                     : [...layeredAssistants, saved];
                 homeDispatch({ field: 'layeredAssistants', value: updated });
             }
@@ -178,20 +179,20 @@ export const LayeredAssistantsGallery: FC = () => {
     };
 
     const handleSelect = (la: LayeredAssistant) => {
-        if (!la.publicId) return;
+        if (!la.assistantId) return;
         const syntheticAssistant: Assistant = {
-            id: la.publicId,
+            id: la.assistantId,
             definition: {
                 name: la.name,
                 description: la.description,
-                assistantId: la.publicId,
+                assistantId: la.assistantId,
                 instructions: '',
                 tools: [],
                 tags: [],
                 fileKeys: [],
                 dataSources: [],
                 provider: AssistantProviderID.AMPLIFY,
-                data: { isLayeredAssistant: true },
+                data: { isLayeredAssistant: true, ...(la.model ? { model: la.model } : {}) },
             },
         };
         handleNewConversation({ assistant: syntheticAssistant });
@@ -211,14 +212,14 @@ export const LayeredAssistantsGallery: FC = () => {
     };
 
     const handleDelete = async (la: LayeredAssistant) => {
-        if (!la.publicId) return;
-        setDeletingId(la.publicId);
+        if (!la.assistantId) return;
+        setDeletingId(la.assistantId);
         try {
-            const result = await deleteLayeredAssistant(la.publicId);
+            const result = await deleteLayeredAssistant(la.assistantId);
             if (result?.success) {
                 homeDispatch({
                     field: 'layeredAssistants',
-                    value: layeredAssistants.filter(x => x.publicId !== la.publicId),
+                    value: layeredAssistants.filter(x => x.assistantId !== la.assistantId),
                 });
             }
         } catch (e) {
@@ -269,12 +270,12 @@ export const LayeredAssistantsGallery: FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                         {filtered.map(la => (
                             <LayeredAssistantCard
-                                key={la.publicId || la.id}
+                                key={la.assistantId ?? la.name}
                                 la={la}
                                 onSelect={handleSelect}
                                 onEdit={handleEdit}
                                 onDelete={handleDelete}
-                                isDeleting={deletingId === la.publicId}
+                                isDeleting={deletingId === la.assistantId}
                             />
                         ))}
                     </div>

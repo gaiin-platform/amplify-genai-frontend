@@ -652,6 +652,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
             open={showAssistantAdmin}
             openToGroup={astGroupModalData?.group}
             openToAssistant={astGroupModalData?.assistant}
+            openToLayeredAssistant={astGroupModalData?.layeredAssistant}
             tabToOpen={astGroupModalData?.tabToOpen}
         /> }
 

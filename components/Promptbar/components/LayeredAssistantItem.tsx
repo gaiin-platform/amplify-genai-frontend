@@ -3,15 +3,15 @@ import {
     IconTrash,
     IconCheck,
     IconX,
-    IconShare,
     IconGitBranch,
     IconLoader2,
     IconUsers,
 } from '@tabler/icons-react';
-import { MouseEventHandler, useContext, useMemo, useState } from 'react';
+import { MouseEventHandler, useContext, useEffect, useMemo, useState } from 'react';
 
 import HomeContext from '@/pages/api/home/home.context';
 import { LayeredAssistant, isGroupLayeredAssistant } from '@/types/layeredAssistant';
+import { Group } from '@/types/groups';
 import { Assistant, AssistantProviderID } from '@/types/assistant';
 import { Prompt } from '@/types/prompt';
 import { isAssistant } from '@/utils/app/assistants';
@@ -28,7 +28,7 @@ interface Props {
 
 export const LayeredAssistantItem = ({ layeredAssistant }: Props) => {
     const {
-        state: { layeredAssistants, prompts },
+        state: { layeredAssistants, prompts, groups, checkingItemType, checkedItems },
         dispatch: homeDispatch,
         setLoadingMessage,
         handleNewConversation,
@@ -37,9 +37,28 @@ export const LayeredAssistantItem = ({ layeredAssistant }: Props) => {
     const [isHovered, setIsHovered] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isWaitingDelete, setIsWaitingDelete] = useState(false);
+    const [showCheckbox, setShowCheckbox] = useState(false);
+    const [isChecked, setIsChecked] = useState(false);
+
+    useEffect(() => {
+        setShowCheckbox(checkingItemType === 'Prompts' && !isGroupLA);
+        if (checkingItemType === null) setIsChecked(false);
+    }, [checkingItemType]);
+
+    useEffect(() => {
+        setIsChecked(checkedItems.includes(layeredAssistant));
+    }, [checkedItems]);
+
+    const handleCheckboxChange = (checked: boolean) => {
+        if (checked) {
+            homeDispatch({ field: 'checkedItems', value: [...checkedItems, layeredAssistant] });
+        } else {
+            homeDispatch({ field: 'checkedItems', value: checkedItems.filter((i: any) => i !== layeredAssistant) });
+        }
+        setIsChecked(checked);
+    };
 
     const isGroupLA = isGroupLayeredAssistant(layeredAssistant);
-    console.log(layeredAssistant.publicId, " - ", isGroupLA)
 
     /**
      * For group LAs: only show the assistants from that specific group.
@@ -63,7 +82,7 @@ export const LayeredAssistantItem = ({ layeredAssistant }: Props) => {
 
     const handleConfirmDelete: MouseEventHandler<HTMLButtonElement> = async (e) => {
         e.stopPropagation();
-        if (!layeredAssistant.publicId) {
+        if (!layeredAssistant.assistantId) {
             setIsDeleting(false);
             return;
         }
@@ -74,17 +93,17 @@ export const LayeredAssistantItem = ({ layeredAssistant }: Props) => {
             if (isGroupLA && layeredAssistant.groupId) {
                 result = await deleteGroupLayeredAssistant(
                     layeredAssistant.groupId,
-                    layeredAssistant.publicId,
+                    layeredAssistant.assistantId!,
                 );
             } else {
-                result = await deleteLayeredAssistant(layeredAssistant.publicId);
+                result = await deleteLayeredAssistant(layeredAssistant.assistantId!);
             }
 
             if (result?.success) {
                 homeDispatch({
                     field: 'layeredAssistants',
                     value: layeredAssistants.filter(
-                        (x: LayeredAssistant) => x.publicId !== layeredAssistant.publicId,
+                        (x: LayeredAssistant) => x.assistantId !== layeredAssistant.assistantId,
                     ),
                 });
             } else {
@@ -100,42 +119,54 @@ export const LayeredAssistantItem = ({ layeredAssistant }: Props) => {
     };
 
     const handleSelect = () => {
-        if (!layeredAssistant.publicId) return;
+        if (!layeredAssistant.assistantId) return;
         const syntheticAssistant: Assistant = {
-            id: layeredAssistant.publicId,
+            id: layeredAssistant.assistantId,
             definition: {
                 name: layeredAssistant.name,
                 description: layeredAssistant.description,
-                assistantId: layeredAssistant.publicId,
+                assistantId: layeredAssistant.assistantId,
                 instructions: '',
                 tools: [],
                 tags: [],
                 fileKeys: [],
                 dataSources: [],
                 provider: AssistantProviderID.AMPLIFY,
-                data: { isLayeredAssistant: true },
+                data: { isLayeredAssistant: true, ...(layeredAssistant.model ? { model: layeredAssistant.model } : {}) },
             },
         };
         handleNewConversation({ assistant: syntheticAssistant });
     };
 
     const handleOpenBuilder = () => {
-        window.dispatchEvent(new CustomEvent('openLayeredBuilderTrigger', {
-            detail: {
-                isOpen: true,
-                data: {
-                    title: isGroupLA
-                        ? `Layered Assistant Builder — ${layeredAssistant.groupId ?? 'Group'}`
-                        : 'Layered Assistant Builder',
-                    initialData: layeredAssistant,
-                    assistants: builderAssistants,
-                    onSave: handleSave,
+        if (isGroupLA) {
+            // Open admin UI to this group's layered assistant tab
+            const group = groups.find((g: Group) => g.id === layeredAssistant.groupId);
+            window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', {
+                detail: {
+                    isOpen: true,
+                    data: {
+                        group,
+                        layeredAssistant,
+                    },
                 },
-            },
-        }));
+            }));
+        } else {
+            window.dispatchEvent(new CustomEvent('openLayeredBuilderTrigger', {
+                detail: {
+                    isOpen: true,
+                    data: {
+                        title: 'Layered Assistant Builder',
+                        initialData: layeredAssistant,
+                        assistants: builderAssistants,
+                        onSave: handleSave,
+                    },
+                },
+            }));
+        }
     };
 
-    const handleSave = async (la: LayeredAssistant) => {
+    const handleSave = async (la: LayeredAssistant): Promise<LayeredAssistant | null> => {
         setLoadingMessage('Saving layered assistant…');
         try {
             let result: any;
@@ -145,22 +176,29 @@ export const LayeredAssistantItem = ({ layeredAssistant }: Props) => {
                 result = await saveLayeredAssistant(la);
             }
 
-            if (result?.success && result.data?.publicId) {
-                const saved: LayeredAssistant = { ...la, publicId: result.data.publicId };
+            if (result?.success && result.data?.assistantId) {
+                const saved: LayeredAssistant = {
+                    ...la,
+                    assistantId: result.data.assistantId,
+                    astPath:     la.astPath,
+                    astPathData: la.astPathData,
+                };
                 const updated = layeredAssistants.some(
-                    (x: LayeredAssistant) => x.publicId === saved.publicId,
+                    (x: LayeredAssistant) => x.assistantId === saved.assistantId,
                 )
                     ? layeredAssistants.map((x: LayeredAssistant) =>
-                          x.publicId === saved.publicId ? saved : x,
+                          x.assistantId === saved.assistantId ? saved : x,
                       )
                     : [...layeredAssistants, saved];
                 homeDispatch({ field: 'layeredAssistants', value: updated });
+                return saved;
             }
         } catch (e) {
             console.error('Failed to save layered assistant:', e);
         } finally {
             setLoadingMessage('');
         }
+        return null;
     };
 
     return (
@@ -187,10 +225,7 @@ export const LayeredAssistantItem = ({ layeredAssistant }: Props) => {
                         <div className="pr-2 relative">
                             <IconGitBranch
                                 size={18}
-                                className={isGroupLA
-                                    ? 'text-teal-500 dark:text-teal-400'
-                                    : 'text-purple-500 dark:text-purple-400'
-                                }
+                                className="text-purple-500 dark:text-purple-400"
                             />
                         
                         </div>
@@ -200,7 +235,19 @@ export const LayeredAssistantItem = ({ layeredAssistant }: Props) => {
                     </div>
                 </button>
 
-                {isHovered && (
+                {/* Checkbox mode (kebab delete) — personal LAs only */}
+                {showCheckbox && (
+                    <div className="absolute right-2 z-10">
+                        <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => handleCheckboxChange(e.target.checked)}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </div>
+                )}
+
+                {!showCheckbox && isHovered && (
                     <div className="absolute top-1 right-0 flex-shrink-0 flex flex-row items-center space-y-0 bg-neutral-200 dark:bg-[#343541]/90 rounded">
                         {!isDeleting && (
                             <ActionButton
@@ -215,20 +262,8 @@ export const LayeredAssistantItem = ({ layeredAssistant }: Props) => {
                             </ActionButton>
                         )}
 
-                        {!isDeleting && (
-                            <ActionButton
-                                handleClick={(e) => {
-                                    e.stopPropagation();
-                                    // Share — stub for future implementation
-                                }}
-                                title="Share Layered Assistant"
-                                id="shareLayeredAssistant"
-                            >
-                                <IconShare size={18} />
-                            </ActionButton>
-                        )}
-
-                        {!isDeleting && (
+                        {/* Delete only for personal LAs — group LAs are managed via admin UI */}
+                        {!isGroupLA && !isDeleting && (
                             <ActionButton
                                 handleClick={handleOpenDeleteConfirm}
                                 title="Delete Layered Assistant"
@@ -238,7 +273,7 @@ export const LayeredAssistantItem = ({ layeredAssistant }: Props) => {
                             </ActionButton>
                         )}
 
-                        {isDeleting && (
+                        {!isGroupLA && isDeleting && (
                             <>
                                 <ActionButton
                                     handleClick={handleConfirmDelete}

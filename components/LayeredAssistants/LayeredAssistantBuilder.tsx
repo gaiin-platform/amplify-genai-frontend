@@ -1,10 +1,14 @@
-import { FC, useContext, useState, useMemo, useCallback, useEffect } from 'react';
+import { FC, useContext, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
     IconPlus, IconTrash, IconChevronRight,
     IconRobot, IconGitBranch, IconX,
-    IconWand, IconLoader2,
-    IconRoute, IconArrowRight, IconLayoutGrid, IconAlertCircle, IconEye
+    IconWand, IconLoader2, IconCheck,
+    IconRoute, IconArrowRight, IconLayoutGrid, IconAlertCircle, IconEye,
+    IconGripVertical, IconWorld, IconChevronDown,
 } from '@tabler/icons-react';
+import { addAssistantPath } from '@/services/assistantService';
+import AssistantPathEditor, { AstPathData, emptyAstPathData, isAstPathDataChanged } from '@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor';
+import { AttachedDocument } from '@/types/attacheddocument';
 import { AssistantModal } from '@/components/Promptbar/components/AssistantModal';
 import Search from '@/components/Search/Search';
 import toast from 'react-hot-toast';
@@ -214,50 +218,112 @@ interface TreeNodeProps {
     depth: number;
     selectedNodeId: string | null;
     onSelect: (id: string) => void;
+    rootNodeId: string;
+    // Drag & drop
+    dragNodeId: string | null;
+    dropTargetId: string | null;
+    dropPosition: DropPosition | null;
+    onDragStart: (nodeId: string) => void;
+    onDragEnd: () => void;
+    onDragOver: (e: React.DragEvent, nodeId: string) => void;
+    onDragLeave: () => void;
+    onDrop: (e: React.DragEvent) => void;
 }
 
-const TreeNode: FC<TreeNodeProps> = ({ node, depth, selectedNodeId, onSelect }) => {
+const TreeNode: FC<TreeNodeProps> = ({
+    node, depth, selectedNodeId, onSelect,
+    rootNodeId, dragNodeId, dropTargetId, dropPosition,
+    onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop,
+}) => {
     const isSelected = selectedNodeId === node.id;
     const isParent = isRouterNode(node);
     const color = getDepthColor(depth);
+    const isRoot = node.id === rootNodeId;
+    const isDragging = dragNodeId === node.id;
+    const isDropTarget = dropTargetId === node.id;
 
     return (
-        <div>
-            <button
-                onClick={() => onSelect(node.id)}
-                className={`group w-full flex items-center gap-2 py-1.5 rounded-lg text-left transition-all duration-150
-                    ${isSelected
-                        ? `${color.bg} ring-2 ${color.ring} shadow-sm`
-                        : 'hover:bg-gray-100 dark:hover:bg-[#40414F]'
-                    }`}
-                style={{ paddingLeft: `${depth * 16 + 8}px`, paddingRight: '8px' }}
+        <div className="relative">
+            {/* Drop indicator: BEFORE this node */}
+            {isDropTarget && dropPosition === 'before' && !isRoot && (
+                <div
+                    className="absolute left-0 right-0 h-0.5 bg-purple-500 dark:bg-purple-400 rounded-full z-10"
+                    style={{ top: '-1px', marginLeft: `${depth * 16 + 8}px`, marginRight: '8px' }}
+                />
+            )}
+
+            <div
+                draggable={!isRoot}
+                onDragStart={(e) => {
+                    if (isRoot) { e.preventDefault(); return; }
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', node.id);
+                    // Use timeout so the drag image captures the element before opacity change
+                    setTimeout(() => onDragStart(node.id), 0);
+                }}
+                onDragEnd={onDragEnd}
+                onDragOver={(e) => onDragOver(e, node.id)}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
             >
-                {/* Static chevron — visual only, no collapse */}
-                {isParent ? (
-                    <span className={`flex-shrink-0 ${color.text} opacity-60`}>
-                        <IconChevronRight size={13} />
+                <button
+                    onClick={() => onSelect(node.id)}
+                    className={`group w-full flex items-center gap-1.5 py-1.5 rounded-lg text-left transition-all duration-150
+                        ${isDragging ? 'opacity-40' : ''}
+                        ${isDropTarget && dropPosition === 'inside' && isParent
+                            ? 'ring-2 ring-purple-500 dark:ring-purple-400 bg-purple-50 dark:bg-purple-900/30 shadow-sm'
+                            : isSelected
+                                ? `${color.bg} ring-2 ${color.ring} shadow-sm`
+                                : 'hover:bg-gray-100 dark:hover:bg-[#40414F]'
+                        }`}
+                    style={{ paddingLeft: `${depth * 16 + (isRoot ? 8 : 0)}px`, paddingRight: '8px' }}
+                >
+                    {/* Drag handle — not on root */}
+                    {!isRoot ? (
+                        <span
+                            className="flex-shrink-0 cursor-grab active:cursor-grabbing text-gray-400 dark:text-neutral-500
+                                       opacity-0 group-hover:opacity-70 hover:!opacity-100 transition-opacity p-0.5"
+                            onMouseDown={(e) => e.stopPropagation()}
+                        >
+                            <IconGripVertical size={12} />
+                        </span>
+                    ) : null}
+
+                    {/* Static chevron — visual only, no collapse */}
+                    {isParent ? (
+                        <span className={`flex-shrink-0 ${color.text} opacity-60`}>
+                            <IconChevronRight size={13} />
+                        </span>
+                    ) : (
+                        <span className="w-[13px] flex-shrink-0" />
+                    )}
+
+                    <span className={`flex-shrink-0 p-1 rounded-md ${color.iconBg}`}>
+                        {isParent
+                            ? <IconRoute size={15} className={color.text} />
+                            : <IconRobot size={15} className={color.text} />
+                        }
                     </span>
-                ) : (
-                    <span className="w-[13px] flex-shrink-0" />
-                )}
 
-                <span className={`flex-shrink-0 p-1 rounded-md ${color.iconBg}`}>
-                    {isParent
-                        ? <IconRoute size={15} className={color.text} />
-                        : <IconRobot size={15} className={color.text} />
-                    }
-                </span>
-
-                <span className={`truncate font-medium text-xs ${isSelected ? color.text : 'text-gray-700 dark:text-neutral-100'}`}>
-                    {node.name || (isParent ? 'Unnamed Parent' : 'Unnamed Assistant')}
-                </span>
-
-                {isParent && (node as RouterNode).children.length > 0 && (
-                    <span className="ml-auto flex-shrink-0 text-[9px] px-1.5 py-0.5 rounded-full bg-gray-200 dark:bg-[#40414F] text-gray-600 dark:text-neutral-300">
-                        {(node as RouterNode).children.length}
+                    <span className={`truncate font-medium text-xs ${isSelected ? color.text : 'text-gray-700 dark:text-neutral-100'}`}>
+                        {node.name || (isParent ? 'Unnamed Parent' : 'Unnamed Assistant')}
                     </span>
-                )}
-            </button>
+
+                    {isParent && (node as RouterNode).children.length > 0 && (
+                        <span className="ml-auto flex-shrink-0 text-[9px] px-1.5 py-0.5 rounded-full bg-gray-200 dark:bg-[#40414F] text-gray-600 dark:text-neutral-300">
+                            {(node as RouterNode).children.length}
+                        </span>
+                    )}
+                </button>
+            </div>
+
+            {/* Drop indicator: AFTER this node (only for leaf nodes or routers with no children) */}
+            {isDropTarget && dropPosition === 'after' && (!isParent || (node as RouterNode).children.length === 0) && (
+                <div
+                    className="absolute left-0 right-0 h-0.5 bg-purple-500 dark:bg-purple-400 rounded-full z-10"
+                    style={{ bottom: '-1px', marginLeft: `${depth * 16 + 8}px`, marginRight: '8px' }}
+                />
+            )}
 
             {/* Always expanded */}
             {isParent && (node as RouterNode).children.length > 0 && (
@@ -268,8 +334,20 @@ const TreeNode: FC<TreeNodeProps> = ({ node, depth, selectedNodeId, onSelect }) 
                     />
                     {(node as RouterNode).children.map((child) => (
                         <TreeNode key={child.id} node={child} depth={depth + 1}
-                            selectedNodeId={selectedNodeId} onSelect={onSelect} />
+                            selectedNodeId={selectedNodeId} onSelect={onSelect}
+                            rootNodeId={rootNodeId}
+                            dragNodeId={dragNodeId} dropTargetId={dropTargetId} dropPosition={dropPosition}
+                            onDragStart={onDragStart} onDragEnd={onDragEnd}
+                            onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
+                        />
                     ))}
+                    {/* Drop indicator: AFTER last child of this router */}
+                    {isDropTarget && dropPosition === 'after' && (
+                        <div
+                            className="absolute left-0 right-0 h-0.5 bg-purple-500 dark:bg-purple-400 rounded-full z-10"
+                            style={{ bottom: '-1px', marginLeft: `${(depth + 1) * 16 + 8}px`, marginRight: '8px' }}
+                        />
+                    )}
                 </div>
             )}
         </div>
@@ -358,13 +436,14 @@ const RuleBanner: FC<{ message: string }> = ({ message }) => (
 // ─── Main Builder ─────────────────────────────────────────────────────
 interface LayeredAssistantBuilderProps {
     onClose: () => void;
-    onSave?: (layeredAssistant: LayeredAssistant) => void;
+    onSave?: (layeredAssistant: LayeredAssistant) => Promise<LayeredAssistant | null> | void;
     initialData?: LayeredAssistant;
     onRegisterSave?: (saveFn: () => void) => void; // modal parent registers this to trigger save
     assistants?: Prompt[];  // optional override — if omitted, uses personal assistants from context
+    showSaveButton?: boolean; // save button is now in the parent — this prop switches height to 100%
 }
 
-export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onClose, onSave, initialData, onRegisterSave, assistants: propAssistants }) => {
+export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onClose, onSave, initialData, onRegisterSave, assistants: propAssistants, showSaveButton }) => {
     const {
         state: { prompts, chatEndpoint, defaultAccount },
         getDefaultModel,
@@ -380,6 +459,31 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
     const [saveWarnings, setSaveWarnings] = useState<string[]>([]);
     const [showSaveWarnings, setShowSaveWarnings] = useState(false);
     const [previewAssistant, setPreviewAssistant] = useState<Prompt | null>(null);
+
+    // ── Drag & Drop state ────────────────────────────────────────────
+    const [dragNodeId, setDragNodeId] = useState<string | null>(null);
+    const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+    const [dropPosition, setDropPosition] = useState<DropPosition | null>(null);
+    const dragCounter = useRef(0); // Track enter/leave balance for nested elements
+
+    // ── Publish path state (mirrors AssistantModal wiring) ──────────
+    const savedAstPath = (initialData as any)?.astPath || (initialData as any)?.data?.astPath || null;
+    // Auto-open if the LA already has a published path
+    const [showPublishPanel, setShowPublishPanel] = useState(!!savedAstPath);
+    const [astPath, setAstPath] = useState<string | null>(savedAstPath || null);
+    const [astIcon, setAstIcon] = useState<AttachedDocument | undefined>((initialData as any)?.data?.astIcon);
+    const [isPathAvailable, setIsPathAvailable] = useState<boolean>(!!savedAstPath);
+    const [isCheckingPath, setIsCheckingPath] = useState(false);
+    const initialAstPathData: AstPathData = (initialData as any)?.astPathData ?? emptyAstPathData;
+    const [astPathData, setAstPathData] = useState<AstPathData | null>(initialAstPathData);
+    const originalAstPathData = useRef<AstPathData | null>(initialAstPathData);
+
+    const clearDragState = useCallback(() => {
+        setDragNodeId(null);
+        setDropTargetId(null);
+        setDropPosition(null);
+        dragCounter.current = 0;
+    }, []);
 
     const flashRule = (msg: string) => {
         setRuleViolation(msg);
@@ -518,6 +622,139 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
         });
     };
 
+    // ── Drag & Drop move handler ─────────────────────────────────────
+    const handleMoveNode = useCallback(() => {
+        if (!dragNodeId || !dropTargetId || !dropPosition) return;
+        const root = layeredAssistant.rootNode;
+
+        // 1. Can't drag root
+        if (dragNodeId === root.id) return;
+        // 2. Can't drop on self
+        if (dragNodeId === dropTargetId) return;
+        // 3. Can't drop inside a leaf
+        if (dropPosition === 'inside') {
+            const target = findNode(dropTargetId);
+            if (!target || !isRouterNode(target.node)) return;
+        }
+        // 4. Can't drop a router into its own descendant (circular)
+        const dragResult = findNode(dragNodeId);
+        if (!dragResult || !dragResult.parent) return;
+        if (isRouterNode(dragResult.node) && isDescendantOf(dropTargetId, dragNodeId, root)) return;
+
+        // 5. Resolve destination { parentId, index }
+        const dest = resolveDropDestination(root, dropTargetId, dropPosition, (id) =>
+            findNode(id, root, null)
+        );
+        if (!dest) return;
+
+        // 6. No-op check: same parent, same effective position
+        const sourceParent = dragResult.parent;
+        if (sourceParent.id === dest.parentId) {
+            const currentIdx = sourceParent.children.findIndex(c => c.id === dragNodeId);
+            // After removal, indices shift — compute effective insert index
+            let effectiveIdx = dest.index;
+            if (currentIdx < dest.index) effectiveIdx -= 1;
+            if (currentIdx === effectiveIdx) return; // same spot
+        }
+
+        // 7. Apply: remove, then insert
+        const afterRemove = removeNodeFromTree(root, dragNodeId);
+
+        // Recompute destination index post-removal (indices may have shifted)
+        const freshDest = resolveDropDestination(afterRemove, dropTargetId, dropPosition, (id) => {
+            // Inline findNode on the post-removal tree
+            const walk = (n: LayeredAssistantNode, p: RouterNode | null): { node: LayeredAssistantNode; parent: RouterNode | null } | null => {
+                if (n.id === id) return { node: n, parent: p };
+                if (isRouterNode(n)) {
+                    for (const ch of (n as RouterNode).children) {
+                        const r = walk(ch, n as RouterNode);
+                        if (r) return r;
+                    }
+                }
+                return null;
+            };
+            return walk(afterRemove, null);
+        });
+        if (!freshDest) return;
+
+        const newRoot = insertNodeInTree(afterRemove, freshDest.parentId, dragResult.node, freshDest.index);
+
+        setLayeredAssistant(prev => ({
+            ...prev,
+            updatedAt: new Date().toISOString(),
+            rootNode: newRoot,
+        }));
+        // selectedNodeId stays valid — the node still exists with same id
+    }, [dragNodeId, dropTargetId, dropPosition, layeredAssistant, findNode]);
+
+    // Drag event callbacks passed to TreeNode
+    const handleTreeDragStart = useCallback((nodeId: string) => {
+        setDragNodeId(nodeId);
+    }, []);
+
+    const handleTreeDragEnd = useCallback(() => {
+        // Just clean up — the actual move happens in handleTreeDrop
+        clearDragState();
+    }, [clearDragState]);
+
+    const handleTreeDragOver = useCallback((e: React.DragEvent, nodeId: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!dragNodeId || nodeId === dragNodeId) return;
+
+        // Determine drop position based on mouse Y within the element
+        const rect = e.currentTarget.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+        const height = rect.height;
+        const quarter = height / 4;
+
+        let pos: DropPosition;
+        if (y < quarter) {
+            pos = 'before';
+        } else if (y > height - quarter) {
+            pos = 'after';
+        } else {
+            pos = 'inside';
+        }
+
+        // If target is a leaf, 'inside' is not valid — use before/after instead
+        const targetResult = findNode(nodeId);
+        if (targetResult && isLeafNode(targetResult.node) && pos === 'inside') {
+            pos = y < height / 2 ? 'before' : 'after';
+        }
+
+        // If target is the root, only 'inside' makes sense (can't reorder before/after root)
+        if (nodeId === layeredAssistant.rootNode.id && pos !== 'inside') {
+            pos = 'inside';
+        }
+
+        // Block dropping a router on its own descendant
+        if (dragNodeId) {
+            const dragResult = findNode(dragNodeId);
+            if (dragResult && isRouterNode(dragResult.node)) {
+                if (isDescendantOf(nodeId, dragNodeId, layeredAssistant.rootNode)) {
+                    e.dataTransfer.dropEffect = 'none';
+                    return;
+                }
+            }
+        }
+
+        e.dataTransfer.dropEffect = 'move';
+        setDropTargetId(nodeId);
+        setDropPosition(pos);
+    }, [dragNodeId, findNode, layeredAssistant.rootNode]);
+
+    const handleTreeDragLeave = useCallback(() => {
+        // Don't clear immediately — onDragOver on a new node will override
+    }, []);
+
+    const handleTreeDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        handleMoveNode();
+        clearDragState();
+    }, [handleMoveNode, clearDragState]);
+
     // ── AI Generation ─────────────────────────────────────────────────
     const buildAssistantSummary = (prompt: Prompt): string => {
         const def = getAssistant(prompt);
@@ -637,15 +874,65 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
         if (onRegisterSave) onRegisterSave(handleSave);
     }, [handleSave, onRegisterSave]);
 
-    const commitSave = () => {
-        if (onSave) onSave({ ...layeredAssistant, updatedAt: new Date().toISOString() });
-        // toast.success(`"${layeredAssistant.name}" saved successfully!`, { duration: 3000 });
-        onClose();
+    const commitSave = async () => {
+        try {
+            const updatedLA = { ...layeredAssistant, updatedAt: new Date().toISOString() };
+
+            let resolvedAstPath: string | undefined = savedAstPath ?? undefined;
+            const wantsToPublish = !!(astPath && isPathAvailable && !isCheckingPath);
+            let assistantId = updatedLA.assistantId;
+
+            // For a brand-new LA (no assistantId yet) that wants a publish path:
+            // save first to get the assistantId, then publish the path.
+            if (wantsToPublish && !assistantId && onSave) {
+                const saved = await onSave({ ...updatedLA, astPath: undefined, astPathData: astPathData ?? undefined, data: { ...(updatedLA.data ?? {}), astIcon } });
+                if (saved?.assistantId) assistantId = saved.assistantId;
+            }
+
+            // Publish the path if we have an assistantId and a valid new/changed path
+            if (assistantId && wantsToPublish) {
+                const formattedPath = astPath!.toLowerCase();
+                if (formattedPath !== (savedAstPath || '').toLowerCase() || isAstPathDataChanged(astPathData, originalAstPathData.current)) {
+                    try {
+                        const pathResult = await addAssistantPath(
+                            assistantId,
+                            formattedPath,
+                            updatedLA.groupId,
+                            astPathData?.isPublic ?? true,
+                            astPathData?.accessTo,
+                        );
+                        if (pathResult.success) {
+                            resolvedAstPath = formattedPath;
+                            toast.success(`Published at /assistants/${formattedPath}`, { duration: 3500 });
+                        } else {
+                            toast.error(pathResult.message || 'Failed to publish path.', { duration: 4000 });
+                        }
+                    } catch (e: any) {
+                        toast.error('Failed to publish path.', { duration: 4000 });
+                    }
+                }
+            }
+
+            // Final save with resolved path (always called unless we already called onSave for
+            // a new LA with publish — in that case we still call it again to persist the path)
+            if (onSave) await onSave({
+                ...updatedLA,
+                assistantId,
+                astPath: resolvedAstPath,
+                astPathData: astPathData ?? undefined,
+                data: { ...(updatedLA.data ?? {}), astIcon },
+            });
+
+            onClose();
+        } catch (e) {
+            console.error('Save failed:', e);
+        }
     };
 
     // ── Render ────────────────────────────────────────────────────────
     return (
-        <div className="flex flex-col overflow-hidden" style={{ height: 'calc(85vh)' }}>
+        <div className="relative flex flex-col overflow-hidden" style={{ height: showSaveButton ? '100%' : 'calc(85vh)', minHeight: 0 }}>
+
 
             {/* Assistant preview modal */}
             {previewAssistant && (
@@ -697,6 +984,18 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
                         
                     </div>
 
+            </div>
+
+            {/* Description row */}
+            <div className="flex items-center gap-2 mb-3 px-1 flex-shrink-0">
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 flex-shrink-0">Description:</span>
+                <input
+                    type="text"
+                    value={layeredAssistant.description}
+                    onChange={(e) => setLayeredAssistant(prev => ({ ...prev, description: e.target.value }))}
+                    className="flex-1 text-xs bg-transparent border border-gray-200 dark:border-neutral-600 rounded-md px-2 py-1 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 outline-none focus:border-purple-400 dark:focus:border-purple-500 transition-colors"
+                    placeholder="What does this layered assistant do? (optional)"
+                />
             </div>
 
             {/* Rule violation banner */}
@@ -772,12 +1071,25 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
                     </div>
 
                     {/* Tree */}
-                    <div className="flex-1 overflow-y-auto p-2 space-y-0.5 min-h-0">
+                    <div
+                        className="flex-1 overflow-y-auto p-2 space-y-0.5 min-h-0"
+                        onDragOver={(e) => { e.preventDefault(); }}
+                        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleMoveNode(); clearDragState(); }}
+                    >
                         <TreeNode
                             node={layeredAssistant.rootNode}
                             depth={0}
                             selectedNodeId={selectedNodeId}
                             onSelect={setSelectedNodeId}
+                            rootNodeId={layeredAssistant.rootNode.id}
+                            dragNodeId={dragNodeId}
+                            dropTargetId={dropTargetId}
+                            dropPosition={dropPosition}
+                            onDragStart={handleTreeDragStart}
+                            onDragEnd={handleTreeDragEnd}
+                            onDragOver={handleTreeDragOver}
+                            onDragLeave={handleTreeDragLeave}
+                            onDrop={handleTreeDrop}
                         />
                     </div>
 
@@ -1044,10 +1356,13 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
                                                     const cd = getNodeDepthLocal(child.id);
                                                     const cc = getDepthColor(cd);
                                                     return (
-                                                        <button
+                                                        <div
                                                             key={child.id}
+                                                            role="button"
+                                                            tabIndex={0}
                                                             onClick={() => setSelectedNodeId(child.id)}
-                                                            className={`group relative text-left px-3 py-3 rounded-xl border transition-all duration-150
+                                                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedNodeId(child.id); } }}
+                                                            className={`group relative text-left px-3 py-3 rounded-xl border transition-all duration-150 cursor-pointer
                                                                 ${child.id === selectedNodeId
                                                                     ? `${cc.bg} ring-2 ${cc.ring}`
                                                                     : 'border-gray-200 dark:border-neutral-600 hover:border-purple-500 dark:hover:border-purple-400 hover:shadow-md bg-white dark:bg-[#40414F]'
@@ -1080,7 +1395,7 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
                                                                     Configure <IconArrowRight size={8} />
                                                                 </span>
                                                             </div>
-                                                        </button>
+                                                        </div>
                                                     );
                                                 })}
                                             </div>
@@ -1154,6 +1469,45 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
                 </div>
 
             </div>
+              {/* ── Publish path (available on create and edit) ── */}
+              <div className="mx-1 my-4 flex-shrink-0">
+                    {/* Toggle button */}
+                    <button
+                        onClick={() => setShowPublishPanel(p => !p)}
+                        className={`ml-auto h-0 flex items-center mr-10 gap-1.5 px-2.5 py-1 rounded-lg text-[13px] font-semibold transition-colors
+                            ${ showPublishPanel
+                                ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'
+                                : 'bg-gray-100 dark:bg-[#2b2c36] text-gray-500 dark:text-gray-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400'
+                            }`}
+                    >
+                        <IconWorld size={16} />
+                        {savedAstPath ? `Published: /assistants/${savedAstPath}` : 'Publish at Path'}
+                        <IconChevronDown size={14} className={`transition-transform ${showPublishPanel ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {/* Expandable editor */}
+                    {showPublishPanel && (
+                        <div className="mt-2 px-1">
+                            <AssistantPathEditor
+                                assistantId={layeredAssistant.assistantId}
+                                savedAstPath={savedAstPath ?? undefined}
+                                astPath={astPath}
+                                setAstPath={setAstPath}
+                                astIcon={astIcon}
+                                setAstIcon={setAstIcon}
+                                isPathAvailable={isPathAvailable}
+                                setIsPathAvailable={setIsPathAvailable}
+                                isCheckingPath={isCheckingPath}
+                                setIsCheckingPath={setIsCheckingPath}
+                                astPathData={astPathData}
+                                setAstPathData={setAstPathData}
+                                groupId={layeredAssistant.groupId}
+                            />
+                        </div>
+                    )}
+            </div>
+
+
         </div>
     );
 };
@@ -1179,6 +1533,89 @@ function getNodeDepth(nodeId: string, root: LayeredAssistantNode, d: number = 0)
         }
     }
     return -1;
+}
+
+// ─── Drag & Drop tree helpers (pure, no hooks) ───────────────────────
+
+/** True if `ancestorId` is a proper ancestor of `nodeId` in the tree. */
+function isDescendantOf(nodeId: string, ancestorId: string, root: LayeredAssistantNode): boolean {
+    if (root.id === ancestorId && ancestorId !== nodeId) {
+        // We're inside the ancestor — now check if nodeId lives below
+        return containsNode(nodeId, root);
+    }
+    if (isRouterNode(root)) {
+        for (const child of root.children) {
+            if (isDescendantOf(nodeId, ancestorId, child)) return true;
+        }
+    }
+    return false;
+}
+
+function containsNode(nodeId: string, subtree: LayeredAssistantNode): boolean {
+    if (subtree.id === nodeId) return true;
+    if (isRouterNode(subtree)) {
+        return subtree.children.some(c => containsNode(nodeId, c));
+    }
+    return false;
+}
+
+/** Immutably remove a node by id from the tree. Returns a new root. */
+function removeNodeFromTree(root: RouterNode, nodeId: string): RouterNode {
+    return {
+        ...root,
+        children: root.children
+            .filter(c => c.id !== nodeId)
+            .map(c => isRouterNode(c) ? removeNodeFromTree(c as RouterNode, nodeId) : c),
+    };
+}
+
+/**
+ * Immutably insert `node` into `parentId`'s children at `index`.
+ * Returns a new root.
+ */
+function insertNodeInTree(
+    root: RouterNode, parentId: string, node: LayeredAssistantNode, index: number
+): RouterNode {
+    if (root.id === parentId) {
+        const kids = [...root.children];
+        kids.splice(index, 0, node);
+        return { ...root, children: kids };
+    }
+    return {
+        ...root,
+        children: root.children.map(c =>
+            isRouterNode(c) ? insertNodeInTree(c as RouterNode, parentId, node, index) : c
+        ),
+    };
+}
+
+type DropPosition = 'before' | 'after' | 'inside';
+
+/**
+ * Resolves drop target + position to { parentId, index } — where the node should be inserted.
+ * Returns null if the drop is invalid.
+ */
+function resolveDropDestination(
+    root: RouterNode,
+    dropTargetId: string,
+    position: DropPosition,
+    findNodeFn: (id: string) => { node: LayeredAssistantNode; parent: RouterNode | null } | null,
+): { parentId: string; index: number } | null {
+    if (position === 'inside') {
+        const target = findNodeFn(dropTargetId);
+        if (!target || !isRouterNode(target.node)) return null;
+        return { parentId: dropTargetId, index: (target.node as RouterNode).children.length };
+    }
+    // 'before' | 'after' — insert relative to a sibling
+    const target = findNodeFn(dropTargetId);
+    if (!target || !target.parent) return null;
+    const siblings = target.parent.children;
+    const idx = siblings.findIndex(c => c.id === dropTargetId);
+    if (idx === -1) return null;
+    return {
+        parentId: target.parent.id,
+        index: position === 'before' ? idx : idx + 1,
+    };
 }
 
 export default LayeredAssistantBuilder;

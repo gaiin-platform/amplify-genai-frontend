@@ -230,6 +230,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
             
             // dont show assistant icons in the data source table
             const items = result.data.items || [];
+            console.log("Items", items);
             const updatedWithCommonNames = items.map((file: any) => {
                 const commonName = mimeTypeToCommonName[file.type];
                 return {

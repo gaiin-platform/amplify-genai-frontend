@@ -77,8 +77,8 @@ export const AssistantSelect: FC<Props> = ({
     const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const val = e.target.value;
         if (val.startsWith(LA_PREFIX)) {
-            const publicId = val.slice(LA_PREFIX.length);
-            const la = layeredAssistants.find(x => x.publicId === publicId);
+            const aId = val.slice(LA_PREFIX.length);
+            const la = layeredAssistants.find(x => x.assistantId === aId);
             if (la && onLayeredAssistantChange) onLayeredAssistantChange(la);
         } else {
             onAssistantChange(
@@ -124,8 +124,8 @@ export const AssistantSelect: FC<Props> = ({
                         <optgroup label="── Layered Assistants ──" className="dark:bg-[#343541] dark:text-white">
                             {layeredAssistants.map((la) => (
                                 <option
-                                    key={la.publicId || la.id}
-                                    value={`${LA_PREFIX}${la.publicId}`}
+                                    key={la.assistantId ?? la.name}
+                                    value={`${LA_PREFIX}${la.assistantId}`}
                                     className="dark:bg-[#343541] dark:text-white"
                                 >
                                     {la.name}

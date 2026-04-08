@@ -13,10 +13,10 @@ export const LayeredAssistantButton: FC = () => {
     const handleSave = async (la: LayeredAssistant) => {
         try {
             const result = await saveLayeredAssistant(la);
-            if (result?.success && result.data?.publicId) {
-                const saved: LayeredAssistant = { ...la, publicId: result.data.publicId };
-                const updated = layeredAssistants.some(x => x.publicId === saved.publicId)
-                    ? layeredAssistants.map(x => x.publicId === saved.publicId ? saved : x)
+            if (result?.success && result.data?.assistantId) {
+                const saved: LayeredAssistant = { ...la, assistantId: result.data.assistantId };
+                const updated = layeredAssistants.some(x => x.assistantId === saved.assistantId)
+                    ? layeredAssistants.map(x => x.assistantId === saved.assistantId ? saved : x)
                     : [...layeredAssistants, saved];
                 homeDispatch({ field: 'layeredAssistants', value: updated });
             }

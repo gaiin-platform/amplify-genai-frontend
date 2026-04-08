@@ -1,5 +1,5 @@
 import { FC, useContext, useState, useRef, useEffect } from 'react';
-import { IconRobot, IconUsers, IconSparkles, IconChevronDown, IconSettingsBolt, IconGitBranch } from '@tabler/icons-react';
+import { IconRobot, IconUsers, IconSparkles, IconChevronDown, IconSettingsBolt, IconGitBranch, IconEdit } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { Group, GroupAccessType } from '@/types/groups';
 import { Prompt } from '@/types/prompt';
@@ -362,8 +362,27 @@ export const GroupAssistantsGallery: FC<GroupAssistantsGalleryProps> = () => {
                                                             </button>
                                                         )}
 
-                                                        {/* Subtle hover indicator (arrow) */}
-                                                        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                                        {/* Edit button - only shown on hover if user has admin access */}
+                                                        {hasAdminAccess && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', {
+                                                                        detail: {
+                                                                            isOpen: true,
+                                                                            data: { group, assistant }
+                                                                        }
+                                                                    }));
+                                                                }}
+                                                                title={`Edit ${assistant.name}`}
+                                                                className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-purple-100 dark:hover:bg-purple-900/20 shadow-sm transition-all duration-200"
+                                                            >
+                                                                <IconEdit size={15} className="text-purple-500" />
+                                                            </button>
+                                                        )}
+
+                                                        {/* Subtle hover indicator (arrow) - hidden when edit button is shown */}
+                                                        <div className={`absolute top-3 right-3 transition-all duration-300 ${hasAdminAccess ? 'hidden' : 'opacity-0 group-hover:opacity-100'}`}>
                                                             <div className={`flex h-6 w-6 items-center justify-center rounded-full ${color.bg} shadow-sm`}>
                                                                 <svg
                                                                     className={`h-3 w-3 ${color.icon}`}
@@ -391,24 +410,35 @@ export const GroupAssistantsGallery: FC<GroupAssistantsGalleryProps> = () => {
                                                     <>
                                                         {filteredLayeredAssistants.map((la: LayeredAssistant) => (
                                                             <div
-                                                                key={la.publicId || la.id}
+                                                                key={la.assistantId ?? la.name}
                                                                 className={`group relative w-full rounded-xl border ${color.border} bg-white dark:bg-[#191d2b] p-4 hover:shadow-xl transition-all duration-300 overflow-hidden`}
                                                             >
                                                                 {/* Soft color accent bar on left */}
                                                                 <div className={`absolute left-0 top-0 bottom-0 w-1 ${color.accent}`} />
 
-                                                                {/* Main clickable area - opens admin interface */}
+                                                                {/* Main clickable area - starts a conversation */}
                                                                 <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', {
-                                                                            detail: {
-                                                                                isOpen: true,
-                                                                                data: { group, tabToOpen: 'layered' }
-                                                                            }
-                                                                        }));
+                                                                    onClick={() => {
+                                                                        if (!la.assistantId) return;
+                                                                        handleNewConversation({
+                                                                            assistant: {
+                                                                                id: la.assistantId,
+                                                                                definition: {
+                                                                                    name: la.name,
+                                                                                    description: la.description,
+                                                                                    assistantId: la.assistantId,
+                                                                                    instructions: '',
+                                                                                    tools: [],
+                                                                                    tags: [],
+                                                                                    fileKeys: [],
+                                                                                    dataSources: [],
+                                                                                    provider: 'amplify' as any,
+                                                                                    data: { isLayeredAssistant: true, ...(la.model ? { model: la.model } : {}) },
+                                                                                },
+                                                                            } as any,
+                                                                        });
                                                                     }}
-                                                                    title={`Edit ${la.name}`}
+                                                                    title={`Chat with ${la.name}`}
                                                                     className="w-full text-left hover:scale-[1.01] transition-transform"
                                                                 >
                                                                     {/* Icon & Content */}
@@ -429,8 +459,27 @@ export const GroupAssistantsGallery: FC<GroupAssistantsGalleryProps> = () => {
                                                                     </div>
                                                                 </button>
 
-                                                                {/* Subtle hover indicator (arrow) */}
-                                                                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                                                {/* Edit button - only shown on hover if user has admin access */}
+                                                                {hasAdminAccess && (
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', {
+                                                                                detail: {
+                                                                                    isOpen: true,
+                                                                                    data: { group, layeredAssistant: la }
+                                                                                }
+                                                                            }));
+                                                                        }}
+                                                                        title={`Edit ${la.name}`}
+                                                                        className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-purple-100 dark:hover:bg-purple-900/20 shadow-sm transition-all duration-200"
+                                                                    >
+                                                                        <IconEdit size={15} className="text-purple-500" />
+                                                                    </button>
+                                                                )}
+
+                                                                {/* Subtle hover indicator (arrow) - hidden when edit button is shown */}
+                                                                <div className={`absolute top-3 right-3 transition-all duration-300 ${hasAdminAccess ? 'hidden' : 'opacity-0 group-hover:opacity-100'}`}>
                                                                     <div className={`flex h-6 w-6 items-center justify-center rounded-full ${color.bg} shadow-sm`}>
                                                                         <svg
                                                                             className={`h-3 w-3 ${color.icon}`}

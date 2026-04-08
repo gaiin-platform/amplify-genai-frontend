@@ -1083,7 +1083,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
                     // make sure assistant hasnt been deleted (check prompts OR layered assistants)
                     const existsInPrompts = prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
-                    const existsInLayered = layeredAssistants.some((la: any) => la.publicId === assistant.definition.assistantId);
+                    const existsInLayered = layeredAssistants.some((la: any) => la.assistantId === assistant.definition.assistantId);
                     if (existsInPrompts || existsInLayered) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
             }
@@ -1092,7 +1092,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
                     // make sure assistant hasnt been deleted (check prompts OR layered assistants)
                     const existsInPrompts = prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
-                    const existsInLayered = layeredAssistants.some((la: any) => la.publicId === assistant.definition.assistantId);
+                    const existsInLayered = layeredAssistants.some((la: any) => la.assistantId === assistant.definition.assistantId);
                     if (existsInPrompts || existsInLayered) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
 

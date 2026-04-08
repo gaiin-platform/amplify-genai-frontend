@@ -35,7 +35,7 @@ export interface LeafNode {
 
 export type LayeredAssistantNode = RouterNode | LeafNode;
 
-// Public-ID prefixes assigned by the backend:
+// assistantId prefixes assigned by the backend:
 //   astr/<uuid>   — personal layered assistant (owned by a real user)
 //   astgr/<uuid>  — group layered assistant (owned by a group system user)
 export const LAYERED_AST_PERSONAL_PREFIX = "astr";
@@ -43,19 +43,30 @@ export const LAYERED_AST_GROUP_PREFIX    = "astgr";
 
 // Top-level wrapper with metadata
 export interface LayeredAssistant {
-    id: string;
-    publicId?: string;   // Stable external ID — "astr/<uuid>" or "astgr/<uuid>"
-    groupId?:  string;   // Set for group-owned LAs — equals the group_id
+    assistantId?: string;  // Stable external ID — "astr/<uuid>" or "astgr/<uuid>". Undefined for unsaved LAs.
+    groupId?:     string;  // Set for group-owned LAs — equals the group_id
     name: string;
     description: string;
-    rootNode: RouterNode;   // The tree always starts with a router
+    rootNode: RouterNode;  // The tree always starts with a router
     createdAt: string;
     updatedAt: string;
+    // Populated by list endpoint — reflects the published standalone path (if any)
+    astPath?:     string;
+    astPathData?: { isPublic: boolean; accessTo: { amplifyGroups: string[]; users: string[] } };
+    // Publish & model enforcement — group LAs only
+    isPublished?:         boolean;   // visible to read-access group members
+    model?:               string;    // enforced model ID (undefined = not enforced)
+    // Conversation tracking & analysis — group LAs only, gated on group.supportConvAnalysis
+    trackConversations?:  boolean;
+    supportConvAnalysis?: boolean;
+    analysisCategories?:  string[];
+    // Icon shown on the standalone assistant page (stored as an AttachedDocument with an S3 key)
+    data?: { astIcon?: any; [key: string]: any };
 }
 
 // Helpers
 export const isGroupLayeredAssistant = (la: LayeredAssistant): boolean =>
-    !!(la.groupId || la.publicId?.startsWith(`${LAYERED_AST_GROUP_PREFIX}/`));
+    !!(la.groupId || la.assistantId?.startsWith(`${LAYERED_AST_GROUP_PREFIX}/`));
 
 export const isPersonalLayeredAssistant = (la: LayeredAssistant): boolean =>
     !isGroupLayeredAssistant(la);
@@ -87,8 +98,7 @@ export const createLeafNode = (assistantId: string, name: string, description: s
 });
 
 export const createLayeredAssistant = (name: string = ''): LayeredAssistant => ({
-    id: crypto.randomUUID?.() || `la-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-    publicId: undefined,
+    assistantId: undefined,
     name,
     description: '',
     rootNode: createRouterNode('Parent 1'),

@@ -45,24 +45,27 @@ export const GroupLayeredAssistants: FC<Props> = ({ selectedGroup, layeredAssist
     const groupAssistants: Prompt[] = selectedGroup.assistants ?? [];
 
     // ── Save (create or update) ──────────────────────────────────────
-    const handleSave = async (la: LayeredAssistant) => {
+    const handleSave = async (la: LayeredAssistant): Promise<LayeredAssistant | null> => {
         setActionMessage('Saving…');
         try {
             const withGroup: LayeredAssistant = { ...la, groupId: selectedGroup.id };
             const result = await saveGroupLayeredAssistant(selectedGroup.id, withGroup);
 
-            if (result?.success && result.data?.publicId) {
+            if (result?.success && result.data?.assistantId) {
                 const saved: LayeredAssistant = {
                     ...withGroup,
-                    publicId: result.data.publicId,
-                    updatedAt: result.data.updatedAt,
+                    assistantId: result.data.assistantId,
+                    updatedAt:   result.data.updatedAt,
+                    astPath:     la.astPath,
+                    astPathData: la.astPathData,
                 };
                 setLayeredAssistants((prev) => {
-                    const exists = prev.some((x) => x.publicId === saved.publicId);
+                    const exists = prev.some((x) => x.assistantId === saved.assistantId);
                     return exists
-                        ? prev.map((x) => (x.publicId === saved.publicId ? saved : x))
+                        ? prev.map((x) => (x.assistantId === saved.assistantId ? saved : x))
                         : [...prev, saved];
                 });
+                return saved;
             } else {
                 alert('Failed to save layered assistant. Please try again.');
             }
@@ -72,6 +75,7 @@ export const GroupLayeredAssistants: FC<Props> = ({ selectedGroup, layeredAssist
         } finally {
             setActionMessage('');
         }
+        return null;
     };
 
     // ── Delete ───────────────────────────────────────────────────────
@@ -82,7 +86,7 @@ export const GroupLayeredAssistants: FC<Props> = ({ selectedGroup, layeredAssist
         try {
             const result = await deleteGroupLayeredAssistant(selectedGroup.id, deletingId);
             if (result?.success) {
-                setLayeredAssistants((prev) => prev.filter((x) => x.publicId !== deletingId));
+                setLayeredAssistants((prev) => prev.filter((x) => x.assistantId !== deletingId));
             } else {
                 alert('Failed to delete layered assistant. Please try again.');
             }
@@ -164,7 +168,7 @@ export const GroupLayeredAssistants: FC<Props> = ({ selectedGroup, layeredAssist
                 <div className="flex flex-col gap-2">
                     {layeredAssistants.map((la) => (
                         <div
-                            key={la.publicId ?? la.id}
+                            key={la.assistantId ?? la.name}
                             className="flex items-center justify-between rounded-lg border border-neutral-200 dark:border-neutral-700 px-4 py-3 bg-white dark:bg-[#2a2b32] hover:bg-neutral-50 dark:hover:bg-[#343541] transition-colors"
                         >
                             <div className="flex items-center gap-3 min-w-0">
@@ -177,13 +181,13 @@ export const GroupLayeredAssistants: FC<Props> = ({ selectedGroup, layeredAssist
                                         </p>
                                     )}
                                     <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5 font-mono">
-                                        {la.publicId}
+                                        {la.assistantId}
                                     </p>
                                 </div>
                             </div>
 
                             <div className="flex items-center gap-1 flex-shrink-0 ml-4">
-                                {deletingId === la.publicId ? (
+                                {deletingId === la.assistantId ? (
                                     <>
                                         <button
                                             onClick={handleConfirmDelete}
@@ -226,7 +230,7 @@ export const GroupLayeredAssistants: FC<Props> = ({ selectedGroup, layeredAssist
                                             <IconEdit size={16} />
                                         </button>
                                         <button
-                                            onClick={() => setDeletingId(la.publicId ?? null)}
+                                            onClick={() => setDeletingId(la.assistantId ?? null)}
                                             title="Delete"
                                             className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400"
                                         >
