@@ -79,6 +79,28 @@ const StepEditor: React.FC<StepEditorProps> = ({
     });
   }, [availableApis, availableAgentTools]);
 
+  // Tools that trigger irreversible external side-effects (email delivery, calendar
+  // event creation, Teams messages) must NEVER be silently retried by the workflow
+  // engine after a transient error - the side-effect may already have been delivered.
+  // Setting retries=0 disables the WorkflowCapability retry mechanism for these steps.
+  const NON_IDEMPOTENT_TOOLS = new Set([
+    // Microsoft Outlook
+    'microsoftSendMail',
+    'microsoftSendDraft',
+    'microsoftReplyToMessage',
+    'microsoftReplyAllMessage',
+    'microsoftForwardMessage',
+    // Microsoft Teams
+    'microsoftSendChannelMessage',
+    // Microsoft Calendar
+    'microsoftCreateEvent',
+    'microsoftScheduleMeeting',
+    'microsoftCreateRecurringEvent',
+    // Google Gmail
+    'googleComposeAndSendEmail',
+    'googleSendDraftEmail',
+  ]);
+
   const handleSelectTool = (toolItem: ToolItem) => {
     const args: Record<string, string> = {};
     if (toolItem.parameters?.properties) {
@@ -86,11 +108,17 @@ const StepEditor: React.FC<StepEditorProps> = ({
         args[paramName] = paramInfo.description ?? "No description provided";
       });
     }
-    
+
     const updatedStep = cloneDeep(step);
     updatedStep.tool = toolItem.name;
     updatedStep.args = args;
-    
+
+    // Non-idempotent tools: explicitly set retries=0 so the backend workflow
+    // engine never re-executes them after a transient network error.
+    if (NON_IDEMPOTENT_TOOLS.has(toolItem.name)) {
+      updatedStep.retries = 0;
+    }
+
     onStepChange(updatedStep);
     setShowToolSelector(false);
   };

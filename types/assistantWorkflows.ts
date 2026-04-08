@@ -9,6 +9,7 @@ export interface Step {
     actionSegment?: string; // Groups steps by action, used to customize the workflow by linking steps to an action
     editableArgs?: string[]
     useAdvancedReasoning?: boolean;
+    retries?: number;  // 0 = no retries (required for non-idempotent ops like send-mail)
   }
   
   export interface AstWorkflowTemplate {
