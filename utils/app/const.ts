@@ -7,8 +7,8 @@ export const MIXPANEL_TOKEN = process.env.NEXT_PUBLIC_MIXPANEL_TOKEN || '';
 export const COMMON_DISALLOWED_FILE_EXTENSIONS = [
     "mp3", "wav",
     "rar", "7z", "tar", "gz", "tgz", "bz2", "xz",
-    "mkv", "tif", "tiff", "bmp", "eps", "ps", "ai",
-    "psd", "heic", "heif", "ico", "ps", "rdata", "rds", "stan"
+    "mkv", "tif", "tiff", "bmp", "eps", "ps", "ai", ".stl",
+    "psd", "heic", "heif", "ico", "ps", "rdata", "rds", "stan", ".mpo"
 ];
 export const IMAGE_FILE_EXTENSIONS = ["jpg", "png", "gif", "jpeg", "webp"];
 export const VIDEO_FILE_EXTENSIONS = ["mp4", "mov", "avi", "mkv", "webm"];
