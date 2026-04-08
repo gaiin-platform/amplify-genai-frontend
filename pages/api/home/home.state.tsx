@@ -19,6 +19,7 @@ import { ShareItem } from '@/types/export';
 import { ExtractedFact } from '@/types/memory';
 import { Features } from '@/types/features';
 import { PromptCostAlert } from '@/components/Admin/AdminUI';
+import { LayeredAssistant } from '@/types/layeredAssistant';
 
 export interface HomeInitialState {
   defaultAccount: Account | undefined;
@@ -49,7 +50,9 @@ export interface HomeInitialState {
   showChatbar: boolean;
   showPromptbar: boolean;
   showUserMenu: boolean;
-  activeAssistantGalleryTab: 'group' | 'individual' | 'templates';
+  activeAssistantGalleryTab: 'group' | 'individual' | 'templates' | 'layered';
+  layeredAssistants: LayeredAssistant[];
+  syncingLayeredAssistants: boolean;
 
   workspaceDirty: boolean; //legacy
   workspaceMetadata: Workspace; //legacy
@@ -149,6 +152,8 @@ export const initialState: HomeInitialState = {
   showChatbar: false,
   showUserMenu: false,
   activeAssistantGalleryTab: 'group',
+  layeredAssistants: [],
+  syncingLayeredAssistants: true,
   currentFolder: undefined,
   messageError: false,
   searchTerm: '',

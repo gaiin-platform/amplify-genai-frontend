@@ -12,6 +12,7 @@ export interface DashboardMetrics {
     entryPointDistribution: { [key: string]: number };
     categoryDistribution: { [key: string]: number };
     employeeTypeDistribution: { [key: string]: number };
+    routedToAssistantDistribution: { [key: string]: number };
     averageUserRating: number | null;
     averageSystemRating: number | null;
 }
@@ -23,9 +24,10 @@ type DataPoint = {
 };
 
 // Simple bar chart implementation without external libraries
-const SimpleBarChart: FC<{ data: DataPoint[], color?: string }> = ({
+const SimpleBarChart: FC<{ data: DataPoint[], color?: string, labelWidth?: string }> = ({
     data,
-    color = "#0088FE"
+    color = "#0088FE",
+    labelWidth = "w-32"
 }) => {
     // Find the maximum value for scaling
     const maxValue = Math.max(...data.map(item => item.value));
@@ -38,7 +40,7 @@ const SimpleBarChart: FC<{ data: DataPoint[], color?: string }> = ({
             {sortedData.map((item, index) => (
                 <div key={index} className="mb-2">
                     <div className="flex items-center">
-                        <div className="w-32 text-sm truncate mr-2" title={item.name}>{item.name}</div>
+                        <div className={`${labelWidth} text-sm truncate mr-2`} title={item.name}>{item.name}</div>
                         <div className="flex-grow">
                             <div className="relative pt-1">
                                 <div className="flex items-center justify-between">
@@ -92,18 +94,25 @@ const SimplePieList: FC<{ data: DataPoint[] }> = ({ data }) => {
     );
 };
 
-export const Dashboard: FC<{ metrics: DashboardMetrics, supportConvAnalysis: boolean }> = ({ metrics, supportConvAnalysis }) => {
+export const Dashboard: FC<{ metrics: DashboardMetrics, supportConvAnalysis: boolean, leafNameMap?: { [id: string]: string } }> = ({ metrics, supportConvAnalysis, leafNameMap = {} }) => {
     // Transform object data into array format for visualization
-    console.log("supportConvAnalysis:", supportConvAnalysis);
-    console.log("metrics:", metrics);
+    // console.log("supportConvAnalysis:", supportConvAnalysis);
+    // console.log("metrics:", metrics);
 
     const transformDistributionData = (data: { [key: string]: number }): DataPoint[] => {
-        return Object.entries(data).map(([name, value]) => ({ name, value }));
+        return Object.entries(data).filter(([name]) => !!name).map(([name, value]) => ({ name, value }));
     };
 
     const entryPointData = supportConvAnalysis ? transformDistributionData(metrics.entryPointDistribution) : [];
     const categoryData = supportConvAnalysis ? transformDistributionData(metrics.categoryDistribution) : [];
     const employeeTypeData = supportConvAnalysis ? transformDistributionData(metrics.employeeTypeDistribution) : [];
+    const routedToData = transformDistributionData(metrics.routedToAssistantDistribution ?? {});
+
+    // Resolve IDs to names using the leaf name map built from the LA definition in the frontend
+    const routedToDataDisplay = routedToData.map(d => ({
+        ...d,
+        name: leafNameMap[d.name] ?? d.name.replace(/^ast[gr]?p?\//, '')
+    }));
 
     // Render star rating
     const renderStarRating = (rating: number | null) => {
@@ -183,6 +192,17 @@ export const Dashboard: FC<{ metrics: DashboardMetrics, supportConvAnalysis: boo
                     </div>
                 </div>
             </div>
+
+            {/* Routed To Distribution - always shown for layered assistants */}
+            {routedToDataDisplay.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 p-4 rounded shadow mb-6">
+                    <h3 className="text-lg font-semibold mb-1">Leaf Assistant Routing</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Total turns routed to each leaf assistant across all conversations</p>
+                    <div className="h-64 overflow-y-auto">
+                        <SimpleBarChart data={routedToDataDisplay} color="#6366f1" labelWidth="w-48" />
+                    </div>
+                </div>
+            )}
 
             {/* Charts Section - Only show analysis-specific charts if supportConvAnalysis is true */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">

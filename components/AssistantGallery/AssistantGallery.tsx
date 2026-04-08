@@ -1,24 +1,26 @@
 import { FC, useContext, useEffect } from 'react';
-import { IconUsers, IconRobot, IconTemplate, IconLoader2, IconX } from '@tabler/icons-react';
+import { IconUsers, IconRobot, IconTemplate, IconLoader2, IconX, IconGitBranch } from '@tabler/icons-react';
 import { GroupAssistantsGallery } from '@/components/GroupAssistants/GroupAssistantsGallery';
 import { IndividualAssistantsGallery } from '@/components/AssistantGallery/IndividualAssistantsGallery';
 import { PromptTemplatesGallery } from '@/components/AssistantGallery/PromptTemplatesGallery';
+import { LayeredAssistantsGallery } from '@/components/AssistantGallery/LayeredAssistantsGallery';
 import HomeContext from '@/pages/api/home/home.context';
 
 export interface AssistantGalleryProps {}
 
-type TabType = 'group' | 'individual' | 'templates';
+type TabType = 'group' | 'individual' | 'templates' | 'layered';
 
 export const AssistantGallery: FC<AssistantGalleryProps> = () => {
     const {
-        state: { groups, activeAssistantGalleryTab, syncingPrompts },
+        state: { groups, activeAssistantGalleryTab, syncingPrompts, syncingLayeredAssistants },
         dispatch: homeDispatch
     } = useContext(HomeContext);
 
     // Load from localStorage on mount, default to 'group' if nothing saved
     useEffect(() => {
         const savedTab = localStorage.getItem('activeAssistantGalleryTab') as TabType | null;
-        if (savedTab && (savedTab === 'group' || savedTab === 'individual' || savedTab === 'templates')) {
+        const validTabs: TabType[] = ['group', 'individual', 'templates', 'layered'];
+        if (savedTab && validTabs.includes(savedTab)) {
             homeDispatch({ field: 'activeAssistantGalleryTab', value: savedTab });
         } else {
             // Ensure we default to 'group' if no saved preference
@@ -88,6 +90,22 @@ export const AssistantGallery: FC<AssistantGalleryProps> = () => {
                         <IconTemplate size={18} />
                         <span>Prompt Templates</span>
                     </button>
+
+                    <button
+                        onClick={() => handleTabChange('layered')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                            activeAssistantGalleryTab === 'layered'
+                                ? 'bg-white dark:bg-gray-700 text-purple-600 dark:text-purple-600 shadow-md'
+                                : 'text-gray-600 dark:text-purple-300 hover:text-gray-900 dark:hover:text-purple-200'
+                        }`}
+                    >
+                        {syncingLayeredAssistants ? (
+                            <IconLoader2 size={18} className="animate-spin" />
+                        ) : (
+                            <IconGitBranch size={18} />
+                        )}
+                        <span>{syncingLayeredAssistants ? 'Loading Layered…' : 'Layered Assistants'}</span>
+                    </button>
                 </div>
 
                 {/* Close button positioned to the right, avoiding user modal area */}
@@ -105,6 +123,7 @@ export const AssistantGallery: FC<AssistantGalleryProps> = () => {
                 {activeAssistantGalleryTab === 'group' && <GroupAssistantsGallery />}
                 {activeAssistantGalleryTab === 'individual' && <IndividualAssistantsGallery />}
                 {activeAssistantGalleryTab === 'templates' && <PromptTemplatesGallery />}
+                {activeAssistantGalleryTab === 'layered' && <LayeredAssistantsGallery />}
             </div>
         </div>
     );

@@ -1,8 +1,9 @@
 import { FC, useContext, useState, useRef, useEffect } from 'react';
-import { IconRobot, IconUsers, IconSparkles, IconChevronDown, IconSettingsBolt } from '@tabler/icons-react';
+import { IconRobot, IconUsers, IconSparkles, IconChevronDown, IconSettingsBolt, IconGitBranch, IconEdit } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { Group, GroupAccessType } from '@/types/groups';
 import { Prompt } from '@/types/prompt';
+import { LayeredAssistant } from '@/types/layeredAssistant';
 import { handleStartConversationWithPrompt } from '@/utils/app/prompts';
 import { isAssistant } from '@/utils/app/assistants';
 import { useSession } from 'next-auth/react';
@@ -52,13 +53,14 @@ export const GroupAssistantsGallery: FC<GroupAssistantsGalleryProps> = () => {
         return [GroupAccessType.ADMIN, GroupAccessType.WRITE].includes(accessType);
     };
 
-    // Filter groups: show if they have assistants OR if user is admin/write member
+    // Filter groups: show if they have assistants/layered assistants OR if user is admin/write member
     const filteredGroups = groups.filter((group: Group) => {
-        // Show group if it has assistants OR user has admin/write access
+        // Show group if it has assistants, layered assistants, OR user has admin/write access
         const hasAssistants = group.assistants && group.assistants.length > 0;
+        const hasLayeredAssistants = group.layeredAssistants && group.layeredAssistants.length > 0;
         const hasAdminAccess = hasAccessToGroupAdminInterface(group);
 
-        if (!hasAssistants && !hasAdminAccess) return false;
+        if (!hasAssistants && !hasLayeredAssistants && !hasAdminAccess) return false;
 
         // Apply search filter
         if (!searchTerm) return true;
@@ -69,8 +71,12 @@ export const GroupAssistantsGallery: FC<GroupAssistantsGalleryProps> = () => {
             ast.name.toLowerCase().includes(searchLower) ||
             (ast.description && ast.description.toLowerCase().includes(searchLower))
         );
+        const layeredAssistantMatch = group.layeredAssistants?.some((la: LayeredAssistant) =>
+            la.name.toLowerCase().includes(searchLower) ||
+            (la.description && la.description.toLowerCase().includes(searchLower))
+        ) || false;
 
-        return groupNameMatch || assistantMatch;
+        return groupNameMatch || assistantMatch || layeredAssistantMatch;
     });
 
     const getFilteredAssistants = (group: Group) => {
@@ -80,6 +86,16 @@ export const GroupAssistantsGallery: FC<GroupAssistantsGalleryProps> = () => {
         return group.assistants.filter((ast: Prompt) =>
             ast.name.toLowerCase().includes(searchLower) ||
             (ast.description && ast.description.toLowerCase().includes(searchLower))
+        );
+    };
+
+    const getFilteredLayeredAssistants = (group: Group) => {
+        if (!searchTerm || !group.layeredAssistants) return group.layeredAssistants || [];
+
+        const searchLower = searchTerm.toLowerCase();
+        return group.layeredAssistants.filter((la: LayeredAssistant) =>
+            la.name.toLowerCase().includes(searchLower) ||
+            (la.description && la.description.toLowerCase().includes(searchLower))
         );
     };
 
@@ -177,11 +193,11 @@ export const GroupAssistantsGallery: FC<GroupAssistantsGalleryProps> = () => {
     };
 
     return (
-        <div className="relative flex-1 h-full flex flex-col bg-gradient-to-br from-slate-50 via-blue-50/20 to-purple-50/20 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
-            {/* Soft floating orbs in background */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-30">
-                <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-200/20 dark:bg-purple-500/5 rounded-full blur-3xl" />
-                <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-200/20 dark:bg-blue-500/5 rounded-full blur-3xl" />
+        <div className="relative flex-1 h-full flex flex-col bg-gradient-to-br from-slate-50 via-white to-slate-50/50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
+            {/* Very subtle ambient light effect */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-purple-100/5 to-blue-100/5 dark:from-purple-500/5 dark:to-blue-500/5 rounded-full blur-3xl" />
+                <div className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-br from-blue-100/5 to-purple-100/5 dark:from-blue-500/5 dark:to-purple-500/5 rounded-full blur-3xl" />
             </div>
 
             <div className="relative flex-1 overflow-y-auto">
@@ -196,7 +212,7 @@ export const GroupAssistantsGallery: FC<GroupAssistantsGalleryProps> = () => {
                                 Group Assistants
                             </h1>
                             <span className="text-xs text-gray-400 dark:text-gray-500">
-                                {groups.reduce((sum: number, g: Group) => sum + g.assistants.length, 0)} total
+                                {groups.reduce((sum: number, g: Group) => sum + g.assistants.length + (g.layeredAssistants?.length || 0), 0)} total
                             </span>
                         </div>
                         <div className="w-56">
@@ -225,11 +241,12 @@ export const GroupAssistantsGallery: FC<GroupAssistantsGalleryProps> = () => {
                         <div ref={containerRef} className="masonry-container">
                             {filteredGroups.map((group: Group, groupIdx: number) => {
                                 const filteredAssistants = getFilteredAssistants(group);
+                                const filteredLayeredAssistants = getFilteredLayeredAssistants(group);
                                 const color = softColors[groupIdx % softColors.length];
                                 const hasAdminAccess = hasAccessToGroupAdminInterface(group);
 
-                                // Skip if no assistants and no admin access (shouldn't happen due to filter, but safety check)
-                                if (filteredAssistants.length === 0 && !hasAdminAccess) return null;
+                                // Skip if no assistants/layered assistants and no admin access (shouldn't happen due to filter, but safety check)
+                                if (filteredAssistants.length === 0 && filteredLayeredAssistants.length === 0 && !hasAdminAccess) return null;
 
                                 return (
                                     <div
@@ -252,7 +269,7 @@ export const GroupAssistantsGallery: FC<GroupAssistantsGalleryProps> = () => {
                                                             {group.name}
                                                         </h2>
                                                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                            {filteredAssistants.length} {filteredAssistants.length === 1 ? 'assistant' : 'assistants'}
+                                                            {filteredAssistants.length + filteredLayeredAssistants.length} {filteredAssistants.length + filteredLayeredAssistants.length === 1 ? 'item' : 'items'}
                                                         </p>
                                                     </div>
                                                 </div>
@@ -345,8 +362,27 @@ export const GroupAssistantsGallery: FC<GroupAssistantsGalleryProps> = () => {
                                                             </button>
                                                         )}
 
-                                                        {/* Subtle hover indicator (arrow) */}
-                                                        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                                        {/* Edit button - only shown on hover if user has admin access */}
+                                                        {hasAdminAccess && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', {
+                                                                        detail: {
+                                                                            isOpen: true,
+                                                                            data: { group, assistant }
+                                                                        }
+                                                                    }));
+                                                                }}
+                                                                title={`Edit ${assistant.name}`}
+                                                                className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-purple-100 dark:hover:bg-purple-900/20 shadow-sm transition-all duration-200"
+                                                            >
+                                                                <IconEdit size={15} className="text-purple-500" />
+                                                            </button>
+                                                        )}
+
+                                                        {/* Subtle hover indicator (arrow) - hidden when edit button is shown */}
+                                                        <div className={`absolute top-3 right-3 transition-all duration-300 ${hasAdminAccess ? 'hidden' : 'opacity-0 group-hover:opacity-100'}`}>
                                                             <div className={`flex h-6 w-6 items-center justify-center rounded-full ${color.bg} shadow-sm`}>
                                                                 <svg
                                                                     className={`h-3 w-3 ${color.icon}`}
@@ -369,6 +405,104 @@ export const GroupAssistantsGallery: FC<GroupAssistantsGalleryProps> = () => {
                                                     </div>
                                                 );
                                                 })}
+                                                {/* Layered Assistants Section */}
+                                                {filteredLayeredAssistants.length > 0 && (
+                                                    <>
+                                                        {filteredLayeredAssistants.map((la: LayeredAssistant) => (
+                                                            <div
+                                                                key={la.assistantId ?? la.name}
+                                                                className={`group relative w-full rounded-xl border ${color.border} bg-white dark:bg-[#191d2b] p-4 hover:shadow-xl transition-all duration-300 overflow-hidden`}
+                                                            >
+                                                                {/* Soft color accent bar on left */}
+                                                                <div className={`absolute left-0 top-0 bottom-0 w-1 ${color.accent}`} />
+
+                                                                {/* Main clickable area - starts a conversation */}
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (!la.assistantId) return;
+                                                                        handleNewConversation({
+                                                                            assistant: {
+                                                                                id: la.assistantId,
+                                                                                definition: {
+                                                                                    name: la.name,
+                                                                                    description: la.description,
+                                                                                    assistantId: la.assistantId,
+                                                                                    instructions: '',
+                                                                                    tools: [],
+                                                                                    tags: [],
+                                                                                    fileKeys: [],
+                                                                                    dataSources: [],
+                                                                                    provider: 'amplify' as any,
+                                                                                    data: { isLayeredAssistant: true, ...(la.model ? { model: la.model } : {}) },
+                                                                                },
+                                                                            } as any,
+                                                                        });
+                                                                    }}
+                                                                    title={`Chat with ${la.name}`}
+                                                                    className="w-full text-left hover:scale-[1.01] transition-transform"
+                                                                >
+                                                                    {/* Icon & Content */}
+                                                                    <div className="flex items-start gap-3">
+                                                                        <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl ${color.bg} transition-transform duration-300 group-hover:scale-110`}>
+                                                                            <IconGitBranch size={22} className={color.icon} />
+                                                                        </div>
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <h3 className="font-semibold text-sm text-gray-900 dark:text-white leading-snug mb-1">
+                                                                                {la.name}
+                                                                            </h3>
+                                                                            {la.description && (
+                                                                                <p className="text-[11px] text-gray-600 dark:text-gray-400 leading-snug line-clamp-5">
+                                                                                    {la.description}
+                                                                                </p>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </button>
+
+                                                                {/* Edit button - only shown on hover if user has admin access */}
+                                                                {hasAdminAccess && (
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', {
+                                                                                detail: {
+                                                                                    isOpen: true,
+                                                                                    data: { group, layeredAssistant: la }
+                                                                                }
+                                                                            }));
+                                                                        }}
+                                                                        title={`Edit ${la.name}`}
+                                                                        className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-purple-100 dark:hover:bg-purple-900/20 shadow-sm transition-all duration-200"
+                                                                    >
+                                                                        <IconEdit size={15} className="text-purple-500" />
+                                                                    </button>
+                                                                )}
+
+                                                                {/* Subtle hover indicator (arrow) - hidden when edit button is shown */}
+                                                                <div className={`absolute top-3 right-3 transition-all duration-300 ${hasAdminAccess ? 'hidden' : 'opacity-0 group-hover:opacity-100'}`}>
+                                                                    <div className={`flex h-6 w-6 items-center justify-center rounded-full ${color.bg} shadow-sm`}>
+                                                                        <svg
+                                                                            className={`h-3 w-3 ${color.icon}`}
+                                                                            fill="none"
+                                                                            viewBox="0 0 24 24"
+                                                                            stroke="currentColor"
+                                                                        >
+                                                                            <path
+                                                                                strokeLinecap="round"
+                                                                                strokeLinejoin="round"
+                                                                                strokeWidth={2.5}
+                                                                                d="M13 7l5 5m0 0l-5 5m5-5H6"
+                                                                            />
+                                                                        </svg>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Soft glow on hover */}
+                                                                <div className={`absolute inset-0 ${color.bg} opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10 blur-xl`} />
+                                                            </div>
+                                                        ))}
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

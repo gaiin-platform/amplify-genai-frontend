@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { GetServerSideProps } from 'next';
 import { useRouter } from 'next/router';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { getSession, useSession, signIn } from 'next-auth/react';
 import { useTranslation } from 'next-i18next';
-import { IconMessage, IconSend, IconChevronUp, IconChevronDown, IconSquare, Icon3dCubeSphere, IconLoader2, IconBrain } from '@tabler/icons-react';
+import { IconMessage, IconSend, IconChevronUp, IconChevronDown, IconSquare, Icon3dCubeSphere, IconLoader2, IconBrain, IconAlertTriangle } from '@tabler/icons-react';
 import { getAvailableModels } from '@/services/adminService';
 import { sendDirectAssistantMessage, lookupAssistant } from '@/services/assistantService';
+import { v4 as uuidv4 } from 'uuid';
 import { getSettings } from '@/utils/app/settings';
 import { LoadingDialog } from '@/components/Loader/LoadingDialog';
 import Spinner from '@/components/Spinner';
@@ -39,6 +40,75 @@ import { Logo } from '@/components/Logo/Logo';
 interface Model extends BaseModel {
   isDefault?: boolean;
 }
+
+// Inline component for removed data sources in the standalone assistant page
+const RemovedDataSourcesIndicator: React.FC<{ removed: any; total: number }> = ({ removed, total }) => {
+  const [isOpen, setIsOpen] = useState(true);
+
+  return (
+    <div className="mt-3 max-w-full">
+      <div className="border border-yellow-300 dark:border-yellow-700 rounded-lg overflow-hidden">
+        <button
+          onClick={() => setIsOpen(o => !o)}
+          className="w-full flex items-center gap-2 px-3 py-2 bg-yellow-50 dark:bg-yellow-900/20 text-left text-sm font-medium text-yellow-800 dark:text-yellow-200 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors"
+        >
+          <IconAlertTriangle size={16} className="flex-shrink-0 text-yellow-600 dark:text-yellow-400" />
+          <span>⚠️ {total} Data Source{total > 1 ? 's' : ''} Removed</span>
+          <span className="ml-auto">{isOpen ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}</span>
+        </button>
+        {isOpen && (
+          <div className="px-3 py-2 bg-white dark:bg-[#2a2a35] text-sm flex flex-col gap-2">
+            {removed.deniedAccess?.length > 0 && (
+              <div>
+                <div className="font-semibold text-gray-700 dark:text-gray-300 mb-1">Access Denied ({removed.deniedAccess.length})</div>
+                {removed.deniedAccess.map((src: any, i: number) => (
+                  <div key={i} className="flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-2 my-1">
+                    <IconAlertTriangle size={14} className="flex-shrink-0 text-red-500 mt-0.5" />
+                    <div>
+                      <span className="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">{src.name || src.objectId}</span>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        {src.reason === 'no_permission_record' && "You don't have permission to access this file. If this is a file you have uploaded, please try to re-upload it. If this is a file that has been shared within an assistant or conversation, please contact the owner to request access or contact support."}
+                        {src.reason === 'insufficient_privilege' && `Insufficient privilege level${src.userLevel ? ` (your level: ${src.userLevel})` : ''}.`}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {removed.invalidIds?.length > 0 && (
+              <div>
+                <div className="font-semibold text-gray-700 dark:text-gray-300 mb-1">Invalid Data Sources ({removed.invalidIds.length})</div>
+                {removed.invalidIds.map((id: string, i: number) => (
+                  <div key={i} className="flex items-start gap-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-2 my-1">
+                    <IconAlertTriangle size={14} className="flex-shrink-0 text-yellow-500 mt-0.5" />
+                    <div>
+                      <span className="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">{id}</span>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">This file ID is not valid or the file no longer exists.</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {removed.invalidImageIds?.length > 0 && (
+              <div>
+                <div className="font-semibold text-gray-700 dark:text-gray-300 mb-1">Invalid Images ({removed.invalidImageIds.length})</div>
+                {removed.invalidImageIds.map((id: string, i: number) => (
+                  <div key={i} className="flex items-start gap-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-2 my-1">
+                    <IconAlertTriangle size={14} className="flex-shrink-0 text-yellow-500 mt-0.5" />
+                    <div>
+                      <span className="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">{id}</span>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">This image ID is not valid or the image no longer exists.</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 interface Props {
   chatEndpoint: string | null;
@@ -93,6 +163,8 @@ const AssistantPage = ({
   const [editedContent, setEditedContent] = useState("");
   const [abortController, setAbortController] = useState<AbortController>(new AbortController());
   const [defaultAccount, setDefaultAccount] = useState<Account | null>(null);
+  // Stable conversationId for the full session — stays the same across all turns so S3 appends correctly
+  const [conversationId] = useState<string>(() => uuidv4());
   const [astIconUrl, setAstIconUrl] = useState<string | null>(null);
 
   // Agent state management
@@ -242,9 +314,10 @@ const AssistantPage = ({
         // Fetch available models
         const modelsResponse = await getAvailableModels();
         
+        let modelsList: any[] = [];
         if (modelsResponse.success) {
           // Ensure each model has the required structure
-          const modelsList = (modelsResponse.data?.models || []).map((model: any) => {
+          modelsList = (modelsResponse.data?.models || []).map((model: any) => {
             // Make sure each model has an id property - required by the API
             return {
               ...model,
@@ -253,7 +326,7 @@ const AssistantPage = ({
           });
           
           setModels(modelsList);
-          
+
           // Set default model from the list of available models
           if (modelsList.length > 0) {
             // Find default model or use the first one
@@ -326,6 +399,14 @@ const AssistantPage = ({
           setLoadingMessage('Finalizing assistant...');
 
           setAssistantId(assistantId);
+
+          // If the LA enforces a model, override the selected model so chatBody.model is correct
+          if (definition?.data?.model) {
+            const enforcedModelId = definition.data.model;
+            // modelsList is already loaded at this point (models are fetched before assistant lookup)
+            const enforcedModel = modelsList.find((m: any) => m.id === enforcedModelId);
+            setSelectedModel(enforcedModel ?? { id: enforcedModelId });
+          }
           const astName = assistantResult.name || assistantResult.data?.name || definition?.name
           if (astName) {
             setAssistantName(astName);
@@ -457,7 +538,7 @@ const AssistantPage = ({
         accountId: defaultAccount?.id,
         rateLimit: defaultAccount?.rateLimit,
         disableTools: true,
-        assistantId: assistantId
+        assistantId: (assistantId && (assistantId.startsWith('astr/') || assistantId.startsWith('astgr/'))) ? undefined : assistantId,
       };
 
       const metaHandler = {
@@ -595,9 +676,13 @@ const AssistantPage = ({
         console.error('Model is missing id:', activeModel);
         throw new Error("The selected model is invalid. Please select a different model.");
       }
-      const options = {groupType:  requiredGroupType ? groupType : undefined, groupId: assistantDefinition?.data?.groupId,
-                       accountId: defaultAccount?.id, rateLimit: defaultAccount?.rateLimit
-                      };
+      const options = {
+        groupType:      requiredGroupType ? groupType : undefined,
+        groupId:        assistantDefinition?.data?.groupId,
+        accountId:      defaultAccount?.id,
+        rateLimit:      defaultAccount?.rateLimit,
+        conversationId: conversationId,
+      };
 
 
       // Send the message to the assistant with conversation history and selected model
@@ -1302,6 +1387,16 @@ const AssistantPage = ({
                           messageEndRef={messageEndRef}
                         />
                       </div>
+                      {/* Removed data sources indicator */}
+                      {(() => {
+                        const removed = messageState[index]?.removedDataSources;
+                        if (!removed) return null;
+                        const total = (removed.invalidIds?.length ?? 0) + (removed.deniedAccess?.length ?? 0) + (removed.invalidImageIds?.length ?? 0);
+                        if (total === 0) return null;
+                        return (
+                          <RemovedDataSourcesIndicator removed={removed} total={total} />
+                        );
+                      })()}
                     </div>
 
                     {/* Assistant message action buttons */}

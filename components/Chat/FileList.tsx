@@ -1,6 +1,6 @@
 import React, {FC, useContext, useEffect, useState} from 'react';
 
-import { IconCircleX, IconCheck, IconWorld, IconSitemap, IconReload, IconChevronDown, IconChevronUp, IconDatabase } from '@tabler/icons-react';
+import { IconCircleX, IconCheck, IconWorld, IconSitemap, IconReload, IconChevronDown, IconChevronUp, IconDatabase, IconSettings } from '@tabler/icons-react';
 
 import { AttachedDocument } from '@/types/attacheddocument';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
@@ -14,6 +14,9 @@ import ActionButton from '@/components/ReusableComponents/ActionButton';
 import { IMAGE_FILE_TYPES, VIDEO_FILE_TYPES } from '@/utils/app/const';
 import HomeContext from '@/pages/api/home/home.context';
 import { animate } from '../Loader/LoadingIcon';
+import { SitemapExclusionManager, SitemapExclusions } from '@/components/DataSources/SitemapUrlSelectionModal';
+import { getSiteMapUrls } from '@/services/assistantService';
+import toast from 'react-hot-toast';
 
 interface Props {
     documents:AttachedDocument[]|undefined;
@@ -192,6 +195,13 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
     const [isExpanded, setIsExpanded] = useState<boolean>(false);
     const containerRef = React.useRef<HTMLDivElement>(null);
 
+    // Sitemap exclusion manager state
+    const [showExclusionManager, setShowExclusionManager] = useState(false);
+    const [managingSitemapUrl, setManagingSitemapUrl] = useState<string | null>(null);
+    const [managingSitemapUrls, setManagingSitemapUrls] = useState<string[]>([]);
+    const [managingSitemapDocs, setManagingSitemapDocs] = useState<AttachedDocument[]>([]);
+    const [loadingSitemapData, setLoadingSitemapData] = useState(false);
+
     useEffect(() => {
         if (documents) setDataSources(documents);
     }, [documents, searchTerm]);
@@ -267,6 +277,99 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
         if (onRemoval) {
             sitemapDocs.forEach(doc => onRemoval(doc));
         }
+    };
+
+    // Open exclusion manager for a sitemap
+    const openExclusionManager = async (sitemapUrl: string, sitemapDocs: AttachedDocument[]) => {
+        setLoadingSitemapData(true);
+        setManagingSitemapUrl(sitemapUrl);
+        setManagingSitemapDocs(sitemapDocs);
+
+        try {
+            const result = await getSiteMapUrls(sitemapUrl, undefined);
+
+            if (result.success && result.data?.urls) {
+                setManagingSitemapUrls(result.data.urls);
+                setShowExclusionManager(true);
+            } else {
+                toast.error(result.message || 'Failed to fetch sitemap URLs');
+            }
+        } catch (error) {
+            console.error('Error fetching sitemap data:', error);
+            toast.error('Error loading sitemap data');
+        } finally {
+            setLoadingSitemapData(false);
+        }
+    };
+
+    // Handle saving exclusions from the manager
+    const handleSaveExclusions = (data: {
+        exclusions: SitemapExclusions;
+        urlsToAdd: string[];
+        urlsToRemove: string[];
+    }) => {
+        if (!managingSitemapUrl) return;
+
+        let updatedDataSources = [...dataSources];
+
+        // 1. Remove URLs that were moved to excluded
+        updatedDataSources = updatedDataSources.filter(doc => {
+            if (doc.metadata?.fromSitemap === managingSitemapUrl) {
+                const sourceUrl = doc.metadata?.sourceUrl || doc.id;
+                return !data.urlsToRemove.includes(sourceUrl);
+            }
+            return true;
+        });
+
+        // 2. Add new URLs that need to be scraped
+        data.urlsToAdd.forEach(url => {
+            updatedDataSources.push({
+                id: url,
+                type: 'website/url',
+                name: url,
+                raw: null,
+                data: null,
+                ...(groupId ? { groupId } : {}),
+                metadata: {
+                    fromSitemap: managingSitemapUrl,
+                    sourceUrl: url,
+                    exclusions: data.exclusions,
+                    totalTokens: 0
+                }
+            });
+        });
+
+        // 3. Update exclusions metadata on all remaining docs from this sitemap
+        updatedDataSources = updatedDataSources.map(doc => {
+            if (doc.metadata?.fromSitemap === managingSitemapUrl) {
+                return {
+                    ...doc,
+                    metadata: {
+                        ...doc.metadata,
+                        exclusions: data.exclusions
+                    }
+                };
+            }
+            return doc;
+        });
+
+        setDataSources(updatedDataSources);
+        setDocuments(updatedDataSources);
+        setShowExclusionManager(false);
+        setManagingSitemapUrl(null);
+
+        const addedCount = data.urlsToAdd.length;
+        const removedCount = data.urlsToRemove.length;
+        let message = 'Exclusions updated!';
+        if (addedCount > 0 && removedCount > 0) {
+            message = `Added ${addedCount} and removed ${removedCount} URLs. Save assistant to apply changes.`;
+        } else if (addedCount > 0) {
+            message = `Added ${addedCount} new URL${addedCount > 1 ? 's' : ''}. Save assistant to scrape.`;
+        } else if (removedCount > 0) {
+            message = `Removed ${removedCount} URL${removedCount > 1 ? 's' : ''}. Save assistant to apply.`;
+        }
+
+        toast.success(message);
     };
 
     const fileReprocessing = async (key: string) => {
@@ -349,25 +452,31 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
         icon?: React.ReactNode;
         onRemove?: () => void;
         onClick?: () => void;
+        onSettings?: () => void;
         className?: string;
         textSize?: 'sm' | 'xs';
         removeTitle?: string;
         removeIconSize?: number;
         isClickable?: boolean;
         document?: AttachedDocument;
-    }> = ({ 
-        id, 
-        itemNumber, 
-        displayText, 
-        icon, 
-        onRemove, 
-        onClick, 
-        className = '', 
+        showSettingsButton?: boolean;
+        isLoadingSettings?: boolean;
+    }> = ({
+        id,
+        itemNumber,
+        displayText,
+        icon,
+        onRemove,
+        onClick,
+        onSettings,
+        className = '',
         textSize = 'sm',
         removeTitle = 'Remove',
         removeIconSize = 20,
         isClickable = false,
-        document
+        document,
+        showSettingsButton = false,
+        isLoadingSettings = false
     }) => {
         const [hoveredButton, setHoveredButton] = useState(false);
         
@@ -415,8 +524,28 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                         )}
                     </div>}
                 </div>
-           
-                {allowRemoval && onRemove && 
+
+                {showSettingsButton && onSettings && (hovered === id || isLoadingSettings) && (
+                    <button
+                        title="Manage included/excluded URLs"
+                        className="flex flex-row items-center gap-2 mr-4 text-gray-400 hover:text-blue-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{ flexShrink: 0 }}
+                        disabled={isLoadingSettings}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onSettings();
+                        }}
+                    >    
+                        {isLoadingSettings ? (
+                            <LoadingIcon style={{ width: "18px", height: "18px" }} />
+                        ) : (
+                            <IconSettings size={18}/>
+                        )}
+                    </button>
+                )}
+
+                {allowRemoval && onRemove &&
                     <button
                         title={removeTitle}
                         className="ml-auto mr-2 text-gray-400 hover:text-red-600 transition-all"
@@ -572,9 +701,12 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                                 itemNumber={itemCounter}
                                 displayText={`${sitemapUrl} (${sitemapDocs.length} pages)`}
                                 icon={<IconSitemap size={18} className="text-blue-500" />}
-                                onRemove={() => removeSitemapGroup(sitemapUrl, sitemapDocs)}
+                                onRemove={allowRemoval ? () => removeSitemapGroup(sitemapUrl, sitemapDocs) : undefined}
                                 onClick={() => toggleSitemap(sitemapUrl)}
+                                onSettings={allowRemoval ? () => openExclusionManager(sitemapUrl, sitemapDocs) : undefined}
                                 isClickable={true}
+                                showSettingsButton={allowRemoval}
+                                isLoadingSettings={loadingSitemapData && managingSitemapUrl === sitemapUrl}
                                 removeTitle={`Remove all ${sitemapDocs.length} pages from this sitemap`}
                             />
 
@@ -627,6 +759,21 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
                     </button>
                 )}
             </div>
+
+            {/* Sitemap Exclusion Manager Modal */}
+            {showExclusionManager && managingSitemapUrl && (
+                <SitemapExclusionManager
+                    sitemapUrl={managingSitemapUrl}
+                    allUrls={managingSitemapUrls}
+                    currentlyIncludedUrls={managingSitemapDocs.map(doc => doc.metadata?.sourceUrl || doc.id)}
+                    currentExclusions={managingSitemapDocs[0]?.metadata?.exclusions || {}}
+                    onSave={handleSaveExclusions}
+                    onCancel={() => {
+                        setShowExclusionManager(false);
+                        setManagingSitemapUrl(null);
+                    }}
+                />
+            )}
         </div>
     );
 };
@@ -634,7 +781,7 @@ export const ExistingFileList: FC<ExistingProps> = ({ label, documents, setDocum
 
 
 
-    // Status badge component  
+    // Status badge component
 export const StatusBadge: FC<{ status: string | null | undefined, metadata?: {[key: string]: any}}> = ({ status, metadata }) => {
     if (!status) return null;
     

@@ -6,14 +6,18 @@
     # Update and upgrade packages to ensure patching
     RUN apk update && apk upgrade && \
         addgroup -S appgroup && adduser -S appuser -G appgroup && \
-        chown -R appuser:appgroup /app
-    
+        chown -R appuser:appgroup /app && \
+        mkdir -p /home/appuser/.npm && \
+        chown -R appuser:appgroup /home/appuser
+
     # ---- Dependencies ----
     FROM base AS dependencies
-    USER appuser
-    
-    # Install dependencies and update packages
-    RUN npm ci
+
+    # Install dependencies as root to avoid permission issues
+    RUN npm ci --prefer-offline --no-audit
+
+    # Fix ownership after install
+    RUN chown -R appuser:appgroup /app/node_modules
     
     # ---- Build ----
     FROM dependencies AS build

@@ -12,7 +12,8 @@ import {
     IconCheck,
     IconX,
     IconWorldSearch,
-    IconGripHorizontal
+    IconGripHorizontal,
+    IconLayoutList
 } from '@tabler/icons-react';
 import SaveActionsModal from './SaveActionsModal';
 import {
@@ -28,7 +29,7 @@ import {
 
 import {useTranslation} from 'next-i18next';
 import {parsePromptVariables} from "@/utils/app/prompts";
-import {Conversation, Message, MessageType, newMessage} from '@/types/chat';
+import {Conversation, ConversationContextEntry, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin, PluginID, PluginList, Plugins} from '@/types/plugin';
 import {Prompt} from '@/types/prompt';
 import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
@@ -39,14 +40,17 @@ import HomeContext from '@/pages/api/home/home.context';
 import {PromptList} from './PromptList';
 import {VariableModal} from './VariableModal';
 import {DefaultModels, Model, REASONING_LEVELS, ReasoningLevels} from "@/types/model";
-import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
+import {Assistant, AssistantProviderID, DEFAULT_ASSISTANT} from "@/types/assistant";
+import { LayeredAssistant } from '@/types/layeredAssistant';
 import {COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
-import {getAssistants} from "@/utils/app/assistants";
+import {ConversationContextManager} from "@/components/Chat/ConversationContextManager";
+import {getAssistants, isAssistant} from "@/utils/app/assistants";
 import { isImageFile, isVideoFile, processDragDropFiles, processPastedFiles } from '@/utils/fileHandler';
 import AssistantsInUse from "@/components/Chat/AssistantsInUse";
 import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
+import {AssistantSelectModal} from "@/components/Assistants/AssistantSelectModal";
 import QiModal from './QiModal';
 import { QiSummary, QiSummaryType } from '@/types/qi';
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
@@ -118,8 +122,8 @@ export const ChatInput = ({
     const { killRequest } = useChatService();
 
     const {
-        state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming,
-            prompts,  featureFlags, currentRequestId, chatEndpoint, statsService, availableModels,
+        state: {selectedConversation, conversations, folders, selectedAssistant, messageIsStreaming, artifactIsStreaming,
+            prompts, layeredAssistants, groups, featureFlags, currentRequestId, chatEndpoint, statsService, availableModels,
             extractedFacts, memoryExtractionEnabled, ragOn, defaultAccount, webSearchUserMessage},
         getDefaultModel, handleUpdateConversation,
         dispatch: homeDispatch
@@ -323,6 +327,7 @@ export const ChatInput = ({
     }, [isResizing, textareaHeight]);
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
+    const [showContextManager, setShowContextManager] = useState(false);
     //const [assistant, setAssistant] = useState<Assistant>(selectedAssistant || DEFAULT_ASSISTANT);
     const [availableAssistants, setAvailableAssistants] = useState<Assistant[]>([DEFAULT_ASSISTANT]);
 
@@ -370,6 +375,7 @@ export const ChatInput = ({
     const dataSourceSelectorRef = useRef<HTMLDivElement | null>(null);
     const actionSelectorRef = useRef<HTMLDivElement | null>(null);
     const assistantSelectorRef = useRef<HTMLDivElement | null>(null);
+    const contextManagerRef = useRef<HTMLDivElement | null>(null);
 
     const [isWorkflowOn, setWorkflowOn] = useState(false);
 
@@ -413,8 +419,26 @@ export const ChatInput = ({
 
 
 
+    const onLayeredAssistantChange = (la: LayeredAssistant) => {
+        const syntheticAssistant: Assistant = {
+            id: la.assistantId!,
+            definition: {
+                name: la.name,
+                description: la.description,
+                assistantId: la.assistantId,
+                instructions: '',
+                tools: [],
+                tags: [],
+                fileKeys: [],
+                dataSources: [],
+                provider: AssistantProviderID.AMPLIFY,
+                data: { isLayeredAssistant: true, ...(la.model ? { model: la.model } : {}) },
+            },
+        };
+        homeDispatch({ field: 'selectedAssistant', value: syntheticAssistant });
+    };
+
     const onAssistantChange = (assistant: Assistant) => {
-        setShowAssistantSelect(false);
 
         if (selectedConversation) {
             const oldAstTags = selectedAssistant?.definition.data?.conversationTags || [];
@@ -859,7 +883,19 @@ export const ChatInput = ({
 
     useEffect(() => {
         if (prompts) {
-            const assistants = getAssistants(prompts);
+            // Map prompts to assistants, attaching groupId from the prompt onto
+            // the definition so the select modal can show a group indicator.
+            const assistants = prompts
+                .filter(isAssistant)
+                .map((p: any) => {
+                    const ast = p.data?.assistant;
+                    if (!ast) return null;
+                    if (p.groupId && !ast.definition?.groupId) {
+                        return { ...ast, definition: { ...ast.definition, groupId: p.groupId } };
+                    }
+                    return ast;
+                })
+                .filter(Boolean);
             setAvailableAssistants(assistants);
         }
     }, [prompts]);
@@ -893,6 +929,8 @@ export const ChatInput = ({
                 !actionSelectorRef.current.contains(e.target as Node)) setShowOpsPopup(false);
 
             if (assistantSelectorRef.current && !assistantSelectorRef.current.contains(e.target as Node)) setShowAssistantSelect(false);
+
+            if (contextManagerRef.current && !contextManagerRef.current.contains(e.target as Node)) setShowContextManager(false);
         };
 
         window.addEventListener('click', handleOutsideClick);
@@ -985,6 +1023,25 @@ export const ChatInput = ({
         setShowPromptList(false);
         setShowMessageSelectDialog(false);
         setShowQiDialog(false);
+        setShowContextManager(false);
+    }
+
+    const handleUpdateRemovedDocuments = (updatedRemovedDocumentIds: string[]) => {
+        if (selectedConversation) {
+            handleUpdateConversation(selectedConversation, {
+                key: 'removedDocumentIds',
+                value: updatedRemovedDocumentIds
+            });
+        }
+    }
+
+    const handleUpdateContextConversations = (entries: ConversationContextEntry[]) => {
+        if (selectedConversation) {
+            handleUpdateConversation(selectedConversation, {
+                key: 'contextConversations',
+                value: entries
+            });
+        }
     }
 
     // Drag and drop handlers
@@ -1296,6 +1353,55 @@ export const ChatInput = ({
                                     (file: File) => { handleFile(file, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController, featureFlags.uploadDocuments, undefined, resolveRagEnabled(featureFlags, ragOn) )}
                                     : undefined
                                 }
+                            />
+                        </div>
+                    )}
+
+                    {showContextManager && (
+                        <div ref={contextManagerRef} className="rounded bg-white dark:bg-[#343541]"
+                             onClick={e => e.stopPropagation()}
+                             style={{transform: 'translateY(70px)', maxHeight: '500px', overflow: 'hidden'}}>
+                            <ConversationContextManager
+                                conversation={selectedConversation}
+                                allConversations={conversations}
+                                folders={folders}
+                                onUpdateRemovedDocuments={handleUpdateRemovedDocuments}
+                                onUpdateContextConversations={handleUpdateContextConversations}
+                                onClose={() => setShowContextManager(false)}
+                            />
+                        </div>
+                    )}
+
+                    {showAssistantSelect && (
+                        <div ref={assistantSelectorRef}
+                             className="rounded bg-white dark:bg-[#343541]"
+                             style={{transform: 'translateY(50px)', maxHeight: '500px', overflow: 'hidden', zIndex: 50}}>
+                            <AssistantSelectModal
+                                assistant={selectedAssistant || DEFAULT_ASSISTANT}
+                                availableAssistants={availableAssistants}
+                                layeredAssistants={[
+                                    ...layeredAssistants,
+                                    ...(groups ?? []).flatMap((g: any) => g.layeredAssistants ?? []),
+                                ]}
+                                onLayeredAssistantChange={(la: LayeredAssistant) => {
+                                    onLayeredAssistantChange(la);
+                                    if (textareaRef && textareaRef.current) textareaRef.current.focus();
+                                }}
+                                onKeyDown={(e: any) => {
+                                    if (e.key === 'Escape') {
+                                        e.preventDefault();
+                                        setShowAssistantSelect(false);
+                                        textareaRef.current?.focus();
+                                    }
+                                }}
+                                onAssistantChange={(assistant: Assistant) => {
+                                    onAssistantChange(assistant);
+                                    if (textareaRef && textareaRef.current) textareaRef.current.focus();
+                                }}
+                                onClose={() => {
+                                    setShowAssistantSelect(false);
+                                    textareaRef.current?.focus();
+                                }}
                             />
                         </div>
                     )}
@@ -1756,7 +1862,48 @@ export const ChatInput = ({
                             />
                         </div>}
 
-                        
+                        <div className="relative overflow-visible group/ctxbtn" style={{zIndex: 10}}>
+                            {(() => {
+                                const msgs = selectedConversation?.messages ?? [];
+                                const docMap = new Map();
+                                msgs.forEach((msg: any) => {
+                                    msg.data?.dataSources?.forEach((ds: any) => { if (!docMap.has(ds.id)) docMap.set(ds.id, ds); });
+                                });
+                                const removed = new Set(selectedConversation?.removedDocumentIds ?? []);
+                                const docsActive = Array.from(docMap.keys()).filter((id: string) => !removed.has(id)).length;
+                                const convsActive = selectedConversation?.contextConversations?.length ?? 0;
+                                const total = docsActive + convsActive;
+                                return total > 0 ? (
+                                    <>
+                                        <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center" style={{zIndex: 11}}>
+                                            {total}
+                                        </span>
+                                        {/* Hover tooltip breakdown */}
+                                        <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/ctxbtn:block" style={{zIndex: 20}}>
+                                            <div className="bg-gray-800 dark:bg-gray-700 text-white text-[11px] rounded px-2 py-1.5 whitespace-nowrap shadow-lg text-center">
+                                                {docsActive > 0 && <div>{docsActive} datasource{docsActive !== 1 ? 's' : ''}</div>}
+                                                {convsActive > 0 && <div>{convsActive} conversation{convsActive !== 1 ? 's' : ''}</div>}
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : null;
+                            })()}
+                            <button
+                                className="chat-input-button rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                                id="contextManager"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCloseAllPopups();
+                                    setShowContextManager(!showContextManager);
+                                }}
+                                onKeyDown={(e) => {
+                                }}
+                                title="Manage Conversation Context"
+                            >
+                                <IconLayoutList size={20}/>
+                            </button>
+                        </div>
+
                         { featureFlags.actionSets && 
                         <>
                         {/* Add Action button toggles the operations popup */}
@@ -1831,8 +1978,10 @@ export const ChatInput = ({
                                 className={"chat-input-button rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"}
                                 onClick={ (e) => {
                                     e.preventDefault();
+                                    e.stopPropagation();
+                                    const isOpen = showAssistantSelect;
                                     handleCloseAllPopups();
-                                    handleShowAssistantSelector();
+                                    if (!isOpen) setShowAssistantSelect(true);
                                 }
                                 }
                                 onKeyDown={(e) => {
@@ -1843,28 +1992,6 @@ export const ChatInput = ({
                                 <IconAt size={20}/>
                             </button>
 
-                            {showAssistantSelect && (
-                                <div className="absolute rounded bg-white dark:bg-[#343541]"
-                                     style={{transform: 'translateX(30px) translateY(-2px)', zIndex: 10}}>
-                                    <AssistantSelect
-                                        assistant={selectedAssistant || DEFAULT_ASSISTANT}
-                                        availableAssistants={availableAssistants}
-                                        onKeyDown={(e: any) => {
-                                            if (e.key === 'Escape') {
-                                                e.preventDefault();
-                                                setShowAssistantSelect(false);
-                                                textareaRef.current?.focus();
-                                            }
-                                        }}
-                                        onAssistantChange={(assistant: Assistant) => {
-                                            onAssistantChange(assistant);
-                                            if (textareaRef && textareaRef.current) {
-                                                textareaRef.current.focus();
-                                            }
-                                        }}
-                                    />
-                                </div>
-                            )}
                         </div>
 
                        
