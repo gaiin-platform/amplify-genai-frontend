@@ -4,6 +4,7 @@ import { conversationWithUncompressedMessages, isLocalConversation } from '@/uti
 import { messagesToCached } from '@/utils/app/contextConversations';
 import {
     CachedConversationMessage,
+    ContextCacheEntry,
     isContextCacheValid,
     loadContextCache,
     saveContextCache,
@@ -46,7 +47,7 @@ export const useConversationContextLoader = () => {
      * than when we cached it, meaning new messages were added since.
      */
     const isCacheStale = useCallback((
-        cached: { fetchedAt: number },
+        cached: ContextCacheEntry,
         conv: Conversation | undefined,
     ): boolean => {
         if (!isContextCacheValid(cached)) return true;
