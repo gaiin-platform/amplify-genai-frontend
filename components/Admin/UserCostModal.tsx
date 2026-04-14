@@ -402,7 +402,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
 
   // CSV Download functions
   const downloadUsersCSV = () => {
-    const headers = ['Email', 'Monthly Cost', 'Today\'s Cost', 'Total Cost', 'Accounts Count'];
+    const headers = ['Email', 'Today\'s Cost', 'Monthly Cost', 'Total Cost', 'Accounts Count'];
     const csvContent = [
       headers.join(','),
       ...filteredUsers.map(user => [
@@ -424,7 +424,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
   };
 
   const downloadGroupsCSV = () => {
-    const headers = ['Group Name', 'Total Cost', 'Monthly Cost', 'Today\'s Cost', 'Direct Members', 'Indirect Members', 'Total Members', 'Avg Cost Per Member'];
+    const headers = ['Group Name', 'Total Cost', 'Today\'s Cost', 'Monthly Cost', 'Direct Members', 'Indirect Members', 'Total Members', 'Avg Cost Per Member'];
     const csvContent = [
       headers.join(','),
       ...Object.entries(billingGroups)
@@ -454,7 +454,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     const history = userHistory[email];
     if (!history) return;
 
-    const headers = ['Month', 'Account', 'Monthly Cost', 'Today\'s Cost', 'Total Cost'];
+    const headers = ['Month', 'Account', 'Today\'s Cost', 'Monthly Cost', 'Total Cost'];
     const rows: string[] = [headers.join(',')];
 
     // Add current month data first
@@ -938,10 +938,10 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                         User
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        Monthly Cost
+                        Today&apos;s Cost
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        Today&apos;s Cost
+                        Monthly Cost
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         Total Cost
@@ -1009,8 +1009,8 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                                         <thead>
                                           <tr className="border-b border-gray-200 dark:border-gray-700">
                                             <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Account Info</th>
-                                            <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Monthly Cost</th>
                                             <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">{"Today's Cost"}</th>
+                                            <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Monthly Cost</th>
                                             <th className="text-left py-2 px-4 font-medium text-gray-700 dark:text-gray-300">Total Cost</th>
                                           </tr>
                                         </thead>
