@@ -138,7 +138,7 @@ export const UserCostBreakdownModal: React.FC<Props> = ({ email, onClose }) => {
                                         <div className="flex items-center justify-between mb-5">
                                             <div className="flex items-center gap-2">
                                                 <IconClock size={16} className="text-neutral-400" />
-                                                <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">Today's Hourly Activity</span>
+                                                <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">Today&apos;s Hourly Activity</span>
                                             </div>
                                             <span className="text-xs text-neutral-400">local time · hover for $</span>
                                         </div>
