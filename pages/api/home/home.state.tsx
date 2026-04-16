@@ -20,6 +20,7 @@ import { ExtractedFact } from '@/types/memory';
 import { Features } from '@/types/features';
 import { PromptCostAlert } from '@/components/Admin/AdminUI';
 import { LayeredAssistant } from '@/types/layeredAssistant';
+import { RateLimit, RateLimits } from '@/types/rateLimit';
 
 export interface HomeInitialState {
   defaultAccount: Account | undefined;
@@ -97,6 +98,8 @@ export interface HomeInitialState {
   canAddWebSearchApiKey: boolean;
   webSearchUserMessage: string | null;
   userDocumentationUrl: string;
+  adminRateLimits: RateLimits;
+  groupRateLimits: { groupName: string; limits: RateLimits }[];
   promptCostAlertModal: {
     isOpen: boolean;
     message: string;
@@ -194,5 +197,7 @@ export const initialState: HomeInitialState = {
   promptCostAlertModal: null,
   canAddWebSearchApiKey: false,
   webSearchUserMessage: null,
-  userDocumentationUrl: ''
+  userDocumentationUrl: '',
+  adminRateLimits: [],
+  groupRateLimits: []
 };

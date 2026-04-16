@@ -79,7 +79,7 @@ import { addDateAttribute, getFullTimestamp, getDateName } from '@/utils/app/dat
 import HomeContext, {  ClickContext, Processor } from './home.context';
 import { ReservedTags } from '@/types/tags';
 import { noCoaAccount } from '@/types/accounts';
-import { noRateLimit } from '@/types/rateLimit';
+import { noRateLimit, normalizeRateLimits } from '@/types/rateLimit';
 import { fetchAstAdminGroups } from '@/services/groupsService';
 import { contructGroupData } from '@/utils/app/groups';
 import { getAllArtifacts } from '@/services/artifactsService';
@@ -858,13 +858,30 @@ const Home = ({
                             dispatch({ field: 'userDocumentationUrl', value: docUrl });
                         }
                     }
+                    if (AdminConfigTypes.RATE_LIMIT in data) {
+                        dispatch({ field: 'adminRateLimits', value: normalizeRateLimits(data[AdminConfigTypes.RATE_LIMIT]) });
+                    }
+                    console.log("data", data);
+                    if ('groupRateLimits' in data) {
+                        const rawGroupLimits: Record<string, any> = data['groupRateLimits'] || {};
+                        const groupRateLimits = Object.entries(rawGroupLimits)
+                            .map(([groupName, rateLimit]) => ({
+                                groupName,
+                                limits: normalizeRateLimits(rateLimit).filter(
+                                    (l: any) => l && l.rate !== null && l.period !== 'Unlimited'
+                                ),
+                            }))
+                            .filter((g) => g.limits.length > 0);
+                        dispatch({ field: 'groupRateLimits', value: groupRateLimits });
+                    }
 
                 } else {
                     console.log("Failed to fetch user app configs.");
                 }
             } catch (e) {
                 console.log("Failed to fetch user app configs: ", e);
-            }  
+            }
+
         };
 
         const fetchSettings = async () => {
