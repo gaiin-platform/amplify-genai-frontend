@@ -127,7 +127,7 @@ export const uncompressConversation = (compressedData: number[]) => {
 }
 
 export const remoteForConversationHistory = (conversation: Conversation) => {
-  const CloudConvAttr: (keyof Conversation)[] =  ['id', 'name', 'model', 'folderId', 'tags', 'isLocal', 'groupType', 'codeInterpreterAssistantId' ];
+  const CloudConvAttr: (keyof Conversation)[] =  ['id', 'name', 'model', 'folderId', 'tags', 'isLocal', 'groupType', 'codeInterpreterAssistantId', 'date'];
   return pickConversationAttributes(conversation, CloudConvAttr) as Conversation;
 };
 

@@ -17,7 +17,8 @@ export interface LoadedConvState {
     status: FetchStatus;
     messages: CachedConversationMessage[];
     fromCache: boolean;
-    cachedAt?: number;
+    /** Timestamp (ms) of when messages were last successfully loaded from any source */
+    fetchedAt?: number;
     error?: string;
 }
 
@@ -70,27 +71,30 @@ export const useConversationContextLoader = () => {
             // Already loaded — skip
             if (loadedStates[id]?.status === 'loaded') continue;
 
-            const conv = allConversations.find(c => c.id === id && isLocalConversation(c));
+            // Look up without isLocalConversation so cloud conv metadata (date) is available
+            const convMeta = allConversations.find(c => c.id === id);
+            const localConv = convMeta && isLocalConversation(convMeta) ? convMeta : undefined;
 
-            // Local
-            if (conv) {
-                const full = conversationWithUncompressedMessages(conv);
+            // Local — always fresh from memory
+            if (localConv) {
+                const full = conversationWithUncompressedMessages(localConv);
                 const messages = messagesToCached(full.messages);
-                setConvState(id, { status: 'loaded', messages, fromCache: false });
+                setConvState(id, { status: 'loaded', messages, fromCache: false, fetchedAt: Date.now() });
                 continue;
             }
 
-            // Cache — only use if not stale relative to the conversation's last-modified time
+            // Cache — only use if not stale relative to the conversation's last-modified time.
+            // Pass convMeta (not undefined) so isCacheStale can compare conv.date.
             const cached = await loadContextCache(id);
-            if (cached && !isCacheStale(cached, conv)) {
+            if (cached && !isCacheStale(cached, convMeta)) {
                 setConvState(id, {
                     status: 'loaded',
                     messages: cached.messages,
                     fromCache: true,
-                    cachedAt: cached.fetchedAt,
+                    fetchedAt: Date.now(),
                 });
             }
-            // If not in cache (or stale), leave as 'idle' — will be fetched fresh on expand
+            // If not in cache or stale, leave as 'idle' — loadConversation will fetch fresh on expand
         }
     }, [loadedStates, setConvState, isCacheStale]);
 
@@ -115,7 +119,7 @@ export const useConversationContextLoader = () => {
             if (localConv) {
                 const full = conversationWithUncompressedMessages(localConv);
                 const messages = messagesToCached(full.messages);
-                setConvState(conversationId, { status: 'loaded', messages, fromCache: false });
+                setConvState(conversationId, { status: 'loaded', messages, fromCache: false, fetchedAt: Date.now() });
                 return;
             }
 
@@ -127,7 +131,7 @@ export const useConversationContextLoader = () => {
                         status: 'loaded',
                         messages: cached.messages,
                         fromCache: true,
-                        cachedAt: cached.fetchedAt,
+                        fetchedAt: Date.now(),
                     });
                     return;
                 }
@@ -148,7 +152,7 @@ export const useConversationContextLoader = () => {
                 fetchedAt: Date.now(),
             });
 
-            setConvState(conversationId, { status: 'loaded', messages, fromCache: false });
+            setConvState(conversationId, { status: 'loaded', messages, fromCache: false, fetchedAt: Date.now() });
         } catch (err: any) {
             setConvState(conversationId, {
                 status: 'error',

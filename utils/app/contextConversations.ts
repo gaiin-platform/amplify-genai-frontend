@@ -2,11 +2,8 @@ import { Conversation, ConversationContextEntry, Message } from '@/types/chat';
 import { conversationWithUncompressedMessages, isLocalConversation } from './conversation';
 import {
     CachedConversationMessage,
-    isContextCacheValid,
     loadContextCache,
-    saveContextCache,
 } from './storage';
-import { fetchRemoteConversation } from '@/services/remoteConversationService';
 
 /**
  * Convert a full Message[] to the stripped-down CachedConversationMessage[] format.
@@ -62,35 +59,12 @@ export const resolveContextString = async (
             const full = conversationWithUncompressedMessages(localConv);
             messages = messagesToCached(full.messages);
         } else {
-            // 2. Fall back to IndexedDB cache (populated by useConversationContextLoader).
-            //    If the conversation's own `date` is newer than `fetchedAt`, the cache is stale
-            //    (new messages were added after we last fetched), so re-fetch silently.
+            // 2. IndexedDB cache — kept fresh by useChatSendService which writes it
+            //    immediately whenever a cloud conversation is saved after a send.
+            //    Just read it directly; no staleness re-fetch needed here.
             const cached = await loadContextCache(entry.conversationId);
             if (cached) {
-                const convMeta = localConversations.find(c => c.id === entry.conversationId);
-                const convUpdatedAt = convMeta?.date ? new Date(convMeta.date).getTime() : 0;
-                const cacheStale = !isContextCacheValid(cached) || convUpdatedAt > cached.fetchedAt;
-
-                if (!cacheStale) {
-                    messages = cached.messages;
-                } else {
-                    // Attempt a silent re-fetch to get the latest messages
-                    try {
-                        const remote = await fetchRemoteConversation(entry.conversationId);
-                        if (remote) {
-                            messages = messagesToCached(remote.messages ?? []);
-                            await saveContextCache({
-                                conversationId: entry.conversationId,
-                                conversationName: convMeta?.name ?? cached.conversationName,
-                                messages,
-                                fetchedAt: Date.now(),
-                            });
-                        }
-                    } catch {
-                        // Re-fetch failed — fall back to stale cache rather than losing context
-                        messages = cached.messages;
-                    }
-                }
+                messages = cached.messages;
             }
         }
 

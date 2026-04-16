@@ -683,7 +683,7 @@ export const ChatMessage: FC<Props> = memo(({
             )}
 
             <div
-                className="enhanced-message-content relative m-[30px] flex p-2 text-base md:gap-6 md:py-2">
+                className="enhanced-message-content relative mx-[30px] my-1 flex py-1 px-2 text-base md:gap-6">
                 <div className="flex-shrink-0 ml-[45px] min-w-[40px] text-right font-bold">
                     {getIcon()}
                 </div>

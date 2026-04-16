@@ -35,7 +35,8 @@ import {
 } from '@/utils/app/memory';
 import { handleAgentRun, handleAgentRunResult, isWaitingForAgentResponse } from '@/utils/app/agent';
 import { lzwCompress } from '@/utils/app/lzwCompression';
-import { resolveContextString } from '@/utils/app/contextConversations';
+import { resolveContextString, messagesToCached } from '@/utils/app/contextConversations';
+import { saveContextCache } from '@/utils/app/storage';
 import { calculatePromptCostDetailed, formatCost } from '@/utils/app/costEstimation';
 import { WEB_SEARCH_TOOL_DEFINITION } from '@/types/tools';
 import { getEnabledMCPToolsForLLM, handleMCPToolCall } from '@/services/mcpToolExecutor';
@@ -812,10 +813,14 @@ export function useSendService() {
                                     saveConversations(updatedConversations);
                                 } else {
                                     uploadConversation(updatedConversation, foldersRef.current);
-                                    if (conversationsRef.current.length === 0) {
-                                        const updatedConversations: Conversation[] = [remoteForConversationHistory(updatedConversation)];
+                                    {
+                                        const remoteEntry = remoteForConversationHistory(updatedConversation);
+                                        const updatedConversations: Conversation[] = conversationsRef.current.length === 0
+                                            ? [remoteEntry]
+                                            : conversationsRef.current.map(c => c.id === updatedConversation.id ? remoteEntry : c);
                                         homeDispatch({ field: 'conversations', value: updatedConversations });
                                         saveConversations(updatedConversations);
+                                        saveContextCache({ conversationId: updatedConversation.id, conversationName: updatedConversation.name, messages: messagesToCached(updatedConversation.messages ?? []), fetchedAt: Date.now() });
                                     }
                                 }
                                 cleanupHomeState();
@@ -1305,6 +1310,15 @@ export function useSendService() {
                                     saveConversations(updatedConversations);
                                 } else {
                                     uploadConversation(updatedConversation, foldersRef.current);
+                                    {
+                                        const remoteEntry = remoteForConversationHistory(updatedConversation);
+                                        const updatedConversations: Conversation[] = conversationsRef.current.length === 0
+                                            ? [remoteEntry]
+                                            : conversationsRef.current.map(c => c.id === updatedConversation.id ? remoteEntry : c);
+                                        homeDispatch({ field: 'conversations', value: updatedConversations });
+                                        saveConversations(updatedConversations);
+                                        saveContextCache({ conversationId: updatedConversation.id, conversationName: updatedConversation.name, messages: messagesToCached(updatedConversation.messages ?? []), fetchedAt: Date.now() });
+                                    }
                                 }
 
                                 cleanupHomeState();
@@ -1414,11 +1428,14 @@ export function useSendService() {
                             saveConversations(updatedConversations);
                         } else {
                             uploadConversation(updatedConversation, foldersRef.current);
-
-                            if (conversationsRef.current.length === 0) {
-                                const updatedConversations: Conversation[] = [remoteForConversationHistory(updatedConversation)];
+                            {
+                                const remoteEntry = remoteForConversationHistory(updatedConversation);
+                                const updatedConversations: Conversation[] = conversationsRef.current.length === 0
+                                    ? [remoteEntry]
+                                    : conversationsRef.current.map(c => c.id === updatedConversation.id ? remoteEntry : c);
                                 homeDispatch({ field: 'conversations', value: updatedConversations });
                                 saveConversations(updatedConversations);
+                                saveContextCache({ conversationId: updatedConversation.id, conversationName: updatedConversation.name, messages: messagesToCached(updatedConversation.messages ?? []), fetchedAt: Date.now() });
                             }
                         }
 

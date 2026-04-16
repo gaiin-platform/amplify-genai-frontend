@@ -62,8 +62,8 @@ export const ConversationsContextTab: FC<Props> = ({
     const folderGroups = useMemo((): FolderGroup[] => {
         const chatFolders = folders.filter(f => f.type === 'chat');
 
-        // Collect conversations that match each folder
-        const groups: FolderGroup[] = chatFolders
+        // Collect conversations that match each folder, reversed so newest folders appear first
+        const groups: FolderGroup[] = [...chatFolders].reverse()
             .map(f => ({
                 folderId: f.id,
                 folderName: f.name,
@@ -71,11 +71,11 @@ export const ConversationsContextTab: FC<Props> = ({
             }))
             .filter(g => g.conversations.length > 0); // only show folders that have convs
 
-        // Unfiled conversations
+        // Unfiled conversations — put at the top (most recently created tend to be unfiled)
         const filedIds = new Set(chatFolders.map(f => f.id));
         const unfiled = availableConversations.filter(c => !c.folderId || !filedIds.has(c.folderId));
         if (unfiled.length > 0) {
-            groups.push({ folderId: null, folderName: 'No Folder', conversations: unfiled });
+            groups.unshift({ folderId: null, folderName: 'No Folder', conversations: unfiled });
         }
 
         return groups;
@@ -115,14 +115,41 @@ export const ConversationsContextTab: FC<Props> = ({
         });
     };
 
-    // On mount: eagerly load already-selected entries from memory/cache
+    // On mount: load all already-selected entries.
+    // Using loadConversation directly (not preloadFromCacheOrLocal) so stale cloud entries
+    // are re-fetched immediately rather than left as 'idle' with no automatic follow-up.
+    // loadConversation: local → instant from memory; cloud + fresh cache → fast IndexedDB
+    // read; cloud + stale/missing cache → re-fetch from S3.
     useEffect(() => {
-        const ids = contextEntries.map(e => e.conversationId);
-        if (ids.length > 0) {
-            preloadFromCacheOrLocal(ids, allConversations);
+        for (const entry of contextEntries) {
+            const conv = allConversations.find(c => c.id === entry.conversationId);
+            if (conv) loadConversation(conv, allConversations);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Live staleness watch: whenever allConversations changes (e.g. a referenced conv
+    // received new messages), auto-reload any context entry whose conv.date has advanced
+    // past the timestamp we last fetched it.  Local convs reload instantly from memory;
+    // cloud convs fire a background re-fetch.
+    useEffect(() => {
+        if (contextEntries.length === 0) return;
+        for (const entry of contextEntries) {
+            const state = loadedStates[entry.conversationId];
+            // Only act on entries we've already loaded and are not currently re-loading
+            if (!state || state.status !== 'loaded') continue;
+
+            const conv = allConversations.find(c => c.id === entry.conversationId);
+            if (!conv?.date) continue;
+
+            const convUpdatedAt = new Date(conv.date).getTime();
+            if (convUpdatedAt > (state.fetchedAt ?? 0)) {
+                // Conv was updated after our last load — silently refresh
+                loadConversation(conv, allConversations);
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [allConversations]);
 
     // ── Entry helpers ──────────────────────────────────────────────────────────
 
@@ -182,9 +209,17 @@ export const ConversationsContextTab: FC<Props> = ({
         updateEntry(convId, { mode: 'selected', selectedMessageIds: Array.from(current) });
     };
 
-    const setAllMessages = (convId: string, e: React.MouseEvent) => {
+    const toggleIncludeAll = (convId: string, msgs: CachedConversationMessage[], e: React.MouseEvent) => {
         e.stopPropagation();
-        updateEntry(convId, { mode: 'all', selectedMessageIds: undefined });
+        const entry = getEntry(convId);
+        if (!entry) return;
+        if (entry.mode === 'all') {
+            // Switch to selected — keep all IDs so nothing is excluded yet
+            updateEntry(convId, { mode: 'selected', selectedMessageIds: msgs.map(m => m.id) });
+        } else {
+            // Switch back to include-all
+            updateEntry(convId, { mode: 'all', selectedMessageIds: undefined });
+        }
     };
 
     const isMessageSelected = (entry: ConversationContextEntry, msgId: string): boolean =>
@@ -293,14 +328,14 @@ export const ConversationsContextTab: FC<Props> = ({
                     {added ? (
                         <button
                             onClick={e => removeEntry(conv.id, e)}
-                            className="flex-shrink-0 text-gray-400 hover:text-red-500 transition-colors ml-1"
+                            className="flex-shrink-0 text-gray-400 hover:text-red-500 transition-colors mx-1"
                             title="Remove from context"
                         >
-                            <IconX size={14} />
+                            <IconX size={15} />
                         </button>
                     ) : (
                         <span className="flex-shrink-0 text-gray-300 dark:text-gray-600">
-                            <IconCheck size={14} className="opacity-0 group-hover:opacity-100" />
+                            <IconCheck size={15} className="opacity-0 group-hover:opacity-100" />
                         </span>
                     )}
                 </div>
@@ -311,16 +346,42 @@ export const ConversationsContextTab: FC<Props> = ({
                         className="ml-5 mt-0.5 border-l-2 border-blue-200 dark:border-blue-800 pl-3 pb-1"
                         onClick={e => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between py-1.5">
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                                Select individual messages:
-                            </span>
+                        <div className="flex items-center gap-2 py-1.5" onClick={e => e.stopPropagation()}>
+                            <div onClick={e => e.stopPropagation()}>
+                                <Checkbox
+                                    id={`include-all-${conv.id}`}
+                                    label=""
+                                    checked={entry.mode === 'all'}
+                                    onChange={() => toggleIncludeAll(conv.id, messages, { stopPropagation: () => {} } as React.MouseEvent)}
+                                />
+                            </div>
                             <button
-                                onClick={e => setAllMessages(conv.id, e)}
-                                className="text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400"
+                                onClick={e => toggleIncludeAll(conv.id, messages, e)}
+                                className="text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400"
                             >
-                                Select All
+                                Include all messages
                             </button>
+                            {entry.mode === 'all' ? (
+                                <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-auto">
+                                    new messages auto-included
+                                </span>
+                            ) : (
+                                <button
+                                    onClick={e => {
+                                        e.stopPropagation();
+                                        const allSelected = messages.every(m => entry.selectedMessageIds?.includes(m.id));
+                                        updateEntry(conv.id, {
+                                            mode: 'selected',
+                                            selectedMessageIds: allSelected ? [] : messages.map(m => m.id),
+                                        });
+                                    }}
+                                    className="ml-auto text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
+                                >
+                                    {messages.every(m => entry.selectedMessageIds?.includes(m.id))
+                                        ? 'Deselect All'
+                                        : 'Select All'}
+                                </button>
+                            )}
                         </div>
 
                         {messages.length === 0 ? (
@@ -330,6 +391,7 @@ export const ConversationsContextTab: FC<Props> = ({
                         ) : (
                             <div className="space-y-1 max-h-52 overflow-y-auto pr-1">
                                 {messages.map(msg => {
+                                    const includeAll = entry.mode === 'all';
                                     const sel = isMessageSelected(entry, msg.id);
                                     return (
                                         <div
@@ -341,17 +403,21 @@ export const ConversationsContextTab: FC<Props> = ({
                                             className={`
                                                 flex items-start gap-2 px-2 py-1.5 rounded cursor-pointer
                                                 transition-colors text-xs
-                                                ${sel
-                                                    ? 'bg-blue-50 dark:bg-blue-900/25 border border-blue-200 dark:border-blue-700'
-                                                    : 'bg-gray-50 dark:bg-[#2A2B32] border border-transparent opacity-60 hover:opacity-80'}
+                                                ${includeAll
+                                                    ? 'bg-gray-50 dark:bg-[#2A2B32] border border-transparent opacity-50 hover:opacity-75'
+                                                    : sel
+                                                        ? 'bg-blue-50 dark:bg-blue-900/25 border border-blue-200 dark:border-blue-700'
+                                                        : 'bg-gray-50 dark:bg-[#2A2B32] border border-transparent opacity-60 hover:opacity-80'}
                                             `}
                                         >
-                                            <Checkbox
-                                                id={`msg-${msg.id}`}
-                                                label=""
-                                                checked={sel}
-                                                onChange={() => toggleMessageSelected(conv.id, msg.id, messages)}
-                                            />
+                                            <div onClick={e => e.stopPropagation()}>
+                                                <Checkbox
+                                                    id={`msg-${msg.id}`}
+                                                    label=""
+                                                    checked={sel}
+                                                    onChange={() => toggleMessageSelected(conv.id, msg.id, messages)}
+                                                />
+                                            </div>
                                             <span className={`font-semibold flex-shrink-0 w-14
                                                 ${msg.role === 'user'
                                                     ? 'text-blue-600 dark:text-blue-400'
@@ -435,7 +501,7 @@ export const ConversationsContextTab: FC<Props> = ({
             </div>
 
             {/* Conversation lists */}
-            <div className="flex-1 overflow-y-auto pr-1" style={{ maxHeight: '360px' }}>
+            <div className="flex-1 overflow-y-auto pr-1 pb-4" style={{ maxHeight: '360px' }}>
                 {availableConversations.length === 0 ? (
                     <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
                         No other conversations to add as context.
