@@ -404,6 +404,21 @@ export function useSendService() {
                         }
                     }
 
+                    // Check if Skills is enabled (requires feature flag AND plugin enabled)
+                    const isSkillsOn = featureFlags.skills && (plugins?.some(p => p.id === PluginID.SKILLS) ?? false);
+                    console.log("Skills on: ", isSkillsOn);
+
+                    if (isSkillsOn) {
+                        // Get skills from message data (set by SkillsToggle component)
+                        const selectedSkills = message.data?.skills || [];
+                        const skillSelectionMode = message.data?.skillSelectionMode || 'auto';
+
+                        // Pass skills to backend via options (will be merged later)
+                        chatBody.skills = selectedSkills;
+                        chatBody.skillSelectionMode = skillSelectionMode;
+                        console.log(`Skills: ${selectedSkills.length} skills selected, mode: ${skillSelectionMode}`);
+                    }
+
                     console.log("Adding artifacts to chat body: ", selectedConversation.artifacts);
 
                     if (isArtifactsOn && selectedConversation.artifacts) {

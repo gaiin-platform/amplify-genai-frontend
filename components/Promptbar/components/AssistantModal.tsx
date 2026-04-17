@@ -45,6 +45,8 @@ import AssistantDriveDataSources, { cleanupRemovedDatasources, DriveRescanSchedu
 import { DriveFilesDataSources } from '@/types/integrations';
 import { determineWebsiteScanCron, manageScheduledTasks, updateScheduledTasks, determineDriveScanCron, AssistantScheduledTaskUses } from '@/utils/app/scheduledTasks';
 import { validateUrl } from '@/utils/app/data';
+import { SkillsSection } from '@/components/Skills';
+import { SkillReference, SkillSelectionMode } from '@/types/skill';
 
 
 interface Props {
@@ -163,7 +165,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const {t} = useTranslation('promptbar');
     const { data: session } = useSession();
     const userEmail = session?.user?.email ?? ''; // Kept as email to avoid breaking changes, updates in the backend handle username translation
-    const { state: { prompts, featureFlags, amplifyUsers, aiEmailDomain } , setLoadingMessage} = useContext(HomeContext);
+    const { state: { prompts, featureFlags, amplifyUsers, aiEmailDomain, chatEndpoint } , setLoadingMessage} = useContext(HomeContext);
 
     const isGroupAst = loc.includes("admin");
 
@@ -303,6 +305,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
     const [availableAgentTools, setAvailableAgentTools] = useState<Record<string, any> | null>(null);
     const [builtInAgentTools, setBuiltInAgentTools] = useState<string[]>(definition.data?.builtInOperations ?? []);
+
+    // Skills state
+    const [selectedSkills, setSelectedSkills] = useState<SkillReference[]>(definition.data?.skills ?? []);
+    const [skillSelectionMode, setSkillSelectionMode] = useState<SkillSelectionMode>(definition.data?.skillSelectionMode ?? 'auto');
 
     const [availableOnRequest, setAvailableOnRequest] = useState(definition.data?.availableOnRequest || false);
     const [astIcon, setAstIcon] = useState<AttachedDocument | undefined>(definition.data?.astIcon);
@@ -837,7 +843,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             newAssistant.data = {
                 ...newAssistant.data,
                 operations: combinedOps,
-                builtInOperations: builtInAgentTools
+                builtInOperations: builtInAgentTools,
+                // Skills
+                skills: selectedSkills.length > 0 ? selectedSkills : undefined,
+                skillSelectionMode: selectedSkills.length > 0 ? skillSelectionMode : undefined
             };
 
             if (apiOptions.IncludeApiInstr && apiInfo.some(api => !validateApiInfo(api))) {
@@ -1577,10 +1586,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             {enableEmailEvents &&
                             <div className="mb-4 mt-2 flex flex-col gap-2 mr-6">
                                 <label className=" text-[1.02rem]"> Email this assistant at: <span className='ml-2 text-blue-500'> {`${constructAstEventEmailAddress(emailEventTag ?? safeEmailEventTag(name), userEmail, aiEmailDomain)}`} </span></label>
-                            
-                                {!existingAllowedSenders ? <>Loading allowed senders...</> : 
-                                <ExpansionComponent title={"Manage authorized senders who can email this assistant"} 
-                                    closedWidget= { <IconMailFast size={22} />} 
+
+                                {!existingAllowedSenders ? <>Loading allowed senders...</> :
+                                <ExpansionComponent title={"Manage authorized senders who can email this assistant"}
+                                    closedWidget= { <IconMailFast size={22} />}
                                     content={
                                     <AddEmailWithAutoComplete
                                         id={`allowedSenders`}
@@ -1596,9 +1605,22 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             setCurAllowedSenders(usernames);
                                         }}
                                         displayEmails={true}
-                                    />} 
+                                    />}
                                 />}
                             </div>}
+
+                            {/* Skills Section */}
+                            {featureFlags.skills && !disableEdit && chatEndpoint && (
+                                <div className="mb-4 mt-4">
+                                    <SkillsSection
+                                        chatEndpoint={chatEndpoint}
+                                        selectedSkills={selectedSkills}
+                                        onSkillsChange={setSelectedSkills}
+                                        skillSelectionMode={skillSelectionMode}
+                                        onModeChange={setSkillSelectionMode}
+                                    />
+                                </div>
+                            )}
 
                             <br></br>
 

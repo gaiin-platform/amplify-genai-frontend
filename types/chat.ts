@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import {WorkflowDefinition} from "@/types/workflow";
 import { Artifact } from './artifacts';
 import { messageTopicData } from './topics';
+import { SkillSelectionMode } from './skill';
 
 export interface Message {
   role: Role;
@@ -129,6 +130,9 @@ export interface ChatBody {
   projectId?: string;
   tools?: any[]; // Tool definitions in OpenAI function format
   enableWebSearch?: boolean; // Enable backend web search tool execution
+  // Skills integration
+  skills?: string[]; // Array of skill IDs to use for this request
+  skillSelectionMode?: SkillSelectionMode; // 'manual', 'auto', or 'hybrid'
 }
 
 export interface ConversationContextEntry {

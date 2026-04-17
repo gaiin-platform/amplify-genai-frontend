@@ -1,4 +1,4 @@
-import { IconRobot, IconChartBar, IconFileSearch, IconLibrary, IconMessageBolt, IconDeviceSdCard, IconWorldSearch, IconPlugConnected } from '@tabler/icons-react';
+import { IconRobot, IconChartBar, IconFileSearch, IconLibrary, IconMessageBolt, IconDeviceSdCard, IconWorldSearch, IconPlugConnected, IconBrain } from '@tabler/icons-react';
 import React from 'react';
 
 // Plugina are on and off features during the conversation chat requests
@@ -21,7 +21,8 @@ export enum PluginID {
   RAG_EVAL = 'rag-eval',
   MEMORY = 'memory',
   WEB_SEARCH = 'web-search',
-  MCP = 'mcp'
+  MCP = 'mcp',
+  SKILLS = 'skills'
 }
 
 export const Plugins: Record<PluginID, Plugin> = {
@@ -77,6 +78,13 @@ export const Plugins: Record<PluginID, Plugin> = {
     title: "Enable MCP (Model Context Protocol) tools. Configure MCP servers in Settings → MCP Servers.",
     default: false,
     iconComponent: IconPlugConnected
+  },
+  [PluginID.SKILLS]: {
+    id: PluginID.SKILLS,
+    name: "Skills",
+    title: "Enable Skills - specialized capabilities that can be auto-selected based on your conversation. Manage skills in Settings → Skills.",
+    default: false,
+    iconComponent: IconBrain
   }
 };
 

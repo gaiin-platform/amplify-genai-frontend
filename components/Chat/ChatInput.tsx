@@ -13,6 +13,7 @@ import {
     IconX,
     IconWorldSearch,
     IconGripHorizontal,
+    IconSparkles,
     IconLayoutList
 } from '@tabler/icons-react';
 import SaveActionsModal from './SaveActionsModal';
@@ -86,6 +87,7 @@ import { AttachmentDisplay } from '@/components/Chat/AttachmentDisplay';
 import { useLargeTextManager } from '@/hooks/useLargeTextManager';
 import { useTextBlockEditor } from '@/hooks/useTextBlockEditor';
 import toast from 'react-hot-toast';
+import { SkillsToggle } from '@/components/Skills';
 
 
 
@@ -371,6 +373,10 @@ export const ChatInput = ({
     // Per-conversation web search toggle (independent from FeaturePlugin) - persists across messages
     const isWebSearchEnabledForConversation = selectedConversation?.data?.webSearchEnabled ?? false;
 
+    // Skills toggle state - stores skill IDs (persists in conversation data)
+    const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
+    const skillSelectionMode = selectedConversation?.data?.skillSelectionMode ?? 'auto';
+
     const promptListRef = useRef<HTMLUListElement | null>(null);
     const dataSourceSelectorRef = useRef<HTMLDivElement | null>(null);
     const actionSelectorRef = useRef<HTMLDivElement | null>(null);
@@ -595,7 +601,10 @@ export const ChatInput = ({
         let messageLabel = content || '';
         let messageData: any = {
             // Include per-message web search toggle state
-            enableWebSearch: isWebSearchEnabledForConversation
+            enableWebSearch: isWebSearchEnabledForConversation,
+            // Include selected skills
+            skills: selectedSkillIds,
+            skillSelectionMode: skillSelectionMode
         };
 
         if (largeTextBlocks.length > 0) {
@@ -1969,6 +1978,15 @@ export const ChatInput = ({
                         >
                             <IconWorldSearch size={20} />
                         </button>
+                        }
+
+                        {/* Skills Toggle - Select skills to use (only show if skills is enabled in FeaturePlugin) */}
+                        { featureFlags.skills && plugins?.some(p => p.id === PluginID.SKILLS) && chatEndpoint &&
+                            <SkillsToggle
+                                chatEndpoint={chatEndpoint}
+                                selectedSkillIds={selectedSkillIds}
+                                onSelectionChange={setSelectedSkillIds}
+                            />
                         }
 
                         <div className='flex flex-row gap-2'>
