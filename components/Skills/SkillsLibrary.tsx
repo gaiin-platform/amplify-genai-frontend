@@ -86,7 +86,7 @@ export const SkillsLibrary: FC<SkillsLibraryProps> = ({ chatEndpoint, onClose })
 
     const displayedSkills = viewMode === 'my-skills' ? skills : publicSkills;
 
-    const allCategories = [...new Set(displayedSkills.map(s => s.category).filter(Boolean))];
+    const allCategories = Array.from(new Set(displayedSkills.map(s => s.category).filter(Boolean)));
 
     const filteredSkills = displayedSkills.filter(skill => {
         const matchesSearch = !searchQuery ||
@@ -355,10 +355,10 @@ export const SkillsLibrary: FC<SkillsLibraryProps> = ({ chatEndpoint, onClose })
                                             {skill.name}
                                         </h3>
                                         {skill.isPublic && (
-                                            <IconGlobe size={14} className="text-green-500" title="Public" />
+                                            <span title="Public"><IconGlobe size={14} className="text-green-500" /></span>
                                         )}
                                         {skill.isShared && (
-                                            <IconShare size={14} className="text-blue-500" title="Shared with you" />
+                                            <span title="Shared with you"><IconShare size={14} className="text-blue-500" /></span>
                                         )}
                                     </div>
                                     <div className="relative">

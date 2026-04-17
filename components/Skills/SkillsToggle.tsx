@@ -4,7 +4,7 @@ import { Skill } from '@/types/skill';
 import { SkillSelector } from './SkillSelector';
 import { SkillEditor } from './SkillEditor';
 import { createSkill, getUserSkills } from '@/services/skillsService';
-import { CreateSkillData } from '@/types/skill';
+import { CreateSkillData, UpdateSkillData } from '@/types/skill';
 
 interface SkillsToggleProps {
     chatEndpoint: string;
@@ -46,10 +46,10 @@ export const SkillsToggle: FC<SkillsToggleProps> = ({
         setShowEditor(true);
     };
 
-    const handleSaveNewSkill = async (skillData: CreateSkillData) => {
+    const handleSaveNewSkill = async (skillData: CreateSkillData | UpdateSkillData) => {
         setSaving(true);
         try {
-            const response = await createSkill(chatEndpoint, skillData);
+            const response = await createSkill(chatEndpoint, skillData as CreateSkillData);
             if (response.success && response.data) {
                 // Automatically select the newly created skill
                 onSelectionChange([...selectedSkillIds, response.data.id]);

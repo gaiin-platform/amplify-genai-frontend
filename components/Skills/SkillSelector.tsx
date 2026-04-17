@@ -60,7 +60,7 @@ export const SkillSelector: FC<SkillSelectorProps> = ({
         loadSkills();
     }, [loadSkills]);
 
-    const allCategories = [...new Set(skills.map(s => s.category).filter(Boolean))];
+    const allCategories = Array.from(new Set(skills.map(s => s.category).filter(Boolean)));
 
     const filteredSkills = skills.filter(skill => {
         const matchesSearch = !searchQuery ||

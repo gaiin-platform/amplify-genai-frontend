@@ -51,7 +51,7 @@ export const SkillEditor: FC<SkillEditorProps> = ({
         if (parsed.triggerPhrases?.length && !triggerPhrases.length) setTriggerPhrases(parsed.triggerPhrases);
         if (parsed.priority) setPriority(parsed.priority);
         if (parsed.category) setCategory(parsed.category);
-    }, []);
+    }, [content, description, name, tags.length, triggerPhrases.length]);
 
     const handleSave = () => {
         const skillData: CreateSkillData | UpdateSkillData = {
@@ -246,7 +246,7 @@ export const SkillEditor: FC<SkillEditorProps> = ({
                                     key={phrase}
                                     className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded text-sm"
                                 >
-                                    "{phrase}"
+                                    &quot;{phrase}&quot;
                                     <button
                                         onClick={() => removeTrigger(phrase)}
                                         className="hover:text-purple-900 dark:hover:text-purple-100"

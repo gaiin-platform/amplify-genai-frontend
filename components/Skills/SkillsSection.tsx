@@ -12,7 +12,7 @@ import { Skill, SkillReference, SkillSelectionMode, SKILL_CATEGORIES } from '@/t
 import { getUserSkills } from '@/services/skillsService';
 import { SkillEditor } from './SkillEditor';
 import { createSkill } from '@/services/skillsService';
-import { CreateSkillData } from '@/types/skill';
+import { CreateSkillData, UpdateSkillData } from '@/types/skill';
 
 interface SkillsSectionProps {
     chatEndpoint: string;
@@ -76,10 +76,10 @@ export const SkillsSection: FC<SkillsSectionProps> = ({
         ));
     };
 
-    const handleCreateNew = async (skillData: CreateSkillData) => {
+    const handleCreateNew = async (skillData: CreateSkillData | UpdateSkillData) => {
         setSaving(true);
         try {
-            const response = await createSkill(chatEndpoint, skillData);
+            const response = await createSkill(chatEndpoint, skillData as CreateSkillData);
             if (response.success && response.data) {
                 await loadSkills();
                 // Automatically select the newly created skill
