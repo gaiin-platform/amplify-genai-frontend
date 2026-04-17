@@ -1403,8 +1403,24 @@ const Home = ({
         if (scrollableElement) {
             const hasScrollableContent = scrollableElement.scrollHeight > scrollableElement.clientHeight;
             dispatch({ field: 'hasScrolledToBottom', value: !hasScrollableContent });
+        } else {
+            // Element not yet in DOM; defer until dataDisclosure renders
+            dispatch({ field: 'hasScrolledToBottom', value: false });
         }
     };
+
+    useEffect(() => {
+        if (dataDisclosure?.html) {
+            // Re-check after the disclosure HTML has been rendered into the DOM
+            requestAnimationFrame(() => {
+                const scrollableElement = document.querySelector('.data-disclosure');
+                if (scrollableElement) {
+                    const hasScrollableContent = scrollableElement.scrollHeight > scrollableElement.clientHeight;
+                    dispatch({ field: 'hasScrolledToBottom', value: !hasScrollableContent });
+                }
+            });
+        }
+    }, [dataDisclosure]);
 
 
     if (session) {                          // dont want to go here if its null
