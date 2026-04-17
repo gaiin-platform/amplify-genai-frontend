@@ -17,10 +17,9 @@ import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags} from "@/service
 import {TagsList} from "@/components/Chat/TagsList";
 import {DataSource} from "@/types/chat";
 import { v4 as uuidv4 } from 'uuid';
-import { deleteDatasourceFile, downloadDataSourceFile, extractKey, getDocumentStatusConfig, getFileAction, startFileReprocessingWithPolling, startFileStatusPolling } from '@/utils/app/files';
+import { deleteDatasourceFile, disableSupportReprocess, downloadDataSourceFile, extractKey, getDocumentStatusConfig, getFileAction, startFileReprocessingWithPolling, startFileStatusPolling } from '@/utils/app/files';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
-import { IMAGE_FILE_TYPES } from '@/utils/app/const';
 import { embeddingDocumentStatus } from '@/services/adminService';
 import { capitalize } from '@/utils/app/data';
 import styled, {keyframes} from "styled-components";
@@ -231,6 +230,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
             
             // dont show assistant icons in the data source table
             const items = result.data.items || [];
+            console.log("Items", items);
             const updatedWithCommonNames = items.map((file: any) => {
                 const commonName = mimeTypeToCommonName[file.type];
                 return {
@@ -431,9 +431,14 @@ const DataSourcesTableScrolling: FC<Props> = ({
         setLoadingMessage("Deleting File...");
         try {
             await deleteDatasourceFile({id: key}); // TODO: check response
-            setData([]); // Clear existing data to force a complete refresh
             setIsRefetching(true);
-            fetchFiles(); 
+            setTimeout(() => {
+                setData([]); // Clear existing data to force a complete refresh
+                fetchFiles(); 
+            }, 300); 
+
+
+            
         } finally {
             setLoadingMessage("");
         }
@@ -801,7 +806,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
                                 )}
                             </span>
                             {/* Show loader if actively polling, or action button based on status/time */}
-                            {!IMAGE_FILE_TYPES.includes(fileType) && (() => {
+                            {!disableSupportReprocess(fileType) && (() => {
                                 // Show spinner if actively polling this file
                                 if (pollingFiles.has(cell.row.original.id)) {
                                     return <LoadingIcon style={{ width: "18px", height: "18px" }} />;

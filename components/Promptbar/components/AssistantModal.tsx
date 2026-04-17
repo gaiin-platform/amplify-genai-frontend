@@ -9,6 +9,7 @@ import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assi
 import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
 import {createAssistant, addAssistantPath, lookupAssistant, rescanWebsites} from "@/services/assistantService";
 import {IconFiles, IconArrowRight, IconMailFast, IconCaretRight, IconCaretDown, IconRefresh, IconAlertTriangle} from "@tabler/icons-react";
+import { LoadingDialog } from '@/components/Loader/LoadingDialog';
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/ReusableComponents/FlagsMap";
 import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
@@ -35,6 +36,8 @@ import ApiIntegrationsPanel from '@/components/AssistantApi/ApiIntegrationsPanel
 import { AssistantEmailEvents } from '@/components/Promptbar/components/AssistantModalComponents/AssistantEmailEvents';
 import { AssistantWorkflowDisplay } from './AssistantModalComponents/AssistantWorkflowDisplay';
 import { isWebsiteDs, WebsiteScanScheduler, WebsiteURLInput } from '@/components/DataSources/WebsiteURLInput';
+import { BedrockKBInput } from '@/components/DataSources/BedrockKBInput';
+import { isBedrockKbDatasource, extractKbId } from '@/utils/app/bedrockKb';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import { ScheduledTaskButton } from '@/components/Agent/ScheduledTasks';
 import { deleteFile } from '@/services/fileService';
@@ -42,6 +45,8 @@ import AssistantDriveDataSources, { cleanupRemovedDatasources, DriveRescanSchedu
 import { DriveFilesDataSources } from '@/types/integrations';
 import { determineWebsiteScanCron, manageScheduledTasks, updateScheduledTasks, determineDriveScanCron, AssistantScheduledTaskUses } from '@/utils/app/scheduledTasks';
 import { validateUrl } from '@/utils/app/data';
+import { SkillsSection } from '@/components/Skills';
+import { SkillReference, SkillSelectionMode } from '@/types/skill';
 
 
 interface Props {
@@ -160,7 +165,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const {t} = useTranslation('promptbar');
     const { data: session } = useSession();
     const userEmail = session?.user?.email ?? ''; // Kept as email to avoid breaking changes, updates in the backend handle username translation
-    const { state: { prompts, featureFlags, amplifyUsers, aiEmailDomain } , setLoadingMessage} = useContext(HomeContext);
+    const { state: { prompts, featureFlags, amplifyUsers, aiEmailDomain, chatEndpoint } , setLoadingMessage} = useContext(HomeContext);
 
     const isGroupAst = loc.includes("admin");
 
@@ -301,6 +306,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const [availableAgentTools, setAvailableAgentTools] = useState<Record<string, any> | null>(null);
     const [builtInAgentTools, setBuiltInAgentTools] = useState<string[]>(definition.data?.builtInOperations ?? []);
 
+    // Skills state
+    const [selectedSkills, setSelectedSkills] = useState<SkillReference[]>(definition.data?.skills ?? []);
+    const [skillSelectionMode, setSkillSelectionMode] = useState<SkillSelectionMode>(definition.data?.skillSelectionMode ?? 'auto');
+
     const [availableOnRequest, setAvailableOnRequest] = useState(definition.data?.availableOnRequest || false);
     const [astIcon, setAstIcon] = useState<AttachedDocument | undefined>(definition.data?.astIcon);
     // Path-related state
@@ -314,7 +323,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         const lookupPath = async () => {
             let pathData: AstPathData = emptyAstPathData;
             if (!astPath) {
+                originalAstPathData.current = pathData;
                 setAstPathData(pathData);
+                setIsCheckingPath(false);
                 return;
             };
             const result = await lookupAssistant(astPath);
@@ -324,24 +335,30 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 const data = result.data;
                 const astId = data.assistantId;
                 if (astId !== definition.assistantId) {
+                    originalAstPathData.current = pathData;
                     setAstPathData(pathData);
                     setAstPath(null);
                     setIsPathAvailable(false);
+                    setIsCheckingPath(false);
                     return;
-                } 
+                }
 
                 const accessTo = data.accessTo;
-                pathData = {isPublic: data.public ?? true, 
-                            accessTo: {amplifyGroups: accessTo.amplifyGroups ?? [], 
+                pathData = {isPublic: data.public ?? true,
+                            accessTo: {amplifyGroups: accessTo.amplifyGroups ?? [],
                                         users: accessTo.users ?? []}};
                 originalAstPathData.current = pathData;
-            } 
+            } else {
+                // Lookup failed or returned no data — still set the original baseline
+                // so isAstPathDataChanged doesn't compare against null
+                originalAstPathData.current = pathData;
+            }
             setAstPathData(pathData);
+            setIsCheckingPath(false);
         }
 
         if (featureFlags.assistantPathPublishing && astPathData === null) {
             lookupPath();
-            setIsCheckingPath(false);
         }
     }, [featureFlags.assistantPathPublishing]);
 
@@ -684,6 +701,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
           // console.log(dataSources.map((d: any)=> d.name));
 
             newAssistant.dataSources = dataSources.map(ds => {
+                if (isBedrockKbDatasource(ds)) return ds; // Bedrock KB datasources pass through as-is
                 if (isWebsiteDs(ds) && !ds.key) return ds; // signifies needs scraping
                 if (assistant.groupId) {
                     if (!ds.key) ds.key = ds.id;
@@ -825,7 +843,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             newAssistant.data = {
                 ...newAssistant.data,
                 operations: combinedOps,
-                builtInOperations: builtInAgentTools
+                builtInOperations: builtInAgentTools,
+                // Skills
+                skills: selectedSkills.length > 0 ? selectedSkills : undefined,
+                skillSelectionMode: selectedSkills.length > 0 ? skillSelectionMode : undefined
             };
 
             if (apiOptions.IncludeApiInstr && apiInfo.some(api => !validateApiInfo(api))) {
@@ -840,7 +861,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
             const updatedAdditionalGroupData = prepAdditionalData();
             newAssistant.data = {...newAssistant.data, ...updatedAdditionalGroupData};
             
-            const {id, assistantId, provider, data_sources, ast_data} = onCreateAssistant ? await onCreateAssistant(newAssistant) : await createAssistant(newAssistant, null);
+            const {id, assistantId, provider, data_sources, ast_data} = onCreateAssistant ? await onCreateAssistant(newAssistant) : await createAssistant(newAssistant);
             console.log('Assistant created with ID:', assistantId);
 
             
@@ -896,8 +917,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
             // If we have an assistantId and astPath, update the path in DynamoDB
             // if path has changed or pathData has changed
+            const savedPath = definition.astPath || definition.data?.astPath || definition.pathFromDefinition;
+            const pathChanged = astPath ? astPath.toLowerCase() !== (savedPath || '').toLowerCase() : false;
+            const pathDataChanged = isAstPathDataChanged(astPathData, originalAstPathData.current);
             if (featureFlags.assistantPathPublishing && assistantId && astPath &&
-                (astPath !== definition.astPath || isAstPathDataChanged(astPathData, originalAstPathData.current))) {
+                (pathChanged || pathDataChanged)) {
                 try {
                     const formattedPath = astPath.toLowerCase();
                     setLoadingMessage(`Publishing assistant to ${window.location.origin}/assistants/${formattedPath}...`);
@@ -1120,7 +1144,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     }
     
 
-    if (isLoading) return <></>;
+    if (isLoading) return embed ? <LoadingDialog open={true} message={loadingMessage} /> : <></>;
     
 
     const assistantModalContainer = () => {
@@ -1242,7 +1266,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                            
                             <div className="mt-6 h-0 text-center flex items-center justify-center gap-2 w-full">
                                 <IconAlertTriangle size={16} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                                <p className="text-xs text-blue-700 dark:text-blue-300">
+                                <p className="text-xs text-blue-700 dark:text-blue-500">
                                 {"When making changes to the assistant's data sources, please allow a few minutes after saving for the updates to take effect."}
                                 </p>
                             </div>
@@ -1321,29 +1345,31 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 
                             {/* Add Website URLs Section */}
                             {featureFlags.websiteUrls && !disableEdit && (
-                                <> 
-                                <div className="mt-2 mb-2 font-bold text-black dark:text-neutral-200">
-                                    {t('Attach Website Data Sources')}
-                                </div>
-                                {definition.assistantId && dataSources.find((ds:AttachedDocument) => isWebsiteDs(ds) && ds.key) &&
-                                <button
-                                    onClick={() => {
-                                        if (definition.assistantId) {
-                                            toast("Please wait a few minutes for the rescan to complete");
-                                            handleRescan();
-                                        }
-                                    }}
-                                    className={"absolute right-10 p-2 hover:bg-gray-100 dark:hover:bg-[#40414F] rounded-md transition-colors group"}
-                                    style={{zIndex: "20", transform: "translateY(-30px)"}}
-                                    title={"Rescan All Website URLs"}
-                                    >
-                                    <IconRefresh 
-                                        size={22} 
-                                        className={`text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300`} 
-                                    />
-                                </button>}
-                                {featureFlags.scheduledTasks &&
-                                  <WebsiteScanScheduler
+                                <>
+                                <div className="flex items-center justify-between mt-2 mb-2">
+                                    <div className="font-bold text-black dark:text-neutral-200">
+                                        {t('Attach Website Data Sources')}
+                                    </div>
+                                    <div className="flex items-center gap-8">
+                                        {definition.assistantId && dataSources.find((ds:AttachedDocument) => isWebsiteDs(ds) && ds.key) &&
+                                        <button
+                                            onClick={() => {
+                                                if (definition.assistantId) {
+                                                    toast("Please wait a few minutes for the rescan to complete");
+                                                    handleRescan();
+                                                }
+                                            }}
+                                            className="p-2 -mt-7 mr-1 hover:bg-gray-100 dark:hover:bg-[#40414F] rounded-md transition-colors group"
+                                            title={"Rescan All Website URLs"}
+                                            >
+                                            <IconRefresh
+                                                size={22}
+                                                className={`text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300`}
+                                            />
+                                        </button>}
+
+                                        {featureFlags.scheduledTasks &&
+                                          <WebsiteScanScheduler
                                     initAssistantDefintion={definition}
                                     websiteUrls={websiteUrls}
                                     onUpdateWebsiteUrl={(urlItem, updates) => {
@@ -1380,6 +1406,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         }
                                     }}
                                   />}
+                                    </div>
+                                </div>
                                 <WebsiteURLInput
                                     onAddURL={(url, isSitemap, maxPages, exclusions) => {
                                         const webType = isSitemap ? 'website/sitemap' : 'website/url';
@@ -1429,7 +1457,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 </>
                             )}
 
-                            {featureFlags.integrations && !disableEdit &&!isGroupAst &&
+                            {featureFlags.integrations && !isGroupAst &&
                                 <AssistantDriveDataSources
                                 initAssistantDefintion={definition}
                                 selectedDataSources={integrationDataSources ?? {}}
@@ -1439,20 +1467,59 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                 initRescanSchedule={driveRescanSchedule}
                                 onRescanScheduleChange={setDriveRescanSchedule}
+                                disableEdit={disableEdit}
                                 />
                             }
+
+                            {/* Bedrock Knowledge Base Section */}
+                            {featureFlags.bedrockKnowledgeBase && !disableEdit && (
+                                <>
+                                <div className="mt-2 mb-2 font-bold text-black dark:text-neutral-200">
+                                    {t('Attach Bedrock Knowledge Base')}
+                                </div>
+                                <BedrockKBInput
+                                    existingKbIds={dataSources
+                                        .filter(isBedrockKbDatasource)
+                                        .map(ds => extractKbId(ds))}
+                                    onAdd={(ds) => {
+                                        setDataSources([...dataSources, ds as any]);
+                                        setDocumentState({ ...documentState, [ds.id]: 100 });
+                                    }}
+                                />
+                                <FileList
+                                    documents={dataSources.filter((ds: AttachedDocument) =>
+                                        !(preexistingDocumentIds.includes(ds.id)) && isBedrockKbDatasource(ds)
+                                    )}
+                                    documentStates={documentState}
+                                    setDocuments={(docs) => {
+                                        const nonKb = dataSources.filter((ds: AttachedDocument) =>
+                                            !isBedrockKbDatasource(ds) || preexistingDocumentIds.includes(ds.id)
+                                        );
+                                        setDataSources([...docs, ...nonKb] as any[]);
+                                    }}
+                                    allowRemoval={!disableEdit}
+                                    onCancelUpload={(ds: AttachedDocument) => {
+                                        const updatedDocState = { ...documentState };
+                                        delete updatedDocState[ds.id];
+                                        setDocumentState(updatedDocState);
+                                    }}
+                                />
+                                </>
+                            )}
 
                             { definition.dataSources?.length > 0  &&
                              <div className="mt-4">
                                 <br></br>
-                                <ExistingFileList 
+                                <ExistingFileList
                                     label={'Assistant Data Sources'}
                                     allowRemoval={!disableEdit}
+                                    allowResize={true}
+                                    groupId={assistant.groupId}
                                     documents={dataSources.filter((ds:AttachedDocument) => (preexistingDocumentIds.includes(ds.id)))} 
                                     setDocuments={(docs) => {
                                         const newDocs = dataSources.filter((ds:AttachedDocument) => !(preexistingDocumentIds.includes(ds.id)));
                                         setDataSources([...docs, ...newDocs] as any[]);
-                                    }} 
+                                    }}
                                     onRemoval={(doc) => {
                                         // since websites are assistant specific scraped data sources we need to delete upon removal
                                         if (isWebsiteDs(doc) ) {
@@ -1519,10 +1586,10 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             {enableEmailEvents &&
                             <div className="mb-4 mt-2 flex flex-col gap-2 mr-6">
                                 <label className=" text-[1.02rem]"> Email this assistant at: <span className='ml-2 text-blue-500'> {`${constructAstEventEmailAddress(emailEventTag ?? safeEmailEventTag(name), userEmail, aiEmailDomain)}`} </span></label>
-                            
-                                {!existingAllowedSenders ? <>Loading allowed senders...</> : 
-                                <ExpansionComponent title={"Manage authorized senders who can email this assistant"} 
-                                    closedWidget= { <IconMailFast size={22} />} 
+
+                                {!existingAllowedSenders ? <>Loading allowed senders...</> :
+                                <ExpansionComponent title={"Manage authorized senders who can email this assistant"}
+                                    closedWidget= { <IconMailFast size={22} />}
                                     content={
                                     <AddEmailWithAutoComplete
                                         id={`allowedSenders`}
@@ -1538,9 +1605,22 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             setCurAllowedSenders(usernames);
                                         }}
                                         displayEmails={true}
-                                    />} 
+                                    />}
                                 />}
                             </div>}
+
+                            {/* Skills Section */}
+                            {featureFlags.skills && !disableEdit && chatEndpoint && (
+                                <div className="mb-4 mt-4">
+                                    <SkillsSection
+                                        chatEndpoint={chatEndpoint}
+                                        selectedSkills={selectedSkills}
+                                        onSkillsChange={setSelectedSkills}
+                                        skillSelectionMode={skillSelectionMode}
+                                        onModeChange={setSkillSelectionMode}
+                                    />
+                                </div>
+                            )}
 
                             <br></br>
 

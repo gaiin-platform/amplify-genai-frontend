@@ -140,7 +140,7 @@ const getAssistantStyle = (assistant: Prompt, index: number) => {
 
 export const IndividualAssistantsGallery: FC = () => {
     const {
-        state: { prompts, statsService },
+        state: { prompts, statsService, availableModels },
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
@@ -150,10 +150,16 @@ export const IndividualAssistantsGallery: FC = () => {
     const [hoveredAssistantId, setHoveredAssistantId] = useState<string | null>(null);
     const [showModal, setShowModal] = useState(false);
     const [selectedAssistant, setSelectedAssistant] = useState<Prompt | null>(null);
+    const [activeTab, setActiveTab] = useState<'your' | 'shared'>('your');
 
     useEffect(() => {
         promptsRef.current = prompts;
     }, [prompts]);
+
+    // Helper function to check if assistant can be edited
+    const canEdit = (assistant: Prompt) => {
+        return !assistant.data || !assistant.data.noEdit;
+    };
 
     // Filter to only show assistants (not regular prompts or group assistants) and sort alphabetically
     const assistants = prompts
@@ -167,23 +173,23 @@ export const IndividualAssistantsGallery: FC = () => {
                (assistant.description && assistant.description.toLowerCase().includes(searchLower));
     });
 
+    // Separate your assistants from shared assistants
+    const yourAssistants = filteredAssistants.filter((assistant: Prompt) => canEdit(assistant));
+    const sharedAssistants = filteredAssistants.filter((assistant: Prompt) => !canEdit(assistant));
+
     const handleStartConversation = (startPrompt: Prompt) => {
         if (isAssistant(startPrompt) && startPrompt.data) {
             homeDispatch({ field: 'selectedAssistant', value: startPrompt.data.assistant });
         }
 
         statsService.startConversationEvent(startPrompt);
-        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt);
+        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt, availableModels);
     };
 
     const handleOpenModal = (e: React.MouseEvent, assistant: Prompt) => {
         e.stopPropagation(); // Prevent triggering the card's onClick
         setSelectedAssistant(assistant);
         setShowModal(true);
-    };
-
-    const canEdit = (assistant: Prompt) => {
-        return !assistant.data || !assistant.data.noEdit;
     };
 
     return (
@@ -222,106 +228,155 @@ export const IndividualAssistantsGallery: FC = () => {
                             />
                         </div>
                     </div>
+
+                    {/* Tabs */}
+                    <div className="border-b border-gray-200 dark:border-gray-700">
+                        <div className="flex gap-1 px-8">
+                            <button
+                                onClick={() => setActiveTab('your')}
+                                className={`px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+                                    activeTab === 'your'
+                                        ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                                }`}
+                            >
+                                Your Assistants
+                                <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                                    activeTab === 'your'
+                                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300'
+                                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                                }`}>
+                                    {yourAssistants.length}
+                                </span>
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('shared')}
+                                className={`px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+                                    activeTab === 'shared'
+                                        ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                                }`}
+                            >
+                                Shared Assistants
+                                <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                                    activeTab === 'shared'
+                                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300'
+                                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                                }`}>
+                                    {sharedAssistants.length}
+                                </span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Content */}
                 <div className="p-8">
-                    {filteredAssistants.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-24">
-                            <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-100 to-violet-100 dark:from-indigo-900/20 dark:to-violet-900/20 mb-4 shadow-lg">
-                                <IconRobot size={36} className="text-indigo-500 dark:text-indigo-400" />
-                                <div className="absolute inset-0 rounded-2xl bg-gradient-to-t from-white/40 to-transparent" />
-                            </div>
-                            <p className="text-base font-medium text-gray-600 dark:text-gray-400">
-                                {searchTerm ? 'No assistants found' : 'No assistants available'}
-                            </p>
-                            {searchTerm && (
-                                <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
-                                    Try a different search term
-                                </p>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="max-w-full mx-auto px-4">
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
-                                {filteredAssistants.map((assistant: Prompt, idx: number) => {
-                                    const hasDescription = assistant.description && assistant.description.trim().length > 0;
-                                    const { gradient, badges } = getAssistantStyle(assistant, idx);
+                    {(() => {
+                        const assistantsToShow = activeTab === 'your' ? yourAssistants : sharedAssistants;
 
-                                    return (
-                                        <button
-                                            key={assistant.id}
-                                            onClick={() => handleStartConversation(assistant)}
-                                            onMouseEnter={() => setHoveredAssistantId(assistant.id)}
-                                            onMouseLeave={() => setHoveredAssistantId(null)}
-                                            className="group relative rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-xl hover:scale-[1.02] transition-all duration-300 text-left opacity-0 animate-fadeInUp"
-                                            style={{ animationDelay: `${idx * 30}ms`, animationFillMode: 'forwards' }}
-                                        >
-                                            {/* Gradient header */}
-                                            <div className={`bg-gradient-to-br ${gradient} p-4`}>
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                                                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white/90 dark:bg-gray-800/90 shadow-sm">
-                                                            <IconRobot size={16} className="text-gray-700 dark:text-gray-300" />
+                        if (assistantsToShow.length === 0) {
+                            return (
+                                <div className="flex flex-col items-center justify-center py-24">
+                                    <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-100 to-violet-100 dark:from-indigo-900/20 dark:to-violet-900/20 mb-4 shadow-lg">
+                                        <IconRobot size={36} className="text-indigo-500 dark:text-indigo-400" />
+                                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-t from-white/40 to-transparent" />
+                                    </div>
+                                    <p className="text-base font-medium text-gray-600 dark:text-gray-400">
+                                        {searchTerm ? 'No assistants found' : `No ${activeTab === 'your' ? 'your' : 'shared'} assistants available`}
+                                    </p>
+                                    {searchTerm && (
+                                        <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+                                            Try a different search term
+                                        </p>
+                                    )}
+                                </div>
+                            );
+                        }
+
+                        return (
+                            <div className="max-w-full mx-auto px-4">
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+                                    {assistantsToShow.map((assistant: Prompt, idx: number) => {
+                                        const hasDescription = assistant.description && assistant.description.trim().length > 0;
+                                        const { gradient, badges } = getAssistantStyle(assistant, idx);
+                                        const isEditable = canEdit(assistant);
+
+                                        return (
+                                            <button
+                                                key={assistant.id}
+                                                onClick={() => handleStartConversation(assistant)}
+                                                onMouseEnter={() => setHoveredAssistantId(assistant.id)}
+                                                onMouseLeave={() => setHoveredAssistantId(null)}
+                                                className="group relative rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-xl hover:scale-[1.02] transition-all duration-300 text-left opacity-0 animate-fadeInUp"
+                                                style={{ animationDelay: `${idx * 30}ms`, animationFillMode: 'forwards' }}
+                                            >
+                                                {/* Gradient header */}
+                                                <div className={`bg-gradient-to-br ${gradient} p-4`}>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white/90 dark:bg-gray-800/90 shadow-sm">
+                                                                <IconRobot size={16} className="text-gray-700 dark:text-gray-300" />
+                                                            </div>
+                                                            <h3 className="font-bold text-sm text-gray-900 dark:text-white leading-tight line-clamp-2">
+                                                                {assistant.name}
+                                                            </h3>
                                                         </div>
-                                                        <h3 className="font-bold text-sm text-gray-900 dark:text-white leading-tight line-clamp-2">
-                                                            {assistant.name}
-                                                        </h3>
-                                                    </div>
-                                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0">
-                                                        <IconArrowUpRight size={16} className="text-gray-600 dark:text-gray-400" />
+                                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0">
+                                                            <IconArrowUpRight size={16} className="text-gray-600 dark:text-gray-400" />
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
 
-                                            {/* White body section */}
-                                            <div className="bg-white dark:bg-gray-800 p-4 pt-3 relative">
-                                                {hasDescription && (
-                                                    <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-3 mb-3">
-                                                        {assistant.description}
-                                                    </p>
-                                                )}
-
-                                                {/* Capability badges */}
-                                                {badges.length > 0 && (
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {badges.map((badge, i) => {
-                                                            const BadgeIcon = badge.icon;
-                                                            return (
-                                                                <span
-                                                                    key={i}
-                                                                    title={badge.tooltip}
-                                                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ${badge.color}`}
-                                                                >
-                                                                    {BadgeIcon && <BadgeIcon size={16} className="flex-shrink-0" />}
-                                                                    {badge.label && <span className="whitespace-nowrap">{badge.label}</span>}
-                                                                </span>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-
-                                                {/* Edit/View Icon Button - Bottom Right */}
-                                                <button
-                                                    onClick={(e) => handleOpenModal(e, assistant)}
-                                                    className={`absolute bottom-3 right-3 p-2 rounded-lg bg-white dark:bg-gray-700 border-2 border-indigo-500 dark:border-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200 z-20 ${
-                                                        hoveredAssistantId === assistant.id ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                                                    }`}
-                                                    title={canEdit(assistant) ? "Edit Assistant" : "View Assistant"}
-                                                >
-                                                    {canEdit(assistant) ? (
-                                                        <IconEdit size={16} className="text-indigo-500 dark:text-indigo-400" />
-                                                    ) : (
-                                                        <IconEye size={16} className="text-indigo-500 dark:text-indigo-400" />
+                                                {/* White body section */}
+                                                <div className="bg-white dark:bg-gray-800 p-4 pt-3 relative">
+                                                    {hasDescription && (
+                                                        <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-3 mb-3">
+                                                            {assistant.description}
+                                                        </p>
                                                     )}
-                                                </button>
-                                            </div>
-                                        </button>
-                                    );
-                                })}
+
+                                                    {/* Capability badges */}
+                                                    {badges.length > 0 && (
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {badges.map((badge, i) => {
+                                                                const BadgeIcon = badge.icon;
+                                                                return (
+                                                                    <span
+                                                                        key={i}
+                                                                        title={badge.tooltip}
+                                                                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ${badge.color}`}
+                                                                    >
+                                                                        {BadgeIcon && <BadgeIcon size={16} className="flex-shrink-0" />}
+                                                                        {badge.label && <span className="whitespace-nowrap">{badge.label}</span>}
+                                                                    </span>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Edit/View Icon Button - Bottom Right */}
+                                                    <div
+                                                        onClick={(e) => handleOpenModal(e, assistant)}
+                                                        className={`absolute bottom-3 right-3 p-2 rounded-lg bg-white dark:bg-gray-700 border-2 border-indigo-500 dark:border-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200 z-20 cursor-pointer ${
+                                                            hoveredAssistantId === assistant.id ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                                                        }`}
+                                                        title={isEditable ? "Edit Assistant" : "View Assistant"}
+                                                    >
+                                                        {isEditable ? (
+                                                            <IconEdit size={16} className="text-indigo-500 dark:text-indigo-400" />
+                                                        ) : (
+                                                            <IconEye size={16} className="text-indigo-500 dark:text-indigo-400" />
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
                 </div>
             </div>
 
@@ -331,7 +386,11 @@ export const IndividualAssistantsGallery: FC = () => {
                     assistant={selectedAssistant}
                     onCancel={() => setShowModal(false)}
                     onSave={() => setShowModal(false)}
-                    onUpdateAssistant={() => { } } loadingMessage={''} loc={''}                />
+                    onUpdateAssistant={() => { }}
+                    loadingMessage="Updating assistant..."
+                    loc={''}
+                    disableEdit={!canEdit(selectedAssistant)}
+                />
             )}
         </div>
     );

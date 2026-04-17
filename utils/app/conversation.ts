@@ -122,11 +122,12 @@ export const uncompressConversation = (compressedData: number[]) => {
     return JSON.parse(converstion) as Conversation;
   } catch {
     console.log("Failed to uncompress conversations")
-  } 
+    return undefined;
+  }
 }
 
 export const remoteForConversationHistory = (conversation: Conversation) => {
-  const CloudConvAttr: (keyof Conversation)[] =  ['id', 'name', 'model', 'folderId', 'tags', 'isLocal', 'groupType', 'codeInterpreterAssistantId' ];
+  const CloudConvAttr: (keyof Conversation)[] =  ['id', 'name', 'model', 'folderId', 'tags', 'isLocal', 'groupType', 'codeInterpreterAssistantId', 'date'];
   return pickConversationAttributes(conversation, CloudConvAttr) as Conversation;
 };
 

@@ -450,7 +450,7 @@ export const ToolSelectorCore: React.FC<ToolSelectorCoreProps> = ({
                     <div className="flex-shrink-0">
                       {tool.icon}
                     </div>
-                    <span className="text-sm font-medium">
+                    <span className="text-sm font-medium dark:text-blue-900">
                       {snakeCaseToTitleCase(tool.name)}
                     </span>
                     <button

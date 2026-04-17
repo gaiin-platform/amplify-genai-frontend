@@ -19,6 +19,8 @@ import { ShareItem } from '@/types/export';
 import { ExtractedFact } from '@/types/memory';
 import { Features } from '@/types/features';
 import { PromptCostAlert } from '@/components/Admin/AdminUI';
+import { LayeredAssistant } from '@/types/layeredAssistant';
+import { RateLimit, RateLimits } from '@/types/rateLimit';
 
 export interface HomeInitialState {
   defaultAccount: Account | undefined;
@@ -49,7 +51,9 @@ export interface HomeInitialState {
   showChatbar: boolean;
   showPromptbar: boolean;
   showUserMenu: boolean;
-  activeAssistantGalleryTab: 'group' | 'individual' | 'templates';
+  activeAssistantGalleryTab: 'group' | 'individual' | 'templates' | 'layered';
+  layeredAssistants: LayeredAssistant[];
+  syncingLayeredAssistants: boolean;
 
   workspaceDirty: boolean; //legacy
   workspaceMetadata: Workspace; //legacy
@@ -66,6 +70,12 @@ export interface HomeInitialState {
   inputEmail: string;
   hasScrolledToBottom: boolean;
   storageSelection: string | null;
+  storageProcessing: {
+    isProcessing: boolean;
+    message: string;
+    progress: number;
+    total: number;
+  };
   ops: { [key: string]: Op };
   allFoldersOpenConvs: boolean;
   allFoldersOpenPrompts: boolean;
@@ -86,7 +96,10 @@ export interface HomeInitialState {
   isStandalonePromptCreation: boolean;
   promptCostAlert: PromptCostAlert | null;
   canAddWebSearchApiKey: boolean;
+  webSearchUserMessage: string | null;
   userDocumentationUrl: string;
+  adminRateLimits: RateLimits;
+  groupRateLimits: { groupName: string; limits: RateLimits }[];
   promptCostAlertModal: {
     isOpen: boolean;
     message: string;
@@ -142,6 +155,8 @@ export const initialState: HomeInitialState = {
   showChatbar: false,
   showUserMenu: false,
   activeAssistantGalleryTab: 'group',
+  layeredAssistants: [],
+  syncingLayeredAssistants: true,
   currentFolder: undefined,
   messageError: false,
   searchTerm: '',
@@ -155,6 +170,12 @@ export const initialState: HomeInitialState = {
   inputEmail: '',
   hasScrolledToBottom: false,
   storageSelection: null,
+  storageProcessing: {
+    isProcessing: false,
+    message: '',
+    progress: 0,
+    total: 0,
+  },
   allFoldersOpenConvs: false,
   allFoldersOpenPrompts: false,
   checkedItems: [],
@@ -175,5 +196,8 @@ export const initialState: HomeInitialState = {
   promptCostAlert: null,
   promptCostAlertModal: null,
   canAddWebSearchApiKey: false,
-  userDocumentationUrl: ''
+  webSearchUserMessage: null,
+  userDocumentationUrl: '',
+  adminRateLimits: [],
+  groupRateLimits: []
 };

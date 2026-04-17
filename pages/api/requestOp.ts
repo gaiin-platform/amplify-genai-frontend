@@ -4,8 +4,16 @@ import {authOptions} from "@/pages/api/auth/[...nextauth]";
 import { transformPayload } from "@/utils/app/data";
 import { lzwCompress } from "@/utils/app/lzwCompression";
 
+export const config = {
+    api: {
+        bodyParser: {
+            sizeLimit: '10mb' // Increased limit for large conversations
+        }
+    }
+}
+
 interface reqPayload {
-    method: any, 
+    method: any,
     headers: any,
     body?: any,
 }
@@ -26,6 +34,7 @@ const requestOp =
 
         // Accessing itemData parameters from the request
         const reqData = req.body.data || {};
+        const pollRequestId = req.body.pollRequestId;  // Extract pollRequestId at top level
 
         const method = reqData.method || null;
         let payload = reqData.data ? transformPayload.decode(reqData.data) : null;
@@ -64,7 +73,14 @@ const requestOp =
             } else {
                 console.log(`Skipping compression for path: ${reqData.path}`);
             }
-            reqPayload.body = JSON.stringify( { data: payload });
+
+            // Include pollRequestId if present (for polling support)
+            const bodyData: any = { data: payload };
+            if (pollRequestId) {
+                bodyData.pollRequestId = pollRequestId;
+                console.log(`Including pollRequestId in backend request: ${pollRequestId}`);
+            }
+            reqPayload.body = JSON.stringify(bodyData);
 
         }
 

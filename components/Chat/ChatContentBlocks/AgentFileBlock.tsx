@@ -154,10 +154,6 @@ const AgentFileBlock: React.FC<Props> = ({ filePath, message }) => {
     return null;
   }
 
-  const isImage = fileData.fileType.includes('image') || 
-                  fileData.fileName.endsWith('.png') || 
-                  fileData.fileName.endsWith('.jpg') || 
-                  fileData.fileName.endsWith('.jpeg');
 
   return (
     <div className="flex flex-col w-full my-4">

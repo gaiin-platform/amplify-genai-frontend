@@ -1,11 +1,12 @@
 import { FC, useContext, useState, useRef, useEffect } from 'react';
-import { IconTemplate, IconFileText, IconSparkles, IconBolt, IconArrowUpRight, IconLayersLinked } from '@tabler/icons-react';
+import { IconTemplate, IconFileText, IconSparkles, IconBolt, IconArrowUpRight, IconLayersLinked, IconEdit } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { Prompt } from '@/types/prompt';
 import { handleStartConversationWithPrompt } from '@/utils/app/prompts';
 import { isAssistant } from '@/utils/app/assistants';
 import { Masonry } from '@/components/ReusableComponents/Masonry';
 import Search from '@/components/Search/Search';
+import { PromptModal } from '@/components/Promptbar/components/PromptModal';
 
 interface PromptGroup {
     rootPrompt: Prompt;
@@ -14,7 +15,7 @@ interface PromptGroup {
 
 export const PromptTemplatesGallery: FC = () => {
     const {
-        state: { prompts, statsService },
+        state: { prompts, statsService, availableModels },
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
@@ -22,6 +23,9 @@ export const PromptTemplatesGallery: FC = () => {
     const promptsRef = useRef(prompts);
     const [searchTerm, setSearchTerm] = useState('');
     const [expandedDescriptions, setExpandedDescriptions] = useState<Set<string>>(new Set());
+    const [hoveredTemplateId, setHoveredTemplateId] = useState<string | null>(null);
+    const [showModal, setShowModal] = useState(false);
+    const [selectedTemplate, setSelectedTemplate] = useState<Prompt | null>(null);
 
     useEffect(() => {
         promptsRef.current = prompts;
@@ -60,7 +64,7 @@ export const PromptTemplatesGallery: FC = () => {
         ? groupedPrompts.quickActions.filter(template => {
             const searchLower = searchTerm.toLowerCase();
             return template.name.toLowerCase().includes(searchLower) ||
-                   (template.description && template.description.toLowerCase().includes(searchLower));
+                (template.description && template.description.toLowerCase().includes(searchLower));
         })
         : groupedPrompts.quickActions;
 
@@ -68,7 +72,7 @@ export const PromptTemplatesGallery: FC = () => {
         ? groupedPrompts.customInstructions.filter(template => {
             const searchLower = searchTerm.toLowerCase();
             return template.name.toLowerCase().includes(searchLower) ||
-                   (template.description && template.description.toLowerCase().includes(searchLower));
+                (template.description && template.description.toLowerCase().includes(searchLower));
         })
         : groupedPrompts.customInstructions;
 
@@ -76,7 +80,7 @@ export const PromptTemplatesGallery: FC = () => {
         ? groupedPrompts.yourTemplates.filter(template => {
             const searchLower = searchTerm.toLowerCase();
             return template.name.toLowerCase().includes(searchLower) ||
-                   (template.description && template.description.toLowerCase().includes(searchLower));
+                (template.description && template.description.toLowerCase().includes(searchLower));
         })
         : groupedPrompts.yourTemplates;
 
@@ -96,7 +100,20 @@ export const PromptTemplatesGallery: FC = () => {
 
     const handleStartConversation = (startPrompt: Prompt) => {
         statsService.startConversationEvent(startPrompt);
-        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt);
+        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt, availableModels);
+    };
+
+    const handleOpenModal = (e: React.MouseEvent, template: Prompt) => {
+        e.stopPropagation(); // Prevent triggering the card's onClick
+        setSelectedTemplate(template);
+        setShowModal(true);
+    };
+
+    const handleUpdatePrompt = (updatedPrompt: Prompt) => {
+        homeDispatch({
+            field: 'prompts',
+            value: prompts.map((p: Prompt) => p.id === updatedPrompt.id ? updatedPrompt : p)
+        });
     };
 
     return (
@@ -167,6 +184,8 @@ export const PromptTemplatesGallery: FC = () => {
                                             <button
                                                 key={template.id}
                                                 onClick={() => handleStartConversation(template)}
+                                                onMouseEnter={() => setHoveredTemplateId(template.id)}
+                                                onMouseLeave={() => setHoveredTemplateId(null)}
                                                 className="group/child relative flex items-center gap-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm p-3 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-lg transition-all duration-200 text-left overflow-hidden opacity-0 animate-slideInRight"
                                                 style={{ animationDelay: `${idx * 40}ms`, animationFillMode: 'forwards' }}
                                             >
@@ -188,7 +207,17 @@ export const PromptTemplatesGallery: FC = () => {
                                                     )}
                                                 </div>
 
-                                                <div className="relative flex-shrink-0 opacity-0 group-hover/child:opacity-100 transition-opacity duration-200">
+                                                {/* Edit Icon Button */}
+                                                <div
+                                                    onClick={(e) => handleOpenModal(e, template)}
+                                                    className={`relative p-2 rounded-lg bg-white dark:bg-gray-700 border-2 border-indigo-500 dark:border-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200 z-20 cursor-pointer ${hoveredTemplateId === template.id ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                                                        }`}
+                                                    title="Edit Template"
+                                                >
+                                                    <IconEdit size={16} className="text-indigo-500 dark:text-indigo-400" />
+                                                </div>
+
+                                                <div className={`relative flex-shrink-0 transition-opacity duration-200 ${hoveredTemplateId === template.id ? 'opacity-0' : 'opacity-0 group-hover/child:opacity-100'}`}>
                                                     <IconArrowUpRight size={16} className="text-indigo-500 dark:text-indigo-400" />
                                                 </div>
                                             </button>
@@ -208,6 +237,8 @@ export const PromptTemplatesGallery: FC = () => {
                                             <button
                                                 key={template.id}
                                                 onClick={() => handleStartConversation(template)}
+                                                onMouseEnter={() => setHoveredTemplateId(template.id)}
+                                                onMouseLeave={() => setHoveredTemplateId(null)}
                                                 className="group/card relative rounded-xl border border-gray-200/80 dark:border-gray-700/80 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm p-5 shadow-lg hover:shadow-xl hover:border-purple-300 dark:hover:border-purple-600 transition-all duration-300 overflow-hidden text-left w-full opacity-0 animate-fadeInScale"
                                                 style={{ animationDelay: `${(filteredQuickActions.length * 40 + 200) + idx * 50}ms`, animationFillMode: 'forwards' }}
                                             >
@@ -249,8 +280,18 @@ export const PromptTemplatesGallery: FC = () => {
                                                     </div>
                                                 </div>
 
+                                                {/* Edit Icon Button - Bottom Right */}
+                                                <div
+                                                    onClick={(e) => handleOpenModal(e, template)}
+                                                    className={`absolute bottom-3 right-3 p-2 rounded-lg bg-white dark:bg-gray-700 border-2 border-purple-500 dark:border-purple-400 hover:bg-purple-200 dark:hover:bg-purple-700 shadow-lg hover:shadow-xl transition-all duration-200 z-20 cursor-pointer ${hoveredTemplateId === template.id ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                                                        }`}
+                                                    title="Edit Template"
+                                                >
+                                                    <IconEdit size={16} className="text-purple-500 dark:text-purple-400" />
+                                                </div>
+
                                                 {/* Arrow indicator on hover */}
-                                                <div className="absolute top-4 right-4 opacity-0 group-hover/card:opacity-100 group-hover/card:translate-x-0 translate-x-2 transition-all duration-200">
+                                                <div className={`absolute top-4 right-4 transition-all duration-200 ${hoveredTemplateId === template.id ? 'opacity-0' : 'opacity-0 group-hover/card:opacity-100 group-hover/card:translate-x-0 translate-x-2'}`}>
                                                     <IconArrowUpRight size={18} className="text-purple-500 dark:text-purple-400" />
                                                 </div>
                                             </button>
@@ -270,6 +311,8 @@ export const PromptTemplatesGallery: FC = () => {
                                             <button
                                                 key={template.id}
                                                 onClick={() => handleStartConversation(template)}
+                                                onMouseEnter={() => setHoveredTemplateId(template.id)}
+                                                onMouseLeave={() => setHoveredTemplateId(null)}
                                                 className="group/standalone relative flex items-center gap-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm p-4 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-lg transition-all duration-200 text-left overflow-hidden opacity-0 animate-fadeInScale"
                                                 style={{ animationDelay: `${(filteredQuickActions.length * 40 + 200) + (filteredCustomInstructions.length * 50) + 200 + idx * 50}ms`, animationFillMode: 'forwards' }}
                                             >
@@ -291,7 +334,17 @@ export const PromptTemplatesGallery: FC = () => {
                                                     )}
                                                 </div>
 
-                                                <div className="relative flex-shrink-0 opacity-0 group-hover/standalone:opacity-100 group-hover/standalone:translate-x-0 -translate-x-2 transition-all duration-200">
+                                                {/* Edit Icon Button */}
+                                                <div
+                                                    onClick={(e) => handleOpenModal(e, template)}
+                                                    className={`relative p-2 rounded-lg bg-white dark:bg-gray-700 border-2 border-indigo-500 dark:border-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200 z-20 cursor-pointer ${hoveredTemplateId === template.id ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                                                        }`}
+                                                    title="Edit Template"
+                                                >
+                                                    <IconEdit size={16} className="text-indigo-500 dark:text-indigo-400" />
+                                                </div>
+
+                                                <div className={`relative flex-shrink-0 transition-all duration-200 ${hoveredTemplateId === template.id ? 'opacity-0' : 'opacity-0 group-hover/standalone:opacity-100 group-hover/standalone:translate-x-0 -translate-x-2'}`}>
                                                     <IconArrowUpRight size={18} className="text-indigo-500 dark:text-indigo-400" />
                                                 </div>
                                             </button>
@@ -303,6 +356,16 @@ export const PromptTemplatesGallery: FC = () => {
                     )}
                 </div>
             </div>
+
+            {/* Prompt Modal */}
+            {showModal && selectedTemplate && (
+                <PromptModal
+                    prompt={selectedTemplate}
+                    onCancel={() => setShowModal(false)}
+                    onSave={() => setShowModal(false)}
+                    onUpdatePrompt={handleUpdatePrompt}
+                />
+            )}
         </div>
     );
 };
