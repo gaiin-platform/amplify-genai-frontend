@@ -213,7 +213,7 @@ export const ChatMessage: FC<Props> = memo(({
 
         if (message.content != messageContent) {
             if (selectedConversation && onEdit) {
-                onEdit({...message, content: messageContent});
+                onEdit({ ...message, content: messageContent, label: messageContent });
             }
         }
         setIsEditing(false);
