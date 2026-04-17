@@ -35,6 +35,8 @@ import {
 } from '@/utils/app/memory';
 import { handleAgentRun, handleAgentRunResult, isWaitingForAgentResponse } from '@/utils/app/agent';
 import { lzwCompress } from '@/utils/app/lzwCompression';
+import { resolveContextString, messagesToCached } from '@/utils/app/contextConversations';
+import { saveContextCache } from '@/utils/app/storage';
 import { calculatePromptCostDetailed, formatCost } from '@/utils/app/costEstimation';
 import { WEB_SEARCH_TOOL_DEFINITION } from '@/types/tools';
 import { getEnabledMCPToolsForLLM, handleMCPToolCall } from '@/services/mcpToolExecutor';
@@ -65,7 +67,7 @@ export function useSendService() {
 
     const conversationsRef = useRef(conversations);
     const messageTimestampRef = useRef<string | undefined>(undefined);
-    
+
     // Add ref to track running agent sessions
     const runningAgentSessions = useRef<Set<string>>(new Set());
 
@@ -104,12 +106,12 @@ export function useSendService() {
                 console.log(`Agent run for session ${sessionId} is already in progress`);
                 return;
             }
-            
+
             // Mark this session as running
             runningAgentSessions.current.add(sessionId);
-            
+
             try {
-                homeDispatch({field: 'messageIsStreaming', value: true}); 
+                homeDispatch({ field: 'messageIsStreaming', value: true });
                 const agentResult = await handleAgentRun(sessionId, (status: any) => homeDispatch({ field: "status", value: [newStatus(status)] }));
                 if (agentResult && selectedConversation) {
                     const lastIndex = selectedConversation.messages.length - 1;
@@ -123,7 +125,7 @@ export function useSendService() {
                         const lastMsgIndex = updatedMessages.length - 1;
                         updatedMessages[lastMsgIndex].content = "No response from the agent. Please try again later.";
                         updatedMessages[lastMsgIndex].data.state.agentRun.endTime = new Date();
-                        handleUpdateSelectedConversation({...selectedConversation, messages: updatedMessages});
+                        handleUpdateSelectedConversation({ ...selectedConversation, messages: updatedMessages });
                     }
                 }
             } finally {
@@ -134,11 +136,11 @@ export function useSendService() {
         }
 
         if (selectedConversation) {
-            const agentRunData =  isWaitingForAgentResponse(selectedConversation);
+            const agentRunData = isWaitingForAgentResponse(selectedConversation);
             if (agentRunData?.sessionId) awaitAgentRun(agentRunData.sessionId);
         }
     }, [selectedConversation?.messages]);
-    
+
 
     const handleSend = useCallback(
         async (request: ChatRequest, shouldAbort: () => boolean) => {
@@ -265,7 +267,7 @@ export function useSendService() {
                     } else {
                         console.log('ℹ️ Prompt cost alert skipped:', {
                             reason: !promptCostAlert?.isActive ? 'Alert not active' :
-                                    !selectedConversation?.model ? 'No model selected' :
+                                !selectedConversation?.model ? 'No model selected' :
                                     options?.ragOnly ? 'RAG only mode' : 'Unknown'
                         });
                     }
@@ -293,7 +295,7 @@ export function useSendService() {
 
                     // honor assistant does not support artifact flag 
                     const astFeatureOptions = message.data?.assistant?.definition?.featureOptions;
-                    if (astFeatureOptions && 'IncludeArtifactsInstr' in astFeatureOptions && 
+                    if (astFeatureOptions && 'IncludeArtifactsInstr' in astFeatureOptions &&
                         !astFeatureOptions.IncludeArtifactsInstr) {
                         console.log("Artifacts disabled for assistant: ", message.data?.assistant?.definition?.name);
                         isArtifactsOn = false;
@@ -310,9 +312,51 @@ export function useSendService() {
                     console.log("Memory on: ", isMemoryOn)
 
                     console.log("Conversation tokens: ", updatedConversation.maxTokens);
+
+                    const removedIds = new Set(updatedConversation.removedDocumentIds || []);
+
+                    // Filter out removed documents from all messages
+                    const filteredMessages = updatedConversation.messages.map(msg => {
+                        if (msg.data?.dataSources && msg.data.dataSources.length > 0) {
+                            const filteredDataSources = msg.data.dataSources.filter((ds: any) => !removedIds.has(ds.id));
+                            return {
+                                ...msg,
+                                data: {
+                                    ...msg.data,
+                                    dataSources: filteredDataSources
+                                }
+                            };
+                        }
+                        return msg;
+                    });
+
+                    // ── Cross-conversation context injection ──────────────────
+                    // Resolve context from other conversations (local or cached cloud)
+                    // and prepend as a silent user message. This never touches the
+                    // displayed conversation — it only exists in the outgoing request.
+                    const contextEntries = updatedConversation.contextConversations ?? [];
+                    let messagesForRequest = filteredMessages;
+                    if (contextEntries.length > 0) {
+                        const contextStr = await resolveContextString(
+                            contextEntries,
+                            conversationsRef.current,
+                        );
+                        if (contextStr.trim().length > 0) {
+                            const contextMessage: Message = {
+                                id: `ctx-inject-${Date.now()}`,
+                                role: 'user',
+                                content: `[Additional context from other conversations — use as background knowledge]\n\n${contextStr}\n\n[End of additional context]`,
+                                type: 'context',
+                                data: {},
+                            };
+                            messagesForRequest = [contextMessage, ...filteredMessages];
+                        }
+                    }
+                    // ─────────────────────────────────────────────────────────
+
                     let chatBody: ChatBody = {
                         model: updatedConversation.model,
-                        messages: updatedConversation.messages,
+                        messages: messagesForRequest,
                         prompt: rootPrompt || updatedConversation.prompt || "",
                         temperature: updatedConversation.temperature || DEFAULT_TEMPERATURE,
                         maxTokens: updatedConversation.maxTokens || (Math.round(updatedConversation.model.outputTokenLimit / 2)),
@@ -328,7 +372,7 @@ export function useSendService() {
                     // Check feature flag (now properly defined in backend)
                     const featureFlagEnabled = featureFlags.webSearch === true;
                     const isWebSearchOn = featureFlagEnabled && pluginWebSearch && perMessageWebSearch;
-                    
+
                     // Always explicitly set enableWebSearch to prevent backend auto-enablement
                     chatBody.enableWebSearch = isWebSearchOn;
 
@@ -376,7 +420,7 @@ export function useSendService() {
                     }
 
                     console.log("Adding artifacts to chat body: ", selectedConversation.artifacts);
-                    
+
                     if (isArtifactsOn && selectedConversation.artifacts) {
                         console.log("Adding artifacts to chat body: ", selectedConversation.artifacts);
                         chatBody.artifacts = selectedConversation.artifacts;
@@ -387,7 +431,7 @@ export function useSendService() {
                             smartMessages: isSmartMessagesOn,
                             artifacts: isArtifactsOn
                         };
-                        
+
                     }
 
 
@@ -439,11 +483,22 @@ export function useSendService() {
                                 return doc;
                             }
                         });
-                        chatBody.dataSources = dataSources;
+
+                        const filteredDataSources = dataSources.filter(doc => !removedIds.has(doc.id));
+
+                        if (filteredDataSources.length > 0) {
+                            chatBody.dataSources = filteredDataSources;
+                        }
                     } else if (message.data && message.data.dataSources && message.data.dataSources.length > 0) {
-                        chatBody.dataSources = message.data.dataSources.map((doc: any) => {
-                            return { id: doc.id, type: doc.type, name: doc.name || "", metadata: doc.metadata || {} };
-                        });
+                        const filteredDataSources = message.data.dataSources
+                            .map((doc: any) => {
+                                return { id: doc.id, type: doc.type, name: doc.name || "", metadata: doc.metadata || {} };
+                            })
+                            .filter((doc: any) => !removedIds.has(doc.id));
+
+                        if (filteredDataSources.length > 0) {
+                            chatBody.dataSources = filteredDataSources;
+                        }
                     }
 
 
@@ -455,9 +510,9 @@ export function useSendService() {
                     } else if (featureFlags.ragEnabled && featureFlags.ragEvaluation && (pluginIds?.includes(PluginID.RAG) && pluginIds?.includes(PluginID.RAG_EVAL))) {
                         options = { ...(options || {}), ragEvaluation: true };
                     }
-                                                      // Advanced Rag is default off for assistant use 
+                    // Advanced Rag is default off for assistant use 
                     if (!featureFlags.cachedDocuments || options?.assistantId || options?.groupId) {
-                        options = { ...(options || {}), skipDocumentCache : true};
+                        options = { ...(options || {}), skipDocumentCache: true };
                     }
 
 
@@ -632,7 +687,7 @@ export function useSendService() {
                                 const clonedResponse = response.clone();
                                 // Read the body as text
                                 const bodyText = await clonedResponse.text();
-                                if (bodyText)  alert(bodyText);
+                                if (bodyText) alert(bodyText);
                             } catch (readError) {
                                 console.error("Error reading response body:", readError);
                             }
@@ -701,10 +756,10 @@ export function useSendService() {
                                         continue;
                                     }
                                     if (text.includes("<thought>")) reasoningMode = true;
-                        
+
                                     // Split by reasoning tags and process alternately
                                     const parts = chunkValue.split(/(<\/?thought>)/);
-                                    
+
                                     for (const part of parts) {
                                         if (part === '<thought>') {
                                             reasoningMode = true;
@@ -713,7 +768,7 @@ export function useSendService() {
                                         } else if (part) {
                                             if (reasoningMode) {
                                                 reasoningText += part;
-                                                homeDispatch({ type: "append", field: "status", value: newStatus({id: "reasoning", summary: "Thinking Details:", message: part, icon: "bolt", inProgress: true, animated: true}) });
+                                                homeDispatch({ type: "append", field: "status", value: newStatus({ id: "reasoning", summary: "Thinking Details:", message: part, icon: "bolt", inProgress: true, animated: true }) });
                                             } else {
                                                 text += part;
                                             }
@@ -773,10 +828,14 @@ export function useSendService() {
                                     saveConversations(updatedConversations);
                                 } else {
                                     uploadConversation(updatedConversation, foldersRef.current);
-                                    if (conversationsRef.current.length === 0) {
-                                        const updatedConversations: Conversation[] = [remoteForConversationHistory(updatedConversation)];
+                                    {
+                                        const remoteEntry = remoteForConversationHistory(updatedConversation);
+                                        const updatedConversations: Conversation[] = conversationsRef.current.length === 0
+                                            ? [remoteEntry]
+                                            : conversationsRef.current.map(c => c.id === updatedConversation.id ? remoteEntry : c);
                                         homeDispatch({ field: 'conversations', value: updatedConversations });
                                         saveConversations(updatedConversations);
+                                        saveContextCache({ conversationId: updatedConversation.id, conversationName: updatedConversation.name, messages: messagesToCached(updatedConversation.messages ?? []), fetchedAt: Date.now() });
                                     }
                                 }
                                 cleanupHomeState();
@@ -1266,6 +1325,15 @@ export function useSendService() {
                                     saveConversations(updatedConversations);
                                 } else {
                                     uploadConversation(updatedConversation, foldersRef.current);
+                                    {
+                                        const remoteEntry = remoteForConversationHistory(updatedConversation);
+                                        const updatedConversations: Conversation[] = conversationsRef.current.length === 0
+                                            ? [remoteEntry]
+                                            : conversationsRef.current.map(c => c.id === updatedConversation.id ? remoteEntry : c);
+                                        homeDispatch({ field: 'conversations', value: updatedConversations });
+                                        saveConversations(updatedConversations);
+                                        saveContextCache({ conversationId: updatedConversation.id, conversationName: updatedConversation.name, messages: messagesToCached(updatedConversation.messages ?? []), fetchedAt: Date.now() });
+                                    }
                                 }
 
                                 cleanupHomeState();
@@ -1316,6 +1384,49 @@ export function useSendService() {
                             });
                         }
 
+                        // Auto-remove denied/invalid data sources from message history so the
+                        // context manager badge and ConversationContextManager reflect reality.
+                        const removedDs = currentState?.removedDataSources;
+                        if (removedDs && Array.isArray(removedDs.deniedAccess) && removedDs.deniedAccess.length > 0) {
+                            // Backend now sends originalId (the exact per-user S3 key the frontend stored).
+                            // Collect all denied originalIds directly; fall back to name-matching if missing.
+                            const deniedOriginalIds = new Set<string>();
+                            const deniedNames = new Set<string>();
+                            removedDs.deniedAccess.forEach((d: any) => {
+                                if (d?.originalId) deniedOriginalIds.add(d.originalId);
+                                else if (d?.name) deniedNames.add(d.name);
+                            });
+
+                            // Resolve any name-based fallbacks by scanning message dataSources
+                            const idsToRemove = new Set<string>(deniedOriginalIds);
+                            if (deniedNames.size > 0) {
+                                updatedConversation.messages.forEach((msg: any) => {
+                                    msg.data?.dataSources?.forEach((ds: any) => {
+                                        if (ds.name && deniedNames.has(ds.name)) idsToRemove.add(ds.id);
+                                    });
+                                });
+                            }
+
+                            if (idsToRemove.size > 0) {
+                                const existing = new Set(updatedConversation.removedDocumentIds || []);
+                                idsToRemove.forEach(id => existing.add(id));
+
+                                const cleanedMessages = updatedConversation.messages.map((msg: any) => {
+                                    if (!msg.data?.dataSources?.length) return msg;
+                                    const filtered = msg.data.dataSources.filter((ds: any) => !idsToRemove.has(ds.id));
+                                    if (filtered.length === msg.data.dataSources.length) return msg;
+                                    return { ...msg, data: { ...msg.data, dataSources: filtered } };
+                                });
+
+                                updatedConversation = {
+                                    ...updatedConversation,
+                                    messages: cleanedMessages,
+                                    removedDocumentIds: Array.from(existing)
+                                };
+                                homeDispatch({ field: 'selectedConversation', value: updatedConversation });
+                            }
+                        }
+
                         if (selectedConversation.isLocal) {
                             const updatedConversations: Conversation[] = conversationsRef.current.map(
                                 (conversation: Conversation) => {
@@ -1332,14 +1443,17 @@ export function useSendService() {
                             saveConversations(updatedConversations);
                         } else {
                             uploadConversation(updatedConversation, foldersRef.current);
-
-                            if (conversationsRef.current.length === 0) {
-                                const updatedConversations: Conversation[] = [remoteForConversationHistory(updatedConversation)];
+                            {
+                                const remoteEntry = remoteForConversationHistory(updatedConversation);
+                                const updatedConversations: Conversation[] = conversationsRef.current.length === 0
+                                    ? [remoteEntry]
+                                    : conversationsRef.current.map(c => c.id === updatedConversation.id ? remoteEntry : c);
                                 homeDispatch({ field: 'conversations', value: updatedConversations });
                                 saveConversations(updatedConversations);
+                                saveContextCache({ conversationId: updatedConversation.id, conversationName: updatedConversation.name, messages: messagesToCached(updatedConversation.messages ?? []), fetchedAt: Date.now() });
                             }
                         }
-            
+
                         if (!isWaitingForAgentResponse(updatedConversation)) homeDispatch({ field: 'messageIsStreaming', value: false });
 
                         // Run memory extraction after main response is processed
@@ -1437,15 +1551,15 @@ export function useSendService() {
                     } finally {
                         window.removeEventListener('killChatRequest', handleStopGenerationEvent);
                     }
-                    
-                    if (!isWaitingForAgentResponse(updatedConversation))  {
+
+                    if (!isWaitingForAgentResponse(updatedConversation)) {
                         //Reset the status display
                         homeDispatch({
                             field: 'status',
                             value: [],
-                        });   
+                        });
                     }
-                   
+
                 }
             });
         },

@@ -1,11 +1,11 @@
 import { getFileDownloadUrl, deleteFile, reprocessFile } from "@/services/fileService";
 import { DataSource } from "@/types/chat";
-import { IMAGE_FILE_TYPES } from "./const";
+import { IMAGE_FILE_TYPES, VIDEO_FILE_TYPES } from "./const";
 import toast from "react-hot-toast";
 import { capitalize } from "./data";
 import { embeddingDocumentStatus, clearEmbeddingStatusCache } from "@/services/adminService";
 import JSZip from "jszip";
-import { isBedrockKbDatasource } from "./bedrockKb";
+import { BEDROCK_KB_TYPE, isBedrockKbDatasource } from "./bedrockKb";
 
 /**
  * Extract Microsoft Information Protection (MIP) sensitivity label from Office files.
@@ -308,6 +308,10 @@ export const extractKey = (ds: any) => {
       return key.split("s3://").pop() || key;
   }
   return key;
+}
+
+export const disableSupportReprocess = (fileType: string) => {
+  return IMAGE_FILE_TYPES.includes(fileType) || VIDEO_FILE_TYPES.includes(fileType) || fileType === BEDROCK_KB_TYPE;
 }
 
 // Polling options interface

@@ -157,6 +157,8 @@ export interface EmbeddingsConfig  {
     supportsImages: boolean;
     supportsReasoning: boolean;
     supportsSystemPrompts: boolean;
+    supportsImageGeneration: boolean;
+    supportsVideo: boolean;
     systemPrompt: string;
     isAvailable: boolean;
     isBuiltIn: boolean;

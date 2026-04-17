@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useContext } from 'react';
 import { signOut } from 'next-auth/react';
 import { IconLogout, IconCreditCard, IconRocket, IconShare, IconTools, IconUsers, IconShield, IconSun, IconMoon, IconX, IconCurrencyDollar, IconUser, IconSettings, IconHelp, IconLoader2 } from '@tabler/icons-react';
-import { doMtdCostOp } from '@/services/mtdCostService';
+import { getUserMtdCosts } from '@/services/mtdCostService';
+import { UserCostBreakdownModal } from './UserCostBreakdownModal';
 import ColorPaletteSelector, { COLOR_PALETTES } from './ColorPaletteSelector';
 import HomeContext from '@/pages/api/home/home.context';
 import { AssistantAdminUI } from '../Admin/AssistantAdminUI';
@@ -10,11 +11,14 @@ import { UserCostsModal } from '../Admin/UserCostModal';
 import { SettingDialog } from '../Settings/SettingDialog';
 import { getSettings, saveSettings } from '@/utils/app/settings';
 import { Settings } from '@/types/settings';
+import { Modal } from '../ReusableComponents/Modal';
+import { LayeredAssistantBuilder } from '../LayeredAssistants/LayeredAssistantBuilder';
 import { saveUserSettings } from '@/services/settingsService';
 import SharingDialog from '../Share/SharingDialog';
 import { ThemeService } from '@/utils/whiteLabel/themeService';
 import { Theme } from '@/types/settings';
 import toast from 'react-hot-toast';
+import { getMonthlyLimit } from '@/types/rateLimit';
 
 
 interface UserMenuProps {
@@ -32,8 +36,10 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   cognitoDomain,
   cognitoClientId,
 }) => {
-  const { dispatch, state: { lightMode, showUserMenu, featureFlags, supportEmail }, dispatch: homeDispatch } = useContext(HomeContext);
+  const { dispatch, state: { lightMode, showUserMenu, featureFlags, supportEmail, adminRateLimits, defaultAccount }, dispatch: homeDispatch } = useContext(HomeContext);
   const [mtdCost, setMtdCost] = useState<string>('0');
+  const [mtdCostNumeric, setMtdCostNumeric] = useState<number>(0);
+  const [showCostBreakdown, setShowCostBreakdown] = useState<boolean>(false);
   const [currentPalette, setCurrentPalette] = useState<string>('warm-browns');
   const [currentTone, setCurrentTone] = useState<'userPrimary' | 'userSecondary' | 'assistantPrimary' | 'assistantSecondary'>('userPrimary');
   const menuRef = useRef<HTMLDivElement>(null);
@@ -49,7 +55,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
       window.dispatchEvent(new Event('updateFeatureSettings'));
   }, [featureFlags]);
 
-   const showMtdCost = featureFlagsRef.current.mtdCost
+   const showMtdCost = featureFlags.mtdCost
    
    let settingRef = useRef<Settings | null>(null);
     // prevent recalling the getSettings function
@@ -62,21 +68,43 @@ export const UserMenu: React.FC<UserMenuProps> = ({
    const [showUserCosts, setShowUserCosts] = useState<boolean>(false);
    const [showSettings, setShowSettings] = useState<boolean>(false);
    const [showSharingDialog, setShowSharingDialog] = useState<boolean>(false);
+   const [showLayeredBuilder, setShowLayeredBuilder] = useState<boolean>(false);
+   const [layeredBuilderData, setLayeredBuilderData] = useState<any>(null);
+   const layeredBuilderSaveFnRef = useRef<(() => void) | null>(null);
 
 
     useEffect(() => {
         const handleAstAdminEvent = (event:any) => {
             if (!featureFlagsRef.current.assistantAdminInterface) return;
             const isAstAdminOpen = event.detail.isOpen;
-            setAstGroupModalData(event.detail.data);
-            setShowAssistantAdmin(isAstAdminOpen);  
+            setAstGroupModalData({
+                ...event.detail.data,
+                tabToOpen: event.detail.data?.tabToOpen
+            });
+            setShowAssistantAdmin(isAstAdminOpen);
         };
 
+        const handleLayeredBuilderEvent = (event: any) => {
+            if (event.detail.isOpen) {
+                setLayeredBuilderData(event.detail.data);
+                setShowLayeredBuilder(true);
+            } else {
+                setShowLayeredBuilder(false);
+                setLayeredBuilderData(null);
+                layeredBuilderSaveFnRef.current = null;
+            }
+        };
+
+        const handleOpenCostBreakdown = () => setShowCostBreakdown(true);
+
         window.addEventListener('openAstAdminInterfaceTrigger', handleAstAdminEvent);
+        window.addEventListener('openLayeredBuilderTrigger', handleLayeredBuilderEvent);
+        window.addEventListener('openCostBreakdown', handleOpenCostBreakdown);
 
         return () => {
             window.removeEventListener('openAstAdminInterfaceTrigger', handleAstAdminEvent);
-
+            window.removeEventListener('openLayeredBuilderTrigger', handleLayeredBuilderEvent);
+            window.removeEventListener('openCostBreakdown', handleOpenCostBreakdown);
         };
     }, []);
 
@@ -215,18 +243,20 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 
       const fetchMtdCost = async () => {
         if (isFetching) return;
-
         isFetching = true;
-
         try {
-          const result = await doMtdCostOp();
-          if (result && "MTD Cost" in result && result["MTD Cost"] !== undefined) {
-            setMtdCost(`$${result["MTD Cost"].toFixed(2)}`);
+          const result = await getUserMtdCosts();
+          if (result.success) {
+            const numeric = result.data.totalCost;
+            setMtdCostNumeric(numeric);
+            setMtdCost(`$${numeric.toFixed(2)}`);
           } else {
+            setMtdCostNumeric(0);
             setMtdCost('$0.00');
           }
         } catch (error) {
           console.error("Error fetching MTD cost:", error);
+          setMtdCostNumeric(0);
           setMtdCost('$0.00');
         } finally {
           isFetching = false;
@@ -266,6 +296,26 @@ export const UserMenu: React.FC<UserMenuProps> = ({
       return processedName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
     }
     return email?.charAt(0).toUpperCase() || 'U';
+  };
+
+  // Utilization helpers
+  const getEffectiveRateLimit = () => {
+    const personal = defaultAccount?.rateLimit;
+    if (personal && personal.rate !== null && personal.period !== 'Unlimited') return personal;
+    // From the admin limits list, only use the monthly limit for MTD comparison
+    return getMonthlyLimit(adminRateLimits ?? []);
+  };
+
+  const getUtilizationPercent = (): number | null => {
+    const limit = getEffectiveRateLimit();
+    if (!limit || !limit.rate || limit.rate === 0) return null;
+    return Math.min((mtdCostNumeric / limit.rate) * 100, 100);
+  };
+
+  const getMtdColors = (pct: number | null) => {
+    if (pct === null || pct < 50) return { text: 'text-blue-600 dark:text-blue-400', bar: 'bg-blue-500', ring: null, pulse: false };
+    if (pct < 80) return { text: 'text-yellow-600 dark:text-yellow-400', bar: 'bg-yellow-400', ring: 'ring-yellow-400', pulse: false };
+    return { text: 'text-red-600 dark:text-red-400', bar: 'bg-red-500', ring: 'ring-red-500', pulse: true };
   };
 
   // Get current color palette's userPrimary color
@@ -349,16 +399,31 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   }
 
   useEffect(() => {
-    sendEventToHideItemsAroundCodeBase(showAssistantAdmin || showAdminInterface || showUserCosts);
-  }, [showAssistantAdmin, showAdminInterface, showUserCosts]);
+    sendEventToHideItemsAroundCodeBase(showAssistantAdmin || showAdminInterface || showUserCosts || showLayeredBuilder);
+  }, [showAssistantAdmin, showAdminInterface, showUserCosts, showLayeredBuilder]);
 
 
   return (
     <>
+      {/* Cost Breakdown Modal */}
+      {showCostBreakdown && email && (
+        <UserCostBreakdownModal
+          email={email}
+          onClose={() => setShowCostBreakdown(false)}
+        />
+      )}
+
       {/* Persistent User Button - Always visible in top right */}
       <button
         onClick={handleToggleMenu}
-        className="fixed top-4 right-4 z-50 "
+        className={`fixed top-4 right-4 z-50 rounded-full ${
+          (() => {
+            const pct = getUtilizationPercent();
+            const colors = getMtdColors(pct);
+            if (!colors.ring) return '';
+            return `ring-2 ring-offset-2 ${colors.ring}${colors.pulse ? ' animate-pulse' : ''}`;
+          })()
+        }`}
         title="User Menu"
         id="userMenu"
       >
@@ -483,14 +548,36 @@ export const UserMenu: React.FC<UserMenuProps> = ({
             </div>
 
             {showMtdCost && (
-              <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-600/50">
+              <div
+                className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-600/50 cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-700/40 transition-colors"
+                onClick={() => setShowCostBreakdown(true)}
+                title="Click for cost breakdown"
+              >
                 <div className="flex items-center gap-2 mb-1.5">
-                  <IconCreditCard size={16} className="enhanced-icon text-blue-500" />
+                  <IconCreditCard size={16} className={`enhanced-icon ${
+                    (() => { const pct = getUtilizationPercent(); return pct !== null && pct >= 80 ? 'text-red-500' : pct !== null && pct >= 50 ? 'text-yellow-500' : 'text-blue-500'; })()
+                  }`} />
                   <div className="sidebar-text font-medium text-neutral-700 dark:text-neutral-300">Month-To-Date Cost</div>
                 </div>
-                <div className="text-lg font-bold text-blue-600 dark:text-blue-400 text-center transition-all duration-300 hover:scale-105" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
-                 {mtdCost === '0' ? <div className="flex justify-center"> <IconLoader2 size={24} className="animate-spin" /> </div> : <>{mtdCost}</>}  
-                </div>
+                {mtdCost === '0' ? (
+                  <div className="flex justify-center"><IconLoader2 size={24} className="animate-spin" /></div>
+                ) : (
+                  <>
+                    <div className={`text-lg font-bold text-center transition-all duration-300 hover:scale-105 ${
+                      getMtdColors(getUtilizationPercent()).text
+                    }`} style={{ textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                      {mtdCost}
+                    </div>
+                    <div className="text-center">
+                      <span
+                        className="text-[11px] text-neutral-400 dark:text-neutral-500 hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer transition-colors underline underline-offset-2"
+                        onClick={(e) => { e.stopPropagation(); setShowCostBreakdown(true); }}
+                      >
+                        View breakdown
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -627,11 +714,13 @@ export const UserMenu: React.FC<UserMenuProps> = ({
       <div className="text-black dark:text-white">
         {showSettings && <SettingDialog open={showSettings} onClose={() => { settingsActiveTab.current = undefined; setShowSettings(false); }} openToTab={settingsActiveTab.current} />}
         {/* Allow this to render upon every open  */}
-        {showAssistantAdmin && featureFlagsRef.current.assistantAdminInterface && 
+        {showAssistantAdmin && featureFlagsRef.current.assistantAdminInterface &&
          <AssistantAdminUI
             open={showAssistantAdmin}
             openToGroup={astGroupModalData?.group}
             openToAssistant={astGroupModalData?.assistant}
+            openToLayeredAssistant={astGroupModalData?.layeredAssistant}
+            tabToOpen={astGroupModalData?.tabToOpen}
         /> }
 
         { featureFlagsRef.current.adminInterface && 
@@ -651,6 +740,38 @@ export const UserMenu: React.FC<UserMenuProps> = ({
             open={showSharingDialog}
             onClose={() => setShowSharingDialog(false)}
         />
+
+        {showLayeredBuilder && layeredBuilderData && (
+            <Modal
+                title={layeredBuilderData.title || 'Layered Assistant Builder'}
+                content={
+                    <LayeredAssistantBuilder
+                        onClose={() => {
+                            setShowLayeredBuilder(false);
+                            setLayeredBuilderData(null);
+                            layeredBuilderSaveFnRef.current = null;
+                        }}
+                        onSave={layeredBuilderData.onSave}
+                        initialData={layeredBuilderData.initialData}
+                        onRegisterSave={(fn: any) => { layeredBuilderSaveFnRef.current = fn; }}
+                        assistants={layeredBuilderData.assistants}
+                    />
+                }
+                fullScreen={true}
+                onCancel={() => {
+                    setShowLayeredBuilder(false);
+                    setLayeredBuilderData(null);
+                    layeredBuilderSaveFnRef.current = null;
+                }}
+                onSubmit={() => { layeredBuilderSaveFnRef.current?.(); }}
+                showSubmit={true}
+                submitLabel="Save"
+                showCancel={true}
+                cancelLabel="Cancel"
+                showClose={true}
+                disableContentAnimation={true}
+            />
+        )}
 
       </div>
     </>

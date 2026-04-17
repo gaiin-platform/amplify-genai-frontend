@@ -135,6 +135,13 @@ export interface ChatBody {
   skillSelectionMode?: SkillSelectionMode; // 'manual', 'auto', or 'hybrid'
 }
 
+export interface ConversationContextEntry {
+  conversationId: string;
+  /** 'all' = entire conversation, 'selected' = only the listed messageIds */
+  mode: 'all' | 'selected';
+  selectedMessageIds?: string[];
+}
+
 export interface Conversation {
   id: string;
   name: string;
@@ -155,4 +162,7 @@ export interface Conversation {
   artifacts?:  { [key: string]: Artifact[]};
   projectId?: string;
   date?: string;
+  removedDocumentIds?: string[];
+  /** Cross-conversation context entries — messages from other conversations injected at send time */
+  contextConversations?: ConversationContextEntry[];
 }

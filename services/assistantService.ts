@@ -1,4 +1,5 @@
 import {AssistantDefinition, AssistantProviderID} from "@/types/assistant";
+import { LayeredAssistant } from "@/types/layeredAssistant";
 import {Message} from "@/types/chat";
 import {v4 as uuidv4} from 'uuid';
 import { doRequestOp } from "./doRequestOp";
@@ -251,11 +252,11 @@ export const addAssistantPath = async (assistantId: string, astPath: string, gro
     // Convert path to lowercase for consistency
     let op = null;
     const lowerCasePath = astPath.toLowerCase();
-    const data = { 
-      assistantId: assistantId, 
+    const data: any = {
+      assistantId: assistantId,
       astPath: lowerCasePath,
       isPublic: isPublic ?? emptyAstPathData.isPublic,
-      accessTo: accessTo ?? emptyAstPathData.accessTo
+      accessTo: accessTo ?? emptyAstPathData.accessTo,
     };
     if (groupId) {
         console.log("Adding path to group assistant: ", groupId);
@@ -263,7 +264,7 @@ export const addAssistantPath = async (assistantId: string, astPath: string, gro
           method: 'POST',
           path: "/groups",
           op: URL_PATH + "/add_path",
-          data: { 
+          data: {
             group_id: groupId,
             path_data: data
           },
@@ -274,12 +275,11 @@ export const addAssistantPath = async (assistantId: string, astPath: string, gro
         method: 'POST',
         path: URL_PATH,
         op: "/add_path",
-          data: data,
+        data: data,
         service: SERVICE_NAME
-      }; 
+      };
     }
     return await doRequestOp(op);
-    
 };
 
 /**
@@ -374,6 +374,57 @@ export const rescanWebsites = async (assistantId: string, forceRescan: boolean =
     return result;
 };
 
+
+// ── Layered Assistants ─────────────────────────────────────────────────────
+
+/**
+ * Create a new layered assistant, or update an existing one.
+ * Pass assistantId to update; omit (or pass empty string) to create.
+ */
+export const saveLayeredAssistant = async (layeredAssistant: LayeredAssistant) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/layered/create_or_update",
+        data: {
+            assistantId: layeredAssistant.assistantId || "",
+            name:        layeredAssistant.name,
+            description: layeredAssistant.description || "",
+            rootNode:    layeredAssistant.rootNode,
+            data:        layeredAssistant.data ?? {},
+        },
+        service: SERVICE_NAME,
+    };
+    return await doRequestOp(op);
+};
+
+/**
+ * List all layered assistants belonging to the current user.
+ */
+export const listLayeredAssistants = async () => {
+    const op = {
+        method: 'GET',
+        path: URL_PATH,
+        op: "/layered/list",
+        service: SERVICE_NAME,
+    };
+    return await doRequestOp(op);
+};
+
+
+/**
+ * Delete a layered assistant by its assistantId.
+ */
+export const deleteLayeredAssistant = async (assistantId: string) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/layered/delete",
+        data: { assistantId },
+        service: SERVICE_NAME,
+    };
+    return await doRequestOp(op);
+};
 
 export const getSiteMapUrls = async (sitemap: string, maxPages?: number) => {
   const data: { sitemap: string, maxPages?: number } = { sitemap }

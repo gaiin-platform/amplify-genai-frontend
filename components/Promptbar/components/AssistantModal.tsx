@@ -9,6 +9,7 @@ import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assi
 import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
 import {createAssistant, addAssistantPath, lookupAssistant, rescanWebsites} from "@/services/assistantService";
 import {IconFiles, IconArrowRight, IconMailFast, IconCaretRight, IconCaretDown, IconRefresh, IconAlertTriangle} from "@tabler/icons-react";
+import { LoadingDialog } from '@/components/Loader/LoadingDialog';
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/ReusableComponents/FlagsMap";
 import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
@@ -322,7 +323,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
         const lookupPath = async () => {
             let pathData: AstPathData = emptyAstPathData;
             if (!astPath) {
+                originalAstPathData.current = pathData;
                 setAstPathData(pathData);
+                setIsCheckingPath(false);
                 return;
             };
             const result = await lookupAssistant(astPath);
@@ -332,24 +335,30 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 const data = result.data;
                 const astId = data.assistantId;
                 if (astId !== definition.assistantId) {
+                    originalAstPathData.current = pathData;
                     setAstPathData(pathData);
                     setAstPath(null);
                     setIsPathAvailable(false);
+                    setIsCheckingPath(false);
                     return;
-                } 
+                }
 
                 const accessTo = data.accessTo;
-                pathData = {isPublic: data.public ?? true, 
-                            accessTo: {amplifyGroups: accessTo.amplifyGroups ?? [], 
+                pathData = {isPublic: data.public ?? true,
+                            accessTo: {amplifyGroups: accessTo.amplifyGroups ?? [],
                                         users: accessTo.users ?? []}};
                 originalAstPathData.current = pathData;
-            } 
+            } else {
+                // Lookup failed or returned no data — still set the original baseline
+                // so isAstPathDataChanged doesn't compare against null
+                originalAstPathData.current = pathData;
+            }
             setAstPathData(pathData);
+            setIsCheckingPath(false);
         }
 
         if (featureFlags.assistantPathPublishing && astPathData === null) {
             lookupPath();
-            setIsCheckingPath(false);
         }
     }, [featureFlags.assistantPathPublishing]);
 
@@ -908,8 +917,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
             // If we have an assistantId and astPath, update the path in DynamoDB
             // if path has changed or pathData has changed
+            const savedPath = definition.astPath || definition.data?.astPath || definition.pathFromDefinition;
+            const pathChanged = astPath ? astPath.toLowerCase() !== (savedPath || '').toLowerCase() : false;
+            const pathDataChanged = isAstPathDataChanged(astPathData, originalAstPathData.current);
             if (featureFlags.assistantPathPublishing && assistantId && astPath &&
-                (astPath !== definition.astPath || isAstPathDataChanged(astPathData, originalAstPathData.current))) {
+                (pathChanged || pathDataChanged)) {
                 try {
                     const formattedPath = astPath.toLowerCase();
                     setLoadingMessage(`Publishing assistant to ${window.location.origin}/assistants/${formattedPath}...`);
@@ -1132,7 +1144,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     }
     
 
-    if (isLoading) return <></>;
+    if (isLoading) return embed ? <LoadingDialog open={true} message={loadingMessage} /> : <></>;
     
 
     const assistantModalContainer = () => {
@@ -1333,29 +1345,31 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 
                             {/* Add Website URLs Section */}
                             {featureFlags.websiteUrls && !disableEdit && (
-                                <> 
-                                <div className="mt-2 mb-2 font-bold text-black dark:text-neutral-200">
-                                    {t('Attach Website Data Sources')}
-                                </div>
-                                {definition.assistantId && dataSources.find((ds:AttachedDocument) => isWebsiteDs(ds) && ds.key) &&
-                                <button
-                                    onClick={() => {
-                                        if (definition.assistantId) {
-                                            toast("Please wait a few minutes for the rescan to complete");
-                                            handleRescan();
-                                        }
-                                    }}
-                                    className={"absolute right-10 p-2 hover:bg-gray-100 dark:hover:bg-[#40414F] rounded-md transition-colors group"}
-                                    style={{zIndex: "20", transform: "translateY(-30px)"}}
-                                    title={"Rescan All Website URLs"}
-                                    >
-                                    <IconRefresh 
-                                        size={22} 
-                                        className={`text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300`} 
-                                    />
-                                </button>}
-                                {featureFlags.scheduledTasks &&
-                                  <WebsiteScanScheduler
+                                <>
+                                <div className="flex items-center justify-between mt-2 mb-2">
+                                    <div className="font-bold text-black dark:text-neutral-200">
+                                        {t('Attach Website Data Sources')}
+                                    </div>
+                                    <div className="flex items-center gap-8">
+                                        {definition.assistantId && dataSources.find((ds:AttachedDocument) => isWebsiteDs(ds) && ds.key) &&
+                                        <button
+                                            onClick={() => {
+                                                if (definition.assistantId) {
+                                                    toast("Please wait a few minutes for the rescan to complete");
+                                                    handleRescan();
+                                                }
+                                            }}
+                                            className="p-2 -mt-7 mr-1 hover:bg-gray-100 dark:hover:bg-[#40414F] rounded-md transition-colors group"
+                                            title={"Rescan All Website URLs"}
+                                            >
+                                            <IconRefresh
+                                                size={22}
+                                                className={`text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300`}
+                                            />
+                                        </button>}
+
+                                        {featureFlags.scheduledTasks &&
+                                          <WebsiteScanScheduler
                                     initAssistantDefintion={definition}
                                     websiteUrls={websiteUrls}
                                     onUpdateWebsiteUrl={(urlItem, updates) => {
@@ -1392,6 +1406,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         }
                                     }}
                                   />}
+                                    </div>
+                                </div>
                                 <WebsiteURLInput
                                     onAddURL={(url, isSitemap, maxPages, exclusions) => {
                                         const webType = isSitemap ? 'website/sitemap' : 'website/url';
@@ -1441,7 +1457,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 </>
                             )}
 
-                            {featureFlags.integrations && !disableEdit &&!isGroupAst &&
+                            {featureFlags.integrations && !isGroupAst &&
                                 <AssistantDriveDataSources
                                 initAssistantDefintion={definition}
                                 selectedDataSources={integrationDataSources ?? {}}
@@ -1451,6 +1467,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                 disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                 initRescanSchedule={driveRescanSchedule}
                                 onRescanScheduleChange={setDriveRescanSchedule}
+                                disableEdit={disableEdit}
                                 />
                             }
 

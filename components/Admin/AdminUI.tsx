@@ -11,7 +11,7 @@ import React from "react";
 import { ActiveTabs } from "../ReusableComponents/ActiveTabs";
 import { OpDef } from "@/types/op";
 import { AMPLIFY_ASSISTANTS_GROUP_NAME } from "@/utils/app/amplifyAssistants";
-import { noRateLimit, PeriodType, RateLimit, rateLimitObj } from "@/types/rateLimit";
+import { noRateLimit, normalizeRateLimits, RateLimit, RateLimits } from "@/types/rateLimit";
 import { adminTabHasChanges} from "@/utils/app/admin";
 import { OpenAIEndpointsTab } from "./AdminComponents/OpenAIEndpoints";
 import { FeatureFlagsTab } from "./AdminComponents/FeatureFlags";
@@ -64,7 +64,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [admins, setAdmins] = useState<string[]>([]);  
     const [allEmails, setAllEmails] = useState<Array<string> | null>(null);
 
-    const [rateLimit, setRateLimit] = useState<{period: PeriodType, rate: string}>({...noRateLimit, rate: '0'});
+    const [rateLimits, setRateLimits] = useState<RateLimits>([]);
     const [promptCostAlert, setPromptCostAlert] = useState<PromptCostAlert>({isActive:false, alertMessage: '', cost: 0});
     const [emailSupport, setEmailSupport] = useState<EmailSupport>({isActive:false, email:''});
     const [criticalErrorsConfig, setCriticalErrorsConfig] = useState<CriticalErrorsConfig>({isActive:false, email:''});
@@ -191,7 +191,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
                 setAmpGroups(data[AdminConfigTypes.AMPLIFY_GROUPS] || {})
                 setTemplates(data[AdminConfigTypes.PPTX_TEMPLATES] || []);
-                setRateLimit(data[AdminConfigTypes.RATE_LIMIT || rateLimit]);
+                setRateLimits(normalizeRateLimits(data[AdminConfigTypes.RATE_LIMIT]));
                 setPromptCostAlert(data[AdminConfigTypes.PROMPT_COST_ALERT || promptCostAlert]);
                 setDefaultConversationStorage(data[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE] || defaultConversationStorage);
                 setEmailSupport(data[AdminConfigTypes.EMAIL_SUPPORT || emailSupport]);
@@ -255,7 +255,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             case AdminConfigTypes.ADMINS:
                 return admins;
             case AdminConfigTypes.RATE_LIMIT:
-                return rateLimitObj(rateLimit.period, rateLimit.rate);
+                return rateLimits;
             case AdminConfigTypes.PROMPT_COST_ALERT:
                 return {
                     ...promptCostAlert,
@@ -306,7 +306,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     });
                     
                     // Ensure boolean fields are booleans
-                    const booleanFields = ["supportsImages", "supportsReasoning", "supportsSystemPrompts", "isAvailable", "isBuiltIn"] as const;
+                    const booleanFields = ["supportsImages", "supportsReasoning", "supportsSystemPrompts", "supportsImageGeneration", "supportsVideo", "isAvailable", "isBuiltIn"] as const;
                     booleanFields.forEach((field) => {
                         (sanitizedModel as any)[field] = Boolean(model[field]);
                     });
@@ -340,7 +340,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             case AdminConfigTypes.AMPLIFY_GROUPS:
                 Object.keys(ampGroups).forEach((key: string) => {
                     if (!ampGroups[key].isBillingGroup) ampGroups[key].isBillingGroup = false;
-                    if (!ampGroups[key].rateLimit) ampGroups[key].rateLimit = noRateLimit;
+                    if (!ampGroups[key].rateLimit) ampGroups[key].rateLimit = [noRateLimit];
+                    else ampGroups[key].rateLimit = normalizeRateLimits(ampGroups[key].rateLimit as any);
                     delete ampGroups[key].groupName;
                 });
                 return ampGroups;
@@ -541,7 +542,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             homeDispatch({ field: 'webSearchUserMessage', value: webSearchConfig?.webSearchUserMessage?.trim() ?? null});
         });
         saveAction([AdminConfigTypes.USER_DOCUMENTATION_URL], () => homeDispatch({ field: 'userDocumentationUrl', value: userDocumentationUrl}));
-        if (!storageSelection) saveAction([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () => homeDispatch({ field: 'storageSelection', value: defaultConversationStorage})); 
+        saveAction([AdminConfigTypes.RATE_LIMIT], () => homeDispatch({ field: 'adminRateLimits', value: rateLimits }));
+        if (!storageSelection) saveAction([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () => homeDispatch({ field: 'storageSelection', value: defaultConversationStorage}));
     }
 
     const handleSave = async () => {
@@ -703,8 +705,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     ampGroups={ampGroups}
                     setAmpGroups={setAmpGroups}
                     amplifyUsers={amplifyUsers}
-                    rateLimit={rateLimit}
-                    setRateLimit={setRateLimit}
+                    rateLimits={rateLimits}
+                    setRateLimits={setRateLimits}
                     promptCostAlert={promptCostAlert}
                     setPromptCostAlert={setPromptCostAlert}
                     defaultConversationStorage={defaultConversationStorage}
@@ -1120,12 +1122,12 @@ export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, 
 
 
 
-export interface Amplify_Group { // can be a cognito group 
-    groupName?: string; 
+export interface Amplify_Group { // can be a cognito group
+    groupName?: string;
     members : string[];
     createdBy : string;
     includeFromOtherGroups? : string[]; // if is a cognito group, this will always be Absent
-    rateLimit? : RateLimit;
+    rateLimit? : RateLimit | RateLimit[];  // supports both legacy single and new multi-limit format
     isBillingGroup? : boolean;
 }
 

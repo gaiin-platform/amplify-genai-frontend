@@ -1,11 +1,10 @@
-
+import { COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS, VIDEO_FILE_EXTENSIONS } from './app/const';
 import { getMimeTypeFromExtension } from './app/fileTypeTranslations';
 import { handleFile } from '@/components/Chat/AttachFile';
 import { resolveRagEnabled } from '@/types/features';
 import { AttachedDocument } from '@/types/attacheddocument';
 import JSZip from 'jszip';
-import { v4 as uuidv4 } from 'uuid';
-import { IMAGE_FILE_TYPES } from './app/const';
+import { IMAGE_FILE_TYPES, VIDEO_FILE_TYPES } from './app/const';
 // ============================================================================
 // INTERFACES
 // ============================================================================
@@ -13,6 +12,7 @@ export interface FileValidationOptions {
     disallowedExtensions?: string[];
     allowedExtensions?: string[];
     supportsImages?: boolean;
+    supportsVideo?: boolean;
     customErrorMessages?: {
         unsupportedType?: string;
         xlsFormat?: string;
@@ -28,7 +28,7 @@ export interface FileProcessorOptions {
     // Validation options
     disallowedExtensions?: string[];
     allowedExtensions?: string[];
-    
+
     // Callback functions
     onAttach: (document: AttachedDocument) => void;
     onUploadProgress: (document: AttachedDocument, progress: number) => void;
@@ -42,7 +42,7 @@ export interface FileProcessorOptions {
     featureFlags: any;
     ragOn?: boolean;
     uploadDocuments: boolean;
-    
+
     // Optional parameters
     groupId?: string;
     disableRag?: boolean;
@@ -68,9 +68,46 @@ export function getFileExtension(filename: string): string {
     }
     return filename.split('.').pop()?.toLowerCase() || '';
 }
+/**
+ * Get the default disallowed file extensions based on image and video support
+ */
+export function getDisallowedExtensions(supportsImages: boolean = true, supportsVideo: boolean = false): string[] {
+    return [
+        ...COMMON_DISALLOWED_FILE_EXTENSIONS,
+        ...(supportsImages ? [] : IMAGE_FILE_EXTENSIONS),
+        ...(supportsVideo ? [] : VIDEO_FILE_EXTENSIONS)
+    ];
+}
+/**
+ * Utility function to get disallowed extensions for a specific context
+ * This replicates the logic from ChatInput's getDisallowedFileExtensions()
+ */
+export function getDisallowedExtensionsForModel(supportsImages: boolean = true, supportsVideo: boolean = false): string[] {
+    return getDisallowedExtensions(supportsImages, supportsVideo);
+}
+/**
+ * Check if an AttachedDocument is an image file based on its name or type
+ */
+export function isImageFile(doc: AttachedDocument): boolean {
+    const extension = getFileExtension(doc.name);
+    if (extension && IMAGE_FILE_EXTENSIONS.includes(extension)) {
+        return true;
+    }
+    if (doc.type && IMAGE_FILE_TYPES.includes(doc.type)) {
+        return true;
+    }
+    return false;
+}
 
-export function isImageFile(file: any): boolean {
-    return file?.type && IMAGE_FILE_TYPES.includes(file.type);
+export function isVideoFile(doc: AttachedDocument): boolean {
+    const extension = getFileExtension(doc.name);
+    if (extension && VIDEO_FILE_EXTENSIONS.includes(extension)) {
+        return true;
+    }
+    if (doc.type && VIDEO_FILE_TYPES.includes(doc.type)) {
+        return true;
+    }
+    return false;
 }
 /**
  * Validate a file based on the provided options
@@ -159,21 +196,21 @@ export async function extractZipFiles(zipFile: File): Promise<File[]> {
         const contents = await zip.loadAsync(zipFile);
         const extractedFiles: File[] = [];
         const entries = Object.entries(contents.files);
-        
+
         for (const [relativePath, zipEntry] of entries) {
             // Skip directories, hidden files, and system files
-            if (!zipEntry.dir && 
-                !relativePath.startsWith('.') && 
+            if (!zipEntry.dir &&
+                !relativePath.startsWith('.') &&
                 !relativePath.includes('__MACOSX') &&
                 !relativePath.includes('.DS_Store')) {
-                
+
                 try {
                     const blobContent = await zipEntry.async('blob');
                     if (blobContent && blobContent.size > 0) {
                         // Determine file type based on extension
                         const extension = getFileExtension(relativePath);
                         const mimeType = getMimeTypeFromExtension(extension);
-                        
+
                         // Create a new File with the extracted content
                         const extractedFile = new File([blobContent], relativePath, {
                             type: mimeType || blobContent.type || 'application/octet-stream'
@@ -207,10 +244,10 @@ export async function processZipFileAsync(
     } = options;
     try {
         console.log(`Processing ZIP file: ${zipFile.name}`);
-        
+
         // Extract files from ZIP
         const extractedFiles = await extractZipFiles(zipFile);
-        
+
         if (extractedFiles.length === 0) {
             alert('No valid files found in the ZIP archive.');
             return;
@@ -223,13 +260,13 @@ export async function processZipFileAsync(
         }
         // Limit the number of files to process
         const filesToProcess = extractedFiles.slice(0, maxFilesFromZip);
-        
+
         console.log(`Processing ${filesToProcess.length} files from ZIP: ${zipFile.name}`);
         let processedCount = 0;
         // Process each extracted file individually (not the ZIP file itself)
         for (let i = 0; i < filesToProcess.length; i++) {
             const extractedFile = filesToProcess[i];
-            
+
             // Report progress if callback provided
             if (onZipProgress) {
                 onZipProgress(i + 1, filesToProcess.length);
@@ -252,8 +289,8 @@ export async function processZipFileAsync(
                     fileOptions.statsService.attachFileEvent(extractedFile, fileOptions.uploadDocuments);
                     // Resolve RAG configuration
                     const ragEnabled = resolveRagConfiguration(
-                        fileOptions.featureFlags, 
-                        fileOptions.ragOn || false, 
+                        fileOptions.featureFlags,
+                        fileOptions.ragOn || false,
                         fileOptions.disableRag
                     );
                     const zipFileName = zipFile.name.replace(/\.zip$/i, '');
@@ -272,7 +309,7 @@ export async function processZipFileAsync(
                         fileOptions.props || {},
                         tags
                     );
-                    
+
                     processedCount++;
                 } else {
                     console.warn(`Skipping invalid file from ZIP: ${extractedFile.name} - ${validation.errorMessage}`);
@@ -280,12 +317,12 @@ export async function processZipFileAsync(
             }
         }
         console.log(`Completed processing ZIP file: ${zipFile.name}. Processed ${processedCount} valid files.`);
-        
+
         // Notify completion with count of successfully processed files
         if (onZipExtractionComplete) {
             onZipExtractionComplete(processedCount);
         }
-        
+
     } catch (error) {
         console.error('Error processing ZIP file:', error);
         alert(`Failed to process ZIP file: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -338,8 +375,8 @@ export function processSingleFile(
         props = {}
     } = options;
     // Generate filename for pasted files if needed
-    const processedFile = generateFileName ? 
-        new File([file], generateFileName(file), { type: file.type }) : 
+    const processedFile = generateFileName ?
+        new File([file], generateFileName(file), { type: file.type }) :
         file;
     // Check if it's a ZIP file and process accordingly
     if (getFileExtension(processedFile.name) === 'zip') {
@@ -392,7 +429,7 @@ export function processFiles(
     options: FileProcessorOptions
 ): void {
     const fileArray = Array.from(files);
-    
+
     fileArray.forEach((file) => {
         processSingleFile(file, options);
     });

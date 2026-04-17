@@ -64,6 +64,7 @@ export const getAvailableModels = async () => {
         method: 'GET',
         path: "/available_models",
         op: "",
+        service: "chat-billing"
     };
     return await doRequestOp(op);
 }

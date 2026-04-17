@@ -73,10 +73,10 @@ export const ConversationsStorage: FC<Props> = ({ open, setUnsavedChanges, pendi
       return;
     }
 
-    console.log('[ConversationStorage] Starting save process');
-    console.log('[ConversationStorage] Selected option:', selectedOption);
-    console.log('[ConversationStorage] Current storageSelection:', storageSelection);
-    console.log('[ConversationStorage] Total conversations:', conversationsRef.current.length);
+    // console.log('[ConversationStorage] Starting save process');
+    // console.log('[ConversationStorage] Selected option:', selectedOption);
+    // console.log('[ConversationStorage] Current storageSelection:', storageSelection);
+    // console.log('[ConversationStorage] Total conversations:', conversationsRef.current.length);
 
     // Show processing bar for "all" options
     const isAllOption = selectedOption === 'local-only' || selectedOption === 'cloud-only';

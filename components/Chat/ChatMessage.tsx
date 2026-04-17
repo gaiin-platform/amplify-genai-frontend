@@ -44,6 +44,7 @@ import { AssistantReasoningMessage } from './ChatContentBlocks/AssistantReasonin
 import { LargeTextDisplay } from './LargeTextDisplay';
 import { generatePlaceholderText } from '@/utils/app/largeText';
 import { MCPToolResultBlock } from './ChatContentBlocks/MCPToolResultBlock';
+import RemovedDataSourcesBlock from './ChatContentBlocks/RemovedDataSourcesBlock';
 
 export interface Props {
     message: Message;
@@ -67,7 +68,7 @@ export const ChatMessage: FC<Props> = memo(({
     const {t} = useTranslation('chat');
 
     const {
-        state: {selectedConversation, conversations, messageIsStreaming, artifactIsStreaming, status, folders, featureFlags, statsService},
+        state: {selectedConversation, conversations, messageIsStreaming, artifactIsStreaming, status, folders, featureFlags, statsService, supportEmail},
         dispatch: homeDispatch,
         setLoadingMessage,
         handleUpdateSelectedConversation,
@@ -682,7 +683,7 @@ export const ChatMessage: FC<Props> = memo(({
             )}
 
             <div
-                className="enhanced-message-content relative m-[30px] flex p-2 text-base md:gap-6 md:py-2">
+                className="enhanced-message-content relative mx-[30px] my-1 flex py-1 px-2 text-base md:gap-6">
                 <div className="flex-shrink-0 ml-[45px] min-w-[40px] text-right font-bold">
                     {getIcon()}
                 </div>
@@ -856,6 +857,8 @@ export const ChatMessage: FC<Props> = memo(({
                                                 handleCustomLinkClick={handleCustomLinkClick}
                                               />
                                           </div>
+
+                                          {!messageIsStreaming && <RemovedDataSourcesBlock message={message}  />}
 
                                           <AgentLogBlock
                                             messageIsStreaming={messageIsStreaming}

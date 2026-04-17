@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { IconCircleX, IconFileText, IconEdit, IconCheck, IconWorld, IconSitemap, IconRobot, IconX } from '@tabler/icons-react';
+import { IconCircleX, IconFileText, IconEdit, IconCheck, IconWorld, IconSitemap, IconRobot, IconGitBranch, IconX } from '@tabler/icons-react';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
 import styled, { keyframes } from "styled-components";
@@ -221,7 +221,10 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
               onMouseLeave={() => setHoveredItem('')}
             >
               <div className="flex flex-row items-center gap-1.5">
-                <IconRobot size="16" className="text-white/90"/>
+                {assistant.definition.data?.isLayeredAssistant
+                  ? <IconGitBranch size={16} className="text-white/90" />
+                  : <IconRobot size={16} className="text-white/90" />
+                }
                 <div className="truncate font-medium text-sm text-white leading-normal pr-2 mr-2"
                      style={{ maxWidth: '250px' }}>
                   {getAssistantLabel()}

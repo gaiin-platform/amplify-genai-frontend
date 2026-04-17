@@ -514,12 +514,12 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                   }] : [] ),
               ///////////////////////////////////////////////////////////////////////////////
               // API Access Tab
-              ...(featureFlags.apiKeys ? [{label: `API Access${apiUnsavedChanges ? " *" : ""}`, 
+              ...(featureFlags.apiKeys ? [{label: `API Access${apiUnsavedChanges ? " *" : ""}`,
                   title: "Manage your API keys",
                   content:
                   <ApiKeys
                       setUnsavedChanges={setApiUnsavedChanges}
-                      onClose={close}
+                      onClose={handleClose}
                       accounts={accounts}
                       defaultAccount={defaultAccount}
                       open={open}
