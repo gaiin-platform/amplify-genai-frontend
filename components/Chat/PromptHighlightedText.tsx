@@ -996,7 +996,6 @@ const handleParagraphSelection = (range: Range) => {
         };
     
     const accessToken = await getSession().then((session) => { 
-                                // @ts-ignore
                                 return session.accessToken
                             })
     movePulse();

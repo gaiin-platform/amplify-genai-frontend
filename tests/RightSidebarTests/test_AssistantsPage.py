@@ -151,13 +151,13 @@ class ActiveAssistantsListTests(BaseTest):
         # List of all model IDs to test
         model_ids = [
             "us.amazon.nova-premier-v1:0", "o1", "mistral.mistral-large-2402-v1:0", "gemini-2.0-flash",
-            "o1-mini", "us.anthropic.claude-3-5-haiku-20241022-v1:0", "anthropic.claude-3-haiku-20240307-v1:0",
-            "amazon.nova-pro-v1:0", "us.deepseek.r1-v1:0", "anthropic.claude-3-sonnet-20240229-v1:0",
+            "o1-mini", "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            "amazon.nova-pro-v1:0", "us.deepseek.r1-v1:0",
             "o1-preview", "mistral.mistral-7b-instruct-v0:2", "gpt-4.1-mini",
-            "us.anthropic.claude-3-7-sonnet-20250219-v1:0", "gemini-2.5-pro-preview-03-25",
-            "mistral.mixtral-8x7b-instruct-v0:1", "us.anthropic.claude-3-5-sonnet-20241022-v2:0",
-            "amazon.nova-lite-v1:0", "us.anthropic.claude-3-opus-20240229-v1:0", "gpt-4o",
-            "gpt-4o-mini", "anthropic.claude-3-5-sonnet-20240620-v1:0", "o3-mini",
+            "us.anthropic.claude-sonnet-4-20250514-v1:0", "gemini-2.5-pro-preview-03-25",
+            "mistral.mixtral-8x7b-instruct-v0:1", "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+            "amazon.nova-lite-v1:0", "us.anthropic.claude-opus-4-5-20251101-v1:0", "gpt-4o",
+            "gpt-4o-mini", "o3-mini",
             "us.meta.llama3-2-90b-instruct-v1:0"
         ]
 

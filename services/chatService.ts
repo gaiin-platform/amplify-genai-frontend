@@ -24,6 +24,22 @@ export async function killRequest(endpoint: string, accessToken: string, request
 }
 
 export async function sendChatRequestWithDocuments(endpoint: string, accessToken: string, chatBody: ChatBody, abortSignal?: AbortSignal, metaHandler?: MetaHandler) {
+    // EMERGENCY: Service outage check
+    const isServiceDown = false; // Service is now operational
+    
+    if (isServiceDown) {
+        const errorMessage = 'Chat service is temporarily unavailable. We are working to restore functionality. Please try again later.';
+        const blob = new Blob([errorMessage], {type: 'text/plain'});
+        const stream = blob.stream();
+        
+        return new Response(stream, {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: {
+                'Content-Type': 'text/plain'
+            }
+        });
+    }
 
     if (chatBody.response_format && chatBody.response_format.type === 'json_object') {
         if (!chatBody.messages.some(m => m.content.indexOf('json') > -1)) {

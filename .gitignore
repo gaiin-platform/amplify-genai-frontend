@@ -23,6 +23,7 @@
 
 # production
 /build
+/docker-build-context/
 
 # misc
 .DS_Store

@@ -4,8 +4,7 @@ import remarkMath from "remark-math";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {CodeBlock} from "@/components/Markdown/CodeBlock";
 import {Conversation, Message} from "@/types/chat";
-import Mermaid from "@/components/Chat/ChatContentBlocks/MermaidBlock";
-import VegaVis from "@/components/Chat/ChatContentBlocks/VegaVisBlock";
+import { DynamicMermaid as Mermaid, DynamicVegaVis as VegaVis } from "@/components/Chat/ChatContentBlocks/DynamicBlocks";
 import {useEffect, useRef, useState} from "react";
 import {useTranslation} from "next-i18next";
 

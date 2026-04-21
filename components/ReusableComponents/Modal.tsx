@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { FC, ReactElement, useState } from 'react';
 import ActionButton from './ActionButton';
 import { IconX } from '@tabler/icons-react';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 interface OptionButtons {
   label: string;
@@ -36,6 +37,9 @@ interface Props {
                                     disableContentAnimation=false, disableClickOutside=false}) => {
 
  const modalRef = useRef<HTMLDivElement>(null);
+
+ // Focus trap: traps Tab/Shift+Tab within modal, Escape closes it
+ useFocusTrap(modalRef, true, onCancel);
 
  const getInnerWindowSize = () => {
   if (!height && !width && fullScreen) {
@@ -99,7 +103,9 @@ interface Props {
                         className={`modal-content inline-block transform rounded-lg border border-gray-300 dark:border-neutral-600 bg-neutral-100 text-left align-bottom shadow-xl transition-all dark:bg-[#2b2c36] px-6 sm:align-middle relative flex flex-col`}
                         style={{width: `${innderWindow.width}px`, height: `${innderWindow.height}px`, transform: transform || undefined}}
                         id="modal"
-                        role="dialog"  
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="modalTitle"
                         >
 
                         <div className='flex flex-row pt-4' >

@@ -1,8 +1,7 @@
 import { GetServerSideProps } from 'next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { getSession } from 'next-auth/react';
-// @ts-ignore - The home component is in an unusual location
-import Home from './api/home/home';
+import Home from '@/components/Home/Home';
 
 export default Home;
 
@@ -20,7 +19,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
   // Get environment variables needed by the Home component
   // Using Lambda Function URL for faster streaming responses
-  const chatEndpoint = process.env.CHAT_ENDPOINT || 'https://avxjw3hiwxhop4rbyvmprg6jku0jtcwq.lambda-url.us-east-1.on.aws/';
+  const chatEndpoint = process.env.CHAT_ENDPOINT || '';
   const mixPanelToken = process.env.MIXPANEL_TOKEN || '';
   const cognitoClientId = process.env.COGNITO_CLIENT_ID || '';
   const cognitoDomain = process.env.COGNITO_DOMAIN || '';

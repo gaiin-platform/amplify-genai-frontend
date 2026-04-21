@@ -23,12 +23,10 @@ export function useChatService() {
     const killRequest = async (requestId:string) => {
         const session = await getSession();
 
-        // @ts-ignore
         if(!session || !session.accessToken || !chatEndpoint){
             return false;
         }
 
-        // @ts-ignore
         const result = await killReq(chatEndpoint, session.accessToken, requestId);
 
         return result;
@@ -125,6 +123,17 @@ export function useChatService() {
             throw new Error("Chat endpoint not set. Please tell the system administrator to set the CHAT_ENDPOINT environment variable.");
         }
 
+        // Define targetEndpoint first, then determine finalEndpoint
+        const targetEndpoint = chatBody.endpoint || chatEndpoint;
+
+        // Ensure we have a valid endpoint - fix any relative paths
+        let finalEndpoint = targetEndpoint;
+        if (!targetEndpoint || targetEndpoint === '/home' || !targetEndpoint.startsWith('http')) {
+            console.warn('Invalid endpoint detected:', targetEndpoint, '- using default');
+            // Use the chatEndpoint from context as fallback
+            finalEndpoint = chatEndpoint;
+        }
+
         if (defaultAccount && defaultAccount.id) {
             chatBody.accountId = defaultAccount.id;
             chatBody.rateLimit = defaultAccount.rateLimit;
@@ -149,19 +158,43 @@ export function useChatService() {
         chatBody.requestId = Math.random().toString(36).substring(7);
         dispatch({field: "currentRequestId", value: chatBody.requestId});
 
-        const targetEndpoint = chatBody.endpoint || chatEndpoint;
-
         response = getSession().then((session) => {
+            // Check if session is valid
+            if (!session || !session.accessToken) {
+                console.error('[useChatService] No valid session or access token');
+                // Session expired and couldn't be refreshed - redirect to sign in
+                if (typeof window !== 'undefined') {
+                    alert("Your session has expired. Please sign in again.");
+                    window.location.href = '/api/auth/signin';
+                }
+                return Promise.reject(new Error('Session expired'));
+            }
+
+            // Check for token refresh error
             // @ts-ignore
-            return sendChatRequestWithDocuments(targetEndpoint, session.accessToken, chatBody, abortSignal, metaHandler);
+            if (session.error === 'RefreshAccessTokenError') {
+                console.error('[useChatService] Token refresh failed');
+                if (typeof window !== 'undefined') {
+                    alert("Your session has expired. Please sign in again.");
+                    window.location.href = '/api/auth/signin';
+                }
+                return Promise.reject(new Error('Token refresh failed'));
+            }
+
+            console.log('[useChatService] Sending request to endpoint:', finalEndpoint);
+            return sendChatRequestWithDocuments(finalEndpoint, session.accessToken, chatBody, abortSignal, metaHandler);
         }).catch((e) => {
-            if(chatBody.assistantId){
-                alert("The assistant you sent the message to is currently unavailable. Please try again in a minute.");
+            // Only show generic error if not already handled above
+            if (e.message !== 'Session expired' && e.message !== 'Token refresh failed') {
+                console.error('[useChatService] Chat request failed:', e.message, 'Endpoint:', finalEndpoint);
+                if(chatBody.assistantId){
+                    alert("The assistant you sent the message to is currently unavailable. Please try again in a minute.");
+                }
+                else {
+                    alert("The chat service is currently unavailable. Please try again in a minute.");
+                }
             }
-            else {
-                alert("The chat service is currently unavailable. Please try again in a minute.");
-            }
-            console.error(e);
+            console.error('[useChatService] Full error:', e);
             return Promise.reject(e);
         });
 

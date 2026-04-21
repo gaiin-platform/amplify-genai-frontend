@@ -309,7 +309,6 @@ if __name__ == "__main__":
 
     useEffect(() => {
         getSession().then((session) => {
-            // @ts-ignore
             setAccessToken(session.accessToken || null);
         });
     }, []);

@@ -1,5 +1,10 @@
 const { i18n } = require('./next-i18next.config');
 
+// Bundle analyzer — run with ANALYZE=true to visualize bundle composition
+const withBundleAnalyzer = process.env.ANALYZE === 'true'
+  ? require('@next/bundle-analyzer')({ enabled: true })
+  : (config) => config;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   i18n,
@@ -31,6 +36,11 @@ const nextConfig = {
   
   // Enable SWC minification
   swcMinify: true,
+
+  // Strip console.log and console.warn in production builds (keep console.error)
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error'] } : false,
+  },
   
   // Modularize imports for better tree-shaking
   modularizeImports: {
@@ -56,7 +66,7 @@ const nextConfig = {
       // Fonts
       "font-src 'self' data:",
       // API connections: Lambda, Cognito, Canvas API, Mixpanel
-      "connect-src 'self' https://avxjw3hiwxhop4rbyvmprg6jku0jtcwq.lambda-url.us-east-1.on.aws https://*.amazoncognito.com https://*.auth.us-east-1.amazoncognito.com https://hdviynn2m4.execute-api.us-east-1.amazonaws.com https://api.mixpanel.com https://*.s3.amazonaws.com wss://*.amazoncognito.com",
+      "connect-src 'self' https://*.lambda-url.us-east-1.on.aws https://*.amazoncognito.com https://*.auth.us-east-1.amazoncognito.com https://hdviynn2m4.execute-api.us-east-1.amazonaws.com https://api.mixpanel.com https://*.s3.amazonaws.com wss://*.amazoncognito.com",
       // Frame ancestors (same as X-Frame-Options: DENY)
       "frame-ancestors 'none'",
       // Base URI restriction
@@ -184,4 +194,4 @@ const nextConfig = {
 //   }/node_modules/canvas/build/Release:${process.env.LD_LIBRARY_PATH || ''}`;
 // }
 
-module.exports = nextConfig;
+module.exports = withBundleAnalyzer(nextConfig);

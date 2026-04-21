@@ -1,1 +1,2 @@
-export { default, getServerSideProps } from './home';
+// Re-export from canonical location
+export { default } from '@/components/Home/Home';

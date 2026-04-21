@@ -37,6 +37,7 @@ export const Toggle: FC<ToggleProps> = ({
         `}
                 role="switch"
                 aria-checked={enabled}
+                aria-label={label || 'Toggle'}
                 onClick={() => onChange(!enabled)}
             >
                 <span

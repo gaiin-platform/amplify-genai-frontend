@@ -66,9 +66,17 @@ export default function HomePage() {
             )}
           </p>
           {status === 'unauthenticated' && (
-            <p className="mt-4 text-sm text-gray-400">
-              You will be redirected to sign in automatically
-            </p>
+            <div className="mt-4">
+              <p className="text-sm text-gray-400 mb-3">
+                You will be redirected to sign in automatically
+              </p>
+              <a
+                href="/auth/forgot-password"
+                className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                Forgot your password?
+              </a>
+            </div>
           )}
         </div>
       </main>

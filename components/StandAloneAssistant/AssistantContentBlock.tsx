@@ -4,10 +4,8 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
 import { CodeBlock } from "@/components/Markdown/CodeBlock";
-import Mermaid from "@/components/Chat/ChatContentBlocks/MermaidBlock";
-import VegaVis from "@/components/Chat/ChatContentBlocks/VegaVisBlock";
+import { DynamicMermaid as Mermaid, DynamicVegaVis as VegaVis, DynamicLatexBlock as LatexBlock } from "@/components/Chat/ChatContentBlocks/DynamicBlocks";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
-import LatexBlock from "@/components/Chat/ChatContentBlocks/LatexBlock";
 import DOMPurify from "dompurify";
 
 interface AssistantMessage {

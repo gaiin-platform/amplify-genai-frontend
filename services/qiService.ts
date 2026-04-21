@@ -31,7 +31,6 @@ export const createQiSummary = async (chatEndpoint: string, model: Model, data: 
     const controller = new AbortController();
 
     const accessToken = await getSession().then((session) => {
-        // @ts-ignore
         return session.accessToken
     })
 

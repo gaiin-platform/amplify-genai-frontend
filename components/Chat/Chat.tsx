@@ -32,6 +32,12 @@ import Spinner from '../Spinner';
 import {ChatInput} from './ChatInput';
 import {ChatLoader} from './ChatLoader';
 import {ErrorMessageDiv} from './ErrorMessageDiv';
+import {MaintenanceBanner} from '@/components/MaintenanceBanner/MaintenanceBanner';
+import {SkeletonLoader} from '../Loader/SkeletonLoader';
+import {EmptyState} from '../ReusableComponents/EmptyState';
+import {ErrorBoundary} from '../ErrorBoundary/ErrorBoundary';
+import {OnboardingTour} from '../Onboarding/OnboardingTour';
+import {handleChatError, showErrorToast, showSuccessToast} from '@/utils/app/chatErrorHandling';
 import {ModelSelect} from './ModelSelect';
 import {SystemPrompt} from './SystemPrompt';
 import {MemoizedChatMessage} from './MemoizedChatMessage';
@@ -50,6 +56,7 @@ import {DownloadModal} from "@/components/Download/DownloadModal";
 import {getAssistant, getAssistantFromMessage, isAssistant} from "@/utils/app/assistants";
 import {ChatRequest, useSendService} from "@/hooks/useChatSendService";
 import {CloudStorage} from './CloudStorage';
+import {CanvasStatus} from './CanvasStatus';
 import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
 import { getFullTimestamp } from '@/utils/app/date';
 import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
@@ -388,9 +395,16 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         const handleSend = useCallback(
             async (request:ChatRequest) => {
-                return handleSendService(request, ()=>{
-                    return stopConversationRef.current === true;
-                });
+                try {
+                    const result = await handleSendService(request, ()=>{
+                        return stopConversationRef.current === true;
+                    });
+                    return result;
+                } catch (error) {
+                    const chatError = handleChatError(error);
+                    showErrorToast(chatError, () => handleSend(request));
+                    throw error;
+                }
             },
             [stopConversationRef, handleSendService]
         );
@@ -633,7 +647,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         options);
 
                     if(assistantInUse.uri) {
-                        request.endpoint = assistantInUse.uri;
+                        // Validate the URI - it should be a full URL, not a relative path
+                        if (assistantInUse.uri.startsWith('http://') || assistantInUse.uri.startsWith('https://')) {
+                            request.endpoint = assistantInUse.uri;
+                        } else {
+                            console.warn('Invalid assistant URI detected:', assistantInUse.uri, '- ignoring');
+                            // Don't set the endpoint - let it use the default from chatEndpoint
+                        }
                     }
 
                     handleSend(request);
@@ -722,7 +742,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         assistantName = assistant.name;
 
                         if(assistant.uri){
-                            request.endpoint = assistant.uri;
+                            // Validate the URI - it should be a full URL, not a relative path
+                            if (assistant.uri.startsWith('http://') || assistant.uri.startsWith('https://')) {
+                                request.endpoint = assistant.uri;
+                            } else {
+                                console.warn('Invalid assistant URI detected:', assistant.uri, '- ignoring');
+                                // Don't set the endpoint - let it use the default from chatEndpoint
+                            }
                         }
                     }
                     else if(selectedAssistant){
@@ -967,9 +993,17 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
         }, [messageIsStreaming, featureFlags.mtdCost]);
 
-// @ts-ignore
+        // Service status driven by NEXT_PUBLIC_MAINTENANCE_MODE env var.
+        // Set to "true" to show the banner and disable input during outages.
+        // Read once at module scope via env; no runtime toggle yet (see plan WS1).
+        const isServiceDown = process.env.NEXT_PUBLIC_MAINTENANCE_MODE === 'true';
+
         return (
+            <ErrorBoundary>
+            <OnboardingTour run={selectedConversation?.messages?.length === 0} />
             <>
+            {isServiceDown && <MaintenanceBanner />}
+            
             {selectedConversation && selectedConversation.messages?.length > 0 && 
             featureFlags.highlighter && settingRef.current.featureOptions.includeHighlighter && 
                 <PromptHighlightedText 
@@ -1009,7 +1043,24 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     Loading Models...
                                                 </div>
                                             ) : (
-                                                'Start a new conversation.'
+                                                <EmptyState
+                                                    onSuggestionClick={(suggestion) => {
+                                                        // React tracks form-input values via a hidden _valueTracker.
+                                                        // Setting `.value` directly bypasses it, so React's synthetic
+                                                        // onChange never fires — the textarea looks empty to ChatInput.
+                                                        // Going through the native value setter makes React's tracker
+                                                        // see the change and dispatch onChange properly.
+                                                        const el = textareaRef.current;
+                                                        if (!el) return;
+                                                        const nativeSetter = Object.getOwnPropertyDescriptor(
+                                                            window.HTMLTextAreaElement.prototype,
+                                                            'value'
+                                                        )?.set;
+                                                        nativeSetter?.call(el, suggestion);
+                                                        el.focus();
+                                                        el.dispatchEvent(new Event('input', { bubbles: true }));
+                                                    }}
+                                                />
                                             )}
                                             
                                         </div>
@@ -1023,8 +1074,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         <ModelSelect modelId={selectedModelId} isDisabled={availableAstModelId(selectedAssistant?.definition?.data?.model)}/>
                                                     </div>
                                                     <div className='mt-[-5px] absolute top-0 right-7 flex justify-end items-center'>
+                                                        <CanvasStatus className="mr-2" />
                                                         {featureFlags.storeCloudConversations && <CloudStorage iconSize={20} /> }
-                                                            
+
                                                         <button
                                                             className={`ml-2 ${messageIsStreaming ? "cursor-not-allowed": "cursor-pointer"} hover:opacity-50 pr-2`}
                                                             id="advancedConversationSettings"
@@ -1477,6 +1529,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             showScrollDownButton={showScrollDownButton}
                             plugins={plugins ?? []}
                             setPlugins={setPlugins}
+                            isServiceDown={isServiceDown}
                         />}
                     </>
                 )}
@@ -1492,6 +1545,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             </div>
 
             </>
+            </ErrorBoundary>
         );
     });
     

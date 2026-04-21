@@ -125,7 +125,6 @@ export const sendDirectAssistantMessage = async (
   try {
     const session = await getSession();
     
-    // @ts-ignore
     if (!session || !session.accessToken || !chatEndpoint) {
       throw new Error("No session or chat endpoint available");
     }
@@ -190,7 +189,6 @@ export const sendDirectAssistantMessage = async (
       shouldAbort: () => false
     };
     // console.log("chatBody", chatBody);
-    // @ts-ignore
     const response = await sendChatRequestWithDocuments(chatEndpoint, session.accessToken, chatBody, controller.signal, metaHandler);
     
     return {

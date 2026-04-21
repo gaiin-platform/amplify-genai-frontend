@@ -4,14 +4,15 @@ import { SessionProvider } from "next-auth/react"
 import {appWithTranslation} from 'next-i18next';
 import type {AppProps} from 'next/app';
 import {Inter} from 'next/font/google';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import '@/styles/globals.css';
 
 const inter = Inter({subsets: ['latin']});
 
 function App({ Component, pageProps }: AppProps) {
-    const queryClient = new QueryClient();
+    // Stable QueryClient instance — survives re-renders without losing cache
+    const [queryClient] = useState(() => new QueryClient());
 
     // Initialize chat color palette on app load
     useEffect(() => {
@@ -26,7 +27,7 @@ function App({ Component, pageProps }: AppProps) {
 
     return (
         <SessionProvider
-            refetchInterval={60}
+            refetchInterval={300}
             refetchOnWindowFocus={true}
             refetchWhenOffline={false}
         >

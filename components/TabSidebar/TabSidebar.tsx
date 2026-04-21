@@ -1,4 +1,4 @@
-import React, { useState, useEffect, ReactNode, useContext, useRef } from 'react';
+import React, { useState, useEffect, useCallback, ReactNode, useContext, useRef } from 'react';
 import { CloseSidebarButton, OpenSidebarButton } from "@/components/Sidebar/components/OpenCloseButton";
 import HomeContext from '@/pages/api/home/home.context';
 import { AssistantAdminUI } from '../Admin/AssistantAdminUI';
@@ -114,14 +114,33 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
                 zIndex: '20 !important'
               }}>
             {isMultipleTabs && (
-                <div className="relative flex flex-row gap-1 px-3 pt-3 pb-0 bg-gradient-to-r from-neutral-100 to-neutral-50 dark:from-[#202123] dark:to-[#1c1c1e] overflow-hidden">
+                <div
+                    className="relative flex flex-row gap-1 px-3 pt-3 pb-0 bg-gradient-to-r from-neutral-100 to-neutral-50 dark:from-[#202123] dark:to-[#1c1c1e] overflow-hidden"
+                    role="tablist"
+                    aria-label="Navigation sections"
+                    onKeyDown={(e) => {
+                        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                            e.preventDefault();
+                            const direction = e.key === 'ArrowRight' ? 1 : -1;
+                            const nextIndex = (activeTab + direction + childrenArray.length) % childrenArray.length;
+                            setActiveTab(nextIndex);
+                            // Focus the new tab button
+                            const tabButtons = e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]');
+                            tabButtons[nextIndex]?.focus();
+                        }
+                    }}
+                >
                 {/* Animated gradient background */}
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-50/30 via-purple-50/20 to-pink-50/30 dark:from-blue-900/5 dark:via-purple-900/5 dark:to-pink-900/5 animate-gradient-x"></div>
-                    {!chatSide() && <CloseSidebarButton onClick={toggleOpen} side={side} isHovered={isHovered} /> } 
+                    {!chatSide() && <CloseSidebarButton onClick={toggleOpen} side={side} isHovered={isHovered} /> }
                     {childrenArray.map((child, index) => (
                         <button
                             key={index}
-                            id="tabSelection"
+                            id={`tab-${index}`}
+                            role="tab"
+                            aria-selected={activeTab === index}
+                            aria-controls={`tabpanel-${index}`}
+                            tabIndex={activeTab === index ? 0 : -1}
                             onClick={() => setActiveTab(index)}
                             title={child.props.title}
                             className={`group relative px-5 pb-2.5 pt-2 rounded-t transition-all duration-300 overflow-hidden ${
@@ -159,7 +178,12 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
                 {/* Content fade-in effect */}
                 <div className="absolute inset-0 pointer-events-none opacity-10 dark:opacity-20 bg-gradient-to-b from-blue-100 to-transparent dark:from-blue-900/30 h-8"></div>
 
-                <div className="overflow-auto bg-white dark:bg-[#202123] p-0 m-0 flex-grow transition-all duration-300 ease-in-out">
+                <div
+                    className="overflow-auto bg-white dark:bg-[#202123] p-0 m-0 flex-grow transition-all duration-300 ease-in-out"
+                    role="tabpanel"
+                    id={`tabpanel-${activeTab}`}
+                    aria-labelledby={`tab-${activeTab}`}
+                >
                     <div className="animate-fade-in">
                         {childrenArray[activeTab].props.children}
                     </div>

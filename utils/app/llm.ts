@@ -24,7 +24,6 @@ export const promptForData = async (chatEndpoint:string, messages: Message[], mo
     const controller = new AbortController();
     
      const accessToken = await getSession().then((session) => { 
-                                // @ts-ignore
                                 return session.accessToken
                             })
 

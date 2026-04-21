@@ -1,5 +1,6 @@
-import { IconFileExport, IconPuzzle, IconBinaryTree2, IconApps, IconSettings, IconHelp, IconCloud, IconRobot, IconUser, IconSettingsBolt, IconDeviceSdCard, IconTools, IconAlarm, IconUsers } from '@tabler/icons-react';
+import { IconFileExport, IconPuzzle, IconBinaryTree2, IconApps, IconSettings, IconHelp, IconCloud, IconRobot, IconUser, IconSettingsBolt, IconDeviceSdCard, IconTools, IconAlarm, IconUsers, IconBuildingCommunity } from '@tabler/icons-react';
 import { useContext, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 
 
 import { useTranslation } from 'next-i18next';
@@ -20,6 +21,7 @@ import { ScheduledTask } from '@/types/scheduledTasks';
 
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
+    const router = useRouter();
     const [isMemoryDialogOpen, setIsMemoryDialogOpen] = useState(false);
     const [isPyFunctionApiOpen, setIsPyFunctionApiOpen] = useState(false);
     const [isWorkflowBuilderOpen, setIsWorkflowBuilderOpen] = useState(false);
@@ -58,16 +60,24 @@ export const ChatbarSettings = () => {
     return (
         <div className="slide-in flex flex-col items-center space-y-0 m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">   
 
-            {featureFlags.assistantAdminInterface && 
+            {featureFlags.assistantAdminInterface &&
                 <SidebarButton
                     disabled={syncingPrompts}
                     text={t('Assistant Group Interface')}
                     icon={<IconUsers size={19} />}
                     onClick={() => {
-                        // send trigger to close side bars and open the interface 
+                        // send trigger to close side bars and open the interface
                         window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', { detail: { isOpen: true }} ));
-                      
+
                     }}
+                />
+            }
+
+            {featureFlags.knowledgeBasePortal &&
+                <SidebarButton
+                    text={t('Knowledge Base Portal')}
+                    icon={<IconBuildingCommunity size={19} />}
+                    onClick={() => router.push('/knowledge-base')}
                 />
             }
 

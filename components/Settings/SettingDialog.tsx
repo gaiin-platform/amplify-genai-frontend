@@ -22,6 +22,7 @@ import ExpansionComponent from '../Chat/ExpansionComponent';
 import { IntegrationTabs } from '../Integrations/IntegrationsTab';
 import { ApiKeys } from './AccountComponents/ApiKeys';
 import { Accounts } from './AccountComponents/Account';
+import { CanvasIntegration } from './AccountComponents/CanvasIntegration';
 import { Account, noCoaAccount } from '@/types/accounts';
 import { getAccounts } from '@/services/accountService';
 import { noRateLimit } from '@/types/rateLimit';
@@ -511,6 +512,13 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                 title: "Manage your integration connections",
                 content: <IntegrationTabs open={open} depth={1}/>
               }] : []),
+
+              ///////////////////////////////////////////////////////////////////////////////
+              // Canvas LMS Tab
+              {label: `Canvas LMS`, 
+                title: "Connect your Canvas Learning Management System",
+                content: <CanvasIntegration lightMode={theme}/>
+              },
 
               ///////////////////////////////////////////////////////////////////////////////
               // Conversation Storage

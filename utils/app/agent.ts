@@ -119,7 +119,6 @@ export const handleAgentRunResult = async (agentResult: any, selectedConversatio
     };
 
     const accessToken = await getSession().then((session) => { 
-                            // @ts-ignore
                             return session.accessToken
                         })
 

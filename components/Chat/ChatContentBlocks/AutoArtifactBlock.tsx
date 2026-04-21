@@ -287,7 +287,6 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
     if (selectedConversation && selectedConversation?.messages) {
 
         const accessToken = await getSession().then((session) => { 
-                                            // @ts-ignore
                                             return session.accessToken
                                             })
             

@@ -12,6 +12,7 @@ import { newStatus } from "@/types/workflow";
 import { ReservedTags } from "@/types/tags";
 import { deepMerge } from "@/utils/app/state";
 import toast from "react-hot-toast";
+import { handleChatError, showErrorToast } from '@/utils/app/chatErrorHandling';
 import { OutOfOrderResults } from "@/utils/app/outOfOrder";
 import { conversationWithCompressedMessages, remoteForConversationHistory, saveConversations } from "@/utils/app/conversation";
 import { getHook } from "@/utils/app/chathooks";

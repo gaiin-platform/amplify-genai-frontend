@@ -73,6 +73,7 @@ interface Props {
     showScrollDownButton: boolean;
     plugins: Plugin[];
     setPlugins: (p: Plugin[]) => void;
+    isServiceDown?: boolean;
 }
 
 // interface Project {
@@ -89,7 +90,8 @@ export const ChatInput = ({
                               handleUpdateModel,
                               showScrollDownButton,
                               plugins,
-                              setPlugins
+                              setPlugins,
+                              isServiceDown = false
                           }: Props) => {
     const {t} = useTranslation('chat');
 
@@ -378,6 +380,12 @@ export const ChatInput = ({
     const handleSend = () => {
         handleCloseAllPopups();
         setEditingAction(null);  // Clear any editing action state
+
+        // Check if service is down
+        if (isServiceDown) {
+            alert('Chat service is temporarily unavailable. We are working to restore functionality. Please try again later.');
+            return;
+        }
 
         if (messageIsStreaming || artifactIsStreaming) {
             return;
@@ -1118,8 +1126,9 @@ export const ChatInput = ({
                                     }`,
                                 }}
                                 placeholder={
-                                    // t('Type a message or type "/" to select a prompt...') || ''
-                                    "Type a message to chat with Amplify..."
+                                    isServiceDown 
+                                        ? "Chat service is temporarily unavailable..."
+                                        : "Type a message to chat with Amplify..."
                                 }
                                 value={content}
                                 rows={1}
@@ -1127,17 +1136,19 @@ export const ChatInput = ({
                                 onCompositionEnd={() => setIsTyping(false)}
                                 onChange={handleChange}
                                 onKeyDown={handleKeyDown}
+                                disabled={isServiceDown}
                             />
 
                             <button
                                 id="sendMessage"
                                 className={`chat-input-button left-1 rounded-sm p-1 text-neutral-800 opacity-60  mx-1 
-                                ${messageIsDisabled || !content? 'cursor-not-allowed ' : 'hover:bg-neutral-200 hover:text-black dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-white'} 
+                                ${messageIsDisabled || !content || isServiceDown ? 'cursor-not-allowed ' : 'hover:bg-neutral-200 hover:text-black dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-white'} 
                                 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
                                 onClick={handleSend}
-                                title={messageIsDisabled ? "Please address missing information to enable chat"
+                                title={isServiceDown ? "Chat service is temporarily unavailable"
+                                    : messageIsDisabled ? "Please address missing information to enable chat"
                                     : !content ? "Enter a message to start chatting" : "Send Prompt"}
-                                disabled={messageIsDisabled || !content }
+                                disabled={messageIsDisabled || !content || isServiceDown}
                             >
                                 {messageIsStreaming || artifactIsStreaming ? (
                                     <div

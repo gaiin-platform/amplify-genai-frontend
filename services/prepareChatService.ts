@@ -250,7 +250,6 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
     const controller = new AbortController();
     
     const accessToken = await getSession().then((session) => { 
-                                // @ts-ignore
                                 return session.accessToken
                             })
     let customInstructions = isSmartMessagesOn ? DIVIDER_CUSTOM_INSTRUCTIONS : "";

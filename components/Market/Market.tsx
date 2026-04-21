@@ -998,7 +998,8 @@ If people need help with prompt engineering, which is how you converse effective
                                                                 <div className="w-full h-full">
                                                                     <img className="rounded-t-lg"
                                                                          src="https://admissions.vanderbilt.edu/wp-content/uploads/sites/4/2021/06/20181108JR003-scaled.jpg"
-                                                                         alt=""/>
+                                                                         alt={item.name || "Marketplace item"}
+                                                                         loading="lazy"/>
                                                                 </div>
                                                                 <div
                                                                     className="m-3 absolute inset-x-0 bottom-0 left-0 h-12 w-12 p-1 rounded-full border-2">
@@ -1124,7 +1125,8 @@ If people need help with prompt engineering, which is how you converse effective
                                                                 <div className="w-full h-full">
                                                                     <img className="rounded-t-lg"
                                                                          src="https://admissions.vanderbilt.edu/wp-content/uploads/sites/4/2021/06/20181108JR003-scaled.jpg"
-                                                                         alt=""/>
+                                                                         alt={item.name || "Marketplace item"}
+                                                                         loading="lazy"/>
                                                                 </div>
                                                                 <div
                                                                     className="m-3 absolute inset-x-0 bottom-0 left-0 h-12 w-12 p-1 rounded-full border-2">

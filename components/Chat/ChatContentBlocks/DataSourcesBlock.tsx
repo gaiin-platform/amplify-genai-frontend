@@ -56,10 +56,11 @@ const ImageModal: React.FC<{
                 </div>
                 
                 <div className="overflow-auto max-h-[calc(90vh-60px)]">
-                    <img 
-                        src={imageUrl} 
-                        alt={fileName} 
+                    <img
+                        src={imageUrl}
+                        alt={fileName}
                         className="max-w-full h-auto object-contain"
+                        loading="lazy"
                         onClick={(e) => e.stopPropagation()}
                     />
                 </div>

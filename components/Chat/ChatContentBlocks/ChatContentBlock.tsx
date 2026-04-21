@@ -1,12 +1,10 @@
 import {MemoizedReactMarkdown} from "@/components/Markdown/MemoizedReactMarkdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
-import LatexBlock from "./LatexBlock";
+import { DynamicLatexBlock as LatexBlock, DynamicMermaid as Mermaid, DynamicVegaVis as VegaVis } from "./DynamicBlocks";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {CodeBlock} from "@/components/Markdown/CodeBlock";
 import {Conversation, Message} from "@/types/chat";
-import Mermaid from "@/components/Chat/ChatContentBlocks/MermaidBlock";
-import VegaVis from "@/components/Chat/ChatContentBlocks/VegaVisBlock";
 import AssistantBlock from "@/components/Chat/ChatContentBlocks/AssistantBlock";
 import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {parsePartialJson} from "@/utils/app/data";

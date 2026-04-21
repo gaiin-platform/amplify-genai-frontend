@@ -1,9 +1,8 @@
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
-import Mermaid from "@/components/Chat/ChatContentBlocks/MermaidBlock";
+import { DynamicMermaid as Mermaid, DynamicVegaVis as VegaVis } from "@/components/Chat/ChatContentBlocks/DynamicBlocks";
 import AssistantBlock from "@/components/Chat/ChatContentBlocks/AssistantBlock";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
-import VegaVis from "@/components/Chat/ChatContentBlocks/VegaVisBlock";
 import {CodeBlock} from "@/components/Markdown/CodeBlock";
 import {MemoizedReactMarkdown} from "@/components/Markdown/MemoizedReactMarkdown";
 import {Status} from "@/types/workflow";
