@@ -264,7 +264,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             const personal = defaultAccount?.rateLimit;
             const effectiveLimit = (personal && personal.rate !== null && personal.period !== 'Unlimited')
                 ? personal
-                : getMonthlyLimit(adminRateLimits ?? []);
+                : getMonthlyLimit(normalizeRateLimits(adminRateLimits));
             if (!effectiveLimit || !effectiveLimit.rate || effectiveLimit.rate === 0) return chat_button_blue_color;
             const pct = (mtdCostNumeric / effectiveLimit.rate) * 100;
             if (pct >= 80) return 'text-red-500 dark:text-red-400';

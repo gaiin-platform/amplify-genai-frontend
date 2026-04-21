@@ -18,6 +18,23 @@ import { Artifact } from '@/types/artifacts';
 import { ShareItem } from '@/types/export';
 import { ExtractedFact } from '@/types/memory';
 import { Features } from '@/types/features';
+import { LayeredAssistant } from '@/types/layeredAssistant';
+import { RateLimit, RateLimits, noRateLimit } from '@/types/rateLimit';
+
+/** Rate-limit bucket for a specific Cognito group. */
+export interface GroupRateLimit {
+  groupId: string;
+  groupName?: string;
+  limits: RateLimits;
+}
+
+/** Modal state for confirming high-cost prompts before they're sent. */
+export interface PromptCostAlertModalState {
+  isOpen: boolean;
+  message: string;
+  onConfirm: () => void;
+  onDeny: () => void;
+}
 
 export interface HomeInitialState {
   defaultAccount: Account | undefined;
@@ -82,6 +99,14 @@ export interface HomeInitialState {
   aiEmailDomain: string;
   ragOn: boolean;
   isStandalonePromptCreation: boolean;
+
+  // Added in merge with main — upstream features that need corresponding
+  // state entries. See fix-auth-comprehensive PR #231 merge notes.
+  layeredAssistants: LayeredAssistant[];
+  adminRateLimits: RateLimit | RateLimits | null;
+  groupRateLimits: GroupRateLimit[];
+  webSearchUserMessage: string | undefined;
+  promptCostAlertModal: PromptCostAlertModalState | null;
 }
 
 export const initialState: HomeInitialState = {
@@ -157,5 +182,12 @@ export const initialState: HomeInitialState = {
   supportEmail: '',
   aiEmailDomain: '',
   ragOn: false,
-  isStandalonePromptCreation: false
+  isStandalonePromptCreation: false,
+
+  // Added in merge with main.
+  layeredAssistants: [],
+  adminRateLimits: noRateLimit,
+  groupRateLimits: [],
+  webSearchUserMessage: undefined,
+  promptCostAlertModal: null,
 };
