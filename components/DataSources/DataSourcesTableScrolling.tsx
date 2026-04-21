@@ -1,23 +1,30 @@
 import React, {FC, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
-import {IconDownload, IconRefresh, IconTrash, IconLoader2} from "@tabler/icons-react";
+import {IconDownload, IconTrash, IconLoader2, IconCheck, IconX, IconReload, IconRefresh} from "@tabler/icons-react";
+import toast from 'react-hot-toast';
+import {Checkbox} from '@/components/ReusableComponents/CheckBox';
 import {
     MantineReactTable,
     useMantineReactTable,
     type MRT_ColumnDef, MRT_SortingState, MRT_ColumnFiltersState, MRT_Cell, MRT_TableInstance,
+    MRT_ToggleGlobalFilterButton,
+    MRT_ToggleFiltersButton,
+    MRT_ShowHideColumnsButton,
+    MRT_ToggleDensePaddingButton,
 } from 'mantine-react-table';
 import {MantineProvider, ScrollArea} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
-import {FileQuery, FileRecord, PageKey, queryUserFiles, reprocessFile, setTags} from "@/services/fileService";
+import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
 import {DataSource} from "@/types/chat";
 import { v4 as uuidv4 } from 'uuid';
-import { deleteDatasourceFile, downloadDataSourceFile, extractKey, getDocumentStatusConfig } from '@/utils/app/files';
+import { deleteDatasourceFile, disableSupportReprocess, downloadDataSourceFile, extractKey, getDocumentStatusConfig, getFileAction, startFileReprocessingWithPolling, startFileStatusPolling } from '@/utils/app/files';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
-import { IMAGE_FILE_TYPES } from '@/utils/app/const';
-import toast from 'react-hot-toast';
-import { embeddingDocumentStaus } from '@/services/adminService';
+import { embeddingDocumentStatus } from '@/services/adminService';
 import { capitalize } from '@/utils/app/data';
+import styled, {keyframes} from "styled-components";
+import {FiCommand} from "react-icons/fi";
+import { animate } from '../Loader/LoadingIcon';
 
 
 interface Props {
@@ -27,6 +34,14 @@ interface Props {
     tableParams?: { [key: string]: any };
     height?: string;
 }
+
+
+const LoadingIcon = styled(FiCommand)`
+  color: #777777;
+  font-size: 1.1rem;
+  font-weight: bold;
+  animation: ${animate} 2s infinite;
+`;
 
 const DataSourcesTableScrolling: FC<Props> = ({
                                                   visibleTypes,
@@ -46,7 +61,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
 
     const [pagination, setPagination] = useState({
         pageIndex: 0,
-        pageSize: 100, //customize the default page size
+        pageSize: 50, //customize the default page size
     });
 
     const [lastPageIndex, setLastPageIndex] = useState(0);
@@ -71,10 +86,21 @@ const DataSourcesTableScrolling: FC<Props> = ({
     const tableContainerRef = useRef<HTMLDivElement>(null);
     
     // Embedding status state
-    const [embeddingStatus, setEmbeddingStatus] = useState<{[key: string]: string} | null>(null);
+    const [embeddingStatus, setEmbeddingStatus] = useState<{[key: string]: string} & { metadata?: {[key: string]: any}} | null>(null);
     const [isLoadingStatus, setIsLoadingStatus] = useState(false);
     // Cache to track which files have had their status fetched
     const fetchedStatusKeys = useRef<Set<string>>(new Set());
+    // Track files being reprocessed/polled
+    const [pollingFiles, setPollingFiles] = useState<Set<string>>(new Set());
+    
+    // Multi-select delete state
+    const [isDeleteMode, setIsDeleteMode] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+
+    // Multi-select mode state
+    const [isSelectMode, setIsSelectMode] = useState(false);
+    const [selectedForAction, setSelectedForAction] = useState<Set<string>>(new Set());
 
     const getTypeFromCommonName = (commonName: string) => {
         const foundType = Object.entries(mimeTypeToCommonName)
@@ -97,10 +123,12 @@ const DataSourcesTableScrolling: FC<Props> = ({
             setIsLoading(true);
 
             let existingData = data;
+            let currentPageKeys = pageKeys;
 
             const globalFilterQuery = globalFilter ? globalFilter : null;
 
             if (globalFilterQuery) {
+                currentPageKeys = [];
                 setPageKeys([]); //reset page keys if global filter is set
                 setLastPageIndex(0);
                 existingData = [];
@@ -110,6 +138,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 : 'createdAt#desc';
 
             if (sortingKey !== prevSorting) {
+                currentPageKeys = [];
                 setPageKeys([]); //reset page keys if sorting changes
                 setLastPageIndex(0);
                 setPrevSorting(sortingKey);
@@ -117,6 +146,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
             }
 
             if (columnFilters !== previousColumnFilters) {
+                currentPageKeys = [];
                 setPageKeys([]); //reset page keys if column filters change
                 setLastPageIndex(0);
                 setPreviousColumnFilters(columnFilters);
@@ -126,7 +156,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
             let sortIndex = 'createdAt'
 
             const pageKeyIndex = pagination.pageIndex - 1;
-            const pageKey = pageKeyIndex >= 0 ? pageKeys[pageKeyIndex] : null;
+            const pageKey = pageKeyIndex >= 0 ? currentPageKeys[pageKeyIndex] : null;
             let forwardScan =
                 ((lastPageIndex < pagination.pageIndex) || !pageKey) ? false : true;
 
@@ -191,12 +221,17 @@ const DataSourcesTableScrolling: FC<Props> = ({
             const result = await queryUserFiles(
                 query, null);
 
-            if (!result.success) {
+            if (!result.success || !result.data) {
                 setIsError(true);
+                setIsLoading(false);
+                setIsRefetching(false);
+                return;
             }
+            
             // dont show assistant icons in the data source table
-            const items = result.data?.items;
-            const updatedWithCommonNames = items?.map((file: any) => {
+            const items = result.data.items || [];
+            console.log("Items", items);
+            const updatedWithCommonNames = items.map((file: any) => {
                 const commonName = mimeTypeToCommonName[file.type];
                 return {
                     ...file,
@@ -205,12 +240,13 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 };
             });
 
-            if ((pageKeyIndex >= pageKeys.length - 1 || pageKeys.length === 0) && result.data.pageKey) {
-                setPageKeys([...pageKeys, result.data.pageKey]);
+            if ((pageKeyIndex >= currentPageKeys.length - 1 || currentPageKeys.length === 0) && result.data.pageKey) {
+                const updatedPageKeys = [...currentPageKeys, result.data.pageKey];
+                setPageKeys(updatedPageKeys);
                 setHasMoreData(true);
             }
 
-            setHasMoreData(result.data.pageKey !== null && result.data.items.length === pagination.pageSize);
+            setHasMoreData(result.data.pageKey !== null && items.length === pagination.pageSize);
 
             setData([...existingData, ...updatedWithCommonNames]);
 
@@ -317,14 +353,16 @@ const DataSourcesTableScrolling: FC<Props> = ({
 
                 // Make concurrent calls for each chunk
                 const statusPromises = chunks.map(chunk => 
-                    embeddingDocumentStaus(chunk)
+                    embeddingDocumentStatus(chunk)
                         .then(response => {
                             if (response?.success && response?.data) {
                                 // Merge results into existing state as they come in
                                 setEmbeddingStatus(prevStatus => {
                                     const newStatus = {
                                         ...prevStatus,
-                                        ...response.data
+                                        ...response.data,
+                                        // Include metadata if available
+                                        ...(response.metadata && { metadata: { ...prevStatus?.metadata, ...response.metadata } })
                                     };
                                     
                                     // Mark these keys as fetched AFTER state update
@@ -393,26 +431,135 @@ const DataSourcesTableScrolling: FC<Props> = ({
         setLoadingMessage("Deleting File...");
         try {
             await deleteDatasourceFile({id: key}); // TODO: check response
-            setData([]); // Clear existing data to force a complete refresh
             setIsRefetching(true);
-            fetchFiles(); 
+            setTimeout(() => {
+                setData([]); // Clear existing data to force a complete refresh
+                fetchFiles(); 
+            }, 300); 
+
+
+            
         } finally {
             setLoadingMessage("");
         }
     }
-
-    const fileReprocessing = async (key: string) => {
-        setLoadingMessage("Reprocessing File...");
+    
+    const deleteBatch = async () => {
+        if (selectedIds.size === 0) return;
+        
+        const totalFiles = selectedIds.size;
+        setLoadingMessage(`Deleting ${totalFiles} file(s)...`);
+        
         try {
-            const result = await reprocessFile(key);
-            if (result.success) {
-                toast("File's rag and embeddings regenerated successfully. Please wait a few minutes for the changes to take effect.");
+            const results = await Promise.all(
+                Array.from(selectedIds).map(id => {
+                    const file = data.find(f => f.id === id);
+                    return deleteDatasourceFile({id, name: file?.name}, false);
+                })
+            );
+            
+            const failures = results.filter(r => !r.success);
+            const successCount = results.length - failures.length;
+            
+            if (failures.length === 0) {
+                toast.success(`Successfully deleted ${successCount} file(s)`);
+            } else if (successCount === 0) {
+                toast.error(`Failed to delete all ${failures.length} file(s)`);
             } else {
-                alert("Failed to regenerate file's rag and embeddings.");
+                toast.error(`Deleted ${successCount} file(s), but ${failures.length} failed: ${failures.map(f => f.fileName).join(', ')}`);
             }
+            
+            setSelectedIds(new Set());
+            setShowDeleteConfirmation(false);
+            setIsDeleteMode(false);
+            setData([]);
+            setIsRefetching(true);
+            fetchFiles();
+        } catch (error) {
+            console.error('Error during batch delete:', error);
+            toast.error('An unexpected error occurred during batch deletion');
         } finally {
             setLoadingMessage("");
         }
+    }
+    
+    const toggleSelectAll = () => {
+        if (selectedIds.size === data.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(data.map(file => file.id)));
+        }
+    }
+    
+    const toggleSelectId = (id: string) => {
+        const newSelected = new Set(selectedIds);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedIds(newSelected);
+    }
+
+    // Select mode functions
+    const toggleSelectAllForAction = () => {
+        if (selectedForAction.size === data.length) {
+            setSelectedForAction(new Set());
+        } else {
+            setSelectedForAction(new Set(data.map(file => file.id)));
+        }
+    }
+
+    const toggleSelectForAction = (id: string) => {
+        const newSelected = new Set(selectedForAction);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedForAction(newSelected);
+    }
+
+    const handleBatchSelect = () => {
+        if (selectedForAction.size === 0 || !onDataSourceSelected) return;
+
+        // Call onDataSourceSelected for each selected file
+        Array.from(selectedForAction).forEach(id => {
+            const file = data.find(f => f.id === id);
+            if (file) {
+                onDataSourceSelected({
+                    id: file.id,
+                    type: file.type,
+                    name: file.name,
+                    metadata: {
+                        createdAt: file.createdAt,
+                        tags: file.tags,
+                        totalTokens: file.totalTokens,
+                    }
+                });
+            }
+        });
+
+        // Reset state
+        setSelectedForAction(new Set());
+        setIsSelectMode(false);
+    }
+
+    const fileReprocessing = async (key: string) => {
+        // Find the document that will be reprocessed to get its type
+        const reprocessedDoc = data.find(file => file.id === key);
+        if (!reprocessedDoc) {
+            console.error('Document not found for reprocessing:', key);
+            return;
+        }
+
+        await startFileReprocessingWithPolling({
+            key: extractKey(reprocessedDoc),
+            fileType: reprocessedDoc.type,
+            setPollingFiles,
+            setEmbeddingStatus,
+            setLoadingMessage
+        });
     }
 
     const handleSaveCell = (table: MRT_TableInstance<FileRecord>, cell: MRT_Cell<FileRecord>, value: any) => {
@@ -440,7 +587,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: '__id', //access nested data with dot notation
                 header: ' ',
-                width: 18,
                 size: 18,
                 maxSize: 18,
                 enableSorting: false,
@@ -461,7 +607,83 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: 'name', //access nested data with dot notation
                 header: 'Name',
-                width: 200,
+                Header: () => (
+                    <div className="flex items-center gap-1">
+                        <span>Name</span>
+                        {onDataSourceSelected && !isSelectMode && (
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setIsSelectMode(true);
+                                }}
+                                className="text-xs px-1.5 py-0.5 mx-6 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors whitespace-nowrap"
+                            >
+                                Select Multiple
+                            </button>
+                        )}
+                        {isSelectMode && (
+                            <>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        toggleSelectAllForAction();
+                                    }}
+                                    className="text-xs px-1.5 py-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors whitespace-nowrap"
+                                >
+                                    {selectedForAction.size === data.length && data.length > 0 ? 'Deselect All' : 'Select All'}
+                                </button>
+                                <span className="text-xs text-gray-500 whitespace-nowrap">
+                                    ({selectedForAction.size})
+                                </span>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleBatchSelect();
+                                    }}
+                                    disabled={selectedForAction.size === 0}
+                                    className="p-0.5 rounded hover:bg-green-100 dark:hover:bg-green-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                    title="Confirm Selection"
+                                >
+                                    <IconCheck size={16} className="text-green-600 dark:text-green-400" />
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setIsSelectMode(false);
+                                        setSelectedForAction(new Set());
+                                    }}
+                                    className="p-0.5 ml-[-4px] mr-3 rounded hover:bg-red-100 dark:hover:bg-red-900 transition-colors"
+                                    title="Cancel"
+                                >
+                                    <IconX size={16} className="text-red-600 dark:text-red-400" />
+                                </button>
+                            </>
+                        )}
+                    </div>
+                ),
+                Cell: ({cell}) => (
+                    <div className="flex items-center gap-2">
+                        {isSelectMode && (
+                            <div onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                toggleSelectForAction(cell.row.original.id);
+                            }}>
+                                <Checkbox
+                                    id={`select-checkbox-${cell.row.original.id}`}
+                                    label=""
+                                    checked={selectedForAction.has(cell.row.original.id)}
+                                    onChange={() => toggleSelectForAction(cell.row.original.id)}
+                                />
+                            </div>
+                        )}
+                        <span>{cell.getValue<string>()}</span>
+                    </div>
+                ),
                 size: 200,
                 //enableSorting: false,
                 maxSize: 300,
@@ -469,7 +691,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: 'id', //access nested data with dot notation
                 header: ' ',
-                width: 18,
                 size: 18,
                 maxSize: 18,
                 enableSorting: false,
@@ -490,7 +711,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: 'createdAt',
                 header: 'Created',
-                width: 100,
                 size: 100,
                 //enableSorting: false,
                 enableColumnFilter: false,
@@ -519,7 +739,6 @@ const DataSourcesTableScrolling: FC<Props> = ({
                 accessorKey: 'commonType',
                 header: 'Type',
                 //enableSorting: false,
-                width: 100,
                 size: 100,
                 maxSize: 100,
                 Edit: ({cell, column, table}) => <>{cell.getValue<string>()}</>,
@@ -527,9 +746,8 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: 'embeddingStatus', //embedding status column
                 header: 'Status',
-                width: 120,
-                size: 120,
-                maxSize: 120,
+                size: 150,
+                maxSize: 150,
                 enableSorting: false,
                 enableColumnActions: false,
                 enableColumnFilter: false,
@@ -537,7 +755,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
                     // Use the same key extraction as the API call
                     const key = extractKey(cell.row.original);
                     const status = embeddingStatus?.[key];
-                    
+                    const fileType = cell.row.original.type;
                     
                     // Show loading only if this specific file hasn't been fetched yet
                     if (!fetchedStatusKeys.current.has(key)) {
@@ -557,11 +775,88 @@ const DataSourcesTableScrolling: FC<Props> = ({
                         return null;
                     }
 
+                    const metadata = embeddingStatus?.metadata?.[key];
+                    let tooltipText = capitalize(config.text);
+                    
+                    // Add metadata details to tooltip if available
+                    if (metadata) {
+                        const details = [];
+                        if (metadata.failedChunks !== undefined && metadata.totalChunks !== undefined) {
+                            details.push(`${metadata.failedChunks}/${metadata.totalChunks} chunks failed`);
+                        }
+                        if (metadata.lastUpdated) {
+                            details.push(`Updated: ${new Date(metadata.lastUpdated).toLocaleString()}`);
+                        }
+                        if (details.length > 0) {
+                            tooltipText += `\n${details.join('\n')}`;
+                        }
+                    }
+
                     return (
-                        <div className="flex items-center justify-start">
-                            <span className={`${config.color} text-xs px-1.5 py-0.5 rounded font-normal whitespace-nowrap`}>
+                        <div className="flex items-center justify-start gap-2">
+                            <span 
+                                className={`${config.color} text-xs px-1.5 py-0.5 rounded font-normal whitespace-nowrap`}
+                                title={tooltipText}
+                            >
                                 {capitalize(config.text)}
+                                {metadata?.failedChunks !== undefined && metadata?.totalChunks !== undefined && (
+                                    <span className="ml-1 text-xs opacity-75">
+                                        ({metadata.failedChunks}/{metadata.totalChunks})
+                                    </span>
+                                )}
                             </span>
+                            {/* Show loader if actively polling, or action button based on status/time */}
+                            {!disableSupportReprocess(fileType) && (() => {
+                                // Show spinner if actively polling this file
+                                if (pollingFiles.has(cell.row.original.id)) {
+                                    return <LoadingIcon style={{ width: "18px", height: "18px" }} />;
+                                }
+                                
+                                // Determine which action to show
+                                const action = getFileAction(cell.row.original.createdAt, status, metadata);
+                                
+                                if (action === 'refresh') {
+                                    // Within 5 min: Show refresh button (check status + start polling)
+                                    return (
+                                        <ActionButton
+                                            title='Check status update - file may still be processing'
+                                            handleClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                startFileStatusPolling({
+                                                    key: extractKey(cell.row.original),
+                                                    fileType: cell.row.original.type,
+                                                    setPollingFiles,
+                                                    setEmbeddingStatus
+                                                });
+                                            }}
+                                        >
+                                            <IconRefresh size={16} className="text-blue-500" />
+                                        </ActionButton>
+                                    );
+                                }
+                                
+                                if (action === 'reprocess') {
+                                    // After 5 min or failed: Show reprocess button
+                                    return (
+                                        <ActionButton
+                                            title='Regenerate text extraction and embeddings for this file.'
+                                            handleClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                if (confirm("Are you sure you want to regenerate the text extraction and embeddings for this file?")) {
+                                                    fileReprocessing(cell.row.original.id);
+                                                }
+                                            }}
+                                        >
+                                            <IconReload size={16} />
+                                        </ActionButton>
+                                    );
+                                }
+                                
+                                // Completed files: show nothing
+                                return null;
+                            })()}
                         </div>
                     );
                 },
@@ -569,55 +864,43 @@ const DataSourcesTableScrolling: FC<Props> = ({
             {
                 accessorKey: 'delete',
                 header: '',
-                width: 18,
-                size: 18,
-                maxSize: 18,
-                enableSorting: false,
-                enableColumnActions: false,
-                enableColumnFilter: false,
-                Cell: ({cell}) => (
-                    <ActionButton
-                        title='Delete File'
-                        handleClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            deleteFile(cell.row.original.id);
-                        }}> 
-                        <IconTrash size={20}/>
-                    </ActionButton>
-                ),   
-            },
-            {
-                accessorKey: 're-embed', //access nested data with dot notation
-                header: ' ',
-                width: 18,
                 size: 18,
                 maxSize: 18,
                 enableSorting: false,
                 enableColumnActions: false,
                 enableColumnFilter: false,
                 Cell: ({cell}) => {
-                    // Only show the refresh button for non-image file types
-                    const fileType = cell.row.original.type;
-                    if (IMAGE_FILE_TYPES.includes(fileType)) {
-                        return null;
+                    if (isDeleteMode) {
+                        return (
+                            <div onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                toggleSelectId(cell.row.original.id);
+                            }}>
+                                <Checkbox
+                                    id={`delete-checkbox-${cell.row.original.id}`}
+                                    label=""
+                                    checked={selectedIds.has(cell.row.original.id)}
+                                    onChange={() => toggleSelectId(cell.row.original.id)}
+                                />
+                            </div>
+                        );
                     }
-                    
                     return (
                         <ActionButton
-                            title='Regenerate text extraction and embeddings for this file.'
+                            title='Delete File'
                             handleClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                fileReprocessing(cell.row.original.id);
+                                deleteFile(cell.row.original.id);
                             }}> 
-                        <IconRefresh size={20} />
+                            <IconTrash size={20}/>
                         </ActionButton>
                     );
-                },
+                },   
             },
         ],
-        [embeddingStatus, fetchedStatusKeys],
+        [embeddingStatus, fetchedStatusKeys, isDeleteMode, selectedIds, isSelectMode, selectedForAction, pollingFiles],
     );
 
     const columns = allColumns.filter(
@@ -659,6 +942,7 @@ const DataSourcesTableScrolling: FC<Props> = ({
         onSortingChange: setSorting,
         enableStickyHeader: true,
         enableBottomToolbar: false,
+        enableTopToolbar: true,
         state: {
             columnFilters,
             globalFilter,
@@ -670,8 +954,10 @@ const DataSourcesTableScrolling: FC<Props> = ({
         },
         mantineTableBodyRowProps: ({row}) => ({
             onClick: (event) => {
-                //console.log("Data Source Selected", row.original);
-                if(onDataSourceSelected){
+                // If in select mode, toggle selection instead of normal behavior
+                if (isSelectMode) {
+                    toggleSelectForAction(row.original.id);
+                } else if(onDataSourceSelected){
                     onDataSourceSelected({
                         id: row.original.id,
                         type: row.original.type,
@@ -695,11 +981,111 @@ const DataSourcesTableScrolling: FC<Props> = ({
         mantineToolbarAlertBannerProps: isError
             ? {color: 'red', children: 'Error loading data'}
             : undefined,
+        mantineTableHeadCellProps: {
+            sx: {
+                '& .mantine-ActionIcon-root': {
+                    color: lightMode === 'light' ? '#374151' : undefined, // darker gray in light mode
+                },
+                '& svg': {
+                    color: lightMode === 'light' ? '#374151' : undefined, // darker gray in light mode
+                }
+            }
+        },
         ...(tableParams || {})
     });
 
     return (
-        <div>
+        <div className="relative">
+            {/* Multi-Select Mode Controls - Positioned to appear in toolbar area */}
+            <div className="absolute right-2 z-10 flex items-center gap-2" style={{ transform: 'translateY(10px)' }}>
+                {!showDeleteConfirmation ? (
+                    <>
+                        {isDeleteMode ? (
+                            <div className="ml-2 flex items-center gap-2" style={{transform: 'translateY(32px)'}}>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        toggleSelectAll();
+                                    }}
+                                    className="text-sm px-2 py-1.5 pr-[-2px] rounded hover:bg-gray-600 dark:hover:bg-black transition-colors"
+                                >
+                                    {selectedIds.size === data.length && data.length > 0 ? 'Deselect All' : 'Select All'}
+                                </button>
+                                <span className="text-sm text-gray-400">
+                                    {selectedIds.size} selected
+                                </span>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setShowDeleteConfirmation(true);
+                                    }}
+                                    disabled={selectedIds.size === 0}
+                                    className="px-3 py-1.5 rounded bg-red-600 text-white hover:bg-red-600 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors text-sm"
+                                >
+                                    Delete
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setIsDeleteMode(false);
+                                        setSelectedIds(new Set());
+                                    }}
+                                    className="p-1.5 rounded hover:bg-gray-300 dark:hover:bg-black transition-colors"
+                                    title="Cancel"
+                                >
+                                    <IconX size={18} />
+                                </button>
+                            </div>
+                        ) :
+                        <div style={{ transform: 'translateY(6px)' }} className="flex gap-2">
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setIsDeleteMode(true);
+                                }}
+                                className="flex items-center bg-white dark:bg-opacity-0 gap-2 px-3 py-1.5 rounded hover:bg-gray-200 dark:hover:bg-black transition-colors"
+                            >
+                                <IconTrash size={18} />
+                                <span className="text-sm text-neutral-600 dark:text-neutral-300 font-bold">{'Delete Multiple'}</span>
+                            </button>
+                        </div>
+                        }
+                    </>
+                ) : (
+                    <div className="flex items-center gap-2 bg-red-500/10 px-3 py-2 rounded">
+                        <span className="text-sm">
+                            Delete {selectedIds.size} file(s)?
+                        </span>
+                        <button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                deleteBatch();
+                            }}
+                            className="rounded hover:bg-green-500/20 transition-colors"
+                            title="Confirm Delete"
+                        >
+                            <IconCheck size={18} className="text-green-500" />
+                        </button>
+                        <button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setShowDeleteConfirmation(false);
+                            }}
+                            className="rounded hover:bg-red-500/20 transition-colors"
+                            title="Cancel"
+                        >
+                            <IconX size={18} className="text-red-500" />
+                        </button>
+                    </div>
+                )}
+            </div>
+            
             <MantineProvider
                 theme={{
                     colorScheme: lightMode, // or 'light', depending on your preference or state

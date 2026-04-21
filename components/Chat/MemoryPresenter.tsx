@@ -15,6 +15,7 @@ import { Toggle } from '@/components/ReusableComponents/Toggle';
 import {
     MemoryType
 } from '@/types/memory';
+import { getUserIdentifier } from '@/utils/app/data';
 
 interface Props {
     isFactsVisible: boolean;
@@ -42,7 +43,7 @@ export const MemoryPresenter: FC<Props> = ({
     const [loadingStates, setLoadingStates] = useState<{ [key: number]: string }>({});
 
     const { data: session } = useSession();
-    const userEmail = session?.user?.email;
+    const userEmail = getUserIdentifier(session?.user);
 
     const handleTypeChange = (index: number, value: MemoryType) => {
         setFactTypes(prev => ({ ...prev, [index]: value }));

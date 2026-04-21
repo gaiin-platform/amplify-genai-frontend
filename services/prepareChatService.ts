@@ -6,11 +6,11 @@ import { messageTopicData, messageTopicDataPast } from "@/types/topics";
 import { lzwUncompress } from "@/utils/app/lzwCompression";
 import cloneDeep from 'lodash/cloneDeep';
 import { Model } from "@/types/model";
-import { ARTIFACT_TRIGGER_CONDITIONS } from "@/utils/app/const";
+// import { ARTIFACT_TRIGGER_CONDITIONS } from "@/utils/app/const";
 import { Account } from "@/types/accounts";
 import { scrubMessages } from "@/utils/app/messages";
 
-
+// CURRENTLY NOT IN USE, MOVED TO THE BACKEND amplify-lambda-js/common/conversations.js
 const DIVIDER_CUSTOM_INSTRUCTIONS = `
             There are several tasks for you to complete, you must response to each task with the cooresponding required Response Instructions format. As a prereq to starting the tasks you must fist understand the 'Given Data':
             Expect Data 1 - Collected Topic Data:
@@ -224,7 +224,7 @@ const SMART_INCLUDE_ARTIFACT_INSTRUCTIONS = (prompt: string) => `
     Determine if we should include the artifact instructions based on the current user prompt.
     
     Artifact Trigger Conditions:
-    ${ARTIFACT_TRIGGER_CONDITIONS}
+    //ARTIFACT_TRIGGER_CONDITIONS 
 
     Guidelines:
     - Evaluate User Input to determine if it matches the artifact trigger conditions based on keywords such as "outline," "full project," "detailed analysis," or "extensive documentation."
@@ -241,20 +241,42 @@ const SMART_INCLUDE_ARTIFACT_INSTRUCTIONS = (prompt: string) => `
 `;
 
 
-export const getFocusedMessages = async (chatEndpoint:string, conversation:Conversation, statsService: any, 
-                                         isArtifactsOn: boolean, isSmartMessagesOn: boolean, 
+export const getFocusedMessages = async (chatEndpoint:string, conversation:Conversation, statsService: any,
+                                         isArtifactsOn: boolean, isSmartMessagesOn: boolean,
                                          homeDispatch:any, advancedModel: Model, cheapestModel: Model, account: Account | undefined) => {
+    const startTime = performance.now();
+
+    console.log("🚀 [Smart Messages] getFocusedMessages called:", {
+        totalMessages: conversation.messages.length,
+        artifactsOn: isArtifactsOn,
+        smartMessagesOn: isSmartMessagesOn,
+        artifactCount: Object.keys(conversation.artifacts || {}).length
+    });
+
     const defaultResponse = () => ({focusedMessages: conversation.messages, includeArtifactInstr: isArtifactsOn});
-    if (!isArtifactsOn && !isSmartMessagesOn)  return defaultResponse();
-    
+    if (!isArtifactsOn && !isSmartMessagesOn) {
+        console.log("⏭️ [Smart Messages] Both features off, skipping analysis");
+        return defaultResponse();
+    }
+
     const controller = new AbortController();
-    
-    const accessToken = await getSession().then((session) => { 
-                                return session.accessToken
+
+    const accessToken = await getSession().then((session) => {
+                                // @ts-ignore
+                                return session?.accessToken
                             })
     let customInstructions = isSmartMessagesOn ? DIVIDER_CUSTOM_INSTRUCTIONS : "";
 
-    const topicData = gatherDataForPrompt(cloneDeep(conversation), isSmartMessagesOn, isArtifactsOn);
+    // PHASE 1: Data Gathering
+    const gatherStartTime = performance.now();
+    const topicData = gatherDataForPrompt(conversation, isSmartMessagesOn, isArtifactsOn);
+    const gatherEndTime = performance.now();
+    const gatherDuration = gatherEndTime - gatherStartTime;
+
+    console.log("⏱️ [Smart Messages] Phase 1 - Data Gathering:", {
+        duration: `${gatherDuration.toFixed(2)}ms`,
+        messagesProcessed: conversation.messages.length
+    });
     const messageTopicDataOnly = scrubMessages(topicData.messages)
     // only if we artifacts defined will we include the instructions 
     if (topicData.artifactLen > 0) customInstructions +=  ARTIFACT_CUSTOM_INSTRUCTIONS;
@@ -269,8 +291,24 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
     if (!customInstructions) return defaultResponse();
 
     try {
+        // Add status message for user feedback
+        console.log("📤 [Smart Messages] Dispatching status message...");
+        homeDispatch({
+            type: "append",
+            field: "status",
+            value: {
+                id: "smart-context",
+                summary: "Optimizing conversation context...",
+                message: "Analyzing message history and identifying relevant content",
+                icon: "sparkles",
+                inProgress: true,
+                animated: true
+            }
+        });
+        console.log("✅ [Smart Messages] Status message dispatched");
+
         const chatBody = {
-            model: isSmartMessagesOn ? advancedModel : cheapestModel, 
+            model: cheapestModel, // isSmartMessagesOn ? advancedModel : cheapestModel,
             messages: messageTopicDataOnly,
             key: accessToken,
             prompt: customInstructions,
@@ -282,38 +320,90 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
             rateLimit: account?.rateLimit
         };
 
-        
+
         statsService.sendChatEvent(chatBody);
 
+        // PHASE 2: LLM Analysis
+        const llmStartTime = performance.now();
         const response = await sendChatRequestWithDocuments(chatEndpoint, accessToken, chatBody, controller.signal);
 
         const responseData = response.body;
         const reader = responseData ? responseData.getReader() : null;
+
+        // Safety check: ensure reader exists
+        if (!reader) {
+            console.error("❌ [Smart Messages] No response reader available");
+            return defaultResponse();
+        }
+
         const decoder = new TextDecoder();
         let done = false;
         let text = '';
         try {
             while (!done) {
-        
-                // @ts-ignore
+
                 const {value, done: doneReading} = await reader.read();
                 done = doneReading;
                 const chunkValue = decoder.decode(value);
-        
+
                 if (done) break;
-        
+
                 text += chunkValue;
             }
-            return focusMessages(cloneDeep(conversation), text, topicData.currentTopic, topicData.currentTopicStart, topicData.artifactMap, homeDispatch);
+            const llmEndTime = performance.now();
+            const llmDuration = llmEndTime - llmStartTime;
+
+            console.log("⏱️ [Smart Messages] Phase 2 - LLM Analysis:", {
+                duration: `${llmDuration.toFixed(2)}ms`,
+                responseLength: text.length,
+                model: cheapestModel.name
+            });
+
+            // PHASE 3: Message Processing
+            const processStartTime = performance.now();
+            const result = focusMessages(conversation, text, topicData.currentTopic, topicData.currentTopicStart, topicData.artifactMap, homeDispatch);
+            const processEndTime = performance.now();
+            const processDuration = processEndTime - processStartTime;
+
+            console.log("⏱️ [Smart Messages] Phase 3 - Message Processing:", {
+                duration: `${processDuration.toFixed(2)}ms`
+            });
+
+            // Total timing summary
+            const totalDuration = processEndTime - startTime;
+
+            console.log("⏱️ [Smart Messages] ⚡ PERFORMANCE SUMMARY ⚡");
+            console.log({
+                totalDuration: `${totalDuration.toFixed(2)}ms`,
+                breakdown: {
+                    dataGathering: `${gatherDuration.toFixed(2)}ms (${((gatherDuration/totalDuration)*100).toFixed(1)}%)`,
+                    llmAnalysis: `${llmDuration.toFixed(2)}ms (${((llmDuration/totalDuration)*100).toFixed(1)}%)`,
+                    messageProcessing: `${processDuration.toFixed(2)}ms (${((processDuration/totalDuration)*100).toFixed(1)}%)`
+                },
+                originalMessages: conversation.messages.length,
+                focusedMessages: result.focusedMessages.length,
+                messagesRemoved: conversation.messages.length - result.focusedMessages.length,
+                efficiency: `Removed ${((conversation.messages.length - result.focusedMessages.length) / conversation.messages.length * 100).toFixed(1)}% of messages`
+            });
+
+            console.log("🏁 [Smart Messages] Returning result and cleaning up...");
+
+            return result;
         } finally {
             if (reader) {
-                await reader.cancel(); 
+                await reader.cancel();
                 reader.releaseLock();
             }
+            // Cleanup status message
+            console.log("🧹 [Smart Messages] Cleaning up status message...");
+            homeDispatch({ type: "remove", field: "status", value: "smart-context" });
+            console.log("✅ [Smart Messages] Complete!");
         }
 
     } catch (e) {
         console.error("Error prompting for focused Conversation Messages: ", e);
+        // Cleanup status message on error
+        homeDispatch({ type: "remove", field: "status", value: "smart-context" });
         // think about adding artifact descriptions and ids in case of failure. 
     }   
     return defaultResponse();
@@ -325,30 +415,75 @@ const focusMessages = (selectedConversation: Conversation, llmResponse: string, 
 
     const extractMarkers = ["/TOPIC_EVAL", "/INCLUDE_MESSAGES", "/ARTIFACT_RELEVANCE", "/INCLUDE_ARTIFACT_INSTRUCTIONS"];
 
-    const tasks = extractMarkers.map((marker) => 
-        extractResponseContent(cloneDeep(llmResponse), marker + '_START', marker + '_END')
+    const tasks = extractMarkers.map((marker) =>
+        extractResponseContent(llmResponse, marker + '_START', marker + '_END')
     );
+
+    console.log("📋 [Smart Messages] Extracted tasks:", {
+        topicEval: tasks[0] ? "✅ Found" : "❌ Missing",
+        includeMessages: tasks[1] ? "✅ Found" : "❌ Missing",
+        artifactRelevance: tasks[2] ? "✅ Found" : "❌ Missing",
+        includeArtifactInstr: tasks[3] ? "✅ Found" : "❌ Missing"
+    });
+
     const msgLenIdx = selectedConversation.messages.length - 1;
      // You may not need to call parseTask1Response if you do not use its output directly in this function.
     const messageTopicData = parseResponseForMessageData(tasks[0], currentTopic, currentTopicStart, msgLenIdx);
     // update conversation with message data
     if (messageTopicData) {
-        const updatedMessages = selectedConversation.messages;
+        console.log("📌 [Smart Messages] Topic change detected:", {
+            newTopic: messageTopicData.currentTopic,
+            pastTopic: messageTopicData.pastTopic
+        });
+        // Create a shallow copy of messages to avoid mutating the original
+        const updatedMessages = [...selectedConversation.messages];
         // add to assistant message data
-        if (messageTopicData.pastTopic && msgLenIdx > 0) updatedMessages[msgLenIdx - 1].topicData = {pastTopic: messageTopicData.pastTopic};
+        if (messageTopicData.pastTopic && msgLenIdx > 0) {
+            updatedMessages[msgLenIdx - 1] = {
+                ...updatedMessages[msgLenIdx - 1],
+                topicData: {pastTopic: messageTopicData.pastTopic}
+            };
+        }
         // add to current user message data
-        if (messageTopicData.currentTopic) updatedMessages[msgLenIdx].topicData = {currentTopic: messageTopicData.currentTopic};
+        if (messageTopicData.currentTopic) {
+            updatedMessages[msgLenIdx] = {
+                ...updatedMessages[msgLenIdx],
+                topicData: {currentTopic: messageTopicData.currentTopic}
+            };
+        }
         homeDispatch({field: 'selectedConversation', value: {...selectedConversation, messages: updatedMessages}});
 
+    } else {
+        console.log("📌 [Smart Messages] No topic change - continuing current topic");
     }
 
-    const focusedMessages = relevantMessages(tasks[1], cloneDeep(selectedConversation.messages));
+    const originalMessageCount = selectedConversation.messages.length;
+    const focusedMessages = relevantMessages(tasks[1], selectedConversation.messages);
     const lastMsgIndex = focusedMessages.length - 1;
+
+    console.log("✂️ [Smart Messages] Message filtering:", {
+        originalCount: originalMessageCount,
+        focusedCount: focusedMessages.length,
+        removed: originalMessageCount - focusedMessages.length,
+        compressionRatio: `${((focusedMessages.length / originalMessageCount) * 100).toFixed(1)}%`
+    });
+
     // get relevant artifacts
     const relevantArtifacts = relevantArtifactContent(tasks[2], artifactMap);
+    if (relevantArtifacts) {
+        console.log("📦 [Smart Messages] Relevant artifacts added to context");
+    }
     focusedMessages[lastMsgIndex].content += relevantArtifacts;
 
     const includeArtifactInstr = extractIncludeArtifactInstructions(tasks[3]);
+    console.log("🎨 [Smart Messages] Include artifact instructions:", includeArtifactInstr);
+
+    console.log("✅ [Smart Messages] Processing complete! Summary:", {
+        originalMessages: originalMessageCount,
+        focusedMessages: focusedMessages.length,
+        tokensLikelySaved: `~${((originalMessageCount - focusedMessages.length) * 100).toFixed(0)} tokens`,
+        includeArtifactInstr: includeArtifactInstr
+    });
 
     return {focusedMessages: focusedMessages as Message[], includeArtifactInstr: includeArtifactInstr}; 
     
@@ -427,12 +562,117 @@ const gatherArtifactData = (conversation: Conversation) => {
             artifactMap: artifactMap};
 }
 
+// Optimized: Single-pass data gathering (combines gatherTopicData + gatherArtifactData)
+const gatherAllDataInSinglePass = (conversation: Conversation, needsTopicData: boolean, needsArtifactData: boolean) => {
+    // Topic tracking variables
+    let currentTopic = '';
+    let currentTopicStart = 0;
+    const previousTopics: messageTopicDataPast[] = [];
+
+    // Artifact tracking variables
+    const artifacts: any[] = [];
+    let artifactMap: { [key: string]: number[] } = {};
+    let artifactIndexes: { [key: string]: number } = {};
+
+    // SINGLE backwards loop through messages (replaces two separate loops)
+    for (let i = conversation.messages.length - 2; i >= 0; i--) {
+        const msg = conversation.messages[i];
+
+        // Gather topic data (if needed)
+        if (needsTopicData) {
+            const msgTopicData = msg.topicData;
+            if (msgTopicData) {
+                if (msgTopicData.pastTopic) previousTopics.unshift(msgTopicData.pastTopic);
+                if (!currentTopic && msgTopicData.currentTopic) {
+                    currentTopic = msgTopicData.currentTopic;
+                    currentTopicStart = i;
+                }
+            }
+        }
+
+        // Gather artifact data (if needed) - SAME LOOP!
+        if (needsArtifactData && msg.data && msg.data.artifacts) {
+            console.log(`  Message ${i} (${msg.role}): Found ${msg.data.artifacts.length} artifact(s) in message.data`);
+            msg.data.artifacts.forEach((a: ArtifactBlockDetail) => {
+                if (!Object.keys(artifactIndexes).includes(a.artifactId)) {
+                    console.log(`    - Indexing artifact: ${a.artifactId} (${a.name})`);
+                    artifactIndexes[a.artifactId] = i;
+                }
+            });
+        }
+    }
+
+    // Build artifact map and definitions (only if needed)
+    if (needsArtifactData) {
+        console.log("🔍 Building artifact map from conversation.artifacts:", Object.keys(conversation.artifacts || {}));
+        Object.keys(conversation.artifacts || {}).forEach((id: string) => {
+            const artifact: Artifact | undefined = conversation.artifacts && conversation.artifacts[id].slice(-1)[0];
+            if (artifact) {
+                console.log(`  ✅ Artifact ${id}: "${artifact.name}" (has contents: ${!!artifact.contents})`);
+                artifacts.push({
+                    id: id,
+                    name: artifact.name,
+                    description: artifact.description,
+                    type: artifact.type,
+                    messageIndex: artifactIndexes[id]
+                });
+                artifactMap[id] = artifact?.contents || [];
+            }
+        });
+        console.log(`📊 Final artifact map has ${Object.keys(artifactMap).length} artifacts`);
+    }
+
+    // Format topic data
+    const slicedMessages = needsTopicData ? conversation.messages.slice(currentTopicStart) : conversation.messages;
+    const curIdx = conversation.messages.length - 1;
+    const expectedData = {
+        previousTopics: previousTopics,
+        currentTopic: currentTopic ? currentTopic : "NO CURRENT TOPIC",
+        currentRange: `${currentTopicStart}-${curIdx === 0 ? 0 : curIdx - 1}`
+    };
+    const topicMessageData = `
+         Collected Topic Data:
+        ${JSON.stringify(expectedData)}}
+    `;
+
+    // Format artifact data
+    const artifactMessageData = artifacts.length > 0
+        ? `
+        List of Artifact Defitions:
+        ${JSON.stringify(artifacts)}`
+        : "";
+
+    return {
+        slicedMessages,
+        topicMessageData,
+        currentTopic,
+        currentTopicStart,
+        artifactMessageData,
+        artifactLen: artifacts.length,
+        artifactMap
+    };
+};
 
 
 const gatherDataForPrompt = (conversation: Conversation, isSmartMessagesOn: boolean, isArtifactsOn: boolean) => {
-    let messages = conversation.messages;
-    const lastMsgIndex = messages.length - 1;
-    const lastIdxContent = messages[lastMsgIndex].content;
+    // Safety check: Ensure we have at least one message
+    if (conversation.messages.length === 0) {
+        console.error("❌ [Smart Messages] Empty conversation passed to gatherDataForPrompt");
+        return {
+            messages: [],
+            currentTopic: '',
+            currentTopicStart: 0,
+            artifactMap: {},
+            artifactLen: 0
+        };
+    }
+
+    // CRITICAL: Create a deep copy of messages to avoid mutating the original conversation
+    let messages = conversation.messages.map(msg => ({...msg}));
+
+    // Get the user's current prompt before any modifications
+    const originalLastIndex = messages.length - 1;
+    const lastIdxContent = messages[originalLastIndex].content;
 
     let updatedMessageContent = `
         USERS CURRENT PROMPT:
@@ -440,28 +680,38 @@ const gatherDataForPrompt = (conversation: Conversation, isSmartMessagesOn: bool
         \n___________________________\n
     `
 
+    // Optimized: Combine topic and artifact gathering into single loop
     let curTopic = '';
     let curTopicStart = 0;
-    if (isSmartMessagesOn) {
-        const {slicedMessages, topicMessageData, currentTopic, currentTopicStart} = gatherTopicData(conversation);
-        messages = slicedMessages;
-        updatedMessageContent += topicMessageData;
-        curTopic = currentTopic;
-        curTopicStart = currentTopicStart;
-    } 
-
     let artifactsMap = {};
     let artifactsLen = 0;
-    if (isArtifactsOn) {
-        const {artifactMessageData, artifactLen, artifactMap} = gatherArtifactData(conversation);
-        updatedMessageContent += artifactMessageData;
-        artifactsMap = artifactMap
-        artifactsLen = artifactLen;
+
+    if (isSmartMessagesOn || isArtifactsOn) {
+        console.log("🔍 Starting data gathering - Artifacts enabled:", isArtifactsOn);
+        console.log("📊 Conversation has artifacts:", Object.keys(conversation.artifacts || {}).length, "artifact ID(s)");
+        const gathered = gatherAllDataInSinglePass(conversation, isSmartMessagesOn, isArtifactsOn);
+
+        if (isSmartMessagesOn) {
+            // Slice the copied messages, not the originals
+            messages = gathered.slicedMessages.map(msg => ({...msg}));
+            updatedMessageContent += gathered.topicMessageData;
+            curTopic = gathered.currentTopic;
+            curTopicStart = gathered.currentTopicStart;
+        }
+
+        if (isArtifactsOn) {
+            updatedMessageContent += gathered.artifactMessageData;
+            artifactsMap = gathered.artifactMap;
+            artifactsLen = gathered.artifactLen;
+        }
     }
 
+    // Recalculate lastMsgIndex after potentially slicing messages
+    const lastMsgIndex = messages.length - 1;
+    // Now we can safely modify the COPY's content
     messages[lastMsgIndex].content = updatedMessageContent;
 
-    return {messages: messages, 
+    return {messages: messages,
             currentTopic: curTopic, currentTopicStart: curTopicStart,
             artifactMap: artifactsMap, artifactLen: artifactsLen};
 }
@@ -504,42 +754,104 @@ function parseResponseForMessageData(response: string, currentTopic: string, cur
 }
 
 
-// compile new relevant messages to be used in the original prompt request 
+// compile new relevant messages to be used in the original prompt request
 function relevantMessages(response: string, messages: Message[]) {
-    if (!response) return messages;
+    if (!response) {
+        console.log("⚠️ [Smart Messages] No range response, keeping all messages");
+        return messages;
+    }
 
     const rangeMatch = response.match(/ranges=\{(.+)\}/);
-    if (!rangeMatch || rangeMatch[1] === 'ALL') return messages;
-  
+    if (!rangeMatch) {
+        console.log("⚠️ [Smart Messages] No ranges found in response, keeping all messages");
+        return messages;
+    }
+
+    if (rangeMatch[1] === 'ALL') {
+        console.log("✅ [Smart Messages] LLM decided ALL messages are relevant");
+        return messages;
+    }
+
     const ranges = rangeMatch[1];
-  
-    const result:Message[] = [];
+    console.log("🎯 [Smart Messages] Parsed ranges from LLM:", ranges);
+
+    const result: Message[] = [];
     const parsedRanges = ranges.split(', ');
-    const lastIdx = messages.length -1;
+    const lastIdx = messages.length - 1;
+
+    const keptIndexes: number[] = [];
     parsedRanges.forEach(range => {
       let [start, end] = range.split('-').map(Number);
+
+      // Validate that parsing succeeded
+      if (isNaN(start) || isNaN(end)) {
+        console.warn(`⚠️ [Smart Messages] Invalid range format: "${range}", skipping`);
+        return; // Skip this range
+      }
+
+      // Bounds check
+      if (start < 0 || end >= messages.length || start > end) {
+        console.warn(`⚠️ [Smart Messages] Range out of bounds: ${start}-${end}, messages.length=${messages.length}, skipping`);
+        return; // Skip this range
+      }
+
       if (end === lastIdx) end -= 1;
-      result.push(...messages.slice(start, end + 1)); // Push the range of messages to result
+
+      // Track which indexes we're keeping
+      for (let i = start; i <= end; i++) {
+        keptIndexes.push(i);
+      }
+
+      // CRITICAL: Push COPIES of messages, not references, to avoid mutating originals
+      result.push(...messages.slice(start, end + 1).map(msg => ({...msg})));
     });
-    result.push(messages[messages.length-1]);
+
+    // Always add last message (but only if not already added)
+    if (!keptIndexes.includes(lastIdx)) {
+        keptIndexes.push(lastIdx);
+        result.push({...messages[lastIdx]}); // Copy, not reference
+    }
+
+    // Calculate which indexes were removed
+    const allIndexes = Array.from({ length: messages.length }, (_, i) => i);
+    const removedIndexes = allIndexes.filter(i => !keptIndexes.includes(i));
+
+    console.log("📊 [Smart Messages] Index filtering details:", {
+        totalMessages: messages.length,
+        keptIndexes: keptIndexes.sort((a, b) => a - b),
+        removedIndexes: removedIndexes,
+        keptCount: keptIndexes.length,
+        removedCount: removedIndexes.length
+    });
+
     return result;
   }
 
-// add any artifact contents 
+// add any artifact contents
 function relevantArtifactContent(response: string, artifactMap: { [key: string]: number[] }) {
-    console.log("Relevant Artifacts: ", response);
+    console.log("Relevant Artifacts Response: ", response);
+    console.log("Available Artifacts in Map: ", Object.keys(artifactMap));
     if (!response) return '';
     const idsMatch = response.match(/artifactIds=\{([^}]+)\}/);
     const artifactIds = idsMatch ? idsMatch[1].split(', ') : [];
+    console.log("Extracted Artifact IDs: ", artifactIds);
     // let existingArtifactIds = [];
     let artifactContent = '';
 
     if (artifactIds.length > 0 ) {
         artifactContent = "\n\n You may or may not find the following artifacts useful to answer the users prompt:\n";
         artifactIds.forEach((id: string) => {
-            if (artifactMap[id]) artifactContent += `\n\n ArtifactId: ${id} \n${lzwUncompress(artifactMap[id])}`;
+            if (artifactMap[id]) {
+                const decompressed = lzwUncompress(artifactMap[id]);
+                console.log(`📦 Artifact ${id} - First 30 chars: "${decompressed.substring(0, 30)}..."`);
+                artifactContent += `\n\n ArtifactId: ${id} \n${decompressed}`;
+            } else {
+                console.log(`⚠️ Artifact ${id} not found in artifactMap`);
+            }
         });
-    } 
+    } else {
+        console.log("⚠️ No artifact IDs extracted from response");
+    }
     return artifactContent;
 }
 

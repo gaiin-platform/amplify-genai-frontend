@@ -21,6 +21,7 @@ import Checkbox from "@/components/ReusableComponents/CheckBox";
 import Search from "@/components/Search";
 import { useSession } from "next-auth/react";
 import { amplifyAssistants } from "@/utils/app/amplifyAssistants";
+import { getUserIdentifier } from "@/utils/app/data";
 
 
 interface Props {
@@ -28,6 +29,7 @@ interface Props {
 
     admins: string[];
     ampGroups: Amplify_Groups;
+    amplifyUsers: { [key: string]: string };
 
     astGroups: Ast_Group_Data[];
     setAstGroups: (g: Ast_Group_Data[]) => void;
@@ -48,13 +50,13 @@ interface Props {
     updateUnsavedConfigs: (t: AdminConfigTypes) => void;
 }
 
-export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId, setAmplifyAstGroupId,
+export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyUsers, amplifyAstGroupId, setAmplifyAstGroupId,
                                            astGroups, setAstGroups, changedAstGroups, setChangedAstGroups, 
                                            templates, setTemplates, changedTemplates, setChangedTemplates,
                                            stillLoadingData, isAvailableCheck, admin_text, updateUnsavedConfigs}) => {
     const { state: { statsService }, setLoadingMessage } = useContext(HomeContext);
     const { data: session } = useSession();
-    const userEmail = session?.user?.email;
+    const userEmail = getUserIdentifier(session?.user) ?? "Unknown";
 
     const [hoveredAstGroup, setHoveredAstGroup] = useState<string>('');  
     const [keyReplacementLoading, setKeyReplacementLoading] = useState<string>(''); 
@@ -447,7 +449,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
 
                             {!creatingAmpAsts && !stillLoadingData && amplifyAstGroupId && 
                             <button 
-                                className={`group ml-4 mb-1 mt-[-2px] py-1 px-2 bg-gray-300 dark:bg-gray-600 ${isAddingAst === '' ? "hover:bg-gray-400 hover:dark:bg-gray-700" : ""} mr-[-16px] rounded transition-colors duration-100 cursor-pointer flex flex-row gap-2`}
+                                className={`group ml-4 mb-1 mt-[-2px] py-1 px-2 bg-blue-100 dark:bg-gray-600 ${isAddingAst === '' ? "hover:bg-gray-300 hover:dark:bg-gray-700" : ""} mr-[-16px] rounded transition-colors duration-100 cursor-pointer flex flex-row gap-2`}
                                 onClick={() => {
                                     setIsAddingAst(ast);
                                     handleAddAssistant([(amplifyAssistants as any)[ast]]);
@@ -469,10 +471,13 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
 
                 <label className="text-[1rem] font-bold"> Groups</label>
                 <div className="ml-6 mt-4">
-                    
-                {astGroups.length > 0 ?
+
+                {stillLoadingData ?
+                    loading
+                    :
+                    (astGroups.length > 0 ?
                     <>
-                        {showAstGroupSearch && 
+                        {showAstGroupSearch &&
                         <div className="h-[0px] ml-auto mr-20 w-[280px]" style={{transform: 'translateY(-30px)'}}>
                             <Search
                             placeholder={'Search Assistant Admin Groups...'}
@@ -480,15 +485,14 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
                             onSearch={(searchTerm: string) => setAstGroupSearchTerm(searchTerm.toLocaleLowerCase())}
                             />
                         </div>}
-                        <ExpansionComponent 
+                        <ExpansionComponent
                         onOpen={() => setShowAstGroupsSearch(true)}
                         onClose={() => {
                             setShowAstGroupsSearch(false);
                             setAstGroupSearchTerm('');
                         }}
-                        title={'Manage Assistant Admin Groups'} 
-                        content={ 
-                            stillLoadingData ? loading :
+                        title={'Manage Assistant Admin Groups'}
+                        content={
                             <>
                                 <table id="assistantAdminGroupsTable" className="modern-table hide-last-column mt-4 w-full mr-10" style={{boxShadow: 'none'}}>
                                     <thead>
@@ -513,7 +517,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
                                                 {group.groupName}
                                             </td>
                                             <td className="text-center border border-neutral-500 p-2 break-words max-w-[200px]">
-                                                {group.createdBy}
+                                                {amplifyUsers[group.createdBy] || group.createdBy}
                                             </td>
 
                                             <td className="w-[164px] border border-neutral-500 px-4 py-2"
@@ -600,7 +604,8 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyAstGroupId,
                     />  </>
                         :
                         <>No Assistant Admin Groups listed. </>
-                    }
+                    )
+                }
                 </div>
             
             </div>

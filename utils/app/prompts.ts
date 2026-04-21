@@ -41,7 +41,7 @@ const dateTimeString = () => {
   return formattedDate;
 }
 
-export const handleStartConversationWithPrompt = (handleNewConversation:any, prompts:Prompt[], startPrompt: Prompt) => {
+export const handleStartConversationWithPrompt = (handleNewConversation:any, prompts:Prompt[], startPrompt: Prompt, availableModels?: any) => {
 
   let prompt = startPrompt;
 
@@ -82,8 +82,17 @@ export const handleStartConversationWithPrompt = (handleNewConversation:any, pro
   if (prompt.type === MessageType.PREFIX_PROMPT) {
     tags = [...tags, ...(prompt.data?.requiredTags || [])];
   }
-  // remove duplicates 
+  // remove duplicates
   tags = Array.from(new Set(tags));
+
+  // Check if assistant has enforced model
+  const enforcedModelId = prompt.data?.assistant?.definition?.data?.model;
+
+  // Convert enforced model ID to Model object if availableModels is provided
+  let enforcedModel = undefined;
+  if (enforcedModelId && availableModels) {
+    enforcedModel = availableModels[enforcedModelId];
+  }
 
   handleNewConversation(
       {
@@ -94,6 +103,7 @@ export const handleStartConversationWithPrompt = (handleNewConversation:any, pro
         tools: [],
         tags: tags,
         ...(rootPrompt != null && {prompt: rootPrompt}),
+        ...(enforcedModel && {model: enforcedModel}),
       })
 }
 
@@ -115,10 +125,13 @@ export const updatePrompt = (updatedPrompt: Prompt, allPrompts: Prompt[]) => {
 };
 
 export const savePrompts = (prompts: Prompt[]) => {
-  const importedAssistants = prompts.filter(prompt => isAssistant(prompt) && prompt.data?.noShare && 
-                                                       !prompt.groupId && !isSystemAssistant(prompt));   
-  const localPrompts = prompts.filter((p:Prompt) => !isAssistant(p)); // imported ones 
-  storageSet('prompts', JSON.stringify([...localPrompts, ...importedAssistants]));
+  // Previously only saved asssistants not stored in the cloud to save space. Index db should be able to handle all prompts. If not, we can revert to the previous logic.
+  // const importedAssistants = prompts.filter(prompt => isAssistant(prompt) && prompt.data?.noShare && 
+  //                                                      !prompt.groupId && !isSystemAssistant(prompt));   
+  // const localPrompts = prompts.filter((p:Prompt) => !isAssistant(p)); // imported ones 
+  // storageSet('prompts', JSON.stringify([...localPrompts, ...importedAssistants]));
+
+  storageSet('prompts', JSON.stringify(prompts));
 };
 
 

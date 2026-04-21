@@ -2,6 +2,7 @@ import {MemoizedReactMarkdown} from "@/components/Markdown/MemoizedReactMarkdown
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
+import {visit} from 'unist-util-visit';
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {CodeBlock} from "@/components/Markdown/CodeBlock";
 import { DynamicMermaid as Mermaid, DynamicVegaVis as VegaVis, DynamicLatexBlock as LatexBlock, DynamicArtifactLatexBlock as ArtifactLatexBlock } from "@/components/Chat/ChatContentBlocks/DynamicBlocks";
@@ -22,6 +23,38 @@ interface Props {
     artifactEndRef: React.RefObject<HTMLDivElement>;
     // handleCustomLinkClick: (message:Message, href: string) => void,
 }
+
+// Rehype plugin to make inline styles dark-mode compatible
+const rehypeDarkModeStyles = () => {
+    return (tree: any) => {
+        visit(tree, 'element', (node: any) => {
+            if (node.properties && node.properties.style) {
+                const style = node.properties.style;
+
+                // Handle string styles (e.g., "background: white; color: black;")
+                if (typeof style === 'string') {
+                    // Remove hardcoded background colors and replace with class-based approach
+                    const cleanedStyle = style
+                        .replace(/background(-color)?:\s*white\s*;?/gi, '')
+                        .replace(/background(-color)?:\s*#fff(fff)?\s*;?/gi, '')
+                        .replace(/color:\s*black\s*;?/gi, '')
+                        .replace(/color:\s*#000(000)?\s*;?/gi, '');
+
+                    node.properties.style = cleanedStyle;
+
+                    // Add dark-mode compatible class
+                    if (!node.properties.className) {
+                        node.properties.className = [];
+                    }
+                    if (typeof node.properties.className === 'string') {
+                        node.properties.className = [node.properties.className];
+                    }
+                    node.properties.className.push('dark-mode-content');
+                }
+            }
+        });
+    };
+};
 
 export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artifactIsStreaming, artifactId, versionIndex, artifactEndRef}) => {
 
@@ -44,23 +77,42 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
 
     // Advanced LaTeX detection with whitespace prevention
     const hasLatex = useCallback((content: string) => {
-        return /\$\$.*?\$\$|\$[^$\n]+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)/.test(content);
+        // More precise LaTeX detection that avoids code blocks
+        const codeBlockRegex = /```[\s\S]*?```|`[^`]*`/g;
+        const contentWithoutCode = content.replace(codeBlockRegex, '');
+        return /\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)/.test(contentWithoutCode);
     }, []);
 
     // Memoized LaTeX processing with enhanced layout stability
     const processLatexWithLayoutStability = useCallback((content: string) => {
         if (!hasLatex(content)) return content;
         
+        // Store code blocks temporarily to avoid processing them
+        const codeBlocks: string[] = [];
+        const codeBlockPlaceholders: string[] = [];
+        
+        // Replace code blocks with placeholders
+        let processed = content.replace(/```[\s\S]*?```/g, (match, offset) => {
+            const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
+            codeBlocks.push(match);
+            codeBlockPlaceholders.push(placeholder);
+            return placeholder;
+        });
+        
+        // Replace inline code with placeholders
+        processed = processed.replace(/`[^`]*`/g, (match, offset) => {
+            const placeholder = `__INLINE_CODE_${codeBlocks.length}__`;
+            codeBlocks.push(match);
+            codeBlockPlaceholders.push(placeholder);
+            return placeholder;
+        });
+        
         // Pre-calculate approximate dimensions to prevent layout shifts
-        let processed = content.replace(/\$\$([\s\S]*?)\$\$/g, (match, latex) => {
+        processed = processed.replace(/\$\$([\s\S]*?)\$\$/g, (match, latex) => {
             // Estimate display math height based on content complexity
             const estimatedHeight = latex.includes('\\frac') || latex.includes('\\sqrt') || 
                                   latex.includes('\\sum') || latex.includes('\\int') ? '3em' : '1.5em';
             return `<math-display data-height="${estimatedHeight}">${latex}</math-display>`;
-        });
-        
-        processed = processed.replace(/\$([^$\n]+?)\$/g, (match, latex) => {
-            return `<math-inline data-height="1em">${latex}</math-inline>`;
         });
         
         processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (match, latex) => {
@@ -71,6 +123,11 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
         
         processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (match, latex) => {
             return `<math-inline data-height="1em">${latex}</math-inline>`;
+        });
+        
+        // Restore code blocks
+        codeBlockPlaceholders.forEach((placeholder, index) => {
+            processed = processed.replace(placeholder, codeBlocks[index]);
         });
         
         return processed;
@@ -158,7 +215,7 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
         className="prose dark:prose-invert flex-1 max-w-none w-full"
         remarkPlugins={[remarkGfm, remarkMath]}
         // @ts-ignore
-        rehypePlugins={[rehypeRaw]}
+        rehypePlugins={[rehypeRaw, rehypeDarkModeStyles]}
         //onMouseUp={handleTextHighlight}
         components={{
             // @ts-ignore
@@ -324,4 +381,3 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
     </div>);
 
 };
-

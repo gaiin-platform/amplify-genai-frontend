@@ -16,6 +16,7 @@ import { isAssistant } from '@/utils/app/assistants';
 import { baseAssistantFolder, isBaseFolder, isBasePrompt } from '@/utils/app/basePrompts';
 import { FolderInterface } from '@/types/folder';
 import { InfoBox } from '../ReusableComponents/InfoBox';
+import { getUserIdentifier } from '@/utils/app/data';
 
 type Props = {};
 
@@ -80,7 +81,7 @@ const LegacyWorkspaces: FC<Props> = () => {
                <div className={lightMode}>
                 <ImportAnythingModal
                     onImport={(sharedData) => {
-                        statsService.sharedItemAcceptedEvent(user?.email ?? 'Self', selectedNote, sharedData);
+                        statsService.sharedItemAcceptedEvent( getUserIdentifier(user) ?? 'Self', selectedNote, sharedData);
                         setImportModalOpen(false);
                     }}
                     onCancel={() => {

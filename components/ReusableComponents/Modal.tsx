@@ -52,11 +52,19 @@ interface Props {
   return {height: calculatedHeight, width: calculatedWidth}
  }
  const [innderWindow, setInnerWindow] = useState(getInnerWindowSize());
+ 
+ const sendEventToHideItemsAroundCodeBase = (shouldHide: boolean) => {
+    window.dispatchEvent(new CustomEvent('openFullScreenPanel', { detail: { isOpen: shouldHide }} ));
+ }
+
+   useEffect(() => {
+     if (fullScreen) sendEventToHideItemsAroundCodeBase(true);
+   }, [title])
 
 
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
-      if (!disableClickOutside && modalRef.current && !modalRef.current.contains(e.target as Node)) {
+      if (!disableClickOutside && !fullScreen && modalRef.current && !modalRef.current.contains(e.target as Node)) {
         window.addEventListener('mouseup', handleMouseUp);
       }
     };
@@ -115,7 +123,10 @@ interface Props {
                             { showClose && 
                             <div className='ml-auto mr-[-6px]'>
                             <ActionButton
-                                handleClick={() => onCancel()}
+                                handleClick={() => {
+                                  if (fullScreen) sendEventToHideItemsAroundCodeBase(false);
+                                  onCancel()}
+                                }
                                 title={"Close"}
                             >
                                 <IconX size={22}/>

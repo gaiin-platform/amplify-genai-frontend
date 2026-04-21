@@ -10,6 +10,7 @@ import HomeContext from '@/pages/api/home/home.context';
 import { capitalize } from '@/utils/app/data';
 import DataSourcesTableScrollingIntegrations from './DataSourcesTableScrollingIntegrations';
 import { translateIntegrationIcon } from '../Integrations/IntegrationsDialog';
+import { getDriveFileIntegrationTypes, getIntegrationName } from '@/utils/app/integrations';
 
 interface Props {
     onDataSourceSelected: (dataSource: DataSource) => void;
@@ -43,8 +44,7 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
             let integrations: any = [];
             if (featureFlags.integrations) {
                 const result = await getConnectedIntegrations();
-                const connected = !result?.success ? [] : 
-                                  result.data.filter((i: string) => i.includes("drive"));
+                const connected = !result?.success ? [] : getDriveFileIntegrationTypes(result.data);
                 integrations = connected;
             }
             setLoading(false);
@@ -55,6 +55,7 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
         if (loading) setupIntegrationFiles();
         
     }, [loading]);
+
 
     useEffect(() => {
         if (selectRef.current) {
@@ -154,12 +155,12 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                         <a href="#"
                             className={pageClasses(key)}
                             onClick={swapPage(key)}>
-                            <div className="group flex flex-row items-center pointer">
+                            <div className="group flex flex-row items-center pointer shrink-0">
                                 <div>
                                     {translateIntegrationIcon(key)}
                                 </div>
                                 <div className="ml-2">
-                                    {capitalize(key.split('_')[0])}
+                                    {getIntegrationName(key)}
                                 </div>
                             </div>
                         </a>
@@ -174,6 +175,7 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                 >
                     Close
                 </button>}
+                <br></br>
                 
                 
                 {/*    <a href="#"*/}
@@ -197,7 +199,7 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                 {selectedPage === "files" && (
                     <DataSourcesTableScrolling
                         height={height}
-                        visibleColumns={ showActionButtons ? ["name", "id", "createdAt", "commonType", "embeddingStatus", "delete", "re-embed"] 
+                        visibleColumns={ showActionButtons ? ["name", "id", "createdAt", "commonType", "embeddingStatus", "delete"] 
                                                            : ["name", "createdAt", "commonType", "embeddingStatus"]}
                         onDataSourceSelected={onDataSourceSelected}
                         tableParams={{
@@ -260,10 +262,9 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                         }}
                     />
                 )}
-                {userIntegrations && 
+                {userIntegrations &&
                  userIntegrations.map((key) =>
-                    selectedPage === key ? 
-                    <div key={key}>
+                    <div key={key} style={{ display: selectedPage === key ? 'block' : 'none' }}>
                      <DataSourcesTableScrollingIntegrations
                         onDataSourceSelected={onIntegrationDataSourceSelected}
                         disallowedFileExtensions={disallowedFileExtensions}
@@ -281,8 +282,8 @@ export const DataSourceSelector: FC<Props> = ({ onDataSourceSelected,
                             enableHiding: false,
                         }}
                         enableDownload={onClose ? false : true}
-                    /> 
-                    </div> : null )
+                    />
+                    </div>)
                 }
             
             </div>

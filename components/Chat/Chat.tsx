@@ -7,6 +7,7 @@ import {
     IconBoxAlignTopFilled,
     IconBoxAlignTopRightFilled,
     IconChevronRight,
+    IconChartHistogram,
 } from '@tabler/icons-react';
 import {
     MutableRefObject,
@@ -27,6 +28,8 @@ import {Conversation, DataSource, Message, MessageType, newMessage} from '@/type
 import {Plugin} from '@/types/plugin';
 
 import HomeContext from '@/pages/api/home/home.context';
+import { getMonthlyLimit, normalizeRateLimits } from '@/types/rateLimit';
+import { RateLimitUtilization } from '@/components/Layout/RateLimitUtilization';
 
 import Spinner from '../Spinner';
 import {ChatInput} from './ChatInput';
@@ -59,18 +62,16 @@ import {CloudStorage} from './CloudStorage';
 import {CanvasStatus} from './CanvasStatus';
 import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
 import { getFullTimestamp } from '@/utils/app/date';
-import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
+import { getUserMtdCosts } from '@/services/mtdCostService'; // MTDCOST
 import { GroupTypeSelector } from './GroupTypeSelector';
 import { Artifacts } from '../Artifacts/Artifacts';
 import { downloadDataSourceFile } from '@/utils/app/files';
-import { ArtifactsSaved } from './ArtifactsSaved';
 import React from 'react';
 import { PromptHighlightedText } from './PromptHighlightedText';
 import { getSettings } from '@/utils/app/settings';
 import { checkAvailableModelId, filterModels } from '@/utils/app/models';
 import { promptForData } from '@/utils/app/llm';
 import cloneDeep from 'lodash/cloneDeep';
-import { useSession } from 'next-auth/react';
 import { ConfirmModal } from '../ReusableComponents/ConfirmModal';
 import { getActivePlugins } from '@/utils/app/plugin';
 import { Settings } from '@/types/settings';
@@ -78,6 +79,7 @@ import { IntegrationsDialog } from '../Integrations/IntegrationsDialog';
 import { TemperatureSlider } from './Sliders/Temperature';
 import { ResponseTokensSlider } from './Sliders/ResponseTokens';
 import { storageRemove } from '@/utils/app/storage';
+import { Assistant } from '@/types/assistant';
 
 
 interface Props {
@@ -107,7 +109,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 folders,
                 extractedFacts,
                 defaultAccount,
-                isStandalonePromptCreation
+                isStandalonePromptCreation,
+                promptCostAlertModal,
+                layeredAssistants,
+                adminRateLimits,
+                groupRateLimits,
             },
             setLoadingMessage,
             handleUpdateConversation,
@@ -115,9 +121,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             handleUpdateSelectedConversation,
             getDefaultModel, handleForkConversation
         } = useContext(HomeContext);
-
-        const { data: session } = useSession();
-        const userEmail = session?.user?.email;
 
         // there should be a model id now since on fetchModels, I set it
         const getDefaultModelIdFromLocalStorage = () => {
@@ -205,6 +208,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [responseSliderState, setResponseSliderState] = useState<number>(calculateInitSliderValue(selectedConversation?.maxTokens));
         const [currentMessage, setCurrentMessage] = useState<Message>();
         const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
+        const [isUserScrolling, setIsUserScrolling] = useState<boolean>(false);
+        const [lastScrollTop, setLastScrollTop] = useState<number>(0);
+        const userScrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
         const [showAdvancedConvSettings, setShowAdvancedConvSettings] = useState<boolean>(false);
         const [showSettings, setShowSettings] = useState<boolean>(false);
         const [isPromptTemplateDialogVisible, setIsPromptTemplateDialogVisible] = useState<boolean>(false);
@@ -214,10 +220,27 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [variables, setVariables] = useState<string[]>([]);
         const [showScrollDownButton, setShowScrollDownButton] = useState<boolean>(false);
         const [promptTemplate, setPromptTemplate] = useState<Prompt | null>(null);
-        const [mtdCost, setMtdCost] = useState<string>('Loading...'); // MTDCOST
+        const [mtdCost, setMtdCost] = useState<string>('$0.00'); // MTDCOST
+        const [mtdCostNumeric, setMtdCostNumeric] = useState<number>(0);
+        const [mtdDailyCost, setMtdDailyCost] = useState<number>(0);
+        const [mtdHourlyCost, setMtdHourlyCost] = useState<number>(0);
+        const [mtdLoading, setMtdLoading] = useState<boolean>(true);
 
         const [isBarSticky, setIsBarSticky] = useState(getIsBarSticky());
         const [isPillExpanded, setIsPillExpanded] = useState(false);
+        const [showUtilPopover, setShowUtilPopover] = useState(false);
+        const utilPopoverHideTimer = useRef<NodeJS.Timeout | null>(null);
+
+        const showUtil = () => {
+            if (utilPopoverHideTimer.current) clearTimeout(utilPopoverHideTimer.current);
+            setShowUtilPopover(true);
+        };
+        const hideUtil = (collapsePill = false) => {
+            utilPopoverHideTimer.current = setTimeout(() => {
+                setShowUtilPopover(false);
+                if (collapsePill) setIsPillExpanded(false);
+            }, 120);
+        };
 
         const messagesEndRef = useRef<HTMLDivElement>(null);
         const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -229,7 +252,107 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         const chat_button_blue_color = "text-[#1dbff5] dark:text-[#8edffa]"
 
+        // True only when there is at least one active rate limit to show utilization for
+        const hasActiveLimits = (() => {
+            const personal = defaultAccount?.rateLimit;
+            if (personal && personal.rate !== null && personal.period !== 'Unlimited') return true;
+            if (normalizeRateLimits(adminRateLimits).some(l => l.rate !== null && l.period !== 'Unlimited')) return true;
+            return groupRateLimits.some(g => g.limits.length > 0);
+        })();
+
+        const getMtdPillColor = () => {
+            const personal = defaultAccount?.rateLimit;
+            const effectiveLimit = (personal && personal.rate !== null && personal.period !== 'Unlimited')
+                ? personal
+                : getMonthlyLimit(adminRateLimits ?? []);
+            if (!effectiveLimit || !effectiveLimit.rate || effectiveLimit.rate === 0) return chat_button_blue_color;
+            const pct = (mtdCostNumeric / effectiveLimit.rate) * 100;
+            if (pct >= 80) return 'text-red-500 dark:text-red-400';
+            if (pct >= 50) return 'text-yellow-500 dark:text-yellow-400';
+            return chat_button_blue_color;
+        };
+
+        /** Returns a color class for a specific period's spend against its limit */
+        const getPeriodColor = (period: 'Hourly' | 'Daily' | 'Monthly', spent: number): string => {
+            const personal = defaultAccount?.rateLimit;
+            const allLimits = normalizeRateLimits(adminRateLimits);
+            // Find the matching limit: personal if it matches the period, otherwise admin
+            let limit = null;
+            if (personal && personal.rate !== null && personal.period !== 'Unlimited') {
+                if (personal.period === period || (period === 'Monthly' && personal.period === 'Total')) {
+                    limit = personal;
+                }
+            }
+            if (!limit) {
+                limit = allLimits.find(l => l.rate !== null && l.period !== 'Unlimited' &&
+                    (l.period === period || (period === 'Monthly' && l.period === 'Total'))) ?? null;
+            }
+            if (!limit || !limit.rate || limit.rate === 0) return chat_button_blue_color;
+            const pct = (spent / limit.rate) * 100;
+            if (pct >= 80) return 'text-red-500 dark:text-red-400';
+            if (pct >= 50) return 'text-yellow-500 dark:text-yellow-400';
+            return chat_button_blue_color;
+        };
+
         const [showOnEditMessagePrompt, setShowOnEditMessagePrompt] = useState< {editedMessage: Message, index: number}| null>(null);
+        const [showTempEdit, setShowTempEdit] = useState(false);
+        const [showLengthEdit, setShowLengthEdit] = useState(false);
+
+        const getResponseLengthLabel = (ratio: number): string => {
+            if (ratio <= 1.5) return 'Concise';
+            if (ratio <= 4.5) return 'Average';
+            return 'Verbose';
+        };
+
+        const renderChatSettings = (isSticky: boolean = false) => {
+            return (
+                <>
+                    <span>Temp: </span>
+                    {showTempEdit ? (
+                        <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="1"
+                            value={selectedConversation?.temperature}
+                            onChange={(e) => selectedConversation && handleUpdateConversation(selectedConversation, {key: 'temperature', value: parseFloat(e.target.value)})}
+                            className="text-center bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-sm"
+                            onBlur={() => setShowTempEdit(false)}
+                            autoFocus
+                        />
+                    ) : (
+                        <span className={`cursor-pointer hover:opacity-70 inline-block ${isSticky ? 'w-4 mr-1' : '-ml-0.5'} text-center`} onClick={() => setShowTempEdit(true)}>
+                            {selectedConversation?.temperature}
+                        </span>
+                    )}
+                    {isSticky && <span className="ml-0.5"> | </span>}
+
+                    {showLengthEdit ? (
+                        <select
+                            value={getResponseLengthLabel(responseSliderState)}
+                            onChange={(e) => {
+                                const ratio = e.target.value === 'Concise' ? 1 : e.target.value === 'Average' ? 3 : 6;
+                                setResponseSliderState(ratio);
+                                handleResponseTokenChange(ratio);
+                                setShowLengthEdit(false);
+                            }}
+                            className="px-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-sm"
+                            onBlur={() => setShowLengthEdit(false)}
+                            autoFocus
+                        >
+                            <option>Concise</option>
+                            <option>Average</option>
+                            <option>Verbose</option>
+                        </select>
+                    ) : (
+                        <span className={`mx-0.5 cursor-pointer hover:opacity-70 inline-block ${isSticky ? 'w-16' : '-mr-1'} text-center`} onClick={() => setShowLengthEdit(true)}>
+                            {getResponseLengthLabel(responseSliderState)}
+                        </span>
+                    )}
+                    {isSticky && <span > | </span>}
+                </>
+            );
+        };
 
         const [isIntegrationsOpen, setIsIntegrationsOpen] = useState<boolean>(false);
         const [selectedConversationState, setSelectedConversationState] = useState<Conversation | undefined>(selectedConversation);
@@ -316,6 +439,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) {
                 if (selectedConversation?.model?.id !== selectedModelId) setSelectedModelId(selectedConversation?.model?.id);
             }
+            const groupType = selectedConversation?.groupType;
+            if (groupType && !selectedAssistant?.definition?.data?.groupTypeData?.[groupType]) {
+                delete selectedConversation.groupType;
+            } 
+
         }, [selectedAssistant, selectedConversation]);
 
 
@@ -784,11 +912,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
 
         const scrollToBottom = useCallback(() => {
-            if (autoScrollEnabled) {
+            if (autoScrollEnabled && !isUserScrolling) {
                 messagesEndRef.current?.scrollIntoView({behavior: 'smooth'});
                 textareaRef.current?.focus();
             }
-        }, [autoScrollEnabled]);
+        }, [autoScrollEnabled, isUserScrolling]);
 
 
         const handleScroll = () => {
@@ -796,18 +924,44 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 const {scrollTop, scrollHeight, clientHeight} =
                     chatContainerRef.current;
                 const bottomTolerance = 30;
+                const scrollDelta = scrollTop - lastScrollTop;
+                const isAtBottom = scrollTop + clientHeight >= scrollHeight - bottomTolerance;
 
-                if (scrollTop + clientHeight < scrollHeight - bottomTolerance) {
-                    setAutoScrollEnabled(false);
-                    setShowScrollDownButton(true);
-                } else {
-                    setAutoScrollEnabled(true);
-                    setShowScrollDownButton(false);
+                // Detect if user is actively scrolling (not auto-scroll)
+                if (Math.abs(scrollDelta) > 0) {
+                    setIsUserScrolling(true);
+                    setLastScrollTop(scrollTop);
+                    
+                    // Clear existing timeout
+                    if (userScrollTimeoutRef.current) {
+                        clearTimeout(userScrollTimeoutRef.current);
+                    }
+                    
+                    // Set timeout to reset user scrolling state after 500ms of no scroll
+                    userScrollTimeoutRef.current = setTimeout(() => {
+                        setIsUserScrolling(false);
+                    }, 500);
                 }
+
+                // Update auto-scroll and button visibility
+                setAutoScrollEnabled(isAtBottom);
+                
+                // Show scroll down button if not at bottom, OR if streaming (so user can jump to follow)
+                setShowScrollDownButton(!isAtBottom || messageIsStreaming);
             }
         };
 
         const handleScrollDown = () => {
+            // Reset user scrolling state and enable auto-scroll when button is clicked
+            setIsUserScrolling(false);
+            setAutoScrollEnabled(true);
+            setShowScrollDownButton(false);
+            
+            // Clear any existing scroll timeouts
+            if (userScrollTimeoutRef.current) {
+                clearTimeout(userScrollTimeoutRef.current);
+            }
+            
             chatContainerRef.current?.scrollTo({
                 top: chatContainerRef.current.scrollHeight,
                 behavior: 'smooth',
@@ -817,7 +971,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const handleScrollUp = () => {
             if (modelSelectRef && modelSelectRef.current) {
                 const rect = modelSelectRef.current.getBoundingClientRect();
-                
+
                 // Check if the element is fully in view, partially in view, or not visible
                 const inView = (
                     rect.top >= 0 &&
@@ -825,13 +979,61 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     rect.bottom <= (windowInnerDims.height || document.documentElement.clientHeight) &&
                     rect.right <= (windowInnerDims.width || document.documentElement.clientWidth)
                 );
-        
+
                 if (!inView) {
                     modelSelectRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
                 }
             }
         };
-        
+
+        const isModelSelectorInView = () => {
+            if (modelSelectRef && modelSelectRef.current) {
+                const rect = modelSelectRef.current.getBoundingClientRect();
+                return (
+                    rect.top >= 0 &&
+                    rect.left >= 0 &&
+                    rect.bottom <= (windowInnerDims.height || document.documentElement.clientHeight) &&
+                    rect.right <= (windowInnerDims.width || document.documentElement.clientWidth)
+                );
+            }
+            return false;
+        };
+
+        const handleToggleSettings = () => {
+            const inView = isModelSelectorInView();
+
+            // If model selector is in view and settings are shown, hide it
+            // If model selector is NOT in view, show settings (or keep them shown)
+            if (inView && showSettings) {
+                setShowSettings(false);
+            } else {
+                setShowSettings(true);
+            }
+
+            if (!messageIsStreaming) handleScrollUp();
+        };
+
+        const enforcesGroupTypes = () => selectedAssistant?.definition?.data && Object.keys(selectedAssistant?.definition?.data?.groupTypeData || {}).length > 0;
+                                                    
+        const getGroupTypeSelector = (ast: Assistant | null) => {
+            if (selectedConversation && ast) {
+
+             return <GroupTypeSelector
+                groupOptionsData={ast?.definition?.data?.groupTypeData || {}}
+                setSelected={(type: string | undefined) => {
+                    // set selectedConversations with type
+                    homeDispatch({ field: 'selectedConversation', value: {...selectedConversation, groupType: type} })
+                    handleUpdateConversation(selectedConversation, {
+                        key: 'groupType',
+                        value: type,
+                    }) 
+                }}
+                groupUserTypeQuestion={ast?.definition?.data?.groupUserTypeQuestion || ''}
+             />
+            }
+                
+         return null;
+        }
 
         const onClearAll = () => {
             if (
@@ -846,21 +1048,76 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         };
 
         const scrollDown = () => {
-            if (autoScrollEnabled) {
+            if (autoScrollEnabled && !isUserScrolling) {
                 messagesEndRef.current?.scrollIntoView(true);
             }
         };
         const throttledScrollDown = throttle(scrollDown, 250);
 
+        // Track previous message count to only scroll when messages actually change
+        const prevMessageCountRef = useRef<number>(0);
+        const scrollDelayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
         useEffect(() => {
-            throttledScrollDown();
             if (selectedConversation && selectedConversation.messages) {
-                 setCurrentMessage(
+                const currentMessageCount = selectedConversation.messages.length;
+                
+                // Only scroll if messages were actually added and we should auto scroll
+                if (currentMessageCount > prevMessageCountRef.current && 
+                    autoScrollEnabled && 
+                    !isUserScrolling) {
+                    
+                    const lastMessage = selectedConversation.messages[selectedConversation.messages.length - 1];
+                    
+                    // Only auto-scroll for user messages, not when AI responses start
+                    // This prevents the jump when AI response begins
+                    if (lastMessage && lastMessage.role === 'user') {
+                        // Clear any existing timeout
+                        if (scrollDelayTimeoutRef.current) {
+                            clearTimeout(scrollDelayTimeoutRef.current);
+                        }
+                        
+                        // Simple delay to let DOM update before scrolling
+                        scrollDelayTimeoutRef.current = setTimeout(() => {
+                            if (autoScrollEnabled && !isUserScrolling) {
+                                messagesEndRef.current?.scrollIntoView(true);
+                            }
+                        }, 50);
+                    }
+                }
+                
+                prevMessageCountRef.current = currentMessageCount;
+                
+                // Update current message
+                setCurrentMessage(
                     selectedConversation.messages[selectedConversation.messages.length - 2],
                 );
             }
-             
-        }, [selectedConversation, throttledScrollDown]);
+        }, [selectedConversation, autoScrollEnabled, isUserScrolling]);
+
+        // Handle auto-scroll during streaming when user is at bottom
+        useEffect(() => {
+            if (messageIsStreaming && autoScrollEnabled && !isUserScrolling) {
+                // Use throttled scroll to follow streaming content
+                throttledScrollDown();
+            }
+        }, [selectedConversation?.messages, messageIsStreaming, autoScrollEnabled, isUserScrolling, throttledScrollDown]);
+
+        // Additional effect to handle streaming content updates (not just message array changes)
+        useEffect(() => {
+            if (messageIsStreaming && autoScrollEnabled && !isUserScrolling) {
+                const scrollToBottomImmediate = () => {
+                    if (autoScrollEnabled && !isUserScrolling) {
+                        messagesEndRef.current?.scrollIntoView(false); // false = no smooth scroll for better performance
+                    }
+                };
+                
+                // Set up a more frequent scroll during streaming
+                const streamingScrollInterval = setInterval(scrollToBottomImmediate, 100);
+                
+                return () => clearInterval(streamingScrollInterval);
+            }
+        }, [messageIsStreaming, autoScrollEnabled, isUserScrolling]);
 
         const handleDeleteConversation = (conversation: Conversation) => {
             deleteConversationCleanUp(conversation);
@@ -914,15 +1171,19 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
-                    // make sure assistant hasnt been deleted 
-                    if (prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
+                    // make sure assistant hasnt been deleted (check prompts OR layered assistants)
+                    const existsInPrompts = prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
+                    const existsInLayered = layeredAssistants.some((la: any) => la.assistantId === assistant.definition.assistantId);
+                    if (existsInPrompts || existsInLayered) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
             }
             else if (!isStandalonePromptCreation && selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages?.length == 0) {
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
-                    // make sure assistant hasnt been deleted 
-                    if (prompts.some((prompt:Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
+                    // make sure assistant hasnt been deleted (check prompts OR layered assistants)
+                    const existsInPrompts = prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
+                    const existsInLayered = layeredAssistants.some((la: any) => la.assistantId === assistant.definition.assistantId);
+                    if (existsInPrompts || existsInLayered) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
 
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
@@ -940,9 +1201,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         useEffect(() => {
             const observer = new IntersectionObserver(
                 ([entry]) => {
-                    setAutoScrollEnabled(entry.isIntersecting);
-                    if (entry.isIntersecting) {
-                        textareaRef.current?.focus();
+                    // Only change auto-scroll if user isn't actively scrolling
+                    if (!isUserScrolling) {
+                        setAutoScrollEnabled(entry.isIntersecting);
+                        if (entry.isIntersecting) {
+                            textareaRef.current?.focus();
+                        }
                     }
                 },
                 {
@@ -959,7 +1223,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     observer.unobserve(messagesEndElement);
                 }
             };
-        }, [messagesEndRef]);
+        }, [messagesEndRef, isUserScrolling]);
     
         useEffect(() => {
             if (featureFlags.mtdCost) {
@@ -971,17 +1235,26 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     isFetching = true;
 
                     try {
-                        const result = await doMtdCostOp(userEmail ?? '');
-                        if (result && "MTD Cost" in result && result["MTD Cost"] !== undefined) {
-                            setMtdCost(`$${result["MTD Cost"].toFixed(2)}`);
+                        const result = await getUserMtdCosts();
+                        if (result.success) {
+                            const data = result.data;
+                            setMtdCostNumeric(data.totalCost);
+                            setMtdCost(`$${data.totalCost.toFixed(2)}`);
+                            setMtdDailyCost(data.dailyCost);
+                            const nowUtc = new Date().getUTCHours();
+                            setMtdHourlyCost(data.hourlyCost?.[nowUtc] ?? 0);
                         } else {
+                            setMtdCostNumeric(0);
                             setMtdCost('$0.00');
+                            setMtdDailyCost(0);
+                            setMtdHourlyCost(0);
                         }
                     } catch (error) {
                         console.error("Error fetching MTD cost:", error);
                         setMtdCost('$0.00');
                     } finally {
                         isFetching = false;
+                        setMtdLoading(false);
                     }
                 };
 
@@ -995,9 +1268,21 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         // Service status driven by NEXT_PUBLIC_MAINTENANCE_MODE env var.
         // Set to "true" to show the banner and disable input during outages.
-        // Read once at module scope via env; no runtime toggle yet (see plan WS1).
         const isServiceDown = process.env.NEXT_PUBLIC_MAINTENANCE_MODE === 'true';
 
+        // Cleanup scroll-timeout refs on unmount (from main).
+        useEffect(() => {
+            return () => {
+                if (userScrollTimeoutRef.current) {
+                    clearTimeout(userScrollTimeoutRef.current);
+                }
+                if (scrollDelayTimeoutRef.current) {
+                    clearTimeout(scrollDelayTimeoutRef.current);
+                }
+            };
+        }, []);
+
+// @ts-ignore
         return (
             <ErrorBoundary>
             <OnboardingTour run={selectedConversation?.messages?.length === 0} />
@@ -1025,14 +1310,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                         <> 
                             <div
                                 id="chatScrollWindow"
-                                className="chatcontainer max-h-full overflow-x-hidden" style={{height: windowInnerDims.height * 0.94}}
+                                className="chatcontainer max-h-full overflow-x-hidden overflow-y-auto" style={{height: windowInnerDims.height * 0.94}}
                                 ref={chatContainerRef}
                                 onScroll={handleScroll}
                             >
                             {selectedConversation &&(!selectedConversation.messages || selectedConversation.messages?.length === 0) && filteredModels ? (
-                                <div id="overflowScroll" className='overflow-y-auto' style={{height: windowInnerDims.height - 200}}>
+                                <div id="overflowScroll" className='overflow-y-auto' style={{minHeight: windowInnerDims.height - 200, maxHeight: windowInnerDims.height - 100}}>
                                     <div
-                                        className="mx-auto flex flex-col space-y-1 md:space-y-8 px-3 pt-5 md:pt-10" 
+                                        className="mx-auto flex flex-col space-y-1 md:space-y-8 px-3 pt-5 md:pt-10 pb-20" 
                                         style={{width: windowInnerDims.width * 0.45}}>
                                         <div
                                             id="chatTitle"
@@ -1067,7 +1352,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
                                         {filteredModels.length > 0 && (
                                             <div
-                                                className="flex h-full flex-col space-y-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-600 shadow-[0_4px_10px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_10px_rgba(0,0,0,0.3)]">
+                                                className="flex flex-col space-y-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-600 shadow-[0_4px_10px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_10px_rgba(0,0,0,0.3)]"
+                                                style={{minHeight: 'fit-content'}}>
                                                 
                                                 <div className="relative flex flex-row w-full items-center"> 
                                                     <div className="flex-grow">
@@ -1092,22 +1378,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     
                                                 </div>
                                                 
-                                                { selectedAssistant?.definition?.data && Object.keys(selectedAssistant?.definition?.data?.groupTypeData || {}).length > 0 ? 
-                                                    <>
-                                                        <GroupTypeSelector
-                                                            groupOptionsData={selectedAssistant.definition.data.groupTypeData}
-                                                            setSelected={(type: string | undefined) => {
-                                                                // set selectedConversations with type
-                                                                homeDispatch({ field: 'selectedConversation', value: {...selectedConversation, groupType: type} })
-                                                                handleUpdateConversation(selectedConversation, {
-                                                                    key: 'groupType',
-                                                                    value: type,
-                                                                }) 
-                                                            }}
-                                                            groupUserTypeQuestion={selectedAssistant.definition.data.groupUserTypeQuestion}
-                                                        />
-                                                        
-                                                    </> :
+                                                { enforcesGroupTypes() ? <> {getGroupTypeSelector(selectedAssistant)} </> :
                                                     ( showAdvancedConvSettings && 
                                                     <>
                                                         <SystemPrompt
@@ -1209,31 +1480,51 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         {isBarSticky ? (
                                             // Sticky bar content
                                             <>
-                                                {featureFlags.mtdCost && (
-                                                    <button
-                                                        className="ml-2 mr-1 cursor-pointer hover:opacity-50 flex flex-row items-center"
-                                                        disabled={messageIsStreaming}
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            setIsAccountDialogVisible(true);
-                                                        }}
-                                                        title="Month-To-Date Cost"
-                                                        id="month-to-date-cost"
-                                                    >
-                                                        <div className={`text-[0.93rem] ${chat_button_blue_color} mr-1`}>
-                                                            <div className="ml-1">MTD Cost: {mtdCost}</div>
-                                                        </div> {"|"}
-                                                    </button>
-                                                )}          
+                                                {featureFlags.mtdCost && mtdLoading && (
+                                                    <div className="flex flex-row items-center ml-2 mr-1 gap-2 animate-pulse">
+                                                        <div className="h-3 w-14 rounded bg-neutral-300 dark:bg-neutral-600" />
+                                                        <div className="h-3 w-16 rounded bg-neutral-300 dark:bg-neutral-600" />
+                                                        <div className="h-3 w-20 rounded bg-neutral-300 dark:bg-neutral-600" />
+                                                    </div>
+                                                )}
+                                                {featureFlags.mtdCost && !mtdLoading && mtdCostNumeric > 0 && (
+                                                    <div className="flex flex-row items-center ml-2 mr-1 gap-1">
+                                                        <button
+                                                            className={`text-[0.85rem] font-medium ${chat_button_blue_color} hover:opacity-70 transition-opacity cursor-pointer`}
+                                                            onClick={() => window.dispatchEvent(new Event('openCostBreakdown'))}
+                                                            title="View cost breakdown"
+                                                        >
+                                                            MTD Cost: ${mtdCostNumeric.toFixed(2)}
+                                                        </button>
+                                                        {hasActiveLimits && (
+                                                            <div className="relative">
+                                                                <button
+                                                                    className={`cursor-pointer transition-opacity text-black dark:text-white ml-1 ${showUtilPopover ? 'opacity-100' : 'opacity-50 hover:opacity-100'}`}
+                                                                    title="Rate limit utilization"
+                                                                    onMouseEnter={showUtil}
+                                                                    onMouseLeave={() => hideUtil()}
+                                                                >
+                                                                    <IconChartHistogram size={16} />
+                                                                </button>
+                                                                {showUtilPopover && (
+                                                                    <div
+                                                                        className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 bg-white dark:bg-[#2b2c36] border border-neutral-200 dark:border-neutral-600 rounded-xl shadow-xl p-3"
+                                                                        onMouseEnter={showUtil}
+                                                                        onMouseLeave={() => hideUtil()}
+                                                                    >
+                                                                        <RateLimitUtilization variant="mini" />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                                 <button
                                                     className="font-medium mx-1 cursor-pointer hover:opacity-50 flex flex-row items-center"
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();
-                                                        setShowSettings(true);
-                                                        if (!messageIsStreaming) handleScrollUp();
-                                                        
+                                                        handleToggleSettings();
                                                     }}
                                                 >
                                                     {selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
@@ -1243,9 +1534,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                                         
                                                 </button>
 
-                                                <div className='flex flex-row'>
-                                                    {t('Temp')} : {`${selectedConversation?.temperature} | `}
-                                                
+                                                <div className='flex flex-row items-center'>
+                                                    {renderChatSettings(true)}
+
                                                     <button
                                                         className="ml-2 cursor-pointer hover:opacity-50"
                                                         disabled={messageIsStreaming}
@@ -1279,9 +1570,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         <IconDownload size={18}/>
                                                     </button>
 
-                                                    {featureFlags.artifacts && 
-                                                    <ArtifactsSaved iconSize={18} isArtifactsOpen={isArtifactOpen}/>}
-                                                    
                                                     {featureFlags.storeCloudConversations &&
                                                     <CloudStorage iconSize={18} />
                                                     }
@@ -1310,7 +1598,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 `}
                                                 id="chatUpperMenu"
                                                 onMouseEnter={() => setIsPillExpanded(true)}
-                                                onMouseLeave={() => setIsPillExpanded(false)}
+                                                onMouseLeave={() => { if (!showUtilPopover) setIsPillExpanded(false); hideUtil(false); }}
                                             >
                                                 {/* Always visible - Model name and expand indicator */}
                                                 <button
@@ -1319,28 +1607,37 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();
-                                                        setShowSettings(true);
-                                                        if (!messageIsStreaming) handleScrollUp();
-                                                        
+                                                        handleToggleSettings();
                                                     }}
                                                 >
                                                     {selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
-                                                                        ? Object.values(availableModels).find(m => m.id === selectedAssistant.definition?.data?.model)?.name 
+                                                                        ? Object.values(availableModels).find(m => m.id === selectedAssistant.definition?.data?.model)?.name
                                                                         : selectedConversation?.model?.name || ''}
-                                                    <IconChevronRight 
-                                                        size={16} 
+                                                    <IconChevronRight
+                                                        size={16}
                                                         className={`ml-2 transition-transform duration-300 ${isPillExpanded ? 'rotate-90' : ''} text-gray-500`}
                                                     />
-                                                                        
                                                 </button>
 
                                                 {/* Expanded content - appears on hover */}
                                                 <div className={`flex flex-row gap-2 items-center transition-all duration-300 overflow-hidden
-                                                        ${isPillExpanded ? 'max-w-[600px] opacity-100 ml-4' : 'max-w-0 opacity-0 ml-0'}
+                                                        ${isPillExpanded ? 'max-w-[800px] opacity-100 ml-4' : 'max-w-0 opacity-0 ml-0'}
                                                     `}>
 
-                                                    {t('Temp')} : {selectedConversation?.temperature}
-                                                
+                                                    {featureFlags.mtdCost && hasActiveLimits && (
+                                                        <button
+                                                            className={`cursor-pointer transition-opacity text-black dark:text-white ${showUtilPopover ? 'opacity-100' : 'opacity-50 hover:opacity-100'}`}
+                                                            title="Rate limit utilization"
+                                                            onMouseEnter={showUtil}
+                                                            onMouseLeave={() => hideUtil()}
+                                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                                        >
+                                                            <IconChartHistogram size={16} />
+                                                        </button>
+                                                    )}
+
+                                                    {renderChatSettings()}
+
                                                     <button
                                                         className="ml-2 cursor-pointer hover:opacity-50"
                                                         disabled={messageIsStreaming}
@@ -1374,9 +1671,6 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         <IconDownload size={18}/>
                                                     </button>
 
-                                                    {featureFlags.artifacts && 
-                                                    <ArtifactsSaved iconSize={18} isArtifactsOpen={isArtifactOpen}/>}
-                                                    
                                                     {featureFlags.storeCloudConversations &&
                                                     <CloudStorage iconSize={18} />
                                                     }
@@ -1393,12 +1687,25 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         {isBarSticky ?  <IconBoxAlignTopRightFilled size={18}/> : <IconBoxAlignTopFilled size={18}/>}
                                                     </button>
                                                 </div>
+
+                                                {/* Util popover — rendered outside overflow-hidden so it isn't clipped */}
+                                                {featureFlags.mtdCost && hasActiveLimits && showUtilPopover && (
+                                                    <div
+                                                        className="-mt-2 absolute top-full left-1/2 -translate-x-1/2 z-50 pt-2"
+                                                        onMouseEnter={showUtil}
+                                                        onMouseLeave={() => hideUtil(true)}
+                                                    >
+                                                        <div className="bg-white dark:bg-[#2b2c36] border border-neutral-200 dark:border-neutral-600 rounded-xl shadow-xl p-3">
+                                                            <RateLimitUtilization variant="mini" />
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
                                     <div ref={modelSelectRef}></div>
                                     
-                                        <div 
+                                        <div
                                             className="flex flex-col md:gap-6 md:py-3 md:pt-6 lg:px-0 mx-16 ">
                                             { showSettings && !availableAstModelId(selectedAssistant?.definition?.data?.model) &&
                                                 <div
@@ -1425,7 +1732,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                     
 
 
-                                    {selectedConversationState?.messages?.map((message: Message, index: number) => (
+                                    {selectedConversationState?.messages?.map((message: Message, index: number) => {
+                                        // Don't render raw tool messages as chat bubbles; they're internal context for the LLM.
+                                        // Tool results (e.g., message.data.mcpToolResults) are still rendered via MCPToolResultBlock inside MemoizedChatMessage.
+                                        if (message.role === 'tool') return null;
+                                        return (
                                         <MemoizedChatMessage
                                                 key={index}
                                                 message={message}
@@ -1441,22 +1752,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     if (editedMessage.role != "assistant") {
                                                         const lastUserMessageIndex = selectedConversationState?.messages
                                                                                                                .map(msg => msg.role)
-                                                                                                               .lastIndexOf('user');                                                                                                    
+                                                                                                               .lastIndexOf('user');
 
                                                         if (index === lastUserMessageIndex) {
                                                             routeMessage(editedMessage, selectedConversationState?.messages.length - index, []);
                                                         } else {
-                                                            // ask to fork or overwrite 
+                                                            // ask to fork or overwrite
                                                             setShowOnEditMessagePrompt({editedMessage: editedMessage, index: index});
                                                         }
-                                                        
+
                                                     } else {
                                                         console.log("updateMessage");
                                                         updateMessage(selectedConversationState, editedMessage, index);
                                                     }
                                                 }}
                                             />
-                                    ))}
+                                        );
+                                    })}
 
                                     {loading && <ChatLoader/>}
 
@@ -1544,9 +1856,23 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
             </div>
 
+            {/* Prompt Cost Alert Modal */}
+            {promptCostAlertModal?.isOpen && (
+                <ConfirmModal
+                    title="💰 Estimated Prompt Cost"
+                    message={promptCostAlertModal.message}
+                    confirmLabel="Continue"
+                    denyLabel="Cancel"
+                    onConfirm={promptCostAlertModal.onConfirm}
+                    onDeny={promptCostAlertModal.onDeny}
+                    width={500}
+                    height={220}
+                />
+            )}
+
             </>
             </ErrorBoundary>
         );
     });
-    
+
 Chat.displayName = 'Chat';

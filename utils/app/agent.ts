@@ -39,47 +39,72 @@ export const listenForAgentUpdates = async function(sessionId: string, onAgentSt
 }
 
 
-const agentMessages = (agentResult: any, userPrompt: string)  => {
+export const agentMessages = (agentResult: any, userPrompt: string, msgData: any, dataSources?: any[], conversationMessages?: Message[])  => {
+    const msgs: any[] = [];
+
+    // FIRST MESSAGE AT INDEX 0: Collect ALL data sources from conversation in ONE message
+    // This will be picked up by the backend as RAG sources (since it's not the last message)
+    if (dataSources && dataSources.length > 0) {
+        msgs.push({
+            role: "user",
+            content: "",
+            data: {
+                dataSources: dataSources
+            }
+        });
+    }
+
+    // THEN add the files system message if needed
     const conatinsFiles = agentResult.data.files && Object.keys(agentResult.data.files).length > 0;
-    const msgs = conatinsFiles ? [
-       {
-        role: "system",
-        content: `
+    if (conatinsFiles) {
+        msgs.push({
+            role: "system",
+            content: `
         Unless the user tells you otherwise, use the most specific markdown block in the list below to provide the user access to the files, images, and other outputs you create.
         Use the plain file reference as a last resort.
 
-        You can reference files, images, and other outputs by using the EXACT syntax: 
+        You can reference files, images, and other outputs by using the EXACT syntax:
         \`\`\`agent
         <filename>
-        \`\`\` anywhere in your response. 
-        
+        \`\`\` anywhere in your response.
+
         There are some additional special markdown blocks that you should use:
-        
+
         If the file is CSV, agent_table will display a rich table editor with the data from the file, a great way to get data from numpy/pandas back to the user:
-        \`\`\`agent_table 
+        \`\`\`agent_table
         <filename>
-        \`\`\` 
-        
+        \`\`\`
+
         If the file is an image, agent_image will display a rich image viewer with the image from the file...good for outputs from matplotlib in particular!
-        \`\`\`agent_image 
+        \`\`\`agent_image
         <filename>
-        \`\`\` 
-        
-        ALWAYS display CSV in an agent_table. 
+        \`\`\`
+
+        ALWAYS display CSV in an agent_table.
         Always display images in an agent_image.
 
         These are the files available to you:
         ${Object.values(agentResult.data.files).map((file: any) => `${file.original_name}`).join('\n')}
         `
-    }  
-    ] : [];
+        });
+    }
+
     msgs.push({
         role: "user",
+        data: {...msgData},
         content:
             `The user's prompt was: ${userPrompt}` +
-            `\n\nA log of the assistant's reasoning / work:\n---------------------\n${JSON.stringify(agentResult.data.result)}` +
+            `\n\nAn assistant has attempted to help with this request. Here is the log of their work:\n---------------------\n${JSON.stringify(agentResult.data.result)}` +
             `\n\n---------------------` +
-            `\n\nRespond to the user and reference files, images, etc. that were created as appropriate.`
+            `\n\n**CRITICAL INSTRUCTIONS - READ CAREFULLY:**\n` +
+            `1. ONLY use information from: (a) The assistant's work log above, (b) Reference documents provided to you in this conversation.\n` +
+            `2. If reference documents are provided, they contain the ACTUAL content you need. Read and use them.\n` +
+            `3. NEVER say things like "I don't have access", "I need you to provide", or "I cannot see the document". If documents were provided, you CAN see them.\n` +
+            `4. NEVER make up or assume information not in the assistant's log or reference documents.\n` +
+            `5. If the assistant's work answers the question, use that answer.\n` +
+            `6. If the assistant's work is incomplete/wrong AND reference documents are available, use the reference documents instead.\n` +
+            `7. If neither the assistant nor reference documents have the answer, say "The available information does not contain the answer to this question."\n` +
+            `\nAnswer the user's prompt now based ONLY on what is provided in this conversation.`
     })
 
     return msgs as Message[];
@@ -122,21 +147,71 @@ export const handleAgentRunResult = async (agentResult: any, selectedConversatio
                             return session.accessToken
                         })
 
-    const userPrompt = selectedConversation.messages
+    const userPromptMsg = selectedConversation.messages
     .filter(message => message.role === 'user')
-    .slice(-1)[0]?.content;
-    
-    const chatBody = {
+    .slice(-1)[0];
+    const userPrompt = userPromptMsg?.content;
+    const msgData = userPromptMsg?.data;
+
+    // Helper to add unique data source
+    const addDataSource = (arr: any[], doc: any, seenIds: Set<string>) => {
+        const docId = doc.id || doc.contentKey || doc.key;
+        if (!seenIds.has(docId)) {
+            seenIds.add(docId);
+            arr.push({
+                id: doc.id || docId,
+                type: doc.type || doc.dataType || "",
+                name: doc.name || "",
+                metadata: doc.metadata || {}
+            });
+        }
+    };
+
+    // Separate current message's data sources (attached) from older messages (RAG)
+    const currentMessageDataSources: any[] = [];
+    const olderMessagesDataSources: any[] = [];
+    const seenIds = new Set<string>();
+
+    // Current message's data sources (attached documents)
+    msgData?.dataSources?.forEach((doc: any) => addDataSource(currentMessageDataSources, doc, seenIds));
+
+    // Older messages' data sources (RAG sources)
+    selectedConversation.messages.forEach((msg: Message) => {
+        if (msg === userPromptMsg) return;
+
+        // From user messages
+        msg.data?.dataSources?.forEach((doc: any) => addDataSource(olderMessagesDataSources, doc, seenIds));
+
+        // From assistant RAG context
+        msg.data?.state?.sources?.documentContext?.sources?.forEach((doc: any) =>
+            addDataSource(olderMessagesDataSources, doc, seenIds)
+        );
+    });
+
+    console.log("Current message data sources (attached):", currentMessageDataSources);
+    console.log("Older messages data sources (RAG):", olderMessagesDataSources);
+
+    const chatBody: any = {
         model: model,
-        messages: agentMessages(agentResult, userPrompt),
+        messages: agentMessages(agentResult, userPrompt, msgData, olderMessagesDataSources, selectedConversation.messages),
         key: accessToken,
-        prompt: "Respond to the user's prompt based on the information provided by the assistant. The work has already been completed, you are the user facing messenger for the assistant who provided you the log.",
+        prompt: "You are an AI assistant responding to a user's question. You have been provided with: (1) an assistant's work log, and (2) reference documents via RAG retrieval. CRITICAL RULES: Only use information from these sources. If reference documents are provided in the conversation, you HAVE access to their content - use it. Never claim you lack access to provided information. Never make up information. If the provided sources don't contain the answer, explicitly state that. Always ground your response in the actual content provided to you.",
         temperature: 0.5,
         maxTokens: 4000,
-        skipRag: true,
+        ragOnly: true,
+        skipRag: false,
         skipCodeInterpreter: true,
         accountId: defaultAccount?.id,
-        rateLimit: defaultAccount?.rateLimit
+        rateLimit: defaultAccount?.rateLimit,
+        disableTools: true,
+        assistantId: (() => {
+            const aid = msgData?.assistant?.definition?.assistantId;
+            // Strip layered-assistant prefixes so the agent summarization call
+            // is routed as a plain LLM request, not through the layered router.
+            if (aid && (aid.startsWith('astr/') || aid.startsWith('astgr/'))) return undefined;
+            return aid;
+        })(),
+        dataSources: currentMessageDataSources || []
     };
 
     statsService.sendChatEvent(chatBody);

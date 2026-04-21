@@ -6,7 +6,15 @@ import {
     IconSend,
     IconBrain,
     IconBulb,
-    IconScale, IconSettingsAutomation
+    IconScale,
+    IconSettingsAutomation,
+    IconUpload,
+    IconCheck,
+    IconX,
+    IconWorldSearch,
+    IconGripHorizontal,
+    IconSparkles,
+    IconLayoutList
 } from '@tabler/icons-react';
 import SaveActionsModal from './SaveActionsModal';
 import {
@@ -15,13 +23,14 @@ import {
     useCallback,
     useContext,
     useEffect,
+    useMemo,
     useRef,
     useState,
 } from 'react';
 
 import {useTranslation} from 'next-i18next';
 import {parsePromptVariables} from "@/utils/app/prompts";
-import {Conversation, Message, MessageType, newMessage} from '@/types/chat';
+import {Conversation, ConversationContextEntry, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin, PluginID, PluginList, Plugins} from '@/types/plugin';
 import {Prompt} from '@/types/prompt';
 import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
@@ -32,16 +41,23 @@ import HomeContext from '@/pages/api/home/home.context';
 import {PromptList} from './PromptList';
 import {VariableModal} from './VariableModal';
 import {DefaultModels, Model, REASONING_LEVELS, ReasoningLevels} from "@/types/model";
-import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
+import {Assistant, AssistantProviderID, DEFAULT_ASSISTANT} from "@/types/assistant";
+import { LayeredAssistant } from '@/types/layeredAssistant';
 import {COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
-import {getAssistants} from "@/utils/app/assistants";
+import {ConversationContextManager} from "@/components/Chat/ConversationContextManager";
+import {getAssistants, isAssistant} from "@/utils/app/assistants";
+import { isImageFile, isVideoFile, processDragDropFiles, processPastedFiles } from '@/utils/fileHandler';
 import AssistantsInUse from "@/components/Chat/AssistantsInUse";
 import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
+import {AssistantSelectModal} from "@/components/Assistants/AssistantSelectModal";
 import QiModal from './QiModal';
 import { QiSummary, QiSummaryType } from '@/types/qi';
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
+import {ArtifactsSaved} from './ArtifactsSaved';
+import {ArtifactsList} from './ArtifactsList';
+import { PendingArtifact, ArtifactBlockDetail } from '@/types/artifacts';
 import { createQiSummary } from '@/services/qiService';
 import MessageSelectModal from './MesssageSelectModal';
 import cloneDeep from 'lodash/cloneDeep';
@@ -51,8 +67,7 @@ import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
 import { MemoryPresenter } from "@/components/Chat/MemoryPresenter";
 // import { ProjectList } from './ProjectList';
-import { useSession } from 'next-auth/react';
-import {  } from '../../services/memoryService';
+// import { } from '../../services/memoryService';
 import { Settings } from '@/types/settings';
 import { ToggleOptionButtons } from '../ReusableComponents/ToggleOptionButtons';
 import { capitalize } from '@/utils/app/data';
@@ -60,6 +75,19 @@ import OperationSelector from "@/components/Agent/OperationSelector";
 import ActionsList from "@/components/Chat/ActionsList";
 import { resolveRagEnabled } from '@/types/features';
 import { OpBindings } from '@/types/op';
+import {
+    LargeTextBlock,
+    replacePlaceholdersWithText,
+    removeLargeTextBlockFromContent
+} from '@/utils/app/largeText';
+import { UI_CONFIG } from '@/constants/largeText';
+import { LargeTextDisplay } from '@/components/Chat/LargeTextDisplay';
+import { LargeTextTabs } from '@/components/Chat/LargeTextTabs';
+import { AttachmentDisplay } from '@/components/Chat/AttachmentDisplay';
+import { useLargeTextManager } from '@/hooks/useLargeTextManager';
+import { useTextBlockEditor } from '@/hooks/useTextBlockEditor';
+import toast from 'react-hot-toast';
+import { SkillsToggle } from '@/components/Skills';
 
 
 
@@ -82,25 +110,25 @@ interface Props {
 // }
 
 export const ChatInput = ({
-                              onSend,
-                              onRegenerate,
-                              onScrollDownClick,
-                              stopConversationRef,
-                              textareaRef,
-                              handleUpdateModel,
-                              showScrollDownButton,
-                              plugins,
-                              setPlugins,
-                              isServiceDown = false
-                          }: Props) => {
-    const {t} = useTranslation('chat');
+    onSend,
+    onRegenerate,
+    onScrollDownClick,
+    stopConversationRef,
+    textareaRef,
+    handleUpdateModel,
+    showScrollDownButton,
+    plugins,
+    setPlugins,
+    isServiceDown = false,
+}: Props) => {
+    const { t } = useTranslation('chat');
 
-    const {killRequest} = useChatService();
+    const { killRequest } = useChatService();
 
     const {
-        state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming,
-            prompts,  featureFlags, currentRequestId, chatEndpoint, statsService, availableModels,
-            extractedFacts, memoryExtractionEnabled, ragOn, defaultAccount},
+        state: {selectedConversation, conversations, folders, selectedAssistant, messageIsStreaming, artifactIsStreaming,
+            prompts, layeredAssistants, groups, featureFlags, currentRequestId, chatEndpoint, statsService, availableModels,
+            extractedFacts, memoryExtractionEnabled, ragOn, defaultAccount, webSearchUserMessage},
         getDefaultModel, handleUpdateConversation,
         dispatch: homeDispatch
     } = useContext(HomeContext);
@@ -120,7 +148,7 @@ export const ChatInput = ({
     const [filteredModels, setFilteredModels] = useState<Model[]>([]);
 
     useEffect(() => {
-        const handleEvent = (event:any) => {
+        const handleEvent = (event: any) => {
             settingRef.current = getSettings(featureFlags);
             if (Object.keys(availableModels).length > 0) {
                 setFilteredModels(filterModels(availableModels, settingRef.current.hiddenModelIds));
@@ -142,7 +170,6 @@ export const ChatInput = ({
     const [isFactsVisible, setIsFactsVisible] = useState(false);
     // const [showProjectList, setShowProjectList] = useState(false);
     // const projectListRef = useRef<HTMLDivElement | null>(null);
-    const { data: session } = useSession();
     // const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     // const [projects, setProjects] = useState<Project[]>([]);
 
@@ -187,6 +214,7 @@ export const ChatInput = ({
         window.addEventListener('pagehide', updateWidth);
         const observer = new MutationObserver(updateWidth);
         observer.observe(document, { childList: true, subtree: true, attributes: true });
+
         return () => {
             window.removeEventListener('resize', updateWidth);
             window.removeEventListener('orientationchange', updateWidth);
@@ -194,7 +222,7 @@ export const ChatInput = ({
             window.removeEventListener('pagehide', updateWidth);
             observer.disconnect();
         };
-    }, []);
+    }, [messageIsStreaming, artifactIsStreaming]);
 
 
     const promptsRef = useRef(prompts);
@@ -228,8 +256,8 @@ export const ChatInput = ({
     const [qiSummary, setQiSummary] = useState<QiSummary | null>(null)
     const [isInputInFocus, setIsInputInFocus] = useState(false);
     // State to track the list of added actions
-    const [addedActions, setAddedActions] = useState<{ 
-        name: string; 
+    const [addedActions, setAddedActions] = useState<{
+        name: string;
         customName?: string;
         customDescription?: string;
         operation?: any;
@@ -239,42 +267,137 @@ export const ChatInput = ({
     // Show Ops popup toggle state
     const [showOpsPopup, setShowOpsPopup] = useState(false);
     const [editingAction, setEditingAction] = useState<{
-        name: string; 
+        name: string;
         customName?: string;
         customDescription?: string;
         index: number;
         parameters?: OpBindings;
     } | null>(null);
-    
+
     // Action set modal states
     const [showSaveActionsModal, setShowSaveActionsModal] = useState(false);
 
+    // Drag and drop state management
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragCounter, setDragCounter] = useState(0);
+
+    // Textarea resize state
+    const [textareaHeight, setTextareaHeight] = useState<number>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('chatInputHeight');
+            return saved ? parseInt(saved, 10) : UI_CONFIG.TEXTAREA_MAX_HEIGHT;
+        }
+        return UI_CONFIG.TEXTAREA_MAX_HEIGHT;
+    });
+    const [isResizing, setIsResizing] = useState(false);
+    const resizeStartY = useRef<number>(0);
+    const resizeStartHeight = useRef<number>(0);
+
+    // Resize handlers
+    const handleResizeStart = (e: React.MouseEvent) => {
+        e.preventDefault();
+        setIsResizing(true);
+        resizeStartY.current = e.clientY;
+        resizeStartHeight.current = textareaHeight;
+    };
+
+    useEffect(() => {
+        if (!isResizing) return;
+
+        const handleResizeMove = (e: MouseEvent) => {
+            const deltaY = resizeStartY.current - e.clientY; // Inverted: dragging up increases height
+            const newHeight = Math.max(
+                60, // Min height - can shrink quite small (about 2 lines)
+                Math.min(800, resizeStartHeight.current + deltaY) // Max height 800px
+            );
+            setTextareaHeight(newHeight);
+        };
+
+        const handleResizeEnd = () => {
+            setIsResizing(false);
+            // Save to localStorage
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('chatInputHeight', String(textareaHeight));
+            }
+        };
+
+        document.addEventListener('mousemove', handleResizeMove);
+        document.addEventListener('mouseup', handleResizeEnd);
+
+        return () => {
+            document.removeEventListener('mousemove', handleResizeMove);
+            document.removeEventListener('mouseup', handleResizeEnd);
+        };
+    }, [isResizing, textareaHeight]);
+
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
+    const [showContextManager, setShowContextManager] = useState(false);
     //const [assistant, setAssistant] = useState<Assistant>(selectedAssistant || DEFAULT_ASSISTANT);
     const [availableAssistants, setAvailableAssistants] = useState<Assistant[]>([DEFAULT_ASSISTANT]);
+
+    // Large text handling - using custom hook for state management
+    const {
+        largeTextBlocks,
+        showLargeTextPreview,
+        hasLargeTextBlocks,
+        handleLargeTextPaste,
+        removeLargeTextBlock: removeLargeTextBlockFromHook,
+        removeMultipleLargeTextBlocks,
+        clearLargeText,
+        setLargeTextBlocks
+    } = useLargeTextManager();
+
+    // Text block editing - using custom hook for edit mode management
+    const {
+        editMode,
+        isEditing,
+        editingBlockId,
+        handleEditBlock,
+        handleSaveEdit,
+        handleCancelEdit,
+        shouldSkipPlaceholderDeletion
+    } = useTextBlockEditor({
+        largeTextBlocks,
+        setLargeTextBlocks,
+        content: content || '',
+        setContent,
+        textareaRef
+    });
     const [showAssistantSelect, setShowAssistantSelect] = useState(false);
     const [documents, setDocuments] = useState<AttachedDocument[]>();
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>({});
     const [documentMetadata, setDocumentMetadata] = useState<{ [key: string]: AttachedDocumentMetadata }>({});
     const [documentAborts, setDocumentAborts] = useState<{ [key: string]: AbortController }>({});
 
+    // Pending artifacts state
+    const [pendingArtifacts, setPendingArtifacts] = useState<PendingArtifact[]>([]);
+
+    // Per-conversation web search toggle (independent from FeaturePlugin) - persists across messages
+    const isWebSearchEnabledForConversation = selectedConversation?.data?.webSearchEnabled ?? false;
+
+    // Skills toggle state - stores skill IDs (persists in conversation data)
+    const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
+    const skillSelectionMode = selectedConversation?.data?.skillSelectionMode ?? 'auto';
+
     const promptListRef = useRef<HTMLUListElement | null>(null);
     const dataSourceSelectorRef = useRef<HTMLDivElement | null>(null);
     const actionSelectorRef = useRef<HTMLDivElement | null>(null);
     const assistantSelectorRef = useRef<HTMLDivElement | null>(null);
+    const contextManagerRef = useRef<HTMLDivElement | null>(null);
 
     const [isWorkflowOn, setWorkflowOn] = useState(false);
 
     // const [factTypes, setFactTypes] = useState<{ [key: string]: string }>({});
     // const [selectedProjects, setSelectedProjects] = useState<{ [key: string]: string }>({});
 
-    // const { data: session } = useSession();
-    // const userEmail = session?.user?.email;
+
 
     const extractDocumentsLocally = featureFlags.extractDocumentsLocally;
 
-    const filteredPrompts =  promptsRef.current.filter((prompt:Prompt) =>
-        prompt.name.toLowerCase().includes(promptInputValue.toLowerCase()),
+    const filteredPrompts = useMemo(() =>
+        promptsRef.current.filter((prompt: Prompt) =>
+            prompt.name.toLowerCase().includes(promptInputValue.toLowerCase())
+        ), [promptInputValue, prompts]
     );
 
     const handleShowAssistantSelector = () => {
@@ -288,7 +411,7 @@ export const ChatInput = ({
     //     setShowAssistantSelect(false);
     // };
 
-    const allDocumentsDoneUploading = () => {
+    const allDocumentsDoneUploading = useMemo(() => {
         if (!documents || documents.length == 0) {
             return true;
         }
@@ -298,14 +421,32 @@ export const ChatInput = ({
         }
 
         return documents?.every(isComplete);
-    }
+    }, [documents, documentState]);
 
 
 
 
+
+    const onLayeredAssistantChange = (la: LayeredAssistant) => {
+        const syntheticAssistant: Assistant = {
+            id: la.assistantId!,
+            definition: {
+                name: la.name,
+                description: la.description,
+                assistantId: la.assistantId,
+                instructions: '',
+                tools: [],
+                tags: [],
+                fileKeys: [],
+                dataSources: [],
+                provider: AssistantProviderID.AMPLIFY,
+                data: { isLayeredAssistant: true, ...(la.model ? { model: la.model } : {}) },
+            },
+        };
+        homeDispatch({ field: 'selectedAssistant', value: syntheticAssistant });
+    };
 
     const onAssistantChange = (assistant: Assistant) => {
-        setShowAssistantSelect(false);
 
         if (selectedConversation) {
             const oldAstTags = selectedAssistant?.definition.data?.conversationTags || [];
@@ -332,27 +473,46 @@ export const ChatInput = ({
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const value = e.target.value;
-        const maxLength =  selectedConversation?.model?.inputContextWindow;
 
-        if (maxLength && value.length > maxLength) {
-            alert(
-                t(
-                    `Message limit is {{maxLength}} characters. You have entered {{valueLength}} characters.`,
-                    {maxLength, valueLength: value.length},
-                ),
-            );
-            return;
+        // Rough token-to-character conversion: 1 token ≈ 4 characters
+        // Limit single message to context window size (in characters)
+        const contextWindow = selectedConversation?.model?.inputContextWindow;
+        const maxTokens = selectedConversation?.model?.outputTokenLimit || 2000;
+        if (contextWindow) {
+            let maxChars = (contextWindow * 4); // Convert tokens to approximate characters
+            if (contextWindow !== maxTokens) maxChars -= (maxTokens * 4) // in case of misconfiguration
+            if (value.length > maxChars) {
+                alert(
+                    t(
+                        `Message limit is {{maxTokens}} tokens, approximately ({{maxChars}} characters). You have entered {{valueLength}} characters.`,
+                        { maxTokens: contextWindow, maxChars, valueLength: value.length },
+                    ),
+                );
+                return;
+            }
         }
 
-        setContent(value);
-        updatePromptListVisibility(value);
+        // Skip placeholder deletion logic when in edit mode
+        let finalContent = value;
+        if (!shouldSkipPlaceholderDeletion) {
+            // Check for deleted placeholder characters and remove corresponding blocks
+            const blocksToRemove = largeTextBlocks.filter((block) =>
+                !value.includes(block.placeholderChar)
+            );
+
+            if (blocksToRemove.length > 0) {
+                // Remove all deleted blocks at once using the multi-remove function
+                const blockIdsToRemove = blocksToRemove.map(block => block.id);
+                finalContent = removeMultipleLargeTextBlocks(blockIdsToRemove, value);
+            }
+        }
+
+        setContent(finalContent);
+        updatePromptListVisibility(finalContent);
     };
 
     const addDocument = (document: AttachedDocument) => {
-        let newDocuments = documents || [];
-        newDocuments.push(document);
-        setDocuments(newDocuments);
-
+        setDocuments(prevDocuments => [...(prevDocuments || []), document]);
         console.log("Document attached.");
     }
 
@@ -377,6 +537,27 @@ export const ChatInput = ({
         return content;
     }
 
+    // Handle pending artifacts
+    const handleAddPendingArtifact = (artifact: PendingArtifact) => {
+        setPendingArtifacts(prev => {
+            // Check if artifact already exists (update if loading state changed)
+            const existingIndex = prev.findIndex(a => a.key === artifact.key);
+            if (existingIndex >= 0) {
+                const updated = [...prev];
+                updated[existingIndex] = artifact;
+                return updated;
+            }
+            // Add new artifact
+            return [...prev, artifact];
+        });
+    };
+
+    const handleRemovePendingArtifact = (key: string) => {
+        setPendingArtifacts(prev => prev.filter(a => a.key !== key));
+    };
+
+    const allArtifactsLoaded = pendingArtifacts.length === 0 || pendingArtifacts.every(a => a.loadingState === 'ready');
+
     const handleSend = () => {
         handleCloseAllPopups();
         setEditingAction(null);  // Clear any editing action state
@@ -396,28 +577,92 @@ export const ChatInput = ({
             return;
         }
 
-        if (!allDocumentsDoneUploading()) {
+        if (!allDocumentsDoneUploading) {
             alert(t('Please wait for all documents to finish uploading or remove them from the prompt.'));
             return;
         }
 
-        const maxLength = selectedConversation?.model?.inputContextWindow;
-
-        if (maxLength && content.length > maxLength) {
-            alert(
-                t(
-                    `Message limit is {{maxLength}} characters. You have entered {{valueLength}} characters.`,
-                    {maxLength, valueLength: content.length},
-                ),
-            );
+        if (!allArtifactsLoaded) {
+            alert(t('Please wait for all artifacts to finish loading or remove them.'));
             return;
         }
 
+        // Rough token-to-character conversion: 1 token ≈ 4 characters
+        const contextWindow = selectedConversation?.model?.inputContextWindow;
+        if (contextWindow) {
+            const maxChars = contextWindow * 4; // Convert tokens to approximate characters
+            if (content.length > maxChars) {
+                alert(
+                    t(
+                        `Message limit is approximately {{maxTokens}} tokens ({{maxChars}} characters). You have entered {{valueLength}} characters.`,
+                        { maxTokens: contextWindow, maxChars, valueLength: content.length },
+                    ),
+                );
+                return;
+            }
+        }
+
         const type = (isWorkflowOn) ? MessageType.AUTOMATION : MessageType.PROMPT;
+        
+        // Prepare message content and label for large text handling
+        let messageContent = content || '';
+        let messageLabel = content || '';
+        let messageData: any = {
+            // Include per-message web search toggle state
+            enableWebSearch: isWebSearchEnabledForConversation,
+            // Include selected skills
+            skills: selectedSkillIds,
+            skillSelectionMode: skillSelectionMode
+        };
+
+        if (largeTextBlocks.length > 0) {
+            // Replace all placeholders in content with actual large text for sending to model
+            messageContent = replacePlaceholdersWithText(messageContent, largeTextBlocks);
+
+            // Keep the label as is for display purposes (with placeholders)
+            messageLabel = messageLabel;
+
+            // Add large text metadata
+            messageData = {
+                ...messageData,
+                hasLargeText: true,
+                largeTextBlocks: largeTextBlocks.map(block => ({
+                    id: block.id,
+                    displayName: block.displayName,
+                    placeholderChar: block.placeholderChar,
+                    charCount: block.charCount,
+                    lineCount: block.lineCount,
+                    wordCount: block.wordCount,
+                    preview: block.preview,
+                    originalText: block.originalText,
+                    pastePosition: messageLabel.indexOf(block.placeholderChar)
+                }))
+            };
+        }
+
+        // Add pending artifacts to message data
+        if (pendingArtifacts.length > 0) {
+            messageData.artifacts = pendingArtifacts
+                .filter(pa => pa.loadingState === 'ready' && pa.artifact)
+                .map(pa => {
+                    // Extract base artifact ID (remove version/date suffix)
+                    const baseArtifactId = pa.artifactId.split(':')[0];
+                    return {
+                        artifactId: baseArtifactId,
+                        name: pa.name,
+                        description: pa.description,
+                        createdAt: pa.artifact!.createdAt,
+                        version: pa.artifact!.version
+                    } as ArtifactBlockDetail;
+                });
+        }
+
         let msg = newMessage({
-            role: 'user', 
-            content: content, 
+            role: 'user',
+            content: messageContent,
+            label: messageLabel,
             type: type,
+            data: messageData,
             configuredTools: addedActions.length > 0 ? [...addedActions] : undefined
         });
 
@@ -430,30 +675,81 @@ export const ChatInput = ({
                 msg.content = extractDocumentsLocally ?
                     handleAppendDocumentsToContent(content, documents) : content;
 
-                const maxLength = selectedConversation?.model.inputContextWindow;
-
-                if (maxLength && msg.content.length > maxLength) {
-                    alert(
-                        t(
-                            `Message limit is {{maxLength}} characters. Your prompt and attached documents are {{valueLength}} characters. Please remove the attached documents or choose smaller excerpts.`,
-                            {maxLength, valueLength: msg.content.length},
-                        ),
-                    );
-                    return;
+                // Rough token-to-character conversion: 1 token ≈ 4 characters
+                const contextWindow = selectedConversation?.model.inputContextWindow;
+                if (contextWindow) {
+                    const maxChars = contextWindow * 4; // Convert tokens to approximate characters
+                    if (msg.content.length > maxChars) {
+                        alert(
+                            t(
+                                `Message limit is approximately {{maxTokens}} tokens ({{maxChars}} characters). Your prompt and attached documents are {{valueLength}} characters. Please remove the attached documents or choose smaller excerpts.`,
+                                { maxTokens: contextWindow, maxChars, valueLength: msg.content.length },
+                            ),
+                        );
+                        return;
+                    }
                 }
             }
         }
 
-        const updatedDocuments = documents?.map((d) => {
+        let updatedDocuments = documents?.map((d) => {
             const metadata = documentMetadata[d.id];
             if (metadata) {
-                return {...d, metadata: metadata};
+                return { ...d, metadata: metadata };
             }
             return d;
         });
 
+        // Update conversation with artifacts before sending
+        if (pendingArtifacts.length > 0 && selectedConversation) {
+            const conversationArtifacts = selectedConversation.artifacts ?? {};
+
+            pendingArtifacts.forEach(pa => {
+                if (pa.artifact && pa.loadingState === 'ready') {
+                    // Extract base artifact ID (remove version/date suffix)
+                    // e.g., "Fun_Animated_SVG:v1-20251020" -> "Fun_Animated_SVG"
+                    const baseArtifactId = pa.artifactId.split(':')[0];
+
+                    // Preserve the artifact with its original version and update the artifactId
+                    const artifact = { ...pa.artifact, artifactId: baseArtifactId };
+
+                    // Check if this artifactId already exists in conversation
+                    if (Object.keys(conversationArtifacts).includes(baseArtifactId)) {
+                        // Check if this specific version already exists
+                        const existingVersion = conversationArtifacts[baseArtifactId].find(a => a.version === artifact.version);
+                        if (!existingVersion) {
+                            // Add this version to the array
+                            conversationArtifacts[baseArtifactId] = [
+                                ...conversationArtifacts[baseArtifactId],
+                                artifact
+                            ];
+                        }
+                        // If version already exists, skip adding it again
+                    } else {
+                        conversationArtifacts[baseArtifactId] = [artifact];
+                    }
+                }
+            });
+
+            // Update selected conversation with new artifacts
+            selectedConversation.artifacts = conversationArtifacts;
+
+            // Dispatch to update global state so useSendService can access it
+            homeDispatch({ field: 'selectedConversation', value: selectedConversation });
+        }
+
         statsService.userSendChatEvent(msg as Message, selectedConversation?.model?.id ?? '');
 
+        const hasImages = updatedDocuments?.some((d) => isImageFile(d));
+        if (!selectedConversation?.model?.supportsImages && hasImages) {
+            toast(" This model does not support images");
+            updatedDocuments = updatedDocuments?.filter((d: AttachedDocument) => !isImageFile(d));
+        }
+        const hasVideos = updatedDocuments?.some((d) => isVideoFile(d));
+        if (!selectedConversation?.model?.supportsVideo && hasVideos) {
+            toast(" This model does not support videos");
+            updatedDocuments = updatedDocuments?.filter((d: AttachedDocument) => !isVideoFile(d));
+        }
         onSend(msg, updatedDocuments || []);
 
         // if (selectedProject && selectedConversation) {
@@ -464,7 +760,12 @@ export const ChatInput = ({
         setDocuments([]);
         setDocumentState({});
         setDocumentMetadata({});
-        
+        setPendingArtifacts([]); // Clear pending artifacts
+        // Note: Web search toggle now persists across messages in conversation data
+
+        // Clear large text state using hook
+        clearLargeText();
+
         // Keep the actions list after sending - removed setAddedActions([])
 
         if (window.innerWidth < 640 && textareaRef && textareaRef.current) {
@@ -482,20 +783,20 @@ export const ChatInput = ({
 
         if (artifactIsStreaming) {
             console.log("kill artifact even trigger: ");
-            const event = new Event( 'killArtifactRequest');
+            const event = new Event('killArtifactRequest');
             window.dispatchEvent(event);
             timeout = 100;
         } else {
-            const event = new Event( 'killChatRequest');
+            const event = new Event('killChatRequest');
             window.dispatchEvent(event);
         }
 
         setTimeout(() => {
             stopConversationRef.current = false;
-            homeDispatch({field: 'loading', value: false});
-            homeDispatch({field: 'messageIsStreaming', value: false});
-            homeDispatch({field: 'artifactIsStreaming', value: false});
-            homeDispatch({field: 'status', value: []});
+            homeDispatch({ field: 'loading', value: false });
+            homeDispatch({ field: 'messageIsStreaming', value: false });
+            homeDispatch({ field: 'artifactIsStreaming', value: false });
+            homeDispatch({ field: 'status', value: [] });
         }, timeout);
 
     };
@@ -528,7 +829,7 @@ export const ChatInput = ({
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 setActivePromptIndex((prevIndex) =>
-                    prevIndex <  promptsRef.current.length - 1 ? prevIndex + 1 : prevIndex,
+                    prevIndex < promptsRef.current.length - 1 ? prevIndex + 1 : prevIndex,
                 );
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
@@ -538,7 +839,7 @@ export const ChatInput = ({
             } else if (e.key === 'Tab') {
                 e.preventDefault();
                 setActivePromptIndex((prevIndex) =>
-                    prevIndex <  promptsRef.current.length - 1 ? prevIndex + 1 : 0,
+                    prevIndex < promptsRef.current.length - 1 ? prevIndex + 1 : 0,
                 );
             } else if (e.key === 'Enter') {
                 e.preventDefault();
@@ -599,7 +900,19 @@ export const ChatInput = ({
 
     useEffect(() => {
         if (prompts) {
-            const assistants = getAssistants(prompts);
+            // Map prompts to assistants, attaching groupId from the prompt onto
+            // the definition so the select modal can show a group indicator.
+            const assistants = prompts
+                .filter(isAssistant)
+                .map((p: any) => {
+                    const ast = p.data?.assistant;
+                    if (!ast) return null;
+                    if (p.groupId && !ast.definition?.groupId) {
+                        return { ...ast, definition: { ...ast.definition, groupId: p.groupId } };
+                    }
+                    return ast;
+                })
+                .filter(Boolean);
             setAvailableAssistants(assistants);
         }
     }, [prompts]);
@@ -615,25 +928,26 @@ export const ChatInput = ({
         if (textareaRef && textareaRef.current) {
             textareaRef.current.style.height = 'inherit';
             textareaRef.current.style.height = `${textareaRef.current?.scrollHeight}px`;
-            textareaRef.current.style.overflow = `${
-                textareaRef?.current?.scrollHeight > 400 ? 'auto' : 'hidden'
-            }`;
+            textareaRef.current.style.overflow = `${textareaRef?.current?.scrollHeight > textareaHeight ? 'auto' : 'hidden'
+                }`;
         }
 
-    }, [content]);
+    }, [content, textareaHeight]);
 
     useEffect(() => {
         const handleOutsideClick = (e: MouseEvent) => {
-            if ( promptListRef.current &&
+            if (promptListRef.current &&
                 !promptListRef.current.contains(e.target as Node)) setShowPromptList(false);
 
             if (dataSourceSelectorRef.current &&
                 !dataSourceSelectorRef.current.contains(e.target as Node)) setShowDataSourceSelector(false);
-            
-            if (actionSelectorRef.current && 
+
+            if (actionSelectorRef.current &&
                 !actionSelectorRef.current.contains(e.target as Node)) setShowOpsPopup(false);
 
             if (assistantSelectorRef.current && !assistantSelectorRef.current.contains(e.target as Node)) setShowAssistantSelect(false);
+
+            if (contextManagerRef.current && !contextManagerRef.current.contains(e.target as Node)) setShowContextManager(false);
         };
 
         window.addEventListener('click', handleOutsideClick);
@@ -666,7 +980,7 @@ export const ChatInput = ({
 
     const handleDocumentAbortController = (document: AttachedDocument, abortController: any) => {
         setDocumentAborts((prevState) => {
-            let newState = {...prevState, [document.id]: abortController};
+            let newState = { ...prevState, [document.id]: abortController };
             return newState;
         });
     }
@@ -675,7 +989,7 @@ export const ChatInput = ({
         console.log("Progress: " + progress);
 
         setDocumentState((prevState) => {
-            let newState = {...prevState, [document.id]: progress};
+            let newState = { ...prevState, [document.id]: progress };
             newState[document.id] = progress;
             return newState;
         });
@@ -685,25 +999,27 @@ export const ChatInput = ({
     const handleSetMetadata = (document: AttachedDocument, metadata: any) => {
 
         setDocumentMetadata((prevState) => {
-            const newMetadata = {...prevState, [document.id]: metadata};
+            const newMetadata = { ...prevState, [document.id]: metadata };
             return newMetadata;
         });
 
     }
 
     const handleSetKey = (document: AttachedDocument, key: string) => {
-
-        const newDocuments = documents ? documents?.map((d) => {
-            if (d.id === document.id) {
-                return {...d, key: key};
+        setDocuments(prevDocuments => {
+            if (!prevDocuments || prevDocuments.length === 0) {
+                return [{ ...document, key: key }];
             }
-            return d;
-        }) : [{...document, key: key}];
-
-        setDocuments(newDocuments);
+            return prevDocuments.map((d) => {
+                if (d.id === document.id) {
+                    return { ...d, key: key };
+                }
+                return d;
+            });
+        });
 
     }
-    const handleGetQiSummary = async (conversation:Conversation) => {
+    const handleGetQiSummary = async (conversation: Conversation) => {
         handleCloseAllPopups();
         setShowMessageSelectDialog(false);
         setIsQiLoading(true);
@@ -713,11 +1029,9 @@ export const ChatInput = ({
         setIsQiLoading(false);
     }
 
-    const getDisallowedFileExtensions = () => {
-        return [ ...COMMON_DISALLOWED_FILE_EXTENSIONS,
-            ...(selectedConversation?.model?.supportsImages
-                ? [] : IMAGE_FILE_EXTENSIONS ) ]
-    }
+    const disallowedFileExtensions = useMemo(() => {
+        return [ ...COMMON_DISALLOWED_FILE_EXTENSIONS ];
+    }, [selectedConversation?.model?.supportsImages, selectedConversation?.model?.supportsVideo]);
 
     const handleCloseAllPopups = () => {
         setShowOpsPopup(false);
@@ -726,18 +1040,171 @@ export const ChatInput = ({
         setShowPromptList(false);
         setShowMessageSelectDialog(false);
         setShowQiDialog(false);
+        setShowContextManager(false);
     }
+
+    const handleUpdateRemovedDocuments = (updatedRemovedDocumentIds: string[]) => {
+        if (selectedConversation) {
+            handleUpdateConversation(selectedConversation, {
+                key: 'removedDocumentIds',
+                value: updatedRemovedDocumentIds
+            });
+        }
+    }
+
+    const handleUpdateContextConversations = (entries: ConversationContextEntry[]) => {
+        if (selectedConversation) {
+            handleUpdateConversation(selectedConversation, {
+                key: 'contextConversations',
+                value: entries
+            });
+        }
+    }
+
+    // Drag and drop handlers
+    const handleDragEnter = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Only handle file drags
+        if (e.dataTransfer.types.includes('Files')) {
+            setDragCounter(prev => prev + 1);
+            setIsDragging(true);
+        }
+    }, []);
+
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        setDragCounter(prev => {
+            const newCounter = prev - 1;
+            if (newCounter === 0) {
+                setIsDragging(false);
+            }
+            return newCounter;
+        });
+    }, []);
+
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Only allow file drops
+        if (e.dataTransfer.types.includes('Files')) {
+            e.dataTransfer.dropEffect = 'copy';
+        }
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        setIsDragging(false);
+        setDragCounter(0);
+
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length === 0) return;
+
+        // Process dropped files using centralized file processor
+        processDragDropFiles(files, {
+            disallowedExtensions: disallowedFileExtensions,
+            onAttach: addDocument,
+            onUploadProgress: handleDocumentState,
+            onSetKey: handleSetKey,
+            onSetMetadata: handleSetMetadata,
+            onSetAbortController: handleDocumentAbortController,
+            statsService,
+            featureFlags,
+            ragOn,
+            uploadDocuments: featureFlags.uploadDocuments,
+            groupId: undefined,
+            props: {}
+        });
+    }, [disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
+
+    // Clipboard paste handler
+    const handlePaste = useCallback((e: React.ClipboardEvent) => {
+        const files = Array.from(e.clipboardData.files);
+        const pastedText = e.clipboardData.getData('text/plain');
+
+        // Handle file pastes first (existing functionality)
+        if (files.length > 0) {
+            e.preventDefault();
+            // Process pasted files using centralized file processor
+            processPastedFiles(files, {
+                disallowedExtensions: disallowedFileExtensions,
+                onAttach: addDocument,
+                onUploadProgress: handleDocumentState,
+                onSetKey: handleSetKey,
+                onSetMetadata: handleSetMetadata,
+                onSetAbortController: handleDocumentAbortController,
+                statsService,
+                featureFlags,
+                ragOn,
+                uploadDocuments: featureFlags.uploadDocuments,
+                groupId: undefined,
+                props: {}
+            });
+            return;
+        }
+
+        // Handle text pastes - check if it's large text
+        if (pastedText && pastedText.trim()) {
+            const textarea = textareaRef.current;
+            if (textarea) {
+                const cursorPos = textarea.selectionStart;
+                const currentContent = content || '';
+
+                // const { newContent, hasLargeText } = handleLargeTextPaste(
+                //     pastedText,
+                //     currentContent,
+                //     cursorPos,
+                //     textareaRef
+                // );
+
+                // if (hasLargeText) {
+                //     e.preventDefault();
+                //     setContent(newContent);
+                // }
+            }
+            // If text is not large, let the default paste behavior handle it
+        }
+    }, [content, handleLargeTextPaste, disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
+
+    // Handle individual large text block removal using hook
+    const handleRemoveLargeTextBlock = useCallback((blockId: string) => {
+        // Determine content to use based on edit state
+        const contentToUse = (isEditing && editingBlockId === blockId)
+            ? editMode.originalConversationContent
+            : (content || '');
+
+        if (contentToUse) {
+            const updatedContent = removeLargeTextBlockFromHook(
+                blockId,
+                contentToUse,
+                // Callback to handle edit mode cleanup if the removed block was being edited
+                (removedBlockId) => {
+                    if (isEditing && editingBlockId === removedBlockId) {
+                        handleCancelEdit();
+                    }
+                }
+            );
+            setContent(updatedContent);
+        }
+    }, [content, removeLargeTextBlockFromHook, isEditing, editingBlockId, editMode.originalConversationContent, handleCancelEdit]);
+
 
     ////// Plugin Dependencies //////
 
     // PluginID.CODE_INTERPRETER is not compatible with Selected Assistants for now
     useEffect(() => { // if code interpreter is toggled in plugin selector, set the selected assistant to the default assistant
         const containsCodeInterpreter = plugins.map((p: Plugin) => p.id).includes(PluginID.CODE_INTERPRETER);
-        if (containsCodeInterpreter) homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
+        if (containsCodeInterpreter) homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
     }, [plugins]);
 
     useEffect(() => { // if selected assistant change is not the default assistant, remove code interpreter from plugins
-        if (selectedAssistant !== DEFAULT_ASSISTANT) setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.CODE_INTERPRETER ));
+        if (selectedAssistant !== DEFAULT_ASSISTANT) setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.CODE_INTERPRETER));
     }, [selectedAssistant]);
 
     // don't remove Memory plugin when extraction is disabled
@@ -776,7 +1243,7 @@ export const ChatInput = ({
         // will effectively detach ragOn state from rag plugin if feature flag is off 
         // ragOn is used to track the state of the rag plugin throughout the entire app when cached documents is on
         if (featureFlags.cachedDocuments && (containsRag && !ragOn) || (!containsRag && ragOn)) {
-            homeDispatch({field: 'ragOn', value: containsRag});
+            homeDispatch({ field: 'ragOn', value: containsRag });
         }
     }, [plugins]);
 
@@ -793,6 +1260,17 @@ export const ChatInput = ({
         const containsArtifacts = plugins.map((p: Plugin) => p.id).includes(PluginID.ARTIFACTS);
         if (containsArtifacts) setAddedActions([]);
     }, [plugins]);
+
+    // Reset conversation web search toggle when web search plugin is disabled in FeaturePlugin
+    useEffect(() => {
+        const containsWebSearch = plugins.map((p: Plugin) => p.id).includes(PluginID.WEB_SEARCH);
+        if (!containsWebSearch && selectedConversation && selectedConversation.data?.webSearchEnabled) {
+            handleUpdateConversation(selectedConversation, {
+                key: 'data',
+                value: { ...selectedConversation.data, webSearchEnabled: false },
+            });
+        }
+    }, [plugins, selectedConversation, handleUpdateConversation]);
 
     return (
         <>
@@ -870,7 +1348,7 @@ export const ChatInput = ({
                         <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-[#343541]"
                              style={{transform: 'translateY(70px)'}}>
                             <DataSourceSelector
-                                disallowedFileExtensions={getDisallowedFileExtensions()}
+                                disallowedFileExtensions={disallowedFileExtensions}
                                 onDataSourceSelected={(d) => {
                                     const doc = {
                                         id: d.id,
@@ -892,6 +1370,55 @@ export const ChatInput = ({
                                     (file: File) => { handleFile(file, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController, featureFlags.uploadDocuments, undefined, resolveRagEnabled(featureFlags, ragOn) )}
                                     : undefined
                                 }
+                            />
+                        </div>
+                    )}
+
+                    {showContextManager && (
+                        <div ref={contextManagerRef} className="rounded bg-white dark:bg-[#343541]"
+                             onClick={e => e.stopPropagation()}
+                             style={{transform: 'translateY(70px)', maxHeight: '500px', overflow: 'hidden'}}>
+                            <ConversationContextManager
+                                conversation={selectedConversation}
+                                allConversations={conversations}
+                                folders={folders}
+                                onUpdateRemovedDocuments={handleUpdateRemovedDocuments}
+                                onUpdateContextConversations={handleUpdateContextConversations}
+                                onClose={() => setShowContextManager(false)}
+                            />
+                        </div>
+                    )}
+
+                    {showAssistantSelect && (
+                        <div ref={assistantSelectorRef}
+                             className="rounded bg-white dark:bg-[#343541]"
+                             style={{transform: 'translateY(50px)', maxHeight: '500px', overflow: 'hidden', zIndex: 50}}>
+                            <AssistantSelectModal
+                                assistant={selectedAssistant || DEFAULT_ASSISTANT}
+                                availableAssistants={availableAssistants}
+                                layeredAssistants={[
+                                    ...layeredAssistants,
+                                    ...(groups ?? []).flatMap((g: any) => g.layeredAssistants ?? []),
+                                ]}
+                                onLayeredAssistantChange={(la: LayeredAssistant) => {
+                                    onLayeredAssistantChange(la);
+                                    if (textareaRef && textareaRef.current) textareaRef.current.focus();
+                                }}
+                                onKeyDown={(e: any) => {
+                                    if (e.key === 'Escape') {
+                                        e.preventDefault();
+                                        setShowAssistantSelect(false);
+                                        textareaRef.current?.focus();
+                                    }
+                                }}
+                                onAssistantChange={(assistant: Assistant) => {
+                                    onAssistantChange(assistant);
+                                    if (textareaRef && textareaRef.current) textareaRef.current.focus();
+                                }}
+                                onClose={() => {
+                                    setShowAssistantSelect(false);
+                                    textareaRef.current?.focus();
+                                }}
                             />
                         </div>
                     )}
@@ -978,18 +1505,35 @@ export const ChatInput = ({
 
 
 
+                    {/* Resize Grip Handle - only show when there's substantial text */}
+                    {textareaRef?.current && textareaRef.current.scrollHeight > 100 && (
+                        <div
+                            className={`w-full flex justify-center py-1 cursor-ns-resize select-none ${isResizing ? 'bg-blue-100 dark:bg-blue-900/20' : 'hover:bg-gray-100 dark:hover:bg-gray-700/30'} transition-colors`}
+                            onMouseDown={handleResizeStart}
+                            style={{transform: 'translateY(24px)'}}
+                            title="Drag to resize input area"
+                        >
+                            <div className="flex items-center gap-1 text-gray-400 dark:text-gray-500">
+                                <IconGripHorizontal size={20} stroke={1.5} />
+                            </div>
+                        </div>
+                    )}
+
                     <div className="relative mx-2 flex w-full flex-grow sm:mx-4 bg-neutral-100 dark:bg-[#3d3e4c] rounded-md" style={{transform: 'translateY(24px)'}}>
 
-                        <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
-                            if(asts.length === 0){
-                                //setAssistant(DEFAULT_ASSISTANT);
-                                homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
-                            }
-                            else {
-                                //setAssistant(asts[0]);
-                                homeDispatch({field: 'selectedAssistant', value: asts[0]});
-                            }
-                        }}/>
+                        {/* Only show AssistantsInUse when AttachmentDisplay is NOT shown */}
+                        {!((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
+                            <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
+                                if(asts.length === 0){
+                                    //setAssistant(DEFAULT_ASSISTANT);
+                                    homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
+                                }
+                                else {
+                                    //setAssistant(asts[0]);
+                                    homeDispatch({field: 'selectedAssistant', value: asts[0]});
+                                }
+                            }}/>
+                        )}
 
                         {//TODO: feature flag this
                         }
@@ -1000,18 +1544,77 @@ export const ChatInput = ({
                             setSelectedProject(project);
                             setShowProjectList(false);
                         }}/>} */}
-                     {documents && documents.length > 0 && 
-                        <div  style={{transform: 'translateY(-4px)'}}>
-                            <FileList documents={documents}
-                                    documentStates={documentState}
-                                    onCancelUpload={onCancelUpload}
-                                    setDocuments={setDocuments}/>
+                     {/* Unified Attachment Display - Files, Large Text, and Assistant */}
+                     {((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
+                        <div style={{transform: 'translateY(-4px)'}}>
+                            <AttachmentDisplay
+                                documents={documents}
+                                documentStates={documentState}
+                                onCancelUpload={onCancelUpload}
+                                setDocuments={setDocuments}
+                                largeTextBlocks={largeTextBlocks}
+                                onRemoveBlock={handleRemoveLargeTextBlock}
+                                onEditBlock={handleEditBlock}
+                                currentlyEditingId={editingBlockId || undefined}
+                                showLargeTextPreview={showLargeTextPreview || isEditing}
+                                selectedAssistant={selectedAssistant || undefined}
+                                onRemoveAssistant={() => {
+                                    // Reset assistant to default
+                                    homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
+
+                                    // Clear the promptTemplate from conversation to prevent it from being re-applied
+                                    if (selectedConversation && selectedConversation.promptTemplate) {
+                                        handleUpdateConversation(selectedConversation, {
+                                            key: 'promptTemplate',
+                                            value: null
+                                        });
+                                    }
+                                }}
+                            />
                         </div>
-                     }
+                     )}
 
                     </div>
 
-                    <div className="relative mx-2 flex w-full flex-grow flex-col rounded-md border border-black/10 bg-white shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:border-gray-900/50 dark:bg-[#40414F] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4" >
+                    <div 
+                        className={`relative mx-2 flex w-full flex-grow flex-col rounded-md border shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4 transition-colors duration-200 ${
+                            isDragging 
+                                ? 'border-blue-400 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-900/20' 
+                                : 'border-black/10 bg-white dark:border-gray-900/50 dark:bg-[#40414F]'
+                        }`}
+                        onDragEnter={handleDragEnter}
+                        onDragLeave={handleDragLeave}
+                        onDragOver={handleDragOver}
+                        onDrop={handleDrop}
+                    >
+                        {/* Drag and drop overlay */}
+                        {isDragging && (
+                            <div className="absolute inset-0 z-50 rounded-md">
+                                {/* Main drop zone - centered in box */}
+                                <div className="absolute inset-0 flex items-center justify-center bg-blue-50/80 dark:bg-blue-900/40 backdrop-blur-sm rounded-md border-2 border-dashed border-blue-400 dark:border-blue-500">
+                                    <div className="flex items-center justify-center gap-2 text-blue-600 dark:text-blue-400 font-medium">
+                                        <IconUpload size={24} />
+                                        <span>Drop files here to attach</span>
+                                    </div>
+                                </div>
+                                {/* Subtitle positioned below the box */}
+                                <div className="absolute bottom-0 left-0 right-0 transform translate-y-full pt-2 text-center">
+                                    <div className="text-blue-500 dark:text-blue-300 text-sm">
+                                        Supports documents, images, and more
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Render pending artifacts list above the input area */}
+                        {featureFlags.artifacts && pendingArtifacts.length > 0 && (
+                            <div className="w-full px-2 py-2 border-b border-black/10 dark:border-gray-700/50">
+                                <ArtifactsList
+                                    artifacts={pendingArtifacts}
+                                    onRemove={handleRemovePendingArtifact}
+                                />
+                            </div>
+                        )}
 
                         {/* Render ActionsList above the input area */}
                         {featureFlags.actionSets && addedActions.length > 0 && (
@@ -1067,10 +1670,11 @@ export const ChatInput = ({
                         <div className="px-2 flex items-center">
 
 
-                            {featureFlags.promptOptimizer && isInputInFocus && (
+                            {featureFlags.promptOptimizer && isInputInFocus && !isEditing && (
                                 <div className='relative mr-[-32px]'>
                                     <PromptOptimizerButton
                                         prompt={content || ""}
+                                        largeTextBlocks={largeTextBlocks}
                                         onOptimized={(optimizedPrompt:string) => {
                                             setContent(optimizedPrompt);
                                             textareaRef.current?.focus();
@@ -1113,21 +1717,24 @@ export const ChatInput = ({
                                 ref={textareaRef}
                                 onFocus={() => setIsInputInFocus(true)}
                                 onBlur={() => setIsInputInFocus(false)}
+                                onPaste={handlePaste}
                                 id="messageChatInputText"
-                                className="m-0 w-full resize-none border-0 bg-transparent p-0 py-2 pr-8 pl-10 text-black dark:bg-transparent dark:text-white md:py-3 md:pl-10"
+                                className="m-0 w-full resize-none border-0 bg-transparent p-0 py-2 pr-8 pl-10 text-black dark:bg-transparent dark:text-white md:py-3 md:pl-10 large-text-input"
                                 style={{
                                     resize: 'none',
                                     bottom: `${textareaRef?.current?.scrollHeight}px`,
-                                    maxHeight: '400px',
+                                    maxHeight: `${textareaHeight}px`,
                                     overflow: `${
-                                        textareaRef.current && textareaRef.current.scrollHeight > 400
+                                        textareaRef.current && textareaRef.current.scrollHeight > textareaHeight
                                             ? 'auto'
                                             : 'hidden'
                                     }`,
                                 }}
                                 placeholder={
-                                    isServiceDown 
+                                    isServiceDown
                                         ? "Chat service is temporarily unavailable..."
+                                        : isEditing
+                                        ? `Editing large text block - ESC to cancel, Ctrl+Enter to save`
                                         : "Type a message to chat with Amplify..."
                                 }
                                 value={content}
@@ -1135,28 +1742,67 @@ export const ChatInput = ({
                                 onCompositionStart={() => setIsTyping(true)}
                                 onCompositionEnd={() => setIsTyping(false)}
                                 onChange={handleChange}
-                                onKeyDown={handleKeyDown}
+                                onKeyDown={(e) => {
+                                    // Edit-mode shortcuts (from main): ESC cancels, Ctrl/Cmd+Enter saves.
+                                    if (isEditing) {
+                                        if (e.key === 'Escape') {
+                                            e.preventDefault();
+                                            handleCancelEdit();
+                                            return;
+                                        }
+                                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                            e.preventDefault();
+                                            handleSaveEdit();
+                                            return;
+                                        }
+                                    }
+                                    handleKeyDown(e);
+                                }}
                                 disabled={isServiceDown}
                             />
 
-                            <button
-                                id="sendMessage"
-                                className={`chat-input-button left-1 rounded-sm p-1 text-neutral-800 opacity-60  mx-1 
-                                ${messageIsDisabled || !content || isServiceDown ? 'cursor-not-allowed ' : 'hover:bg-neutral-200 hover:text-black dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-white'} 
-                                dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
-                                onClick={handleSend}
-                                title={isServiceDown ? "Chat service is temporarily unavailable"
-                                    : messageIsDisabled ? "Please address missing information to enable chat"
-                                    : !content ? "Enter a message to start chatting" : "Send Prompt"}
-                                disabled={messageIsDisabled || !content || isServiceDown}
-                            >
-                                {messageIsStreaming || artifactIsStreaming ? (
-                                    <div
-                                        className="h-4 w-4 animate-spin rounded-full border-t-2 border-neutral-800 opacity-60 dark:border-neutral-100"></div>
-                                ) : (
-                                    <IconSend size={18}/>
-                                )}
-                            </button>
+                            {/* Edit Mode Controls - positioned inline (from main) */}
+                            {isEditing && (
+                                <div className="flex items-center gap-2 ml-2">
+                                    <button
+                                        className="px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded transition-colors flex items-center gap-1"
+                                        onClick={handleSaveEdit}
+                                        title="Save changes (Ctrl+Enter)"
+                                    >
+                                        <IconCheck size={14} />
+                                        Save
+                                    </button>
+                                    <button
+                                        className="px-2 py-1 text-xs bg-gray-500 hover:bg-gray-600 text-white rounded transition-colors flex items-center gap-1"
+                                        onClick={handleCancelEdit}
+                                        title="Cancel editing (Escape)"
+                                    >
+                                        <IconX size={14} />
+                                        Cancel
+                                    </button>
+                                </div>
+                            )}
+
+                            {!isEditing && (
+                                <button
+                                    id="sendMessage"
+                                    className={`chat-input-button left-1 rounded-sm p-1 text-neutral-800 opacity-60  mx-1
+                                    ${messageIsDisabled || !content || isServiceDown ? 'cursor-not-allowed ' : 'hover:bg-neutral-200 hover:text-black dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-white'}
+                                    dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
+                                    onClick={handleSend}
+                                    title={isServiceDown ? "Chat service is temporarily unavailable"
+                                        : messageIsDisabled ? "Please address missing information to enable chat"
+                                        : !content ? "Enter a message to start chatting" : "Send Prompt"}
+                                    disabled={messageIsDisabled || !content || isServiceDown}
+                                >
+                                    {messageIsStreaming || artifactIsStreaming ? (
+                                        <div
+                                            className="h-4 w-4 animate-spin rounded-full border-t-2 border-neutral-800 opacity-60 dark:border-neutral-100"></div>
+                                    ) : (
+                                        <IconSend size={18}/>
+                                    )}
+                                </button>
+                            )}
 
 
                             {showScrollDownButton && (
@@ -1225,7 +1871,7 @@ export const ChatInput = ({
                         { featureFlags.uploadDocuments &&
                         <div style={{transform: 'translateX(-10px)'}}>
                             <AttachFile id="__attachFile"
-                                        disallowedFileExtensions={getDisallowedFileExtensions()}
+                                        disallowedFileExtensions={disallowedFileExtensions}
                                         onAttach={addDocument}
                                         onSetMetadata={handleSetMetadata}
                                         onSetKey={handleSetKey}
@@ -1235,7 +1881,48 @@ export const ChatInput = ({
                             />
                         </div>}
 
-                        
+                        <div className="relative overflow-visible group/ctxbtn" style={{zIndex: 10}}>
+                            {(() => {
+                                const msgs = selectedConversation?.messages ?? [];
+                                const docMap = new Map();
+                                msgs.forEach((msg: any) => {
+                                    msg.data?.dataSources?.forEach((ds: any) => { if (!docMap.has(ds.id)) docMap.set(ds.id, ds); });
+                                });
+                                const removed = new Set(selectedConversation?.removedDocumentIds ?? []);
+                                const docsActive = Array.from(docMap.keys()).filter((id: string) => !removed.has(id)).length;
+                                const convsActive = selectedConversation?.contextConversations?.length ?? 0;
+                                const total = docsActive + convsActive;
+                                return total > 0 ? (
+                                    <>
+                                        <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center" style={{zIndex: 11}}>
+                                            {total}
+                                        </span>
+                                        {/* Hover tooltip breakdown */}
+                                        <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/ctxbtn:block" style={{zIndex: 20}}>
+                                            <div className="bg-gray-800 dark:bg-gray-700 text-white text-[11px] rounded px-2 py-1.5 whitespace-nowrap shadow-lg text-center">
+                                                {docsActive > 0 && <div>{docsActive} datasource{docsActive !== 1 ? 's' : ''}</div>}
+                                                {convsActive > 0 && <div>{convsActive} conversation{convsActive !== 1 ? 's' : ''}</div>}
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : null;
+                            })()}
+                            <button
+                                className="chat-input-button rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                                id="contextManager"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCloseAllPopups();
+                                    setShowContextManager(!showContextManager);
+                                }}
+                                onKeyDown={(e) => {
+                                }}
+                                title="Manage Conversation Context"
+                            >
+                                <IconLayoutList size={20}/>
+                            </button>
+                        </div>
+
                         { featureFlags.actionSets && 
                         <>
                         {/* Add Action button toggles the operations popup */}
@@ -1260,6 +1947,58 @@ export const ChatInput = ({
                         
                         </>}
 
+                        { featureFlags.artifacts &&
+                         <ArtifactsSaved
+                             iconSize={20}
+                             isArtifactsOpen={false}
+                             pendingArtifacts={pendingArtifacts}
+                             onAddPendingArtifact={handleAddPendingArtifact}
+                         />
+                        }
+
+                        {/* Web Search Toggle - Per-Message Control (only show if web search is enabled in FeaturePlugin) */}
+                        { featureFlags.webSearch && plugins?.some(p => p.id === PluginID.WEB_SEARCH) &&
+                        <button
+                            className={`chat-input-button rounded-md p-1.5 transition-all duration-200 ${
+                                isWebSearchEnabledForConversation
+                                    ? 'bg-green-500 hover:bg-green-600 text-white shadow-md scale-105'
+                                    : 'text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200'
+                            }`}
+                            id="toggleWebSearch"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (selectedConversation) {
+                                    const newWebSearchState = !isWebSearchEnabledForConversation;
+                                    handleUpdateConversation(selectedConversation, {
+                                        key: 'data',
+                                        value: {...selectedConversation.data, webSearchEnabled: newWebSearchState},
+                                    });
+                                    // Show toast message when enabling web search (if admin configured one)
+                                    if (newWebSearchState && webSearchUserMessage) {
+                                        toast(webSearchUserMessage, {
+                                            duration: 6000,
+                                            icon: <IconWorldSearch size={35} />,
+                                        });
+                                    }
+                                }
+                            }}
+                            title={isWebSearchEnabledForConversation
+                                ? "Web Search enabled for this conversation - Click to disable"
+                                : "Enable Web Search for this conversation"}
+                        >
+                            <IconWorldSearch size={20} />
+                        </button>
+                        }
+
+                        {/* Skills Toggle - Select skills to use (only show if skills is enabled in FeaturePlugin) */}
+                        { featureFlags.skills && plugins?.some(p => p.id === PluginID.SKILLS) && chatEndpoint &&
+                            <SkillsToggle
+                                chatEndpoint={chatEndpoint}
+                                selectedSkillIds={selectedSkillIds}
+                                onSelectionChange={setSelectedSkillIds}
+                            />
+                        }
+
                         <div className='flex flex-row gap-2'>
 
                             <button
@@ -1267,8 +2006,10 @@ export const ChatInput = ({
                                 className={"chat-input-button rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"}
                                 onClick={ (e) => {
                                     e.preventDefault();
+                                    e.stopPropagation();
+                                    const isOpen = showAssistantSelect;
                                     handleCloseAllPopups();
-                                    handleShowAssistantSelector();
+                                    if (!isOpen) setShowAssistantSelect(true);
                                 }
                                 }
                                 onKeyDown={(e) => {
@@ -1279,29 +2020,9 @@ export const ChatInput = ({
                                 <IconAt size={20}/>
                             </button>
 
-                            {showAssistantSelect && (
-                                <div className="absolute rounded bg-white dark:bg-[#343541]"
-                                     style={{transform: 'translateX(30px) translateY(-2px)', zIndex: 10}}>
-                                    <AssistantSelect
-                                        assistant={selectedAssistant || DEFAULT_ASSISTANT}
-                                        availableAssistants={availableAssistants}
-                                        onKeyDown={(e: any) => {
-                                            if (e.key === 'Escape') {
-                                                e.preventDefault();
-                                                setShowAssistantSelect(false);
-                                                textareaRef.current?.focus();
-                                            }
-                                        }}
-                                        onAssistantChange={(assistant: Assistant) => {
-                                            onAssistantChange(assistant);
-                                            if (textareaRef && textareaRef.current) {
-                                                textareaRef.current.focus();
-                                            }
-                                        }}
-                                    />
-                                </div>
-                            )}
                         </div>
+
+                       
                         {/*<div className='flex flex-row gap-2'>
                          {featureFlags.memory && projects.length > 0  &&
                         // settingRef.current.featureOptions.includeMemory &&
@@ -1359,11 +2080,13 @@ export const ChatInput = ({
                                             options={REASONING_LEVELS.map((lvl: string) => ({
                                                 id: lvl,
                                                 name: capitalize(lvl),
-                                                title: `The model will use ${{low: "average amount of", medium: "additional", high: "more"}[lvl]} output tokens when crafting a response. \n${
-                                                    {low: "Optimized for quick responses to simple questions, prioritizing speed",
-                                                        medium: "Balanced approach for everyday questions, offering good accuracy without unnecessary processing time",
-                                                        high: "Provides in-depth analysis for complex problems where thoroughness and precision matter most"}[lvl]}`,
-                                                icon: ({low: IconBulb, medium: IconScale, high: IconBrain}[lvl])
+                                                title: lvl === 'off'
+                                                    ? "Reasoning is disabled. The model will respond without extended thinking, providing faster but potentially less thorough responses."
+                                                    : `The model will use ${{low: "average amount of", medium: "additional", high: "more"}[lvl]} output tokens when crafting a response. \n${
+                                                        {low: "Optimized for quick responses to simple questions, prioritizing speed",
+                                                            medium: "Balanced approach for everyday questions, offering good accuracy without unnecessary processing time",
+                                                            high: "Provides in-depth analysis for complex problems where thoroughness and precision matter most"}[lvl]}`,
+                                                icon: lvl === 'off' ? undefined : ({low: IconBulb, medium: IconScale, high: IconBrain}[lvl])
 
                                             }))}
                                             selected={selectedConversation?.data?.reasoningLevel ?? 'low'}

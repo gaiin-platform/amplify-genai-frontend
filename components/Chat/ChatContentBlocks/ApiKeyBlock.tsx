@@ -14,6 +14,7 @@ import { fixJsonString } from "@/utils/app/errorHandling";
 import { ApiKeyOps } from "@/types/apikeys";
 import { DefaultModels } from "@/types/model";
 import { createPortal } from "react-dom";
+import { getUserIdentifier } from "@/utils/app/data";
 
 
 interface KeyData {
@@ -112,7 +113,7 @@ const ApiKeyBlock: React.FC<Props> = ({content}) => {
             //check no delegate if system use
             alert("You cannot have a delegate defined when creating a system key. Specified one or the either as none.");
         } else {
-            const keyData = {...data, owner: user?.email};
+            const keyData = {...data, owner: getUserIdentifier(user)};
             setLoadingMessage("Creating API key...");
             const result = await createApiKey(keyData);
             if (result) {

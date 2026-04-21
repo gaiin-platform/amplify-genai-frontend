@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Checkbox } from '@/components/ReusableComponents/CheckBox';
 import { TagsList } from '../Chat/TagsList';
 import { camelCaseToTitle } from '@/utils/app/data';
-import { getOperationIcon } from '@/types/integrations';
+import { getOperationIcon } from '@/utils/app/integrations';
 import { IconAdjustments, IconX } from '@tabler/icons-react';
 import { OpBindings, OpBindingMode, OpDef } from '@/types/op';
 import ActionButton from '../ReusableComponents/ActionButton';

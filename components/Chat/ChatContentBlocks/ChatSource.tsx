@@ -1,8 +1,9 @@
 import HomeContext from '@/pages/api/home/home.context';
 import { DataSource } from '@/types/chat';
 import { downloadDataSourceFile } from '@/utils/app/files';
+import { isBedrockKbDatasource, downloadBedrockKbFile, extractFileNameFromS3Uri, extractKbId } from '@/utils/app/bedrockKb';
 import { useSession } from 'next-auth/react';
-import React, { useContext,  } from "react";
+import React, { useContext, useState } from "react";
 import DOMPurify from 'dompurify';
 interface Props {
     source: any;
@@ -151,7 +152,8 @@ const sanitizedUrl = (source: any) => {
 const ChatSourceBlock: React.FC<Props> = (
     {source, index, name}) => {
     const { data: session } = useSession();
-    const user = session?.user?.email;
+    const user: any = session?.user;
+    const [kbDownloading, setKbDownloading] = useState(false);
 
     const { state: {}, setLoadingMessage
     } = useContext(HomeContext);
@@ -166,6 +168,18 @@ const ChatSourceBlock: React.FC<Props> = (
             setLoadingMessage("");
         }
     }
+
+    const handleBedrockKbDownload = async (knowledgeBaseId: string, s3Uri: string) => {
+        setKbDownloading(true);
+        try {
+            const success = await downloadBedrockKbFile(knowledgeBaseId, s3Uri);
+            if (!success) {
+                alert('Unable to download file. Please try again later.');
+            }
+        } finally {
+            setKbDownloading(false);
+        }
+    };
 
     
 
@@ -192,8 +206,37 @@ const ChatSourceBlock: React.FC<Props> = (
 
                 { source.url ? sanitizedUrl(source) :
                 <>
+                {isBedrockKbDatasource(source) ? (
+                    <>
+                    <div id="sourceName" className="dark:text-neutral-300 flex items-center gap-1">
+                        {source.name}
+                    </div>
+                    {source.locations && Array.isArray(source.locations) && source.locations.map((loc: any, locIdx: number) => {
+                        const s3Uri = loc.source;
+                        if (!s3Uri || !s3Uri.startsWith('s3://')) return null;
+                        const fileName = extractFileNameFromS3Uri(s3Uri);
+                        const kbId = extractKbId(source);
+                        return kbId ? (
+                            <button
+                                key={locIdx}
+                                className="mr-auto text-start text-[#5495ff] cursor-pointer hover:underline text-sm disabled:opacity-50"
+                                disabled={kbDownloading}
+                                title={`Download ${fileName}`}
+                                onClick={() => downloadBedrockKbFile(kbId, s3Uri).then(success => {
+                                    if (!success) alert('Unable to download file. Please try again later.');
+                                })}
+                            >
+                                {kbDownloading ? 'Downloading...' : fileName}
+                            </button>
+                        ) : (
+                            <div key={locIdx} className="text-sm dark:text-neutral-400">{fileName}</div>
+                        );
+                    })}
+                    </>
+                ) : (
+                <>
                 {source.name && (
-                    (source.contentKey && !source.contentKey.includes("global/") &&  (source.contentKey.includes(user) ||  source.groupId))  ? 
+                    (source.contentKey && !source.contentKey.includes("global/") &&  (source.contentKey.includes(user?.email) || source.contentKey.includes(user?.username) ||  source.groupId))  ? 
                         <button id="sourceName" className="mr-auto text-start text-[#5495ff] cursor-pointer hover:underline" title='Download File'
                             onClick={() => downloadFile({id: source.contentKey, name: source.name, type: source.type}, source.groupId)}>
                             {source.name}
@@ -212,6 +255,8 @@ const ChatSourceBlock: React.FC<Props> = (
                             </React.Fragment>
                         ))}
                     </div>
+                )}
+                </>
                 )}
                 </>}
                 

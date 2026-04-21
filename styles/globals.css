@@ -85,6 +85,92 @@ a:not([class*="btn"]):not([class*="button"]):not(.sr-only) {
   }
 }
 
+/* White Label CSS Custom Properties */
+/* These variables can be overridden in a custom CSS file to rebrand the application */
+/* Light theme colors (default) */
+:root {
+  /* Primary color (blue) - used for buttons, links, highlights */
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
+  --color-primary-950: #172554;
+  
+  /* Secondary color (purple) - used for accents, secondary actions */
+  --color-secondary-50: #faf5ff;
+  --color-secondary-100: #f3e8ff;
+  --color-secondary-200: #e9d5ff;
+  --color-secondary-300: #d8b4fe;
+  --color-secondary-400: #c084fc;
+  --color-secondary-500: #a855f7;
+  --color-secondary-600: #9333ea;
+  --color-secondary-700: #7e22ce;
+  --color-secondary-800: #6b21a8;
+  --color-secondary-900: #581c87;
+  --color-secondary-950: #3b0764;
+  
+  /* Accent color (green) - used for success states, positive actions */
+  --color-accent-50: #f0fdf4;
+  --color-accent-100: #dcfce7;
+  --color-accent-200: #bbf7d0;
+  --color-accent-300: #86efac;
+  --color-accent-400: #4ade80;
+  --color-accent-500: #22c55e;
+  --color-accent-600: #16a34a;
+  --color-accent-700: #15803d;
+  --color-accent-800: #166534;
+  --color-accent-900: #14532d;
+  --color-accent-950: #052e16;
+}
+
+/* Dark theme colors - automatically applied when dark mode is active */
+.dark {
+  /* Primary color (lighter blue for dark mode) */
+  --color-primary-50: #172554;
+  --color-primary-100: #1e3a8a;
+  --color-primary-200: #1e40af;
+  --color-primary-300: #1d4ed8;
+  --color-primary-400: #2563eb;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #60a5fa;
+  --color-primary-700: #93c5fd;
+  --color-primary-800: #bfdbfe;
+  --color-primary-900: #dbeafe;
+  --color-primary-950: #eff6ff;
+  
+  /* Secondary color (lighter purple for dark mode) */
+  --color-secondary-50: #3b0764;
+  --color-secondary-100: #581c87;
+  --color-secondary-200: #6b21a8;
+  --color-secondary-300: #7e22ce;
+  --color-secondary-400: #9333ea;
+  --color-secondary-500: #a855f7;
+  --color-secondary-600: #c084fc;
+  --color-secondary-700: #d8b4fe;
+  --color-secondary-800: #e9d5ff;
+  --color-secondary-900: #f3e8ff;
+  --color-secondary-950: #faf5ff;
+  
+  /* Accent color (lighter green for dark mode) */
+  --color-accent-50: #052e16;
+  --color-accent-100: #14532d;
+  --color-accent-200: #166534;
+  --color-accent-300: #15803d;
+  --color-accent-400: #16a34a;
+  --color-accent-500: #22c55e;
+  --color-accent-600: #4ade80;
+  --color-accent-700: #86efac;
+  --color-accent-800: #bbf7d0;
+  --color-accent-900: #dcfce7;
+  --color-accent-950: #f0fdf4;
+}
+
 
 ::-webkit-scrollbar-track {
   background-color: transparent;
@@ -313,4 +399,89 @@ pre:has(div.codeblock) {
 
 .animate-float {
   animation: float 2s ease-in-out infinite;
+}
+
+/* Large Text Placeholder Styling */
+.large-text-input::placeholder {
+  font-style: italic;
+  color: #6b7280; /* gray-500 */
+}
+
+/* ExpandedTextDisplay - Force proper text colors to override parent styles */
+.expanded-text-container {
+  /* Ensure consistent background and border */
+  background-color: white !important;
+}
+
+.expanded-text-content {
+  /* Force proper text colors with high specificity */
+  color: #111827 !important; /* text-gray-900 */
+  background-color: transparent !important;
+}
+
+/* Dark mode overrides */
+@media (prefers-color-scheme: dark) {
+  .expanded-text-container {
+    background-color: #374151 !important; /* bg-gray-700 */
+  }
+  
+  .expanded-text-content {
+    color: #f3f4f6 !important; /* text-gray-100 */
+  }
+}
+
+/* Class-based dark mode support (for manual theme switching) */
+.dark .expanded-text-container {
+  background-color: #374151 !important; /* bg-gray-700 */
+}
+
+.dark .expanded-text-content {
+  color: #f3f4f6 !important; /* text-gray-100 */
+}
+
+/* Note: Unfortunately, CSS cannot style text inside textarea based on content patterns.
+   The italic styling for angle bracket placeholders is handled in React components. */
+
+/* Dark mode content - for LLM-generated inline HTML with hardcoded styles */
+.dark-mode-content {
+  background-color: white !important;
+  color: #1f2937 !important; /* gray-800 for readability on white */
+  padding: 40px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.dark .dark-mode-content {
+  background-color: #1f2937 !important; /* gray-800 */
+  color: #f3f4f6 !important; /* gray-100 */
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
+}
+
+/* Loading animations for UserCostModal */
+@keyframes loading-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+.loading-bar-animated {
+  position: absolute;
+  width: 25%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  animation: loading-slide 1.5s ease-in-out infinite;
+}
+
+.loading-bar-animated::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6, #3b82f6);
+  opacity: 0.8;
 }

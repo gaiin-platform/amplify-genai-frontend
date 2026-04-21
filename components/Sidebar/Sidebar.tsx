@@ -5,6 +5,8 @@ import Search from '../Search';
 import { KebabMenu } from '@/components/Sidebar/components/KebabMenu';
 import { SortType } from '@/types/folder';
 import HomeContext from '@/pages/api/home/home.context';
+import { GroupAssistantsButton } from '../GroupAssistants/GroupAssistantsButton';
+import { LayeredAssistantButton } from '../LayeredAssistants/LayeredAssistantButton';
 
 
 interface Props<T> {
@@ -18,7 +20,7 @@ interface Props<T> {
   searchTerm: string;
   handleSearchTerm: (searchTerm: string) => void;
   handleCreateItem: () => void;
-  handleCreateFolder: () => void;
+  handleCreateFolder?: () => void;
   handleDrop: (e: any) => void;
   handleCreateAssistantItem: () => void;
   setFolderSort: (s: SortType) => void;
@@ -103,7 +105,7 @@ const Sidebar = <T,>({
       </button>
     );
 
-    return addAssistantButton
+    return <div className='w-full flex flex-col'>{addAssistantButton} {<LayeredAssistantButton />}</div>
   }
 
   return (
@@ -116,7 +118,7 @@ const Sidebar = <T,>({
         <div className="flex items-center justify-between w-full gap-1">
           <div className="flex items-center gap-1 flex-1 min-w-0">
             {addButtonForSide(side)}
-            <button
+           {handleCreateFolder && <button
               className="enhanced-folder-button flex-shrink-0"
               onClick={handleCreateFolder}
               id="createFolderButton"
@@ -124,15 +126,18 @@ const Sidebar = <T,>({
               style={{ minWidth: '32px', width: '32px', height: '38px' }}
             >
               <IconFolderPlus size={16} className="enhanced-icon" />
-            </button>
+            </button> }
           </div>
         </div>
         {side === 'right' && addItemButton('')}
+
         <Search
           placeholder={t('Search...') || ''}
           searchTerm={searchTerm}
           onSearch={handleSearchTerm}
         />
+
+        {side === 'right' && <GroupAssistantsButton />}
 
         <KebabMenu
           label={side === 'left' ? "Conversations": "Prompts"} 
@@ -141,32 +146,34 @@ const Sidebar = <T,>({
           setFolderSort={setFolderSort}
         />
         
-        <div className="relative flex-grow w-[268px] enhanced-sidebar overflow-y-auto" id="sidebarScroll" style={{ height: 'calc(100vh - 170px)', display: 'flex', flexDirection: 'column' }}>
-          {items?.length > 0 && (
-            <div className="flex border-b dark:border-white/20 pb-3 mb-2">
-              {folderComponent}
-            </div>
-          )}
+        <div className="relative flex-grow w-[268px] enhanced-sidebar overflow-y-auto" id="sidebarScroll" style={{ height: 'calc(100vh - 170px)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {items?.length > 0 && (
+              <div className="flex border-b dark:border-white/20 pb-3 mb-2">
+                {folderComponent}
+              </div>
+            )}
 
-          {items?.length > 0 ? (
-              <div
-              onDrop={handleDrop}
-              onDragOver={allowDrop}
-              onDragEnter={highlightDrop}
-              onDragLeave={removeHighlight}
-            >
-              {itemComponent}
-            </div>
-          ) : (
-            <div className="empty-state mt-8">
-              <IconMistOff className="empty-state-icon mx-auto mb-3" size={24} />
-              <span className="empty-state-text">
-                {t('No data.')}
-              </span>
-            </div>
-          )}
+            {items?.length > 0 ? (
+                <div
+                onDrop={handleDrop}
+                onDragOver={allowDrop}
+                onDragEnter={highlightDrop}
+                onDragLeave={removeHighlight}
+              >
+                {itemComponent}
+              </div>
+            ) : (
+              <div className="empty-state mt-8">
+                <IconMistOff className="empty-state-icon mx-auto mb-3" size={24} />
+                <span className="empty-state-text">
+                  {t('No data.')}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
-        {footerComponent}
+
       </div>
       {footerComponent && (
         <div 
@@ -176,6 +183,7 @@ const Sidebar = <T,>({
           {footerComponent}
         </div>
       )}
+    
     </div>
   );
 };

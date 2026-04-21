@@ -60,6 +60,7 @@ export type ActionType<T> =
     | { type: 'reset' }
     | { type: 'conversation', action: ConversationAction }
     | { type: 'append'; field: FieldNames<T>; value: any  }
+    | { type: 'remove'; field: FieldNames<T>; value: any }
     | { type?: 'change'; field: FieldNames<T>; value: any };
 
 // Returns a typed dispatch and state
@@ -68,6 +69,7 @@ export const useHomeReducer = ({ initialState }: { initialState: HomeInitialStat
       | { type: 'reset' }
       | { type: 'conversation', action: ConversationAction }
       | { type: 'append'; field: FieldNames<HomeInitialState>; value: any  }
+      | { type: 'remove'; field: FieldNames<HomeInitialState>; value: any }
       | { type?: 'change'; field: FieldNames<HomeInitialState>; value: any };
 
   const updateConversation = (conversation:Conversation, messages:Message[], editStart:number, editEnd:number) => {
@@ -201,6 +203,19 @@ export const useHomeReducer = ({ initialState }: { initialState: HomeInitialStat
     if (action.type === 'append') {
       const curr = state[action.field] as [];
       return { ...state, [action.field]: [...curr, action.value], workspaceDirty: dirty };
+    }
+
+    if (action.type === 'remove') {
+      const curr = state[action.field] as [];
+      const filtered = curr.filter((item: any) => {
+        // If value is a string, compare by id property or direct equality
+        if (typeof action.value === 'string') {
+          return item?.id !== action.value && item !== action.value;
+        }
+        // If value is an object, compare by id
+        return item?.id !== action.value?.id;
+      });
+      return { ...state, [action.field]: filtered, workspaceDirty: dirty };
     }
 
     if (action.type === 'reset') return initialState;

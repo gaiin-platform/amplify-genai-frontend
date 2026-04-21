@@ -59,7 +59,7 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
     let requestBody = {
         model: chatBody.model.id,
         temperature: chatBody.temperature,
-        max_tokens: chatBody.maxTokens || 1000,
+        max_tokens: chatBody.maxTokens || 2048,
         stream: true,
         dataSources: chatBody.dataSources || [],
         messages: [
@@ -268,21 +268,38 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
 
+            let streamError = false;
             try {
                 while (true) {
                     const {value: chunk, done} = await reader.read();
                     if (done) {
-                        // Ensure the end of the parser is dealt with
-                        //parser.finish();
+                        // Stream completed successfully
                         break;
                     }
                     parser.feed(decoder.decode(chunk));
                 }
             } catch (e) {
+                console.error('Stream error:', e);
+                console.error('Stream error details:', {
+                    name: (e as any)?.name,
+                    message: (e as any)?.message,
+                    code: (e as any)?.code,
+                    type: (e as any)?.type,
+                    stack: (e as any)?.stack
+                });
+                streamError = true;
                 controller.error(e);
             } finally {
-                await reader.cancel();
-                reader.releaseLock(); 
+                // Only cancel the reader if there was an error
+                // Canceling on success causes ERR_HTTP2_PROTOCOL_ERROR
+                if (streamError) {
+                    try {
+                        await reader.cancel();
+                    } catch (cancelError) {
+                        console.warn('Error canceling reader:', cancelError);
+                    }
+                }
+                reader.releaseLock();
             }
 
             controller.close();

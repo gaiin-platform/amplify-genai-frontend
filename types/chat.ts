@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import {WorkflowDefinition} from "@/types/workflow";
 import { Artifact } from './artifacts';
 import { messageTopicData } from './topics';
+import { SkillSelectionMode } from './skill';
 
 export interface Message {
   role: Role;
@@ -15,6 +16,18 @@ export interface Message {
   topicData?: messageTopicData;
   configuredTools?: any[];
   timestamp?: string; // ISO timestamp for when the message was created
+  // Tool-related fields for MCP and function calling
+  tool_calls?: ToolCall[];
+  tool_call_id?: string; // For tool response messages
+}
+
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
 }
 
 export enum MessageType {
@@ -38,7 +51,7 @@ export const newMessage = (data: any) => {
   }
 }
 
-export type Role = 'assistant' | 'user' | 'system';
+export type Role = 'assistant' | 'user' | 'system' | 'tool';
 
 export type CustomFunction = {
   name: string;
@@ -115,6 +128,18 @@ export interface ChatBody {
   [key: string]: any;
   codeInterpreterAssistantId?: string;
   projectId?: string;
+  tools?: any[]; // Tool definitions in OpenAI function format
+  enableWebSearch?: boolean; // Enable backend web search tool execution
+  // Skills integration
+  skills?: string[]; // Array of skill IDs to use for this request
+  skillSelectionMode?: SkillSelectionMode; // 'manual', 'auto', or 'hybrid'
+}
+
+export interface ConversationContextEntry {
+  conversationId: string;
+  /** 'all' = entire conversation, 'selected' = only the listed messageIds */
+  mode: 'all' | 'selected';
+  selectedMessageIds?: string[];
 }
 
 export interface Conversation {
@@ -137,4 +162,7 @@ export interface Conversation {
   artifacts?:  { [key: string]: Artifact[]};
   projectId?: string;
   date?: string;
+  removedDocumentIds?: string[];
+  /** Cross-conversation context entries — messages from other conversations injected at send time */
+  contextConversations?: ConversationContextEntry[];
 }

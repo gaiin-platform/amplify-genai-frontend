@@ -1,64 +1,126 @@
 import { IconPlus } from '@tabler/icons-react';
-import {FC, useContext} from 'react';
+import { FC, useContext, useState } from 'react';
 import { getDocument, PDFDocumentProxy, Util } from './JsPDF'
 import * as pdfjs from './JsPDF'
 import readXlsxFile from 'read-excel-file'
 import mammoth from "mammoth";
 import { useTranslation } from 'next-i18next';
-import JSZip from "jszip";
 import { v4 as uuidv4 } from 'uuid';
-import {AttachedDocument, AttachedDocumentMetadata} from '@/types/attacheddocument';
-import {addFile, checkContentReady, deleteFile} from "@/services/fileService";
+import { AttachedDocument, AttachedDocumentMetadata } from '@/types/attacheddocument';
+import { addFile, checkContentReady, deleteFile } from "@/services/fileService";
+import { getMimeTypeFromExtension } from '@/utils/app/fileTypeTranslations';
 import HomeContext from "@/pages/api/home/home.context";
 import React from 'react';
 import { resolveRagEnabled } from '@/types/features';
+import { processInputFiles } from '@/utils/fileHandler';
+import { ConfirmModal } from '../ReusableComponents/ConfirmModal';
+import { extractSensitivityLabel } from '@/utils/app/files';
+import { VIDEO_FILE_TYPES } from '@/utils/app/const';
 
 interface Props {
     onAttach: (data: AttachedDocument) => void;
     onUploadProgress?: (data: AttachedDocument, progress: number) => void;
-    onSetKey?: (data:AttachedDocument, key:string) => void;
-    onSetMetadata?: (data:AttachedDocument, metadata:any) => void;
-    onSetAbortController?: (data:AttachedDocument, abortController:AbortController) => void;
-    id:string;
-    disallowedFileExtensions?:string[];
-    allowedFileExtensions?:string[];
-    groupId?:string;
-    disableRag?:boolean;
-    className?:string;
-    props?:any;
+    onSetKey?: (data: AttachedDocument, key: string) => void;
+    onSetMetadata?: (data: AttachedDocument, metadata: any) => void;
+    onSetAbortController?: (data: AttachedDocument, abortController: AbortController) => void;
+    id: string;
+    disallowedFileExtensions?: string[];
+    allowedFileExtensions?: string[];
+    groupId?: string;
+    disableRag?: boolean;
+    className?: string;
+    props?: any;
 }
 
 
-const cleanUpFile = async (key:string) => {
+const cleanUpFile = async (key: string) => {
     const result = await deleteFile(key);
     console.log("Delete file result", result);
 }
 
-export const handleFile = async (file:any,
-                          onAttach:any,
-                          onUploadProgress:any,
-                          onSetKey:any,
-                          onSetMetadata:any,
-                          onSetAbortController:any,
-                          uploadDocuments:boolean,
-                        //   extractDocumentsLocally:boolean,
-                        groupId:string | undefined, 
-                        ragEnabled:boolean,
-                        props:any = {}
-                      ) => {
+export const handleFile = async (file: any,
+    onAttach: any,
+    onUploadProgress: any,
+    onSetKey: any,
+    onSetMetadata: any,
+    onSetAbortController: any,
+    uploadDocuments: boolean,
+    //   extractDocumentsLocally:boolean,
+    groupId: string | undefined,
+    ragEnabled: boolean,
+    props: any = {},
+    tags: string[] = [],
+    onSensitivityBlock?: (fileName: string, labelName: string) => void
+) => {
 
     try {
-        let type:string = file.type;
+        // SECURITY CHECK: Extract and check Microsoft Information Protection (MIP) sensitivity label
+        // This checks Office files (.docx, .xlsx, .pptx) for embedded sensitivity labels
+        // and blocks Level 4 (Critical/Confidential) files from being uploaded
+        const sensitivityInfo = await extractSensitivityLabel(file);
+
+        if (sensitivityInfo) {
+            console.log(`[SENSITIVITY CHECK] File "${file.name}" has sensitivity level ${sensitivityInfo.level}: ${sensitivityInfo.labelName}`);
+
+            if (sensitivityInfo.level === 4) {
+                console.warn(`[SENSITIVITY CHECK] 🚫 BLOCKED Level 4 file upload attempt: ${file.name}`);
+
+                // Use callback if provided, otherwise fall back to alert
+                if (onSensitivityBlock) {
+                    onSensitivityBlock(file.name, sensitivityInfo.labelName);
+                } else {
+                    alert(
+                        `can not upload "${file.name}"\n\n` +
+                        `This file is marked as "${sensitivityInfo.labelName}" and contains sensitive data that should not be uploaded to Amplify.\n\n` +
+                        `Level 4 (Critical/Confidential) files are restricted for security compliance.`
+                    );
+                }
+                return; // Exit immediately - do not upload
+            }
+        }
+
+        let type: string = file.type;
         const extension = file.name.split('.').pop()?.toLowerCase();
 
-      if (!type && ((extension === 'ts' || extension === 'tsx') || (extension === 'ps1'))) {
-            type = 'application/octet-stream'; // AWS S3 expects typescript files to be this type
+        console.log(`[FILE UPLOAD DEBUG] Initial file.type: "${file.type}", extension: "${extension}", fileName: "${file.name}"`);
+
+        // If no type is detected, try to infer it from the file extension
+        if (!type) {
+            type = getMimeTypeFromExtension(extension || '');
+            console.log(`[FILE UPLOAD DEBUG] Inferred type from extension: "${type}"`);
         }
 
         let size = file.size;
         const fileName = file.name.replace(/[_\s]+/g, '_');;
 
-        let document:AttachedDocument = {id:uuidv4(), name: fileName, type:file.type, raw:"", data: props, groupId};
+        // Extract video duration using browser's native HTMLVideoElement (no extra libs needed)
+        let videoDurationSeconds: number | undefined = undefined;
+        if (VIDEO_FILE_TYPES.includes(type)) {
+            try {
+                const objectUrl = URL.createObjectURL(file);
+                const videoEl = window.document.createElement('video');
+                videoEl.preload = 'metadata';
+                videoDurationSeconds = await new Promise<number>((resolve) => {
+                    videoEl.onloadedmetadata = () => {
+                        resolve(isFinite(videoEl.duration) ? videoEl.duration : 0);
+                        URL.revokeObjectURL(objectUrl);
+                    };
+                    videoEl.onerror = () => { resolve(0); URL.revokeObjectURL(objectUrl); };
+                    videoEl.src = objectUrl;
+                });
+                console.log(`[VIDEO DURATION] Extracted duration: ${videoDurationSeconds}s for ${fileName}`);
+            } catch (e) {
+                console.warn('[VIDEO DURATION] Failed to extract video duration:', e);
+                videoDurationSeconds = 0;
+            }
+        }
+
+        const dataProps = videoDurationSeconds !== undefined
+            ? { ...props, durationSeconds: videoDurationSeconds }
+            : props;
+
+        let document: AttachedDocument = { id: uuidv4(), name: fileName, type: type, raw: "", data: dataProps, groupId };
+        console.log(`document.type: "${document.type}"`);
         console.log("document", document);
         console.log("file", file);
 
@@ -76,14 +138,14 @@ export const handleFile = async (file:any,
 
         if (Array.isArray(document)) {
             document.forEach(
-                (doc)=>onAttach(doc)
+                (doc) => onAttach(doc)
             )
         } else {
             onAttach(document);
         }
         let docKey = null;
         let cleanupPerformed = false;
-        
+
         const safeCleanUp = async (key: string) => {
             if (!cleanupPerformed && key) {
                 cleanupPerformed = true;
@@ -91,11 +153,10 @@ export const handleFile = async (file:any,
                 await cleanUpFile(key);
             }
         };
-        
+
         if (uploadDocuments) {
             try {
-
-                const {key, response, statusUrl, metadataUrl, contentUrl, abortController} = await addFile(document, file,
+                const { key, response, statusUrl, metadataUrl, contentUrl, abortController } = await addFile(document, file,
                     (progress: number) => {
                         if (onUploadProgress && progress < 95) {
                             onUploadProgress(document, progress);
@@ -103,29 +164,31 @@ export const handleFile = async (file:any,
                         else if (onUploadProgress && progress >= 95) {
                             onUploadProgress(document, 95);
                         }
-                    }, ragEnabled);
+                    }, ragEnabled, tags);
+                console.log('[UPLOAD DEBUG] addFile returned - key:', key, 'metadataUrl:', metadataUrl, 'statusUrl:', statusUrl);
                 docKey = key;
                 if (onSetAbortController) onSetAbortController(document, () => {
-                                            abortController?.abort()                                    
-                                            // Only set cleanup timeout if not already aborted
-                                            if (!abortController?.signal?.aborted) {
-                                              console.log("Deleting file from server in 45 seconds", key);
-                                                setTimeout(async () => {
-                                                    safeCleanUp(key);
-                                                }, 45000);
-                                            }
-                                          });
+                    abortController?.abort()
+                    // Only set cleanup timeout if not already aborted
+                    if (!abortController?.signal?.aborted) {
+                        console.log("Deleting file from server in 45 seconds", key);
+                        setTimeout(async () => {
+                            safeCleanUp(key);
+                        }, 45000);
+                    }
+                });
 
                 if (onSetKey) {
                     document.key = key;
                     onSetKey(document, key);
                 }
 
+                console.log('[UPLOAD DEBUG] Waiting for S3 upload response...');
                 await response;
-                                    
+                console.log('[UPLOAD DEBUG] S3 upload complete. Polling metadataUrl:', metadataUrl);
                 const readyStatus = await checkContentReady(metadataUrl, 120, abortController);
 
-                if (readyStatus && readyStatus.success){
+                if (readyStatus && readyStatus.success) {
 
                     if (readyStatus.metadata) {
                         // console.log("metadata", readyStatus.metadata);
@@ -133,7 +196,7 @@ export const handleFile = async (file:any,
 
                         // Check if document.metadata exists and has the key "totalItems"
                         if (document.metadata) {
-                            if (!document.metadata.isImage && (!(document.metadata.totalItems) || document.metadata.totalItems < 1)) {
+                            if (!document.metadata.isImage && !(document.metadata as any).isVideo && (!(document.metadata.totalItems) || document.metadata.totalItems < 1)) {
                                 alert("I was unable to extract any text from the provided document. If this is a PDF, please OCR the PDF before uploading it.");
                             }
                         }
@@ -143,11 +206,12 @@ export const handleFile = async (file:any,
 
                     onUploadProgress(document, 100);
                 } else if (!abortController?.signal?.aborted) {
-                  alert("Upload failed");
-                  safeCleanUp(key);
+                    alert("Upload failed");
+                    safeCleanUp(key);
                 }
             }
             catch (e) {
+                console.error('[UPLOAD DEBUG] Error in upload flow:', e);
                 // @ts-ignore
                 if (e.message !== 'Abort') {
                     alert("Upload file aborted");
@@ -166,84 +230,99 @@ export const handleFile = async (file:any,
     }
 }
 
-export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetadata, onSetKey , onSetAbortController, allowedFileExtensions, disallowedFileExtensions, groupId, disableRag, className = "", props = {}}) => {
+export const AttachFile: FC<Props> = ({ id, onAttach, onUploadProgress, onSetMetadata, onSetKey, onSetAbortController, allowedFileExtensions, disallowedFileExtensions, groupId, disableRag, className = "", props = {} }) => {
     const { t } = useTranslation('sidebar');
 
-    const {state: { featureFlags, statsService, ragOn } } = useContext(HomeContext);
+    const { state: { featureFlags, statsService, ragOn } } = useContext(HomeContext);
 
     const uploadDocuments = featureFlags.uploadDocuments;
 
+    // State for sensitivity block modal
+    const [blockedFile, setBlockedFile] = useState<{ fileName: string; labelName: string } | null>(null);
+
+    const handleSensitivityBlock = (fileName: string, labelName: string) => {
+        setBlockedFile({ fileName, labelName });
+    };
+
     return (
         <>
-          <input
-            id={id}
-            className="sr-only"
-            tabIndex={-1}
-            type="file"
-            accept="*"
-            multiple 
-            onChange={(e) => {
-              if (!e.target.files?.length) return;
-    
-              // Changed to handle multiple files
-              const files = Array.from(e.target.files);
-    
-              files.forEach((file) => {
-                const fileName = file.name;
-                const extension = fileName.split('.').pop() || '';
-    
-                if (extension === '') {
-                  alert('This file type is not supported.');
-                  return;
-                }
-    
-                if (extension === 'xls' || extension === 'xlsm') {
-                  alert('This file type is not supported. Please save the file as xlsx.');
-                  return;
-                }
-    
-                if (extension === 'ppt' || extension === 'potx') {
-                  alert('This file type is not supported. Please save the file as pptx.');
-                  return;
-                }
-                
-                if (disallowedFileExtensions && disallowedFileExtensions.includes(extension)) {
-                  alert('This file type is not supported.');
-                  return;
-                }
-    
-                if (allowedFileExtensions && !allowedFileExtensions.includes(extension)) {
-                  alert('This file type is not supported.');
-                  return;
-                }
-    
-                statsService.attachFileEvent(file, uploadDocuments);
-                const ragEnabled = disableRag === undefined ? resolveRagEnabled(featureFlags, ragOn) 
-                                                            : featureFlags.ragEnabled && !disableRag;
-                handleFile(file, onAttach, onUploadProgress, onSetKey, onSetMetadata, onSetAbortController, uploadDocuments, groupId, ragEnabled, props);  //extractDocumentsLocally,
-              });
-    
-              e.target.value = ''; // Clear the input after files are handled
-            }}
-          />
-    
-          <button
-            className={`${className} left-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
-            id="uploadFile"
-            onClick={() => {
-              const importFile = document.querySelector('#' + id) as HTMLInputElement;
-              if (importFile) {
-                importFile.click();
-              }
-            }}
-            onKeyDown={(e) => {}}
-            title="Upload File"
-          >
-            <IconPlus size={20} />
-          </button>
+            <input
+                id={id}
+                className="sr-only"
+                tabIndex={-1}
+                type="file"
+                accept="*"
+                multiple
+                onChange={(e) => {
+                    if (!e.target.files?.length) return;
+
+                    // Changed to handle multiple files
+                    const files = Array.from(e.target.files);
+
+                    // Process files using centralized file processor
+                    processInputFiles(files, {
+                        disallowedExtensions: disallowedFileExtensions,
+                        allowedExtensions: allowedFileExtensions,
+                        onAttach,
+                        onUploadProgress: onUploadProgress ?? (() => { }),
+                        onSetKey: onSetKey ?? (() => { }),
+                        onSetMetadata: onSetMetadata ?? (() => { }),
+                        onSetAbortController: onSetAbortController ?? (() => { }),
+                        onSensitivityBlock: handleSensitivityBlock,
+                        statsService,
+                        featureFlags,
+                        ragOn,
+                        uploadDocuments,
+                        groupId,
+                        disableRag,
+                        props
+                    });
+
+                    e.target.value = ''; // Clear the input after files are handled
+                }}
+            />
+
+            <button
+                className={`${className} left-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200`}
+                id="uploadFile"
+                onClick={() => {
+                    const importFile = document.querySelector('#' + id) as HTMLInputElement;
+                    if (importFile) {
+                        importFile.click();
+                    }
+                }}
+                onKeyDown={(e) => { }}
+                title="Upload File"
+            >
+                <IconPlus size={20} />
+            </button>
+
+            {/* Sensitivity Block Modal */}
+            {blockedFile && (
+                <ConfirmModal
+                    title="🔒 Sensitive File Detected"
+                    message={
+                        <div className="space-y-3">
+                            <p className="font-medium text-gray-900 dark:text-white">
+                                <span className="font-semibold">{blockedFile.fileName}</span> can not be uploaded.
+                            </p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300">
+                                This file is marked as <span className="font-semibold text-red-600 dark:text-red-400">&quot;{blockedFile.labelName}&quot;</span> and contains sensitive data that should not be uploaded to Amplify.
+                            </p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                Level 4 (Critical/Confidential) files are restricted for security compliance.
+                            </p>
+                        </div>
+                    }
+                    confirmLabel="Understood"
+                    onConfirm={() => setBlockedFile(null)}
+                    width={500}
+                    height={280}
+                />
+            )}
         </>
-      );
-    };
+    );
+};
 
 
 

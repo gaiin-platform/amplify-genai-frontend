@@ -221,9 +221,15 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                         <div className="accounts-info-icon">💳</div>
                     </h3>
                     <p className="accounts-info-description">
-                        Add COA strings for billing charges back to specific accounts. 
+                        Add COA strings for billing charges back to specific accounts.
                         Certain features require at least one COA string. You can edit rate limits and must save your changes to apply them.
                     </p>
+                    <div className="mt-3 flex items-start gap-2 rounded-md border border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 dark:border-yellow-600 px-4 py-3">
+                        <span className="text-yellow-600 dark:text-yellow-400 text-lg leading-tight">⚠️</span>
+                        <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                            <strong>Important:</strong> By configuring a rate limit on an account, you acknowledge that usage up to that limit may result in charges. Any spending beyond what is covered under your plan or institution remains your responsibility. Please set limits that reflect your intended usage.
+                        </p>
+                    </div>
                 </div>
             </div>
 

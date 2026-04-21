@@ -29,7 +29,8 @@ const AutoArtifactsBlock: React.FC<Props> = ({content, ready, message}) => {
             chatEndpoint,
             artifactIsStreaming,
             messageIsStreaming,
-            defaultAccount
+            defaultAccount,
+            featureFlags
         },
         dispatch: homeDispatch, handleUpdateSelectedConversation, getDefaultModel
     } = useContext(HomeContext);
@@ -221,9 +222,12 @@ const prepareArtifacts = (jsonContent: string, retry: boolean) => {
             const instr = data.instructions + (data.type ? `This Artifact is expected to be of type: '${data.type}' `: '');
             const includeArtifactsId = data.includeArtifactsId || [];
 
-            const additionalContent =  appendRelevantArtifacts(includeArtifactsId, data.id);
-            // includeArtifactsId
-            getArtifactMessages(instr + additionalContent,  artifactDetail as ArtifactBlockDetail, data.type, messageKey, cooldownKey);
+            const additionalContent = appendRelevantArtifacts(includeArtifactsId, data.id);
+            const webSearchContent = collectRecentWebSearchResults();
+
+            const prompt = `${instr}\n\n${additionalContent}${webSearchContent}`
+
+            getArtifactMessages(prompt,  artifactDetail as ArtifactBlockDetail, data.type, messageKey, cooldownKey);
 
         } catch {
             console.log("error parsing auto artifacts block ");
@@ -238,9 +242,9 @@ const prepareArtifacts = (jsonContent: string, retry: boolean) => {
 
 const appendRelevantArtifacts = (includeArtifactsId: string[], currentId: string) => {
     console.log( "included artifacts: ", includeArtifactsId );
-    let instr = "These are previous artifacts that may or may not be useful for you to look at:\n"; 
+    let instr = "These are previous artifacts that may or may not be useful for you to look at:\n";
     let versionInstr = '\n\n';
-    if ( selectedConversation && includeArtifactsId.length > 0 || 
+    if ( selectedConversation && includeArtifactsId.length > 0 ||
        (selectedConversation?.artifacts && selectedConversation.artifacts[currentId])) {
         if (!includeArtifactsId.includes(currentId)) includeArtifactsId.push(currentId);
        includeArtifactsId.forEach((id: string) => {
@@ -250,11 +254,11 @@ const appendRelevantArtifacts = (includeArtifactsId: string[], currentId: string
             const content = lzwUncompress(lastArtifact);
             if (id === currentId) {
                 versionInstr += ARTIFACT_VERSION_INSTRUCTIONS + '\nArtifact Context split up into parts:\n';
-                let contentList: string[] = extractCodeBlocksAndText(content).map((detail: CodeBlockDetails) => 
+                let contentList: string[] = extractCodeBlocksAndText(content).map((detail: CodeBlockDetails) =>
                                                                                    detail.extension === ".txt" ? detail.code :
-                                                                                   `\`\`\`${detail.language} \n${detail.code} \n\`\`\` `    
+                                                                                   `\`\`\`${detail.language} \n${detail.code} \n\`\`\` `
                                                                                    );
-                                                                                    
+
                 if (contentList.length > 0){
                     const contentMap: {[key:string]:string} = {};
                     contentList.forEach((part: string, index: number) => contentMap[`A${index}`] = part );
@@ -262,14 +266,62 @@ const appendRelevantArtifacts = (includeArtifactsId: string[], currentId: string
                     console.log("CONTENT MAP: ", contentMap )
                     versionInstr += JSON.stringify(contentMap);
                 }
-               
+
             } else {
                 instr += `Artifact ID: ${id}, Content: ${content}\n\n`;
             }
         }
         });
-    } 
+    }
     return instr + versionInstr;
+}
+
+const collectRecentWebSearchResults = (): string => {
+    if (!featureFlags.webSearch || !selectedConversation?.messages) {
+        return "";
+    }
+
+    // Get last 3 assistant messages with web search results
+    const assistantMessages = selectedConversation.messages
+        .filter(msg => msg.role === 'assistant')
+        .slice(-3)
+        .reverse(); // Most recent first
+
+    const webSearchResults: Array<{
+        name: string;
+        url: string;
+        content: string;
+    }> = [];
+
+    // Collect all web search sources from these messages
+    for (const msg of assistantMessages) {
+        const sources = msg.data?.state?.sources?.webSearch?.sources;
+        if (sources && Array.isArray(sources)) {
+            sources.forEach((source: any) => {
+                // Avoid duplicates by checking URL
+                if (!webSearchResults.some(existing => existing.url === source.url)) {
+                    webSearchResults.push({
+                        name: source.name || 'Unknown Source',
+                        url: source.url || '',
+                        content: source.content || ''
+                    });
+                }
+            });
+        }
+    }
+
+    if (webSearchResults.length === 0) {
+        return "";
+    }
+
+    // Format as supplemental context for the LLM
+    const formattedResults = webSearchResults
+        .map((source, index) =>
+            `[${index + 1}] ${source.name}\nURL: ${source.url}\nContent: ${source.content}`
+        )
+        .join('\n\n---\n\n');
+    console.log("Formatted Results: ", formattedResults);
+    return `\n\nSupplemental Web Search Results:\n\n${formattedResults}`;
 }
 
 

@@ -1,5 +1,5 @@
-import { IconFileExport, IconPuzzle, IconBinaryTree2, IconApps, IconSettings, IconHelp, IconCloud, IconRobot, IconUser, IconSettingsBolt, IconDeviceSdCard, IconTools, IconAlarm, IconUsers, IconBuildingCommunity } from '@tabler/icons-react';
-import { useContext, useEffect, useRef, useState } from 'react';
+import { IconFileExport, IconPuzzle, IconBinaryTree2, IconApps, IconSettings, IconHelp, IconCloud, IconRobot, IconUser, IconSettingsBolt, IconDeviceSdCard, IconTools, IconAlarm, IconUsers, IconBuildingCommunity, IconSearch, IconBook, IconBrain } from '@tabler/icons-react';
+import { useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 
 
@@ -18,6 +18,7 @@ import { PythonFunctionModal } from '@/components/Operations/PythonFunctionModal
 import { AssistantWorkflowBuilder } from '@/components/AssistantWorkflows/AssistantWorkflowBuilder';
 import { ScheduledTasks } from '@/components/Agent/ScheduledTasks';
 import { ScheduledTask } from '@/types/scheduledTasks';
+import { SkillsLibrary } from '@/components/Skills';
 
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
@@ -26,10 +27,11 @@ export const ChatbarSettings = () => {
     const [isPyFunctionApiOpen, setIsPyFunctionApiOpen] = useState(false);
     const [isWorkflowBuilderOpen, setIsWorkflowBuilderOpen] = useState(false);
     const [isScheduledTasksOpen, setIsScheduledTasksOpen] = useState(false);
+    const [isSkillsLibraryOpen, setIsSkillsLibraryOpen] = useState(false);
     const initTaskRef = useRef<ScheduledTask | undefined>(undefined);
 
     const {
-        state: { featureFlags, syncingPrompts },
+        state: { featureFlags, syncingPrompts, canAddWebSearchApiKey, userDocumentationUrl, chatEndpoint },
     } = useContext(HomeContext);
 
     let settingRef = useRef<Settings | null>(null);
@@ -57,6 +59,21 @@ export const ChatbarSettings = () => {
         handleExportData,
     } = useContext(ChatbarContext);
 
+    const handleAssistantGroupInterfaceClick = useCallback(() => {
+        try {
+            // Dispatch the event with proper configuration
+            const event = new CustomEvent('openAstAdminInterfaceTrigger', { 
+                detail: { isOpen: true },
+                bubbles: true,
+                cancelable: true
+            });
+            
+            window.dispatchEvent(event);
+        } catch (error) {
+            // console.error('Failed to dispatch openAstAdminInterfaceTrigger event:', error);
+        }
+    }, []);
+
     return (
         <div className="slide-in flex flex-col items-center space-y-0 m-0 p-0 border-t dark:border-white/20 pt-1 text-sm">   
 
@@ -68,7 +85,6 @@ export const ChatbarSettings = () => {
                     onClick={() => {
                         // send trigger to close side bars and open the interface
                         window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', { detail: { isOpen: true }} ));
-
                     }}
                 />
             }
@@ -142,6 +158,55 @@ export const ChatbarSettings = () => {
                 </>
             )}
 
+            {/* Skills Library */}
+            {featureFlags.skills && (
+                <>
+                <SidebarButton
+                    text={t('Skills')}
+                    icon={<IconBrain size={18} />}
+                    onClick={() => setIsSkillsLibraryOpen(true)}
+                />
+                {isSkillsLibraryOpen && chatEndpoint && (
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                        <div className="w-full max-w-5xl h-[85vh] bg-white dark:bg-[#343541] rounded-lg shadow-2xl overflow-hidden">
+                            <SkillsLibrary chatEndpoint={chatEndpoint} onClose={() => setIsSkillsLibraryOpen(false)} />
+                        </div>
+                        <button
+                            onClick={() => setIsSkillsLibraryOpen(false)}
+                            className="absolute top-4 right-4 p-2 text-white bg-black/50 hover:bg-black/70 rounded-full"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                )}
+                </>
+            )}
+
+            {/* Web Search API Keys */}
+            {featureFlags.webSearch && canAddWebSearchApiKey &&(
+                <SidebarButton
+                    text={t('Web Search')}
+                    icon={<IconSearch size={18} />}
+                    onClick={() => {
+                        window.dispatchEvent(new CustomEvent('openSettingsTrigger', {
+                            detail: { openToTab: "Integrations:Web Search" }
+                        }));
+                    }}
+                />
+            )}
+
+            {/* User Documentation */}
+            {featureFlags.userDocumentation && userDocumentationUrl && (
+                <SidebarButton
+                    text={t('Documentation')}
+                    icon={<IconBook size={18} />}
+                    onClick={() => {
+                        window.open(userDocumentationUrl, '_blank', 'noopener,noreferrer');
+                    }}
+                />
+            )}
 
             <Import onImport={handleImportConversations} />
 

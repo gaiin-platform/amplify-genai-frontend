@@ -7,6 +7,7 @@ import { featureOptionFlags, getSettings, saveSettings } from '@/utils/app/setti
 import { Settings, Theme } from '@/types/settings';
 
 import HomeContext from '@/pages/api/home/home.context';
+import { ThemeService } from '@/utils/whiteLabel/themeService';
 import React from 'react';
 import { ConversationsStorage } from './ConversationStorage';
 import FlagsMap, { Flag } from '../ReusableComponents/FlagsMap';
@@ -23,9 +24,11 @@ import { IntegrationTabs } from '../Integrations/IntegrationsTab';
 import { ApiKeys } from './AccountComponents/ApiKeys';
 import { Accounts } from './AccountComponents/Account';
 import { CanvasIntegration } from './AccountComponents/CanvasIntegration';
+import { MCPServersTab } from './MCPServersTab';
 import { Account, noCoaAccount } from '@/types/accounts';
 import { getAccounts } from '@/services/accountService';
 import { noRateLimit } from '@/types/rateLimit';
+import { DataDisclosureViewer } from './DataDisclosureViewer';
 
   interface Props {
   open: boolean;
@@ -89,6 +92,9 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
   let initSettingsRef = useRef<Settings | null>(null);
   // prevent recalling the getSettings function
   if (initSettingsRef.current === null) initSettingsRef.current = getSettings(featureFlags);
+
+  // Parse openToTab for sub-tab navigation (e.g., "Integrations:Web Search")
+  const [mainTab, subTab] = openToTab ? openToTab.split(':') : [undefined, undefined];
 
   useEffect(() => {
     initSettingsRef.current = getSettings(featureFlags);
@@ -179,9 +185,9 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
 
   }, [theme, featureOptions, hiddenModelIds])
 
-
-
   const handleSave = async () => {
+    // Confirmation is handled in ConversationStorage component
+
     window.dispatchEvent(new Event('settingsSave'));
     if (!hasUnsavedChanges) return;
     if (Object.values(allAvailableModels).every((model: Model) => hiddenModelIds.includes(model.id) || model.id === defaultModelId)) {
@@ -189,7 +195,10 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
         return;
     }
 
-    if (theme !== initSettingsRef.current?.theme) statsService.setThemeEvent(theme);
+    if (theme !== initSettingsRef.current?.theme) {
+      statsService.setThemeEvent(theme);
+      ThemeService.setTheme(theme); // Persist theme preference
+    }
     homeDispatch({ field: 'lightMode', value: theme });
 
     const updatedSettings: Settings = { theme: theme, 
@@ -270,9 +279,12 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
 
     const [accountsUnsavedChanges, setAccountsUnsavedChanges] = useState(false);
     const [apiUnsavedChanges, setApiUnsavedChanges] = useState(false);
+    const [mcpUnsavedChanges, setMcpUnsavedChanges] = useState(false);
+    const [storageUnsavedChanges, setStorageUnsavedChanges] = useState(false);
+    const [pendingStorageSelection, setPendingStorageSelection] = useState<string | null>(null);
    
     const handleClose = () => {
-      if ((accountsUnsavedChanges || apiUnsavedChanges || hasUnsavedChanges) && !confirm("You have unsaved changes.\n\nYou will lose any unsaved data, would you still like to close Settings?")) return;
+      if ((accountsUnsavedChanges || apiUnsavedChanges || mcpUnsavedChanges || storageUnsavedChanges || hasUnsavedChanges) && !confirm("You have unsaved changes.\n\nYou will lose any unsaved data, would you still like to close Settings?")) return;
       
       // Reset all state variables to their original values when closing
       if (initSettingsRef.current) {
@@ -284,6 +296,9 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
       window.dispatchEvent(new Event('cleanupApiKeys'));
       setAccountsUnsavedChanges(false);
       setApiUnsavedChanges(false);
+      setMcpUnsavedChanges(false);
+      setStorageUnsavedChanges(false);
+      setPendingStorageSelection(null);
       setHasUnsavedChanges(false);
       onClose();
       
@@ -320,12 +335,17 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
         }
     }, [open]);
 
-    useEffect(() => {
-      window.dispatchEvent(new Event('cleanupApiKeys'));
-    }, [trackTab]);
+    // Removed cleanup event from tab switch - only cleanup on modal close
+    // useEffect(() => {
+    //   window.dispatchEvent(new Event('cleanupApiKeys'));
+    // }, [trackTab]);
 
     const otherChanges = () => {
-    return accountsUnsavedChanges || apiUnsavedChanges;
+    return accountsUnsavedChanges || apiUnsavedChanges || mcpUnsavedChanges || storageUnsavedChanges;
+    }
+
+    const disableSubmit = () => {
+      return !hasUnsavedChanges && !otherChanges();
     }
 
 
@@ -343,13 +363,14 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
       onSubmit={() => handleSave()
       }
       submitLabel={"Save"}
-      disableSubmit={!hasUnsavedChanges && !otherChanges()}
+      cancelLabel={disableSubmit() ? "Close" : "Cancel"}
+      disableSubmit={disableSubmit()}
       disableClickOutside={true}
       content={
         <>
         <ActiveTabs
             id="SettingsTabs"
-            initialActiveTab={openToTab}
+            initialActiveTab={mainTab}
             onTabChange={(tabIndex: number) => setTrackTab(tabIndex)}
             tabs={[
       
@@ -494,12 +515,12 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                   }] : [] ),
               ///////////////////////////////////////////////////////////////////////////////
               // API Access Tab
-              ...(featureFlags.apiKeys ? [{label: `API Access${apiUnsavedChanges ? " *" : ""}`, 
+              ...(featureFlags.apiKeys ? [{label: `API Access${apiUnsavedChanges ? " *" : ""}`,
                   title: "Manage your API keys",
                   content:
                   <ApiKeys
                       setUnsavedChanges={setApiUnsavedChanges}
-                      onClose={close}
+                      onClose={handleClose}
                       accounts={accounts}
                       defaultAccount={defaultAccount}
                       open={open}
@@ -508,9 +529,16 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
 
               ///////////////////////////////////////////////////////////////////////////////
               // Integrations Tab
-              ...(featureFlags.integrations ? [{label: `Integrations`, 
+              ...(featureFlags.integrations ? [{label: `Integrations`,
                 title: "Manage your integration connections",
-                content: <IntegrationTabs open={open} depth={1}/>
+                content: <IntegrationTabs open={open} depth={1} openToSubTab={subTab}/>
+              }] : []),
+
+              ///////////////////////////////////////////////////////////////////////////////
+              // MCP Servers Tab
+              ...(featureFlags.mcp ? [{label: `MCP Servers${mcpUnsavedChanges ? " *" : ""}`,
+                title: mcpUnsavedChanges ? "Contains unsaved form data" : "Connect to MCP servers for extended tool capabilities",
+                content: <MCPServersTab open={open} setUnsavedChanges={setMcpUnsavedChanges}/>
               }] : []),
 
               ///////////////////////////////////////////////////////////////////////////////
@@ -523,15 +551,33 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
               ///////////////////////////////////////////////////////////////////////////////
               // Conversation Storage
         
-                {label: `Conversation Storage`, 
-                  title: "Enable conversations to sync across devices or keep them priavte",
+                {label: `Conversation Storage${storageUnsavedChanges ? " *" : ""}`, 
+                  title: "Enable conversations to sync across devices or keep them private",
                   content: <>
-                    {featureFlags.storeCloudConversations && 
-                          <ConversationsStorage open={open} />
+                    {featureFlags.storeCloudConversations &&
+                          <ConversationsStorage
+                            open={open}
+                            setUnsavedChanges={setStorageUnsavedChanges}
+                            pendingSelection={pendingStorageSelection}
+                            setPendingSelection={setPendingStorageSelection}
+                          />
                         }
                   </>
                   
                 },
+                 ///////////////////////////////////////////////////////////////////////////////
+                // Review Data Disclosure
+          
+                {label: `Review Data Disclosure`, 
+                  title: "Review the Amplify data disclosure",
+                  content: <>
+                    {featureFlags.dataDisclosure  && 
+                          <DataDisclosureViewer open={open} />
+                        }
+                  </>
+                  
+                },
+
               ///////////////////////////////////////////////////////////////////////////////
               // Legacy Workspaces
               ...(workspaces && workspaces.length > 0 ? 
@@ -591,7 +637,8 @@ const renderModelPricing = (availableModels: Record<ModelKey, any[]>) => {
                       >
                         <label className="px-2">{model.name}</label>
                       </td>
-                      {["inputTokenCost", "outputTokenCost", "cachedTokenCost"].map((s: string, idx: number) => (
+                      {["inputTokenCost", "outputTokenCost", "inputCachedTokenCost", "inputWriteCachedTokenCost"]
+                        .map((s: string, idx: number) => (
                         <td
                           key={idx}
                           className="border border-neutral-500 py-2"

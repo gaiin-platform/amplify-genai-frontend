@@ -11,18 +11,19 @@ import React from "react";
 import { ActiveTabs } from "../ReusableComponents/ActiveTabs";
 import { OpDef } from "@/types/op";
 import { AMPLIFY_ASSISTANTS_GROUP_NAME } from "@/utils/app/amplifyAssistants";
-import { noRateLimit, PeriodType, RateLimit, rateLimitObj } from "@/types/rateLimit";
+import { noRateLimit, normalizeRateLimits, RateLimit, RateLimits } from "@/types/rateLimit";
 import { adminTabHasChanges} from "@/utils/app/admin";
 import { OpenAIEndpointsTab } from "./AdminComponents/OpenAIEndpoints";
 import { FeatureFlagsTab } from "./AdminComponents/FeatureFlags";
 import { emptySupportedModel, SupportedModelsTab } from "./AdminComponents/SupportedModels";
 import { ConfigurationsTab } from "./AdminComponents/Configurations";
-import { Integration, IntegrationProviders, integrationProvidersList, IntegrationSecretsMap, IntegrationsMap } from "@/types/integrations";
+import { Integration, IntegrationProviders, integrationProviders, integrationProvidersList, IntegrationSecretsMap, IntegrationsMap, ProviderSettingsMap, AdminWebSearchConfig } from "@/types/integrations";
 import { checkActiveIntegrations } from "@/services/oauthIntegrationsService";
 import { IntegrationsTab } from "./AdminComponents/Integrations";
 import { EmbeddingsTab } from "./AdminComponents/Embeddings";
 import { OpsTab } from "./AdminComponents/Ops";
 import { Pptx_TEMPLATES, Ast_Group_Data, FeatureDataTab, } from "./AdminComponents/FeatureData";
+import { CriticalErrorTrackingTab } from "./AdminComponents/Critical_Error_Tracking";
 import { ConversationStorage } from "@/types/conversationStorage";
 
 
@@ -63,9 +64,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [admins, setAdmins] = useState<string[]>([]);  
     const [allEmails, setAllEmails] = useState<Array<string> | null>(null);
 
-    const [rateLimit, setRateLimit] = useState<{period: PeriodType, rate: string}>({...noRateLimit, rate: '0'});
+    const [rateLimits, setRateLimits] = useState<RateLimits>([]);
     const [promptCostAlert, setPromptCostAlert] = useState<PromptCostAlert>({isActive:false, alertMessage: '', cost: 0});
     const [emailSupport, setEmailSupport] = useState<EmailSupport>({isActive:false, email:''});
+    const [criticalErrorsConfig, setCriticalErrorsConfig] = useState<CriticalErrorsConfig>({isActive:false, email:''});
     const [aiEmailDomain, setAiEmailDomain] = useState<string>('');
 
     const [defaultConversationStorage, setDefaultConversationStorage] = useState<ConversationStorage>('future-local');
@@ -75,8 +77,9 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     const [features, setFeatures] = useState<FeatureFlagConfig>({}); 
 
-    const [appVars, setAppVars] = useState<{ [key: string]: string }>({});    
-    const [appSecrets, setAppSecrets] = useState<{ [key: string]: string }>({});  
+    const [appVars, setAppVars] = useState<{ [key: string]: string }>({});
+    const [appSecrets, setAppSecrets] = useState<{ [key: string]: string }>({});
+    const [userDocumentationUrl, setUserDocumentationUrl] = useState<string>('');
     const [refreshingTypes, setRefreshingTypes] = useState< AdminConfigTypes[]>([]);
 
 
@@ -96,6 +99,9 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     const [integrations, setIntegrations] = useState<IntegrationsMap | null >(null);
     const [integrationSecrets, setIntegrationSecrets] = useState<IntegrationSecretsMap>({});
+    const [providerSettings, setProviderSettings] = useState<ProviderSettingsMap>({});
+    const [webSearchConfig, setWebSearchConfig] = useState<AdminWebSearchConfig | null>(null);
+    const [hasChildModalOpen, setHasChildModalOpen] = useState<boolean>(false);
 
     const mergeIntegrationLists = ( supported: Integration[] | undefined,
                                     baseIntegrations: Integration[] | undefined ): Integration[] => {
@@ -137,7 +143,6 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
        
         const getConfigs = async () => {
             setLoadData(false);
-                //   statsService.openSettingsEvent(); 
             setLoadingMessage("Loading Admin Interface...");
             setStillLoadingData(true);
             const nonlazyReq = getAdminConfigs(); // start longer call
@@ -148,17 +153,53 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 setAdmins(data[AdminConfigTypes.ADMINS] || []);
                 const featureData = data[AdminConfigTypes.FEATURE_FLAGS];
                 setFeatures(featureData || {});
-                // handle calls to integrations 
-                if (Object.keys(featureData).includes('integrations')) getActiveIntegrations(data[AdminConfigTypes.INTEGRATIONS]); // async no need to wait
+                // handle calls to integrations
+                if (Object.keys(featureData).includes('integrations')) {
+                    const integrationsData = data[AdminConfigTypes.INTEGRATIONS];
+                    if (integrationsData) {
+                        // Support nested structure with backwards compatibility
+                        const integrationsList = integrationsData.integrations || integrationsData;
+                        let providerSettingsData = integrationsData.provider_settings || {};
+
+                        // Ensure provider_settings are fully populated with defaults for providers that have settings
+                        const integrationProviderKeys = Object.keys(integrationsList);
+                        integrationProviderKeys.forEach((provider) => {
+                            // Only populate settings for providers that have defined settings
+                            if (provider === integrationProviders.Microsoft) {
+                                if (!providerSettingsData[provider]) {
+                                    providerSettingsData[provider] = {};
+                                }
+                                if (providerSettingsData[provider].azure_admin_consent_provided === undefined) {
+                                    providerSettingsData[provider].azure_admin_consent_provided = false;
+                                }
+                            }
+                            // Future: Add defaults for other providers here when they have settings
+                            // if (provider === 'google') {
+                            //     if (!providerSettingsData[provider]) {
+                            //         providerSettingsData[provider] = {};
+                            //     }
+                            //     if (providerSettingsData[provider].some_google_setting === undefined) {
+                            //         providerSettingsData[provider].some_google_setting = false;
+                            //     }
+                            // }
+                        });
+
+                        getActiveIntegrations(integrationsList);
+                        setProviderSettings(providerSettingsData);
+                    }
+                }
 
                 setAmpGroups(data[AdminConfigTypes.AMPLIFY_GROUPS] || {})
                 setTemplates(data[AdminConfigTypes.PPTX_TEMPLATES] || []);
-                setRateLimit(data[AdminConfigTypes.RATE_LIMIT || rateLimit]);
+                setRateLimits(normalizeRateLimits(data[AdminConfigTypes.RATE_LIMIT]));
                 setPromptCostAlert(data[AdminConfigTypes.PROMPT_COST_ALERT || promptCostAlert]);
                 setDefaultConversationStorage(data[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE] || defaultConversationStorage);
                 setEmailSupport(data[AdminConfigTypes.EMAIL_SUPPORT || emailSupport]);
+                setCriticalErrorsConfig(data[AdminConfigTypes.CRITICAL_ERRORS] || criticalErrorsConfig);
                 setAiEmailDomain(data[AdminConfigTypes.AI_EMAIL_DOMAIN] || aiEmailDomain);
                 setDefaultModels(data[AdminConfigTypes.DEFAULT_MODELS] || {});
+                setWebSearchConfig(data[AdminConfigTypes.WEB_SEARCH] || null);
+                setUserDocumentationUrl(data[AdminConfigTypes.USER_DOCUMENTATION_URL] || '');
                 setLoadingMessage("");
             
                 const nonlazyResult = await nonlazyReq;
@@ -202,7 +243,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         if (open && loadData) getConfigs();
 
         const fetchEmails = async () => {
-            setAllEmails(amplifyUsers);
+            setAllEmails(Object.values(amplifyUsers)); // Extract email values for display
         };
         if (!allEmails) fetchEmails();
       
@@ -214,7 +255,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             case AdminConfigTypes.ADMINS:
                 return admins;
             case AdminConfigTypes.RATE_LIMIT:
-                return rateLimitObj(rateLimit.period, rateLimit.rate);
+                return rateLimits;
             case AdminConfigTypes.PROMPT_COST_ALERT:
                 return {
                     ...promptCostAlert,
@@ -226,6 +267,13 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return defaultConversationStorage;
             case AdminConfigTypes.EMAIL_SUPPORT:
                 return emailSupport;
+            case AdminConfigTypes.CRITICAL_ERRORS:
+                // Only send fields the backend expects, exclude subscription_status (read-only)
+                const isActive = Boolean(criticalErrorsConfig.isActive);
+                return {
+                    isActive,
+                    email: isActive ? String(criticalErrorsConfig.email || "") : ""
+                };
             case AdminConfigTypes.AI_EMAIL_DOMAIN:
                 return aiEmailDomain;
             case AdminConfigTypes.APP_SECRETS:
@@ -249,7 +297,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         (sanitizedModel as any)[field] = value;
                     });
                     
-                    const floatFields = ["outputTokenCost", "inputTokenCost", "cachedTokenCost"] as const;
+                    const floatFields = ["outputTokenCost", "inputTokenCost", "inputCachedTokenCost", "inputWriteCachedTokenCost"] as const;
                     floatFields.forEach((field) => {
                         const value = typeof model[field] === 'string' 
                             ? parseFloat(String(model[field])) || 0.0 
@@ -258,7 +306,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     });
                     
                     // Ensure boolean fields are booleans
-                    const booleanFields = ["supportsImages", "supportsReasoning", "supportsSystemPrompts", "isAvailable", "isBuiltIn"] as const;
+                    const booleanFields = ["supportsImages", "supportsReasoning", "supportsSystemPrompts", "supportsImageGeneration", "supportsVideo", "isAvailable", "isBuiltIn"] as const;
                     booleanFields.forEach((field) => {
                         (sanitizedModel as any)[field] = Boolean(model[field]);
                     });
@@ -292,13 +340,46 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             case AdminConfigTypes.AMPLIFY_GROUPS:
                 Object.keys(ampGroups).forEach((key: string) => {
                     if (!ampGroups[key].isBillingGroup) ampGroups[key].isBillingGroup = false;
-                    if (!ampGroups[key].rateLimit) ampGroups[key].rateLimit = noRateLimit;
+                    if (!ampGroups[key].rateLimit) ampGroups[key].rateLimit = [noRateLimit];
+                    else ampGroups[key].rateLimit = normalizeRateLimits(ampGroups[key].rateLimit as any);
+                    delete ampGroups[key].groupName;
                 });
                 return ampGroups;
             case AdminConfigTypes.PPTX_TEMPLATES:
                 return templates.filter((pptx:Pptx_TEMPLATES) => changedTemplates.includes(pptx.name));
             case AdminConfigTypes.INTEGRATIONS:
-                return integrations;
+                return {
+                    integrations: integrations,
+                    provider_settings: providerSettings
+                };
+            case AdminConfigTypes.WEB_SEARCH:
+                // Return null to remove the config, otherwise send the configuration
+                if (!webSearchConfig) return null;
+
+                const configData: any = {
+                    allowUserWebSearchKeys: webSearchConfig.allowUserWebSearchKeys
+                };
+
+                // Only include provider if it's set
+                if (webSearchConfig.provider) {
+                    configData.provider = webSearchConfig.provider;
+                }
+
+                // Include api_key if it exists (new/updated key)
+                if ('api_key' in webSearchConfig && webSearchConfig.api_key) {
+                    configData.api_key = webSearchConfig.api_key;
+                }
+
+                // Include webSearchUserMessage if it exists and is non-empty after trimming
+                if (webSearchConfig.webSearchUserMessage !== undefined &&
+                    webSearchConfig.webSearchUserMessage.trim()) {
+                    configData.webSearchUserMessage = webSearchConfig.webSearchUserMessage.trim();
+                }
+                console.log("Config Data: ", configData);
+
+                return configData;
+            case AdminConfigTypes.USER_DOCUMENTATION_URL:
+                return userDocumentationUrl;
             case AdminConfigTypes.OPENAI_ENDPOINTS:
                 const toTest:{key: string, url: string, model:string}[] = [];
                 
@@ -411,6 +492,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             let flags: any = result.data;
             homeDispatch({ field: 'featureFlags', value: flags});
             localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
+            window.dispatchEvent(new Event('updateFeatureSettings'));
         }
     }
 
@@ -436,6 +518,11 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             alert("The Support Email feature cannot be activated without providing an email address. Please add an email address or disable the feature.");
             return false;
         }
+
+        if (criticalErrorsConfig.isActive && !criticalErrorsConfig.email) {
+            alert("Critical Error Notifications cannot be activated without providing an email address. Please add an email address or disable the feature.");
+            return false;
+        }
         return true;
     }
 
@@ -446,10 +533,17 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
         saveAction([AdminConfigTypes.FEATURE_FLAGS], saveUpdateFeatureFlags);
         saveAction([AdminConfigTypes.AVAILABLE_MODELS, AdminConfigTypes.DEFAULT_MODELS], saveUpdateAvailableModels);
-        saveAction([AdminConfigTypes.PPTX_TEMPLATES], saveUpdatePptx); 
+        saveAction([AdminConfigTypes.PPTX_TEMPLATES], saveUpdatePptx);
         saveAction([AdminConfigTypes.EMAIL_SUPPORT], () => homeDispatch({ field: 'supportEmail', value: emailSupport.email}));
         saveAction([AdminConfigTypes.AI_EMAIL_DOMAIN], () => homeDispatch({ field: 'aiEmailDomain', value: aiEmailDomain}));
-        if (!storageSelection) saveAction([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () => homeDispatch({ field: 'storageSelection', value: defaultConversationStorage})); 
+        saveAction([AdminConfigTypes.PROMPT_COST_ALERT], () => homeDispatch({ field: 'promptCostAlert', value: promptCostAlert}));
+        saveAction([AdminConfigTypes.WEB_SEARCH], () => {
+            homeDispatch({ field: 'canAddWebSearchApiKey', value: webSearchConfig?.allowUserWebSearchKeys ?? false});
+            homeDispatch({ field: 'webSearchUserMessage', value: webSearchConfig?.webSearchUserMessage?.trim() ?? null});
+        });
+        saveAction([AdminConfigTypes.USER_DOCUMENTATION_URL], () => homeDispatch({ field: 'userDocumentationUrl', value: userDocumentationUrl}));
+        saveAction([AdminConfigTypes.RATE_LIMIT], () => homeDispatch({ field: 'adminRateLimits', value: rateLimits }));
+        if (!storageSelection) saveAction([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () => homeDispatch({ field: 'storageSelection', value: defaultConversationStorage}));
     }
 
     const handleSave = async () => {
@@ -458,7 +552,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             return;
         }
         const collectUpdateData =  Array.from(unsavedConfigs).map((type: AdminConfigTypes) => ({type: type, data: getConfigTypeData(type)}));
-        console.log("Saving... ", collectUpdateData);
+        console.log("Saving...", collectUpdateData);
+
         if (!validateSavedData()) return;
         // console.log(" testing: ", testEndpointsRef.current);
         if (testEndpointsRef.current.length > 0) {
@@ -472,7 +567,21 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         
         setLoadingMessage('Saving Configurations');
         const result = await updateAdminConfigs(collectUpdateData);
+        
         if (result.success) {
+            
+            // Check for detailed admin-specific response
+            if (result.data && result.data[AdminConfigTypes.ADMINS]) {
+                const adminResult = result.data[AdminConfigTypes.ADMINS];
+                
+                if (!adminResult.success && adminResult.error) {
+                    toast(`Admin configuration warning: ${adminResult.error}`, {
+                        icon: '⚠️',
+                        duration: 5000
+                    });
+                }
+            }
+            
             // update ui affecting changes 
             updateOnSave();
             toast("Configurations successfully saved");
@@ -482,12 +591,28 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             if (result.data && Object.keys(result.data).length !== unsavedConfigs.size) {
                 const unsucessful: AdminConfigTypes[] = [];
                 Array.from(unsavedConfigs).forEach(key => {
-                    if ((!(key in result.data)) || (!result.data[key].success)) unsucessful.push(key);
+                    if ((!(key in result.data)) || (!result.data[key].success)) {
+                        unsucessful.push(key);
+                    }
                 });
-                // should always be true
-                if (unsucessful.length > 0) alert(`The following configurations were unable to be saved: \n${unsucessful}`);
+                
+                if (unsucessful.length > 0) {
+                    const errorMsg = `The following configurations were unable to be saved: \n${unsucessful.join(', ')}`;
+                    alert(errorMsg);
+                    
+                    // Additional admin-specific error display
+                    if (unsucessful.includes(AdminConfigTypes.ADMINS) && result.data[AdminConfigTypes.ADMINS]) {
+                        const adminError = result.data[AdminConfigTypes.ADMINS];
+                        if (adminError.error || adminError.message) {
+                            toast(`Admin validation failed: ${adminError.error || adminError.message}`, {
+                                icon: '❌',
+                                duration: 8000
+                            });
+                        }
+                    }
+                }
             } else {
-                console.log("result: ", result);
+                console.error("❌ Complete save failure. Result:", result);
                 alert("We are unable to save the configurations at this time. Please try again later...");
             }
         }
@@ -536,6 +661,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     return <Modal 
     fullScreen={true}
+    disableClickOutside={hasChildModalOpen}
     title={`Admin Interface${unsavedConfigs.size > 0 ? " * " : ""}`}
     onCancel={() => {
         if (unsavedConfigs.size === 0 || confirm("You have unsaved changes!\n\nYou will lose any unsaved data, would you still like to close the Admin Interface?"))  onClose();
@@ -578,8 +704,9 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     setAdmins={setAdmins}
                     ampGroups={ampGroups}
                     setAmpGroups={setAmpGroups}
-                    rateLimit={rateLimit}
-                    setRateLimit={setRateLimit}
+                    amplifyUsers={amplifyUsers}
+                    rateLimits={rateLimits}
+                    setRateLimits={setRateLimits}
                     promptCostAlert={promptCostAlert}
                     setPromptCostAlert={setPromptCostAlert}
                     defaultConversationStorage={defaultConversationStorage}
@@ -591,6 +718,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     allEmails={allEmails}
                     admin_text={admin_text}
                     updateUnsavedConfigs={updateUnsavedConfigs}
+                    onModalStateChange={setHasChildModalOpen}
                 />
             },
 
@@ -668,6 +796,29 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             />      
                         </div> : <>No Application Variables Retrieved</>}
                 </div>
+
+                <br className="mt-4"></br>
+
+                <div className="admin-style-settings-card">
+                    <div className="admin-style-settings-card-header">
+                        <div className="flex flex-row items-center gap-3 mb-2">
+                            <h3 className="admin-style-settings-card-title">User Documentation URL</h3>
+                        </div>
+                        <p className="admin-style-settings-card-description">Configure the URL for user documentation (displayed when userDocumentation feature flag is enabled)</p>
+                    </div>
+                    <div className="mx-4">
+                        <input
+                            type="text"
+                            placeholder="https://your-documentation-url.com"
+                            value={userDocumentationUrl}
+                            onChange={(e) => {
+                                setUserDocumentationUrl(e.target.value);
+                                updateUnsavedConfigs(AdminConfigTypes.USER_DOCUMENTATION_URL);
+                            }}
+                            className="w-full rounded border border-neutral-500 px-4 py-2 dark:bg-[#40414F] dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
+                        />
+                    </div>
+                </div>
                 </>
             },
 
@@ -693,6 +844,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     features={features}
                     setFeatures={setFeatures}
                     ampGroups={ampGroups}
+                    amplifyUsers={amplifyUsers}
                     allEmails={allEmails}
                     admin_text={admin_text}
                     updateUnsavedConfigs={updateUnsavedConfigs}
@@ -708,6 +860,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     stillLoadingData={stillLoadingData}
                     admins={admins}
                     ampGroups={ampGroups}
+                    amplifyUsers={amplifyUsers}
                     astGroups={astGroups}
                     setAstGroups={setAstGroups}
                     amplifyAstGroupId={amplifyAstGroupId}
@@ -752,9 +905,23 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             },
 
             ///////////////////////////////////////////////////////////////////////////////
+            // Critical Error Tracking
+
+            ...( featureFlags.criticalErrorTracking || features.criticalErrorTracking?.enabled
+                ? [{ label: tabTitle('Critical Errors'),
+                content:
+                <CriticalErrorTrackingTab
+                    stillLoadingData={stillLoadingData}
+                    criticalErrorsConfig={criticalErrorsConfig}
+                    setCriticalErrorsConfig={setCriticalErrorsConfig}
+                    updateUnsavedConfigs={updateUnsavedConfigs}
+                />
+            }] : []),
+
+            ///////////////////////////////////////////////////////////////////////////////
   
-            // Integrations Tab - only included if included in the feature flags list
-            ...(integrations ? 
+            // Integrations Tab - only included if integrations are deployed or webSearch is enabled
+            ...(integrations || featureFlags.webSearch || features.webSearch?.enabled ?
                 [
                 {label: tabTitle("Integrations"),
                     content:
@@ -764,10 +931,25 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                         setIntegrations={setIntegrations}
                         integrationSecrets={integrationSecrets}
                         setIntegrationSecrets={setIntegrationSecrets}
+                        azureAdminConsentProvided={providerSettings[integrationProviders.Microsoft]?.azure_admin_consent_provided || false}
+                        setAzureAdminConsentProvided={(value: boolean) => {
+                            const updated = {
+                                ...providerSettings,
+                                [integrationProviders.Microsoft]: { ...providerSettings[integrationProviders.Microsoft], azure_admin_consent_provided: value }
+                            };
+                            setProviderSettings(updated);
+                            updateUnsavedConfigs(AdminConfigTypes.INTEGRATIONS);
+                        }}
                         updateUnsavedConfigs={updateUnsavedConfigs}
+                        webSearchConfig={webSearchConfig}
+                        setWebSearchConfig={(config: AdminWebSearchConfig | null) => {
+                            setWebSearchConfig(config);
+                            updateUnsavedConfigs(AdminConfigTypes.WEB_SEARCH);
+                        }}
                     />
                 }
                 ] : []),
+
 
         ]
         }
@@ -836,6 +1018,7 @@ interface AmplifyGroupSelectProps {
   }
   
 export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, selected, setSelected, isDisabled = false, label = 'Amplify Groups'}) => {
+
     const [isOpen, setIsOpen] = useState(false);
     const [selectedGroups, setSelectedGroups] = useState<string[]>(selected);
     const [dropdownDirection, setDropdownDirection] = useState<'down' | 'up'>('down');
@@ -939,12 +1122,12 @@ export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, 
 
 
 
-export interface Amplify_Group { // can be a cognito group 
-    groupName : string; 
+export interface Amplify_Group { // can be a cognito group
+    groupName?: string;
     members : string[];
     createdBy : string;
     includeFromOtherGroups? : string[]; // if is a cognito group, this will always be Absent
-    rateLimit? : RateLimit;
+    rateLimit? : RateLimit | RateLimit[];  // supports both legacy single and new multi-limit format
     isBillingGroup? : boolean;
 }
 
@@ -955,10 +1138,20 @@ export interface Amplify_Groups {
 export interface PromptCostAlert {
     isActive: boolean;
     alertMessage: string;
-    cost: Number;
+    cost: number;
 }
 
 export interface EmailSupport {
     isActive: boolean;
     email: string;
+}
+
+export interface CriticalErrorsConfig {
+    isActive: boolean;
+    email: string;
+    subscription_status?: {
+        status: 'confirmed' | 'pending' | 'not_subscribed' | 'error';
+        subscription_arn: string | null;
+        message: string;
+    };
 }

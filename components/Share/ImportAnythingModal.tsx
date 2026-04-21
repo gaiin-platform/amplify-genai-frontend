@@ -19,6 +19,8 @@ import { ItemSelect } from "../ReusableComponents/ItemsSelect";
 import { baseAssistantFolder, isBaseFolder, isBasePrompt } from "@/utils/app/basePrompts";
 import { Modal } from "../ReusableComponents/Modal";
 import { IconNote } from "@tabler/icons-react";
+import { getUserIdentifier } from "@/utils/app/data";
+import { animate } from "../Loader/LoadingIcon";
 
 export interface ImportModalProps {
     onImport: (importData: ExportFormatV4) => void;
@@ -36,14 +38,6 @@ export interface ImportFetcher {
     (): Promise<{success:boolean, message:string, data: ExportFormatV4|null}>;
 }
 
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
 
 const LoadingIcon = styled(FiCommand)`
   color: lightgray;
@@ -91,7 +85,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
 
     const { data: session } = useSession();
-    const user = session?.user;
+    const user = getUserIdentifier(session?.user);
 
 
     let isImportingRef = useRef<boolean | null>(null);
@@ -261,7 +255,7 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
 
 
         const fetchData = async () => {
-            if (user && user.email) {
+            if (user) {
                 const shareFetcher:ImportFetcher = async () => {
 
                     const result = await loadSharedItem(importKey);

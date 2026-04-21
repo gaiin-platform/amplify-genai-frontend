@@ -3,7 +3,7 @@ import { Checkbox } from '@/components/ReusableComponents/CheckBox';
 import { TagsList } from '@/components/Chat/TagsList';
 import { snakeCaseToTitleCase } from '@/utils/app/data';
 import { AgentTool } from '@/types/agentTools';
-import { getOperationIcon } from '@/types/integrations';
+import { getOperationIcon } from '@/utils/app/integrations';
 
 interface ToolItemProps {
   toolId: string;

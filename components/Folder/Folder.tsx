@@ -27,7 +27,7 @@ import { FolderInterface } from '@/types/folder';
 import HomeContext from '@/pages/api/home/home.context';
 
 import React from 'react';
-import { baseAssistantFolder, isBaseFolder } from '@/utils/app/basePrompts';
+import { baseAssistantFolder, baseLayeredAssistantFolder, isBaseFolder } from '@/utils/app/basePrompts';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
 import { hideGroupFolder, saveFolders } from '@/utils/app/folders';
 import { Group, GroupAccessType } from '@/types/groups';
@@ -35,6 +35,7 @@ import { folder } from 'jszip';
 import { useSession } from 'next-auth/react';
 import { getSettings } from '@/utils/app/settings';
 import { getDateName } from '@/utils/app/date';
+import { getUserIdentifier } from '@/utils/app/data';
 
 interface Props {
   currentFolder: FolderInterface;
@@ -54,7 +55,7 @@ const Folder = ({
           dispatch: homeDispatch,} = useContext(HomeContext);
 
   const { data: session } = useSession();
-  const user = session?.user?.email;
+  const user = getUserIdentifier(session?.user);
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -68,8 +69,13 @@ const Folder = ({
   const [checkFolders, setCheckFolders] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
 
+  // Helper to check if a folder is a specific base folder
+  const isSpecificBaseFolder = (folderId: string, baseFolderId: string): boolean => {
+    return folderId === baseFolderId;
+  };
+
   const canDropInto =  !currentFolder.isGroupFolder && !isBaseFolder(currentFolder.id);
-  const showEditDelete = canDropInto && currentFolder.id !== baseAssistantFolder.id;
+  const showEditDelete = canDropInto && !isSpecificBaseFolder(currentFolder.id, baseAssistantFolder.id) && !isSpecificBaseFolder(currentFolder.id, baseLayeredAssistantFolder.id);
   
 
   const handleEnterDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -156,7 +162,13 @@ const Folder = ({
       setIsOpen(true);
     } else {
       if (currentFolder.type === 'chat') setIsOpen(allFoldersOpenConvs);
-      if (currentFolder.type === 'prompt') setIsOpen(allFoldersOpenPrompts);
+      if (currentFolder.type === 'prompt') {
+        // Only open folders that actually contain deletable items:
+        // skip group folders (managed via admin UI) and base/system folders
+        // (Custom Instructions, Amplify Helpers, layered_assistants base folder etc.)
+        const isOpenable = !currentFolder.isGroupFolder && !isBaseFolder(currentFolder.id);
+        if (isOpenable) setIsOpen(allFoldersOpenPrompts);
+      }
     }
   }, [allFoldersOpenConvs, allFoldersOpenPrompts, isTodaysFolder]);
 
@@ -299,7 +311,7 @@ const Folder = ({
             </div>
           )}
 
-          { checkFolders && !isTodaysFolder &&  (
+          { checkFolders && !isTodaysFolder && showEditDelete && (
             <div className="relative flex items-center">
               <div key={currentFolder.id} className="absolute right-4 z-10">
                 <input

@@ -3,7 +3,7 @@ import { getAgentTools } from '@/services/agentService';
 import ApiIntegrationsPanel from '../AssistantApi/ApiIntegrationsPanel';
 import HomeContext from '@/pages/api/home/home.context';
 import { IconAsterisk, IconCheck, IconChevronDown, IconChevronRight, IconCirclePlus, IconCode, IconInfoCircle, IconLoader2, IconSettings, IconTags, IconTool, IconTools, IconX } from '@tabler/icons-react';
-import { getOperationIcon } from '@/types/integrations';
+import { getOperationIcon } from '@/utils/app/integrations';
 import { AgentTool } from '@/types/agentTools';
 import { ActiveTabs } from '../ReusableComponents/ActiveTabs';
 import { getOpsForUser } from '@/services/opsService';

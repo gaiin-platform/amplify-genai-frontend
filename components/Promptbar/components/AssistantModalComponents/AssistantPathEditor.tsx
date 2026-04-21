@@ -54,7 +54,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
 }) => {
     const { state: { featureFlags, chatEndpoint, statsService, amplifyUsers, defaultAccount }, getDefaultModel} = useContext(HomeContext);
     const { data: session } = useSession();
-    const userEmail = session?.user?.email;
+    const userEmail = session?.user?.email; // Needed as email since listing users shows emails not usernames
     
     const [pathError, setPathError] = useState<string | null>(null);
     const featureEnabled = !!featureFlags?.assistantPathPublishing;
@@ -250,7 +250,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                                 setAstPathData(newAstPathData);
                             }}/> }
                         <div title={`Upload an image to use as the assistant's icon. Supported formats: ${IMAGE_FILE_EXTENSIONS.map(ext => ext.toUpperCase()).join(', ')}`}
-                             className="text-xs flex flex-row -mt-2 -ml-1.5">
+                             className={`text-xs flex flex-row -mt-2 -ml-1.5 ${groupId ? 'mt-6' : ''}`}>
                             <AttachFile id={"__attachFile_assistant_path"}
                                     allowedFileExtensions={IMAGE_FILE_EXTENSIONS}
                                     onAttach={onAttach}
@@ -270,9 +270,9 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                             /> : <span className="py-1.5 text-xs text-gray-500">Add Assistant Icon</span>}
                         </div>
                         </div> : null)  
-                       : <label className={"mt-5 text-xs text-blue-500"}>
+                       : (!groupId ? <label className={"mt-5 text-xs text-blue-500"}>
                         {astPathData.isPublic ? "Public Access" : "Restricted Access"}
-                        </label>
+                        </label> : null)
                     }
                 </div> }
                 
@@ -344,7 +344,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                 <br />No leading/trailing slashes or consecutive slashes. No reserved or inappropriate terms.
             </p>
 
-            {!isCheckingPath && astPathData && !astPathData.isPublic && 
+            {!isCheckingPath && astPathData && !astPathData.isPublic && !groupId &&
              <div className="mt-4">
                 <ExpansionComponent
                     isOpened={isOpenAccessDropDown}
@@ -369,10 +369,15 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                         Allow access to individual users
                         <AddEmailWithAutoComplete
                             id={`assistant-path`}
-                            emails={astPathData.accessTo.users ?? []}
-                            allEmails={amplifyUsers.filter((user: string) => user !== userEmail)}
+                            emails={(astPathData.accessTo.users ?? []).map(username => amplifyUsers[username] || username)}
+                            allEmails={Object.values(amplifyUsers).filter((email: string) => email !== userEmail)}
                             handleUpdateEmails={(updatedEmails: Array<string>) => {
-                                const updateAccessTo = {...astPathData.accessTo, users: updatedEmails};
+                                // Convert emails back to usernames for backend
+                                const usernames = updatedEmails.map(email => {
+                                    const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
+                                    return username || email; // Fallback to email if no mapping found
+                                });
+                                const updateAccessTo = {...astPathData.accessTo, users: usernames};
                                 setAstPathData({...astPathData, accessTo: updateAccessTo});
                             }}
                             displayEmails={true}

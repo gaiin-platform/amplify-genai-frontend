@@ -1,4 +1,5 @@
 import { doRequestOp } from "./doRequestOp";
+import { storageGet, storageSet, storageRemove } from '@/utils/app/storage';
 
 const URL_PATH = "/amplifymin";
 const EMBEDDINGS_URL_PATH = "/embedding";
@@ -38,7 +39,6 @@ export const getFeatureFlags = async () => {
     return await doRequestOp(op);
 }
 
-
 export const getUserAppConfigs = async () => {
     const op = {
         method: 'GET',
@@ -64,21 +64,107 @@ export const getAvailableModels = async () => {
         method: 'GET',
         path: "/available_models",
         op: "",
+        service: "chat-billing"
     };
     return await doRequestOp(op);
 }
 
-export const embeddingDocumentStaus = async (dataSources: {key: string, type: string}[]) => {
-    const op = {
-        data: { dataSources },
-        method: 'POST',
-        path: EMBEDDINGS_URL_PATH,
-        op: '/status',
-        SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
+export const embeddingDocumentStatus = async (dataSources: {key: string, type: string}[]) => {
+    const CACHE_KEY_PREFIX = 'embedding_status_';
+    
+    // Separate cached vs non-cached items
+    const cachedResults: {[key: string]: string} = {};
+    const cachedMetadata: {[key: string]: any} = {};
+    const nonCachedDataSources: {key: string, type: string}[] = [];
+    
+    // Check cache for each datasource
+    for (const ds of dataSources) {
+        const cacheKey = `${CACHE_KEY_PREFIX}${ds.key}`;
+        const cachedStr = await storageGet(cacheKey); // AWAIT the async call
+        
+        if (cachedStr) {
+            try {
+                const cached = JSON.parse(cachedStr);
+                if (cached && cached.status === 'completed') {
+                    // Completed files never change - cache forever (no expiry check)
+                    cachedResults[ds.key] = cached.status;
+                    if (cached.metadata) {
+                        cachedMetadata[ds.key] = cached.metadata;
+                    }
+                    continue;
+                }
+            } catch (error) {
+                console.error(`Failed to parse cache for ${cacheKey}:`, error);
+                // Clear corrupted cache entry
+                await storageRemove(cacheKey).catch(err => 
+                    console.error(`Failed to remove corrupted cache for ${cacheKey}:`, err)
+                );
+            }
+        }
+        
+        // Not cached, need to fetch
+        nonCachedDataSources.push(ds);
+    }
+    
+    let apiResults: any = { success: true, data: {}, metadata: {} };
+    
+    // Only make API call if there are non-cached items
+    if (nonCachedDataSources.length > 0) {
+        const op = {
+            data: { dataSources: dataSources },
+            method: 'POST',
+            path: EMBEDDINGS_URL_PATH,
+            op: '/status',
+            service: EMBEDDINGS_SERVICE_NAME
+        };
+        
+        apiResults = await doRequestOp(op);
+        
+        // Cache any 'completed' results from the API
+        if (apiResults?.success && apiResults?.data) {
+            for (const [key, status] of Object.entries(apiResults.data)) {
+                if (status === 'completed') {
+                    const cacheKey = `${CACHE_KEY_PREFIX}${key}`;
+                    const cacheData = {
+                        status,
+                        metadata: apiResults.metadata?.[key],
+                        timestamp: Date.now()
+                    };
+                    await storageSet(cacheKey, JSON.stringify(cacheData)); // AWAIT and stringify
+                }
+            }
+        }
+    }
+    
+    // Merge cached and API results
+    const combinedData = {
+        ...cachedResults,
+        ...(apiResults?.data || {})
     };
-    return await doRequestOp(op);
+    
+    const combinedMetadata = {
+        ...cachedMetadata,
+        ...(apiResults?.metadata || {})
+    };
+    
+    return {
+        success: apiResults?.success !== false,
+        data: combinedData,
+        ...(Object.keys(combinedMetadata).length > 0 && { metadata: combinedMetadata })
+    };
 }
 
+export const clearEmbeddingStatusCache = async (key: string) => {
+    const CACHE_KEY_PREFIX = 'embedding_status_';
+    const cacheKey = `${CACHE_KEY_PREFIX}${key}`;
+    
+    // Remove from IndexedDB storage
+    try {
+        await storageRemove(cacheKey);
+    } catch (error) {
+        console.error('Failed to clear embedding status cache:', error);
+    }
+}
 
 export const terminateEmbedding = async (key: any) => {
     const op = {
@@ -86,7 +172,7 @@ export const terminateEmbedding = async (key: any) => {
         method: 'POST',
         path: EMBEDDINGS_URL_PATH,
         op: '/terminate',
-        SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
+        service: EMBEDDINGS_SERVICE_NAME
     };
     return await doRequestOp(op);
 }
@@ -96,7 +182,7 @@ export const getInFlightEmbeddings = async () => {
         method: 'GET',
         path: EMBEDDINGS_URL_PATH,
         op: '/sqs/get',
-        SERVICE_NAME: EMBEDDINGS_SERVICE_NAME
+        service: EMBEDDINGS_SERVICE_NAME
     };
 
     const result = await doRequestOp(op);
@@ -111,6 +197,37 @@ export const getInFlightEmbeddings = async () => {
         console.error("Error parsing result body: ", e);
         return null;
     }
+}
+
+export const getCriticalErrors = async (limit: number = 50, lastEvaluatedKey: any = null) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: '/critical_errors',
+        data: {
+            limit,
+            ...(lastEvaluatedKey && { last_evaluated_key: lastEvaluatedKey })
+        },
+        service: SERVICE_NAME
+    };
+    
+    const result = await doRequestOp(op);
+    console.log("result: ", result);
+    return result;
+}
+
+export const resolveCriticalError = async (errorId: string, resolutionNotes: string) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: '/critical_errors/resolve',
+        data: {
+            error_id: errorId,
+            resolution_notes: resolutionNotes
+        },
+        service: SERVICE_NAME
+    };
+    return await doRequestOp(op);
 }
 
 const isCompletionsEndpoint = (url: string) => {

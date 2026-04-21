@@ -24,7 +24,7 @@ export const promptForData = async (chatEndpoint:string, messages: Message[], mo
     const controller = new AbortController();
     
      const accessToken = await getSession().then((session) => { 
-                                return session.accessToken
+                                return session?.accessToken
                             })
 
     try {
@@ -38,7 +38,9 @@ export const promptForData = async (chatEndpoint:string, messages: Message[], mo
             skipRag: true,
             skipCodeInterpreter: true,
             accountId: account?.id,
-            rateLimit: account?.rateLimit
+            rateLimit: account?.rateLimit,
+            enableWebSearch: false,
+            disableReasoning: true
         };
 
         if (statsService) statsService.sendChatEvent(chatBody);

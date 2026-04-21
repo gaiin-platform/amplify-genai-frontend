@@ -14,6 +14,8 @@ import { ItemSelect } from "../ReusableComponents/ItemsSelect";
 import { baseAssistantFolder, isBaseFolder, isBasePrompt } from "@/utils/app/basePrompts";
 import { Modal } from "../ReusableComponents/Modal";
 import { IconNote } from "@tabler/icons-react";
+import { getUserIdentifier } from "@/utils/app/data";
+import { animate } from "../Loader/LoadingIcon";
 
 export interface SharingModalProps {
     open: boolean;
@@ -27,14 +29,6 @@ export interface SharingModalProps {
     selectedFolders?: FolderInterface[];
 }
 
-const animate = keyframes`
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(720deg);
-  }
-`;
 
 const LoadingIcon = styled(FiCommand)`
   color: lightgray;
@@ -55,7 +49,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
         selectedFolders = []
     }) => {
     const {
-        state: {prompts, conversations, folders, statsService},
+        state: {prompts, conversations, folders, statsService, amplifyUsers},
     } = useContext(HomeContext);
 
     const promptsRef = useRef(prompts);
@@ -66,7 +60,7 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
 
 
     const { data: session } = useSession();
-    const user = session?.user;
+    const sharedBy = getUserIdentifier(session?.user) ?? "Unknown";
 
     // Individual states for selected prompts, conversations, and folders
     const [isSharing, setIsSharing] = useState(false);
@@ -126,9 +120,11 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
             }),
              ...rootPromptsToAdd], "share", false);
         
-        const sharedWith = [...selectedPeople];
-        const sharedBy = user?.email ? user.email.toLowerCase() : undefined;
-
+        // Convert emails back to usernames for backend
+        const sharedWith = selectedPeople.map(email => {
+            const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
+            return username || email; // Fallback to email if no mapping found
+        });
 
         if (sharedBy && sharingNote) {
             try {

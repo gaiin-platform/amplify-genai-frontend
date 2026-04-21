@@ -257,10 +257,15 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                             {modelNumberInputs('outputTokenCost', isAddingAvailModel.model.outputTokenCost, .0001, false,
                                     "Models Output Token Cost/1k" )}
 
-                            {modelNumberInputs('cachedTokenCost', isAddingAvailModel.model.cachedTokenCost, .0001, false,
-                                    "Models Cached Token Cost/1k" )}
+                            {modelNumberInputs('inputCachedTokenCost', isAddingAvailModel.model.inputCachedTokenCost, .0001, false,
+                                    "Models Input Read Cached Token Cost/1k" )}
+
+                            {modelNumberInputs('inputWriteCachedTokenCost', isAddingAvailModel.model.inputWriteCachedTokenCost, .0001, false,
+                                    "Models Input Write Cached Token Cost/1k" )}
 
                             {modelActiveCheck('supportsSystemPrompts', isAddingAvailModel.model.supportsSystemPrompts, "Model Supports System Prompts" )}
+                            {modelActiveCheck('supportsImageGeneration', isAddingAvailModel.model.supportsImageGeneration, "Model Supports Image Generation" )}
+                            {modelActiveCheck('supportsVideo', isAddingAvailModel.model.supportsVideo, "Model Supports Video Inputs" )}
                             
                             {!isAddingAvailModel.model.id.includes('embed') && <>
                             {modelActiveCheck('supportsReasoning', isAddingAvailModel.model.supportsReasoning,
@@ -331,7 +336,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                         {Object.keys(featureFlags).includes('cachedDocuments') &&
                         <ModelDefaultSelect 
                             models={Object.values(availableModels).filter((m:SupportedModel) => 
-                                    !m.id.includes('embedding') && m.cachedTokenCost > 0)}
+                                    !m.id.includes('embedding') && (m.inputCachedTokenCost > 0 || m.inputWriteCachedTokenCost > 0))}
                             defaultModels={defaultModels}
                             selectedKey='documentCaching'
                             description="This model is used when handling document context processing in chats when Retrieval Augmented Generation (RAG) is turned off. For optimal cost efficiency, choose a model with cached token support."
@@ -364,10 +369,10 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                         <thead>
                         <tr className="gradient-header text-sm">
                             {['Name', 'ID',  'Provider', 'Available', 'Supports Images', 'Supports Reasoning',
-                                'Supports System Prompts', 'Additional System Prompt',
+                                "Supports Image Generation", "Support Video", 'Supports System Prompts', 'Additional System Prompt',
                                 'Description', 'Input Context Window', 'Output Token Limit', 
-                                'Input Token Cost / 1k', 'Output Token Cost / 1k', 'Cached Token Cost / 1k',
-                                'Available to User via Amplify Group Membership',
+                                'Input Token Cost / 1k', 'Output Token Cost / 1k', 'Input Read Cached Token Cost / 1k', 
+                                'Input Write Cached Token Cost / 1k', 'Available to User via Amplify Group Membership',
                             ].map((title, i) => (
                             <th id={title} key={i}
                                 className="text-[0.75rem] px-1 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300" >
@@ -445,7 +450,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                     </div> }                          
                                 </td>
 
-                                {["supportsReasoning", "supportsSystemPrompts"].map((s:string) => 
+                                {["supportsReasoning", "supportsImageGeneration", "supportsVideo", "supportsSystemPrompts"].map((s:string) => 
                                     <td className="border border-neutral-500 px-4 py-2 w-[74px]" key={s}
                                         title={`Model ${camelToTitleCase(s)}`}>
                                         <div className="flex justify-center">
@@ -476,7 +481,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                     </td>
                                 )}
 
-                                {["inputTokenCost", "outputTokenCost", "cachedTokenCost"].map((s: string) => 
+                                {["inputTokenCost", "outputTokenCost", "inputCachedTokenCost", "inputWriteCachedTokenCost"].map((s: string) => 
                                     <td className="border border-neutral-500 p-2 w-[85px]"  key={s}>
                                         <div className="flex justify-center">  
                                             ${availModel[s as keyof SupportedModel]} </div>
@@ -597,12 +602,15 @@ export const emptySupportedModel = () => {
     outputTokenLimit: 0, // max num of tokens a model will respond with (most models have preset max of 4096)
     outputTokenCost: 0.0,
     inputTokenCost: 0.0,
-    cachedTokenCost: 0.0,
+    inputCachedTokenCost: 0.0,
+    inputWriteCachedTokenCost: 0.0,
     description: '',
     exclusiveGroupAvailability: [],
     supportsImages: false,
     supportsReasoning: false,
     supportsSystemPrompts: false, 
+    supportsImageGeneration: false,
+    supportsVideo: false,
     systemPrompt: '',
 
     isAvailable: false,

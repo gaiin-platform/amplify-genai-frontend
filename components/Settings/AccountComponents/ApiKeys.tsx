@@ -28,7 +28,7 @@ import { ActiveTabs } from '@/components/ReusableComponents/ActiveTabs';
 import { IconRotateClockwise2 } from '@tabler/icons-react';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import { getUserMtdCosts } from '@/services/mtdCostService';
-import { formatCurrency } from "@/utils/app/data";
+import { formatCurrency, getUserIdentifier } from "@/utils/app/data";
 import { createPortal } from 'react-dom';
 
 
@@ -67,7 +67,9 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
     const { state: { statsService, amplifyUsers}, dispatch: homeDispatch } = useContext(HomeContext);
 
     const { data: session } = useSession();
-    const user = session?.user?.email;
+    const user = session?.user;
+    const userEmail = user?.email;
+    const userIdentifier = getUserIdentifier(user);
     const [apiKeys, setApiKeys] = useState<ApiKey[] | null>(null);
 
     const { t } = useTranslation('settings');
@@ -151,7 +153,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
 
     // Fetch MTD costs for current user
     const fetchMTDCosts = async () => {
-        if (!user) return;
+        if (!userIdentifier) return;
         try {
             const result = await getUserMtdCosts();
             if (result.success && result.data) setMtdCostData(result.data);
@@ -159,6 +161,10 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
             console.error('Error fetching MTD costs:', err);
         } 
     };
+
+    const getDisplayId = (userId: string) => {
+        return amplifyUsers[userId] || userId;
+    }
 
 
     // Get MTD cost for specific API key by matching api_owner_id to keyId after #
@@ -199,7 +205,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
             fetchApiKeys();
             fetchMTDCosts();
         }
-    }, [open, user]);
+    }, [open, userIdentifier]);
 
     useEffect(() => {
             if (accounts && apiKeys) {
@@ -253,8 +259,8 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
 
     useEffect(() => {
         const fetchEmails = async () => {
-            const emailSuggestions =  amplifyUsers;
-            setAllEmails(emailSuggestions ? emailSuggestions.filter((e: string) => e !== user) : []);
+            const emailSuggestions = Object.values(amplifyUsers); // Extract email values for display
+            setAllEmails(emailSuggestions ? emailSuggestions.filter((e: string) => e !== userEmail) : []);
         };
         if (!allEmails) fetchEmails();
     }, []);
@@ -266,8 +272,8 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
 
     useEffect(() => {
         if (apiKeys) {
-        setDelegateApiKeys(apiKeys.filter((k: ApiKey) => k.delegate === user));
-        setOwnerApiKeys(apiKeys.filter((k: ApiKey) => k.owner === user));
+        setDelegateApiKeys(apiKeys.filter((k: ApiKey) => k.delegate === userIdentifier));
+        setOwnerApiKeys(apiKeys.filter((k: ApiKey) => k.owner === userIdentifier));
         }
     }, [apiKeys]);
 
@@ -277,9 +283,9 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
         setIsCreating(true);
         
         const data = {
-            'owner' : user,
+            'owner' : userIdentifier,
             'account' : selectedAccount,
-            'delegate': delegateInput.length > 0 ? delegateInput : null,
+            'delegate': delegateInput.length > 0 ? (Object.keys(amplifyUsers).find(key => amplifyUsers[key] === delegateInput) || delegateInput) : null,
             'appName' : appName,
             'appDescription' : appDescription,
             'rateLimit' : rateLimitObj(rateLimitPeriod, rateLimitRate),
@@ -737,7 +743,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                             <div className="apikeys-item-name flex items-center">
                                                                 {apiKey.applicationName}
                                                                 {apiKey.systemId && <label className={`ml-4 text-green-700 text-xs`}> System ID: {apiKey.systemId}</label>}
-                                                                {apiKey.delegate && <label className={`ml-4 text-amber-500 text-xs`}> Delegate: {apiKey.delegate}</label>}
+                                                                {apiKey.delegate && <label className={`ml-4 text-amber-500 text-xs`}> Delegate: {getDisplayId(apiKey.delegate)}</label>}
                                                                 {mtdDisplay(apiKey)}
                                                             </div>
                                                             <div className='apikeys-item-summary'>
@@ -760,7 +766,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                             <Label 
                                                                 label={apiKey.account ? `${apiKey.account.name} - ${apiKey.account.id}` : ''} 
                                                                 widthPx='180px' 
-                                                                editableField={apiKey.active && (user !== apiKey.delegate)? 'account' : undefined} 
+                                                                editableField={apiKey.active && (userIdentifier !== apiKey.delegate)? 'account' : undefined} 
                                                                 apiKey={apiKey} 
                                                                 accounts={validAccounts}
                                                             />
@@ -863,7 +869,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                     <div className='flex flex-col flex-1 min-w-0'>
                                         <div className="apikeys-item-name">
                                             {apiKey.applicationName}
-                                            <label className={`ml-4 text-gray-400 text-xs`}> Owner: {apiKey.owner}</label>
+                                            <label className={`ml-4 text-gray-400 text-xs`}> Owner: {getDisplayId(apiKey.owner)}</label>
                                             {mtdDisplay(apiKey)}
                                         </div>
                                         <div className='apikeys-item-summary'>
@@ -882,7 +888,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                 <div className="apikeys-item-details">
                                     <div>
                                         <span className="apikeys-item-label">Owner:</span>
-                                        <Label label={apiKey.owner} />
+                                        <Label label={getDisplayId(apiKey.owner)} />
                                     </div>
                                     
                                     <div>
@@ -1352,8 +1358,7 @@ interface ToolsProps {
 
 
 const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
-    const { state: {prompts, statsService}, dispatch: homeDispatch, handleNewConversation} = useContext(HomeContext);
-
+    const { state: {prompts, statsService, groups, availableModels}, dispatch: homeDispatch, handleNewConversation} = useContext(HomeContext);
     const promptsRef = useRef(prompts);
 
     useEffect(() => {
@@ -1364,14 +1369,36 @@ const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
     const csvUrlRef = useRef<string | undefined>(undefined);
     const postmanUrlRef = useRef<string | undefined>(undefined);
     const fileContentsRef = useRef<any>(undefined);
-   
+
     const showDocsRef = useRef<boolean | null>(null);
     // prevent recalling the getSettings function
     if (showDocsRef.current === null) showDocsRef.current = false;
-    
-    const [keyManager, setKeyManager] = useState<Prompt | undefined>(promptsRef.current.find((a: Prompt) => a.data?.tags && a.data.tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER)));
-    const [apiAst, setApiAst] = useState<Prompt | undefined>(promptsRef.current.find((a: Prompt) => a.data?.tags && a.data.tags.includes(ReservedTags.ASSISTANT_API_HELPER)));
 
+    // Helper function to find assistants in AmplifyAssistants groups
+    const findAssistantByTag = (tag: string): Prompt | undefined => {
+        if (!groups) return undefined;
+
+        for (const group of groups) {
+            // Check if this is an AmplifyAssistants group
+            if (group.id?.startsWith('AmplifyAssistants_') && group.assistants) {
+                // Search through assistants in this group
+                const assistant = group.assistants.find((a: Prompt) =>
+                    a.data?.tags && a.data.tags.includes(tag)
+                );
+                if (assistant) return assistant;
+            }
+        }
+        return undefined;
+    };
+
+    const [keyManager, setKeyManager] = useState<Prompt | undefined>(findAssistantByTag(ReservedTags.ASSISTANT_API_KEY_MANAGER));
+    const [apiAst, setApiAst] = useState<Prompt | undefined>(findAssistantByTag(ReservedTags.ASSISTANT_API_HELPER));
+
+    // Update assistants when groups change
+    useEffect(() => {
+        setKeyManager(findAssistantByTag(ReservedTags.ASSISTANT_API_KEY_MANAGER));
+        setApiAst(findAssistantByTag(ReservedTags.ASSISTANT_API_HELPER));
+    }, [groups]);
 
     const isUrlExpired = (url: string): boolean => {
         const regex = /Expires=(\d+)/;
@@ -1419,7 +1446,7 @@ const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
             homeDispatch({field: 'selectedAssistant', value: startPrompt.data.assistant});
         }
         statsService.startConversationEvent(startPrompt);
-        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt);
+        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt, availableModels);
         onClose();
     }
 

@@ -1,4 +1,5 @@
 import {AssistantDefinition, AssistantProviderID} from "@/types/assistant";
+import { LayeredAssistant } from "@/types/layeredAssistant";
 import {Message} from "@/types/chat";
 import {v4 as uuidv4} from 'uuid';
 import { doRequestOp } from "./doRequestOp";
@@ -18,14 +19,17 @@ const addDataToMessages = (messages: Message[], data: { [key: string]: any }) =>
     });
 }
 
-export const createAssistant = async (assistantDefinition: AssistantDefinition, abortSignal = null) => {
+export const createAssistant = async (
+    assistantDefinition: AssistantDefinition
+) => {
     if (!("disclaimer" in assistantDefinition)) assistantDefinition.disclaimer = '';
     const op = {
         method: 'POST',
         path: URL_PATH,
         op: "/create",
         data: { ...assistantDefinition },
-        service: SERVICE_NAME
+        service: SERVICE_NAME,
+        enablePolling: true,  // Enable polling for assistant creation
     };
 
     if (assistantDefinition.provider === 'openai') {
@@ -114,12 +118,12 @@ export const sendDirectAssistantMessage = async (
   assistantId: string,
   assistantName: string,
   message: string,
-  model: any, 
+  model: any,
   previousMessages: Array<{role: string, content: string}> = [],
   options: any,
   messageState: any,
   handleMessageState: (state: any) => void,
-  setResponseStatus: (status: string) => void,
+  setResponseStatus: (status: string, meta?: any) => void,
   controller: AbortController
 ) => {
   try {
@@ -164,33 +168,60 @@ export const sendDirectAssistantMessage = async (
     
     // Add the current message to the history
     const allMessages = [...formattedPreviousMessages, userMessage];
-    
+
     const chatBody = {
       model: model,
       prompt: DEFAULT_SYSTEM_PROMPT,
       messages: allMessages,
       temperature: 0.7,
-      maxTokens: model?.outputTokenLimit ? Math.round(model.outputTokenLimit / 2) : 2000,
+      maxTokens: model?.outputTokenLimit ? model.outputTokenLimit : 4000,
       // Pass assistantId directly in the top level and in options
       assistantId: assistantId,
       assistantName: assistantName,
       skipRag: false,
       skipCodeInterpreter: false,
+      disableReasoning: true,
+      enableWebSearch: false, // for now
       skipMemory: true, // Skip memory processing
       ...options,
     };
 
+    // 🔍 DEBUG: Estimate JSON body size
+    try {
+      const estimatedBodySize = JSON.stringify(chatBody).length;
+      console.log(`🔍 [assistantService] Request body size: ${estimatedBodySize} bytes (${(estimatedBodySize / 1024).toFixed(1)} KB)`);
+      if (estimatedBodySize > 100000) {
+        console.warn(`⚠️ [assistantService] Very large request body: ${(estimatedBodySize / 1024).toFixed(1)} KB`);
+      }
+    } catch (e) {
+      console.error(`❌ [assistantService] Failed to stringify chatBody:`, e);
+    }
+
     const metaHandler: MetaHandler = {
       status: (meta: any) => {
-        setResponseStatus(meta.message ?? "");
+        setResponseStatus(meta.message ?? "", meta);
       },
       mode: (modeName: string) => {},
-      state: (state: any) => handleMessageState(deepMerge(messageState, state)),
+      state: (state: any) => {
+        try {
+          // 🔍 DEBUG: Log sizes before deepMerge to find allocation overflow source
+          const messageStateKeys = Object.keys(messageState || {});
+          const stateKeys = Object.keys(state || {});
+
+          const mergedState = deepMerge(messageState, state);
+          handleMessageState(mergedState);
+        } catch (e) {
+          console.error('❌ [assistantService] Error in state handler:', e);
+          console.error('❌ [assistantService] messageState keys:', Object.keys(messageState || {}));
+          console.error('❌ [assistantService] incoming state keys:', Object.keys(state || {}));
+          throw e; // Re-throw to see in stack trace
+        }
+      },
       shouldAbort: () => false
     };
-    // console.log("chatBody", chatBody);
+    // @ts-ignore
     const response = await sendChatRequestWithDocuments(chatEndpoint, session.accessToken, chatBody, controller.signal, metaHandler);
-    
+
     return {
       success: response.ok,
       response
@@ -217,11 +248,11 @@ export const addAssistantPath = async (assistantId: string, astPath: string, gro
     // Convert path to lowercase for consistency
     let op = null;
     const lowerCasePath = astPath.toLowerCase();
-    const data = { 
-      assistantId: assistantId, 
+    const data: any = {
+      assistantId: assistantId,
       astPath: lowerCasePath,
       isPublic: isPublic ?? emptyAstPathData.isPublic,
-      accessTo: accessTo ?? emptyAstPathData.accessTo
+      accessTo: accessTo ?? emptyAstPathData.accessTo,
     };
     if (groupId) {
         console.log("Adding path to group assistant: ", groupId);
@@ -229,7 +260,7 @@ export const addAssistantPath = async (assistantId: string, astPath: string, gro
           method: 'POST',
           path: "/groups",
           op: URL_PATH + "/add_path",
-          data: { 
+          data: {
             group_id: groupId,
             path_data: data
           },
@@ -240,12 +271,11 @@ export const addAssistantPath = async (assistantId: string, astPath: string, gro
         method: 'POST',
         path: URL_PATH,
         op: "/add_path",
-          data: data,
+        data: data,
         service: SERVICE_NAME
-      }; 
+      };
     }
     return await doRequestOp(op);
-    
 };
 
 /**
@@ -341,12 +371,62 @@ export const rescanWebsites = async (assistantId: string, forceRescan: boolean =
 };
 
 
+// ── Layered Assistants ─────────────────────────────────────────────────────
+
+/**
+ * Create a new layered assistant, or update an existing one.
+ * Pass assistantId to update; omit (or pass empty string) to create.
+ */
+export const saveLayeredAssistant = async (layeredAssistant: LayeredAssistant) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/layered/create_or_update",
+        data: {
+            assistantId: layeredAssistant.assistantId || "",
+            name:        layeredAssistant.name,
+            description: layeredAssistant.description || "",
+            rootNode:    layeredAssistant.rootNode,
+            data:        layeredAssistant.data ?? {},
+        },
+        service: SERVICE_NAME,
+    };
+    return await doRequestOp(op);
+};
+
+/**
+ * List all layered assistants belonging to the current user.
+ */
+export const listLayeredAssistants = async () => {
+    const op = {
+        method: 'GET',
+        path: URL_PATH,
+        op: "/layered/list",
+        service: SERVICE_NAME,
+    };
+    return await doRequestOp(op);
+};
+
+
+/**
+ * Delete a layered assistant by its assistantId.
+ */
+export const deleteLayeredAssistant = async (assistantId: string) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/layered/delete",
+        data: { assistantId },
+        service: SERVICE_NAME,
+    };
+    return await doRequestOp(op);
+};
+
 export const getSiteMapUrls = async (sitemap: string, maxPages?: number) => {
   const data: { sitemap: string, maxPages?: number } = { sitemap }
   if (maxPages) {
     data.maxPages = maxPages;
   }
-  console.log("data", data);
   const op = {
       method: 'POST',
       path: URL_PATH,

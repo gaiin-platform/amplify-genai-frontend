@@ -1,5 +1,7 @@
 import NextAuth from "next-auth"
 import CognitoProvider from "next-auth/providers/cognito"
+import { signIn } from "next-auth/react";
+import { decodeJwt } from "jose";
 
 console.log('[NextAuth] Initializing with issuer:', process.env.COGNITO_ISSUER);
 console.log('[NextAuth] Client ID present:', !!process.env.COGNITO_CLIENT_ID);
@@ -72,44 +74,92 @@ export const authOptions = {
             issuer: process.env.COGNITO_ISSUER,
         })
     ],
+    pages: {
+        signIn: '/',
+    },
     secret: process.env.NEXTAUTH_SECRET,
     callbacks: {
+        async signIn({ account, profile }) {
+            return true;
+        },
         async jwt({ token, account, profile }) {
-            // Initial sign in - capture tokens from OAuth provider
+            // Initial sign in - capture tokens from OAuth provider (HEAD's shape).
             if (account) {
                 console.log('[NextAuth] JWT callback - initial signin, capturing tokens');
-                return {
+                token = {
                     ...token,
                     accessToken: account.access_token,
                     idToken: account.id_token,
                     refreshToken: account.refresh_token,
                     expiresAt: account.expires_at,
                 };
+                const attr = process.env.IMMUTABLE_ID_ATTRIBUTE;
+                if (profile && attr && profile[attr]) {
+                    token.immutableId = profile[attr];
+                }
+            } else {
+                // Refresh if expired or about to expire (5-minute buffer).
+                const bufferSeconds = 5 * 60;
+                if (token.expiresAt && Date.now() >= (token.expiresAt * 1000 - bufferSeconds * 1000)) {
+                    console.log('[NextAuth] Token expired or expiring soon, refreshing...');
+                    const newToken = await refreshAccessToken(token);
+                    token = {
+                        ...token,
+                        accessToken: newToken.accessToken,
+                        idToken: newToken.idToken ?? token.idToken,
+                        refreshToken: newToken.refreshToken ?? token.refreshToken,
+                        expiresAt: newToken.accessTokenExpires
+                            ? Math.floor(newToken.accessTokenExpires / 1000)
+                            : token.expiresAt,
+                        error: newToken.error,
+                    };
+                }
             }
 
-            // Return previous token if it hasn't expired yet
-            // Add 5-minute buffer to refresh before actual expiry
-            const bufferSeconds = 5 * 60;
-            if (token.expiresAt && Date.now() < (token.expiresAt * 1000 - bufferSeconds * 1000)) {
-                return token;
+            // Call /user/create once per session so the backend has a user record
+            // for new sign-ins. Kept from main — backend depends on this side-effect.
+            if (token.accessToken && !token.upgradedOrCreated) {
+                try {
+                    const response = await fetch((process.env.API_BASE_URL || "") + '/user/create', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token.accessToken}`
+                        },
+                        body: JSON.stringify({
+                            data: {
+                                token: { ...token, accessToken: undefined, refreshToken: undefined, idToken: undefined },
+                                profile,
+                            },
+                            immutable_id_field: process.env.IMMUTABLE_ID_ATTRIBUTE,
+                        }),
+                        signal: null,
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Failed to call: ${response.status}`);
+                    }
+                    token.upgradedOrCreated = true;
+                } catch (error) {
+                    console.error('Error calling /user/create: ', error);
+                }
             }
 
-            // Token has expired (or will expire within 5 min), try to refresh it
-            console.log('[NextAuth] Token expired or expiring soon, refreshing...');
-            return await refreshAccessToken(token);
+            return token;
         },
         async session({ session, token }) {
-            // Pass tokens to the client session
             console.log('[NextAuth] Session callback - token has accessToken:', !!token.accessToken);
             session.accessToken = token.accessToken;
             session.idToken = token.idToken;
             session.error = token.error;
+            session.upgradedOrCreated = !!token.upgradedOrCreated;
+            if (token.immutableId && session.user) {
+                session.user.username = token.immutableId;
+            }
 
-            // If there's a refresh error, the client should handle re-authentication
             if (token.error) {
                 console.warn('[NextAuth] Session has error:', token.error);
             }
-
             return session;
         },
     },

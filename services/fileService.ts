@@ -7,7 +7,8 @@ const SERVICE_NAME = "file";
 const uploadFileToS3 = (
     file: File,
     presignedUrl: string,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    mimeType?: string
 ) => {
     const xhr = new XMLHttpRequest();
     const abortController = new AbortController();
@@ -46,16 +47,10 @@ const uploadFileToS3 = (
         // Set up and send the request
         xhr.open('PUT', presignedUrl);
 
-        // Add the Content-Type header with the file's MIME type
-        if (file.type) {
-            console.log("file type", file.type);
-            xhr.setRequestHeader("Content-Type", file.type); // Ensure the Content-Type header is set
-        } else {
-            console.log("file type", "application/octet-stream");
-            // If the file.type is not defined, you may choose to set a generic binary type, or
-            // if your backend service requires a specific type, you'll need to provide it accordingly.
-            xhr.setRequestHeader("Content-Type", "application/octet-stream");
-        }
+        // Add the Content-Type header with the computed MIME type
+        const contentType = mimeType || file.type || "application/octet-stream";
+        console.log(`[S3 UPLOAD DEBUG] Using Content-Type: "${contentType}"`);
+        xhr.setRequestHeader("Content-Type", contentType);
 
         xhr.send(file);
     });
@@ -121,25 +116,25 @@ export function checkContentReady(url: string, maxSeconds: number, abortControll
 }
 
 export const addFile = async (metadata: AttachedDocument, file: File, onProgress?: (progress: number) => void, ragEnabled: boolean = true, tags: string[] = [], abortSignal: AbortSignal | null = null) => {
-    console.log('Rag Enabled', ragEnabled);
-
+    const requestBody = {
+        data: {
+            actions: [],
+            type: metadata.type,
+            name: metadata.name,
+            knowledgeBase: "default",
+            tags: tags,
+            data: metadata.data,
+            groupId: metadata.groupId,
+            ragOn: ragEnabled
+        }
+    };
+    
     const response = await fetch('/api/files/upload', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-            data: {
-                actions: [],
-                type: metadata.type,
-                name: metadata.name,
-                knowledgeBase: "default",
-                tags: tags,
-                data: metadata.data,
-                groupId: metadata.groupId,
-                ragOn: ragEnabled
-            }
-        }),
+        body: JSON.stringify(requestBody),
         signal: abortSignal,
     });
 
@@ -165,7 +160,7 @@ export const addFile = async (metadata: AttachedDocument, file: File, onProgress
         if (onProgress) {
             onProgress(progress);
         }
-    });
+    }, metadata.type);
 
     return {
         key: key,

@@ -1,10 +1,11 @@
-import {IconRobot, IconSettingsAutomation, IconTool} from '@tabler/icons-react';
+import {IconPuzzle, IconRobot, IconSettingsAutomation, IconTool} from '@tabler/icons-react';
 
 // Type of task that can be scheduled
 export const TASK_TYPE_MAP = {
   'assistant': IconRobot,
   'actionSet':  IconSettingsAutomation,
-  'apiTool' : IconTool
+  'apiTool' : IconTool,
+  'workflow' : IconPuzzle
 } as const;
 
 // Then derive the type from the keys

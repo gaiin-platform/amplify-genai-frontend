@@ -4,14 +4,23 @@ import {authOptions} from "@/pages/api/auth/[...nextauth]";
 import { transformPayload } from "@/utils/app/data";
 import { lzwCompress } from "@/utils/app/lzwCompression";
 
+export const config = {
+    api: {
+        bodyParser: {
+            sizeLimit: '10mb' // Increased limit for large conversations
+        }
+    }
+}
+
 interface reqPayload {
-    method: any, 
+    method: any,
     headers: any,
     body?: any,
 }
 
 // Paths that should not be compressed
-const NO_COMPRESSION_PATHS = ['/billing', '/se', '/vu-agent', "/user-data"];
+const NO_COMPRESSION_PATHS = ['/billing', '/se', "/amp", '/vu-agent', "/user-data", "/data-disclosure", "/integrations"];
+
 
 const requestOp =
     async (req: NextApiRequest, res: NextApiResponse) => {
@@ -25,6 +34,7 @@ const requestOp =
 
         // Accessing itemData parameters from the request
         const reqData = req.body.data || {};
+        const pollRequestId = req.body.pollRequestId;  // Extract pollRequestId at top level
 
         const method = reqData.method || null;
         let payload = reqData.data ? transformPayload.decode(reqData.data) : null;
@@ -43,7 +53,9 @@ const requestOp =
         }
 
         if (payload) {
-            const shouldCompress = !NO_COMPRESSION_PATHS.includes(reqData.path);
+            // Use originalPath if available (set when running locally), otherwise use path
+            const pathToCheck = reqData.originalPath || reqData.path;
+            const shouldCompress = !NO_COMPRESSION_PATHS.includes(pathToCheck);
             
             if (shouldCompress) {
                 try {
@@ -62,7 +74,14 @@ const requestOp =
             } else {
                 console.log(`Skipping compression for path: ${reqData.path}`);
             }
-            reqPayload.body = JSON.stringify( { data: payload });
+
+            // Include pollRequestId if present (for polling support)
+            const bodyData: any = { data: payload };
+            if (pollRequestId) {
+                bodyData.pollRequestId = pollRequestId;
+                console.log(`Including pollRequestId in backend request: ${pollRequestId}`);
+            }
+            reqPayload.body = JSON.stringify(bodyData);
 
         }
 

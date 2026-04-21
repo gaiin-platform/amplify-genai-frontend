@@ -1,6 +1,6 @@
 {
   "name": "amplify-genai",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -62,8 +62,8 @@
     "react-simple-code-editor": "^0.14.1",
     "react-svg-pan-zoom": "^3.12.1",
     "react-svg-pan-zoom-loader": "^1.6.1",
-    "react-syntax-highlighter": "^15.6.6",
-    "react-vega": "^7.6.0",
+    "react-syntax-highlighter": "^16.1.0",
+    "react-vega": "^8.0.0",
     "read-excel-file": "^5.6.1",
     "rehype-katex": "^7.0.1",
     "rehype-raw": "^7.0.0",
@@ -72,19 +72,19 @@
     "spark-md5": "^3.0.2",
     "styled-components": "^6.0.8",
     "uuid": "^9.0.1",
-    "vega": "^5.25.0",
-    "vega-lite": "^5.16.0",
+    "vega": "^6.2.0",
+    "vega-embed": "^7.1.0",
+    "vega-lite": "^6.4.1",
     "zod": "^3.22.3"
   },
   "devDependencies": {
+    "@fast-check/vitest": "^0.4.0",
+    "@mozilla/readability": "^0.6.0",
     "@next/bundle-analyzer": "^14.2.0",
+    "@tailwindcss/typography": "^0.5.9",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.5.0",
-    "jsdom": "^25.0.0",
-    "vitest": "^2.1.0",
-    "@mozilla/readability": "^0.6.0",
-    "@tailwindcss/typography": "^0.5.9",
     "@trivago/prettier-plugin-sort-imports": "^4.1.1",
     "@types/dompurify": "^3.0.5",
     "@types/jsdom": "^21.1.1",
@@ -103,11 +103,17 @@
     "endent": "^2.1.0",
     "eslint": "8.36.0",
     "eslint-config-next": "^13.5.4",
+    "fast-check": "^4.7.0",
     "gpt-3-encoder": "^1.1.4",
+    "jsdom": "^25.0.0",
     "postcss": "^8.4.21",
     "prettier": "^2.8.7",
     "prettier-plugin-tailwindcss": "^0.2.5",
     "tailwindcss": "^3.2.7",
-    "typescript": "4.9.5"
+    "typescript": "4.9.5",
+    "vitest": "^1.6.1"
+  },
+  "overrides": {
+    "refractor": "3.6.0"
   }
 }

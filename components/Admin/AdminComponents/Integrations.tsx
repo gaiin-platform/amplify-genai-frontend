@@ -1,7 +1,8 @@
-import { FC, useState } from "react";
+import { FC, useState, useContext } from "react";
+import HomeContext from '@/pages/api/home/home.context';
 import {  titleLabel } from "../AdminUI";
 import { AdminConfigTypes} from "@/types/admin";
-import { IntegrationsMap, Integration, integrationProviders, IntegrationSecretsMap, IntegrationProviders, IntegrationSecrets} from "@/types/integrations";
+import { IntegrationsMap, Integration, integrationProviders, IntegrationSecretsMap, IntegrationProviders, IntegrationSecrets, ProviderSettingsMap, AdminWebSearchConfig} from "@/types/integrations";
 import { IconCheck, IconX, IconPlus } from "@tabler/icons-react";
 import { capitalize } from "@/utils/app/data";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
@@ -9,18 +10,26 @@ import InputsMap from "@/components/ReusableComponents/InputMap";
 import { translateIntegrationIcon } from "@/components/Integrations/IntegrationsDialog";
 import { registerIntegrationSecrets } from "@/services/oauthIntegrationsService";
 import toast from "react-hot-toast";
+import { WebSearchIntegration } from "./WebSearchIntegration";
 
 interface Props {
-    integrations: IntegrationsMap;
+    integrations: IntegrationsMap | null;
     setIntegrations: (i: IntegrationsMap) => void;
 
     integrationSecrets: IntegrationSecretsMap;
     setIntegrationSecrets: (s: IntegrationSecretsMap) => void;
-    
-    updateUnsavedConfigs: (t: AdminConfigTypes) => void; 
+
+    azureAdminConsentProvided: boolean;
+    setAzureAdminConsentProvided: (value: boolean) => void;
+
+    webSearchConfig: AdminWebSearchConfig | null;
+    setWebSearchConfig: (config: AdminWebSearchConfig | null) => void;
+
+    updateUnsavedConfigs: (t: AdminConfigTypes) => void;
 }
 
-export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integrationSecrets, setIntegrationSecrets, updateUnsavedConfigs}) => {
+export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integrationSecrets, setIntegrationSecrets, azureAdminConsentProvided, setAzureAdminConsentProvided, webSearchConfig, setWebSearchConfig, updateUnsavedConfigs}) => {
+    const { state: { featureFlags } } = useContext(HomeContext);
 
     const [secretsHasChanges, setSecretsHasChanges] = useState<string[]>([]);
     const [isRegisteringSecrets, setIsRegisteringSecrets] = useState<string>('');
@@ -73,12 +82,20 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
         return secrets ? secrets[key] ?? "" : "";    
     }
 
-    return <div className="admin-style-settings-card">
+    return <>
+        {/* Web Search Integration */}
+        {featureFlags.webSearch && <WebSearchIntegration
+            config={webSearchConfig}
+            setConfig={setWebSearchConfig}
+            updateUnsavedConfigs={() => updateUnsavedConfigs(AdminConfigTypes.WEB_SEARCH)}
+        />}
+
+        {integrations && <div className="admin-style-settings-card">
         <div className="admin-style-settings-card-header">
             <div className="flex flex-row items-center gap-3 mb-2">
-                <h3 className="admin-style-settings-card-title">Integrations</h3>
+                <h3 className="admin-style-settings-card-title">OAuth Integrations</h3>
             </div>
-            <p className="admin-style-settings-card-description">Configure and manage third-party integrations</p>
+            <p className="admin-style-settings-card-description">Configure and manage OAuth third-party integrations (Google Drive, Microsoft OneDrive, etc.)</p>
         </div>
 
         {Object.entries(integrations).map(([name, integrationList]: [string, Integration[]]) => 
@@ -117,16 +134,36 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
                             setIntegrationSecrets({...integrationSecrets, [name]: updated});
                             if (!secretsHasChanges.includes(name)) setSecretsHasChanges([...secretsHasChanges, name]);
                         }}
-                    /> 
-                    </div> 
-                    
+                    />
+
+                    {/* Admin Consent Checkbox - Only for Microsoft */}
+                    {name === integrationProviders.Microsoft && (
+                        <div className="ml-4 mt-4 flex flex-col gap-2">
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={azureAdminConsentProvided}
+                                    onChange={(e) => setAzureAdminConsentProvided(e.target.checked)}
+                                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600"
+                                />
+                                <span className="text-sm font-medium text-black dark:text-white">
+                                    Admin consent is being provided in Azure for this integration
+                                </span>
+                            </label>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 ml-7">
+                                Enable this if you have configured admin consent for this application in Microsoft Entra ID (formerly Azure AD). This allows users to connect without requiring individual consent prompts.
+                            </p>
+                        </div>
+                    )}
+                    </div>
+
                     { integrationList.map((integration: Integration) =>
                         <div id={integration.id} key={integration.id} className={`ml-4 flex flex-row gap-2 `}>  {/* hover:bg-gray-200 dark:hover:bg-[#40414F] */}
                             <div className="mr-4 ">
                                 <div className="flex items-center mb-2">
                                 {integration.isAvailable && (<IconCheck className="w-5 h-5 mr-2 text-green-500" /> )}
-                                {translateIntegrationIcon(integration.icon)} 
-                                <span className="text-black dark:text-white font-semibold">{`${getLabel(name)} ${integration.name}`}</span>
+                                {translateIntegrationIcon(integration.id)} 
+                                <span className="ml-2 text-black dark:text-white font-semibold">{`${getLabel(name)} ${integration.name}`}</span>
                                 </div> 
                                 <p className="text-sm text-gray-600 dark:text-gray-300">{integration.description}</p>
                             </div>
@@ -151,6 +188,7 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
                 <br className="mb-4"></br>
             </div>
         )}
-    </div>
+    </div>}
+    </>
 
 }
