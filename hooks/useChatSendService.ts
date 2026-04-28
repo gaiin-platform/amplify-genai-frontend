@@ -173,7 +173,7 @@ export function useSendService() {
                     console.log("Model in use: ", selectedConversation.model.name);
                     let updatedConversation: Conversation;
                     if (deleteCount) {
-                        const updatedMessages = [...selectedConversation.messages];
+                        const updatedMessages = [...(selectedConversation.messages ?? [])];
                         for (let i = 0; i < deleteCount; i++) {
                             updatedMessages.pop();
                         }
@@ -184,7 +184,7 @@ export function useSendService() {
                     } else {
                         updatedConversation = {
                             ...selectedConversation,
-                            messages: [...selectedConversation.messages, message],
+                            messages: [...(selectedConversation.messages ?? []), message],
                         };
                     }
 
