@@ -1,18 +1,16 @@
-import React, { useState, useMemo, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { Step } from '@/types/assistantWorkflows';
-import { OpDef, Schema } from '@/types/op';
+import { OpDef } from '@/types/op';
 import { AgentTool } from '@/types/agentTools';
-import { emptySchema } from '@/utils/app/tools';
 import { IconPlus, IconTrash, IconChevronDown, IconChevronUp, IconEdit, IconEditOff, IconRobot, IconLoader2, IconSparkles, IconWand } from '@tabler/icons-react';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
 import { InputsMap } from '@/components/ReusableComponents/InputMap';
-import { ToolSelectorModal, ToolItem } from './ToolSelectorModal';
 import cloneDeep from 'lodash/cloneDeep';
-import { createAllToolItems, TOOL_ITEM_PRESETS } from '@/utils/toolItemFactory';
 import HomeContext from '@/pages/api/home/home.context';
 import { generateSingleStep, AIStepGenerationResult } from '@/utils/workflowAI';
 import { toast } from 'react-hot-toast';
 import { DefaultModels } from '@/types/model';
+import ApiIntegrationsPanel from '@/components/AssistantApi/ApiIntegrationsPanel';
 
 interface StepEditorProps {
   step: Step;
@@ -37,9 +35,9 @@ const StepEditor: React.FC<StepEditorProps> = ({
 }) => {
   const { state: { chatEndpoint, defaultAccount, statsService }, getDefaultModel } = useContext(HomeContext);
   
-  const [showToolSelector, setShowToolSelector] = useState(false);
   const [hoveredArgIndex, setHoveredArgIndex] = useState<string | null>(null);
   const [hoveredValueIndex, setHoveredValueIndex] = useState<string | null>(null);
+  const [toolPickerOpen, setToolPickerOpen] = useState(false);
   
   // AI Generation state
   const [useAI, setUseAI] = useState(isNewStep && !isTerminate); // ON by default for new steps
@@ -66,33 +64,30 @@ const StepEditor: React.FC<StepEditorProps> = ({
     setCurrentStepKey(stepKey);
   }, [stepIndex, step.tool, isNewStep, isTerminate, currentStepKey]);
 
-  // Create ToolItems from available APIs and agent tools
-  const toolItems = useMemo(() => {
-    const items = createAllToolItems(availableApis, availableAgentTools, TOOL_ITEM_PRESETS.STEP_EDITOR);
-    
-    // Apply emptySchema fallback for agent tools that might not have parameters
-    return items.map(item => {
-      if (item.type === 'agent' && !item.parameters) {
-        return { ...item, parameters: emptySchema };
-      }
-      return item;
-    });
-  }, [availableApis, availableAgentTools]);
-
-  const handleSelectTool = (toolItem: ToolItem) => {
+  const handleSelectApiTool = (api: OpDef) => {
     const args: Record<string, string> = {};
-    if (toolItem.parameters?.properties) {
-      Object.entries(toolItem.parameters.properties).forEach(([paramName, paramInfo]: [string, any]) => {
-        args[paramName] = paramInfo.description ?? "No description provided";
+    if ((api as any).parameters?.properties) {
+      Object.entries((api as any).parameters.properties).forEach(([paramName, paramInfo]: [string, any]) => {
+        args[paramName] = paramInfo.description ?? 'No description provided';
       });
     }
-    
     const updatedStep = cloneDeep(step);
-    updatedStep.tool = toolItem.name;
+    updatedStep.tool = api.name;
     updatedStep.args = args;
-    
     onStepChange(updatedStep);
-    setShowToolSelector(false);
+  };
+
+  const handleSelectAgentTool = (tool: any) => {
+    const args: Record<string, string> = {};
+    if (tool.parameters?.properties) {
+      Object.entries(tool.parameters.properties).forEach(([paramName, paramInfo]: [string, any]) => {
+        args[paramName] = paramInfo.description ?? 'No description provided';
+      });
+    }
+    const updatedStep = cloneDeep(step);
+    updatedStep.tool = tool.name ?? tool.id ?? tool;
+    updatedStep.args = args;
+    onStepChange(updatedStep);
   };
 
   const updateStep = (updates: Partial<Step>) => {
@@ -315,18 +310,35 @@ const StepEditor: React.FC<StepEditorProps> = ({
 
       {/* Tool */}
       {allowToolSelection && (
-        <div className={`mb-4 ${isTerminate ? 'opacity-50' : ''}`}>
+        <div className={`mb-4 ${isTerminate ? 'opacity-50 pointer-events-none' : ''}`}>
           <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200">
             Tool
           </label>
           <button
-            disabled={isTerminate}
             type="button"
-            className={`w-full p-2 border border-gray-300 text-left rounded-lg bg-white dark:bg-[#40414F] dark:border-neutral-600 text-gray-900 dark:text-white ${isTerminate ? "" : "hover:bg-gray-50 dark:hover:bg-[#4a4b59] transition-colors"}`}
-            onClick={() => setShowToolSelector(true)}
+            onClick={() => setToolPickerOpen(prev => !prev)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-neutral-600 bg-white dark:bg-[#40414F] text-gray-900 dark:text-white text-sm hover:bg-gray-50 dark:hover:bg-[#353540] transition-colors"
           >
-            {step.tool || "Select a tool"}
+            {step.tool ? (
+              <span className="font-medium">{step.tool}</span>
+            ) : (
+              <span className="text-gray-500 dark:text-neutral-400">Select Tool</span>
+            )}
+            {toolPickerOpen ? <IconChevronUp size={14} className="text-gray-500 dark:text-neutral-400" /> : <IconChevronDown size={14} className="text-gray-500 dark:text-neutral-400" />}
           </button>
+          {toolPickerOpen && (
+            <div className="mt-2 border-l ml-2 pl-4 border-gray-300 dark:border-neutral-600">
+              <ApiIntegrationsPanel
+                availableApis={availableApis}
+                availableAgentTools={availableAgentTools}
+                onClickApiItem={(api) => { handleSelectApiTool(api); setToolPickerOpen(false); }}
+                onClickAgentTool={(tool) => { handleSelectAgentTool(tool); setToolPickerOpen(false); }}
+                allowCreatePythonFunction={false}
+                allowConfiguration={false}
+                compactDisplay={false}
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -360,7 +372,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
       </div>
 
       {/* Use Advanced Reasoning */}
-      <div className="mb-4" title="Uses a more advanced model for this step">
+      <div className="mb-4 dark:text-white" title="Uses a more advanced model for this step">
         <Checkbox
           id={`advanced-reasoning-${stepIndex}`}
           label="Use Advanced Reasoning"
@@ -553,16 +565,6 @@ const StepEditor: React.FC<StepEditorProps> = ({
         )}
       </div>
 
-      {/* Tool Picker Modal */}
-      <ToolSelectorModal
-        isOpen={showToolSelector}
-        onClose={() => setShowToolSelector(false)}
-        onSelect={handleSelectTool}
-        tools={toolItems}
-        title="Select Tool for Step"
-        showAdvancedFiltering={false}
-        showClearSearch={false}
-      />
     </div>
   );
 };

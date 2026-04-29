@@ -1,10 +1,11 @@
 import { FC, useContext, useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
     IconPlus, IconTrash, IconChevronRight,
     IconRobot, IconGitBranch, IconX,
     IconWand, IconLoader2, IconCheck,
     IconRoute, IconArrowRight, IconLayoutGrid, IconAlertCircle, IconEye,
-    IconGripVertical, IconWorld, IconChevronDown,
+    IconGripVertical, IconWorld, IconChevronDown, IconSparkles, IconTag,
 } from '@tabler/icons-react';
 import { addAssistantPath } from '@/services/assistantService';
 import AssistantPathEditor, { AstPathData, emptyAstPathData, isAstPathDataChanged } from '@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor';
@@ -21,7 +22,7 @@ import { DefaultModels } from '@/types/model';
 import { InfoBox } from '@/components/ReusableComponents/InfoBox';
 import {
     LayeredAssistant, LayeredAssistantNode, RouterNode, LeafNode,
-    RouterContextField,
+    RouterContextField, LayeredNodeType,
     isRouterNode, isLeafNode,
     createRouterNode, createLeafNode, createLayeredAssistant
 } from '@/types/layeredAssistant';
@@ -438,12 +439,13 @@ interface LayeredAssistantBuilderProps {
     onClose: () => void;
     onSave?: (layeredAssistant: LayeredAssistant) => Promise<LayeredAssistant | null> | void;
     initialData?: LayeredAssistant;
-    onRegisterSave?: (saveFn: () => void) => void; // modal parent registers this to trigger save
+    onRegisterSave?: (saveFn: () => void, isSavingRef?: React.MutableRefObject<boolean>) => void; // modal parent registers this to trigger save
+    onSavingChange?: (saving: boolean) => void; // notifies parent of saving state
     assistants?: Prompt[];  // optional override — if omitted, uses personal assistants from context
     showSaveButton?: boolean; // save button is now in the parent — this prop switches height to 100%
 }
 
-export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onClose, onSave, initialData, onRegisterSave, assistants: propAssistants, showSaveButton }) => {
+export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onClose, onSave, initialData, onRegisterSave, onSavingChange, assistants: propAssistants, showSaveButton }) => {
     const {
         state: { prompts, chatEndpoint, defaultAccount },
         getDefaultModel,
@@ -454,11 +456,13 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
     );
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(layeredAssistant.rootNode.id);
     const [assistantSearch, setAssistantSearch] = useState('');
-    const [generatingField, setGeneratingField] = useState<string | null>(null);
+    const [generatingFields, setGeneratingFields] = useState<Set<string>>(new Set());
     const [ruleViolation, setRuleViolation] = useState<string | null>(null);
     const [saveWarnings, setSaveWarnings] = useState<string[]>([]);
     const [showSaveWarnings, setShowSaveWarnings] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [previewAssistant, setPreviewAssistant] = useState<Prompt | null>(null);
+    const [showLAGenerator, setShowLAGenerator] = useState(false);
 
     // ── Drag & Drop state ────────────────────────────────────────────
     const [dragNodeId, setDragNodeId] = useState<string | null>(null);
@@ -782,7 +786,8 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
         const result = findNode(nodeId);
         if (!result) return;
         const node = result.node;
-        setGeneratingField(`${nodeId}-${field}`);
+        const fieldKey = `${nodeId}-${field}`;
+        setGeneratingFields(prev => new Set(prev).add(fieldKey));
         try {
             const model = getDefaultModel(DefaultModels.CHEAPEST);
             let systemPrompt = '';
@@ -818,12 +823,12 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
                 }
             }
 
-            if (!userMessage) { setGeneratingField(null); return; }
+            if (!userMessage) { setGeneratingFields(prev => { const n = new Set(prev); n.delete(fieldKey); return n; }); return; }
             const messages: Message[] = [{ role: 'user', content: userMessage, type: 'chat', id: '1', data: undefined }];
             const response = await promptForData(chatEndpoint, messages, model, systemPrompt, defaultAccount);
             if (response) handleUpdateNodeField(nodeId, field, response.trim());
         } catch (e) { console.error('AI generation failed:', e); }
-        finally { setGeneratingField(null); }
+        finally { setGeneratingFields(prev => { const n = new Set(prev); n.delete(fieldKey); return n; }); }
     };
 
     // ── Derived ───────────────────────────────────────────────────────
@@ -855,6 +860,7 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
     };
 
     const handleSave = useCallback(() => {
+        if (isSaving) return;
         if (!layeredAssistant.name.trim()) {
             flashRule('Give your layered assistant a name before saving.');
             return;
@@ -867,14 +873,22 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
             return;
         }
         commitSave();
-    }, [layeredAssistant, onSave, onClose]);
+    }, [layeredAssistant, onSave, onClose, isSaving]);
+
+    const isSavingRef = useRef(false);
+
+    // Keep ref in sync with state so parent can read it synchronously
+    useEffect(() => { isSavingRef.current = isSaving; }, [isSaving]);
 
     // Register save fn with parent modal whenever it changes
     useEffect(() => {
-        if (onRegisterSave) onRegisterSave(handleSave);
+        if (onRegisterSave) onRegisterSave(handleSave, isSavingRef);
     }, [handleSave, onRegisterSave]);
 
     const commitSave = async () => {
+        if (isSaving) return;
+        setIsSaving(true);
+        onSavingChange?.(true);
         try {
             const updatedLA = { ...layeredAssistant, updatedAt: new Date().toISOString() };
 
@@ -926,6 +940,9 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
             onClose();
         } catch (e) {
             console.error('Save failed:', e);
+        } finally {
+            setIsSaving(false);
+            onSavingChange?.(false);
         }
     };
 
@@ -948,6 +965,23 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
                 />
             )}
 
+             {/* Info box */}
+               
+             <div className="mx-1 mb-4 relative flex-shrink-0">
+                <InfoBox
+                    content={
+                        <div className="text-xs leading-relaxed pr-6">
+                            <span className="font-semibold">Layered Assistants</span> let you build a smart decision tree.&nbsp;
+                            <span className="font-semibold text-purple-600 dark:text-purple-500">Parent Assistant Routers</span> decide which assistant handles a request,
+                            and <span className="font-semibold text-blue-600 dark:text-blue-500">child assistants</span> do the actual work.
+                            Build your tree, add your assistants, and let AI write the decision logic for you.
+                        </div>
+                    }
+                    rounded={true} padding="p-0"
+                />
+                
+            </div>
+
 
             {/* Header: name only */}
             <div className="flex items-center gap-3 mb-3 px-1 flex-shrink-0">
@@ -967,36 +1001,52 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
                         placeholder="Layered Assistant Name"
                     />
                 </div>
-                {/* Info box */}
-               
-                    <div className="mx-1 mb-3 relative flex-shrink-0 h-8 mr-4">
-                        <InfoBox
-                            content={
-                                <div className="text-xs leading-relaxed pr-6">
-                                    <span className="font-semibold">Layered Assistants</span> let you build a smart decision tree.&nbsp;
-                                    <span className="font-semibold text-purple-600 dark:text-purple-500">Parent Assistant Routers</span> decide which assistant handles a request,
-                                    and <span className="font-semibold text-blue-600 dark:text-blue-500">child assistants</span> do the actual work.
-                                    Build your tree, add your assistants, and let AI write the decision logic for you.
-                                </div>
-                            }
-                            rounded={true} padding="p-0"
-                        />
-                        
-                    </div>
+
+                <button
+                    onClick={(e) => { e.stopPropagation(); setShowLAGenerator(true); }}
+                    className="mr-5 flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold rounded-lg
+                            bg-gradient-to-r from-purple-600 to-blue-600 text-white
+                            hover:from-purple-700 hover:to-blue-700
+                            transition-all duration-200 shadow-sm hover:shadow-md whitespace-nowrap"
+                    title="Let AI generate the entire tree structure for you"
+                >
+                    <IconSparkles size={16} />
+                    AI Generate Layered Assistant
+                </button>
 
             </div>
 
             {/* Description row */}
-            <div className="flex items-center gap-2 mb-3 px-1 flex-shrink-0">
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 flex-shrink-0">Description:</span>
+            <div className="flex items-center gap-2 mb-3 px-3 flex-shrink-0">
+                <span className="text-sm font-medium text-gray-500 dark:text-gray-400 flex-shrink-0">Description:</span>
                 <input
-                    type="text"
+                    type="text py-2"
                     value={layeredAssistant.description}
                     onChange={(e) => setLayeredAssistant(prev => ({ ...prev, description: e.target.value }))}
-                    className="flex-1 text-xs bg-transparent border border-gray-200 dark:border-neutral-600 rounded-md px-2 py-1 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 outline-none focus:border-purple-400 dark:focus:border-purple-500 transition-colors"
+                    className="flex-1 text-sm bg-transparent border border-gray-200 dark:border-neutral-600 rounded-md px-2 py-1 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 outline-none focus:border-purple-400 dark:focus:border-purple-500 transition-colors"
                     placeholder="What does this layered assistant do? (optional)"
                 />
+    
             </div>
+
+            {/* LA Generator Modal */}
+            {showLAGenerator && (
+                <LAGeneratorModal
+                    availableAssistants={assistants}
+                    onClose={() => setShowLAGenerator(false)}
+                    onApply={(generated) => {
+                        setLayeredAssistant(prev => ({
+                            ...prev,
+                            name: generated.name || prev.name,
+                            description: generated.description || prev.description,
+                            rootNode: generated.rootNode,
+                            updatedAt: new Date().toISOString(),
+                        }));
+                        setSelectedNodeId(generated.rootNode.id);
+                        setShowLAGenerator(false);
+                    }}
+                />
+            )}
 
             {/* Rule violation banner */}
             {ruleViolation && (
@@ -1038,10 +1088,11 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
                             </button>
                             <button
                                 onClick={() => { setShowSaveWarnings(false); commitSave(); }}
+                                disabled={isSaving}
                                 className="px-4 py-2 rounded-lg text-sm font-semibold text-white
-                                           bg-amber-500 hover:bg-amber-600 transition-colors"
+                                           bg-amber-500 hover:bg-amber-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                             >
-                                Save anyway
+                                {isSaving ? 'Saving...' : 'Save anyway'}
                             </button>
                         </div>
                     </div>
@@ -1229,7 +1280,7 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
                                         <label className="text-[11px] font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-wider">Description</label>
                                         <AIGenerateButton
                                             onGenerate={() => handleAIGenerate('description', selectedNode.id)}
-                                            isGenerating={generatingField === `${selectedNode.id}-description`}
+                                            isGenerating={generatingFields.has(`${selectedNode.id}-description`)}
                                         />
                                     </div>
                                     <textarea
@@ -1315,7 +1366,7 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
                                             <label className="text-[11px] font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-wider">Decision Guide</label>
                                             <AIGenerateButton
                                                 onGenerate={() => handleAIGenerate('instructions', selectedNode.id)}
-                                                isGenerating={generatingField === `${selectedNode.id}-instructions`}
+                                                isGenerating={generatingFields.has(`${selectedNode.id}-instructions`)}
                                             />
                                         </div>
                                         <textarea
@@ -1619,3 +1670,494 @@ function resolveDropDestination(
 }
 
 export default LayeredAssistantBuilder;
+
+
+// ─── LA Generator Modal ───────────────────────────────────────────────────────
+
+interface LAGeneratorModalProps {
+    availableAssistants: Prompt[];
+    onClose: () => void;
+    onApply: (generated: LayeredAssistant) => void;
+}
+
+const LAGeneratorModal: FC<LAGeneratorModalProps> = ({
+    availableAssistants,
+    onClose,
+    onApply
+}) => {
+    const [purpose, setPurpose] = useState('');
+    const [selectedAstIds, setSelectedAstIds] = useState<Set<string>>(new Set());
+    const [categories, setCategories] = useState<string[]>([]);
+    const [categoryInput, setCategoryInput] = useState('');
+    const [extraContext, setExtraContext] = useState('');
+    const [astSearch, setAstSearch] = useState('');
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const overlayRef = useRef<HTMLDivElement>(null);
+
+    const {state:{chatEndpoint, defaultAccount},  dispatch:homeDispatch, getDefaultModel} = useContext(HomeContext);
+
+    const filteredAsts = useMemo(() => {
+        if (!astSearch.trim()) return availableAssistants;
+        const s = astSearch.toLowerCase();
+        return availableAssistants.filter(a =>
+            a.name.toLowerCase().includes(s) || (a.description || '').toLowerCase().includes(s)
+        );
+    }, [availableAssistants, astSearch]);
+
+    const toggleAst = (id: string) => {
+        setSelectedAstIds(prev => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
+
+    const addCategory = () => {
+        const v = categoryInput.trim();
+        if (v && !categories.includes(v)) setCategories(prev => [...prev, v]);
+        setCategoryInput('');
+    };
+
+    const handleCategoryKey = (e: React.KeyboardEvent) => {
+        e.stopPropagation();
+        if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addCategory(); }
+        if (e.key === 'Backspace' && !categoryInput && categories.length > 0)
+            setCategories(prev => prev.slice(0, -1));
+    };
+
+    const buildPrompt = (): string => {
+        const selected = availableAssistants.filter(a => {
+            const id = a.data?.assistant?.definition?.assistantId || a.id;
+            return selectedAstIds.has(id);
+        });
+
+        const astList = selected.length > 0
+            ? selected.map(a => {
+                const def = getAssistant(a);
+                const lines = [`  - name: "${a.name}"`];
+                if (def?.description || a.description) lines.push(`    description: "${def?.description || a.description}"`);
+                if (def?.tags?.length) lines.push(`    tags: [${def.tags.map((t: string) => `"${t}"`).join(', ')}]`);
+                return lines.join('\n');
+            }).join('\n')
+            : '  (No specific assistants pre-selected — infer sensible leaf names from the purpose)';
+
+        const catList = categories.length > 0
+            ? categories.map(c => `  - "${c}"`).join('\n')
+            : '  (None specified — infer from purpose)';
+
+        return `You are an expert at designing Layered Assistant routing trees. A Layered Assistant is a decision tree where:
+- RouterNodes route user requests to the correct child (another router or a leaf assistant)
+- LeafNodes reference specific assistants and describe when to pick them
+
+Your task: generate a complete Layered Assistant tree as strict JSON.
+
+─── USER'S PURPOSE ───
+${purpose.trim() || '(not specified — design a sensible general-purpose routing tree)'}
+
+─── ASSISTANTS TO USE AS LEAVES ───
+${astList}
+
+─── ROUTING CATEGORIES / TOPIC AREAS ───
+${catList}
+
+─── EXTRA CONTEXT ───
+${extraContext.trim() || '(none)'}
+
+─── OUTPUT FORMAT (strict JSON, nothing else) ───
+{
+  "name": "string — concise layered assistant name",
+  "description": "string — one sentence describing what this routes",
+  "rootNode": {
+    "type": "router",
+    "id": "root",
+    "name": "string",
+    "description": "string — what kinds of requests hit this router",
+    "instructions": "string — detailed decision guide: when to pick each child. Use bullet points. Be specific about signals in the user message.",
+    "children": [
+      {
+        "type": "router" | "leaf",
+        "id": "unique-string",
+        "name": "string",
+        ...
+      }
+    ]
+  }
+}
+
+RouterNode schema:
+{
+  "type": "router",
+  "id": "unique-string (short, kebab-case)",
+  "name": "string",
+  "description": "string",
+  "instructions": "string — thorough routing decision guide with bullet points per child",
+  "children": [ ...RouterNode | LeafNode ]
+}
+
+LeafNode schema:
+{
+  "type": "leaf",
+  "id": "unique-string (short, kebab-case)",
+  "assistantId": "string — MUST match exactly one of the assistant names listed above (use the name as the id if no explicit id was given)",
+  "name": "string — same as the assistant name",
+  "description": "string — when should the router pick this assistant? Be specific.",
+  "routerContext": []
+}
+
+─── RULES ───
+1. Every RouterNode MUST have at least 2 children
+2. Every LeafNode assistantId MUST match an assistant from the list above (use the assistant's name if no explicit ID was given)
+3. If fewer than 2 assistants were provided, still create a valid tree — use the provided assistant(s) plus invent sensible placeholder leaf names
+4. RouterNode instructions MUST explicitly mention each child by name and describe when to route to it
+5. Keep the tree depth ≤ 3 levels unless the categories clearly require more
+6. Output ONLY the JSON object — no markdown fences, no explanation
+
+Generate the JSON now:`;
+    };
+
+    const parseTree = (raw: any): LayeredAssistant => {
+        // Map assistant name → real assistantId for leaf resolution
+        const nameToId = new Map<string, string>();
+        availableAssistants.forEach(a => {
+            const id = a.data?.assistant?.definition?.assistantId || a.id;
+            nameToId.set(a.name.toLowerCase(), id);
+            nameToId.set(id.toLowerCase(), id);
+        });
+
+        const resolveLeafId = (val: string): string => {
+            return nameToId.get(val.toLowerCase()) || val;
+        };
+
+        const parseNode = (n: any, depth = 0): LayeredAssistantNode => {
+            const id = n.id || crypto.randomUUID();
+            if (n.type === 'router') {
+                return {
+                    type: LayeredNodeType.ROUTER,
+                    id,
+                    name: n.name || 'Router',
+                    description: n.description || '',
+                    instructions: n.instructions || '',
+                    children: Array.isArray(n.children)
+                        ? n.children.map((c: any) => parseNode(c, depth + 1))
+                        : [],
+                } as RouterNode;
+            }
+            // leaf
+            return {
+                type: LayeredNodeType.LEAF,
+                id,
+                assistantId: resolveLeafId(n.assistantId || n.name || ''),
+                name: n.name || 'Assistant',
+                description: n.description || '',
+                routerContext: [],
+            } as LeafNode;
+        };
+
+        const rootNode = parseNode(raw.rootNode || raw);
+        if (!isRouterNode(rootNode)) throw new Error('Root must be a router node');
+
+        return {
+            ...createLayeredAssistant(),
+            name: raw.name || 'Generated Layered Assistant',
+            description: raw.description || '',
+            rootNode: rootNode as RouterNode,
+        };
+    };
+
+    const handleGenerate = async () => {
+        if (!purpose.trim() && selectedAstIds.size === 0) {
+            setError('Describe the purpose or select at least one assistant.');
+            return;
+        }
+        if (!chatEndpoint) { setError('Chat endpoint not available.'); return; }
+
+        setIsGenerating(true);
+        setError(null);
+
+        try {
+            const model = getDefaultModel(DefaultModels.ADVANCED);
+            const messages = [{ role: 'user' as const, content: buildPrompt(), type: 'chat' as const, id: '1', data: undefined }];
+            const response = await promptForData(chatEndpoint, messages, model, 'Respond with only a valid JSON object.', defaultAccount, undefined, 6000);
+            if (!response) throw new Error('No response from AI.');
+
+            // Strip markdown fences if present
+            const cleaned = response.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+            const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) throw new Error('AI response did not contain a JSON object.');
+
+            const parsed = JSON.parse(jsonMatch[0]);
+            const generated = parseTree(parsed);
+            onApply(generated);
+        } catch (e: any) {
+            console.error('LA generation failed:', e);
+            setError(e?.message || 'Generation failed. Please try again.');
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleOverlayClick = (_e: React.MouseEvent) => {
+        // Click outside disabled — use the X button or Cancel to close
+    };
+
+    return createPortal(
+        <div
+            ref={overlayRef}
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={handleOverlayClick}
+        >
+            <div
+                className="relative flex flex-col bg-white dark:bg-[#2b2c36] rounded-2xl shadow-2xl border border-gray-200 dark:border-neutral-600 w-full mx-4"
+                style={{ maxHeight: '95vh', maxWidth: '60vw' }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-neutral-600 flex-shrink-0">
+                    <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-blue-500">
+                            <IconSparkles size={16} className="text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-base font-bold text-gray-900 dark:text-white">AI Generate Layered Assistant</h3>
+                            <p className="text-[11px] text-gray-500 dark:text-neutral-400">Describe your routing tree and let AI build the structure</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onClose(); }}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors"
+                    >
+                        <IconX size={18} />
+                    </button>
+                </div>
+
+                {/* Scrollable body */}
+                <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 min-h-0">
+
+                    {/* Error */}
+                    {error && (
+                        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 text-xs">
+                            <IconAlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+                            <span>{error}</span>
+                        </div>
+                    )}
+
+                    {/* Purpose */}
+                    <div>
+                        <label className="block text-[11px] font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-wider mb-1.5">
+                            What should this layered assistant do? <span className="text-red-400">*</span>
+                        </label>
+                        <textarea
+                            value={purpose}
+                            onChange={(e) => { e.stopPropagation(); setPurpose(e.target.value); }}
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            rows={3}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-neutral-600
+                                       bg-white dark:bg-[#40414F] text-sm text-gray-900 dark:text-neutral-100
+                                       placeholder-gray-400 dark:placeholder-neutral-500
+                                       focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none transition-shadow resize-none"
+                            placeholder="e.g. A help-desk router that directs questions about billing, technical support, and account management to the right specialist assistant."
+                        />
+                    </div>
+
+                    {/* Assistant selection */}
+                    <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                            <label className="block text-[11px] font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-wider">
+                                Assistants to include as leaves
+                                {selectedAstIds.size > 0 && (
+                                    <span className="ml-2 normal-case font-semibold text-purple-600 dark:text-purple-400">
+                                        ({selectedAstIds.size} selected)
+                                    </span>
+                                )}
+                            </label>
+                            {filteredAsts.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const allSelected = filteredAsts.every(a => {
+                                            const id = a.data?.assistant?.definition?.assistantId || a.id;
+                                            return selectedAstIds.has(id);
+                                        });
+                                        if (allSelected) {
+                                            setSelectedAstIds(prev => {
+                                                const next = new Set(prev);
+                                                filteredAsts.forEach(a => {
+                                                    const id = a.data?.assistant?.definition?.assistantId || a.id;
+                                                    next.delete(id);
+                                                });
+                                                return next;
+                                            });
+                                        } else {
+                                            setSelectedAstIds(prev => {
+                                                const next = new Set(prev);
+                                                filteredAsts.forEach(a => {
+                                                    const id = a.data?.assistant?.definition?.assistantId || a.id;
+                                                    next.add(id);
+                                                });
+                                                return next;
+                                            });
+                                        }
+                                    }}
+                                    className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200 transition-colors"
+                                >
+                                    {filteredAsts.every(a => selectedAstIds.has(a.data?.assistant?.definition?.assistantId || a.id))
+                                        ? 'Deselect All'
+                                        : 'Select All'}
+                                </button>
+                            )}
+                        </div>
+                        <p className="text-[10px] text-gray-400 dark:text-neutral-500 mb-2">
+                            Select which of your existing assistants to wire into the tree. Leave empty to let AI suggest placeholders.
+                        </p>
+                        {/* Search */}
+                        <div className="relative mb-2">
+                            <input
+                                value={astSearch}
+                                onChange={(e) => { e.stopPropagation(); setAstSearch(e.target.value); }}
+                                onClick={(e) => e.stopPropagation()}
+                                onKeyDown={(e) => e.stopPropagation()}
+                                placeholder="Search assistants..."
+                                className="w-full pl-3 pr-3 py-1.5 rounded-lg border border-gray-200 dark:border-neutral-600
+                                           bg-white dark:bg-[#40414F] text-xs text-gray-800 dark:text-neutral-200
+                                           placeholder-gray-400 dark:placeholder-neutral-500
+                                           focus:ring-1 focus:ring-purple-400 outline-none transition-shadow"
+                            />
+                        </div>
+                        {/* List */}
+                        <div className="max-h-44 overflow-y-auto rounded-lg border border-gray-200 dark:border-neutral-600 divide-y divide-gray-100 dark:divide-neutral-700">
+                            {filteredAsts.length === 0 ? (
+                                <div className="py-6 text-center text-xs text-gray-400 dark:text-neutral-500">
+                                    {astSearch ? 'No match' : 'No assistants available'}
+                                </div>
+                            ) : filteredAsts.map(a => {
+                                const id = a.data?.assistant?.definition?.assistantId || a.id;
+                                const checked = selectedAstIds.has(id);
+                                return (
+                                    <label
+                                        key={id}
+                                        className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors
+                                            ${checked
+                                                ? 'bg-purple-50 dark:bg-purple-900/25'
+                                                : 'bg-white dark:bg-[#343541] hover:bg-gray-50 dark:hover:bg-[#40414F]'
+                                            }`}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={() => toggleAst(id)}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="w-3.5 h-3.5 rounded accent-purple-500 flex-shrink-0 cursor-pointer"
+                                        />
+                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                            <div className={`flex-shrink-0 p-1 rounded-md ${checked ? 'bg-purple-200 dark:bg-purple-600' : 'bg-gray-100 dark:bg-[#40414F]'}`}>
+                                                <IconRobot size={12} className={checked ? 'text-purple-700 dark:text-white' : 'text-gray-500 dark:text-neutral-300'} />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-medium text-gray-900 dark:text-neutral-100 truncate">{a.name}</p>
+                                                {a.description && (
+                                                    <p className="text-[10px] text-gray-400 dark:text-neutral-500 truncate">{a.description}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {checked && <IconCheck size={12} className="flex-shrink-0 text-purple-600 dark:text-purple-400" />}
+                                    </label>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Categories */}
+                    <div>
+                        <label className="block text-[11px] font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-wider mb-1.5">
+                            <span className="flex items-center gap-1"><IconTag size={11} /> Routing categories / topic areas</span>
+                        </label>
+                        <p className="text-[10px] text-gray-400 dark:text-neutral-500 mb-2">
+                            Add topics the router should split between — e.g. <em>billing</em>, <em>technical support</em>, <em>onboarding</em>. Press Enter or comma to add.
+                        </p>
+                        {/* Tag chips + input */}
+                        <div
+                            className="flex flex-wrap items-center gap-1.5 px-2.5 py-2 rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-[#40414F] cursor-text min-h-[38px]"
+                            onClick={(e) => { e.stopPropagation(); (e.currentTarget.querySelector('input') as HTMLInputElement)?.focus(); }}
+                        >
+                            {categories.map(cat => (
+                                <span key={cat} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-100 dark:bg-purple-800/50 text-purple-800 dark:text-purple-200">
+                                    {cat}
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); setCategories(prev => prev.filter(c => c !== cat)); }}
+                                        className="text-purple-500 hover:text-purple-700 dark:hover:text-white transition-colors"
+                                    >
+                                        <IconX size={9} />
+                                    </button>
+                                </span>
+                            ))}
+                            <input
+                                value={categoryInput}
+                                onChange={(e) => { e.stopPropagation(); setCategoryInput(e.target.value); }}
+                                onClick={(e) => e.stopPropagation()}
+                                onKeyDown={handleCategoryKey}
+                                onBlur={addCategory}
+                                placeholder={categories.length === 0 ? 'e.g. billing, support, onboarding…' : ''}
+                                className="flex-1 min-w-[120px] bg-transparent text-xs text-gray-800 dark:text-neutral-200 placeholder-gray-400 dark:placeholder-neutral-500 outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Extra context */}
+                    <div>
+                        <label className="block text-[11px] font-bold text-gray-500 dark:text-neutral-400 uppercase tracking-wider mb-1.5">
+                            Extra context for the AI <span className="normal-case font-normal text-gray-400">(optional)</span>
+                        </label>
+                        <textarea
+                            value={extraContext}
+                            onChange={(e) => { e.stopPropagation(); setExtraContext(e.target.value); }}
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            rows={2}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-neutral-600
+                                       bg-white dark:bg-[#40414F] text-xs text-gray-900 dark:text-neutral-100
+                                       placeholder-gray-400 dark:placeholder-neutral-500
+                                       focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none transition-shadow resize-none"
+                            placeholder="e.g. Keep depth to 2 levels. The billing assistant handles refunds and invoices. Route ambiguous queries to the triage assistant."
+                        />
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-neutral-600 flex-shrink-0">
+                    <p className="text-[10px] text-gray-400 dark:text-neutral-500 max-w-xs leading-relaxed">
+                        This will <span className="font-semibold text-amber-600 dark:text-amber-400">replace</span> the current tree. You can edit everything after generation.
+                    </p>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onClose(); }}
+                            className="px-4 py-1.5 rounded-lg text-xs font-semibold text-gray-600 dark:text-gray-300
+                                       bg-gray-100 dark:bg-neutral-700 hover:bg-gray-200 dark:hover:bg-neutral-600 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); handleGenerate(); }}
+                            disabled={isGenerating || (!purpose.trim() && selectedAstIds.size === 0)}
+                            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold text-white
+                                       bg-gradient-to-r from-purple-600 to-blue-600
+                                       hover:from-purple-700 hover:to-blue-700
+                                       disabled:opacity-50 disabled:cursor-not-allowed
+                                       transition-all duration-200 shadow-sm hover:shadow-md"
+                        >
+                            {isGenerating
+                                ? <><IconLoader2 size={13} className="animate-spin" /> Generating…</>
+                                : <><IconSparkles size={13} /> Generate Tree</>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+};

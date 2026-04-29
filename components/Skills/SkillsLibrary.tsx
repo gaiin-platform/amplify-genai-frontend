@@ -220,15 +220,33 @@ export const SkillsLibrary: FC<SkillsLibraryProps> = ({ chatEndpoint, onClose })
     }
 
     return (
-        <div className="flex flex-col h-full bg-white dark:bg-[#343541]">
+        <div className="flex flex-col">
             {/* Header */}
-            <div className="p-4 border-b border-neutral-200 dark:border-neutral-600">
+            <div className="pb-4 border-b border-neutral-200 dark:border-neutral-600">
+                {/* View mode tabs + action buttons */}
                 <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                        <IconBrain size={28} className="text-purple-500" />
-                        <h1 className="text-2xl font-bold text-neutral-800 dark:text-neutral-200">
-                            Skills Library
-                        </h1>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setViewMode('my-skills')}
+                            className={`px-4 py-2 rounded-lg transition-colors ${
+                                viewMode === 'my-skills'
+                                    ? 'bg-purple-500 text-white'
+                                    : 'bg-neutral-100 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-600'
+                            }`}
+                        >
+                            My Skills ({skills.length})
+                        </button>
+                        <button
+                            onClick={() => setViewMode('public')}
+                            className={`px-4 py-2 rounded-lg transition-colors ${
+                                viewMode === 'public'
+                                    ? 'bg-purple-500 text-white'
+                                    : 'bg-neutral-100 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-600'
+                            }`}
+                        >
+                            <IconGlobe size={16} className="inline mr-1" />
+                            Discover ({publicSkills.length})
+                        </button>
                     </div>
                     <div className="flex items-center gap-2">
                         <button
@@ -247,31 +265,6 @@ export const SkillsLibrary: FC<SkillsLibraryProps> = ({ chatEndpoint, onClose })
                             New Skill
                         </button>
                     </div>
-                </div>
-
-                {/* View mode tabs */}
-                <div className="flex gap-2 mb-4">
-                    <button
-                        onClick={() => setViewMode('my-skills')}
-                        className={`px-4 py-2 rounded-lg transition-colors ${
-                            viewMode === 'my-skills'
-                                ? 'bg-purple-500 text-white'
-                                : 'bg-neutral-100 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-600'
-                        }`}
-                    >
-                        My Skills ({skills.length})
-                    </button>
-                    <button
-                        onClick={() => setViewMode('public')}
-                        className={`px-4 py-2 rounded-lg transition-colors ${
-                            viewMode === 'public'
-                                ? 'bg-purple-500 text-white'
-                                : 'bg-neutral-100 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-600'
-                        }`}
-                    >
-                        <IconGlobe size={16} className="inline mr-1" />
-                        Discover ({publicSkills.length})
-                    </button>
                 </div>
 
                 {/* Search and filters */}
@@ -300,7 +293,7 @@ export const SkillsLibrary: FC<SkillsLibraryProps> = ({ chatEndpoint, onClose })
             </div>
 
             {/* Skills grid */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="p-4 pt-4">
                 {loading ? (
                     <div className="flex items-center justify-center h-64">
                         <div className="text-center">
