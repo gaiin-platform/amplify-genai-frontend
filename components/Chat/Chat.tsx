@@ -1442,7 +1442,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                             onClick={() => window.dispatchEvent(new Event('openCostBreakdown'))}
                                                             title="View cost breakdown"
                                                         >
-                                                            MTD Cost: ${mtdCostNumeric.toFixed(2)}
+                                                            MTD Cost: {mtdCostNumeric > 0 && mtdCostNumeric < 0.01 ? '<$0.01' : `$${mtdCostNumeric.toFixed(2)}`}
                                                         </button>
                                                         {hasActiveLimits && (
                                                             <div className="relative">

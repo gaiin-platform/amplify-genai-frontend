@@ -286,14 +286,16 @@ export const RateLimitUtilization: React.FC<Props> = ({ variant, mtd: externalMt
                         )}
 
                         {/* Current page's utilization bars */}
-                        {currentPage?.entries.map(({ limit, spent, pct }, i) => (
+                        {currentPage?.entries.map(({ limit, spent, pct }, i) => {
+                            const isPersonal = currentPage.source === 'personal';
+                            return (
                             <div key={i}>
                                 <div className="flex justify-between items-baseline mb-1">
                                     <span className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
                                         {limit.period} Limit
                                     </span>
-                                    <span className={`text-[11px] font-bold tabular-nums ${textColor(pct)}`}>
-                                        {fmt(spent)} / {fmt(limit.rate as number)}
+                                    <span className={`text-[11px] font-bold tabular-nums ${isPersonal ? textColor(pct) : 'text-neutral-600 dark:text-neutral-300'}`}>
+                                        {isPersonal ? `${fmt(spent)} / ${fmt(limit.rate as number)}` : fmt(spent)}
                                     </span>
                                 </div>
                                 <div className="w-full bg-neutral-200 dark:bg-neutral-600 rounded-full h-1.5">
@@ -302,11 +304,14 @@ export const RateLimitUtilization: React.FC<Props> = ({ variant, mtd: externalMt
                                         style={{ width: `${pct}%` }}
                                     />
                                 </div>
-                                <div className={`text-right text-[10px] mt-0.5 ${textColor(pct)}`}>
-                                    {pct.toFixed(0)}% {periodLabel(limit.period)}
-                                </div>
+                                {isPersonal && (
+                                    <div className={`text-right text-[10px] mt-0.5 ${textColor(pct)}`}>
+                                        {pct.toFixed(0)}% {periodLabel(limit.period)}
+                                    </div>
+                                )}
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -355,14 +360,19 @@ export const RateLimitUtilization: React.FC<Props> = ({ variant, mtd: externalMt
                     {/* Active page entries */}
                     {currentPage && (
                         <div className="space-y-5">
-                            {currentPage.entries.map(({ limit, spent, pct }, i) => (
+                            {currentPage.entries.map(({ limit, spent, pct }, i) => {
+                                const isPersonal = currentPage.source === 'personal';
+                                return (
                                 <div key={i}>
                                     <div className="flex justify-between items-baseline mb-1.5">
                                         <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
                                             {limit.period} Limit
                                         </span>
-                                        <span className={`text-sm font-bold tabular-nums ${textColor(pct)}`}>
-                                            {fmt(spent)} <span className="font-normal text-neutral-400">/ {fmt(limit.rate as number)}</span>
+                                        <span className={`text-sm font-bold tabular-nums ${isPersonal ? textColor(pct) : 'text-neutral-700 dark:text-neutral-300'}`}>
+                                            {isPersonal
+                                                ? <>{fmt(spent)} <span className="font-normal text-neutral-400">/ {fmt(limit.rate as number)}</span></>
+                                                : fmt(spent)
+                                            }
                                         </span>
                                     </div>
                                     <div className="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2.5">
@@ -371,14 +381,17 @@ export const RateLimitUtilization: React.FC<Props> = ({ variant, mtd: externalMt
                                             style={{ width: `${pct}%` }}
                                         />
                                     </div>
-                                    <div className="flex justify-between mt-1">
-                                        <span className="text-xs text-neutral-400">{periodLabel(limit.period)}</span>
-                                        <span className={`text-xs font-medium ${textColor(pct)}`}>
-                                            {pct.toFixed(1)}% used
-                                        </span>
-                                    </div>
+                                    {isPersonal && (
+                                        <div className="flex justify-between mt-1">
+                                            <span className="text-xs text-neutral-400">{periodLabel(limit.period)}</span>
+                                            <span className={`text-xs font-medium ${textColor(pct)}`}>
+                                                {pct.toFixed(1)}% used
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </>

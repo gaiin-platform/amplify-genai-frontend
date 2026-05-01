@@ -249,7 +249,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
           if (result.success) {
             const numeric = result.data.totalCost;
             setMtdCostNumeric(numeric);
-            setMtdCost(`$${numeric.toFixed(2)}`);
+            setMtdCost(numeric > 0 && numeric < 0.01 ? '<$0.01' : `$${numeric.toFixed(2)}`);
           } else {
             setMtdCostNumeric(0);
             setMtdCost('$0.00');
