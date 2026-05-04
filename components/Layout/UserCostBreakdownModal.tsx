@@ -18,7 +18,7 @@ interface Props {
     onClose: () => void;
 }
 
-const fmt = (n: number) => `$${n.toFixed(2)}`;
+const fmt = (n: number) => n > 0 && n < 0.01 ? '<$0.01' : `$${n.toFixed(2)}`;
 
 const utcToLocalHours = (hourlyCost: number[]): { hour: number; label: string; cost: number }[] => {
     const offsetMinutes = new Date().getTimezoneOffset();

@@ -585,6 +585,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                         setPeriod={setRateLimitPeriod}
                                         rate={rateLimitRate}
                                         setRate={setRateLimitRate}
+                                        allowUnlimited={true}
                                     />
                                  </div>
 
@@ -1234,6 +1235,7 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
                     setPeriod={setRateLimitPeriod}
                     rate={rateLimitRate}
                     setRate={setRateLimitRate}
+                    allowUnlimited={true}
                 />
             </div>)}
             {editableField && editableField === 'accessTypes' && (

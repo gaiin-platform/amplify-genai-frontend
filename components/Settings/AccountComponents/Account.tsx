@@ -271,7 +271,8 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                                     setPeriod={setAccountRateLimitPeriod}
                                     rate={accountRateLimitRate}
                                     setRate={setAccountRateLimitRate}
-                                />  
+                                    allowUnlimited={true}
+                                />
                             </div>
                         </div>
                         
@@ -497,6 +498,7 @@ const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit, showEdi
                     setPeriod={setRateLimitPeriod}
                     rate={rateLimitRate}
                     setRate={setRateLimitRate}
+                    allowUnlimited={true}
                 />
                 <div>
                     <ActionButton

@@ -18,6 +18,7 @@ import { AssistantWorkflowBuilder } from '@/components/AssistantWorkflows/Assist
 import { ScheduledTasks } from '@/components/Agent/ScheduledTasks';
 import { ScheduledTask } from '@/types/scheduledTasks';
 import { SkillsLibrary } from '@/components/Skills';
+import { Modal } from '@/components/ReusableComponents/Modal';
 
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
@@ -154,19 +155,15 @@ export const ChatbarSettings = () => {
                     onClick={() => setIsSkillsLibraryOpen(true)}
                 />
                 {isSkillsLibraryOpen && chatEndpoint && (
-                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                        <div className="w-full max-w-5xl h-[85vh] bg-white dark:bg-[#343541] rounded-lg shadow-2xl overflow-hidden">
+                    <Modal
+                        title="Skills Library"
+                        onCancel={() => setIsSkillsLibraryOpen(false)}
+                        showCancel={false}
+                        showSubmit={false}
+                        content={
                             <SkillsLibrary chatEndpoint={chatEndpoint} onClose={() => setIsSkillsLibraryOpen(false)} />
-                        </div>
-                        <button
-                            onClick={() => setIsSkillsLibraryOpen(false)}
-                            className="absolute top-4 right-4 p-2 text-white bg-black/50 hover:bg-black/70 rounded-full"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </div>
+                        }
+                    />
                 )}
                 </>
             )}

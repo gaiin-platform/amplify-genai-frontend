@@ -1,4 +1,5 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import HomeContext from '@/pages/api/home/home.context';
 import { IconCheck, IconEye, IconFiles, IconGitBranch, IconPlus, IconSettings, IconX } from '@tabler/icons-react';
 import { AssistantModal } from '../Promptbar/components/AssistantModal';
@@ -145,8 +146,6 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
     const [conversations, setConversations] = useState<AstUserConversation[]>([]);
     const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetrics | null>(null);
-
-    // LA-specific conversation/dashboard data
     const [laConversations, setLaConversations] = useState<AstUserConversation[]>([]);
     const [laDashboardMetrics, setLaDashboardMetrics] = useState<DashboardMetrics | null>(null);
 
@@ -157,6 +156,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
     const [groupLayeredAssistants, setGroupLayeredAssistants] = useState<LayeredAssistant[]>([]);
     const laBuilderSaveFnRef = useRef<(() => void) | null>(null);
+    const [laIsSaving, setLaIsSaving] = useState(false);
     const selectedLayeredAssistantRef = useRef<LayeredAssistant | undefined>(undefined);
     // When true, the selectedGroup useEffect should NOT clear selectedLayeredAssistant
     // (used when we switch group programmatically to open a specific LA)
@@ -629,7 +629,6 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                 Conversations
                             </button>
                         </>}
-
                         <button
                             className={`${activeSubTab === 'edit_layered_assistant' ? 'text-white flex flex-row gap-1 px-2 bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-200 ' : ' text-neutral-500 bg-gray-300 text-black dark:bg-gray-600 dark:text-white'}
                                         rounded-md shadow-sm px-4 py-2`}
@@ -868,15 +867,16 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                     const current = selectedLayeredAssistantRef.current;
                                     const result = await handleLayeredAssistantSave({
                                         ...la,
-                                        isPublished:         current?.isPublished,
-                                        model:               current?.model,
-                                        trackConversations:  current?.trackConversations,
-                                        supportConvAnalysis: current?.supportConvAnalysis,
-                                        analysisCategories:  current?.analysisCategories,
+                                        isPublished:         current?.isPublished         ?? la.isPublished,
+                                        model:               current?.model               ?? la.model,
+                                        trackConversations:  current?.trackConversations  ?? la.trackConversations,
+                                        supportConvAnalysis: current?.supportConvAnalysis ?? la.supportConvAnalysis,
+                                        analysisCategories:  current?.analysisCategories  ?? la.analysisCategories,
                                     });
                                     return result ?? null;
                                 }}
                                 onRegisterSave={(fn) => { laBuilderSaveFnRef.current = fn; }}
+                                onSavingChange={setLaIsSaving}
                                 initialData={selectedLayeredAssistant}
                                 assistants={groupAssistants}
                                 showSaveButton={true}
@@ -888,7 +888,10 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                 <LayeredAssistantConvConfigs
                                     key={selectedLayeredAssistant.assistantId ?? selectedLayeredAssistant.name}
                                     la={selectedLayeredAssistant}
-                                    onUpdate={(updated: LayeredAssistant) => setSelectedLayeredAssistant(updated)}
+                                    onUpdate={(updated: LayeredAssistant) => {
+                                        selectedLayeredAssistantRef.current = updated;
+                                        setSelectedLayeredAssistant(updated);
+                                    }}
                                     groupConvAnalysisSupport={!!selectedGroup.supportConvAnalysis}
                                 />
                             </div>
@@ -909,7 +912,6 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
             case 'la_dashboard': {
                 if (!selectedLayeredAssistant || !selectedGroup) return null;
-                // Build { assistantId → name } from the LA's leaf nodes so the chart shows names not IDs
                 const buildLeafNameMap = (node: LayeredAssistantNode): { [id: string]: string } => {
                     if (isLeafNode(node)) return { [node.assistantId]: node.name };
                     return (node.children || []).reduce((acc, child) => ({ ...acc, ...buildLeafNameMap(child) }), {} as { [id: string]: string });
@@ -970,16 +972,15 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
             disableContentAnimation={true}
             content={ <div className="no-modal-animation">
                         <LoadingDialog open={!!loadingMessage} message={loadingMessage} />
-                            {loadingActionMessage && (
-                                <div className="absolute inset-0 flex items-center justify-center z-60" key={"loading"}
-                                    style={{ transform: `translateY(-40%)` }}>
-                                    <div className="p-3 flex flex-row items-center  border border-gray-500 bg-[#202123]">
+                            {loadingActionMessage && createPortal(
+                                <div className="fixed inset-x-0 top-12 flex justify-center z-[9999] pointer-events-none">
+                                    <div className="p-3 flex flex-row items-center border border-gray-500 bg-[#202123] pointer-events-auto shadow-2xl">
                                         <LoadingIcon style={{ width: "24px", height: "24px" }} />
                                         <span className="text-lg font-bold ml-2 text-white">{loadingActionMessage + '...'}</span>
                                     </div>
-                                </div>
-                            )
-                            }
+                                </div>,
+                                document.body
+                            )}
                             {selectedGroup && showCreateGroupAssistant && (
                                 <div key={'admin_add'}>
                                     <AssistantModal
@@ -1064,6 +1065,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                                         return result ?? null;
                                                     }}
                                                     onRegisterSave={(fn) => { laBuilderSaveFnRef.current = fn; }}
+                                                    onSavingChange={setLaIsSaving}
                                                     assistants={groupAssistants}
                                                 />
                                             </div>
@@ -1078,9 +1080,10 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                     }
                                     fullScreen={true}
                                     onCancel={() => setShowCreateLayeredAssistant(false)}
-                                    onSubmit={() => { laBuilderSaveFnRef.current?.(); }}
+                                    onSubmit={() => { if (!laIsSaving) laBuilderSaveFnRef.current?.(); }}
                                     showSubmit={true}
-                                    submitLabel="Save"
+                                    submitLabel={laIsSaving ? 'Saving...' : 'Save'}
+                                    disableSubmit={laIsSaving}
                                     showCancel={true}
                                     cancelLabel="Cancel"
                                     showClose={true}
@@ -1204,6 +1207,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                                 >
                                                     <IconPlus className='mt-0.5' size={16} /> Assistant
                                                 </button>
+                                                { selectedGroup.assistants && selectedGroup.assistants.length > 0 &&
                                                 <button
                                                     className="flex flex-row gap-1 text-sm text-white px-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 transition-all duration-200 py-2 rounded-lg shadow-sm"
                                                     onClick={(e) => {
@@ -1216,7 +1220,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                                     title={groupAssistants.length === 0 ? 'Add at least one group assistant first' : 'Create a new layered assistant'}
                                                 >
                                                     <IconGitBranch className='mt-0.5' size={16} /> Layered Assistant
-                                                </button>
+                                                </button>}
                                             </div>
                                         </div>
                                         <div className={selectedLayeredAssistant ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}
