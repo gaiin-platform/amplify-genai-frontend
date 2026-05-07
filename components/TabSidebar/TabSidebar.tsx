@@ -114,7 +114,7 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
                 zIndex: '20 !important'
               }}>
             {isMultipleTabs && (
-                <div className="relative flex flex-row gap-1 px-3 pt-3 pb-0 bg-gradient-to-r from-neutral-100 to-neutral-50 dark:from-[#202123] dark:to-[#1c1c1e] overflow-hidden">
+                <div className="relative flex flex-row gap-1 px-3 pt-3 pb-0 flex-shrink-0 bg-gradient-to-r from-neutral-100 to-neutral-50 dark:from-[#202123] dark:to-[#1c1c1e] overflow-hidden">
                 {/* Animated gradient background */}
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-50/30 via-purple-50/20 to-pink-50/30 dark:from-blue-900/5 dark:via-purple-900/5 dark:to-pink-900/5 animate-gradient-x"></div>
                     {!chatSide() && <CloseSidebarButton onClick={toggleOpen} side={side} isHovered={isHovered} /> } 
