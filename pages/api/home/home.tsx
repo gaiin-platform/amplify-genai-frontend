@@ -53,6 +53,7 @@ import {
     IconLogout,
     IconSparkles,
     IconHammer,
+    IconNotebook,
 } from "@tabler/icons-react";
 
 import { initialState } from './home.state';
@@ -68,6 +69,7 @@ import Loader from "@/components/Loader/Loader";
 import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
 import { AssistantGallery } from "@/components/AssistantGallery/AssistantGallery";
+import { NotebookApp } from "@/components/Notebook/NotebookApp";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { deleteAssistant, listAssistants, listLayeredAssistants } from '@/services/assistantService';
 import { LayeredAssistant } from '@/types/layeredAssistant';
@@ -1575,13 +1577,16 @@ const Home = ({
                             />
 
 
-                            <TabSidebar
-                                side={"left"}
-                            >
-                                <Tab icon={<IconMessage />} title="Chats"><Chatbar /></Tab>
-                                <Tab icon={<IconSparkles />} title="Assistants"><Promptbar /></Tab>
-                                <Tab icon={<IconHammer />} title="Settings"><SettingsBar /></Tab>
-                            </TabSidebar>
+                            {page !== 'notebook' && (
+                                <TabSidebar
+                                    side={"left"}
+                                >
+                                    <Tab icon={<IconMessage />} title="Chats" onClick={() => dispatch({ field: 'page', value: 'chat' })}><Chatbar /></Tab>
+                                    <Tab icon={<IconSparkles />} title="Assistants" onClick={() => dispatch({ field: 'page', value: 'chat' })}><Promptbar /></Tab>
+                                    <Tab icon={<IconHammer />} title="Settings" onClick={() => dispatch({ field: 'page', value: 'chat' })}><SettingsBar /></Tab>
+                                    <Tab icon={<IconNotebook />} title="Notebook" onClick={() => dispatch({ field: 'page', value: 'notebook' })}><div /></Tab>
+                                </TabSidebar>
+                            )}
 
                             <div className="flex flex-1">
                                 {page === 'chat' && (
@@ -1597,6 +1602,9 @@ const Home = ({
                                 )}
                                 {page === 'assistantGallery' && (
                                     <AssistantGallery />
+                                )}
+                                {page === 'notebook' && (
+                                    <NotebookApp />
                                 )}
                             </div>
                             

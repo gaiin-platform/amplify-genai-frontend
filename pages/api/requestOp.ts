@@ -43,18 +43,31 @@ const requestOp =
         // @ts-ignore
         const { accessToken } = session;
 
+        const isNotebookService = reqData.service === 'notebook';
+        // For open-notebook, X-Auth-Request-User must be the VUNet ID — sanitize_username()
+        // maps it to a per-user SurrealDB database (`user_{vunetid}`). Email/name don't match.
+        const notebookUserId =
+            (session.user as any)?.username ||
+            (session.user as any)?.email ||
+            (session.user as any)?.name;
+
         let reqPayload: reqPayload = {
             method: method,
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${accessToken}` 
-            },
+            headers: isNotebookService
+                ? {
+                    "Content-Type": "application/json",
+                    "X-Auth-Request-User": notebookUserId || "",
+                }
+                : {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${accessToken}`,
+                },
         }
 
         if (payload) {
             // Use originalPath if available (set when running locally), otherwise use path
             const pathToCheck = reqData.originalPath || reqData.path;
-            const shouldCompress = !NO_COMPRESSION_PATHS.includes(pathToCheck);
+            const shouldCompress = !isNotebookService && !NO_COMPRESSION_PATHS.includes(pathToCheck);
             
             if (shouldCompress) {
                 try {
@@ -74,13 +87,18 @@ const requestOp =
                 console.log(`Skipping compression for path: ${reqData.path}`);
             }
 
-            // Include pollRequestId if present (for polling support)
-            const bodyData: any = { data: payload };
-            if (pollRequestId) {
-                bodyData.pollRequestId = pollRequestId;
-                console.log(`Including pollRequestId in backend request: ${pollRequestId}`);
+            if (isNotebookService) {
+                // open-notebook FastAPI expects the raw JSON body, not amplify's {data: ...} wrapper
+                reqPayload.body = JSON.stringify(payload);
+            } else {
+                // Include pollRequestId if present (for polling support)
+                const bodyData: any = { data: payload };
+                if (pollRequestId) {
+                    bodyData.pollRequestId = pollRequestId;
+                    console.log(`Including pollRequestId in backend request: ${pollRequestId}`);
+                }
+                reqPayload.body = JSON.stringify(bodyData);
             }
-            reqPayload.body = JSON.stringify(bodyData);
 
         }
 
@@ -103,8 +121,15 @@ const requestOp =
 export default requestOp;
 
 
-const constructUrl = (data: any) => {  
-    let apiUrl = data.url ?? (process.env.API_BASE_URL || "");
+const constructUrl = (data: any) => {
+    let apiUrl = data.url;
+    if (!apiUrl) {
+        if (data.service === 'notebook') {
+            apiUrl = process.env.NOTEBOOK_API_URL || "";
+        } else {
+            apiUrl = process.env.API_BASE_URL || "";
+        }
+    }
 
     const path: string = data.path || "";
     const op: string = data.op || "";
