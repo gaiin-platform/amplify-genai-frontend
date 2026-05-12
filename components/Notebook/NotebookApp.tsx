@@ -1,8 +1,9 @@
-import { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import {
     IconArrowLeft,
     IconNotebook,
     IconPlus,
+    IconSearch,
     IconTrash,
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
@@ -14,28 +15,47 @@ import {
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import { CreateNotebookDialog } from './CreateNotebookDialog';
 import { NotebookDetail } from './NotebookDetail';
+import { NotebookSidebar, NotebookSection } from './NotebookSidebar';
+import { SourcesPage } from './SourcesPage';
+import { ModelsPage } from './ModelsPage';
+import { AskSearchPage } from './AskSearchPage';
+import { PodcastsPage } from './PodcastsPage';
+import { TransformationsPage } from './TransformationsPage';
+import { SettingsPage } from './SettingsPage';
 
-const AVATAR_GRADIENTS = [
-    'from-purple-500 to-indigo-500',
-    'from-fuchsia-500 to-purple-500',
-    'from-blue-500 to-purple-500',
-    'from-pink-500 to-purple-500',
-    'from-violet-500 to-fuchsia-500',
-    'from-indigo-500 to-blue-500',
-];
-
-const gradientFor = (id: string) => {
-    let hash = 0;
-    for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-    return AVATAR_GRADIENTS[hash % AVATAR_GRADIENTS.length];
+const SECTION_TITLES: Record<NotebookSection, string> = {
+    notebooks: 'Notebooks',
+    sources: 'Sources',
+    ask: 'Ask and Search',
+    podcasts: 'Podcasts',
+    models: 'Models',
+    transformations: 'Transformations',
+    settings: 'Settings',
 };
 
-const initialsOf = (name?: string) => {
-    if (!name) return '?';
-    const parts = name.trim().split(/\s+/);
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+const SECTION_DESCRIPTIONS: Record<NotebookSection, string> = {
+    notebooks: '',
+    sources: 'A unified view of every source across your notebooks.',
+    ask: 'Run semantic search and ask questions across all your sources and notes.',
+    podcasts: 'Generate podcast episodes from your notebook content.',
+    models: 'Register and assign the LLM and embedding models used by notebooks.',
+    transformations: 'Run AI transformations against your sources to extract insights, summaries, or rewrites.',
+    settings: 'Configure default processing engines, embedding behavior, and file management.',
 };
+
+const ComingSoonPanel: React.FC<{ section: NotebookSection }> = ({ section }) => (
+    <div className="flex h-full items-center justify-center">
+        <div className="max-w-md rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-sm">
+                <IconNotebook size={22} />
+            </div>
+            <h2 className="text-lg font-semibold">{SECTION_TITLES[section]}</h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {SECTION_DESCRIPTIONS[section]}
+            </p>
+        </div>
+    </div>
+);
 
 const formatRelative = (iso?: string) => {
     if (!iso) return '';
@@ -62,9 +82,17 @@ export const NotebookApp = () => {
     const [showCreate, setShowCreate] = useState<boolean>(false);
     const [pendingDelete, setPendingDelete] = useState<NotebookSummary | null>(null);
     const [deleting, setDeleting] = useState<boolean>(false);
+    const [section, setSection] = useState<NotebookSection>('notebooks');
+    const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
+    const [searchQuery, setSearchQuery] = useState<string>('');
 
     const goBackToChat = () => dispatch({ field: 'page', value: 'chat' });
     const goBackToList = () => setSelected(null);
+
+    const handleSectionChange = (next: NotebookSection) => {
+        setSection(next);
+        if (next !== 'notebooks') setSelected(null);
+    };
 
     const fetchNotebooks = async () => {
         setLoading(true);
@@ -103,50 +131,121 @@ export const NotebookApp = () => {
         setPendingDelete(null);
     };
 
+    const isNotebooksSection = section === 'notebooks';
+    const headerTitle = isNotebooksSection
+        ? selected
+            ? selected.name || '(untitled)'
+            : 'Notebooks'
+        : SECTION_TITLES[section];
+    const showBackToList = isNotebooksSection && !!selected;
+    const showListControls = isNotebooksSection && !selected;
+
+    const filteredNotebooks = searchQuery.trim()
+        ? notebooks.filter((nb) => {
+              const q = searchQuery.toLowerCase();
+              return (
+                  (nb.name || '').toLowerCase().includes(q) ||
+                  (nb.description || '').toLowerCase().includes(q)
+              );
+          })
+        : notebooks;
+
     return (
-        <div className="flex flex-col flex-1 h-full bg-white dark:bg-[#343541] text-neutral-800 dark:text-neutral-100">
+        <div className="flex flex-1 h-full bg-white dark:bg-[#343541] text-neutral-800 dark:text-neutral-100">
+            <NotebookSidebar
+                section={section}
+                onSection={handleSectionChange}
+                onCreate={() => setShowCreate(true)}
+                onBack={goBackToChat}
+                collapsed={sidebarCollapsed}
+                onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
+            />
+            <div className="flex flex-col flex-1 min-w-0">
             <div className="flex items-center gap-3 border-b border-gray-200 dark:border-neutral-700 bg-gradient-to-b from-gray-50 to-white dark:from-gray-800 dark:to-[#343541] pl-4 pr-20 py-3">
-                <button
-                    onClick={selected ? goBackToList : goBackToChat}
-                    title={selected ? 'Back to notebooks' : 'Back to chat'}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white transition-colors"
-                >
-                    <IconArrowLeft size={20} />
-                </button>
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-sm">
-                    <IconNotebook size={18} />
-                </div>
+                {showBackToList && (
+                    <button
+                        onClick={goBackToList}
+                        title="Back to notebooks"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-white transition-colors"
+                    >
+                        <IconArrowLeft size={20} />
+                    </button>
+                )}
                 <div className="flex flex-col min-w-0">
                     <h1 className="text-base font-semibold leading-tight truncate">
-                        {selected ? selected.name || '(untitled)' : 'Notebooks'}
+                        {headerTitle}
                     </h1>
-                    {!selected && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {notebooks.length} {notebooks.length === 1 ? 'notebook' : 'notebooks'}
-                        </span>
-                    )}
-                    {selected?.description && (
+                    {isNotebooksSection && selected?.description && (
                         <span className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 max-w-xl">
                             {selected.description}
                         </span>
                     )}
+                    {!isNotebooksSection && SECTION_DESCRIPTIONS[section] && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 max-w-xl">
+                            {SECTION_DESCRIPTIONS[section]}
+                        </span>
+                    )}
                 </div>
 
+                {showListControls && (
+                    <>
+                        <div className="ml-auto flex items-center gap-2">
+                            <div className="relative">
+                                <IconSearch
+                                    size={14}
+                                    className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                                />
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search notebooks…"
+                                    className="h-8 w-56 rounded-lg border border-gray-200 bg-white pl-8 pr-3 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 dark:border-neutral-700 dark:bg-[#2b2c36] dark:text-gray-100 dark:placeholder-gray-500"
+                                />
+                            </div>
+                            <button
+                                onClick={() => setShowCreate(true)}
+                                className="flex h-8 items-center gap-1.5 rounded-lg bg-purple-500 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-600"
+                            >
+                                <IconPlus size={16} />
+                                New Notebook
+                            </button>
+                        </div>
+                    </>
+                )}
             </div>
 
             <div className="flex-1 overflow-auto px-6 py-6 bg-neutral-50 dark:bg-[#343541]">
-                {selected ? (
+                {section === 'sources' ? (
+                    <SourcesPage />
+                ) : section === 'models' ? (
+                    <ModelsPage />
+                ) : section === 'ask' ? (
+                    <AskSearchPage />
+                ) : section === 'podcasts' ? (
+                    <PodcastsPage />
+                ) : section === 'transformations' ? (
+                    <TransformationsPage />
+                ) : section === 'settings' ? (
+                    <SettingsPage />
+                ) : !isNotebooksSection ? (
+                    <ComingSoonPanel section={section} />
+                ) : selected ? (
                     <NotebookDetail notebookId={selected.id} initialData={selected} />
                 ) : (
                     <>
-                        {loading && (
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                                {[0, 1, 2].map((i) => (
-                                    <div
-                                        key={i}
-                                        className="h-36 animate-pulse rounded-xl border border-gray-200 bg-white dark:border-neutral-700 dark:bg-[#2b2c36]"
-                                    />
-                                ))}
+                        {loading && notebooks.length === 0 && (
+                            <div className="flex items-center justify-center py-20 text-sm text-gray-500 dark:text-gray-400">
+                                <svg
+                                    className="mr-2 h-4 w-4 animate-spin text-purple-500"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                >
+                                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
+                                    <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                                </svg>
+                                Loading notebooks…
                             </div>
                         )}
 
@@ -157,7 +256,7 @@ export const NotebookApp = () => {
                             </div>
                         )}
 
-                        {!loading && !error && notebooks.length === 0 && (
+                        {!loading && !error && notebooks.length === 0 && !searchQuery && (
                             <div className="flex flex-col items-center justify-center py-20 text-center">
                                 <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-lg">
                                     <IconNotebook size={28} />
@@ -167,19 +266,33 @@ export const NotebookApp = () => {
                                     Create your first notebook to start collecting sources, taking notes,
                                     and chatting with your research.
                                 </p>
-                                <button
-                                    onClick={() => setShowCreate(true)}
-                                    className="mt-5 flex items-center gap-1.5 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-purple-700 transition-all duration-200"
-                                >
-                                    <IconPlus size={16} />
-                                    Create notebook
-                                </button>
                             </div>
                         )}
 
-                        {!loading && !error && notebooks.length > 0 && (
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                                {notebooks.map((nb) => (
+                        {!loading && !error && notebooks.length > 0 && filteredNotebooks.length === 0 && (
+                            <div className="flex flex-col items-center justify-center py-20 text-center">
+                                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-400 dark:border-neutral-700 dark:bg-[#2b2c36]">
+                                    <IconNotebook size={28} />
+                                </div>
+                                <h2 className="text-lg font-semibold">No results</h2>
+                                <p className="mt-1 max-w-sm text-sm text-gray-500 dark:text-gray-400">
+                                    No notebooks match &quot;{searchQuery}&quot;.
+                                </p>
+                            </div>
+                        )}
+
+                        {!loading && !error && filteredNotebooks.length > 0 && (
+                            <>
+                                <div className="mb-3 flex items-baseline gap-2">
+                                    <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
+                                        Active Notebooks
+                                    </h2>
+                                    <span className="text-sm text-gray-400 dark:text-gray-500">
+                                        ({filteredNotebooks.length})
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                {filteredNotebooks.map((nb) => (
                                     <div
                                         key={nb.id}
                                         className="group relative cursor-pointer rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-purple-300 hover:shadow-md dark:border-neutral-700 dark:bg-[#2b2c36] dark:hover:border-purple-500/60"
@@ -191,19 +304,12 @@ export const NotebookApp = () => {
                                                 setPendingDelete(nb);
                                             }}
                                             title="Delete notebook"
-                                            className="absolute top-2 right-2 invisible rounded-full p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 group-hover:visible dark:hover:bg-red-900/30"
+                                            className="absolute top-2 right-2 invisible rounded-full p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 group-hover:visible dark:text-gray-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
                                         >
                                             <IconTrash size={16} />
                                         </button>
 
                                         <div className="flex items-start gap-3">
-                                            <div
-                                                className={`flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-gradient-to-br ${gradientFor(
-                                                    nb.id,
-                                                )} text-sm font-semibold text-white shadow-sm`}
-                                            >
-                                                {initialsOf(nb.name)}
-                                            </div>
                                             <div className="min-w-0 flex-1">
                                                 <div className="truncate font-semibold leading-snug">
                                                     {nb.name || '(untitled)'}
@@ -221,10 +327,10 @@ export const NotebookApp = () => {
                                         </div>
 
                                         <div className="mt-4 flex flex-wrap items-center gap-1.5">
-                                            <span className="rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                                            <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-medium text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
                                                 {nb.source_count ?? 0} sources
                                             </span>
-                                            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                                            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
                                                 {nb.note_count ?? 0} notes
                                             </span>
                                             {nb.updated && (
@@ -235,22 +341,13 @@ export const NotebookApp = () => {
                                         </div>
                                     </div>
                                 ))}
-                            </div>
+                                </div>
+                            </>
                         )}
                     </>
                 )}
             </div>
-
-            {!selected && !loading && (
-                <button
-                    onClick={() => setShowCreate(true)}
-                    title="New notebook"
-                    className="fixed bottom-6 right-6 z-30 flex items-center gap-2 rounded-full bg-gradient-to-br from-purple-600 to-indigo-600 px-5 py-3 text-sm font-medium text-white shadow-lg hover:shadow-xl hover:from-purple-700 hover:to-indigo-700 transition-all duration-200"
-                >
-                    <IconPlus size={18} />
-                    New notebook
-                </button>
-            )}
+            </div>
 
             {showCreate && (
                 <CreateNotebookDialog

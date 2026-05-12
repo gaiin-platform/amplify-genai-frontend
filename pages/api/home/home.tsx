@@ -53,7 +53,6 @@ import {
     IconLogout,
     IconSparkles,
     IconHammer,
-    IconNotebook,
 } from "@tabler/icons-react";
 
 import { initialState } from './home.state';
@@ -951,7 +950,7 @@ const Home = ({
                 const result = await getFeatureFlags();
                 if (result.success && result.data) {
                     const flags: { [key:string] : boolean } = result.data;
-                    // console.log("feature flags:", flags)
+                    console.log("feature flags:", flags)
                     if (Object.keys(flags).length > 0) dispatch({ field: 'featureFlags', value: flags});
                     localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
                     return flags;
@@ -1584,7 +1583,6 @@ const Home = ({
                                     <Tab icon={<IconMessage />} title="Chats" onClick={() => dispatch({ field: 'page', value: 'chat' })}><Chatbar /></Tab>
                                     <Tab icon={<IconSparkles />} title="Assistants" onClick={() => dispatch({ field: 'page', value: 'chat' })}><Promptbar /></Tab>
                                     <Tab icon={<IconHammer />} title="Settings" onClick={() => dispatch({ field: 'page', value: 'chat' })}><SettingsBar /></Tab>
-                                    <Tab icon={<IconNotebook />} title="Notebook" onClick={() => dispatch({ field: 'page', value: 'notebook' })}><div /></Tab>
                                 </TabSidebar>
                             )}
 
@@ -1603,7 +1601,7 @@ const Home = ({
                                 {page === 'assistantGallery' && (
                                     <AssistantGallery />
                                 )}
-                                {page === 'notebook' && (
+                                {page === 'notebook' && featureFlags.notebook && (
                                     <NotebookApp />
                                 )}
                             </div>

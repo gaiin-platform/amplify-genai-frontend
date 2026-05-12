@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import {
+    createSourceFromFile,
     createSourceFromText,
     createSourceFromUrl,
     SourceListItem,
 } from '@/services/notebookSourcesService';
 
-type SourceType = 'url' | 'text';
+type SourceType = 'url' | 'text' | 'file';
 
 interface Props {
     notebookId: string;
@@ -19,8 +20,10 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
     const [url, setUrl] = useState('');
     const [content, setContent] = useState('');
     const [title, setTitle] = useState('');
+    const [file, setFile] = useState<File | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     const trimmedUrl = url.trim();
     const trimmedContent = content.trim();
@@ -28,25 +31,50 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
 
     const canSubmit = !submitting && (
         (tab === 'url' && trimmedUrl.length > 0) ||
-        (tab === 'text' && trimmedContent.length > 0)
+        (tab === 'text' && trimmedContent.length > 0) ||
+        (tab === 'file' && file !== null)
     );
+
+    // Backend's auto-title fallback doesn't fire for plain text sources, so
+    // the source ends up permanently stuck with title="Processing...". Pre-fill
+    // the title from the first line of content here to avoid that.
+    const deriveTextTitle = (text: string): string => {
+        const firstLine = text.split('\n')[0].trim();
+        if (!firstLine) return 'Untitled';
+        return firstLine.length > 80 ? `${firstLine.slice(0, 77)}…` : firstLine;
+    };
+
+    // For file sources, fall back to the file's display name (minus extension).
+    const deriveFileTitle = (f: File): string => {
+        const name = f.name.replace(/\.[^.]+$/, '');
+        return name.length > 80 ? `${name.slice(0, 77)}…` : name || 'Untitled';
+    };
 
     const handleSubmit = async () => {
         if (!canSubmit) return;
         setSubmitting(true);
         setError(null);
 
-        const result = tab === 'url'
-            ? await createSourceFromUrl({
+        let result: SourceListItem | null = null;
+        if (tab === 'url') {
+            result = await createSourceFromUrl({
                 notebookId,
                 url: trimmedUrl,
                 title: trimmedTitle || undefined,
-            })
-            : await createSourceFromText({
+            });
+        } else if (tab === 'text') {
+            result = await createSourceFromText({
                 notebookId,
                 content: trimmedContent,
-                title: trimmedTitle || undefined,
+                title: trimmedTitle || deriveTextTitle(trimmedContent),
             });
+        } else if (tab === 'file' && file) {
+            result = await createSourceFromFile({
+                notebookId,
+                file,
+                title: trimmedTitle || deriveFileTitle(file),
+            });
+        }
 
         setSubmitting(false);
         if (!result) {
@@ -60,7 +88,7 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
     const tabClass = (active: boolean) =>
         `flex-1 px-3 py-2 text-sm border-b-2 ${
             active
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                ? 'border-purple-500 text-purple-500 dark:text-purple-400'
                 : 'border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200'
         }`;
 
@@ -82,6 +110,23 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                         <button type="button" className={tabClass(tab === 'text')} onClick={() => setTab('text')}>
                             Text
                         </button>
+                        <button type="button" className={tabClass(tab === 'file')} onClick={() => setTab('file')}>
+                            File
+                        </button>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <label htmlFor="source-title" className="text-sm font-medium">
+                            Title (optional)
+                        </label>
+                        <input
+                            id="source-title"
+                            type="text"
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            placeholder="Auto-detected if blank"
+                            className="rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                        />
                     </div>
 
                     {tab === 'url' && (
@@ -118,19 +163,40 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                         </div>
                     )}
 
-                    <div className="flex flex-col gap-1">
-                        <label htmlFor="source-title" className="text-sm font-medium">
-                            Title (optional)
-                        </label>
-                        <input
-                            id="source-title"
-                            type="text"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            placeholder="Auto-detected if blank"
-                            className="rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
-                        />
-                    </div>
+                    {tab === 'file' && (
+                        <div className="flex flex-col gap-1">
+                            <label className="text-sm font-medium">
+                                File <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                className="hidden"
+                                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="flex flex-col items-center justify-center gap-1 rounded border-2 border-dashed border-neutral-300 bg-neutral-50 px-3 py-6 text-sm text-neutral-600 hover:border-purple-400 hover:bg-purple-50 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-300 dark:hover:border-purple-400 dark:hover:bg-purple-900/20"
+                            >
+                                {file ? (
+                                    <>
+                                        <span className="font-medium text-neutral-800 dark:text-neutral-100">{file.name}</span>
+                                        <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                                            {(file.size / 1024).toFixed(1)} KB · click to change
+                                        </span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span>Click to choose a file</span>
+                                        <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                                            PDF, DOCX, TXT, MD, audio, etc.
+                                        </span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    )}
 
                     {error && (
                         <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
