@@ -1,19 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { IconAlertCircle, IconLoader2 } from '@tabler/icons-react';
 import { Modal } from '@/components/ReusableComponents/Modal';
-import { listNotebooks, NotebookSummary } from '@/services/notebookService';
-import { listSources, SourceListItem } from '@/services/notebookSourcesService';
-import { listNotes, Note } from '@/services/notebookNotesService';
+import {
+    BuildContextResponse,
+    ContextSelections,
+    Note,
+    NotebookSummary,
+    SourceListItem,
+    buildChatContext,
+    listNotebooks,
+    listNotes,
+    listSources,
+} from '@/services/notebookContentService';
 import {
     EpisodeProfile,
     generatePodcast,
     listEpisodeProfiles,
-} from '@/services/notebookPodcastsService';
-import {
-    BuildContextResponse,
-    ContextSelections,
-    buildChatContext,
-} from '@/services/notebookChatService';
+} from '@/services/notebookConfigService';
 
 type SourceMode = 'off' | 'insights' | 'full';
 type NoteMode = 'off' | 'full';

@@ -12,7 +12,7 @@ import {
     deleteSource,
     listSources,
     SourceListItem,
-} from '@/services/notebookSourcesService';
+} from '@/services/notebookContentService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 
 const PAGE_SIZE = 30;

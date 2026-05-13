@@ -4,22 +4,19 @@ import {
     IconRefresh,
     IconTrash,
 } from '@tabler/icons-react';
-import { getNotebook, NotebookSummary } from '@/services/notebookService';
-import {
-    deleteSource,
-    listSources,
-    SourceListItem,
-} from '@/services/notebookSourcesService';
-import {
-    deleteNote,
-    listNotes,
-    Note,
-} from '@/services/notebookNotesService';
 import {
     ContextSelections,
     NoteContextMode,
+    Note,
+    NotebookSummary,
     SourceContextMode,
-} from '@/services/notebookChatService';
+    SourceListItem,
+    deleteNote,
+    deleteSource,
+    getNotebook,
+    listNotes,
+    listSources,
+} from '@/services/notebookContentService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import { AddSourceDialog } from './AddSourceDialog';
 import { NoteEditorDialog } from './NoteEditorDialog';

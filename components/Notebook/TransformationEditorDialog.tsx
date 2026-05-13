@@ -6,7 +6,7 @@ import {
     createTransformation,
     getTransformation,
     updateTransformation,
-} from '@/services/notebookTransformationsService';
+} from '@/services/notebookConfigService';
 
 interface Props {
     transformation?: Transformation | null;

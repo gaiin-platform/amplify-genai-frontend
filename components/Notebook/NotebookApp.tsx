@@ -11,7 +11,7 @@ import {
     deleteNotebook,
     listNotebooks,
     NotebookSummary,
-} from '@/services/notebookService';
+} from '@/services/notebookContentService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import { CreateNotebookDialog } from './CreateNotebookDialog';
 import { NotebookDetail } from './NotebookDetail';

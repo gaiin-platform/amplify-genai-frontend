@@ -9,15 +9,15 @@ import {
     ChatMessage,
     ChatSession,
     ContextSelections,
+    Note,
+    SourceListItem,
     buildChatContext,
     createChatSession,
     deleteChatSession,
     getChatSession,
     listChatSessions,
     sendChatMessage,
-} from '@/services/notebookChatService';
-import { SourceListItem } from '@/services/notebookSourcesService';
-import { Note } from '@/services/notebookNotesService';
+} from '@/services/notebookContentService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 
 interface Props {

@@ -15,7 +15,7 @@ import {
     UrlEngine,
     getSettings,
     updateSettings as updateSettingsApi,
-} from '@/services/notebookSettingsService';
+} from '@/services/notebookConfigService';
 
 interface SelectFieldProps<T extends string> {
     label: string;

@@ -16,14 +16,17 @@ import {
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import {
     DefaultPrompt,
+    ModelDefaults,
+    NotebookModel,
     Transformation,
     deleteTransformation as deleteTransformationApi,
     executeTransformation as executeTransformationApi,
     getDefaultPrompt,
+    getDefaults,
+    listModels,
     listTransformations,
     updateDefaultPrompt,
-} from '@/services/notebookTransformationsService';
-import { ModelDefaults, NotebookModel, getDefaults, listModels } from '@/services/notebookModelsService';
+} from '@/services/notebookConfigService';
 import { TransformationEditorDialog } from './TransformationEditorDialog';
 
 type Tab = 'transformations' | 'playground';

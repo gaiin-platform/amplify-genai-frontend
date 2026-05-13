@@ -8,15 +8,16 @@ import {
     IconSparkles,
 } from '@tabler/icons-react';
 import {
-    askKnowledgeBaseSimple,
     SearchResponse,
     SearchResult,
     SearchType,
+    SourceListItem,
+    askKnowledgeBaseSimple,
+    getNote,
+    listSources,
     searchKnowledgeBase,
-} from '@/services/notebookSearchService';
-import { getDefaults, ModelDefaults } from '@/services/notebookModelsService';
-import { listSources, SourceListItem } from '@/services/notebookSourcesService';
-import { getNote } from '@/services/notebookNotesService';
+} from '@/services/notebookContentService';
+import { ModelDefaults, getDefaults } from '@/services/notebookConfigService';
 
 type Tab = 'ask' | 'search';
 type RefType = 'source' | 'note' | 'source_insight';

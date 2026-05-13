@@ -5,7 +5,7 @@ import {
     createSourceFromText,
     createSourceFromUrl,
     SourceListItem,
-} from '@/services/notebookSourcesService';
+} from '@/services/notebookContentService';
 
 type SourceType = 'url' | 'text' | 'file';
 
