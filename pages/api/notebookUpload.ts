@@ -11,6 +11,11 @@ export const config = {
     },
 };
 
+// When true, route uploads through the Lambda proxy endpoint instead of
+// calling the Open Notebook service directly. Set NEXT_PUBLIC_NOTEBOOK_USE_PROXY=true
+// in deployed environments.
+const USE_PROXY = process.env.NEXT_PUBLIC_NOTEBOOK_USE_PROXY === 'true';
+
 const NOTEBOOK_BASE_URL =
     'https://open-notebook.apps.amplify-ai-pod.ccc.vanderbilt.edu';
 
@@ -51,6 +56,42 @@ const notebookUpload = async (req: NextApiRequest, res: NextApiResponse) => {
 
     try {
         const body = await readRawBody(req);
+
+        if (USE_PROXY) {
+            // Route through the Lambda upload proxy endpoint.
+            // The Lambda is VPC-attached and can reach the internal Open Notebook URL.
+            const apiBaseUrl = process.env.API_BASE_URL;
+            if (!apiBaseUrl) {
+                return res.status(500).json({ error: 'API_BASE_URL not configured' });
+            }
+            const upstream = await axios.post(
+                `${apiBaseUrl}/notebook/upload`,
+                // Encode body as base64 so it can be sent in a JSON payload to the Lambda
+                JSON.stringify({
+                    data: {
+                        body_b64: body.toString('base64'),
+                        content_type: contentType,
+                    },
+                }),
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${accessToken}`,
+                    },
+                    responseType: 'json',
+                    validateStatus: () => true,
+                    maxBodyLength: Infinity,
+                    maxContentLength: Infinity,
+                },
+            );
+            if (!upstream.data?.success) {
+                console.error('notebookUpload (proxy) upstream error:', upstream.data);
+                return res.status(502).json({ error: upstream.data?.message ?? 'Upload failed' });
+            }
+            return res.status(200).json(upstream.data.data);
+        }
+
+        // Direct path — used in local development
         const upstream = await axios.post(
             `${NOTEBOOK_BASE_URL}/api/sources`,
             body,
