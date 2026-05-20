@@ -858,9 +858,16 @@ const Home = ({
                         }
                     }
                     if (AdminConfigTypes.RATE_LIMIT in data) {
-                        dispatch({ field: 'adminRateLimits', value: normalizeRateLimits(data[AdminConfigTypes.RATE_LIMIT]) });
+                        const rateLimitConfig = data[AdminConfigTypes.RATE_LIMIT];
+                        // New shape from backend: { limits, honorPersonalRateLimit }
+                        // Legacy shape: single object or array (no 'limits' key)
+                        const rawLimits = rateLimitConfig?.limits ?? rateLimitConfig;
+                        dispatch({ field: 'adminRateLimits', value: normalizeRateLimits(rawLimits) });
+                        if (rateLimitConfig?.honorPersonalRateLimit) {
+                            dispatch({ field: 'honorPersonalRateLimit', value: rateLimitConfig.honorPersonalRateLimit });
+                        }
                     }
-                    console.log("data", data);
+                    // console.log("data", data);
                     if ('groupRateLimits' in data) {
                         const rawGroupLimits: Record<string, any> = data['groupRateLimits'] || {};
                         const groupRateLimits = Object.entries(rawGroupLimits)
@@ -871,6 +878,7 @@ const Home = ({
                                 ),
                             }))
                             .filter((g) => g.limits.length > 0);
+                            console.log("groupRateLimits", groupRateLimits);
                         dispatch({ field: 'groupRateLimits', value: groupRateLimits });
                     }
 
