@@ -18,7 +18,7 @@ import {
     listModels,
     testModel,
     updateDefaults,
-} from '@/services/notebookConfigService';
+} from '@/services/notebookService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 
 const DEFAULT_PROVIDER = 'openai_compatible';

@@ -14,16 +14,14 @@ import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import {
     SourceInsight,
     SourceListItem,
+    Transformation,
     createSourceInsight,
     deleteInsight,
     listSourceInsights,
+    listTransformations,
     saveInsightAsNote,
     waitForCommand,
-} from '@/services/notebookContentService';
-import {
-    Transformation,
-    listTransformations,
-} from '@/services/notebookConfigService';
+} from '@/services/notebookService';
 
 interface Props {
     notebookId: string;

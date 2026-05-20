@@ -17,7 +17,7 @@ import {
     getNotebook,
     listNotes,
     listSources,
-} from '@/services/notebookContentService';
+} from '@/services/notebookService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import { AddSourceDialog } from './AddSourceDialog';
 import { NoteEditorDialog } from './NoteEditorDialog';

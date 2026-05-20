@@ -23,7 +23,7 @@ import {
     PodcastGenerationResponse,
     retryEpisode as retryEpisodeApi,
     SpeakerProfile,
-} from '@/services/notebookConfigService';
+} from '@/services/notebookService';
 import { GeneratePodcastDialog } from './GeneratePodcastDialog';
 
 type Tab = 'episodes' | 'templates';

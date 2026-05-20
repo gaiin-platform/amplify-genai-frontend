@@ -17,7 +17,7 @@ import {
     getChatSession,
     listChatSessions,
     sendChatMessage,
-} from '@/services/notebookContentService';
+} from '@/services/notebookService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 
 interface Props {

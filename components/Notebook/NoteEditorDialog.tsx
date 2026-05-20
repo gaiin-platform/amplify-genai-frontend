@@ -5,7 +5,7 @@ import {
     getNote,
     updateNote,
     Note,
-} from '@/services/notebookContentService';
+} from '@/services/notebookService';
 
 interface Props {
     notebookId: string;

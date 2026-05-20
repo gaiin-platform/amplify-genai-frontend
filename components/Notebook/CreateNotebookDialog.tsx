@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Modal } from '@/components/ReusableComponents/Modal';
-import { createNotebook, NotebookSummary } from '@/services/notebookContentService';
+import { createNotebook, NotebookSummary } from '@/services/notebookService';
 
 interface Props {
     onClose: () => void;

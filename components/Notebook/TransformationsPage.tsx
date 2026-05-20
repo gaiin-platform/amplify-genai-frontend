@@ -26,7 +26,7 @@ import {
     listModels,
     listTransformations,
     updateDefaultPrompt,
-} from '@/services/notebookConfigService';
+} from '@/services/notebookService';
 import { TransformationEditorDialog } from './TransformationEditorDialog';
 
 type Tab = 'transformations' | 'playground';

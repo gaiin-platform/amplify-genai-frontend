@@ -8,16 +8,17 @@ import {
     IconSparkles,
 } from '@tabler/icons-react';
 import {
+    ModelDefaults,
     SearchResponse,
     SearchResult,
     SearchType,
     SourceListItem,
     askKnowledgeBaseSimple,
+    getDefaults,
     getNote,
     listSources,
     searchKnowledgeBase,
-} from '@/services/notebookContentService';
-import { ModelDefaults, getDefaults } from '@/services/notebookConfigService';
+} from '@/services/notebookService';
 
 type Tab = 'ask' | 'search';
 type RefType = 'source' | 'note' | 'source_insight';

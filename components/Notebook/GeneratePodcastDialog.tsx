@@ -4,20 +4,18 @@ import { Modal } from '@/components/ReusableComponents/Modal';
 import {
     BuildContextResponse,
     ContextSelections,
+    EpisodeProfile,
     Note,
     NotebookSummary,
+    PodcastGenerationResponse,
     SourceListItem,
     buildChatContext,
+    generatePodcast,
+    listEpisodeProfiles,
     listNotebooks,
     listNotes,
     listSources,
-} from '@/services/notebookContentService';
-import {
-    EpisodeProfile,
-    generatePodcast,
-    listEpisodeProfiles,
-    PodcastGenerationResponse,
-} from '@/services/notebookConfigService';
+} from '@/services/notebookService';
 
 type SourceMode = 'off' | 'insights' | 'full';
 type NoteMode = 'off' | 'full';
