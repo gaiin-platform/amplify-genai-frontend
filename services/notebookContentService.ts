@@ -1,7 +1,4 @@
-import { doRequestOp } from "./doRequestOp";
-
-const URL_PATH = "/api";
-const SERVICE_NAME = "notebook";
+import { notebookFetch } from './notebookFetch';
 
 // -----------------------------------------------------------------------------
 // Notebooks
@@ -26,55 +23,37 @@ export interface CreateNotebookRequest {
 export const listNotebooks = async (
     params?: { archived?: boolean; order_by?: string }
 ): Promise<NotebookSummary[]> => {
-    const op = {
+    const result = await notebookFetch<NotebookSummary[]>({
         method: 'GET',
-        path: URL_PATH,
-        op: '/notebooks',
-        service: SERVICE_NAME,
-        queryParams: params as { [key: string]: string } | undefined,
-    };
-    const result = await doRequestOp(op);
+        path: '/notebooks',
+        queryParams: params as Record<string, string | number | boolean | undefined>,
+    });
     return Array.isArray(result) ? result : [];
 };
 
 export const getNotebook = async (id: string): Promise<NotebookSummary | null> => {
-    const op = {
+    return notebookFetch<NotebookSummary>({
         method: 'GET',
-        path: URL_PATH,
-        op: `/notebooks/${encodeURIComponent(id)}`,
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as NotebookSummary;
+        path: `/notebooks/${encodeURIComponent(id)}`,
+    });
 };
 
 export const createNotebook = async (
     data: CreateNotebookRequest
 ): Promise<NotebookSummary | null> => {
-    const op = {
+    return notebookFetch<NotebookSummary>({
         method: 'POST',
-        path: URL_PATH,
-        op: '/notebooks',
-        service: SERVICE_NAME,
-        data,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as NotebookSummary;
+        path: '/notebooks',
+        body: data,
+    });
 };
 
 export const deleteNotebook = async (id: string): Promise<boolean> => {
-    const op = {
+    const result = await notebookFetch({
         method: 'DELETE',
-        path: URL_PATH,
-        op: `/notebooks/${encodeURIComponent(id)}`,
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result) return false;
-    if ((result as any).success === false) return false;
-    return true;
+        path: `/notebooks/${encodeURIComponent(id)}`,
+    });
+    return result !== null;
 };
 
 // -----------------------------------------------------------------------------
@@ -126,33 +105,28 @@ interface ListSourcesParams {
 export const listSources = async (
     { notebookId, limit, offset, sortBy, sortOrder }: ListSourcesParams = {}
 ): Promise<SourceListItem[]> => {
-    const queryParams: { [key: string]: string } = {};
+    const queryParams: Record<string, string | number | boolean | undefined> = {};
     if (notebookId) queryParams.notebook_id = notebookId;
-    if (typeof limit === 'number') queryParams.limit = String(limit);
-    if (typeof offset === 'number') queryParams.offset = String(offset);
+    if (typeof limit === 'number') queryParams.limit = limit;
+    if (typeof offset === 'number') queryParams.offset = offset;
     if (sortBy) queryParams.sort_by = sortBy;
     if (sortOrder) queryParams.sort_order = sortOrder;
 
-    const op = {
+    const result = await notebookFetch<SourceListItem[]>({
         method: 'GET',
-        path: URL_PATH,
-        op: '/sources',
-        service: SERVICE_NAME,
+        path: '/sources',
         queryParams,
-    };
-    const result = await doRequestOp(op);
+    });
     return Array.isArray(result) ? result : [];
 };
 
 export const createSourceFromUrl = async (
     { notebookId, url, title }: CreateSourceLinkRequest
 ): Promise<SourceListItem | null> => {
-    const op = {
+    return notebookFetch<SourceListItem>({
         method: 'POST',
-        path: URL_PATH,
-        op: '/sources/json',
-        service: SERVICE_NAME,
-        data: {
+        path: '/sources/json',
+        body: {
             type: 'link',
             url,
             title,
@@ -160,21 +134,16 @@ export const createSourceFromUrl = async (
             embed: true,
             async_processing: true,
         },
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as SourceListItem;
+    });
 };
 
 export const createSourceFromText = async (
     { notebookId, content, title }: CreateSourceTextRequest
 ): Promise<SourceListItem | null> => {
-    const op = {
+    return notebookFetch<SourceListItem>({
         method: 'POST',
-        path: URL_PATH,
-        op: '/sources/json',
-        service: SERVICE_NAME,
-        data: {
+        path: '/sources/json',
+        body: {
             type: 'text',
             content,
             title,
@@ -182,12 +151,13 @@ export const createSourceFromText = async (
             embed: true,
             async_processing: true,
         },
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as SourceListItem;
+    });
 };
 
+// Multipart file upload routes through the Next.js API proxy at
+// /api/notebookUpload — the proxy attaches the Cognito JWT server-side and
+// forwards to open-notebook's /api/sources, which avoids a CORS preflight on
+// the multipart request with Authorization.
 export const createSourceFromFile = async (
     { notebookId, file, title }: CreateSourceFileRequest
 ): Promise<SourceListItem | null> => {
@@ -204,26 +174,148 @@ export const createSourceFromFile = async (
             method: 'POST',
             body: form,
         });
-        if (!response.ok) return null;
+        if (!response.ok) {
+            const errBody = await response.text().catch(() => '');
+            console.error(
+                `createSourceFromFile failed: ${response.status} ${response.statusText} — ${errBody}`,
+            );
+            return null;
+        }
         const data = await response.json();
-        if (!data || (data as any).success === false) return null;
         return data as SourceListItem;
-    } catch {
+    } catch (e) {
+        console.error('createSourceFromFile threw:', e);
         return null;
     }
 };
 
 export const deleteSource = async (sourceId: string): Promise<boolean> => {
-    const op = {
+    const result = await notebookFetch({
         method: 'DELETE',
-        path: URL_PATH,
-        op: `/sources/${encodeURIComponent(sourceId)}`,
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result) return false;
-    if ((result as any).success === false) return false;
-    return true;
+        path: `/sources/${encodeURIComponent(sourceId)}`,
+    });
+    return result !== null;
+};
+
+// -----------------------------------------------------------------------------
+// Source Insights
+// -----------------------------------------------------------------------------
+
+export interface SourceInsight {
+    id: string;
+    source_id: string;
+    insight_type: string;
+    content: string;
+    created: string;
+    updated: string;
+}
+
+export interface InsightCreationResponse {
+    status: 'pending';
+    message: string;
+    source_id: string;
+    transformation_id: string;
+    command_id?: string | null;
+}
+
+export type CommandJobStatus =
+    | 'submitted'
+    | 'pending'
+    | 'running'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
+    | string;
+
+export interface CommandJobStatusResponse {
+    job_id: string;
+    status: CommandJobStatus;
+    result?: Record<string, unknown> | null;
+    error_message?: string | null;
+    created?: string | null;
+    updated?: string | null;
+    progress?: Record<string, unknown> | null;
+}
+
+export const listSourceInsights = async (sourceId: string): Promise<SourceInsight[]> => {
+    const result = await notebookFetch<SourceInsight[]>({
+        method: 'GET',
+        path: `/sources/${encodeURIComponent(sourceId)}/insights`,
+    });
+    return Array.isArray(result) ? result : [];
+};
+
+export const createSourceInsight = async (
+    sourceId: string,
+    transformationId: string,
+    modelId?: string,
+): Promise<InsightCreationResponse | null> => {
+    return notebookFetch<InsightCreationResponse>({
+        method: 'POST',
+        path: `/sources/${encodeURIComponent(sourceId)}/insights`,
+        body: {
+            transformation_id: transformationId,
+            model_id: modelId,
+        },
+    });
+};
+
+export const getInsight = async (insightId: string): Promise<SourceInsight | null> => {
+    return notebookFetch<SourceInsight>({
+        method: 'GET',
+        path: `/insights/${encodeURIComponent(insightId)}`,
+    });
+};
+
+export const deleteInsight = async (insightId: string): Promise<boolean> => {
+    const result = await notebookFetch({
+        method: 'DELETE',
+        path: `/insights/${encodeURIComponent(insightId)}`,
+    });
+    return result !== null;
+};
+
+export const saveInsightAsNote = async (
+    insightId: string,
+    notebookId?: string,
+): Promise<Note | null> => {
+    return notebookFetch<Note>({
+        method: 'POST',
+        path: `/insights/${encodeURIComponent(insightId)}/save-as-note`,
+        body: { notebook_id: notebookId },
+    });
+};
+
+export const getCommandJobStatus = async (
+    jobId: string,
+): Promise<CommandJobStatusResponse | null> => {
+    return notebookFetch<CommandJobStatusResponse>({
+        method: 'GET',
+        path: `/commands/jobs/${encodeURIComponent(jobId)}`,
+    });
+};
+
+const TERMINAL_COMMAND_STATUSES = new Set(['completed', 'failed', 'cancelled', 'error']);
+
+// Polls /commands/jobs/{job_id} until the job reaches a terminal status,
+// `timeoutMs` elapses, or `signal` is aborted. Resolves with the final
+// status response (or null on timeout/abort/network failure).
+export const waitForCommand = async (
+    jobId: string,
+    {
+        intervalMs = 2500,
+        timeoutMs = 180_000,
+        signal,
+    }: { intervalMs?: number; timeoutMs?: number; signal?: AbortSignal } = {},
+): Promise<CommandJobStatusResponse | null> => {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+        if (signal?.aborted) return null;
+        const status = await getCommandJobStatus(jobId);
+        if (status && TERMINAL_COMMAND_STATUSES.has(status.status)) return status;
+        await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    return null;
 };
 
 // -----------------------------------------------------------------------------
@@ -253,78 +345,55 @@ export interface UpdateNoteRequest {
 }
 
 export const listNotes = async (notebookId: string): Promise<Note[]> => {
-    const op = {
+    const result = await notebookFetch<Note[]>({
         method: 'GET',
-        path: URL_PATH,
-        op: '/notes',
-        service: SERVICE_NAME,
+        path: '/notes',
         queryParams: { notebook_id: notebookId },
-    };
-    const result = await doRequestOp(op);
+    });
     return Array.isArray(result) ? result : [];
 };
 
 // The list endpoint omits content (backend strips it from the SurrealDB query).
 // Use this to load a single note's full body, e.g. when opening the editor.
 export const getNote = async (noteId: string): Promise<Note | null> => {
-    const op = {
+    return notebookFetch<Note>({
         method: 'GET',
-        path: URL_PATH,
-        op: `/notes/${encodeURIComponent(noteId)}`,
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as Note;
+        path: `/notes/${encodeURIComponent(noteId)}`,
+    });
 };
 
 export const createNote = async (
     { notebookId, content, title, note_type }: CreateNoteRequest
 ): Promise<Note | null> => {
-    const op = {
+    return notebookFetch<Note>({
         method: 'POST',
-        path: URL_PATH,
-        op: '/notes',
-        service: SERVICE_NAME,
-        data: {
+        path: '/notes',
+        body: {
             notebook_id: notebookId,
             content,
             title,
             note_type: note_type || 'human',
         },
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as Note;
+    });
 };
 
 export const updateNote = async (
     noteId: string,
     data: UpdateNoteRequest
 ): Promise<Note | null> => {
-    const op = {
+    return notebookFetch<Note>({
         method: 'PUT',
-        path: URL_PATH,
-        op: `/notes/${encodeURIComponent(noteId)}`,
-        service: SERVICE_NAME,
-        data,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as Note;
+        path: `/notes/${encodeURIComponent(noteId)}`,
+        body: data,
+    });
 };
 
 export const deleteNote = async (noteId: string): Promise<boolean> => {
-    const op = {
+    const result = await notebookFetch({
         method: 'DELETE',
-        path: URL_PATH,
-        op: `/notes/${encodeURIComponent(noteId)}`,
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result) return false;
-    if ((result as any).success === false) return false;
-    return true;
+        path: `/notes/${encodeURIComponent(noteId)}`,
+    });
+    return result !== null;
 };
 
 // -----------------------------------------------------------------------------
@@ -374,14 +443,11 @@ export interface BuildContextResponse {
 }
 
 export const listChatSessions = async (notebookId: string): Promise<ChatSession[]> => {
-    const op = {
+    const result = await notebookFetch<ChatSession[]>({
         method: 'GET',
-        path: URL_PATH,
-        op: '/chat/sessions',
-        service: SERVICE_NAME,
+        path: '/chat/sessions',
         queryParams: { notebook_id: notebookId },
-    };
-    const result = await doRequestOp(op);
+    });
     return Array.isArray(result) ? result : [];
 };
 
@@ -390,45 +456,30 @@ export const createChatSession = async (
     title?: string,
     modelOverride?: string,
 ): Promise<ChatSession | null> => {
-    const op = {
+    return notebookFetch<ChatSession>({
         method: 'POST',
-        path: URL_PATH,
-        op: '/chat/sessions',
-        service: SERVICE_NAME,
-        data: {
+        path: '/chat/sessions',
+        body: {
             notebook_id: notebookId,
             title,
             model_override: modelOverride,
         },
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as ChatSession;
+    });
 };
 
 export const getChatSession = async (sessionId: string): Promise<ChatSessionWithMessages | null> => {
-    const op = {
+    return notebookFetch<ChatSessionWithMessages>({
         method: 'GET',
-        path: URL_PATH,
-        op: `/chat/sessions/${encodeURIComponent(sessionId)}`,
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as ChatSessionWithMessages;
+        path: `/chat/sessions/${encodeURIComponent(sessionId)}`,
+    });
 };
 
 export const deleteChatSession = async (sessionId: string): Promise<boolean> => {
-    const op = {
+    const result = await notebookFetch({
         method: 'DELETE',
-        path: URL_PATH,
-        op: `/chat/sessions/${encodeURIComponent(sessionId)}`,
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result) return false;
-    if ((result as any).success === false) return false;
-    return true;
+        path: `/chat/sessions/${encodeURIComponent(sessionId)}`,
+    });
+    return result !== null;
 };
 
 export const buildContextConfig = (selections: ContextSelections): ContextConfig => {
@@ -449,19 +500,14 @@ export const buildChatContext = async (
     notebookId: string,
     selections: ContextSelections,
 ): Promise<BuildContextResponse | null> => {
-    const op = {
+    return notebookFetch<BuildContextResponse>({
         method: 'POST',
-        path: URL_PATH,
-        op: '/chat/context',
-        service: SERVICE_NAME,
-        data: {
+        path: '/chat/context',
+        body: {
             notebook_id: notebookId,
             context_config: buildContextConfig(selections),
         },
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as BuildContextResponse;
+    });
 };
 
 export const sendChatMessage = async (
@@ -470,21 +516,16 @@ export const sendChatMessage = async (
     context: BuildContextResponse['context'],
     modelOverride?: string,
 ): Promise<{ session_id: string; messages: ChatMessage[] } | null> => {
-    const op = {
+    return notebookFetch<{ session_id: string; messages: ChatMessage[] }>({
         method: 'POST',
-        path: URL_PATH,
-        op: '/chat/execute',
-        service: SERVICE_NAME,
-        data: {
+        path: '/chat/execute',
+        body: {
             session_id: sessionId,
             message,
             context,
             model_override: modelOverride,
         },
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as { session_id: string; messages: ChatMessage[] };
+    });
 };
 
 // -----------------------------------------------------------------------------
@@ -539,12 +580,10 @@ export interface AskResponse {
 export const searchKnowledgeBase = async (
     params: SearchRequest
 ): Promise<SearchResponse | null> => {
-    const op = {
+    return notebookFetch<SearchResponse>({
         method: 'POST',
-        path: URL_PATH,
-        op: '/search',
-        service: SERVICE_NAME,
-        data: {
+        path: '/search',
+        body: {
             query: params.query,
             type: params.type,
             limit: params.limit ?? 100,
@@ -552,23 +591,15 @@ export const searchKnowledgeBase = async (
             search_notes: params.search_notes ?? true,
             minimum_score: params.minimum_score ?? 0.2,
         },
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as SearchResponse;
+    });
 };
 
 export const askKnowledgeBaseSimple = async (
     params: AskRequest
 ): Promise<AskResponse | null> => {
-    const op = {
+    return notebookFetch<AskResponse>({
         method: 'POST',
-        path: URL_PATH,
-        op: '/search/ask/simple',
-        service: SERVICE_NAME,
-        data: params,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as AskResponse;
+        path: '/search/ask/simple',
+        body: params,
+    });
 };

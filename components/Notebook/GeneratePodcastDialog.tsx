@@ -16,6 +16,7 @@ import {
     EpisodeProfile,
     generatePodcast,
     listEpisodeProfiles,
+    PodcastGenerationResponse,
 } from '@/services/notebookConfigService';
 
 type SourceMode = 'off' | 'insights' | 'full';
@@ -23,7 +24,7 @@ type NoteMode = 'off' | 'full';
 
 interface Props {
     onClose: () => void;
-    onSubmitted: () => void;
+    onSubmitted: (response: PodcastGenerationResponse) => void;
 }
 
 export const GeneratePodcastDialog = ({ onClose, onSubmitted }: Props) => {
@@ -151,7 +152,7 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted }: Props) => {
             setError('Failed to submit the podcast generation job.');
             return;
         }
-        onSubmitted();
+        onSubmitted(result);
         onClose();
     };
 

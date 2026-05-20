@@ -1,7 +1,4 @@
-import { doRequestOp } from "./doRequestOp";
-
-const URL_PATH = "/api";
-const SERVICE_NAME = "notebook";
+import { notebookFetch, notebookFetchRaw } from './notebookFetch';
 
 // -----------------------------------------------------------------------------
 // Models
@@ -49,111 +46,77 @@ export interface ProviderSyncResult {
 }
 
 export const listModels = async (type?: ModelType): Promise<NotebookModel[]> => {
-    const op = {
+    const result = await notebookFetch<NotebookModel[]>({
         method: 'GET',
-        path: URL_PATH,
-        op: '/models',
-        service: SERVICE_NAME,
+        path: '/models',
         queryParams: type ? { type } : undefined,
-    };
-    const result = await doRequestOp(op);
-    return Array.isArray(result) ? (result as NotebookModel[]) : [];
+    });
+    return Array.isArray(result) ? result : [];
 };
 
 export const createModel = async (
     data: { name: string; provider: string; type: ModelType; credential?: string }
 ): Promise<NotebookModel | null> => {
-    const op = {
+    return notebookFetch<NotebookModel>({
         method: 'POST',
-        path: URL_PATH,
-        op: '/models',
-        service: SERVICE_NAME,
-        data,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as NotebookModel;
+        path: '/models',
+        body: data,
+    });
 };
 
 export const deleteModel = async (id: string): Promise<boolean> => {
-    const op = {
+    const result = await notebookFetch({
         method: 'DELETE',
-        path: URL_PATH,
-        op: `/models/${encodeURIComponent(id)}`,
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result) return false;
-    if ((result as any).success === false) return false;
-    return true;
+        path: `/models/${encodeURIComponent(id)}`,
+    });
+    return result !== null;
 };
 
 export const testModel = async (id: string): Promise<ModelTestResult> => {
-    const op = {
+    const result = await notebookFetch<ModelTestResult>({
         method: 'POST',
-        path: URL_PATH,
-        op: `/models/${encodeURIComponent(id)}/test`,
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
+        path: `/models/${encodeURIComponent(id)}/test`,
+    });
     if (!result || (result as any).success === undefined) {
         return { success: false, message: 'Test failed' };
     }
-    return result as ModelTestResult;
+    return result;
 };
 
 export const getDefaults = async (): Promise<ModelDefaults | null> => {
-    const op = {
+    return notebookFetch<ModelDefaults>({
         method: 'GET',
-        path: URL_PATH,
-        op: '/models/defaults',
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as ModelDefaults;
+        path: '/models/defaults',
+    });
 };
 
 export const updateDefaults = async (
     partial: Partial<ModelDefaults>
 ): Promise<ModelDefaults | null> => {
-    const op = {
+    return notebookFetch<ModelDefaults>({
         method: 'PUT',
-        path: URL_PATH,
-        op: '/models/defaults',
-        service: SERVICE_NAME,
-        data: partial,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as ModelDefaults;
+        path: '/models/defaults',
+        body: partial,
+    });
 };
 
 export const discoverProviderModels = async (
     provider: string
 ): Promise<DiscoveredNotebookModel[]> => {
-    const op = {
+    const result = await notebookFetch<DiscoveredNotebookModel[]>({
         method: 'GET',
-        path: URL_PATH,
-        op: `/models/discover/${encodeURIComponent(provider)}`,
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    return Array.isArray(result) ? (result as DiscoveredNotebookModel[]) : [];
+        path: `/models/discover/${encodeURIComponent(provider)}`,
+    });
+    return Array.isArray(result) ? result : [];
 };
 
 export const syncProviderModels = async (
     provider: string
 ): Promise<ProviderSyncResult | null> => {
-    const op = {
+    return notebookFetch<ProviderSyncResult>({
         method: 'POST',
-        path: URL_PATH,
-        op: `/models/sync/${encodeURIComponent(provider)}`,
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as ProviderSyncResult;
+        path: `/models/sync/${encodeURIComponent(provider)}`,
+    });
 };
 
 // -----------------------------------------------------------------------------
@@ -174,30 +137,20 @@ export interface NotebookSettings {
 }
 
 export const getSettings = async (): Promise<NotebookSettings | null> => {
-    const op = {
+    return notebookFetch<NotebookSettings>({
         method: 'GET',
-        path: URL_PATH,
-        op: '/settings',
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as NotebookSettings;
+        path: '/settings',
+    });
 };
 
 export const updateSettings = async (
     patch: NotebookSettings,
 ): Promise<NotebookSettings | null> => {
-    const op = {
+    return notebookFetch<NotebookSettings>({
         method: 'PUT',
-        path: URL_PATH,
-        op: '/settings',
-        service: SERVICE_NAME,
-        data: patch,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as NotebookSettings;
+        path: '/settings',
+        body: patch,
+    });
 };
 
 // -----------------------------------------------------------------------------
@@ -248,112 +201,74 @@ export interface DefaultPrompt {
 }
 
 export const listTransformations = async (): Promise<Transformation[]> => {
-    const op = {
+    const result = await notebookFetch<Transformation[]>({
         method: 'GET',
-        path: URL_PATH,
-        op: '/transformations',
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    return Array.isArray(result) ? (result as Transformation[]) : [];
+        path: '/transformations',
+    });
+    return Array.isArray(result) ? result : [];
 };
 
 export const getTransformation = async (id: string): Promise<Transformation | null> => {
-    const op = {
+    return notebookFetch<Transformation>({
         method: 'GET',
-        path: URL_PATH,
-        op: `/transformations/${encodeURIComponent(id)}`,
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as Transformation;
+        path: `/transformations/${encodeURIComponent(id)}`,
+    });
 };
 
 export const createTransformation = async (
     data: CreateTransformationRequest,
 ): Promise<Transformation | null> => {
-    const op = {
+    return notebookFetch<Transformation>({
         method: 'POST',
-        path: URL_PATH,
-        op: '/transformations',
-        service: SERVICE_NAME,
-        data,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as Transformation;
+        path: '/transformations',
+        body: data,
+    });
 };
 
 export const updateTransformation = async (
     id: string,
     data: UpdateTransformationRequest,
 ): Promise<Transformation | null> => {
-    const op = {
+    return notebookFetch<Transformation>({
         method: 'PUT',
-        path: URL_PATH,
-        op: `/transformations/${encodeURIComponent(id)}`,
-        service: SERVICE_NAME,
-        data,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as Transformation;
+        path: `/transformations/${encodeURIComponent(id)}`,
+        body: data,
+    });
 };
 
 export const deleteTransformation = async (id: string): Promise<boolean> => {
-    const op = {
+    const result = await notebookFetch({
         method: 'DELETE',
-        path: URL_PATH,
-        op: `/transformations/${encodeURIComponent(id)}`,
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result) return false;
-    if ((result as any).success === false) return false;
-    return true;
+        path: `/transformations/${encodeURIComponent(id)}`,
+    });
+    return result !== null;
 };
 
 export const executeTransformation = async (
     payload: ExecuteTransformationRequest,
 ): Promise<ExecuteTransformationResponse | null> => {
-    const op = {
+    return notebookFetch<ExecuteTransformationResponse>({
         method: 'POST',
-        path: URL_PATH,
-        op: '/transformations/execute',
-        service: SERVICE_NAME,
-        data: payload,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as ExecuteTransformationResponse;
+        path: '/transformations/execute',
+        body: payload,
+    });
 };
 
 export const getDefaultPrompt = async (): Promise<DefaultPrompt | null> => {
-    const op = {
+    return notebookFetch<DefaultPrompt>({
         method: 'GET',
-        path: URL_PATH,
-        op: '/transformations/default-prompt',
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as DefaultPrompt;
+        path: '/transformations/default-prompt',
+    });
 };
 
 export const updateDefaultPrompt = async (
     prompt: DefaultPrompt,
 ): Promise<DefaultPrompt | null> => {
-    const op = {
+    return notebookFetch<DefaultPrompt>({
         method: 'PUT',
-        path: URL_PATH,
-        op: '/transformations/default-prompt',
-        service: SERVICE_NAME,
-        data: prompt,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as DefaultPrompt;
+        path: '/transformations/default-prompt',
+        body: prompt,
+    });
 };
 
 // -----------------------------------------------------------------------------
@@ -432,106 +347,101 @@ export interface PodcastGenerationResponse {
 }
 
 export const listEpisodes = async (): Promise<PodcastEpisode[]> => {
-    const op = {
+    const result = await notebookFetch<PodcastEpisode[]>({
         method: 'GET',
-        path: URL_PATH,
-        op: '/podcasts/episodes',
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    return Array.isArray(result) ? (result as PodcastEpisode[]) : [];
+        path: '/podcasts/episodes',
+    });
+    return Array.isArray(result) ? result : [];
 };
 
 export const getEpisode = async (id: string): Promise<PodcastEpisode | null> => {
-    const op = {
+    return notebookFetch<PodcastEpisode>({
         method: 'GET',
-        path: URL_PATH,
-        op: `/podcasts/episodes/${encodeURIComponent(id)}`,
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as PodcastEpisode;
+        path: `/podcasts/episodes/${encodeURIComponent(id)}`,
+    });
 };
 
 export const deleteEpisode = async (id: string): Promise<boolean> => {
-    const op = {
+    const result = await notebookFetch({
         method: 'DELETE',
-        path: URL_PATH,
-        op: `/podcasts/episodes/${encodeURIComponent(id)}`,
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result) return false;
-    if ((result as any).success === false) return false;
-    return true;
+        path: `/podcasts/episodes/${encodeURIComponent(id)}`,
+    });
+    return result !== null;
 };
 
 export const retryEpisode = async (
     id: string,
 ): Promise<{ job_id: string; message: string } | null> => {
-    const op = {
+    return notebookFetch<{ job_id: string; message: string }>({
         method: 'POST',
-        path: URL_PATH,
-        op: `/podcasts/episodes/${encodeURIComponent(id)}/retry`,
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as { job_id: string; message: string };
+        path: `/podcasts/episodes/${encodeURIComponent(id)}/retry`,
+    });
 };
 
 export const generatePodcast = async (
     payload: PodcastGenerationRequest,
 ): Promise<PodcastGenerationResponse | null> => {
-    const op = {
+    return notebookFetch<PodcastGenerationResponse>({
         method: 'POST',
-        path: URL_PATH,
-        op: '/podcasts/generate',
-        service: SERVICE_NAME,
-        data: payload,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result as PodcastGenerationResponse;
+        path: '/podcasts/generate',
+        body: payload,
+    });
 };
 
 export const getJobStatus = async (jobId: string): Promise<any | null> => {
-    const op = {
+    return notebookFetch({
         method: 'GET',
-        path: URL_PATH,
-        op: `/podcasts/jobs/${encodeURIComponent(jobId)}`,
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result || (result as any).success === false) return null;
-    return result;
+        path: `/podcasts/jobs/${encodeURIComponent(jobId)}`,
+    });
 };
 
 export const listEpisodeProfiles = async (): Promise<EpisodeProfile[]> => {
-    const op = {
+    const result = await notebookFetch<EpisodeProfile[]>({
         method: 'GET',
-        path: URL_PATH,
-        op: '/episode-profiles',
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    return Array.isArray(result) ? (result as EpisodeProfile[]) : [];
+        path: '/episode-profiles',
+    });
+    return Array.isArray(result) ? result : [];
 };
 
 export const listSpeakerProfiles = async (): Promise<SpeakerProfile[]> => {
-    const op = {
+    const result = await notebookFetch<SpeakerProfile[]>({
         method: 'GET',
-        path: URL_PATH,
-        op: '/speaker-profiles',
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    return Array.isArray(result) ? (result as SpeakerProfile[]) : [];
+        path: '/speaker-profiles',
+    });
+    return Array.isArray(result) ? result : [];
 };
 
-// Audio is served as a binary file response; route it through the dedicated
-// amplify proxy that proxies the upstream stream instead of doRequestOp (which
-// expects JSON).
-export const getEpisodeAudioUrl = (episodeId: string): string =>
-    `/api/notebookAudio?episodeId=${encodeURIComponent(episodeId)}`;
+export interface EpisodeAudioResult {
+    objectUrl: string | null;
+    // null = network/transport failure (no response). Otherwise the upstream
+    // HTTP status — non-2xx surfaces the reason (404 if audio file isn't on
+    // disk yet, 401 if JWT lapsed, etc.) instead of an infinite spinner.
+    status: number | null;
+}
+
+// Podcast audio is consumed by an HTML5 <audio> element, which can't attach
+// Authorization headers itself. Fetch the full binary with the JWT once and
+// return an object URL that the <audio> tag can use as src. Callers must
+// revoke the URL on unmount (URL.revokeObjectURL) to avoid leaking blobs.
+export const fetchEpisodeAudioObjectUrl = async (
+    episodeId: string,
+): Promise<EpisodeAudioResult> => {
+    const response = await notebookFetchRaw({
+        method: 'GET',
+        path: `/podcasts/episodes/${encodeURIComponent(episodeId)}/audio`,
+    });
+    if (!response) return { objectUrl: null, status: null };
+    if (!response.ok) {
+        console.warn(
+            `Episode audio fetch failed for ${episodeId}: HTTP ${response.status}`,
+        );
+        return { objectUrl: null, status: response.status };
+    }
+    try {
+        const blob = await response.blob();
+        return { objectUrl: URL.createObjectURL(blob), status: response.status };
+    } catch (e) {
+        console.error('Failed to read episode audio blob:', e);
+        return { objectUrl: null, status: response.status };
+    }
+};

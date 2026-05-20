@@ -15,11 +15,12 @@ import {
     deleteEpisode as deleteEpisodeApi,
     EpisodeProfile,
     EpisodeStatus,
-    getEpisodeAudioUrl,
+    fetchEpisodeAudioObjectUrl,
     listEpisodeProfiles,
     listEpisodes,
     listSpeakerProfiles,
     PodcastEpisode,
+    PodcastGenerationResponse,
     retryEpisode as retryEpisodeApi,
     SpeakerProfile,
 } from '@/services/notebookConfigService';
@@ -83,14 +84,76 @@ const FAILED_STATUSES: EpisodeStatus[] = ['failed', 'error'];
 // re-mounted on parent re-renders (polling, modal open, etc.). Re-mounting an
 // <audio> element pauses playback, which the user hit when clicking Details
 // while a podcast was playing.
-const EpisodeAudio = memo(({ episodeId }: { episodeId: string }) => (
-    <audio
-        controls
-        preload="auto"
-        src={getEpisodeAudioUrl(episodeId)}
-        className="mt-3 w-full"
-    />
-));
+//
+// <audio> can't attach Authorization headers, so we fetch the binary with the
+// JWT once, hand the <audio> tag an object URL, and revoke it on unmount.
+// Range/seek is lost for long episodes — acceptable tradeoff to keep the API
+// auth model uniform with the rest of the notebook calls.
+const audioErrorMessage = (status: number | null): string => {
+    if (status === null) return 'Network error fetching audio.';
+    if (status === 404)
+        return "Audio isn't available yet — the job finished but the file isn't on disk.";
+    if (status === 401 || status === 403)
+        return 'Not authorized to fetch this audio. Try reloading to refresh your session.';
+    return `Couldn't load audio (HTTP ${status}).`;
+};
+
+const EpisodeAudio = memo(({ episodeId }: { episodeId: string }) => {
+    const [src, setSrc] = useState<string | null>(null);
+    const [errorStatus, setErrorStatus] = useState<number | null | undefined>(undefined);
+    const [attempt, setAttempt] = useState<number>(0);
+
+    useEffect(() => {
+        let cancelled = false;
+        let objectUrl: string | null = null;
+        setSrc(null);
+        setErrorStatus(undefined);
+        (async () => {
+            const result = await fetchEpisodeAudioObjectUrl(episodeId);
+            if (cancelled) {
+                if (result.objectUrl) URL.revokeObjectURL(result.objectUrl);
+                return;
+            }
+            if (result.objectUrl) {
+                objectUrl = result.objectUrl;
+                setSrc(result.objectUrl);
+            } else {
+                setErrorStatus(result.status);
+            }
+        })();
+        return () => {
+            cancelled = true;
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+        };
+    }, [episodeId, attempt]);
+
+    if (errorStatus !== undefined) {
+        return (
+            <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-[12px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300">
+                <IconAlertCircle size={14} className="mt-0.5 flex-none" />
+                <span className="flex-1">{audioErrorMessage(errorStatus)}</span>
+                <button
+                    onClick={() => setAttempt((n) => n + 1)}
+                    className="flex items-center gap-1 rounded border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-800/50 dark:bg-transparent dark:text-amber-200 dark:hover:bg-amber-900/30"
+                >
+                    <IconRefresh size={12} />
+                    Retry
+                </button>
+            </div>
+        );
+    }
+    if (!src) {
+        return (
+            <div className="mt-3 flex items-center gap-2 text-xs text-gray-500 dark:text-neutral-400">
+                <IconLoader2 size={14} className="animate-spin" />
+                Loading audio...
+            </div>
+        );
+    }
+    return (
+        <audio controls preload="auto" src={src} className="mt-3 w-full" />
+    );
+});
 EpisodeAudio.displayName = 'EpisodeAudio';
 
 const formatRelative = (iso?: string | null) => {
@@ -378,6 +441,10 @@ const EpisodeCard = ({
     const status = (episode.job_status || 'unknown') as EpisodeStatus;
     const isFailed = FAILED_STATUSES.includes(status);
     const isCompleted = status === 'completed';
+    // Optimistic placeholders have client-side ids and no server row yet, so
+    // Details/Delete would hit a 404. Hide those actions until polling swaps
+    // in the real episode (usually within one poll cycle).
+    const isPlaceholder = episode.id.startsWith('temp-');
     const profileName =
         (episode.episode_profile as EpisodeProfile)?.name || '(unknown profile)';
 
@@ -395,13 +462,15 @@ const EpisodeCard = ({
                     </div>
                 </div>
                 <div className="flex flex-none flex-wrap items-center gap-2">
-                    <button
-                        onClick={onView}
-                        className="flex h-7 items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 text-[12px] font-medium text-gray-700 hover:bg-gray-50 dark:border-neutral-600 dark:bg-[#40414f] dark:text-gray-200 dark:hover:bg-neutral-700"
-                    >
-                        <IconInfoCircle size={14} />
-                        Details
-                    </button>
+                    {!isPlaceholder && (
+                        <button
+                            onClick={onView}
+                            className="flex h-7 items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 text-[12px] font-medium text-gray-700 hover:bg-gray-50 dark:border-neutral-600 dark:bg-[#40414f] dark:text-gray-200 dark:hover:bg-neutral-700"
+                        >
+                            <IconInfoCircle size={14} />
+                            Details
+                        </button>
+                    )}
                     {isFailed && (
                         <button
                             onClick={onRetry}
@@ -416,14 +485,16 @@ const EpisodeCard = ({
                             Retry
                         </button>
                     )}
-                    <button
-                        onClick={onDelete}
-                        disabled={deleting}
-                        className="flex h-7 items-center gap-1 rounded-md px-2.5 text-[12px] font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                    >
-                        <IconTrash size={14} />
-                        Delete
-                    </button>
+                    {!isPlaceholder && (
+                        <button
+                            onClick={onDelete}
+                            disabled={deleting}
+                            className="flex h-7 items-center gap-1 rounded-md px-2.5 text-[12px] font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                        >
+                            <IconTrash size={14} />
+                            Delete
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -798,6 +869,11 @@ export const PodcastsPage = () => {
     // Armed on Generate/Retry to cover the brief window where the new Running
     // episode hasn't been written to SurrealDB yet.
     const [pollGraceUntil, setPollGraceUntil] = useState<number>(0);
+    // Optimistic cards rendered the moment a generation job is submitted, so
+    // the user doesn't stare at an empty list while waiting for SurrealDB to
+    // catch up and the next poll to fire. Matched out by `name` once the real
+    // episode appears, and cleared wholesale when the grace window expires.
+    const [pendingPlaceholders, setPendingPlaceholders] = useState<PodcastEpisode[]>([]);
 
     const fetchEpisodes = useCallback(
         async ({ silent = false }: { silent?: boolean } = {}) => {
@@ -819,13 +895,29 @@ export const PodcastsPage = () => {
         fetchEpisodes();
     }, [fetchEpisodes]);
 
+    // Drop placeholders whose real counterpart has shown up on the server.
+    useEffect(() => {
+        if (pendingPlaceholders.length === 0) return;
+        const liveNames = new Set(episodes.map((e) => e.name));
+        if (pendingPlaceholders.some((p) => liveNames.has(p.name))) {
+            setPendingPlaceholders((prev) =>
+                prev.filter((p) => !liveNames.has(p.name)),
+            );
+        }
+    }, [episodes, pendingPlaceholders]);
+
+    const visibleEpisodes = useMemo(
+        () => [...pendingPlaceholders, ...episodes],
+        [pendingPlaceholders, episodes],
+    );
+
     const hasActive = useMemo(
         () =>
-            episodes.some((e) => {
+            visibleEpisodes.some((e) => {
                 const meta = STATUS_META[(e.job_status || 'unknown') as EpisodeStatus];
                 return meta.group === 'running' || meta.group === 'pending';
             }),
-        [episodes],
+        [visibleEpisodes],
     );
 
     // Poll only when there's actually work to watch: either a Running/Pending
@@ -842,9 +934,15 @@ export const PodcastsPage = () => {
     }, [tab, hasActive, pollGraceUntil, fetchEpisodes]);
 
     // Tear down the grace window once it expires so the effect above can
-    // re-evaluate and stop polling if there's still nothing active.
+    // re-evaluate and stop polling if there's still nothing active. When the
+    // grace window ends we also drop any leftover placeholders — if the real
+    // episode hasn't shown up by then, the submission likely failed silently
+    // and the stale card would mislead the user.
     useEffect(() => {
-        if (pollGraceUntil === 0) return;
+        if (pollGraceUntil === 0) {
+            if (pendingPlaceholders.length > 0) setPendingPlaceholders([]);
+            return;
+        }
         const ms = pollGraceUntil - Date.now();
         if (ms <= 0) {
             setPollGraceUntil(0);
@@ -852,11 +950,29 @@ export const PodcastsPage = () => {
         }
         const t = window.setTimeout(() => setPollGraceUntil(0), ms);
         return () => window.clearTimeout(t);
-    }, [pollGraceUntil]);
+    }, [pollGraceUntil, pendingPlaceholders.length]);
 
     const armPolling = useCallback(() => {
         setPollGraceUntil(Date.now() + 30_000);
     }, []);
+
+    const handleGenerated = useCallback(
+        (resp: PodcastGenerationResponse) => {
+            const placeholder: PodcastEpisode = {
+                id: `temp-${resp.job_id}`,
+                name: resp.episode_name,
+                episode_profile: { name: resp.episode_profile },
+                speaker_profile: {},
+                briefing: '',
+                job_status: 'submitted',
+                created: new Date().toISOString(),
+            };
+            setPendingPlaceholders((prev) => [...prev, placeholder]);
+            armPolling();
+            fetchEpisodes({ silent: true });
+        },
+        [armPolling, fetchEpisodes],
+    );
 
     const handleDelete = async () => {
         if (!pendingDelete) return;
@@ -873,6 +989,16 @@ export const PodcastsPage = () => {
 
     const handleRetry = async (e: PodcastEpisode) => {
         setRetryingId(e.id);
+        // Optimistically move the card out of "Failed" so the user gets
+        // immediate feedback that retry was accepted; polling will overwrite
+        // this with the authoritative server state within a few seconds.
+        setEpisodes((prev) =>
+            prev.map((ep) =>
+                ep.id === e.id
+                    ? { ...ep, job_status: 'submitted', error_message: null }
+                    : ep,
+            ),
+        );
         await retryEpisodeApi(e.id);
         setRetryingId(null);
         armPolling();
@@ -885,7 +1011,7 @@ export const PodcastsPage = () => {
 
             {tab === 'episodes' ? (
                 <EpisodesTab
-                    episodes={episodes}
+                    episodes={visibleEpisodes}
                     loading={loading}
                     error={error}
                     onGenerate={() => setShowGenerate(true)}
@@ -902,10 +1028,7 @@ export const PodcastsPage = () => {
             {showGenerate && (
                 <GeneratePodcastDialog
                     onClose={() => setShowGenerate(false)}
-                    onSubmitted={() => {
-                        armPolling();
-                        fetchEpisodes({ silent: true });
-                    }}
+                    onSubmitted={handleGenerated}
                 />
             )}
 

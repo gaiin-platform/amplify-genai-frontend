@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     IconPlus,
     IconRefresh,
+    IconSparkles,
     IconTrash,
 } from '@tabler/icons-react';
 import {
@@ -21,6 +22,7 @@ import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import { AddSourceDialog } from './AddSourceDialog';
 import { NoteEditorDialog } from './NoteEditorDialog';
 import { ChatPanel } from './ChatPanel';
+import { SourceInsightsDialog } from './SourceInsightsDialog';
 
 interface Props {
     notebookId: string;
@@ -192,6 +194,26 @@ const SourcesPanel = ({
     const [showAdd, setShowAdd] = useState<boolean>(false);
     const [pendingDelete, setPendingDelete] = useState<SourceListItem | null>(null);
     const [deleting, setDeleting] = useState<boolean>(false);
+    const [insightsFor, setInsightsFor] = useState<SourceListItem | null>(null);
+
+    // Stable identity so it can be safely listed as a useEffect dep in the
+    // child dialog. Also a no-op when the count hasn't actually changed to
+    // break any feedback loop between the dialog's load effect and this
+    // panel's state.
+    const handleInsightsCountChange = useCallback(
+        (sourceId: string, count: number) => {
+            onSourcesChange((prev) => {
+                let changed = false;
+                const next = prev.map((s) => {
+                    if (s.id !== sourceId || s.insights_count === count) return s;
+                    changed = true;
+                    return { ...s, insights_count: count };
+                });
+                return changed ? next : prev;
+            });
+        },
+        [onSourcesChange],
+    );
 
     const fetchSources = async (showLoading: boolean = false) => {
         if (showLoading) setLoading(true);
@@ -324,13 +346,26 @@ const SourcesPanel = ({
                                         />
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() => setPendingDelete(s)}
-                                    title="Delete source"
-                                    className="invisible rounded-md p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 group-hover:visible dark:text-gray-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                                >
-                                    <IconTrash size={14} />
-                                </button>
+                                <div className="flex items-start gap-0.5">
+                                    <button
+                                        onClick={() => setInsightsFor(s)}
+                                        title={hasInsights ? 'View insights' : 'Generate insights'}
+                                        className={`rounded-md p-1 ${
+                                            hasInsights
+                                                ? 'text-purple-500 hover:bg-purple-50 dark:text-purple-300 dark:hover:bg-purple-900/30'
+                                                : 'invisible text-gray-400 hover:bg-gray-100 hover:text-purple-600 group-hover:visible dark:text-gray-500 dark:hover:bg-neutral-700 dark:hover:text-purple-300'
+                                        }`}
+                                    >
+                                        <IconSparkles size={14} />
+                                    </button>
+                                    <button
+                                        onClick={() => setPendingDelete(s)}
+                                        title="Delete source"
+                                        className="invisible rounded-md p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 group-hover:visible dark:text-gray-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                                    >
+                                        <IconTrash size={14} />
+                                    </button>
+                                </div>
                             </li>
                         );
                     })}
@@ -358,6 +393,15 @@ const SourcesPanel = ({
                     denyLabel="Cancel"
                     onConfirm={confirmDelete}
                     onDeny={() => setPendingDelete(null)}
+                />
+            )}
+
+            {insightsFor && (
+                <SourceInsightsDialog
+                    notebookId={notebookId}
+                    source={insightsFor}
+                    onClose={() => setInsightsFor(null)}
+                    onInsightsCountChange={handleInsightsCountChange}
                 />
             )}
         </PanelShell>
@@ -567,12 +611,13 @@ const ModeButton = ({
 
 const StatusBadge = ({ source }: { source: SourceListItem }) => {
     if (source.embedded) return null;
-    const status = source.status || 'processing';
-    const cls =
-        status === 'failed' || status === 'error'
-            ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
-    return <span className={`rounded-full px-2 py-0.5 ${cls}`}>{status}</span>;
+    const status = source.status;
+    const isFailed = status === 'failed' || status === 'error';
+    const label = isFailed ? status : 'Processing';
+    const cls = isFailed
+        ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+        : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
+    return <span className={`rounded-full px-2 py-0.5 ${cls}`}>{label}</span>;
 };
 
 export default NotebookDetail;

@@ -97,6 +97,10 @@ export const SettingsPage = () => {
     const [error, setError] = useState<string | null>(null);
     const [savedAt, setSavedAt] = useState<number | null>(null);
     const [expandedHelp, setExpandedHelp] = useState<Set<string>>(new Set());
+    // Free-text mirror of settings.youtube_preferred_languages. We keep this
+    // separate so the user can type "en, " mid-edit without the trailing comma
+    // being eaten by a round-trip through array.join().
+    const [ytLangsInput, setYtLangsInput] = useState<string>('');
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -109,6 +113,7 @@ export const SettingsPage = () => {
         }
         setSettings(data);
         setOriginal(data);
+        setYtLangsInput((data.youtube_preferred_languages || []).join(', '));
         setLoading(false);
     }, []);
 
@@ -130,6 +135,15 @@ export const SettingsPage = () => {
         setSavedAt(null);
     };
 
+    const handleYtLangsChange = (value: string) => {
+        setYtLangsInput(value);
+        const arr = value
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+        set('youtube_preferred_languages', arr.length > 0 ? arr : null);
+    };
+
     const dirty =
         settings && original
             ? JSON.stringify(settings) !== JSON.stringify(original)
@@ -146,6 +160,7 @@ export const SettingsPage = () => {
                 settings.default_content_processing_engine_url || undefined,
             default_embedding_option: settings.default_embedding_option || undefined,
             auto_delete_files: settings.auto_delete_files || undefined,
+            youtube_preferred_languages: settings.youtube_preferred_languages ?? undefined,
         };
         const result = await updateSettingsApi(patch);
         setSaving(false);
@@ -155,6 +170,7 @@ export const SettingsPage = () => {
         }
         setSettings(result);
         setOriginal(result);
+        setYtLangsInput((result.youtube_preferred_languages || []).join(', '));
         setSavedAt(Date.now());
     };
 
@@ -251,6 +267,28 @@ export const SettingsPage = () => {
                             expandedHelp={expandedHelp}
                             onToggleHelp={toggleHelp}
                         />
+                    </SectionCard>
+
+                    <SectionCard
+                        title="YouTube"
+                        description="Preferred transcript languages when ingesting YouTube URLs."
+                    >
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium">
+                                Preferred transcript languages
+                            </label>
+                            <input
+                                type="text"
+                                value={ytLangsInput}
+                                onChange={(e) => handleYtLangsChange(e.target.value)}
+                                placeholder="en, es, fr"
+                                className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                            />
+                            <p className="text-[12px] text-gray-500 dark:text-gray-400">
+                                Comma-separated ISO codes. The first available language wins. Leave
+                                blank to let YouTube pick.
+                            </p>
+                        </div>
                     </SectionCard>
 
                     <SectionCard

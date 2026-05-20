@@ -185,21 +185,36 @@ export const SourcesPage = () => {
                             <th className="px-4 py-3 text-left font-medium">Type</th>
                             <th className="px-4 py-3 text-left font-medium">Title</th>
                             <th className="px-4 py-3 text-left font-medium">
-                                <button
-                                    onClick={() => toggleSort('created')}
-                                    className="inline-flex items-center gap-1 hover:text-gray-800 dark:hover:text-gray-200"
-                                >
-                                    Created
-                                    <IconArrowsSort
-                                        size={12}
-                                        className={sortBy === 'created' ? 'opacity-100' : 'opacity-30'}
-                                    />
-                                    {sortBy === 'created' && (
-                                        <span className="text-[10px]">
-                                            {sortOrder === 'asc' ? '↑' : '↓'}
-                                        </span>
-                                    )}
-                                </button>
+                                <div className="inline-flex items-center gap-1.5">
+                                    <button
+                                        onClick={() => toggleSort('created')}
+                                        className={`inline-flex items-center gap-0.5 hover:text-gray-800 dark:hover:text-gray-200 ${
+                                            sortBy === 'created' ? 'text-gray-800 dark:text-gray-200' : ''
+                                        }`}
+                                    >
+                                        Created
+                                        {sortBy === 'created' && (
+                                            <span className="text-[10px]">
+                                                {sortOrder === 'asc' ? '↑' : '↓'}
+                                            </span>
+                                        )}
+                                    </button>
+                                    <span className="text-gray-300 dark:text-gray-600">/</span>
+                                    <button
+                                        onClick={() => toggleSort('updated')}
+                                        className={`inline-flex items-center gap-0.5 hover:text-gray-800 dark:hover:text-gray-200 ${
+                                            sortBy === 'updated' ? 'text-gray-800 dark:text-gray-200' : ''
+                                        }`}
+                                    >
+                                        Updated
+                                        {sortBy === 'updated' && (
+                                            <span className="text-[10px]">
+                                                {sortOrder === 'asc' ? '↑' : '↓'}
+                                            </span>
+                                        )}
+                                    </button>
+                                    <IconArrowsSort size={12} className="opacity-40" />
+                                </div>
                             </th>
                             <th className="px-4 py-3 text-center font-medium">Insights</th>
                             <th className="px-4 py-3 text-center font-medium">Embedded</th>
@@ -260,7 +275,7 @@ export const SourcesPage = () => {
                                         </div>
                                     </td>
                                     <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
-                                        {formatRelative(s.created)}
+                                        {formatRelative(sortBy === 'updated' ? s.updated : s.created)}
                                     </td>
                                     <td className="px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-200">
                                         {s.insights_count || 0}
