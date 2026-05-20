@@ -33,6 +33,9 @@ interface Props {
     rateLimits: RateLimits;
     setRateLimits: (l: RateLimits) => void;
 
+    honorPersonalRateLimit: { enabled: boolean; scope?: 'both' | 'apiKey' | 'amplifyAccount' };
+    setHonorPersonalRateLimit: (v: { enabled: boolean; scope?: 'both' | 'apiKey' | 'amplifyAccount' }) => void;
+
     promptCostAlert: PromptCostAlert;
     setPromptCostAlert: (a: PromptCostAlert) => void;
 
@@ -53,7 +56,8 @@ interface Props {
 }
 
 export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setAmpGroups, amplifyUsers, allEmails,
-                                              rateLimits, setRateLimits, promptCostAlert, setPromptCostAlert,
+                                              rateLimits, setRateLimits, honorPersonalRateLimit, setHonorPersonalRateLimit,
+                                              promptCostAlert, setPromptCostAlert,
                                               defaultConversationStorage, setDefaultConversationStorage,
                                               emailSupport, setEmailSupport, aiEmailDomain, setAiEmailDomain,
                                               admin_text, updateUnsavedConfigs, onModalStateChange}) => {
@@ -109,6 +113,11 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
 
     const handleUpdateRateLimits = (updatedRateLimits: RateLimits) => {
         setRateLimits(updatedRateLimits);
+        updateUnsavedConfigs(AdminConfigTypes.RATE_LIMIT);
+    }
+
+    const handleUpdateHonorPersonalRateLimit = (value: { enabled: boolean; scope?: 'both' | 'apiKey' | 'amplifyAccount' }) => {
+        setHonorPersonalRateLimit(value);
         updateUnsavedConfigs(AdminConfigTypes.RATE_LIMIT);
     }
 
@@ -479,6 +488,36 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                             </div>
                         )}
                     </div>
+                </div>
+
+                <div className="mt-2">
+                    <Checkbox
+                        id="honorPersonalRateLimit"
+                        label="Honor personal rate limits — if a user has set their own personal rate limit, it will be honored even if it exceeds the admin or group limits. Enable with caution."
+                        checked={honorPersonalRateLimit.enabled}
+                        onChange={(v) => handleUpdateHonorPersonalRateLimit({ ...honorPersonalRateLimit, enabled: v, scope: honorPersonalRateLimit.scope ?? 'both' })}
+                    />
+                    {honorPersonalRateLimit.enabled && (
+                        <div className="ml-6 mt-2 flex flex-col gap-1">
+                            <p className="text-sm font-medium mb-1">Apply to:</p>
+                            {([
+                                { value: 'both', label: 'Both — API and Amplify accessed' },
+                                { value: 'apiKey', label: 'API key accessed only' },
+                                { value: 'amplifyAccount', label: 'Amplify accessed only' },
+                            ] as const).map(({ value, label }) => (
+                                <label key={value} className="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="honorPersonalScope"
+                                        value={value}
+                                        checked={(honorPersonalRateLimit.scope ?? 'both') === value}
+                                        onChange={() => handleUpdateHonorPersonalRateLimit({ ...honorPersonalRateLimit, scope: value })}
+                                    />
+                                    {label}
+                                </label>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 
