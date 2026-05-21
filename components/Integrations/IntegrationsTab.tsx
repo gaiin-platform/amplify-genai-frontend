@@ -148,6 +148,22 @@ export const IntegrationTabs: FC<Props> = ({ open, depth=0, allowedIntegrations=
     let location = null;
     try {
       const res = await getOauthRedirect(id, settings);
+
+      // Token-sharing shortcut: backend shared credentials from another
+      // integration without requiring a separate OAuth flow.
+      if (res?.body?.token_shared) {
+        refreshUserIntegrations();
+        setConnectingStates(prev => ({ ...prev, [id]: false }));
+        return;
+      }
+
+      // Handle error responses (e.g., token sharing failed)
+      if (res?.body?.error) {
+        alert(res.body.message || "An error occurred connecting this integration.");
+        setConnectingStates(prev => ({ ...prev, [id]: false }));
+        return;
+      }
+
       location = res.body.Location;
     } catch (e) {
       alert("An error occurred. Please try again.");
