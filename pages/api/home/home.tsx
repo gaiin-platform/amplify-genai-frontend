@@ -68,6 +68,7 @@ import Loader from "@/components/Loader/Loader";
 import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
 import { AssistantGallery } from "@/components/AssistantGallery/AssistantGallery";
+import { NotebookApp } from "@/components/Notebook/NotebookApp";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { deleteAssistant, listAssistants, listLayeredAssistants } from '@/services/assistantService';
 import { LayeredAssistant } from '@/types/layeredAssistant';
@@ -957,7 +958,7 @@ const Home = ({
                 const result = await getFeatureFlags();
                 if (result.success && result.data) {
                     const flags: { [key:string] : boolean } = result.data;
-                    // console.log("feature flags:", flags)
+                    console.log("feature flags:", flags)
                     if (Object.keys(flags).length > 0) dispatch({ field: 'featureFlags', value: flags});
                     localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
                     return flags;
@@ -1583,13 +1584,15 @@ const Home = ({
                             />
 
 
-                            <TabSidebar
-                                side={"left"}
-                            >
-                                <Tab icon={<IconMessage />} title="Chats"><Chatbar /></Tab>
-                                <Tab icon={<IconSparkles />} title="Assistants"><Promptbar /></Tab>
-                                <Tab icon={<IconHammer />} title="Settings"><SettingsBar /></Tab>
-                            </TabSidebar>
+                            {page !== 'notebook' && (
+                                <TabSidebar
+                                    side={"left"}
+                                >
+                                    <Tab icon={<IconMessage />} title="Chats" onClick={() => dispatch({ field: 'page', value: 'chat' })}><Chatbar /></Tab>
+                                    <Tab icon={<IconSparkles />} title="Assistants" onClick={() => dispatch({ field: 'page', value: 'chat' })}><Promptbar /></Tab>
+                                    <Tab icon={<IconHammer />} title="Settings" onClick={() => dispatch({ field: 'page', value: 'chat' })}><SettingsBar /></Tab>
+                                </TabSidebar>
+                            )}
 
                             <div className="flex flex-1">
                                 {page === 'chat' && (
@@ -1605,6 +1608,9 @@ const Home = ({
                                 )}
                                 {page === 'assistantGallery' && (
                                     <AssistantGallery />
+                                )}
+                                {page === 'notebook' && featureFlags.notebook && (
+                                    <NotebookApp />
                                 )}
                             </div>
                             

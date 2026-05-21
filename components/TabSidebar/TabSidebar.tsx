@@ -7,6 +7,7 @@ interface TabProps {
     icon: ReactNode;
     children: ReactNode;
     title?: string;
+    onClick?: () => void;
 }
 
 export const Tab: React.FC<TabProps> = ({ icon, children }) => (
@@ -120,7 +121,10 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
                         <button
                             key={index}
                             id="tabSelection"
-                            onClick={() => setActiveTab(index)}
+                            onClick={() => {
+                                setActiveTab(index);
+                                child.props.onClick?.();
+                            }}
                             title={child.props.title}
                             className={`group relative px-5 pb-2.5 pt-2 rounded-t transition-all duration-300 overflow-hidden ${
                                 activeTab === index 

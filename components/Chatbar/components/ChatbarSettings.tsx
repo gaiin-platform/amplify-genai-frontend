@@ -1,4 +1,4 @@
-import { IconFileExport, IconPuzzle, IconDeviceSdCard, IconTools, IconAlarm, IconUsers, IconSearch, IconBook, IconBrain } from '@tabler/icons-react';
+import { IconFileExport, IconPuzzle, IconDeviceSdCard, IconTools, IconAlarm, IconUsers, IconSearch, IconBook, IconBrain, IconNotebook } from '@tabler/icons-react';
 import { useContext, useEffect, useRef, useState, useCallback } from 'react';
 
 
@@ -31,6 +31,7 @@ export const ChatbarSettings = () => {
 
     const {
         state: { featureFlags, syncingPrompts, canAddWebSearchApiKey, userDocumentationUrl, chatEndpoint },
+        dispatch: homeDispatch,
     } = useContext(HomeContext);
 
     let settingRef = useRef<Settings | null>(null);
@@ -203,6 +204,14 @@ export const ChatbarSettings = () => {
                     handleExportData();
                 }}
             />
+
+            {featureFlags.notebook && (
+                <SidebarButton
+                    text={t('Notebook')}
+                    icon={<IconNotebook size={18} />}
+                    onClick={() => homeDispatch({ field: 'page', value: 'notebook' })}
+                />
+            )}
 
         </div>
     );
