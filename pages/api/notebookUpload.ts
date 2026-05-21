@@ -115,7 +115,7 @@ const notebookUpload = async (req: NextApiRequest, res: NextApiResponse) => {
             );
         }
         const upstreamCt = upstream.headers['content-type'];
-        if (upstreamCt) res.setHeader('Content-Type', upstreamCt);
+        if (typeof upstreamCt === 'string') res.setHeader('Content-Type', upstreamCt);
         res.status(upstream.status);
         return res.send(buffer);
     } catch (error) {
