@@ -3,6 +3,13 @@ export interface RateLimit {
     rate: number | null;
 }
 
+export type HonorScope = 'both' | 'apiKey' | 'amplifyAccount';
+
+export interface HonorPersonalRateLimit {
+    enabled: boolean;
+    scope?: HonorScope;
+}
+
 // A list of rate limits (admin/group can have multiple simultaneous limits)
 export type RateLimits = RateLimit[];
 

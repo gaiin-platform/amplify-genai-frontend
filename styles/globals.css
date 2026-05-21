@@ -406,3 +406,12 @@ pre:has(div.codeblock) {
   background: linear-gradient(90deg, #3b82f6, #8b5cf6, #3b82f6);
   opacity: 0.8;
 }
+
+@keyframes notebook-ref-flash-kf {
+  0%   { background-color: rgba(168, 85, 247, 0.35); }
+  100% { background-color: transparent; }
+}
+.notebook-ref-flash {
+  animation: notebook-ref-flash-kf 1.5s ease-out;
+  border-radius: 0.375rem;
+}

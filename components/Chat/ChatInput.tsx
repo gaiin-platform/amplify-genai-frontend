@@ -1369,7 +1369,7 @@ export const ChatInput = ({
                     {showContextManager && (
                         <div ref={contextManagerRef} className="rounded bg-white dark:bg-[#343541]"
                              onClick={e => e.stopPropagation()}
-                             style={{transform: 'translateY(70px)', maxHeight: '500px', overflow: 'hidden'}}>
+                             style={{transform: 'translateY(50px)', maxHeight: '500px', overflow: 'hidden'}}>
                             <ConversationContextManager
                                 conversation={selectedConversation}
                                 allConversations={conversations}

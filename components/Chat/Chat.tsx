@@ -28,7 +28,7 @@ import {Conversation, DataSource, Message, MessageType, newMessage} from '@/type
 import {Plugin} from '@/types/plugin';
 
 import HomeContext from '@/pages/api/home/home.context';
-import { getMonthlyLimit, normalizeRateLimits } from '@/types/rateLimit';
+import { normalizeRateLimits } from '@/types/rateLimit';
 import { RateLimitUtilization } from '@/components/Layout/RateLimitUtilization';
 
 import Spinner from '../Spinner';
@@ -105,6 +105,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 isStandalonePromptCreation,
                 promptCostAlertModal,
                 layeredAssistants,
+                honorPersonalRateLimit,
                 adminRateLimits,
                 groupRateLimits,
             },
@@ -245,21 +246,22 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         const chat_button_blue_color = "text-[#1dbff5] dark:text-[#8edffa]"
 
-        // True only when there is at least one active rate limit to show utilization for
-        const hasActiveLimits = (() => {
-            const personal = defaultAccount?.rateLimit;
-            if (personal && personal.rate !== null && personal.period !== 'Unlimited') return true;
-            if (normalizeRateLimits(adminRateLimits).some(l => l.rate !== null && l.period !== 'Unlimited')) return true;
-            return groupRateLimits.some(g => g.limits.length > 0);
-        })();
+        const personal = defaultAccount?.rateLimit;
+        const hasPersonal = !!(personal && personal.rate !== null && personal.period !== 'Unlimited');
+        const hasAdminOrGroup = normalizeRateLimits(adminRateLimits).some(l => l.rate !== null && l.period !== 'Unlimited')
+            || groupRateLimits.some(g => g.limits.some(l => l.rate !== null && l.period !== 'Unlimited'));
+        const honorScope = honorPersonalRateLimit?.scope ?? 'both';
+        const honorApplies = !!(honorPersonalRateLimit?.enabled) && (honorScope === 'both' || honorScope === 'amplifyAccount');
+        // showPersonal: same rule as RateLimitUtilization — personal shown only when no admin/group OR honor applies
+        const showPersonal = hasPersonal && (!hasAdminOrGroup || honorApplies);
+        // hasActiveLimits: any limits exist — controls whether the chart icon appears
+        const hasActiveLimits = hasPersonal || hasAdminOrGroup;
 
         const getMtdPillColor = () => {
-            const personal = defaultAccount?.rateLimit;
-            const effectiveLimit = (personal && personal.rate !== null && personal.period !== 'Unlimited')
-                ? personal
-                : getMonthlyLimit(adminRateLimits ?? []);
-            if (!effectiveLimit || !effectiveLimit.rate || effectiveLimit.rate === 0) return chat_button_blue_color;
-            const pct = (mtdCostNumeric / effectiveLimit.rate) * 100;
+            // Only color-code against personal when it's what's being shown
+            if (!showPersonal) return chat_button_blue_color;
+            if (!personal!.rate || personal!.rate === 0) return chat_button_blue_color;
+            const pct = (mtdCostNumeric / personal!.rate) * 100;
             if (pct >= 80) return 'text-red-500 dark:text-red-400';
             if (pct >= 50) return 'text-yellow-500 dark:text-yellow-400';
             return chat_button_blue_color;
@@ -267,23 +269,13 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         /** Returns a color class for a specific period's spend against its limit */
         const getPeriodColor = (period: 'Hourly' | 'Daily' | 'Monthly', spent: number): string => {
-            const personal = defaultAccount?.rateLimit;
-            const allLimits = normalizeRateLimits(adminRateLimits);
-            // Find the matching limit: personal if it matches the period, otherwise admin
-            let limit = null;
-            if (personal && personal.rate !== null && personal.period !== 'Unlimited') {
-                if (personal.period === period || (period === 'Monthly' && personal.period === 'Total')) {
-                    limit = personal;
-                }
+            // Only color-code against personal when it's what's being shown
+            if (!showPersonal) return chat_button_blue_color;
+            if (personal!.period === period || (period === 'Monthly' && personal!.period === 'Total')) {
+                const pct = (spent / (personal!.rate as number)) * 100;
+                if (pct >= 80) return 'text-red-500 dark:text-red-400';
+                if (pct >= 50) return 'text-yellow-500 dark:text-yellow-400';
             }
-            if (!limit) {
-                limit = allLimits.find(l => l.rate !== null && l.period !== 'Unlimited' &&
-                    (l.period === period || (period === 'Monthly' && l.period === 'Total'))) ?? null;
-            }
-            if (!limit || !limit.rate || limit.rate === 0) return chat_button_blue_color;
-            const pct = (spent / limit.rate) * 100;
-            if (pct >= 80) return 'text-red-500 dark:text-red-400';
-            if (pct >= 50) return 'text-yellow-500 dark:text-yellow-400';
             return chat_button_blue_color;
         };
 
