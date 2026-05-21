@@ -2,6 +2,7 @@ import { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import HomeContext from '@/pages/api/home/home.context';
 import { IconCheck, IconLoader2 } from '@tabler/icons-react';
+import toast from 'react-hot-toast';
 
 import { deleteUserIntegration, getAvailableIntegrations, getOauthRedirect, getConnectedIntegrations } from '@/services/oauthIntegrationsService';
 import { ActiveTabs } from '../ReusableComponents/ActiveTabs';
@@ -154,6 +155,10 @@ export const IntegrationTabs: FC<Props> = ({ open, depth=0, allowedIntegrations=
       if (res?.body?.token_shared) {
         refreshUserIntegrations();
         setConnectingStates(prev => ({ ...prev, [id]: false }));
+        toast.success('Authentication Successful', {
+          duration: 4000,
+          position: 'top-center',
+        });
         return;
       }
 
