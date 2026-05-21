@@ -212,6 +212,9 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
                                     json.choices = [{delta: {function_call: json.d.tool_calls[0].function}}];
                                 }
                                 //console.log("Translated Event:",json);
+                            } else if (json.d.delta && json.d.delta.text) {
+                                // Error/status message format: {delta: {text: "..."}}
+                                json.choices = [{delta: {content: json.d.delta.text}}];
                             }
 
                             lastSource = json.s;
@@ -222,6 +225,8 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
                         if (functions) {
                             fnCallHandler(controller, json);
                         } else {
+                            if (!json.choices?.[0]) return;
+
                             if (json.choices[0].finish_reason != null) {
 
                                 console.log("Chat request completed",
@@ -232,7 +237,8 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
                                 return;
                             }
 
-                            const text = json.choices[0].delta.content;
+                            const text = json.choices[0].delta?.content;
+                            if (text == null) return;
                             const queue = encoder.encode(text);
                             controller.enqueue(queue);
                         }

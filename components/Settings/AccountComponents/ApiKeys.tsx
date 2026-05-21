@@ -749,7 +749,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                             </div>
                                                             <div className='apikeys-item-summary'>
                                                                 <span>{apiKey.account ? `• ${apiKey.account.name}` : '• No Account'}</span>
-                                                                {apiKey.expirationDate && <>•<span className={isExpired(apiKey.expirationDate) ? "text-red-600": ""}>Expires: {formatDateYMDToMDY(apiKey.expirationDate)}</span></>}
+                                                                {apiKey.expirationDate && <>•<span className={isExpired(apiKey.expirationDate) ? "text-red-600": ""}>{isExpired(apiKey.expirationDate) ? 'Expired:' : 'Expires:'} {formatDateYMDToMDY(apiKey.expirationDate)}</span></>}
                                                                 {apiKey.lastAccessed && <>•<span>Last Accessed: {userFriendlyDate(apiKey.lastAccessed)}</span></>}
                                                                 
                                                             </div>
@@ -874,7 +874,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                             {mtdDisplay(apiKey)}
                                         </div>
                                         <div className='apikeys-item-summary'>
-                                            {apiKey.expirationDate && <>•<span className={isExpired(apiKey.expirationDate) ? "text-red-600": ""}>Expires: {formatDateYMDToMDY(apiKey.expirationDate)}</span></>}
+                                            {apiKey.expirationDate && <>•<span className={isExpired(apiKey.expirationDate) ? "text-red-600": ""}>{isExpired(apiKey.expirationDate) ? 'Expired:' : 'Expires:'} {formatDateYMDToMDY(apiKey.expirationDate)}</span></>}
                                             {apiKey.lastAccessed && <>•<span>Last Accessed: {userFriendlyDate(apiKey.lastAccessed)}</span></>}
 
                                         </div>
