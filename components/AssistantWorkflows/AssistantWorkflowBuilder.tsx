@@ -1009,7 +1009,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
       
       <div className="mb-4">
         
-        <div title="Allow any Amplify user to access and use this workflow template">
+        <div className="dark:text-white" title="Allow any Amplify user to access and use this workflow template">
           <Checkbox
             id="isPublic"
             label="Accessible to any Amplify user"
@@ -1298,7 +1298,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                     />
                   </div>
 
-                  <div>
+                  <div className="dark:text-white">
                     <Checkbox
                       id="workflowBuilder-isPublic"
                       label="Accessible to any Amplify user"
