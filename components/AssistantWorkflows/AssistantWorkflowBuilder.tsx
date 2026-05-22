@@ -95,6 +95,9 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const createMenuRef = useRef<HTMLDivElement>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [showEditMenu, setShowEditMenu] = useState(false);
+  const editMenuRef = useRef<HTMLDivElement>(null);
 
 
       const filterOps = async (data: any[]) => {
@@ -168,6 +171,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   useEffect(() => {
     if (isOpen) {
       fetchTemplates();
+      setSelectedWorkflowId(null);
     }
   }, [isOpen]);
   
@@ -369,11 +373,14 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
       if (showCreateMenu && createMenuRef.current && !createMenuRef.current.contains(event.target as Node)) {
         setShowCreateMenu(false);
       }
+      if (showEditMenu && editMenuRef.current && !editMenuRef.current.contains(event.target as Node)) {
+        setShowEditMenu(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showCreateMenu]);
+  }, [showCreateMenu, showEditMenu]);
 
   useEffect(() => {
     setDetailedPreview(false);
@@ -553,39 +560,35 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
             </button>
             
             {showCreateMenu && (
-              <div className="absolute top-8 right-0 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-2 min-w-[180px]">
+              <div className="absolute top-8 right-0 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1 min-w-[240px]">
+
                 <button
                   className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
-                  onClick={() => {
-                    setForceVisualBuilderReset(true);
-                    setShowVisualBuilder(true);
-                    setShowCreateMenu(false);
-                  }}
-                  title="Drag-and-drop interface for building workflows visually with real-time preview"
+                  onClick={() => { setShowWorkflowGenerator(true); setShowCreateMenu(false); }}
+                  title="Best if you want AI to draft the workflow for you"
+                >
+                  <IconRobot size={16} className="text-green-600 dark:text-green-400 flex-shrink-0" />
+                  <span className="text-sm flex-1 whitespace-nowrap">AI Generate</span>
+                  <span className="text-xs text-gray-400 dark:text-gray-500 italic">recommended</span>
+                </button>
+
+                <div className="border-t border-gray-100 dark:border-gray-700 mx-2 my-1" />
+
+                <div className="px-4 py-1">
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">Build Manually</p>
+                </div>
+                <button
+                  className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                  onClick={() => { setForceVisualBuilderReset(true); setShowVisualBuilder(true); setShowCreateMenu(false); }}
+                  title="Drag and drop tools onto a canvas to build your workflow visually"
                 >
                   <IconPuzzle size={16} className="text-blue-600 dark:text-blue-400" />
                   <span className="text-sm">Visual Builder</span>
                 </button>
-                
                 <button
                   className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
-                  onClick={() => {
-                    setShowWorkflowGenerator(true);
-                    setShowCreateMenu(false);
-                  }}
-                  title="Let AI create a workflow based on your description and selected tools"
-                >
-                  <IconRobot size={16} className="text-green-600 dark:text-green-400" />
-                  <span className="text-sm">AI Generate</span>
-                </button>
-                
-                <button
-                  className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
-                  onClick={() => {
-                    handleOpenWorkflowBuilder();
-                    setShowCreateMenu(false);
-                  }}
-                  title="Traditional step-by-step workflow creation interface with detailed configuration"
+                  onClick={() => { handleOpenWorkflowBuilder(); setShowCreateMenu(false); }}
+                  title="Step-by-step form-based workflow creation with detailed configuration"
                 >
                   <IconEdit size={16} className="text-purple-600 dark:text-purple-400" />
                   <span className="text-sm">Workflow Builder</span>
@@ -600,8 +603,8 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           Loading templates...
         </div>
       ) : !Array.isArray(allTemplates) || allTemplates.length === 0 ? (
-        <div className="text-center p-4 text-neutral-500 dark:text-neutral-400">
-          No templates available
+        <div className="text-center p-4 text-neutral-500 dark:text-neutral-400 text-sm">
+          Your saved templates will appear here. Create one to get started.
         </div>
       ) : (
         <div className="space-y-2">
@@ -613,7 +616,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                   ? 'bg-blue-100 dark:bg-blue-200'
                   : 'hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
-              onClick={() => handleLoadTemplate(template.templateId)}
+              onClick={() => { setConfirmDeleteId(null); handleLoadTemplate(template.templateId); }}
               title="Click to preview this workflow template, click again to deselect">
               <div className="flex flex-col truncate">
                 <div className="font-medium text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
@@ -627,25 +630,23 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                     {template.description}
                   </div>
                 )}
-                {/* {template.isBaseTemplate && (
-                  <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    Base Template
-                  </div>
-                )} */}
               </div>
-              
-              { selectedWorkflowId === template.templateId &&
-                <button className="ml-auto right-2"
-                title="Delete Template"
-                onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteTemplate(template.templateId, index);
-                }}
-            >
-                {isDeletingTemplate === index ? (
+
+              {selectedWorkflowId === template.templateId && (
+                isDeletingTemplate === index ? (
+                  <div className="ml-auto flex-shrink-0">
                     <IconLoader2 size={18} className="animate-spin text-neutral-500" />
-                ) : (<IconTrash className="text-red-500 hover:text-red-700" size={18} /> )}
-            </button>}
+                  </div>
+                ) : (
+                  <button
+                    className="ml-auto flex-shrink-0"
+                    title="Delete template"
+                    onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(template.templateId); }}
+                  >
+                    <IconTrash className="text-red-400 hover:text-red-600" size={16} />
+                  </button>
+                )
+              )}
             </div>
           ))}
         </div>
@@ -1039,55 +1040,71 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
     </div>
   );
 
-  const renderPreviewContent = () => (
-    <div className="flex-1 pl-4">
-      {/* Workflow Template Preview with Controls */}
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white">Workflow Template Preview</h3>
-          <div className="flex gap-2">
-            <button
-              className={`px-3 py-2 ${buttonStyle}`}
-              onClick={() => {
-                const shouldForceReset = false; // Don't reset when editing existing
-                setForceVisualBuilderReset(shouldForceReset);
-                setShowVisualBuilder(true);
-              }}
-              title="Edit this workflow using the visual drag-and-drop interface"
-              disabled={loadingSelectedWorkflow}
-            >
-              <IconPuzzle size={18} className="text-blue-600 dark:text-blue-400" />
-              Visual Builder
-            </button>
+  const renderPreviewContent = () => {
+    const nonTerminateSteps = selectedWorkflow.template?.steps.filter(s => s.tool !== 'terminate') ?? [];
+    return (
+      <div className="flex-1 pl-4 overflow-y-auto">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
+              {selectedWorkflow.name || 'Untitled Template'}
+            </h3>
+            {selectedWorkflow.description && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{selectedWorkflow.description}</p>
+            )}
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              {nonTerminateSteps.length} step{nonTerminateSteps.length !== 1 ? 's' : ''}
+            </p>
+          </div>
 
+          <div className="relative flex-shrink-0" ref={editMenuRef}>
             <button
               className={`px-3 py-2 ${buttonStyle}`}
-              onClick={handleOpenWorkflowBuilder}
-              title="Edit this workflow using the step-by-step editor interface"
+              onClick={() => setShowEditMenu(prev => !prev)}
               disabled={loadingSelectedWorkflow}
+              title="Edit this workflow template"
             >
-              <IconEdit size={18} className="text-purple-600 dark:text-purple-400" />
-              Workflow Builder
+              <IconEdit size={16} className="text-gray-600 dark:text-gray-300" />
+              Edit
+              <IconChevronDown size={14} className="text-gray-400" />
             </button>
+            {showEditMenu && (
+              <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1 min-w-[200px]">
+                <button
+                  className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                  onClick={() => { setForceVisualBuilderReset(false); setShowVisualBuilder(true); setShowEditMenu(false); }}
+                >
+                  <IconPuzzle size={16} className="text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm">Edit in Visual Builder</span>
+                </button>
+                <button
+                  className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                  onClick={() => { handleOpenWorkflowBuilder(); setShowEditMenu(false); }}
+                >
+                  <IconEdit size={16} className="text-purple-600 dark:text-purple-400" />
+                  <span className="text-sm">Edit in Workflow Builder</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
-        
+
         {loadingSelectedWorkflow ? (
           <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800/50">
             <IconLoader2 size={48} className="animate-spin text-blue-500 mb-4" />
             <p className="text-gray-600 dark:text-gray-400 text-lg">Loading workflow template...</p>
           </div>
         ) : (
-          <AssistantWorkflow 
+          <AssistantWorkflow
             id={"previewCurrentWorkflow"}
-            workflowTemplate={selectedWorkflow} 
-            enableCustomization={false}  // do nothing 
+            workflowTemplate={selectedWorkflow}
+            enableCustomization={false}
             onWorkflowTemplateUpdate={(workflowTemplate: AstWorkflow | null) => {}}
           />
         )}
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderCenterPanel = () => {
     if (selectedWorkflowId) {
@@ -1125,53 +1142,47 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
             {/* Quick Action Buttons */}
             <div className="mt-6 space-y-4">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white">Create New Workflow Template</h3>
-              <div className="grid gap-4 md:grid-cols-3">
-                <button
-                  className="p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-left hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                  onClick={() => {
-                    setForceVisualBuilderReset(true);
-                    setShowVisualBuilder(true);
-                  }}
-                  title="Best for visual learners and complex workflows. Drag tools from a palette onto a canvas to build your workflow with instant preview."
-                >
-                  <div className="flex items-center mb-2">
-                    <IconPuzzle size={24} className="text-blue-600 dark:text-blue-400 mr-2" />
-                    <span className="font-medium text-gray-900 dark:text-white">Visual Builder</span>
-                  </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Drag and drop tools to build workflows visually
-                  </p>
-                </button>
+              <div className="grid gap-4 md:grid-cols-2">
 
                 <button
-                  className="p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-left hover:border-green-500 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
-                  onClick={() => {
-                    setShowWorkflowGenerator(true);
-                  }}
-                  title="Perfect for quick workflow creation. Describe your desired workflow in plain language and AI will generate the steps and tool configurations for you."
+                  className="p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-left hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                  onClick={() => setShowWorkflowGenerator(true)}
+                  title="Best if you want AI to draft the workflow for you."
                 >
                   <div className="flex items-center mb-2">
                     <IconRobot size={24} className="text-green-600 dark:text-green-400 mr-2" />
                     <span className="font-medium text-gray-900 dark:text-white">AI Generate</span>
+                    <span className="ml-2 text-xs text-gray-400 dark:text-gray-500 italic">← recommended</span>
                   </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Describe your workflow and let AI create it
-                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Best if you want AI to draft it for you</p>
                 </button>
 
-                <button
-                  className="p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-left hover:border-purple-500 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
-                  onClick={handleOpenWorkflowBuilder}
-                  title="Best for detailed control and complex configurations. Traditional form-based interface for precise step-by-step workflow creation."
-                >
-                  <div className="flex items-center mb-2">
-                    <IconEdit size={24} className="text-purple-600 dark:text-purple-400 mr-2" />
-                    <span className="font-medium text-gray-900 dark:text-white">Workflow Builder</span>
+                <div className="p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+                  <div className="flex items-center mb-1">
+                    <IconEdit size={24} className="text-blue-600 dark:text-blue-400 mr-2" />
+                    <span className="font-medium text-gray-900 dark:text-white">Build Manually</span>
                   </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Create workflows with step-by-step editing
-                  </p>
-                </button>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Best if you know what tools you need</p>
+                  <div className="flex gap-2">
+                    <button
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md border border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300 text-xs font-medium hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                      onClick={() => { setForceVisualBuilderReset(true); setShowVisualBuilder(true); }}
+                      title="Drag and drop tools onto a canvas to build your workflow visually"
+                    >
+                      <IconPuzzle size={14} />
+                      Visual Builder
+                    </button>
+                    <button
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md border border-purple-300 dark:border-purple-600 text-purple-700 dark:text-purple-300 text-xs font-medium hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
+                      onClick={handleOpenWorkflowBuilder}
+                      title="Step-by-step form-based workflow creation with detailed configuration"
+                    >
+                      <IconEdit size={14} />
+                      Workflow Builder
+                    </button>
+                  </div>
+                </div>
+
               </div>
             </div>
           </div>
@@ -1193,13 +1204,10 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                   {renderCenterPanel()}
           </div>
         }
-        showCancel={true}
+        showCancel={false}
         submitLabel="Close"
         onSubmit={onClose}
-        onCancel={ () => {
-          setSelectedWorkflow(emptyTemplate(isBaseTemplate));
-          onClose();
-        }}
+        onCancel={onClose}
         disableSubmit={isSubmitting}
         disableClickOutside={true}
       />
@@ -1406,6 +1414,36 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
         />
       )}
       
+      {/* Delete confirmation dialog */}
+      {confirmDeleteId && (() => {
+        const templateToDelete = allTemplates.find(t => t.templateId === confirmDeleteId);
+        const templateIndex = allTemplates.findIndex(t => t.templateId === confirmDeleteId);
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-600 p-6 max-w-sm w-full mx-4">
+              <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Delete Template</h4>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
+                Are you sure you want to delete <span className="font-medium text-gray-900 dark:text-white">&ldquo;{templateToDelete?.name}&rdquo;</span>? This cannot be undone.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  className="px-4 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  onClick={() => setConfirmDeleteId(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-4 py-1.5 text-sm rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition-colors"
+                  onClick={() => { setConfirmDeleteId(null); handleDeleteTemplate(confirmDeleteId, templateIndex); }}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <VisualWorkflowBuilder
         isOpen={showVisualBuilder}
         onClose={() => {

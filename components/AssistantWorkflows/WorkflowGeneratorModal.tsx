@@ -255,7 +255,7 @@ Generate ONLY the JSON, no additional text.`;
   ) as unknown as string;
 
   const modalContent = (
-    <div className="space-y-4 pt-1">
+    <div className="space-y-4 pt-1 h-full overflow-hidden">
       {error && (
         <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg">
           <div className="flex items-start gap-2">
