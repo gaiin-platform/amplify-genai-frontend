@@ -962,7 +962,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       <div className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onClick={onClose} />
       
       {/* Modal */}
-      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 max-w-7xl w-full mx-4 flex flex-col max-h-[90vh]">
+      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 max-w-7xl w-full mx-4 flex flex-col h-[90vh] max-h-[90vh]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex justify-between items-center flex-shrink-0">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
