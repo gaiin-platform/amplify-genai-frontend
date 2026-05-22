@@ -469,6 +469,24 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
     // Increment counter to force fresh StepEditor instance (clears AI description)
     setStepEditorResetCounter(prev => prev + 1);
   };
+
+  // Handle canceling parameter config for a new step — removes the step
+  const handleCancelParameterConfig = () => {
+    if (configStep?.isNewStep) {
+      setWorkflowSteps(prev => prev.filter(s => s.id !== configStep.step.id));
+    }
+    setShowParameterConfig(false);
+    setStepEditorResetCounter(prev => prev + 1);
+  };
+
+  // Handle canceling the tool picker — removes the empty step that was added
+  const handleCancelToolPicker = () => {
+    const stepAtPosition = workflowSteps[toolPickerPosition];
+    if (stepAtPosition?.isEmpty) {
+      setWorkflowSteps(prev => prev.filter(s => s.id !== stepAtPosition.id));
+    }
+    setShowToolPicker(false);
+  };
   
   // Update workflow state when initialWorkflow prop changes
   useEffect(() => {
@@ -1238,7 +1256,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       {/* Modals */}
       <ToolSelectorModal
         isOpen={showToolPicker}
-        onClose={() => setShowToolPicker(false)}
+        onClose={handleCancelToolPicker}
         onSelect={handleToolSelect}
         tools={toolItems.filter(t => t.name !== 'terminate')}
         title="Select Tool for Step"
@@ -1279,7 +1297,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
             </div>
             <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
               <button
-                onClick={handleCloseParameterConfig}
+                onClick={handleCancelParameterConfig}
                 className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md"
               >
                 Cancel
