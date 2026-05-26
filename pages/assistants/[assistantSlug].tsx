@@ -9,6 +9,7 @@ import { getAvailableModels } from '@/services/adminService';
 import { sendDirectAssistantMessage, lookupAssistant } from '@/services/assistantService';
 import { v4 as uuidv4 } from 'uuid';
 import { getSettings } from '@/utils/app/settings';
+import { storageGet, storageSet } from '@/utils/app/storage';
 import { LoadingDialog } from '@/components/Loader/LoadingDialog';
 import Spinner from '@/components/Spinner';
 import { Theme } from '@/types/settings';
@@ -167,6 +168,11 @@ const AssistantPage = ({
   const [conversationId] = useState<string>(() => uuidv4());
   const [astIconUrl, setAstIconUrl] = useState<string | null>(null);
 
+  // Last-session restore state
+  const LAST_SESSION_KEY = `standalone_last_session:${assistantSlug}`;
+  const [showResumeBar, setShowResumeBar] = useState(false);
+  const [restoredMessages, setRestoredMessages] = useState<Array<{role: string, content: string}> | null>(null);
+
   // Agent state management
   const [isAgentRunning, setIsAgentRunning] = useState(false);
   const [agentStatus, setAgentStatus] = useState<string>('');
@@ -213,7 +219,6 @@ const AssistantPage = ({
         background: none;
         -webkit-text-fill-color: rgb(0, 109, 243);
       }
-
 
       .dark .shimmer-text {
         background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(225, 228, 233, 0.8) 50%, rgba(255,255,255,0) 100%);
@@ -299,6 +304,33 @@ const AssistantPage = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, reasoningText, isProcessing]);
 
+  // Auto-save messages to IndexedDB so they survive accidental navigation
+  useEffect(() => {
+    if (messages.length === 0) return;
+    storageSet(LAST_SESSION_KEY, JSON.stringify(messages)).catch(e =>
+      console.warn('Failed to save session:', e)
+    );
+  }, [messages, LAST_SESSION_KEY]);
+
+  // Load last session from IndexedDB on mount
+  useEffect(() => {
+    const loadLastSession = async () => {
+      try {
+        const saved = await storageGet(LAST_SESSION_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved) as Array<{role: string, content: string}>;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setRestoredMessages(parsed);
+            setShowResumeBar(true);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load last session:', e);
+      }
+    };
+    loadLastSession();
+  }, [LAST_SESSION_KEY]);
+
   // Initialize the page
   useEffect(() => {
     const initializePage = async () => {
@@ -366,7 +398,6 @@ const AssistantPage = ({
             console.log("Failed to fetch accounts.");
         }
 
-        
         setLoadingMessage('Finding assistant...');
         
         if (!assistantSlug || assistantSlug.trim() === '') {
@@ -684,7 +715,6 @@ const AssistantPage = ({
         conversationId: conversationId,
       };
 
-
       // Send the message to the assistant with conversation history and selected model
       const result = await sendDirectAssistantMessage(
         chatEndpoint,
@@ -982,7 +1012,6 @@ const AssistantPage = ({
     }
   }
 
-
   // Content for header
   const headerContent = (
     <div className="flex items-center gap-3 w-full">
@@ -1003,8 +1032,6 @@ const AssistantPage = ({
     </div>
   );
 
-
- 
   const filterMessages = () => {
     return messages.filter(message => ["user", "assistant"].includes(message.role));
   }
@@ -1225,7 +1252,6 @@ const AssistantPage = ({
   const leftSidebarContent = null; //<SimpleSidebar side="left" />;
   const rightSidebarContent = null; // <SimpleSidebar side="right" />;
 
-
   return (
     <MainLayout
       title={`${assistantName} - Amplify`}
@@ -1279,6 +1305,42 @@ const AssistantPage = ({
 
       {/* Chat messages */}
       <div className="flex-1 overflow-y-auto py-4 px-6 bg-white dark:bg-[#343541]">
+
+        {/* Resume last session banner */}
+        {showResumeBar && restoredMessages && filterMessages().length === 0 && (
+          <div className="mx-auto max-w-2xl mt-4 mb-2 rounded-lg border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 px-4 py-3 flex items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-2 text-sm text-blue-800 dark:text-blue-200">
+              <IconMessage size={18} className="flex-shrink-0" />
+              <span>You have a previous conversation with <strong>{assistantName}</strong>. Would you like to resume it?</span>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => {
+                  setMessages(restoredMessages);
+                  setShowResumeBar(false);
+                }}
+                className="px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+              >
+                Resume
+              </button>
+              <button
+                onClick={async () => {
+                  setShowResumeBar(false);
+                  setRestoredMessages(null);
+                  try {
+                    await storageSet(LAST_SESSION_KEY, JSON.stringify([]));
+                  } catch (e) {
+                    console.warn('Failed to clear session:', e);
+                  }
+                }}
+                className="px-3 py-1.5 text-xs font-medium bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md transition-colors"
+              >
+                Start Fresh
+              </button>
+            </div>
+          </div>
+        )}
+
         {filterMessages().length === 0 ? (
           <div className="flex h-full flex-col">
             {assistantDefinition?.data && requiredGroupType && 
@@ -1376,7 +1438,6 @@ const AssistantPage = ({
                 ) : (
                   <>
                     <div className="w-full">
-                      
 
                       <div className="amplify-assistant-message rounded-lg inline-block">
                         <AssistantContentBlock
@@ -1449,7 +1510,6 @@ const AssistantPage = ({
                       </div>
                     )}
 
-                    
                   </>
                 )}
               </div>
@@ -1543,7 +1603,6 @@ const AssistantPage = ({
         </div>
       </div>
 
-   
     </MainLayout>
   );
 };
