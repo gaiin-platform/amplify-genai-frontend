@@ -102,6 +102,8 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   const [hoveredTemplateId, setHoveredTemplateId] = useState<string | null>(null);
   const [showEditMenu, setShowEditMenu] = useState(false);
   const editMenuRef = useRef<HTMLDivElement>(null);
+  const [showEditDetails, setShowEditDetails] = useState(false);
+  const [editDetailsData, setEditDetailsData] = useState<{ name: string; description: string; isPublic: boolean }>({ name: '', description: '', isPublic: false });
 
 
       const filterOps = async (data: any[]) => {
@@ -1078,6 +1080,19 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                   <IconEdit size={16} className="text-purple-600 dark:text-purple-400" />
                   <span className="text-sm">Edit in Workflow Builder</span>
                 </button>
+                <div className="border-t border-gray-100 dark:border-gray-700 mx-2 my-1" />
+                <button
+                  className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                  onClick={() => {
+                    setEditDetailsData({ name: selectedWorkflow.name, description: selectedWorkflow.description || '', isPublic: selectedWorkflow.isPublic || false });
+                    setShowEditDetails(true);
+                    setShowEditMenu(false);
+                  }}
+                  title="Edit the workflow name, description and accessibility setting"
+                >
+                  <IconInfoCircle size={16} className="text-gray-500 dark:text-gray-400" />
+                  <span className="text-sm">Edit Details</span>
+                </button>
               </div>
             )}
           </div>
@@ -1409,6 +1424,84 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           </div>
         );
       })()}
+
+      {showEditDetails && (
+        <Modal
+          title={
+            <span className="flex items-center gap-2">
+              <IconInfoCircle size={20} className="text-gray-600 dark:text-gray-400" />
+              Edit Details
+            </span> as unknown as string
+          }
+          content={
+            <div className="flex flex-col h-full">
+              <div className="space-y-5 pt-1 flex-1 overflow-y-auto">
+                <div>
+                  <label className="block text-sm font-semibold mb-1 text-gray-800 dark:text-gray-200">
+                    Workflow Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editDetailsData.name}
+                    onChange={(e) => setEditDetailsData(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white placeholder-gray-400"
+                    placeholder="Enter workflow name"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                    Description
+                  </label>
+                  <textarea
+                    value={editDetailsData.description}
+                    onChange={(e) => setEditDetailsData(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white placeholder-gray-400"
+                    rows={4}
+                    placeholder="Describe what this workflow does"
+                  />
+                </div>
+                <Checkbox
+                  id="editDetails-isPublic"
+                  label="Accessible to any Amplify user"
+                  checked={editDetailsData.isPublic}
+                  onChange={(checked) => setEditDetailsData(prev => ({ ...prev, isPublic: checked }))}
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-4 mt-2 border-t border-gray-200 dark:border-neutral-600 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowEditDetails(false)}
+                  className="px-4 py-1.5 border rounded-lg shadow-md border-neutral-500 text-neutral-900 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-neutral-100 dark:text-black dark:hover:bg-neutral-300 transition-all duration-200 hover:scale-105 hover:shadow-lg font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!editDetailsData.name.trim()}
+                  onClick={async () => {
+                    if (!editDetailsData.name.trim()) return;
+                    const updated = { ...selectedWorkflow, name: editDetailsData.name, description: editDetailsData.description, isPublic: editDetailsData.isPublic };
+                    await handleSaveWorkflowFromBuilder(updated);
+                    setShowEditDetails(false);
+                  }}
+                  className="px-4 py-1.5 border rounded-lg shadow-md bg-blue-600 hover:bg-blue-700 text-white border-blue-600 focus:outline-none transition-all duration-200 hover:scale-105 hover:shadow-lg font-medium"
+                  style={{ cursor: !editDetailsData.name.trim() ? 'not-allowed' : 'pointer', opacity: !editDetailsData.name.trim() ? 0.4 : 1 }}
+                >
+                  Save Details
+                </button>
+              </div>
+            </div>
+          }
+          onCancel={() => setShowEditDetails(false)}
+          onSubmit={() => {}}
+          showCancel={false}
+          showSubmit={false}
+          disableClickOutside={true}
+          width={() => Math.max(window.innerWidth * 0.4, 500)}
+          height={() => Math.min(Math.max(window.innerHeight * 0.55, 450), window.innerHeight - 80)}
+        />
+      )}
 
       {showManualSetup && (
         <Modal
