@@ -96,6 +96,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const createMenuRef = useRef<HTMLDivElement>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [hoveredTemplateId, setHoveredTemplateId] = useState<string | null>(null);
   const [showEditMenu, setShowEditMenu] = useState(false);
   const editMenuRef = useRef<HTMLDivElement>(null);
 
@@ -617,6 +618,8 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                   : 'hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
               onClick={() => { setConfirmDeleteId(null); handleLoadTemplate(template.templateId); }}
+              onMouseEnter={() => setHoveredTemplateId(template.templateId)}
+              onMouseLeave={() => setHoveredTemplateId(null)}
               title="Click to preview this workflow template, click again to deselect">
               <div className="flex flex-col truncate">
                 <div className="font-medium text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
@@ -632,20 +635,18 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                 )}
               </div>
 
-              {selectedWorkflowId === template.templateId && (
-                isDeletingTemplate === index ? (
-                  <div className="ml-auto flex-shrink-0">
-                    <IconLoader2 size={18} className="animate-spin text-neutral-500" />
-                  </div>
-                ) : (
-                  <button
-                    className="ml-auto flex-shrink-0"
-                    title="Delete template"
-                    onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(template.templateId); }}
-                  >
-                    <IconTrash className="text-red-400 hover:text-red-600" size={16} />
-                  </button>
-                )
+              {isDeletingTemplate === index ? (
+                <div className="ml-auto flex-shrink-0">
+                  <IconLoader2 size={18} className="animate-spin text-neutral-500" />
+                </div>
+              ) : (hoveredTemplateId === template.templateId || selectedWorkflowId === template.templateId) && (
+                <button
+                  className="ml-auto flex-shrink-0"
+                  title="Delete template"
+                  onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(template.templateId); }}
+                >
+                  <IconTrash className="text-red-400 hover:text-red-600" size={16} />
+                </button>
               )}
             </div>
           ))}
