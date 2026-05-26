@@ -1197,7 +1197,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
     <>
       <Modal
         fullScreen={true}
-        title={initialTemplate?.templateId ? 'Edit Assistant Workflow Template' : 'Create Assistant Workflow Template'}
+        title={initialTemplate?.templateId ? 'Edit Assistant Workflow Template' : 'Assistant Workflow Template'}
         content={
           <div className="flex flex-row" style={{height: (window.innerHeight * 0.9) * 0.8}}>
                   {renderSidebar()}
