@@ -163,7 +163,7 @@ const Sidebar = <T,>({
         <div
           className="relative w-[268px] enhanced-sidebar overflow-y-auto"
           id="sidebarScroll"
-          style={{ height: `calc(100vh - ${headerHeight + 24}px)` }}
+          style={{ flex: '1 1 0', minHeight: 0 }}
         >
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {items?.length > 0 && (
