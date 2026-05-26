@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { Modal } from '@/components/ReusableComponents/Modal';
 import { 
   IconX, IconSearch, IconPlus, IconGripVertical, IconTrash, IconSettings, IconPlayerPlay,
   IconBraces, IconMail, IconDatabase, IconMessageCircle, IconBrain,
@@ -34,6 +34,7 @@ interface VisualWorkflowBuilderProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (workflow: AstWorkflow) => void;
+  onBack?: () => void; // Optional back button to return to setup
   availableApis: OpDef[] | null;
   availableAgentTools: Record<string, AgentTool> | null;
   initialWorkflow?: AstWorkflow;
@@ -365,6 +366,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   isOpen,
   onClose,
   onSave,
+  onBack,
   availableApis,
   availableAgentTools,
   initialWorkflow,
@@ -504,7 +506,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       });
       
       // Convert template steps to workflow steps
-      if (initialWorkflow.template?.steps) {
+      if (initialWorkflow.templateId && initialWorkflow.template?.steps?.length) {
         const convertedSteps: WorkflowStep[] = initialWorkflow.template.steps.map((step, index) => ({
           ...step,
           id: `step-${index}`,
@@ -973,29 +975,21 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   };
   
   if (!isOpen) return null;
-  
+
+  const innerHeight = Math.min(Math.max(window.innerHeight * 0.75, 600), window.innerHeight - 80);
+  // Account for Modal's header (~64px) and footer (~56px)
+  const contentHeight = innerHeight - 120;
+
   const modalContent = (
-    <div className={`${lightMode} fixed inset-0 z-[9999] flex items-center justify-center`}>
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onClick={onClose} />
-      
-      {/* Modal */}
-      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 max-w-7xl w-full mx-4 flex flex-col h-[90vh] max-h-[90vh]">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex justify-between items-center flex-shrink-0">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <IconPuzzle size={24} />
-            Visual Workflow Template Builder
-          </h3>
-          
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-          >
-            <IconX size={24} />
-          </button>
-        </div>
-        
+    <Modal
+      title={
+        <span className="flex items-center gap-2">
+          <IconPuzzle size={20} className="text-blue-600 dark:text-blue-400" />
+          Visual Workflow Builder{workflow.name ? ` — ${workflow.name}` : ''}
+        </span> as unknown as string
+      }
+      content={
+        <div className="flex flex-col" style={{ height: contentHeight }}>
         {/* Content */}
         <div className="flex flex-1 overflow-hidden">
           {/* Tool Palette - Left Panel */}
@@ -1023,109 +1017,22 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
             </div>
           </div>
           
-          {/* Workflow Template Canvas - Right Panel */}
+          {/* Workflow Canvas - Right Panel */}
           <div className="flex-1 overflow-y-auto">
-            <div className="bg-white dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <IconPuzzle size={20} className="text-purple-600 dark:text-purple-400" />
-                    Workflow Template Canvas
-                  </h3>
-                  <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                    initialWorkflow?.templateId 
-                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                      : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                  }`}>
-                    {initialWorkflow?.templateId ? 'Editing' : 'New'}
-                  </div>
-                </div>
-              </div>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mb-4">Configure your workflow template details and arrange steps</p>
-              
-              {/* Workflow Name Input */}
-              <div className="mb-4">
-                <label className="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200">
-                  Workflow Template Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={workflow.name}
-                  onChange={(e) => setWorkflow(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Enter a descriptive name for your workflow..."
-                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  title="Give your workflow template a descriptive name that clearly explains what it does"
-                />
-                {!workflow.name.trim() && (
-                  <p className="text-xs text-red-500 mt-1">Workflow name is required</p>
-                )}
-              </div>
-
-              {/* Workflow Description */}
-              <div className="mb-4">
-                <label className="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200">
-                  Description
-                </label>
-                <textarea
-                  value={workflow.description}
-                  onChange={(e) => setWorkflow(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Describe what this workflow does..."
-                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  rows={2}
-                  title="Describe what this workflow accomplishes and when to use it"
-                />
-              </div>
-
-              {/* Accessibility Checkbox */}
-              <div className="mb-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
-                <div title="Make this template available to all Amplify users, not just you">
-                  <Checkbox
-                    id="isPublic"
-                    label="Accessible to any Amplify user"
-                    checked={workflow.isPublic || false}
-                    onChange={(checked) => setWorkflow(prev => ({ ...prev, isPublic: checked }))}
-                  />
-                </div>
-                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 ml-6">When enabled, other users can discover and use this template</p>
-              </div>
-              
-            </div>
-            
-            {/* Visual separator with gradient */}
-            <div className="h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent"></div>
-            
             <div className="p-4 bg-gray-50 dark:bg-gray-900/50">
               <div className="max-w-xl mx-auto space-y-3">
-                {/* Header with Add Step button */}
-                <div className="relative mb-4">
-                  <div className="text-center">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded-full text-sm font-medium">
-                      <IconPlayerPlay size={14} />
-                      Workflow Start
-                    </div>
+                {/* Workflow Start */}
+                <div className="mb-4 text-center">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded-full text-sm font-medium">
+                    <IconPlayerPlay size={14} />
+                    Workflow Start
                   </div>
-                  
-                  <button
-                    onClick={handleAddStep}
-                    className="absolute right-0 top-0 flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
-                    title="Add a new step before the terminate step"
-                  >
-                    <IconPlus size={16} />
-                    Add Step
-                  </button>
                 </div>
                 
                 {/* Workflow steps */}
                 {workflowSteps.length === 0 ? (
                   <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                    <p className="mb-4">No steps in your workflow yet.</p>
-                    <button 
-                      onClick={handleAddStep}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      <IconPlus size={16} />
-                      Add Your First Step
-                    </button>
+                    <p>Drag a tool from the left panel to add your first step.</p>
                   </div>
                 ) : (
                   <>
@@ -1158,8 +1065,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                               >
                                 <IconPlus size={24} className="mx-auto mb-2 opacity-50" />
                                 <p className="text-sm font-medium">Drop Zone</p>
-                                <p className="text-sm font-medium">Drag tools here to add new steps</p>
-                                <p className="text-xs mt-1">or use the &quot;Add Step&quot; button above</p>
+                                <p className="text-sm font-medium">(Drag tools here to add new steps)</p>
                               </div>
                               <div className="flex justify-center my-3">
                                 <IconArrowDown size={16} className="text-gray-400" />
@@ -1195,64 +1101,83 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                 )}
               </div>
               
-              {/* Workflow Template Canvas Footer - Error Display & Action Buttons */}
-              <div className="border-t border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-4 mt-4">
-                {/* Error Display */}
-                {saveError && (
-                  <div className="mb-3">
-                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-3 py-2 rounded-md text-sm">
-                      <div className="flex items-start gap-2">
-                        <IconAlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
-                        <div>
-                          <div className="font-medium">Save Failed</div>
-                          <div className="mt-1">{saveError}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Action Buttons */}
-                <div className="flex justify-between items-center">
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    {workflowSteps.filter(s => s.tool !== 'terminate').length} steps configured
-                  </div>
-                  
-                  <div className="flex gap-3">
-                    <button
-                      onClick={onClose}
-                      disabled={isSaving}
-                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                        isSaving 
-                          ? 'text-gray-400 bg-gray-200 dark:bg-gray-600 cursor-not-allowed'
-                          : 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600'
-                      }`}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSave}
-                      disabled={isSaving || !workflow.name.trim()}
-                      className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors flex items-center gap-2 ${
-                        isSaving || !workflow.name.trim()
-                          ? 'bg-gray-400 cursor-not-allowed'
-                          : 'bg-blue-600 hover:bg-blue-700 shadow-sm'
-                      }`}
-                    >
-                      {isSaving && <IconLoader2 size={16} className="animate-spin" />}
-                      {isSaving ? 'Saving...' : 'Save Workflow'}
-                    </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="py-3 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+          {saveError && (
+            <div className="mb-3">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-3 py-2 rounded-md text-sm">
+                <div className="flex items-start gap-2">
+                  <IconAlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-medium">Save Failed</div>
+                    <div className="mt-1">{saveError}</div>
                   </div>
                 </div>
               </div>
             </div>
+          )}
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              {onBack && (
+                <button
+                  onClick={onBack}
+                  className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-md transition-colors"
+                  title="Back to workflow setup"
+                >
+                  <IconArrowDown size={16} className="rotate-90" />
+                  Back
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                {workflowSteps.filter(s => s.tool !== 'terminate').length} steps configured
+              </span>
+              <button
+                onClick={onClose}
+                disabled={isSaving}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                  isSaving
+                    ? 'text-gray-400 bg-gray-200 dark:bg-gray-600 cursor-not-allowed'
+                    : 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={isSaving || !workflow.name.trim()}
+                className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors flex items-center gap-2 ${
+                  isSaving || !workflow.name.trim()
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700 shadow-sm'
+                }`}
+              >
+                {isSaving && <IconLoader2 size={16} className="animate-spin" />}
+                {isSaving ? 'Saving...' : 'Save Workflow'}
+              </button>
+            </div>
           </div>
         </div>
-        
-        {/* Minimal Footer - Removed buttons/errors, moved to Workflow Template Canvas */}
-        <div className="h-2"></div>
-      </div>
-      
+        </div>
+      }
+      onCancel={onClose}
+      onSubmit={() => {}}
+      showCancel={false}
+      showSubmit={false}
+      disableClickOutside={true}
+      disableContentAnimation={false}
+      width={() => Math.max(window.innerWidth * 0.92, 1100)}
+      height={() => Math.min(Math.max(window.innerHeight * 0.75, 600), window.innerHeight - 80)}
+    />
+  );
+
+  const portals = (
+    <>
       {/* Modals */}
       <ToolSelectorModal
         isOpen={showToolPicker}
@@ -1312,10 +1237,10 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
-  
-  return createPortal(modalContent, document.body);
+
+  return <>{modalContent}{portals}</>;
 };
 
 export default VisualWorkflowBuilder;

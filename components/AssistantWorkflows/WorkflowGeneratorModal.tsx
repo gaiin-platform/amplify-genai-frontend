@@ -254,8 +254,11 @@ Generate ONLY the JSON, no additional text.`;
     </span>
   ) as unknown as string;
 
+  const isSubmitDisabled = isGenerating || (!generatedWorkflow && !description.trim());
+
   const modalContent = (
-    <div className="space-y-4 pt-1 h-full overflow-hidden">
+    <div className="flex flex-col h-full">
+    <div className="space-y-4 pt-1 flex-1 overflow-hidden">
       {error && (
         <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg">
           <div className="flex items-start gap-2">
@@ -383,6 +386,36 @@ Generate ONLY the JSON, no additional text.`;
         </div>
       )}
     </div>
+
+      {/* Footer */}
+      <div className="pt-3 mt-2 border-t border-gray-200 dark:border-neutral-600 flex justify-end gap-3 flex-shrink-0">
+        {generatedWorkflow && (
+          <button
+            type="button"
+            onClick={() => setGeneratedWorkflow(null)}
+            className="px-4 py-1.5 border rounded-lg shadow-md border-neutral-500 text-neutral-900 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-neutral-100 dark:text-black dark:hover:bg-neutral-300 transition-all duration-200 font-medium"
+          >
+            Regenerate
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={handleClose}
+          className="px-4 py-1.5 border rounded-lg shadow-md border-neutral-500 text-neutral-900 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-neutral-100 dark:text-black dark:hover:bg-neutral-300 transition-all duration-200 font-medium"
+        >
+          {generatedWorkflow ? 'Close' : 'Cancel'}
+        </button>
+        <button
+          type="button"
+          onClick={generatedWorkflow ? handleAccept : generateWorkflow}
+          disabled={isSubmitDisabled}
+          className="px-4 py-1.5 border rounded-lg shadow-md border-blue-600 text-white bg-blue-600 hover:bg-blue-700 focus:outline-none transition-all duration-200 font-medium"
+          style={{ cursor: isSubmitDisabled ? 'not-allowed' : 'pointer', opacity: isSubmitDisabled ? 0.4 : 1 }}
+        >
+          {generatedWorkflow ? 'Save This Workflow' : (isGenerating ? 'Generating...' : 'Generate Workflow')}
+        </button>
+      </div>
+    </div>
   );
 
   return (
@@ -390,14 +423,12 @@ Generate ONLY the JSON, no additional text.`;
       title={modalTitle}
       content={modalContent}
       onCancel={handleClose}
-      onSubmit={generatedWorkflow ? handleAccept : generateWorkflow}
-      cancelLabel={generatedWorkflow ? 'Close' : 'Cancel'}
-      submitLabel={generatedWorkflow ? 'Save This Workflow' : (isGenerating ? 'Generating...' : 'Generate Workflow')}
-      disableSubmit={isGenerating || (!generatedWorkflow && !description.trim())}
-      additionalButtonOptions={generatedWorkflow ? [{ label: 'Regenerate', handleClick: () => setGeneratedWorkflow(null) }] : []}
+      onSubmit={() => {}}
+      showCancel={false}
+      showSubmit={false}
       disableClickOutside={true}
       width={() => Math.max(window.innerWidth * 0.92, 1100)}
-      height={() => Math.max(window.innerHeight * 0.92, 700)}
+      height={() => Math.min(Math.max(window.innerHeight * 0.75, 600), window.innerHeight - 80)}
       resizeOnVarChange={generatedWorkflow}
     />
   );
