@@ -976,7 +976,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   
   if (!isOpen) return null;
 
-  const innerHeight = Math.min(Math.max(window.innerHeight * 0.75, 600), window.innerHeight - 80);
+  const innerHeight = Math.min(Math.max(window.innerHeight * 0.88, 600), window.innerHeight - 40);
   // Account for Modal's header (~64px) and footer (~56px)
   const contentHeight = innerHeight - 120;
 
@@ -1172,7 +1172,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       disableClickOutside={true}
       disableContentAnimation={false}
       width={() => Math.max(window.innerWidth * 0.92, 1100)}
-      height={() => Math.min(Math.max(window.innerHeight * 0.75, 600), window.innerHeight - 80)}
+      height={() => Math.min(Math.max(window.innerHeight * 0.88, 600), window.innerHeight - 40)}
     />
   );
 

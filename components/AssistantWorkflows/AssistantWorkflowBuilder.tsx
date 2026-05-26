@@ -1264,7 +1264,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
 
       {/* Workflow Builder Modal */}
       {showWorkflowBuilder && workflowBuilderWorkflow && (() => {
-        const wbInnerHeight = Math.min(Math.max(window.innerHeight * 0.75, 600), window.innerHeight - 80);
+        const wbInnerHeight = Math.min(Math.max(window.innerHeight * 0.88, 600), window.innerHeight - 40);
         const wbContentHeight = wbInnerHeight - 120;
         return (
           <Modal
@@ -1455,7 +1455,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
             showSubmit={false}
             disableClickOutside={true}
             width={() => Math.max(window.innerWidth * 0.92, 1100)}
-            height={() => Math.min(Math.max(window.innerHeight * 0.75, 600), window.innerHeight - 80)}
+            height={() => Math.min(Math.max(window.innerHeight * 0.88, 600), window.innerHeight - 40)}
             onCancel={() => { setShowWorkflowBuilder(false); setWorkflowBuilderWorkflow(null); }}
             onSubmit={() => {}}
           />
@@ -1708,7 +1708,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           showSubmit={false}
           disableClickOutside={true}
           width={() => Math.max(window.innerWidth * 0.92, 1100)}
-          height={() => Math.min(Math.max(window.innerHeight * 0.75, 600), window.innerHeight - 80)}
+          height={() => Math.min(Math.max(window.innerHeight * 0.88, 600), window.innerHeight - 40)}
         />
       )}
 

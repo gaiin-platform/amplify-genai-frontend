@@ -256,9 +256,13 @@ Generate ONLY the JSON, no additional text.`;
 
   const isSubmitDisabled = isGenerating || (!generatedWorkflow && !description.trim());
 
+  const modalHeight = Math.min(Math.max(window.innerHeight * 0.88, 600), window.innerHeight - 40);
+  // Modal header ~64px + Modal's own empty footer border ~48px = ~112px overhead
+  const contentHeight = modalHeight - 112;
+
   const modalContent = (
-    <div className="flex flex-col h-full">
-    <div className="space-y-4 pt-1 flex-1 overflow-hidden">
+    <div className="flex flex-col" style={{ height: contentHeight }}>
+    <div className="space-y-4 pt-1 flex-1 min-h-0 overflow-y-auto pr-1">
       {error && (
         <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg">
           <div className="flex items-start gap-2">
@@ -428,7 +432,7 @@ Generate ONLY the JSON, no additional text.`;
       showSubmit={false}
       disableClickOutside={true}
       width={() => Math.max(window.innerWidth * 0.92, 1100)}
-      height={() => Math.min(Math.max(window.innerHeight * 0.75, 600), window.innerHeight - 80)}
+      height={() => Math.min(Math.max(window.innerHeight * 0.88, 600), window.innerHeight - 40)}
       resizeOnVarChange={generatedWorkflow}
     />
   );
