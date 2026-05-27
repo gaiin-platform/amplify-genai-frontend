@@ -455,11 +455,8 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   const handleOpenWorkflowBuilder = () => {
     setWbCollapsedSteps(new Set());
     if (selectedWorkflowId) {
-      // Edit existing workflow
-      const workflowToEdit = allTemplates.find(t => t.templateId === selectedWorkflowId);
-      if (workflowToEdit) {
-        setWorkflowBuilderWorkflow(cloneDeep(workflowToEdit));
-      }
+      // Edit existing workflow — use selectedWorkflow which has full steps loaded
+      setWorkflowBuilderWorkflow(cloneDeep(selectedWorkflow));
     } else {
       // Create new workflow
       setWorkflowBuilderWorkflow(emptyTemplate(isBaseTemplate));
@@ -1112,6 +1109,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
             workflowTemplate={selectedWorkflow}
             enableCustomization={false}
             onWorkflowTemplateUpdate={(workflowTemplate: AstWorkflow | null) => {}}
+            showHeader={false}
           />
         )}
       </div>
