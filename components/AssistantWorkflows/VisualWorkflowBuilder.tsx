@@ -275,9 +275,11 @@ const StepCard: React.FC<StepCardProps> = ({
               {step.stepName || step.description || 'Unnamed Step'}
             </h4>
             <p className={`text-sm ${
-              step.isEmpty 
-                ? 'text-orange-600 dark:text-orange-400 font-medium' 
-                : 'text-gray-500 dark:text-gray-400'
+              step.isEmpty
+                ? 'text-orange-600 dark:text-orange-400 font-medium'
+                : !step.tool
+                  ? 'text-red-600 dark:text-red-400 font-medium'
+                  : 'text-gray-500 dark:text-gray-400'
             }`}>
               {step.isEmpty ? 'No tool selected - click to configure' : step.tool || 'No tool selected'}
             </p>
@@ -453,7 +455,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   } | null>(null);
   const [configStep, setConfigStep] = useState<{
     step: WorkflowStep;
-    tool: ToolItem;
+    tool: ToolItem | null;
     isNewStep?: boolean; // Flag to indicate if this is a newly created step
   } | null>(null);
   const [draftStep, setDraftStep] = useState<WorkflowStep | null>(null);
@@ -723,12 +725,10 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       setToolPickerPosition(step.position);
       setShowToolPicker(true);
     } else {
-      const tool = toolItems.find(t => t.name === step.tool);
-      if (tool) {
-        setConfigStep({ step, tool, isNewStep: false });
-        setDraftStep({ ...step });
-        setShowParameterConfig(true);
-      }
+      const tool = toolItems.find(t => t.name === step.tool) ?? null;
+      setConfigStep({ step, tool, isNewStep: false });
+      setDraftStep({ ...step });
+      setShowParameterConfig(true);
     }
   };
 

@@ -288,7 +288,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
       {/* Step Name */}
       <div className={`mb-4 ${isTerminate ? 'opacity-50' : ''}`}>
         <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200">
-          Step Name
+          Step Name <span className="text-red-500">*</span>
         </label>
         <input
           disabled={isTerminate}
@@ -303,7 +303,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
       {/* Description */}
       <div className={`mb-4 ${isTerminate ? 'opacity-50' : ''}`}>
         <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200">
-          Description
+          Description <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
@@ -319,7 +319,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
       {allowToolSelection && (
         <div className={`mb-4 ${isTerminate ? 'opacity-50 pointer-events-none' : ''}`}>
           <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200">
-            Tool
+            Tool <span className="text-red-500">*</span>
           </label>
           <button
             type="button"
@@ -352,7 +352,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
       {/* Instructions */}
       <div className="mb-4">
         <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200">
-          Instructions
+          Instructions <span className="text-red-500">*</span>
         </label>
         <textarea
           value={step.instructions}
