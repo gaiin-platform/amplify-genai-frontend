@@ -20,21 +20,27 @@ interface WorkflowProps {
     onWorkflowTemplateUpdate: (workflowTemplate: AstWorkflow) => void;
     computedDisabledSegments?: () => string[];
     obfuscate?: boolean;
+    showHeader?: boolean;
 }
   
-export const AssistantWorkflow: React.FC<WorkflowProps> = ({ 
+export const AssistantWorkflow: React.FC<WorkflowProps> = ({
     id,
     workflowTemplate,
     originalBaseWorkflowTemplate,
     onWorkflowTemplateUpdate,
     enableCustomization,
     computedDisabledSegments = () => [],
-    obfuscate
+    obfuscate,
+    showHeader = true
   }) => {
     const { state: {featureFlags} } = useContext(HomeContext);
     
     const [disabledActionSegments, setDisabledActionSegments] = useState<string[]>([]);
-    const [expandedSegments, setExpandedSegments] = useState<Record<string, boolean>>({});
+    const getInitialExpandedSegments = (template: AstWorkflow): Record<string, boolean> => {
+      const segments = template.template?.steps.map(s => s.actionSegment || 'default') ?? [];
+      return Object.fromEntries(Array.from(new Set(segments)).map(s => [s, true]));
+    };
+    const [expandedSegments, setExpandedSegments] = useState<Record<string, boolean>>(() => getInitialExpandedSegments(workflowTemplate));
     const [internalTemplate, setInternalTemplate] = useState(cloneDeep(workflowTemplate));
 
     const groupSteps = (template: AstWorkflow) => {
@@ -62,6 +68,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
         // Only update if the template ID or version changes
         if (workflowTemplate?.templateId !== internalTemplate?.templateId) {
             setInternalTemplate(cloneDeep(workflowTemplate));
+            setExpandedSegments(getInitialExpandedSegments(workflowTemplate));
         }
     }, [workflowTemplate?.templateId]);
   
@@ -126,7 +133,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
     const toggleSegmentExpanded = (segment: string) => {
       setExpandedSegments(prev => ({
         ...prev,
-        [segment]: !prev[segment] // Default false (collapsed)
+        [segment]: !(prev[segment] ?? true)
       }));
     };
 
@@ -223,17 +230,20 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
 
     return (
       <div className="mt-4 mb-6" key={id}>
-        <div className="text-sm text-black dark:text-neutral-200 mb-2">
-          <span className="font-bold">Name:</span> {capitalize(internalTemplate.name)} 
-        </div>
-        
-        {internalTemplate.description && (
-          <div className="text-sm text-neutral-700 dark:text-neutral-300 mb-4">
-            <span className="font-bold">Description:</span> {internalTemplate.description}
-          </div>
+        {showHeader && (
+          <>
+            <div className="text-sm text-black dark:text-neutral-200 mb-2">
+              <span className="font-bold">Name:</span> {capitalize(internalTemplate.name)}
+            </div>
+            {internalTemplate.description && (
+              <div className="text-sm text-neutral-700 dark:text-neutral-300 mb-4">
+                <span className="font-bold">Description:</span> {internalTemplate.description}
+              </div>
+            )}
+          </>
         )}
-        
-        <div 
+
+        <div
           className="text-sm text-neutral-700 dark:text-neutral-300 mb-4"
           title="Segments allow you to group related workflow steps together and enable/disable them as units"
         >
