@@ -402,13 +402,15 @@ Generate ONLY the JSON, no additional text.`;
             Regenerate
           </button>
         )}
-        <button
-          type="button"
-          onClick={handleClose}
-          className="px-4 py-1.5 border rounded-lg shadow-md border-neutral-500 text-neutral-900 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-neutral-100 dark:text-black dark:hover:bg-neutral-300 transition-all duration-200 font-medium"
-        >
-          {generatedWorkflow ? 'Close' : 'Cancel'}
-        </button>
+        {!generatedWorkflow && (
+          <button
+            type="button"
+            onClick={handleClose}
+            className="px-4 py-1.5 border rounded-lg shadow-md border-neutral-500 text-neutral-900 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-neutral-100 dark:text-black dark:hover:bg-neutral-300 transition-all duration-200 font-medium"
+          >
+            Cancel
+          </button>
+        )}
         <button
           type="button"
           onClick={generatedWorkflow ? handleAccept : generateWorkflow}
