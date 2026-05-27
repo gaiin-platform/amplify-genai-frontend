@@ -1174,18 +1174,27 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
               >
                 Cancel
               </button>
-              <button
-                onClick={handleSave}
-                disabled={isSaving || !workflow.name.trim()}
-                className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors flex items-center gap-2 ${
-                  isSaving || !workflow.name.trim()
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 shadow-sm'
-                }`}
-              >
-                {isSaving && <IconLoader2 size={16} className="animate-spin" />}
-                {isSaving ? 'Saving...' : 'Save Workflow'}
-              </button>
+              {(() => {
+                const nonTerminateSteps = workflowSteps.filter(s => s.tool !== 'terminate' && !s.isEmpty);
+                const allStepsValid = nonTerminateSteps.every(s =>
+                  s.stepName?.trim() && s.description?.trim() && s.tool?.trim() && s.instructions?.trim()
+                );
+                const canSave = !isSaving && !!workflow.name.trim() && allStepsValid;
+                return (
+                  <button
+                    onClick={handleSave}
+                    disabled={!canSave}
+                    className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors flex items-center gap-2 ${
+                      !canSave
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700 shadow-sm'
+                    }`}
+                  >
+                    {isSaving && <IconLoader2 size={16} className="animate-spin" />}
+                    {isSaving ? 'Saving...' : 'Save Workflow'}
+                  </button>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -1254,20 +1263,34 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                 isNewStep={configStep.isNewStep || false}
               />
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
-              <button
-                onClick={handleCancelParameterConfig}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCloseParameterConfig}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
-              >
-                Save & Close
-              </button>
-            </div>
+            {(() => {
+              const currentStep = draftStep ?? configStep.step;
+              const isTerminateStep = currentStep.tool === 'terminate';
+              const missingFields = isTerminateStep ? [] : [
+                !currentStep.stepName?.trim() && 'Step Name',
+                !currentStep.description?.trim() && 'Description',
+                !currentStep.tool?.trim() && 'Tool',
+                !currentStep.instructions?.trim() && 'Instructions',
+              ].filter(Boolean) as string[];
+              const isValid = missingFields.length === 0;
+              return (
+                <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-3">
+                  <button
+                    onClick={handleCancelParameterConfig}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCloseParameterConfig}
+                    disabled={!isValid}
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Save & Close
+                  </button>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

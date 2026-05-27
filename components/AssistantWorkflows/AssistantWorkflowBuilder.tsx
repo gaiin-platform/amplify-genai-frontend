@@ -1451,12 +1451,24 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                       >
                         Cancel
                       </button>
-                      <button
-                        onClick={() => handleSaveWorkflowFromBuilder(workflowBuilderWorkflow)}
-                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm"
-                      >
-                        Save Workflow
-                      </button>
+                      {(() => {
+                        const nonTerminateSteps = (workflowBuilderWorkflow.template?.steps ?? []).filter(s => s.tool !== 'terminate');
+                        const allStepsValid = nonTerminateSteps.every(s =>
+                          s.stepName?.trim() && s.description?.trim() && s.tool?.trim() && s.instructions?.trim()
+                        );
+                        const canSave = !!workflowBuilderWorkflow.name?.trim() && allStepsValid;
+                        return (
+                          <button
+                            onClick={() => handleSaveWorkflowFromBuilder(workflowBuilderWorkflow)}
+                            disabled={!canSave}
+                            className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors shadow-sm ${
+                              !canSave ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                            }`}
+                          >
+                            Save Workflow
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
