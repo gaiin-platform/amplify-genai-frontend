@@ -464,6 +464,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   
   // Counter to force fresh StepEditor instance when modal reopens
   const [stepEditorResetCounter, setStepEditorResetCounter] = useState(0);
+  const [confirmDeleteStepId, setConfirmDeleteStepId] = useState<string | null>(null);
   
   // Handle closing parameter config modal and resetting AI state
   const handleCloseParameterConfig = () => {
@@ -742,7 +743,13 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
 
   
   const handleStepDelete = (stepId: string) => {
-    setWorkflowSteps(prev => prev.filter(step => step.id !== stepId));
+    setConfirmDeleteStepId(stepId);
+  };
+
+  const handleConfirmStepDelete = () => {
+    if (!confirmDeleteStepId) return;
+    setWorkflowSteps(prev => prev.filter(step => step.id !== confirmDeleteStepId));
+    setConfirmDeleteStepId(null);
   };
   
   const handleStepMove = (stepId: string, direction: 'up' | 'down') => {
@@ -1237,6 +1244,35 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
           </div>
         </div>
       )}
+      {/* Step delete confirmation dialog */}
+      {confirmDeleteStepId && (() => {
+        const stepToDelete = workflowSteps.find(s => s.id === confirmDeleteStepId);
+        const stepLabel = stepToDelete?.stepName || stepToDelete?.description || 'this step';
+        return (
+          <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-600 p-6 max-w-sm w-full mx-4">
+              <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Delete Step</h4>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
+                Are you sure you want to delete <span className="font-medium text-gray-900 dark:text-white">&ldquo;{stepLabel}&rdquo;</span>? This cannot be undone.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setConfirmDeleteStepId(null)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-md transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmStepDelete}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors shadow-sm"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </>
   );
 
