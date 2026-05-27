@@ -1,4 +1,5 @@
 import React, { useState, useContext, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import { 
   IconX, IconSearch, IconPlus, IconGripVertical, IconTrash, IconSettings, IconPlayerPlay,
@@ -455,10 +456,15 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
     tool: ToolItem;
     isNewStep?: boolean; // Flag to indicate if this is a newly created step
   } | null>(null);
+  const [draftStep, setDraftStep] = useState<WorkflowStep | null>(null);
   
   // Tool items state
   const [toolItems, setToolItems] = useState<ToolItem[]>([]);
   
+  // Snapshot of workflowSteps taken when the modal opens — used to restore on Cancel
+  const workflowStepsSnapshot = useRef<WorkflowStep[] | null>(null);
+  const workflowSnapshot = useRef<AstWorkflow | null>(null);
+
   // Ref for step editor modal scroll container
   const stepEditorScrollRef = useRef<HTMLDivElement>(null);
   
@@ -468,16 +474,22 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   
   // Handle closing parameter config modal and resetting AI state
   const handleCloseParameterConfig = () => {
+    // Commit the draft to workflowSteps
+    if (draftStep && configStep) {
+      setWorkflowSteps(prev => prev.map(s => s.id === draftStep.id ? draftStep : s));
+    }
+    setDraftStep(null);
     setShowParameterConfig(false);
-    // Increment counter to force fresh StepEditor instance (clears AI description)
     setStepEditorResetCounter(prev => prev + 1);
   };
 
-  // Handle canceling parameter config for a new step — removes the step
+  // Handle canceling parameter config — discard draft, remove step if new
   const handleCancelParameterConfig = () => {
     if (configStep?.isNewStep) {
       setWorkflowSteps(prev => prev.filter(s => s.id !== configStep.step.id));
     }
+    // Discard draft — no changes written
+    setDraftStep(null);
     setShowParameterConfig(false);
     setStepEditorResetCounter(prev => prev + 1);
   };
@@ -555,6 +567,15 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       setWorkflowSteps([terminateStep]);
     }
   }, [initialWorkflow, forceReset]);
+
+  // Snapshot current state whenever the modal opens
+  useEffect(() => {
+    if (isOpen) {
+      workflowStepsSnapshot.current = workflowSteps.map(s => ({ ...s }));
+      workflowSnapshot.current = { ...workflow };
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   // Reset state when modal opens for a new workflow or force reset
   useEffect(() => {
@@ -653,6 +674,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
         
         // Show parameter configuration modal
         setConfigStep({ step: updatedStep, tool, isNewStep: true });
+        setDraftStep({ ...updatedStep });
         setShowParameterConfig(true);
       }
     }
@@ -688,6 +710,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
         
         // Automatically open Step Editor for the user to configure the new tool
         setConfigStep({ step: updatedStep, tool: newTool, isNewStep: false });
+        setDraftStep({ ...updatedStep });
         setShowParameterConfig(true);
       }
     }
@@ -703,41 +726,27 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       const tool = toolItems.find(t => t.name === step.tool);
       if (tool) {
         setConfigStep({ step, tool, isNewStep: false });
+        setDraftStep({ ...step });
         setShowParameterConfig(true);
       }
     }
   };
 
   const handleStepChange = (updatedStep: Step, stepId: string) => {
-    const newSteps = [...workflowSteps];
-    const stepIndex = newSteps.findIndex(s => s.id === stepId);
-    if (stepIndex !== -1) {
-      // Preserve WorkflowStep properties while updating Step properties
-      const updatedWorkflowStep = {
-        ...newSteps[stepIndex],
-        ...updatedStep
-      };
-      newSteps[stepIndex] = updatedWorkflowStep;
-      setWorkflowSteps(newSteps);
-      
-      // Update configStep if this is the step currently being edited
-      if (configStep && configStep.step.id === stepId) {
-        let updatedTool = configStep.tool;
-        
-        // If the tool changed, find the new tool item
-        if (updatedStep.tool && updatedStep.tool !== configStep.step.tool) {
-          const newToolItem = toolItems.find(t => t.name === updatedStep.tool);
-          if (newToolItem) {
-            updatedTool = newToolItem;
-          }
-        }
-        
-        setConfigStep({
-          ...configStep,
-          step: updatedWorkflowStep,
-          tool: updatedTool
-        });
+    // Only update the draft — do not write to workflowSteps until Save & Close
+    if (configStep && configStep.step.id === stepId) {
+      const baseDraft = draftStep ?? workflowSteps.find(s => s.id === stepId);
+      if (!baseDraft) return;
+      const updatedWorkflowStep = { ...baseDraft, ...updatedStep };
+      setDraftStep(updatedWorkflowStep);
+
+      // Keep configStep in sync so the modal title reflects changes
+      let updatedTool = configStep.tool;
+      if (updatedStep.tool && updatedStep.tool !== configStep.step.tool) {
+        const newToolItem = toolItems.find(t => t.name === updatedStep.tool);
+        if (newToolItem) updatedTool = newToolItem;
       }
+      setConfigStep({ ...configStep, step: updatedWorkflowStep, tool: updatedTool });
     }
   };
 
@@ -856,6 +865,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
         // Show parameter configuration modal for the new step
         const stepPosition = terminateIndex !== -1 ? terminateIndex : newSteps.length - 1;
         setConfigStep({ step: newSteps[stepPosition], tool: toolItem, isNewStep: true });
+        setDraftStep({ ...newSteps[stepPosition] });
         setShowParameterConfig(true);
       }
     }
@@ -1145,7 +1155,16 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                 {workflowSteps.filter(s => s.tool !== 'terminate').length} steps configured
               </span>
               <button
-                onClick={onClose}
+                onClick={() => {
+                  // Restore snapshot on Cancel
+                  if (workflowStepsSnapshot.current) {
+                    setWorkflowSteps(workflowStepsSnapshot.current.map(s => ({ ...s })));
+                  }
+                  if (workflowSnapshot.current) {
+                    setWorkflow({ ...workflowSnapshot.current });
+                  }
+                  onClose();
+                }}
                 disabled={isSaving}
                 className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                   isSaving
@@ -1172,7 +1191,15 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
         </div>
         </div>
       }
-      onCancel={onClose}
+      onCancel={() => {
+        if (workflowStepsSnapshot.current) {
+          setWorkflowSteps(workflowStepsSnapshot.current.map(s => ({ ...s })));
+        }
+        if (workflowSnapshot.current) {
+          setWorkflow({ ...workflowSnapshot.current });
+        }
+        onClose();
+      }}
       onSubmit={() => {}}
       showCancel={false}
       showSubmit={false}
@@ -1217,7 +1244,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
             <div className="flex-1 overflow-y-auto p-6" ref={stepEditorScrollRef}>
               <StepEditor
                 key={`step-editor-${configStep.step.id}-${stepEditorResetCounter}`}
-                step={configStep.step}
+                step={draftStep ?? configStep.step}
                 stepIndex={workflowSteps.findIndex(s => s.id === configStep.step.id)}
                 onStepChange={(updatedStep) => handleStepChange(updatedStep, configStep.step.id)}
                 availableApis={availableApis}

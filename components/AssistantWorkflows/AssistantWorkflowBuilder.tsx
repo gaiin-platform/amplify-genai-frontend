@@ -92,6 +92,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   const [forceVisualBuilderReset, setForceVisualBuilderReset] = useState(false);
   const [showWorkflowBuilder, setShowWorkflowBuilder] = useState(false);
   const [workflowBuilderWorkflow, setWorkflowBuilderWorkflow] = useState<AstWorkflow | null>(null);
+  const workflowBuilderSnapshot = useRef<AstWorkflow | null>(null);
   const [wbCollapsedSteps, setWbCollapsedSteps] = useState<Set<number>>(new Set());
   const [wbConfirmDeleteIndex, setWbConfirmDeleteIndex] = useState<number | null>(null);
   const [showManualSetup, setShowManualSetup] = useState(false);
@@ -456,10 +457,14 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
     setWbCollapsedSteps(new Set());
     if (selectedWorkflowId) {
       // Edit existing workflow — use selectedWorkflow which has full steps loaded
-      setWorkflowBuilderWorkflow(cloneDeep(selectedWorkflow));
+      const snapshot = cloneDeep(selectedWorkflow);
+      workflowBuilderSnapshot.current = snapshot;
+      setWorkflowBuilderWorkflow(snapshot);
     } else {
       // Create new workflow
-      setWorkflowBuilderWorkflow(emptyTemplate(isBaseTemplate));
+      const snapshot = emptyTemplate(isBaseTemplate);
+      workflowBuilderSnapshot.current = snapshot;
+      setWorkflowBuilderWorkflow(snapshot);
     }
     setShowWorkflowBuilder(true);
   };
@@ -1433,7 +1438,15 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                         {(workflowBuilderWorkflow.template?.steps?.filter(s => s.tool !== 'terminate').length ?? 0)} steps configured
                       </span>
                       <button
-                        onClick={() => { setShowWorkflowBuilder(false); setWorkflowBuilderWorkflow(null); }}
+                        onClick={() => {
+                          // Restore snapshot — discard all unsaved changes
+                          if (workflowBuilderSnapshot.current) {
+                            setWorkflowBuilderWorkflow(cloneDeep(workflowBuilderSnapshot.current));
+                          }
+                          setShowWorkflowBuilder(false);
+                          setWorkflowBuilderWorkflow(null);
+                          workflowBuilderSnapshot.current = null;
+                        }}
                         className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-md transition-colors"
                       >
                         Cancel
@@ -1454,7 +1467,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
             disableClickOutside={true}
             width={() => Math.max(window.innerWidth * 0.92, 1100)}
             height={() => Math.min(Math.max(window.innerHeight * 0.88, 600), window.innerHeight - 40)}
-            onCancel={() => { setShowWorkflowBuilder(false); setWorkflowBuilderWorkflow(null); }}
+            onCancel={() => { setShowWorkflowBuilder(false); setWorkflowBuilderWorkflow(null); workflowBuilderSnapshot.current = null; }}
             onSubmit={() => {}}
           />
         );
@@ -1660,6 +1673,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                       setForceVisualBuilderReset(false);
                       setShowVisualBuilder(true);
                       setShowManualSetup(false);
+                      setManualSetupData({ name: '', description: '', isPublic: false });
                     }}
                     title="Best for visual learners and complex workflows. Drag tools from a palette onto a canvas to build your workflow with instant preview."
                     className={`flex-1 p-4 rounded-lg border-2 border-dashed text-left transition-colors ${
@@ -1678,10 +1692,12 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                     disabled={!manualSetupData.name.trim()}
                     onClick={() => {
                       const newWorkflow = { ...emptyTemplate(isBaseTemplate), name: manualSetupData.name, description: manualSetupData.description, isPublic: manualSetupData.isPublic };
+                      workflowBuilderSnapshot.current = cloneDeep(newWorkflow);
                       setWbCollapsedSteps(new Set());
                       setWorkflowBuilderWorkflow(newWorkflow);
                       setShowWorkflowBuilder(true);
                       setShowManualSetup(false);
+                      setManualSetupData({ name: '', description: '', isPublic: false });
                     }}
                     title="Best for detailed control and complex configurations. Traditional form-based interface for precise step-by-step workflow creation."
                     className={`flex-1 p-4 rounded-lg border-2 border-dashed text-left transition-colors ${
@@ -1700,7 +1716,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
               </div>
             </div>
           }
-          onCancel={() => setShowManualSetup(false)}
+          onCancel={() => { setManualSetupData({ name: '', description: '', isPublic: false }); setShowManualSetup(false); }}
           onSubmit={() => {}}
           cancelLabel="Cancel"
           showSubmit={false}
