@@ -141,7 +141,7 @@ const Sidebar = <T,>({
             </div>
           </div>
 
-          {side === 'right' && addItemButton('')}
+          {side === 'right' && addItemButton('w-full')}
 
           <Search
             placeholder={t('Search...') || ''}
