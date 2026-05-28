@@ -112,7 +112,7 @@ const Sidebar = <T,>({
       </button>
     );
 
-    return <div className='w-full flex flex-col'>{addAssistantButton} {<LayeredAssistantButton />}</div>
+    return <div className='w-full flex flex-col gap-2'>{addAssistantButton} {<LayeredAssistantButton />}</div>
   }
 
   return (
@@ -123,7 +123,7 @@ const Sidebar = <T,>({
         style={{ height: footerComponent ? 'calc(100% - 50px)' : '100%' }}
       >
         {/* Everything above the scroll area — measured by headerRef */}
-        <div ref={headerRef}>
+        <div ref={headerRef} className="flex flex-col gap-2">
           <div className="flex items-center justify-between w-full gap-1">
             <div className="flex items-center gap-1 flex-1 min-w-0">
               {addButtonForSide(side)}
