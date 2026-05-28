@@ -37,6 +37,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
   
   const [hoveredArgIndex, setHoveredArgIndex] = useState<string | null>(null);
   const [hoveredValueIndex, setHoveredValueIndex] = useState<string | null>(null);
+  const [confirmDeleteValueKey, setConfirmDeleteValueKey] = useState<string | null>(null);
   const [toolPickerOpen, setToolPickerOpen] = useState(false);
   
   // AI Generation state
@@ -116,9 +117,15 @@ const StepEditor: React.FC<StepEditorProps> = ({
   };
 
   const removeArgumentValue = (argName: string) => {
+    setConfirmDeleteValueKey(argName);
+  };
+
+  const confirmRemoveArgumentValue = () => {
+    if (!confirmDeleteValueKey) return;
     const newValues = { ...step.values };
-    delete newValues[argName];
+    delete newValues[confirmDeleteValueKey];
     updateStep({ values: newValues });
+    setConfirmDeleteValueKey(null);
   };
 
   const removeArgument = (argName: string) => {
@@ -281,7 +288,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
       {/* Step Name */}
       <div className={`mb-4 ${isTerminate ? 'opacity-50' : ''}`}>
         <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200">
-          Step Name
+          Step Name <span className="text-red-500">*</span>
         </label>
         <input
           disabled={isTerminate}
@@ -296,7 +303,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
       {/* Description */}
       <div className={`mb-4 ${isTerminate ? 'opacity-50' : ''}`}>
         <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200">
-          Description
+          Description <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
@@ -312,7 +319,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
       {allowToolSelection && (
         <div className={`mb-4 ${isTerminate ? 'opacity-50 pointer-events-none' : ''}`}>
           <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200">
-            Tool
+            Tool <span className="text-red-500">*</span>
           </label>
           <button
             type="button"
@@ -345,7 +352,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
       {/* Instructions */}
       <div className="mb-4">
         <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200">
-          Instructions
+          Instructions <span className="text-red-500">*</span>
         </label>
         <textarea
           value={step.instructions}
@@ -553,7 +560,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
                 <div className="w-[28px] flex items-center">
                   {hoveredValueIndex === `${stepIndex}-${valueIndex}` && (
                     <button
-                      onClick={() => removeArgumentValue(key)}
+                      onClick={() => setConfirmDeleteValueKey(key)}
                       className="p-1 text-red-600 dark:text-red-400 hover:opacity-60 rounded flex-shrink-0"
                     >
                       <IconTrash size={18} />
@@ -565,6 +572,30 @@ const StepEditor: React.FC<StepEditorProps> = ({
         )}
       </div>
 
+      {confirmDeleteValueKey && (
+        <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-600 p-6 max-w-sm w-full mx-4">
+            <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Delete Value</h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
+              Are you sure you want to delete the value for <span className="font-medium text-gray-900 dark:text-white">&ldquo;{confirmDeleteValueKey}&rdquo;</span>? This cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmDeleteValueKey(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-md transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmRemoveArgumentValue}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors shadow-sm"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

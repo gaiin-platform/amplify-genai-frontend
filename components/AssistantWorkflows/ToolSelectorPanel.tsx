@@ -48,7 +48,7 @@ export const ToolSelectorPanel: React.FC<ToolSelectorPanelProps> = ({
 
   return (
     <div 
-      className={`border-r border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0 ${className}`}
+      className={`border-r border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0 h-full ${className}`}
       style={width ? { width: `${width}px` } : undefined}
     >
       {/* Header */}
@@ -63,7 +63,7 @@ export const ToolSelectorPanel: React.FC<ToolSelectorPanelProps> = ({
       </div>
       
       {/* Tool Selector Core */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex flex-col flex-1 overflow-hidden">
         <ToolSelectorCore
           tools={tools}
           onSelect={onSelect}
