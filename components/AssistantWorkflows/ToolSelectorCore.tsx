@@ -328,7 +328,7 @@ export const ToolSelectorCore: React.FC<ToolSelectorCoreProps> = ({
                 {filteredTools.length}
               </span>
             </div>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
+            <div className="space-y-3 max-h-96 overflow-y-auto pb-4">
               {filteredTools.map(tool => {
                 const isSelected = isToolSelected(tool);
                 const handleSelect = () => handleToolSelect(tool);
