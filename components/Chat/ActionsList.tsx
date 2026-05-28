@@ -191,11 +191,6 @@ const ActionsList: React.FC<ActionsListProps> = ({
                             <span className={`text-xs font-medium ${confirmDeleteIndex === index ? 'text-red-700 dark:text-red-300' : 'text-gray-700 dark:text-gray-200'}`}>
                                 {action.customName || formatActionName(action.name)}
                             </span>
-                            {action.customName && confirmDeleteIndex !== index && (
-                                <span className="hidden group-hover:inline text-xs text-gray-500 dark:text-gray-400 ml-1">
-                                    ({formatActionName(action.name)})
-                                </span>
-                            )}
                         </div>
 
                         {confirmDeleteIndex === index ? (

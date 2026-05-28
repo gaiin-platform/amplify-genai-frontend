@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { getAgentTools } from '@/services/agentService';
-import ApiIntegrationsPanel from '../AssistantApi/ApiIntegrationsPanel';
+import { ApiItemSelector } from '../AssistantApi/ApiSelector';
 import HomeContext from '@/pages/api/home/home.context';
 import { IconAsterisk, IconCheck, IconChevronDown, IconChevronRight, IconCirclePlus, IconCode, IconInfoCircle, IconLoader2, IconSettings, IconTags, IconTool, IconTools, IconX } from '@tabler/icons-react';
 import { getOperationIcon } from '@/utils/app/integrations';
@@ -12,6 +12,8 @@ import ActionSetList from './ActionSets';
 import { ScheduledTaskButton } from './ScheduledTasks';
 import { OpBindingMode, OpBindings, OpDef } from '@/types/op';
 import ApiParameterBindingEditor from '../AssistantApi/ApiParameterBindingEditor';
+import CompositeActionsPanel from './CompositeActionsPanel';
+import { CompositeFunction } from '@/utils/app/compositeFunctions';
 
 
 interface OperationSelectorProps {
@@ -66,6 +68,32 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
     const [agentTools, setAgentTools] = useState<AgentTool[] | null>(null);
     // State for selected action set
     const [selectedActionSet, setSelectedActionSet] = useState<any>(null);
+    // State for selected composite function
+    const [selectedComposite, setSelectedComposite] = useState<CompositeFunction | null>(null);
+    // Whether the raw operations disclosure is open
+    const [rawOpsOpen, setRawOpsOpen] = useState<boolean>(false);
+    // Selected add-on IDs for the currently selected composite function
+    const [selectedAddonIds, setSelectedAddonIds] = useState<Set<string>>(new Set());
+
+    // Resolve the final ordered list of op names for a composite given currently selected add-ons.
+    const resolveOperations = (fn: CompositeFunction, addonIds: Set<string>): string[] => {
+        if (!fn.addons || fn.addons.length === 0) return fn.operations;
+        let ops = [...fn.operations];
+        fn.addons.forEach((addon) => {
+            if (!addonIds.has(addon.id)) return;
+            if (addon.replaces) {
+                // Replace the last op in the list with the addon ops
+                ops = [...ops.slice(0, -1), ...addon.operations];
+            } else if (addon.insertAt !== undefined) {
+                // Insert addon ops at the specified index
+                ops = [...ops.slice(0, addon.insertAt), ...addon.operations, ...ops.slice(addon.insertAt)];
+            } else {
+                // Default: append to the end
+                ops = [...ops, ...addon.operations];
+            }
+        });
+        return ops;
+    };
 
     const handleParamModeChange = (param: string, mode: OpBindingMode) => {
         setParamModes({ ...paramModes, [param]: mode });
@@ -216,58 +244,77 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                             // Reset selections when switching tabs
                             if (tabLabel === 'Actions') {
                                 setSelectedActionSet(null);
-                            } else if (tabLabel === 'Action Sets') {
+                            } else if (tabLabel === 'Saved Action Sets') {
                                 setSelectedOp(null);
+                                setSelectedComposite(null);
                             }
                         }}
                         tabs={[
-                          {label: "Actions", 
-                           content: 
+                          {label: "Actions",
+                           content:
                             <div className="flex flex-col gap-2 pl-1 pr-2">
-                                <h3 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center">
-                                    <IconTool size={16} stroke={1.5} className="mr-2" />
-                                    Available Operations
-                                </h3>
 
-                                { featureFlags.integrations &&
-                                    <ApiIntegrationsPanel
-                                        // API-related props
-                                        availableApis={allOperations}
-                                        onClickApiItem={(api: OpDef) => {
-                                            const apiAsTool: AgentTool = {
-                                                id: api.id,
-                                                name: api.name,
-                                                tool_name: api.name,
-                                                description: api.description || '',
-                                                parameters: api.parameters,
-                                                tags: ['API', 'Integration'],
-                                                type: "api",
-                                                iconSize: 12
-                                            };
-                                            setSelectedOp(apiAsTool);
-                                            clearAttributes();
-                                        }}
-                                        // Agent tools props
-                                        availableAgentTools={agentTools}
-                                        onClickAgentTool={ (tool: AgentTool) => {
-                                            setSelectedOp(tool);
-                                            clearAttributes();
-                                        }}
-                                        allowCreatePythonFunction={false}
-                                        hideApisPanel={['external']}
-                                        labelPrefix=""
-                                        showDetails={false}
-                                        compactDisplay={true}
-                                />}
+                                {/* ── Composite functions ── */}
+                                <CompositeActionsPanel
+                                    selectedId={selectedComposite?.id ?? null}
+                                    allOperations={allOperations}
+                                    onSelect={(fn) => {
+                                        setSelectedComposite(fn);
+                                        setSelectedOp(null);
+                                        setSelectedAddonIds(new Set());
+                                        clearAttributes();
+                                    }}
+                                />
+
+                                {/* ── Raw operations disclosure ── */}
+                                { featureFlags.integrations && (
+                                    <div className="border-t border-gray-200 dark:border-gray-700 pt-2 mt-1">
+                                        <button
+                                            className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors select-none mb-2"
+                                            onClick={() => setRawOpsOpen((v) => !v)}
+                                        >
+                                            {rawOpsOpen
+                                                ? <IconChevronDown size={13} stroke={2} />
+                                                : <IconChevronRight size={13} stroke={2} />}
+                                            Browse raw operations
+                                        </button>
+
+                                        {rawOpsOpen && (
+                                            <ApiItemSelector
+                                                availableApis={allOperations}
+                                                selectedApis={[]}
+                                                setSelectedApis={() => {}}
+                                                apiFilter={(apis) => apis.filter((api) => api.type !== 'custom')}
+                                                onClickApiItem={(api: OpDef) => {
+                                                    const apiAsTool: AgentTool = {
+                                                        id: api.id,
+                                                        name: api.name,
+                                                        tool_name: api.name,
+                                                        description: api.description || '',
+                                                        parameters: api.parameters,
+                                                        tags: ['API', 'Integration'],
+                                                        type: "api",
+                                                        iconSize: 12
+                                                    };
+                                                    setSelectedOp(apiAsTool);
+                                                    setSelectedComposite(null);
+                                                    clearAttributes();
+                                                }}
+                                                disableSelection={true}
+                                                showDetails={false}
+                                            />
+                                        )}
+                                    </div>
+                                )}
 
                             </div> },
                         
-                         {label: "Action Sets", 
+                         {label: "Saved Action Sets",
                             content: 
                             <div className="flex flex-col gap-2 pl-1 pr-2">
                                 <h3 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center">
                                     <IconTools size={16} stroke={1.5} className="mr-2" />
-                                    Available Action Sets
+                                    Available Saved Action Sets
                                 </h3>
                             <ActionSetList
                                onLoad={(actionSet) => { 
@@ -287,7 +334,135 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
             {/* Right Pane - Operation Details */}
             <div className="w-2/3 overflow-auto ">
                 { viewMode === 'Actions' && <>
-                {selectedOp ? (
+                {/* Composite function detail pane */}
+                {selectedComposite && !selectedOp ? (
+                    <div className="p-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                                <IconTools size={20} stroke={1.5} className="mr-2" />
+                                {selectedComposite.name}
+                            </h2>
+                            <div className="flex gap-2">
+                                {onCancel && (
+                                    <button
+                                        className="flex items-center bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 shadow-sm"
+                                        onClick={onCancel}
+                                    >
+                                        <IconX size={16} stroke={1.5} className="mr-1" />
+                                        Cancel
+                                    </button>
+                                )}
+                                {onActionSetAdded && (
+                                    <button
+                                        className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 shadow-sm"
+                                        onClick={() => {
+                                            const finalOpNames = resolveOperations(selectedComposite, selectedAddonIds);
+                                            const opLookup = new Map((allOperations ?? []).map((op: any) => [op.name, op]));
+                                            const resolvedActions = finalOpNames
+                                                .map((opName) => opLookup.get(opName))
+                                                .filter(Boolean)
+                                                .map((op: any) => ({
+                                                    name: op.name,
+                                                    operation: op,
+                                                    customName: formatOperationName(op.name),
+                                                }));
+                                            if (resolvedActions.length > 0) {
+                                                onActionSetAdded({
+                                                    id: `composite-${selectedComposite.id}`,
+                                                    name: selectedComposite.name,
+                                                    tags: ['composite'],
+                                                    actions: resolvedActions,
+                                                });
+                                            }
+                                        }}
+                                    >
+                                        <IconCirclePlus size={16} stroke={1.5} className="mr-1" />
+                                        Add Action
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Description */}
+                        <div className="bg-blue-50 dark:bg-[#3e3f4b] border border-blue-100 dark:border-neutral-600 rounded-md p-3 mb-6 flex items-start">
+                            <IconInfoCircle size={18} stroke={1.5} className="text-blue-600 dark:text-blue-400 mt-0.5 mr-2 flex-shrink-0" />
+                            <p className="text-sm text-gray-700 dark:text-gray-300">
+                                {selectedComposite.description}
+                            </p>
+                        </div>
+
+                        {/* Steps — live preview from resolved op names */}
+                        {(() => {
+                            const finalOpNames = resolveOperations(selectedComposite, selectedAddonIds);
+                            const opLookup = new Map((allOperations ?? []).map((op: any) => [op.name, op]));
+                            const steps = finalOpNames.map((opName) => opLookup.get(opName)).filter(Boolean);
+                            return (
+                                <div className="mb-6">
+                                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+                                        <IconSettings size={14} stroke={1.5} className="mr-2" />
+                                        Steps ({steps.length})
+                                    </h3>
+                                    {steps.length > 0 ? (
+                                        <ol className="space-y-2">
+                                            {steps.map((op: any, idx) => (
+                                                <li key={idx} className="flex items-center gap-3 text-sm">
+                                                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-bold flex items-center justify-center">
+                                                        {idx + 1}
+                                                    </span>
+                                                    <span className="flex items-center gap-1.5 text-gray-800 dark:text-gray-200">
+                                                        {getIcon(op.name)}
+                                                        {formatOperationName(op.name)}
+                                                    </span>
+                                                </li>
+                                            ))}
+                                        </ol>
+                                    ) : (
+                                        <p className="text-xs text-amber-600 dark:text-amber-400 italic">
+                                            No operations are currently available for this composite.
+                                        </p>
+                                    )}
+                                </div>
+                            );
+                        })()}
+
+                        {/* Optional add-ons — only show those that have at least one op in allOperations */}
+                        {selectedComposite.addons && selectedComposite.addons.length > 0 && (
+                            <div>
+                                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center">
+                                    <IconSettings size={14} stroke={1.5} className="mr-2" />
+                                    Options
+                                </h3>
+                                <div className="space-y-1">
+                                    {selectedComposite.addons
+                                        .filter((addon) => {
+                                            if (!allOperations || allOperations.length === 0) return false;
+                                            const opNames = new Set(allOperations.map((op: any) => op.name));
+                                            return addon.operations.some((opName) => opNames.has(opName));
+                                        })
+                                        .map((addon) => (
+                                        <label
+                                            key={addon.id}
+                                            className="flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                className="w-4 h-4 rounded accent-blue-600 cursor-pointer"
+                                                checked={selectedAddonIds.has(addon.id)}
+                                                onChange={(e) => {
+                                                    const next = new Set(selectedAddonIds);
+                                                    if (e.target.checked) next.add(addon.id);
+                                                    else next.delete(addon.id);
+                                                    setSelectedAddonIds(next);
+                                                }}
+                                            />
+                                            <span className="text-sm text-gray-700 dark:text-gray-300">{addon.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ) : selectedOp ? (
                     <div className="p-6">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
@@ -435,7 +610,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                     </div>
                 }
                 </>}
-                { viewMode === 'Action Sets' && <>
+                { viewMode === 'Saved Action Sets' && <>
                     {selectedActionSet ? (
                         <div className="p-6">
                         <div className="flex justify-between items-center mb-4">
