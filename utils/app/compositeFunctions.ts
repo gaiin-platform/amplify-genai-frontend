@@ -169,62 +169,6 @@ export const COMPOSITE_FUNCTION_CATEGORIES: CompositeFunctionCategory[] = [
   },
 
   // ─────────────────────────────────────────────
-  // Microsoft Shared Email
-  // ─────────────────────────────────────────────
-  {
-    id: 'sharedEmail',
-    label: 'Microsoft Shared Email',
-    emoji: '📧',
-    integrationIds: ['microsoft_exchange'],
-    functions: [
-      {
-        id: 'readSharedMailbox',
-        name: 'Read Shared Mailbox',
-        description: 'Browse a shared mailbox and open a specific message.',
-        operations: ['microsoftListMessages', 'microsoftGetMessageDetails'],
-      },
-      {
-        id: 'searchSharedMailbox',
-        name: 'Search Shared Mailbox',
-        description: 'Search the shared mailbox for a message and open it.',
-        operations: ['microsoftSearchMessages', 'microsoftGetMessageDetails'],
-      },
-      {
-        id: 'sendFromSharedMailbox',
-        name: 'Send from Shared Mailbox',
-        description: 'Compose a draft in a shared mailbox and send it.',
-        operations: ['microsoftCreateDraft', 'microsoftSendDraft'],
-      },
-      {
-        id: 'replyInSharedMailbox',
-        name: 'Reply in Shared Mailbox',
-        description: 'Read a shared mailbox message for context, then reply from the shared account.',
-        operations: ['microsoftGetMessageDetails', 'microsoftReplyToMessage'],
-        addons: [
-          {
-            id: 'replyAll',
-            label: 'Reply all',
-            operations: ['microsoftReplyAllMessage'],
-            replaces: true,
-          },
-        ],
-      },
-      {
-        id: 'forwardFromSharedMailbox',
-        name: 'Forward from Shared Mailbox',
-        description: 'Open a shared mailbox message and forward it.',
-        operations: ['microsoftGetMessageDetails', 'microsoftForwardMessage'],
-      },
-      {
-        id: 'moveSharedMailboxEmail',
-        name: 'Move Shared Mailbox Email',
-        description: 'Open a shared mailbox message and move it to another folder.',
-        operations: ['microsoftGetMessageDetails', 'microsoftListFolders', 'microsoftMoveMessage'],
-      },
-    ],
-  },
-
-  // ─────────────────────────────────────────────
   // Microsoft OneDrive
   // ─────────────────────────────────────────────
   {
@@ -252,12 +196,6 @@ export const COMPOSITE_FUNCTION_CATEGORIES: CompositeFunctionCategory[] = [
         name: 'Download File',
         description: 'Locate a file and download it.',
         operations: ['microsoftListDriveItems', 'microsoftGetDriveItem', 'microsoftDownloadFile'],
-      },
-      {
-        id: 'replaceFile',
-        name: 'Replace File',
-        description: 'Locate a file, download a copy, then upload a new version back.',
-        operations: ['microsoftListDriveItems', 'microsoftGetDriveItem', 'microsoftDownloadFile', 'microsoftUploadFile'],
       },
       {
         id: 'renameFile',
@@ -394,12 +332,6 @@ export const COMPOSITE_FUNCTION_CATEGORIES: CompositeFunctionCategory[] = [
         operations: ['microsoftGetEventDetails', 'microsoftCalendarAddAttachment'],
       },
       {
-        id: 'deleteEventAttachment',
-        name: 'Delete Event Attachment',
-        description: 'Fetch event attachments and delete a specific one.',
-        operations: ['microsoftGetEventAttachments', 'microsoftDeleteEventAttachment'],
-      },
-      {
         id: 'cancelEvent',
         name: 'Cancel Event',
         description: 'Fetch event details, add a cancellation note, then delete it.',
@@ -428,176 +360,6 @@ export const COMPOSITE_FUNCTION_CATEGORIES: CompositeFunctionCategory[] = [
         name: 'Delete Calendar',
         description: 'List calendars, confirm the correct one, then delete it.',
         operations: ['microsoftListCalendars', 'microsoftDeleteCalendar'],
-      },
-    ],
-  },
-
-  // ─────────────────────────────────────────────
-  // Microsoft OneNote
-  // ─────────────────────────────────────────────
-  {
-    id: 'onenote',
-    label: 'Microsoft OneNote',
-    emoji: '📓',
-    integrationIds: ['microsoft_onenote'],
-    functions: [
-      {
-        id: 'browseNotes',
-        name: 'Browse Notes',
-        description: 'Navigate notebooks and sections to list available pages.',
-        operations: ['microsoftListNotebooks', 'microsoftListSectionsInNotebook', 'microsoftListPagesInSection'],
-      },
-      {
-        id: 'readNote',
-        name: 'Read Note',
-        description: 'Navigate to a page and read its full content.',
-        operations: ['microsoftListNotebooks', 'microsoftListSectionsInNotebook', 'microsoftListPagesInSection', 'microsoftGetPageContent'],
-      },
-      {
-        id: 'createNote',
-        name: 'Create Note',
-        description: 'Navigate to the target section and create a new page.',
-        operations: ['microsoftListNotebooks', 'microsoftListSectionsInNotebook', 'microsoftCreatePageInSection'],
-        addons: [
-          {
-            id: 'addFileAttachment',
-            label: 'Add file attachment',
-            operations: ['microsoftCreatePageWithAttachment'],
-            replaces: true,
-          },
-        ],
-      },
-    ],
-  },
-
-  // ─────────────────────────────────────────────
-  // Microsoft Word
-  // ─────────────────────────────────────────────
-  {
-    id: 'word',
-    label: 'Microsoft Word',
-    emoji: '📄',
-    integrationIds: ['microsoft_word'],
-    functions: [
-      {
-        id: 'createDocument',
-        name: 'Create Document',
-        description: 'Create a new Word document.',
-        operations: ['microsoftCreateDocument'],
-        addons: [
-          {
-            id: 'addHeaderFooter',
-            label: 'Add header / footer',
-            operations: ['microsoftSetHeaderFooter'],
-          },
-          {
-            id: 'applyFormatting',
-            label: 'Apply formatting',
-            operations: ['microsoftApplyFormatting'],
-          },
-        ],
-      },
-      {
-        id: 'buildDocument',
-        name: 'Build Document',
-        description: 'Create a document and populate it with structured content.',
-        operations: ['microsoftCreateDocument', 'microsoftUpdateDocumentContent'],
-        addons: [
-          {
-            id: 'addTable',
-            label: 'Add table',
-            operations: ['microsoftCreateTableWord'],
-          },
-          {
-            id: 'addList',
-            label: 'Add list',
-            operations: ['microsoftCreateList'],
-          },
-          {
-            id: 'addPageBreak',
-            label: 'Add page break',
-            operations: ['microsoftInsertPageBreak'],
-          },
-        ],
-      },
-      {
-        id: 'readDocument',
-        name: 'Read Document',
-        description: 'Find a document and retrieve its full text content.',
-        operations: ['microsoftListDocuments', 'microsoftGetDocumentContent'],
-        addons: [
-          {
-            id: 'includeStats',
-            label: 'Include stats (word / page count)',
-            operations: ['microsoftGetDocumentStatistics'],
-          },
-        ],
-      },
-      {
-        id: 'findAndReplaceText',
-        name: 'Find & Replace Text',
-        description: 'Search for a string within a document and replace it.',
-        operations: ['microsoftSearchDocument', 'microsoftReplaceText'],
-      },
-      {
-        id: 'updateDocument',
-        name: 'Update Document',
-        description: 'Read current document content and save updated content.',
-        operations: ['microsoftGetDocumentContent', 'microsoftUpdateDocumentContent'],
-        addons: [
-          {
-            id: 'insertImage',
-            label: 'Insert image',
-            operations: ['microsoftInsertImage'],
-          },
-          {
-            id: 'insertSection',
-            label: 'Insert section',
-            operations: ['microsoftInsertSection'],
-          },
-          {
-            id: 'insertPageBreak',
-            label: 'Insert page break',
-            operations: ['microsoftInsertPageBreak'],
-          },
-        ],
-      },
-      {
-        id: 'addTable',
-        name: 'Add Table',
-        description: 'Find the target section, insert a table, then populate its cells.',
-        operations: ['microsoftGetDocumentSections', 'microsoftCreateTableWord', 'microsoftUpdateTableCell'],
-      },
-      {
-        id: 'shareDocument',
-        name: 'Share Document',
-        description: 'Find the document and share it with a user.',
-        operations: ['microsoftListDocuments', 'microsoftShareDocument'],
-        addons: [
-          {
-            id: 'checkPermissionsAfter',
-            label: 'Check permissions after',
-            operations: ['microsoftGetDocumentPermissions'],
-          },
-        ],
-      },
-      {
-        id: 'revokeDocumentAccess',
-        name: 'Revoke Document Access',
-        description: "View current permissions on a document, then remove a user's access.",
-        operations: ['microsoftGetDocumentPermissions', 'microsoftRemovePermission'],
-      },
-      {
-        id: 'restoreDocumentVersion',
-        name: 'Restore Document Version',
-        description: 'List available document versions, then restore the desired one.',
-        operations: ['microsoftGetDocumentVersions', 'microsoftRestoreVersion'],
-      },
-      {
-        id: 'deleteDocument',
-        name: 'Delete Document',
-        description: 'Find the document, confirm it, then delete it.',
-        operations: ['microsoftListDocuments', 'microsoftDeleteDocument'],
       },
     ],
   },
@@ -664,6 +426,55 @@ export const COMPOSITE_FUNCTION_CATEGORIES: CompositeFunctionCategory[] = [
         name: 'Audit Library',
         description: 'Enumerate all libraries, recursively list every file, then inspect metadata.',
         operations: ['microsoftListSites', 'microsoftListDocumentLibraries', 'microsoftGetAllSharepointLibraryFilesRecursively', 'microsoftGetSharepointDriveItemMetadata'],
+      },
+    ],
+  },
+
+  // ─────────────────────────────────────────────
+  // Microsoft Shared Mailbox
+  // ─────────────────────────────────────────────
+  {
+    id: 'sharedEmail',
+    label: 'Microsoft Shared Mailbox',
+    emoji: '📧',
+    integrationIds: ['microsoft_exchange'],
+    functions: [
+      {
+        id: 'readSharedMailbox',
+        name: 'Read Shared Mailbox',
+        description: 'Browse a shared mailbox and open a specific message.',
+        operations: ['microsoftListSharedMailboxMessages', 'microsoftGetSharedMailboxMessage'],
+        addons: [
+          {
+            id: 'includeAttachments',
+            label: 'Include attachments',
+            operations: ['microsoftGetSharedMailboxAttachments'],
+          },
+        ],
+      },
+      {
+        id: 'downloadSharedMailboxAttachment',
+        name: 'Download Attachment',
+        description: 'Find a shared mailbox message, list its attachments, then download one.',
+        operations: ['microsoftListSharedMailboxMessages', 'microsoftGetSharedMailboxMessage', 'microsoftGetSharedMailboxAttachments', 'microsoftDownloadSharedMailboxAttachment'],
+      },
+      {
+        id: 'searchSharedMailbox',
+        name: 'Search Shared Mailbox',
+        description: 'Search the shared mailbox for a message and open it.',
+        operations: ['microsoftSearchSharedMailboxMessages', 'microsoftGetSharedMailboxMessage'],
+      },
+      {
+        id: 'draftSharedMailbox',
+        name: 'Draft from Shared Mailbox',
+        description: 'Compose and save a draft in a shared mailbox.',
+        operations: ['microsoftCreateSharedMailboxDraft'],
+      },
+      {
+        id: 'browseSharedMailboxFolders',
+        name: 'Browse Shared Mailbox Folders',
+        description: 'List all folders in a shared mailbox.',
+        operations: ['microsoftListSharedMailboxFolders'],
       },
     ],
   },

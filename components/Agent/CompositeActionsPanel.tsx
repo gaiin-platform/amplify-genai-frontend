@@ -146,7 +146,7 @@ const CompositeActionsPanel: React.FC<CompositeActionsPanelProps> = ({ onSelect,
           }`}>
             {!connected
               ? <IconPlugConnectedX size={12} stroke={2} className="text-amber-500 dark:text-amber-400 flex-shrink-0" />
-              : <span className="flex-shrink-0 w-3 h-3">{translateIntegrationIcon(cat.integrationIds[0])}</span>
+              : <span className="flex-shrink-0 w-3 h-3 inline-flex items-center justify-center">{translateIntegrationIcon(cat.integrationIds[0])}</span>
             }
             {cat.label}
           </span>
