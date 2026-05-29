@@ -93,8 +93,6 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   const [showWorkflowBuilder, setShowWorkflowBuilder] = useState(false);
   const [workflowBuilderWorkflow, setWorkflowBuilderWorkflow] = useState<AstWorkflow | null>(null);
   const workflowBuilderSnapshot = useRef<AstWorkflow | null>(null);
-  const [wbCollapsedSteps, setWbCollapsedSteps] = useState<Set<number>>(new Set());
-  const [wbConfirmDeleteIndex, setWbConfirmDeleteIndex] = useState<number | null>(null);
   const [showManualSetup, setShowManualSetup] = useState(false);
   const [manualSetupData, setManualSetupData] = useState<{ name: string; description: string; isPublic: boolean }>({ name: '', description: '', isPublic: false });
   const [manualBuilderWorkflow, setManualBuilderWorkflow] = useState<AstWorkflow | null>(null);
@@ -454,7 +452,6 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   };
 
   const handleOpenWorkflowBuilder = () => {
-    setWbCollapsedSteps(new Set());
     if (selectedWorkflowId) {
       // Edit existing workflow — use selectedWorkflow which has full steps loaded
       const snapshot = cloneDeep(selectedWorkflow);
@@ -590,7 +587,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                   title="Build your workflow step by step manually"
                 >
                   <IconEdit size={16} className="text-blue-600 dark:text-blue-400" />
-                  <span className="text-sm">Build Manually</span>
+                  <span className="text-sm">Build Workflow</span>
                 </button>
               </div>
             )}
@@ -684,6 +681,8 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
           isTerminate={isTerminate}
           allowToolSelection={true}
           isNewStep={isNewStep}
+          allSteps={selectedWorkflow.template?.steps || []}
+          currentStepIndex={index}
         />
       </div>
     );
@@ -1042,8 +1041,8 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
   const renderPreviewContent = () => {
     const nonTerminateSteps = selectedWorkflow.template?.steps.filter(s => s.tool !== 'terminate') ?? [];
     return (
-      <div className="flex-1 pl-4 overflow-y-auto">
-        <div className="mb-4 flex items-start justify-between gap-4">
+      <div className="flex-1 px-12 py-10 overflow-y-auto">
+        <div className="mb-10 flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
               {selectedWorkflow.name || 'Untitled Template'}
@@ -1061,7 +1060,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
               className={`px-3 py-2 ${buttonStyle}`}
               onClick={() => setShowEditMenu(prev => !prev)}
               disabled={loadingSelectedWorkflow}
-              title="Edit this workflow template"
+              title="Edit this workflow"
             >
               <IconEdit size={16} className="text-gray-600 dark:text-gray-300" />
               Edit
@@ -1072,30 +1071,17 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                 <button
                   className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
                   onClick={() => { setManualBuilderWorkflow(null); setForceVisualBuilderReset(false); setShowVisualBuilder(true); setShowEditMenu(false); }}
-                  title="Best for visual learners and complex workflows. Drag tools from a palette onto a canvas to build your workflow with instant preview."
+                  title="Drag tools onto the canvas to build your workflow visually"
                 >
                   <IconPuzzle size={16} className="text-blue-600 dark:text-blue-400" />
                   <span className="text-sm">Edit in Visual Builder</span>
                 </button>
                 <button
                   className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
-                  onClick={() => { handleOpenWorkflowBuilder(); setShowEditMenu(false); }}
-                  title="Best for detailed control and complex configurations. Traditional form-based interface for precise step-by-step workflow creation."
+                  onClick={() => { setShowEditDetails(true); setShowEditMenu(false); }}
+                  title="Edit workflow name, description and settings"
                 >
-                  <IconEdit size={16} className="text-purple-600 dark:text-purple-400" />
-                  <span className="text-sm">Edit in Workflow Builder</span>
-                </button>
-                <div className="border-t border-gray-100 dark:border-gray-700 mx-2 my-1" />
-                <button
-                  className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
-                  onClick={() => {
-                    setEditDetailsData({ name: selectedWorkflow.name, description: selectedWorkflow.description || '', isPublic: selectedWorkflow.isPublic || false });
-                    setShowEditDetails(true);
-                    setShowEditMenu(false);
-                  }}
-                  title="Edit the workflow name, description and accessibility setting"
-                >
-                  <IconInfoCircle size={16} className="text-gray-500 dark:text-gray-400" />
+                  <IconEdit size={16} className="text-gray-500 dark:text-gray-400" />
                   <span className="text-sm">Edit Details</span>
                 </button>
               </div>
@@ -1173,12 +1159,12 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
 
                 <button
                   className="w-full p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-left hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
-                  onClick={() => { setManualSetupData({ name: '', description: '', isPublic: false }); setShowManualSetup(true); }}
+                  onClick={() => { setSelectedWorkflow(emptyTemplate(isBaseTemplate)); setManualBuilderWorkflow(null); setForceVisualBuilderReset(true); setShowVisualBuilder(true); }}
                   title="Build your workflow step by step manually"
                 >
                   <div className="flex items-center mb-2">
                     <IconEdit size={24} className="text-blue-600 dark:text-blue-400 mr-2" />
-                    <span className="font-medium text-gray-900 dark:text-white">Build Manually</span>
+                    <span className="font-medium text-gray-900 dark:text-white">Build Workflow</span>
                   </div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Best if you know what tools you need</p>
                 </button>
@@ -1265,265 +1251,6 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
         availableAgentTools={availableAgentTools}
       />
 
-      {/* Workflow Builder Modal */}
-      {showWorkflowBuilder && workflowBuilderWorkflow && (() => {
-        const wbInnerHeight = Math.min(Math.max(window.innerHeight * 0.88, 600), window.innerHeight - 40);
-        const wbContentHeight = wbInnerHeight - 120;
-        return (
-          <Modal
-            title={
-              <span className="flex items-center gap-2">
-                <IconEdit size={20} className="text-purple-600 dark:text-purple-400" />
-                {workflowBuilderWorkflow.templateId ? `Edit — ${workflowBuilderWorkflow.name}` : `New Workflow — ${workflowBuilderWorkflow.name}`}
-              </span> as unknown as string
-            }
-            content={
-              <div className="flex flex-col" style={{ height: wbContentHeight }}>
-                {/* Scrollable content */}
-                <div className="flex-1 overflow-y-auto p-1">
-                  <div className="space-y-6">
-                    <div>
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-white">Workflow Steps</h3>
-                        {(workflowBuilderWorkflow.template?.steps?.length ?? 0) > 1 && (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                const allIndices = new Set(workflowBuilderWorkflow.template?.steps?.map((_, i) => i) ?? []);
-                                setWbCollapsedSteps(allIndices);
-                              }}
-                              className="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline transition-colors"
-                            >
-                              Collapse all
-                            </button>
-                            <span className="text-gray-300 dark:text-gray-600">|</span>
-                            <button
-                              onClick={() => setWbCollapsedSteps(new Set())}
-                              className="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 underline transition-colors"
-                            >
-                              Expand all
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="space-y-3">
-                        {workflowBuilderWorkflow.template?.steps?.map((step, index) => {
-                          const isCollapsed = wbCollapsedSteps.has(index);
-                          const isTerminate = step.tool === 'terminate';
-                          const stepLabel = step.stepName || step.description || 'Untitled Step';
-                          return (
-                          <div key={index} className="border rounded-lg dark:border-gray-600 overflow-hidden">
-                            {/* Collapsible header */}
-                            <div
-                              className={`flex items-center gap-2 px-4 py-3 cursor-pointer select-none transition-colors ${
-                                isCollapsed
-                                  ? 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                                  : 'bg-gray-50 dark:bg-gray-700/30 border-b border-gray-200 dark:border-gray-600'
-                              }`}
-                              onClick={() => {
-                                setWbCollapsedSteps(prev => {
-                                  const next = new Set(prev);
-                                  next.has(index) ? next.delete(index) : next.add(index);
-                                  return next;
-                                });
-                              }}
-                            >
-                              <span className="text-gray-400 dark:text-gray-500 flex-shrink-0">
-                                {isCollapsed ? <IconChevronDown size={16} /> : <IconChevronUp size={16} />}
-                              </span>
-                              <span className={`text-sm font-semibold flex-shrink-0 ${isTerminate ? 'text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-gray-200'}`}>
-                                {isTerminate ? 'Done (terminate)' : `Step ${index + 1}`}
-                              </span>
-                              {!isTerminate && stepLabel && (
-                                <span className="text-sm text-gray-500 dark:text-gray-400 truncate">— {stepLabel}</span>
-                              )}
-                              {/* Right-side group: tool badge + delete — always pushed to far right */}
-                              {!isTerminate && (
-                                <div className="ml-auto flex items-center gap-2 flex-shrink-0">
-                                  {step.tool ? (
-                                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
-                                      {step.tool}
-                                    </span>
-                                  ) : (
-                                    <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 italic">
-                                      no tool
-                                    </span>
-                                  )}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setWbConfirmDeleteIndex(index);
-                                    }}
-                                    className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                                    title="Delete step"
-                                  >
-                                    <IconTrash size={15} />
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                            {/* Collapsible body */}
-                            {!isCollapsed && (
-                              <div className="p-4">
-                                <StepEditor
-                                  step={step}
-                                  stepIndex={index}
-                                  onStepChange={(updatedStep) => {
-                                    const updatedWorkflow = cloneDeep(workflowBuilderWorkflow);
-                                    if (updatedWorkflow.template?.steps) {
-                                      updatedWorkflow.template.steps[index] = updatedStep;
-                                      setWorkflowBuilderWorkflow(updatedWorkflow);
-                                    }
-                                  }}
-                                  availableApis={availableApis}
-                                  availableAgentTools={availableAgentTools}
-                                  isTerminate={isTerminate}
-                                  allowToolSelection={!isTerminate}
-                                  isNewStep={!isTerminate && (
-                                    !step.description?.trim() &&
-                                    !step.tool?.trim() &&
-                                    !step.instructions?.trim() &&
-                                    (!step.stepName?.trim() || step.stepName === 'New Step')
-                                  )}
-                                />
-                              </div>
-                            )}
-                          </div>
-                          );
-                        })}
-                        <button
-                          onClick={() => {
-                            const updatedWorkflow = cloneDeep(workflowBuilderWorkflow);
-                            if (!updatedWorkflow.template) updatedWorkflow.template = { steps: [] };
-                            const newStep: Step = { stepName: '', description: '', tool: '', instructions: '', args: {}, values: {} };
-                            const terminateIndex = updatedWorkflow.template.steps.findIndex(s => s.tool === 'terminate');
-                            if (terminateIndex !== -1) {
-                              updatedWorkflow.template.steps.splice(terminateIndex, 0, newStep);
-                            } else {
-                              updatedWorkflow.template.steps.push(newStep);
-                            }
-                            setWorkflowBuilderWorkflow(updatedWorkflow);
-                          }}
-                          className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:border-blue-500 dark:hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center justify-center gap-2"
-                        >
-                          <IconPlus size={20} />
-                          Add New Step
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Footer — matches Visual Builder */}
-                <div className="py-3 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-3">
-                      {!workflowBuilderWorkflow.templateId && (
-                        <button
-                          onClick={() => {
-                            setShowWorkflowBuilder(false);
-                            setManualSetupData({ name: workflowBuilderWorkflow.name, description: workflowBuilderWorkflow.description || '', isPublic: workflowBuilderWorkflow.isPublic || false });
-                            setShowManualSetup(true);
-                          }}
-                          className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-md transition-colors"
-                          title="Back to workflow setup"
-                        >
-                          <IconArrowDown size={16} className="rotate-90" />
-                          Back
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        {(workflowBuilderWorkflow.template?.steps?.filter(s => s.tool !== 'terminate').length ?? 0)} steps configured
-                      </span>
-                      <button
-                        onClick={() => {
-                          // Restore snapshot — discard all unsaved changes
-                          if (workflowBuilderSnapshot.current) {
-                            setWorkflowBuilderWorkflow(cloneDeep(workflowBuilderSnapshot.current));
-                          }
-                          setShowWorkflowBuilder(false);
-                          setWorkflowBuilderWorkflow(null);
-                          workflowBuilderSnapshot.current = null;
-                        }}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-md transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      {(() => {
-                        const nonTerminateSteps = (workflowBuilderWorkflow.template?.steps ?? []).filter(s => s.tool !== 'terminate');
-                        const allStepsValid = nonTerminateSteps.every(s =>
-                          s.stepName?.trim() && s.description?.trim() && s.tool?.trim() && s.instructions?.trim()
-                        );
-                        const canSave = !!workflowBuilderWorkflow.name?.trim() && allStepsValid;
-                        return (
-                          <button
-                            onClick={() => handleSaveWorkflowFromBuilder(workflowBuilderWorkflow)}
-                            disabled={!canSave}
-                            className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors shadow-sm ${
-                              !canSave ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                            }`}
-                          >
-                            Save Workflow
-                          </button>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            }
-            showCancel={false}
-            showSubmit={false}
-            disableClickOutside={true}
-            width={() => Math.max(window.innerWidth * 0.92, 1100)}
-            height={() => Math.min(Math.max(window.innerHeight * 0.88, 600), window.innerHeight - 40)}
-            onCancel={() => { setShowWorkflowBuilder(false); setWorkflowBuilderWorkflow(null); workflowBuilderSnapshot.current = null; }}
-            onSubmit={() => {}}
-          />
-        );
-      })()}
-      
-      {/* Step delete confirmation dialog */}
-      {wbConfirmDeleteIndex !== null && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-600 p-6 max-w-sm w-full mx-4">
-            <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Delete Step</h4>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
-              Are you sure you want to delete{' '}
-              <span className="font-medium text-gray-900 dark:text-white">
-                &ldquo;Step {wbConfirmDeleteIndex + 1}{workflowBuilderWorkflow?.template?.steps?.[wbConfirmDeleteIndex]?.stepName ? ` — ${workflowBuilderWorkflow.template.steps[wbConfirmDeleteIndex].stepName}` : ''}&rdquo;
-              </span>? This cannot be undone.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setWbConfirmDeleteIndex(null)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-md transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  const idx = wbConfirmDeleteIndex;
-                  const updatedWorkflow = cloneDeep(workflowBuilderWorkflow!);
-                  updatedWorkflow.template?.steps?.splice(idx, 1);
-                  setWorkflowBuilderWorkflow(updatedWorkflow);
-                  setWbCollapsedSteps(prev => {
-                    const next = new Set<number>();
-                    prev.forEach(i => { if (i < idx) next.add(i); else if (i > idx) next.add(i - 1); });
-                    return next;
-                  });
-                  setWbConfirmDeleteIndex(null);
-                }}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors shadow-sm"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Delete confirmation dialog */}
       {confirmDeleteId && (() => {
@@ -1705,7 +1432,6 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                     onClick={() => {
                       const newWorkflow = { ...emptyTemplate(isBaseTemplate), name: manualSetupData.name, description: manualSetupData.description, isPublic: manualSetupData.isPublic };
                       workflowBuilderSnapshot.current = cloneDeep(newWorkflow);
-                      setWbCollapsedSteps(new Set());
                       setWorkflowBuilderWorkflow(newWorkflow);
                       setShowWorkflowBuilder(true);
                       setShowManualSetup(false);
