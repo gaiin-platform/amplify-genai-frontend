@@ -142,6 +142,7 @@ const ToolReplacementModal: React.FC<ToolReplacementModalProps> = ({
 interface StepCardProps {
   step: WorkflowStep;
   index: number;
+  isSelected: boolean;
   onEdit: (step: WorkflowStep) => void;
   onDelete: (stepId: string) => void;
   onMove: (stepId: string, direction: 'up' | 'down') => void;
@@ -151,8 +152,8 @@ interface StepCardProps {
   canMoveDown: boolean;
 }
 
-const StepCard: React.FC<StepCardProps> = ({ 
-  step, index, onEdit, onDelete, onMove, onToolReplace, onReorder, canMoveUp, canMoveDown 
+const StepCard: React.FC<StepCardProps> = ({
+  step, index, isSelected, onEdit, onDelete, onMove, onToolReplace, onReorder, canMoveUp, canMoveDown
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -227,24 +228,24 @@ const StepCard: React.FC<StepCardProps> = ({
     <div
       draggable={step.tool !== 'terminate'}
       className={`
-        relative bg-white dark:bg-gray-800 border rounded-lg p-4 
-        transition-all duration-200 cursor-pointer
-        ${isHovered ? 'shadow-lg border-blue-300 dark:border-blue-600' : 'border-gray-200 dark:border-gray-700'}
-        ${step.tool === 'terminate' ? 'opacity-75' : ''}
+        relative bg-white dark:bg-gray-800 border-2 rounded-lg p-4
+        transition-all duration-200
+        ${step.tool === 'terminate' ? 'cursor-default opacity-60' : 'cursor-pointer'}
+        ${isSelected ? 'border-blue-500 dark:border-blue-400 shadow-md ring-2 ring-blue-200 dark:ring-blue-900' : isHovered ? 'shadow-lg border-blue-300 dark:border-blue-600' : 'border-gray-200 dark:border-gray-700'}
         ${isDragOver ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : ''}
         ${step.isEmpty ? 'border-orange-300 dark:border-orange-600' : ''}
         ${isDragging ? 'opacity-50 transform rotate-2' : ''}
         ${step.tool !== 'terminate' ? 'hover:shadow-md' : ''}
       `}
       style={segmentColor ? { borderLeftColor: segmentColor, borderLeftWidth: '4px' } : {}}
-      onMouseEnter={() => setIsHovered(true)}
+      onMouseEnter={() => { if (step.tool !== 'terminate') setIsHovered(true); }}
       onMouseLeave={() => setIsHovered(false)}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onDragEnd={handleDragEnd}
-      onClick={() => onEdit(step)}
+      onClick={() => { if (step.tool !== 'terminate') onEdit(step); }}
     >
       {/* Drag Handle */}
       <div 
@@ -444,56 +445,47 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
     };
   }, [isResizing]);
   
-  // Modal states
+  // State
   const [showToolPicker, setShowToolPicker] = useState(false);
   const [showToolReplacement, setShowToolReplacement] = useState(false);
-  const [showParameterConfig, setShowParameterConfig] = useState(false);
   const [toolPickerPosition, setToolPickerPosition] = useState<number>(0);
   const [replacementData, setReplacementData] = useState<{
     step: WorkflowStep;
     newTool: ToolItem;
   } | null>(null);
-  const [configStep, setConfigStep] = useState<{
-    step: WorkflowStep;
-    tool: ToolItem | null;
-    isNewStep?: boolean; // Flag to indicate if this is a newly created step
-  } | null>(null);
+  // Inline right-panel step editor
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
+  const [selectedStepIsNew, setSelectedStepIsNew] = useState(false);
   const [draftStep, setDraftStep] = useState<WorkflowStep | null>(null);
-  
+
   // Tool items state
   const [toolItems, setToolItems] = useState<ToolItem[]>([]);
-  
+
   // Snapshot of workflowSteps taken when the modal opens — used to restore on Cancel
   const workflowStepsSnapshot = useRef<WorkflowStep[] | null>(null);
   const workflowSnapshot = useRef<AstWorkflow | null>(null);
 
-  // Ref for step editor modal scroll container
-  const stepEditorScrollRef = useRef<HTMLDivElement>(null);
-  
-  // Counter to force fresh StepEditor instance when modal reopens
-  const [stepEditorResetCounter, setStepEditorResetCounter] = useState(0);
   const [confirmDeleteStepId, setConfirmDeleteStepId] = useState<string | null>(null);
   
-  // Handle closing parameter config modal and resetting AI state
-  const handleCloseParameterConfig = () => {
-    // Commit the draft to workflowSteps
-    if (draftStep && configStep) {
+  // Discard draft changes — resets draftStep back to the last committed version
+  const handleDiscardStep = () => {
+    if (selectedStepId) {
+      const committed = workflowSteps.find(s => s.id === selectedStepId);
+      if (committed) {
+        setDraftStep({ ...committed });
+        toast('Changes discarded', { icon: '🗑️' });
+      }
+    }
+  };
+
+  // Close the panel — auto-saves any open draft first
+  const handleCloseStepEditor = () => {
+    if (draftStep) {
       setWorkflowSteps(prev => prev.map(s => s.id === draftStep.id ? draftStep : s));
     }
     setDraftStep(null);
-    setShowParameterConfig(false);
-    setStepEditorResetCounter(prev => prev + 1);
-  };
-
-  // Handle canceling parameter config — discard draft, remove step if new
-  const handleCancelParameterConfig = () => {
-    if (configStep?.isNewStep) {
-      setWorkflowSteps(prev => prev.filter(s => s.id !== configStep.step.id));
-    }
-    // Discard draft — no changes written
-    setDraftStep(null);
-    setShowParameterConfig(false);
-    setStepEditorResetCounter(prev => prev + 1);
+    setSelectedStepId(null);
+    setSelectedStepIsNew(false);
   };
 
   // Handle canceling the tool picker — removes the empty step that was added
@@ -610,19 +602,9 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       // Reset UI state as well
       setShowToolPicker(false);
       setShowToolReplacement(false);
-      setShowParameterConfig(false);
-      setConfigStep(null);
       setReplacementData(null);
     }
   }, [isOpen, initialWorkflow, forceReset]);
-  
-  // Reset step editor modal scroll position when opened
-  useEffect(() => {
-    if (showParameterConfig && stepEditorScrollRef.current) {
-      // Reset scroll to top when modal opens
-      stepEditorScrollRef.current.scrollTop = 0;
-    }
-  }, [showParameterConfig]);
   
   // Initialize tool items
   useEffect(() => {
@@ -658,6 +640,19 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   };
   
   
+  // Called when clicking a tool in the left panel — insert before terminate, no editor
+  const handlePanelToolClick = (tool: ToolItem) => {
+    const newStep = createStepFromTool(tool);
+    const newSteps = [...workflowSteps];
+    const terminateIndex = newSteps.findIndex(s => s.tool === 'terminate');
+    if (terminateIndex !== -1) {
+      newSteps.splice(terminateIndex, 0, newStep);
+    } else {
+      newSteps.push(newStep);
+    }
+    setWorkflowSteps(newSteps);
+  };
+
   const handleToolSelect = (tool: ToolItem) => {
     if (toolPickerPosition !== undefined) {
       const stepToUpdate = workflowSteps[toolPickerPosition];
@@ -669,15 +664,14 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
         updatedStep.description = stepToUpdate.description || updatedStep.description;
         updatedStep.actionSegment = stepToUpdate.actionSegment;
         updatedStep.isEmpty = false;
-        
+
         const newSteps = [...workflowSteps];
         newSteps[toolPickerPosition] = updatedStep;
         setWorkflowSteps(newSteps);
-        
-        // Show parameter configuration modal
-        setConfigStep({ step: updatedStep, tool, isNewStep: true });
+
+        setSelectedStepId(updatedStep.id);
+        setSelectedStepIsNew(true);
         setDraftStep({ ...updatedStep });
-        setShowParameterConfig(true);
       }
     }
     setShowToolPicker(false);
@@ -695,25 +689,21 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   const handleConfirmReplacement = () => {
     if (replacementData) {
       const { step, newTool } = replacementData;
-      
-      // Create a clean step with the new tool, clearing all user-editable fields
+
       const updatedStep = createStepFromTool(newTool);
-      // Preserve only the essential step metadata
       updatedStep.id = step.id;
       updatedStep.position = step.position;
       updatedStep.actionSegment = step.actionSegment;
-      // Clear user fields (stepName, description, instructions, args, values are reset by createStepFromTool)
-      
+
       const newSteps = [...workflowSteps];
       const stepIndex = newSteps.findIndex(s => s.id === step.id);
       if (stepIndex !== -1) {
         newSteps[stepIndex] = updatedStep;
         setWorkflowSteps(newSteps);
-        
-        // Automatically open Step Editor for the user to configure the new tool
-        setConfigStep({ step: updatedStep, tool: newTool, isNewStep: false });
+
+        setSelectedStepId(updatedStep.id);
+        setSelectedStepIsNew(false);
         setDraftStep({ ...updatedStep });
-        setShowParameterConfig(true);
       }
     }
     setShowToolReplacement(false);
@@ -725,29 +715,18 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       setToolPickerPosition(step.position);
       setShowToolPicker(true);
     } else {
-      const tool = toolItems.find(t => t.name === step.tool) ?? null;
-      setConfigStep({ step, tool, isNewStep: false });
+      // Auto-save any open draft before switching to a different step
+      if (draftStep && selectedStepId && selectedStepId !== step.id) {
+        setWorkflowSteps(prev => prev.map(s => s.id === draftStep.id ? draftStep : s));
+      }
+      setSelectedStepId(step.id);
+      setSelectedStepIsNew(false);
       setDraftStep({ ...step });
-      setShowParameterConfig(true);
     }
   };
 
-  const handleStepChange = (updatedStep: Step, stepId: string) => {
-    // Only update the draft — do not write to workflowSteps until Save & Close
-    if (configStep && configStep.step.id === stepId) {
-      const baseDraft = draftStep ?? workflowSteps.find(s => s.id === stepId);
-      if (!baseDraft) return;
-      const updatedWorkflowStep = { ...baseDraft, ...updatedStep };
-      setDraftStep(updatedWorkflowStep);
-
-      // Keep configStep in sync so the modal title reflects changes
-      let updatedTool = configStep.tool;
-      if (updatedStep.tool && updatedStep.tool !== configStep.step.tool) {
-        const newToolItem = toolItems.find(t => t.name === updatedStep.tool);
-        if (newToolItem) updatedTool = newToolItem;
-      }
-      setConfigStep({ ...configStep, step: updatedWorkflowStep, tool: updatedTool });
-    }
+  const handleStepChange = (updatedStep: Step) => {
+    setDraftStep(prev => prev ? { ...prev, ...updatedStep } : null);
   };
 
   
@@ -834,39 +813,30 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
 
   const handleToolDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    
+
     const toolData = e.dataTransfer.getData('tool');
     if (toolData) {
       const serializableToolData = JSON.parse(toolData);
-      // Find the complete tool item from the available toolItems array
       const toolItem = toolItems.find(t => t.id === serializableToolData.id || t.name === serializableToolData.name);
-      
+
       if (toolItem) {
-        // Create a new step from the dropped tool
         const newStep = createStepFromTool(toolItem);
-        
-        // Find the terminate step and insert before it
         const terminateIndex = workflowSteps.findIndex(step => step.tool === 'terminate');
         const newSteps = [...workflowSteps];
-        
+
         if (terminateIndex !== -1) {
           newSteps.splice(terminateIndex, 0, newStep);
         } else {
           newSteps.push(newStep);
         }
-        
-        // Update positions
-        newSteps.forEach((step, index) => {
-          step.position = index;
-        });
-        
+
+        newSteps.forEach((step, index) => { step.position = index; });
         setWorkflowSteps(newSteps);
-        
-        // Show parameter configuration modal for the new step
+
         const stepPosition = terminateIndex !== -1 ? terminateIndex : newSteps.length - 1;
-        setConfigStep({ step: newSteps[stepPosition], tool: toolItem, isNewStep: true });
+        setSelectedStepId(newSteps[stepPosition].id);
+        setSelectedStepIsNew(true);
         setDraftStep({ ...newSteps[stepPosition] });
-        setShowParameterConfig(true);
       }
     }
   };
@@ -993,26 +963,45 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   
   if (!isOpen) return null;
 
-  const innerHeight = Math.min(Math.max(window.innerHeight * 0.88, 600), window.innerHeight - 40);
-  // Account for Modal's header (~64px) and footer (~56px)
-  const contentHeight = innerHeight - 120;
+
+  // Right-panel editor helpers
+  const editorStep = draftStep ?? (selectedStepId ? workflowSteps.find(s => s.id === selectedStepId) ?? null : null);
+  const editorStepIndex = editorStep ? workflowSteps.findIndex(s => s.id === editorStep.id) : -1;
+  const editorIsTerminate = editorStep?.tool === 'terminate';
+  const editorMissingFields = (!editorStep || editorIsTerminate) ? [] : [
+    !editorStep.stepName?.trim() && 'Step Name',
+    !editorStep.description?.trim() && 'Description',
+    !editorStep.tool?.trim() && 'Tool',
+    !editorStep.instructions?.trim() && 'Instructions',
+  ].filter(Boolean) as string[];
+  const editorIsValid = editorMissingFields.length === 0;
 
   const modalContent = (
-    <Modal
-      title={
-        <span className="flex items-center gap-2">
+    <div className="fixed inset-0 z-[9999] flex flex-col bg-white dark:bg-gray-900">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 bg-white dark:bg-gray-900">
+        <span className="flex items-center gap-2 text-base font-semibold text-gray-900 dark:text-white">
           <IconPuzzle size={20} className="text-blue-600 dark:text-blue-400" />
           Visual Workflow Builder{workflow.name ? ` — ${workflow.name}` : ''}
-        </span> as unknown as string
-      }
-      content={
-        <div className="flex flex-col" style={{ height: contentHeight }}>
-        {/* Content */}
+        </span>
+        <button
+          onClick={() => {
+            if (workflowStepsSnapshot.current) setWorkflowSteps(workflowStepsSnapshot.current.map(s => ({ ...s })));
+            if (workflowSnapshot.current) setWorkflow({ ...workflowSnapshot.current });
+            onClose();
+          }}
+          className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        >
+          <IconX size={20} />
+        </button>
+      </div>
+      {/* Content */}
+        <div className="flex flex-col flex-1 overflow-hidden">
         <div className="flex flex-1 overflow-hidden">
           {/* Tool Palette - Left Panel */}
           <ToolSelectorPanel
             tools={availableTools}
-            onSelect={handleToolSelect}
+            onSelect={handlePanelToolClick}
             width={leftPanelWidth}
           />
           
@@ -1034,10 +1023,45 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
             </div>
           </div>
           
-          {/* Workflow Canvas - Right Panel */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="p-4 bg-gray-50 dark:bg-gray-900/50">
+          {/* Workflow Canvas - Center Panel */}
+          <div className={selectedStepId && editorStep ? 'w-120 flex-shrink-0 overflow-y-auto border-r border-gray-200 dark:border-gray-700' : 'flex-1 overflow-y-auto'}>
+            <div className="p-16 bg-gray-50 dark:bg-gray-900/50">
               <div className="max-w-xl mx-auto space-y-3">
+
+                {/* Workflow Metadata */}
+                <div className="mb-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+                      Workflow Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={workflow.name}
+                      onChange={(e) => setWorkflow(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full p-2 text-sm border border-gray-300 rounded-lg bg-white dark:bg-[#40414F] dark:border-neutral-600 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Name your workflow"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Description</label>
+                    <textarea
+                      value={workflow.description || ''}
+                      onChange={(e) => setWorkflow(prev => ({ ...prev, description: e.target.value }))}
+                      rows={2}
+                      className="w-full p-2 text-sm border border-gray-300 rounded-lg bg-white dark:bg-[#40414F] dark:border-neutral-600 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                      placeholder="Describe what this workflow does"
+                    />
+                  </div>
+                  <div className="dark:text-white">
+                    <Checkbox
+                      id="vb-isPublic"
+                      label="Accessible to any Amplify user"
+                      checked={workflow.isPublic || false}
+                      onChange={(checked) => setWorkflow(prev => ({ ...prev, isPublic: checked }))}
+                    />
+                  </div>
+                </div>
+
                 {/* Workflow Start */}
                 <div className="mb-4 text-center">
                   <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded-full text-sm font-medium">
@@ -1093,6 +1117,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                           <StepCard
                             step={step}
                             index={index}
+                            isSelected={step.id === selectedStepId}
                             onEdit={handleStepEdit}
                             onDelete={handleStepDelete}
                             onMove={handleStepMove}
@@ -1120,6 +1145,55 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
               
             </div>
           </div>
+          {/* Right Panel — Inline Step Editor */}
+          {selectedStepId && editorStep && (
+            <div className="flex-1 border-l border-gray-200 dark:border-gray-700 flex flex-col bg-white dark:bg-gray-800 overflow-hidden">
+              {/* Header */}
+              <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex items-center justify-between flex-shrink-0">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 truncate min-w-0">
+                  <IconSettings size={16} className="flex-shrink-0 text-blue-500" />
+                  <span className="truncate">{(draftStep?.stepName || draftStep?.description) || (editorStep.stepName || editorStep.description) || 'Configure Step'}</span>
+                </h3>
+                <button
+                  onClick={handleCloseStepEditor}
+                  className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2"
+                  title="Close"
+                >
+                  <IconX size={16} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-4">
+                <StepEditor
+                  key={`right-panel-${editorStep.id}`}
+                  step={editorStep}
+                  stepIndex={editorStepIndex}
+                  onStepChange={handleStepChange}
+                  availableApis={availableApis}
+                  availableAgentTools={availableAgentTools}
+                  isTerminate={editorIsTerminate}
+                  allowToolSelection={true}
+                  isNewStep={selectedStepIsNew}
+                  allSteps={workflowSteps}
+                  currentStepIndex={editorStepIndex}
+                />
+              </div>
+
+              {/* Footer */}
+              <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+                <span className="text-xs text-gray-400 dark:text-gray-500">Changes auto-saved when switching steps</span>
+                <button
+                  onClick={handleDiscardStep}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 rounded-md transition-colors"
+                  title="Discard unsaved changes"
+                >
+                  <IconTrash size={14} />
+                  Discard
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -1199,24 +1273,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
           </div>
         </div>
         </div>
-      }
-      onCancel={() => {
-        if (workflowStepsSnapshot.current) {
-          setWorkflowSteps(workflowStepsSnapshot.current.map(s => ({ ...s })));
-        }
-        if (workflowSnapshot.current) {
-          setWorkflow({ ...workflowSnapshot.current });
-        }
-        onClose();
-      }}
-      onSubmit={() => {}}
-      showCancel={false}
-      showSubmit={false}
-      disableClickOutside={true}
-      disableContentAnimation={false}
-      width={() => Math.max(window.innerWidth * 0.92, 1100)}
-      height={() => Math.min(Math.max(window.innerHeight * 0.88, 600), window.innerHeight - 40)}
-    />
+    </div>
   );
 
   const portals = (
@@ -1241,59 +1298,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
         stepName={replacementData?.step.stepName || replacementData?.step.description || 'Step'}
       />
       
-      {configStep && (
-        <div className={`fixed inset-0 z-[10000] flex items-center justify-center bg-black bg-opacity-50 ${showParameterConfig ? '' : 'hidden'}`}>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 max-w-4xl w-full mx-4 max-h-[80vh] flex flex-col">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <IconSettings size={20} />
-                Configure Step: {configStep.step.stepName || configStep.step.description || 'Step'}
-              </h3>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6" ref={stepEditorScrollRef}>
-              <StepEditor
-                key={`step-editor-${configStep.step.id}-${stepEditorResetCounter}`}
-                step={draftStep ?? configStep.step}
-                stepIndex={workflowSteps.findIndex(s => s.id === configStep.step.id)}
-                onStepChange={(updatedStep) => handleStepChange(updatedStep, configStep.step.id)}
-                availableApis={availableApis}
-                availableAgentTools={availableAgentTools}
-                isTerminate={configStep.step.tool === 'terminate'}
-                allowToolSelection={true}
-                isNewStep={configStep.isNewStep || false}
-              />
-            </div>
-            {(() => {
-              const currentStep = draftStep ?? configStep.step;
-              const isTerminateStep = currentStep.tool === 'terminate';
-              const missingFields = isTerminateStep ? [] : [
-                !currentStep.stepName?.trim() && 'Step Name',
-                !currentStep.description?.trim() && 'Description',
-                !currentStep.tool?.trim() && 'Tool',
-                !currentStep.instructions?.trim() && 'Instructions',
-              ].filter(Boolean) as string[];
-              const isValid = missingFields.length === 0;
-              return (
-                <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-3">
-                  <button
-                    onClick={handleCancelParameterConfig}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleCloseParameterConfig}
-                    disabled={!isValid}
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Save & Close
-                  </button>
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
+      {/* Step editing is now handled inline in the right panel — no floating modal */}
       {/* Step delete confirmation dialog */}
       {confirmDeleteStepId && (() => {
         const stepToDelete = workflowSteps.find(s => s.id === confirmDeleteStepId);

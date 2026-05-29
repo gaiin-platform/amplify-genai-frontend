@@ -139,10 +139,23 @@ Generate a workflow with the following JSON structure:
       "values": {
         "param_name": "Fixed value if known"
       },
-      "actionSegment": "optional_group_name"
+      "actionSegment": "optional_group_name",
+      "allowSkip": null,
+      "allowRepeat": false,
+      "maxRepeats": null,
+      "outputs": []
     }
   ]
 }
+
+Field explanations:
+- args: Parameter hints — the model is told how to determine these values but can override them
+- values: Hard-coded parameter values — the model cannot change these
+- actionSegment: Groups steps so users can toggle them on/off as a unit
+- allowSkip: null = LLM decides whether to skip, false = never skip this step, true = always allow skipping
+- allowRepeat: Set to true if this step should be re-run after each success (e.g. polling, paginated fetching). The step will stop repeating when its result contains {"done": true} or when maxRepeats is reached
+- maxRepeats: Max number of extra times to repeat the step (only relevant when allowRepeat is true). null means repeat once
+- outputs: Declare what this step produces so later steps can reference it via {{stepName.fieldName}}. Example: [{"name": "email_id", "type": "string", "description": "The ID of the created draft"}]
 
 Rules:
 - Each step must use a tool from the available tools list above
@@ -152,19 +165,12 @@ Rules:
 - Keep step names short, unique, and use underscores instead of spaces
 - Only use tools that were provided in the available tools list
 - If only the think tool is available, create a simple workflow with basic description and leave other tool names empty (empty string) so users can select tools manually later
-- Use "think" steps strategically when the agent needs to:
-  * Analyze or digest information from previous steps
-  * Understand context before making decisions
-  * Plan the approach for complex subsequent steps
-  * Process data or results to determine next actions
-  * Take a step back and evaluate progress
-- Think steps are NOT needed for every action - only when analysis/preparation is required
-- Action steps (API calls) should flow naturally when the task is straightforward
-- Example flow: API call → think (analyze results) → API call → think (plan next approach) → API call
-- For actionSegment usage:
-  * Core/essential steps that are required for the basic workflow should NOT have an actionSegment (leave undefined)
-  * Optional features, enhancements, or grouped functionality should use actionSegment
-  * Think steps that are essential should NOT have actionSegment
+- Use "think" steps strategically when the agent needs to analyze, plan, or process results between actions
+- Think steps are NOT needed for every action — only when analysis/preparation adds real value
+- Use allowRepeat for polling or paginated steps (e.g. fetch next page of results)
+- Use outputs to declare step results that later steps depend on; reference them in args/values as {{stepName.fieldName}}
+- Use allowSkip=false for critical steps that must always run
+- For actionSegment: core required steps get no segment; optional/grouped features get a segment name
 Generate ONLY the JSON, no additional text.`;
   };
 
