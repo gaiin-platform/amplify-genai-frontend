@@ -32,6 +32,7 @@ export const WebSearchIntegration: FC<Props> = ({ config, setConfig, updateUnsav
     const [selectedProvider, setSelectedProvider] = useState<WebSearchProvider | null>(null);
     const [apiKey, setApiKey] = useState('');
     const [allowUserKeys, setAllowUserKeys] = useState(config?.allowUserWebSearchKeys ?? false);
+    const [userMessage, setUserMessage] = useState(config?.webSearchUserMessage ?? '');
     const [error, setError] = useState<string | null>(null);
 
     const handleSelectProvider = (provider: WebSearchProvider) => {
@@ -99,6 +100,26 @@ export const WebSearchIntegration: FC<Props> = ({ config, setConfig, updateUnsav
         updateUnsavedConfigs();
     };
 
+    const handleUserMessageChange = (message: string) => {
+        setUserMessage(message);
+        // Update the config and mark as unsaved
+        if (config) {
+            setConfig({
+                ...config,
+                webSearchUserMessage: message
+            });
+        } else {
+            // Create a minimal config just for the webSearchUserMessage setting
+            setConfig({
+                webSearchUserMessage: message,
+                allowUserWebSearchKeys: false,
+                isEnabled: false
+            } as AdminWebSearchConfig);
+        }
+        // Mark configs as unsaved to activate the "Save Changes" button
+        updateUnsavedConfigs();
+    };
+
     return (
         <div className="admin-style-settings-card">
             <div className="admin-style-settings-card-header">
@@ -136,6 +157,24 @@ export const WebSearchIntegration: FC<Props> = ({ config, setConfig, updateUnsav
                 />
                 <p className="ml-6 text-sm text-neutral-600 dark:text-neutral-400 mt-1">
                     When enabled, users can configure their own API keys in addition to using the admin-provided key.
+                </p>
+            </div>
+
+            {/* User Message Textarea */}
+            <div className="mx-4 mb-4">
+                <label htmlFor="webSearchUserMessage" className="block text-sm font-medium text-black dark:text-white mb-2">
+                    User notification message (optional)
+                </label>
+                <textarea
+                    id="webSearchUserMessage"
+                    value={userMessage}
+                    onChange={(e) => handleUserMessageChange(e.target.value)}
+                    placeholder="e.g., 'Web search is enabled. Please do not send sensitive data.'"
+                    rows={3}
+                    className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                    This message will be shown to users when they enable web search (if configured).
                 </p>
             </div>
 

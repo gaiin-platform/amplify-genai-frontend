@@ -5,6 +5,7 @@ import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
 import { SettingsBar } from "@/components/Settings/SettingsBar";
+import { StorageProgressBar } from "@/components/Settings/StorageProgressBar";
 import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
 import { getIsLocalStorageSelection, saveStorageSettings, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
 import cloneDeep from 'lodash/cloneDeep';
@@ -70,7 +71,8 @@ import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
 import { AssistantGallery } from "@/components/AssistantGallery/AssistantGallery";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
-import { deleteAssistant, listAssistants } from '@/services/assistantService';
+import { deleteAssistant, listAssistants, listLayeredAssistants } from '@/services/assistantService';
+import { LayeredAssistant } from '@/types/layeredAssistant';
 import { filterAstsByFeatureFlags, getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
 import { fetchAllRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import {killRequest as killReq} from "@/services/chatService";
@@ -78,11 +80,11 @@ import { addDateAttribute, getFullTimestamp, getDateName } from '@/utils/app/dat
 import HomeContext, {  ClickContext, Processor } from './home.context';
 import { ReservedTags } from '@/types/tags';
 import { noCoaAccount } from '@/types/accounts';
-import { noRateLimit } from '@/types/rateLimit';
+import { noRateLimit, normalizeRateLimits } from '@/types/rateLimit';
 import { fetchAstAdminGroups } from '@/services/groupsService';
 import { contructGroupData } from '@/utils/app/groups';
 import { getAllArtifacts } from '@/services/artifactsService';
-import { baseAssistantFolder, basePrompts, isBaseFolder, isOutDatedBaseFolder } from '@/utils/app/basePrompts';
+import { baseAssistantFolder, baseLayeredAssistantFolder, basePrompts, isBaseFolder, isOutDatedBaseFolder } from '@/utils/app/basePrompts';
 import { fetchUserSettings } from '@/services/settingsService';
 import { Settings } from '@/types/settings';
 import { getAvailableModels, getFeatureFlags, getPowerPoints, getUserAppConfigs } from '@/services/adminService';
@@ -473,8 +475,9 @@ const Home = ({
 
     // CONVERSATION OPERATIONS  --------------------------------------------
 
-    const handleNewConversation = async (params = {}) => {
-        dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
+    const handleNewConversation = async (params: any = {}) => {
+        const { assistant: paramAssistant, ...conversationParams } = params;
+        dispatch({ field: 'selectedAssistant', value: paramAssistant ?? DEFAULT_ASSISTANT });
         dispatch({ field: 'page', value: 'chat' })
 
         const lastConversation = conversationsRef.current[conversationsRef.current.length - 1];
@@ -500,7 +503,7 @@ const Home = ({
             promptTemplate: null,
             isLocal: getIsLocalStorageSelection(storageSelection),
             date: getFullTimestamp(),
-            ...params
+            ...conversationParams
         };
         if (isRemoteConversation(newConversation)) uploadConversation(newConversation, foldersRef.current);
 
@@ -837,9 +840,18 @@ const Home = ({
                     }
                     if (AdminConfigTypes.WEB_SEARCH in data) {
                         const webSearchData = data[AdminConfigTypes.WEB_SEARCH];
-                        if (webSearchData && webSearchData.allowUserWebSearchKeys !== undefined) {
-                            dispatch({ field: 'canAddWebSearchApiKey', value: webSearchData.allowUserWebSearchKeys });
+                        if (webSearchData) {
+                            // console.log("Web Search Data: ", webSearchData);
+                            if (webSearchData.allowUserWebSearchKeys !== undefined) {
+                                dispatch({ field: 'canAddWebSearchApiKey', value: webSearchData.allowUserWebSearchKeys });
+                            }
+                            
+                            if (webSearchData.webSearchUserMessage !== undefined) {
+                                dispatch({ field: 'webSearchUserMessage', value: webSearchData.webSearchUserMessage });
+                            }
+
                         }
+                        
                     }
                     if (AdminConfigTypes.USER_DOCUMENTATION_URL in data) {
                         const docUrl = data[AdminConfigTypes.USER_DOCUMENTATION_URL];
@@ -847,13 +859,30 @@ const Home = ({
                             dispatch({ field: 'userDocumentationUrl', value: docUrl });
                         }
                     }
+                    if (AdminConfigTypes.RATE_LIMIT in data) {
+                        dispatch({ field: 'adminRateLimits', value: normalizeRateLimits(data[AdminConfigTypes.RATE_LIMIT]) });
+                    }
+                    console.log("data", data);
+                    if ('groupRateLimits' in data) {
+                        const rawGroupLimits: Record<string, any> = data['groupRateLimits'] || {};
+                        const groupRateLimits = Object.entries(rawGroupLimits)
+                            .map(([groupName, rateLimit]) => ({
+                                groupName,
+                                limits: normalizeRateLimits(rateLimit).filter(
+                                    (l: any) => l && l.rate !== null && l.period !== 'Unlimited'
+                                ),
+                            }))
+                            .filter((g) => g.limits.length > 0);
+                        dispatch({ field: 'groupRateLimits', value: groupRateLimits });
+                    }
 
                 } else {
                     console.log("Failed to fetch user app configs.");
                 }
             } catch (e) {
                 console.log("Failed to fetch user app configs: ", e);
-            }  
+            }
+
         };
 
         const fetchSettings = async () => {
@@ -994,7 +1023,21 @@ const Home = ({
             return {updatedConversations: conversationsRef.current, updatedFolders, updatedPrompts};
         }
 
-        // return list of assistants 
+        // return list of layered assistants
+        const fetchLayeredAssistants = async () => {
+            try {
+                const result = await listLayeredAssistants();
+                if (result?.success && Array.isArray(result.data)) {
+                    dispatch({ field: 'layeredAssistants', value: result.data as LayeredAssistant[] });
+                }
+            } catch (e) {
+                console.log("Failed to list layered assistants: ", e);
+            } finally {
+                dispatch({ field: 'syncingLayeredAssistants', value: false });
+            }
+        };
+
+        // return list of assistants
         const fetchAssistants = async (promptList:Prompt[], foldersList: FolderInterface[]) => {
             console.log("Fetching Assistants...");
             try {
@@ -1066,6 +1109,9 @@ const Home = ({
                 dispatch({field: 'syncingConversations', value: false});
             }
 
+            // Fetch layered assistants (independent of the regular assistant fetch)
+            fetchLayeredAssistants();
+
             // Fetch assistants
             fetchAssistants(updatedPrompts, updatedFolders)
                     .then(assistantsResultPrompts => {
@@ -1095,9 +1141,9 @@ const Home = ({
                     saveFolders(updatedFolders);
 
                     const groupPrompts = filterAstsByFeatureFlags(groupsResult.groupPrompts, flags);
-                    updatedPrompts = [...updatedPrompts.filter((p : Prompt) => !p.groupId ), 
+                    updatedPrompts = [...updatedPrompts.filter((p : Prompt) => !p.groupId ),
                                         ...groupPrompts];
-                    
+
                     groupsLoaded = true;
                     console.log('sync groups complete');
                     checkAndFinalizeUpdates();
@@ -1223,6 +1269,8 @@ const Home = ({
                 // Make sure the "assistants" folder exists and create it if necessary
                 const assistantsFolder = updatedFolders.find((f:FolderInterface) => f.id === "assistants");
                 if (!assistantsFolder) updatedFolders.push( baseAssistantFolder );
+                const layeredAssistantsFolder = updatedFolders.find((f:FolderInterface) => f.id === "layered_assistants");
+                if (!layeredAssistantsFolder) updatedFolders.push( baseLayeredAssistantFolder );
                 
                 dispatch({ field: 'folders', value: updatedFolders});
                 folderIds = updatedFolders.map((f: FolderInterface) => f.id)
@@ -1356,8 +1404,24 @@ const Home = ({
         if (scrollableElement) {
             const hasScrollableContent = scrollableElement.scrollHeight > scrollableElement.clientHeight;
             dispatch({ field: 'hasScrolledToBottom', value: !hasScrollableContent });
+        } else {
+            // Element not yet in DOM; defer until dataDisclosure renders
+            dispatch({ field: 'hasScrolledToBottom', value: false });
         }
     };
+
+    useEffect(() => {
+        if (dataDisclosure?.html) {
+            // Re-check after the disclosure HTML has been rendered into the DOM
+            requestAnimationFrame(() => {
+                const scrollableElement = document.querySelector('.data-disclosure');
+                if (scrollableElement) {
+                    const hasScrollableContent = scrollableElement.scrollHeight > scrollableElement.clientHeight;
+                    dispatch({ field: 'hasScrolledToBottom', value: !hasScrollableContent });
+                }
+            });
+        }
+    }, [dataDisclosure]);
 
 
     if (session) {                          // dont want to go here if its null
@@ -1488,6 +1552,9 @@ const Home = ({
                     getDefaultModel
                 }}
             >
+                {/* Global Storage Progress Bar */}
+                <StorageProgressBar />
+
                 <Head>
                     <title>Amplify</title>
                     <meta name="description" content="ChatGPT but better." />

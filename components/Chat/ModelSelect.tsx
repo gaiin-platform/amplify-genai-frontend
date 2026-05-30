@@ -1,4 +1,5 @@
-import { IconBaselineDensityLarge, IconBaselineDensityMedium, IconBaselineDensitySmall, IconCamera, IconCameraOff, IconCurrencyDollar, IconInfoCircle } from '@tabler/icons-react';
+import { IconBaselineDensityLarge, IconBaselineDensityMedium, IconBaselineDensitySmall, IconCamera, IconCurrencyDollar, IconInfoCircle, IconVideo} from '@tabler/icons-react';
+import { TbPhotoBolt } from 'react-icons/tb';
 import { useContext, useEffect, useState, useRef } from 'react';
 
 import { useTranslation } from 'next-i18next';
@@ -81,6 +82,7 @@ export const ModelSelect: React.FC<Props> = ({
 
 
   useEffect(() => {
+    // console.log("models", models);
     setSelectModel(modelId);
     // Edge case in component use in Assistant Admin UI
     if (!isDisabled && handleModelChange && !modelId && defaultModelId) {
@@ -165,9 +167,9 @@ export const ModelSelect: React.FC<Props> = ({
   
 const getIcons = (model: Model) => {
   return <div className="ml-auto flex flex-row gap-1 opacity-70">
-          <div title={model.supportsImages ? "Supports Images in Prompts": "Does Not Support Images in Prompts"}>
-           {model.supportsImages ? <IconCamera size={18}/> : <IconCameraOff size={18}/>}
-         </div>
+          {model.supportsImageGeneration && <div title="Supports Image Generation"><TbPhotoBolt size={18}/></div>}
+          {model.supportsVideo && <div title="Supports Videos in Prompts"><IconVideo size={18}/></div>}
+          {model.supportsImages && <div title="Supports Images in Prompts"><IconCamera size={18}/></div>}
           {getCostIcon(model.inputTokenCost, model.outputTokenCost)}
           {getOutputLimitIcon(model.outputTokenLimit)}
         </div>
@@ -182,8 +184,7 @@ const getIcons = (model: Model) => {
           </label>
           <div id="legendHover" className='ml-auto relative' onMouseEnter={() => setShowLegend(true) } onMouseLeave={() => setShowLegend(false)}>
             <IconInfoCircle size={19} className='mr-1 mt-[-4px] flex-shrink-0 text-gray-600 dark:text-gray-300' />
-            {showLegend && legend(showPricingBreakdown, featureFlags)}
-            {showLegend && legend(showPricingBreakdown, featureFlags)}
+            {showLegend && legend(showPricingBreakdown, featureFlags, models.some(m => m.supportsVideo), models.some(m => m.supportsImageGeneration))}
           </div>
         </div>
       )}
@@ -257,7 +258,7 @@ const legendItem = (icon: JSX.Element, message: string) => {
   );
 };
 
-const Legend = ({ showPricingBreakdown, featureFlags }: { showPricingBreakdown: boolean, featureFlags: any }) => {
+const Legend = ({ showPricingBreakdown, featureFlags, hasVideo, hasImageGeneration }: { showPricingBreakdown: boolean, featureFlags: any, hasVideo: boolean, hasImageGeneration: boolean }) => {
   const legendRef = React.useRef<HTMLDivElement>(null);
   const [position, setPosition] = React.useState({ top: 0, left: 0, shouldFlipUp: false });
   const [isPositioned, setIsPositioned] = React.useState(false);
@@ -327,7 +328,7 @@ const Legend = ({ showPricingBreakdown, featureFlags }: { showPricingBreakdown: 
   return (
     <div 
       ref={legendRef}
-      className='text-black dark:text-white fixed w-[260px] rounded-lg border border-neutral-200 bg-white p-4 text-sm shadow-lg z-[9999] dark:border-neutral-600 dark:bg-[#343541] max-h-[min(350px,calc(100vh-100px))] overflow-y-auto'
+      className='text-black dark:text-white fixed w-[260px] rounded-lg border border-neutral-200 bg-white p-4 text-sm shadow-lg z-[9999] dark:border-neutral-600 dark:bg-[#343541] max-h-[min(450px,calc(100vh-100px))] overflow-y-auto'
       style={{
         top: position.top,
         left: position.left,
@@ -338,7 +339,10 @@ const Legend = ({ showPricingBreakdown, featureFlags }: { showPricingBreakdown: 
         Legend
       </div>
       {legendItem(<IconCamera size={16} />, "Supports Images in Prompts")}
-      {legendItem( <IconCameraOff size={16} />, "No Image Support in Prompts")}
+      {/* {legendItem( <IconCameraOff size={16} />, "No Image Support in Prompts")} */}
+      {hasVideo && legendItem( <IconVideo size={16} />, "Supports Video in Prompts")}
+      {hasImageGeneration && legendItem( <TbPhotoBolt size={16} />, "Supports Image Generation")}
+      {/* {legendItem( <IconVideoOff size={16} />, "No Video Support in Prompts")} */}
       {legendItem( <IconCurrencyDollar size={16} className='text-green-500' />, 'Inexpensive' )}
       {legendItem( <IconCurrencyDollar size={16} className='text-yellow-500' />, 'Moderate Cost' )}
       {legendItem( <IconCurrencyDollar size={16} className='text-red-500' />, 'Expensive' )}
@@ -357,8 +361,8 @@ const Legend = ({ showPricingBreakdown, featureFlags }: { showPricingBreakdown: 
   );
 };
 
-const legend = (showPricingBreakdown: boolean, featureFlags: any) => {
-  return <Legend showPricingBreakdown={showPricingBreakdown} featureFlags={featureFlags} />;
+const legend = (showPricingBreakdown: boolean, featureFlags: any, hasVideo: boolean, hasImageGeneration: boolean) => {
+  return <Legend showPricingBreakdown={showPricingBreakdown} featureFlags={featureFlags} hasVideo={hasVideo} hasImageGeneration={hasImageGeneration} />;
 };
 
 

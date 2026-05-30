@@ -377,3 +377,32 @@ pre:has(div.codeblock) {
   color: #f3f4f6 !important; /* gray-100 */
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
 }
+
+/* Loading animations for UserCostModal */
+@keyframes loading-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+.loading-bar-animated {
+  position: absolute;
+  width: 25%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  animation: loading-slide 1.5s ease-in-out infinite;
+}
+
+.loading-bar-animated::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6, #3b82f6);
+  opacity: 0.8;
+}

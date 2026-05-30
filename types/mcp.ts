@@ -48,6 +48,18 @@ export interface MCPServerConfig {
   lastError?: string;
   createdAt?: string;
   updatedAt?: string;
+  headers?: Record<string, string>;
+  oauthConnected?: boolean;
+  oauthDiscoverable?: boolean;
+}
+
+// OAuth2 configuration for an MCP server
+export interface MCPOAuth2Config {
+  clientId: string;
+  clientSecret: string;
+  authorizationUrl: string;
+  tokenUrl: string;
+  scopes?: string;
 }
 
 // MCP Server info returned from connection
@@ -67,6 +79,16 @@ export interface MCPConnectionResult {
   serverInfo?: MCPServerInfo;
   tools?: MCPTool[];
   error?: string;
+  requiresAuth?: boolean;
+  oauthDiscoverable?: boolean;
+  oauthMeta?: {
+    authorizationUrl: string;
+    tokenUrl: string;
+    registrationUrl?: string;
+    scopes?: string;
+    pkceRequired?: boolean;
+    publicClient?: boolean;
+  };
 }
 
 // MCP Tool execution result
@@ -82,6 +104,7 @@ export interface MCPServerFormData {
   name: string;
   url: string;
   transport: MCPTransport;
+  headers?: Record<string, string>;
 }
 
 // MCP Settings stored in localStorage

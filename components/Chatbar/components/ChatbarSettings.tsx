@@ -17,6 +17,8 @@ import { PythonFunctionModal } from '@/components/Operations/PythonFunctionModal
 import { AssistantWorkflowBuilder } from '@/components/AssistantWorkflows/AssistantWorkflowBuilder';
 import { ScheduledTasks } from '@/components/Agent/ScheduledTasks';
 import { ScheduledTask } from '@/types/scheduledTasks';
+import { SkillsLibrary } from '@/components/Skills';
+import { Modal } from '@/components/ReusableComponents/Modal';
 
 export const ChatbarSettings = () => {
     const { t } = useTranslation('sidebar');
@@ -24,10 +26,11 @@ export const ChatbarSettings = () => {
     const [isPyFunctionApiOpen, setIsPyFunctionApiOpen] = useState(false);
     const [isWorkflowBuilderOpen, setIsWorkflowBuilderOpen] = useState(false);
     const [isScheduledTasksOpen, setIsScheduledTasksOpen] = useState(false);
+    const [isSkillsLibraryOpen, setIsSkillsLibraryOpen] = useState(false);
     const initTaskRef = useRef<ScheduledTask | undefined>(undefined);
 
     const {
-        state: { featureFlags, syncingPrompts, canAddWebSearchApiKey, userDocumentationUrl },
+        state: { featureFlags, syncingPrompts, canAddWebSearchApiKey, userDocumentationUrl, chatEndpoint },
     } = useContext(HomeContext);
 
     let settingRef = useRef<Settings | null>(null);
@@ -140,6 +143,28 @@ export const ChatbarSettings = () => {
                     open={isMemoryDialogOpen}
                     onClose={() => setIsMemoryDialogOpen(false)}
                 />
+                </>
+            )}
+
+            {/* Skills Library */}
+            {featureFlags.skills && (
+                <>
+                <SidebarButton
+                    text={t('Skills')}
+                    icon={<IconBrain size={18} />}
+                    onClick={() => setIsSkillsLibraryOpen(true)}
+                />
+                {isSkillsLibraryOpen && chatEndpoint && (
+                    <Modal
+                        title="Skills Library"
+                        onCancel={() => setIsSkillsLibraryOpen(false)}
+                        showCancel={false}
+                        showSubmit={false}
+                        content={
+                            <SkillsLibrary chatEndpoint={chatEndpoint} onClose={() => setIsSkillsLibraryOpen(false)} />
+                        }
+                    />
+                )}
                 </>
             )}
 

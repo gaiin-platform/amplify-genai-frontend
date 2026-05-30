@@ -2,9 +2,6 @@ import React, { useState, useEffect, ReactNode, useContext, useRef } from 'react
 import { CloseSidebarButton, OpenSidebarButton } from "@/components/Sidebar/components/OpenCloseButton";
 import { FloatingActionButtons } from "@/components/Sidebar/components/FloatingActionButtons";
 import HomeContext from '@/pages/api/home/home.context';
-import { AssistantAdminUI } from '../Admin/AssistantAdminUI';
-import { AdminUI } from '../Admin/AdminUI';
-import { UserCostsModal } from '../Admin/UserCostModal';
 
 interface TabProps {
     icon: ReactNode;

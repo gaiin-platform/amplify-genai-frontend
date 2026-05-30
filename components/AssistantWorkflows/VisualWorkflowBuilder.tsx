@@ -266,7 +266,7 @@ const StepCard: React.FC<StepCardProps> = ({
 
       {/* Step Content */}
       <div className="ml-6">
-        <div className="flex items-center gap-3 mb-2">
+        <div className="flex items-center gap-3 mb-2 dark:text-amber-400">
           {getStepIcon(step.tool, step.isEmpty)}
           <div>
             <h4 className="font-medium text-gray-900 dark:text-white">

@@ -18,9 +18,10 @@ export interface AstUserConversation {
     userFeedback: string;
     conversationId: string;
     assistantId: string;
+    routedToAssistantId: string;
 }
 
-export const ConversationTable: FC<{ conversations: AstUserConversation[], supportConvAnalysis: boolean }> = ({ conversations, supportConvAnalysis }) => {
+export const ConversationTable: FC<{ conversations: AstUserConversation[], supportConvAnalysis: boolean, isLayeredAssistant?: boolean }> = ({ conversations, supportConvAnalysis, isLayeredAssistant = false }) => {
     const [sortColumn, setSortColumn] = useState<keyof AstUserConversation>('timestamp');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
     const [selectedConversation, setSelectedConversation] = useState<AstUserConversation | null>(null);
@@ -69,7 +70,7 @@ export const ConversationTable: FC<{ conversations: AstUserConversation[], suppo
             setFilteredConversations(conversations);
         } else {
             const lowercaseSearchTerm = searchTerm.toLowerCase();
-            const searchFields = ['assistantName', 'user', 'modelUsed', 'userFeedback'];
+            const searchFields = ['assistantName', 'routedToAssistantId', 'user', 'modelUsed', 'userFeedback'];
 
             // Only include analysis-specific fields in search if they're supported
             if (supportConvAnalysis) {
@@ -105,6 +106,7 @@ export const ConversationTable: FC<{ conversations: AstUserConversation[], suppo
     const allColumns: (keyof AstUserConversation)[] = [
         ...defaultColumns,
         ...analysisColumns,
+        ...(isLayeredAssistant ? ['routedToAssistantId' as keyof AstUserConversation] : []),
         'userFeedback',
         'conversationId',
         'assistantId'
@@ -159,7 +161,7 @@ export const ConversationTable: FC<{ conversations: AstUserConversation[], suppo
             }
 
             // Special handling for specific columns
-            if (['modelUsed', 'category', 'assistantName', 'user', 'employeeType', 'entryPoint'].includes(sortColumn)) {
+            if (['modelUsed', 'category', 'assistantName', 'routedToAssistantId', 'user', 'employeeType', 'entryPoint'].includes(sortColumn)) {
                 return sortDirection === 'asc'
                     ? String(aValue).localeCompare(String(bValue))
                     : String(bValue).localeCompare(String(aValue));
@@ -180,6 +182,7 @@ export const ConversationTable: FC<{ conversations: AstUserConversation[], suppo
 
     // Get column display name with proper formatting
     const getColumnDisplayName = (column: string): string => {
+        if (column === 'routedToAssistantId') return 'Routed To';
         return column
             .replace(/([A-Z])/g, ' $1') // Insert space before capital letters
             .replace(/^./, (str) => str.toUpperCase()) // Capitalize first letter
@@ -322,6 +325,16 @@ export const ConversationTable: FC<{ conversations: AstUserConversation[], suppo
                                         );
                                     }
 
+                                    if (column === 'routedToAssistantId') {
+                                        return (
+                                            <td key={column} className="px-6 py-4 whitespace-nowrap">
+                                                <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                                                    {value ? String(value).replace(/^ast[gp]?\//, '') : 'N/A'}
+                                                </span>
+                                            </td>
+                                        );
+                                    }
+
                                     if (column === 'userFeedback') {
                                         return (
                                             <td key={column} className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
@@ -393,7 +406,7 @@ const ConversationPopup: FC<{ conversation: AstUserConversation; onClose: () => 
     const [content, setContent] = useState<string>('Loading...');
     const { state: { statsService } } = useContext(HomeContext);
     const [isLoading, setIsLoading] = useState(true);
-    const [formattedMessages, setFormattedMessages] = useState<{ role: string, content: string }[]>([]);
+    const [formattedMessages, setFormattedMessages] = useState<{ role: string, content: string, routedTo?: string }[]>([]);
 
     useEffect(() => {
         const fetchContent = async () => {
@@ -411,12 +424,16 @@ const ConversationPopup: FC<{ conversation: AstUserConversation; onClose: () => 
                         const messageRegex = /User Prompt:([\s\S]*?)(?:AI Response:([\s\S]*?)(?=User Prompt:|$))/g;
                         const matches = [...formattedContent.matchAll(messageRegex)];
 
-                        const parsedMessages = [];
+                        const parsedMessages: { role: string, content: string, routedTo?: string }[] = [];
                         if (matches.length > 0) {
                             for (const match of matches) {
                                 parsedMessages.push({ role: 'user', content: match[1].trim() });
                                 if (match[2]) {
-                                    parsedMessages.push({ role: 'assistant', content: match[2].trim() });
+                                    // Extract [Routed To: xxx] marker from assistant response
+                                    const routingMatch = match[2].match(/^\[Routed To: ([^\]]+)\]\n?/);
+                                    const routedTo = routingMatch ? routingMatch[1] : undefined;
+                                    const cleanContent = routingMatch ? match[2].replace(routingMatch[0], '').trim() : match[2].trim();
+                                    parsedMessages.push({ role: 'assistant', content: cleanContent, routedTo });
                                 }
                             }
                             setFormattedMessages(parsedMessages);
@@ -446,6 +463,7 @@ const ConversationPopup: FC<{ conversation: AstUserConversation; onClose: () => 
     // Define the fields you want to show based on supportConvAnalysis
     const baseFields: (keyof AstUserConversation)[] = [
         'timestamp',
+        'routedToAssistantId',
         'assistantName',
         'user',
         'numberPrompts',
@@ -509,7 +527,10 @@ const ConversationPopup: FC<{ conversation: AstUserConversation; onClose: () => 
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-900">
                     <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center">
-                        <span>{conversation.assistantName}</span>
+                        <span>{conversation.routedToAssistantId
+                            ? <><span className="text-green-600 dark:text-green-400">{String(conversation.routedToAssistantId).replace(/^ast[gp]?\//, '')}</span><span className="mx-1 text-gray-400 text-sm font-normal">via {conversation.assistantName}</span></>
+                            : conversation.assistantName
+                        }</span>
                         <span className="mx-2 text-gray-400">•</span>
                         <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                             {formatDate(conversation.timestamp)}
@@ -547,8 +568,13 @@ const ConversationPopup: FC<{ conversation: AstUserConversation; onClose: () => 
                                                     : 'bg-yellow-50 dark:bg-yellow-900/30'
                                                 }`}
                                         >
-                                            <div className="font-medium text-sm mb-1 text-gray-700 dark:text-gray-300">
+                                            <div className="font-medium text-sm mb-1 text-gray-700 dark:text-gray-300 flex items-center gap-2">
                                                 {message.role === 'user' ? 'User' : message.role === 'assistant' ? 'Assistant' : 'System'}
+                                                {message.role === 'assistant' && message.routedTo && (
+                                                    <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                                                        ↳ {String(message.routedTo).replace(/^ast[gr]?\//, '')}
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="whitespace-pre-wrap text-gray-800 dark:text-gray-200">
                                                 {message.content}

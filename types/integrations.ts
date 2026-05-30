@@ -29,6 +29,7 @@ export interface AdminWebSearchConfig {
     provider: WebSearchProvider;
     isEnabled: boolean;
     allowUserWebSearchKeys: boolean;
+    webSearchUserMessage?: string;
     maskedKey?: string;
     lastUpdated?: string;
     api_key?: string; // Full API key stored temporarily for save operation (not from backend)

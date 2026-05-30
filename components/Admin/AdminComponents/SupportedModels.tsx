@@ -264,6 +264,8 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                     "Models Input Write Cached Token Cost/1k" )}
 
                             {modelActiveCheck('supportsSystemPrompts', isAddingAvailModel.model.supportsSystemPrompts, "Model Supports System Prompts" )}
+                            {modelActiveCheck('supportsImageGeneration', isAddingAvailModel.model.supportsImageGeneration, "Model Supports Image Generation" )}
+                            {modelActiveCheck('supportsVideo', isAddingAvailModel.model.supportsVideo, "Model Supports Video Inputs" )}
                             
                             {!isAddingAvailModel.model.id.includes('embed') && <>
                             {modelActiveCheck('supportsReasoning', isAddingAvailModel.model.supportsReasoning,
@@ -367,7 +369,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                         <thead>
                         <tr className="gradient-header text-sm">
                             {['Name', 'ID',  'Provider', 'Available', 'Supports Images', 'Supports Reasoning',
-                                'Supports System Prompts', 'Additional System Prompt',
+                                "Supports Image Generation", "Support Video", 'Supports System Prompts', 'Additional System Prompt',
                                 'Description', 'Input Context Window', 'Output Token Limit', 
                                 'Input Token Cost / 1k', 'Output Token Cost / 1k', 'Input Read Cached Token Cost / 1k', 
                                 'Input Write Cached Token Cost / 1k', 'Available to User via Amplify Group Membership',
@@ -448,7 +450,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                                     </div> }                          
                                 </td>
 
-                                {["supportsReasoning", "supportsSystemPrompts"].map((s:string) => 
+                                {["supportsReasoning", "supportsImageGeneration", "supportsVideo", "supportsSystemPrompts"].map((s:string) => 
                                     <td className="border border-neutral-500 px-4 py-2 w-[74px]" key={s}
                                         title={`Model ${camelToTitleCase(s)}`}>
                                         <div className="flex justify-center">
@@ -607,6 +609,8 @@ export const emptySupportedModel = () => {
     supportsImages: false,
     supportsReasoning: false,
     supportsSystemPrompts: false, 
+    supportsImageGeneration: false,
+    supportsVideo: false,
     systemPrompt: '',
 
     isAvailable: false,

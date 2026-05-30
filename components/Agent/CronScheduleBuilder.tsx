@@ -165,19 +165,20 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
   // Format date for input element
   const formatDateForInput = (date: Date | string | null): string => {
     if (!date) return '';
-    
+
     // If date is already a string in YYYY-MM-DD format, return it
     if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return date;
     }
-    
-    // Otherwise convert to Date object and format
+
+    // Convert to Date object and format using local date values to avoid UTC shift
     const d = new Date(date);
-    return d.toISOString().split('T')[0];
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
-  // Get today's date in YYYY-MM-DD format for min attribute
-  const today = new Date().toISOString().split('T')[0];
+  // Get today's date in YYYY-MM-DD format for min attribute (use local date, not UTC)
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   
 
   const handleRangeChange = (start : string | null, end: string | null) => {
@@ -233,6 +234,22 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
     }
   }, [customSchedule, scheduleType, startDate, endDate, showDateRange]);
 
+  // Parse a YYYY-MM-DD string as local midnight (not UTC)
+  const parseDateLocal = (dateStr: string): Date => {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d);  // month is 0-indexed
+  };
+
+  // Format a YYYY-MM-DD string for display using local interpretation
+  const formatDateStringForDisplay = (dateStr: string): string => {
+    const d = parseDateLocal(dateStr);
+    return d.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
   // Modified calculateNextRunTimes to include date range info
   const calculateNextRunTimes = (cronExpression: string) => {
     // This is a simplified version. In a real app, you'd use a library like cron-parser
@@ -276,9 +293,9 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
         schedulePattern = "Complex schedule pattern";
       }
       
-      // Parse date range for later use
-      const startDateObj = showDateRange && startDate ? new Date(startDate) : null;
-      const endDateObj = showDateRange && endDate ? new Date(endDate) : null;
+      // Parse date range for later use (as local dates, not UTC)
+      const startDateObj = showDateRange && startDate ? parseDateLocal(startDate) : null;
+      const endDateObj = showDateRange && endDate ? parseDateLocal(endDate) : null;
       
       // Set to beginning/end of day for proper comparison
       if (startDateObj) {
@@ -293,20 +310,10 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
       if (showDateRange) {
         const rangeSegments = [];
         if (startDate) {
-          const formattedStart = new Date(startDate).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-          });
-          rangeSegments.push(`from ${formattedStart}`);
+          rangeSegments.push(`from ${formatDateStringForDisplay(startDate)}`);
         }
         if (endDate) {
-          const formattedEnd = new Date(endDate).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-          });
-          rangeSegments.push(`until ${formattedEnd}`);
+          rangeSegments.push(`until ${formatDateStringForDisplay(endDate)}`);
         }
         
         if (rangeSegments.length > 0) {
@@ -540,15 +547,8 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
 
       // Add date range summary
       if (showDateRange) {
-        const format = (date: string) => {
-          return new Date(date).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-          });
-        }
-        const start = startDate ? format(startDate) : "Today";
-        const end = endDate ? format(endDate) : "Indefinitely";
+        const start = startDate ? formatDateStringForDisplay(startDate) : "Today";
+        const end = endDate ? formatDateStringForDisplay(endDate) : "Indefinitely";
         const rangeInfo = `Active period: ${start} - ${end}`;
         times.push(rangeInfo);
       }

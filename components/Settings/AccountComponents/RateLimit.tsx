@@ -12,10 +12,12 @@ interface RateLimitProps {
     period: PeriodType;
     setPeriod: (s:PeriodType) => void;
     rate: string;
-    setRate: (s:string) => void; 
+    setRate: (s:string) => void;
+    excludePeriods?: PeriodType[];
+    allowUnlimited?: boolean;
 }
 
-export const RateLimiter: FC<RateLimitProps> = ({period, setPeriod, rate, setRate}) => {
+export const RateLimiter: FC<RateLimitProps> = ({period, setPeriod, rate, setRate, excludePeriods = [], allowUnlimited = false}) => {
     
     const calcCostWidth = () => {
         return Math.max(44 + ((rate.length - 5) * 9), 44);
@@ -42,7 +44,7 @@ export const RateLimiter: FC<RateLimitProps> = ({period, setPeriod, rate, setRat
                 value={period}
                 onChange={(e) => setPeriod(e.target.value as PeriodType)}
             >
-                {periodTypes.map(p =>  <option key={p} className="ml-6" value={p}>{p}</option>)}
+                {periodTypes.filter(p => (allowUnlimited || p !== 'Unlimited') && (p === period || !excludePeriods.includes(p))).map(p =>  <option key={p} className="ml-6" value={p}>{p}</option>)}
             </select>
 
             {period !== UNLIMITED && (

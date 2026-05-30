@@ -1,5 +1,6 @@
 import { AttachedDocument } from "@/types/attacheddocument";
 import { Prompt } from "@/types/prompt";
+import { LayeredAssistant } from "@/types/layeredAssistant";
 ////////////// Ast Admin Groups /////////////////
 
 export enum GroupUpdateType {
@@ -37,6 +38,7 @@ export interface Group {
   name: string;
   members: Members;
   assistants: Prompt[];
+  layeredAssistants?: LayeredAssistant[];
   groupTypes: string[];
   trackCoversations?: boolean;
   supportConvAnalysis?: boolean;

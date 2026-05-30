@@ -158,6 +158,12 @@ export const baseAgentFolder =  { id: "agents",
                                   pinned: true
                               } as FolderInterface;
 
+export const baseLayeredAssistantFolder = { id: "layered_assistants",
+                                            date: getDate(),
+                                            name: "Layered Assistants",
+                                            type: "prompt",
+                                          } as FolderInterface;
+
 export const baseAssistantCreator: Prompt = {
     "id": "assistant_creator",
     "type": "root_prompt",

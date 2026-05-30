@@ -132,7 +132,7 @@ export const fetchMultipleRemoteConversations = async (conversationIds: string[]
         const conversationData = await fetchConversationPresignedUrls(result.presignedUrls);
         if (!conversationData) return { data: null };
         return {
-            data: conversationData.map((c: number[]) => uncompressConversation(c)),
+            data: conversationData.map((c: number[]) => uncompressConversation(c)).filter((c: Conversation | undefined) => c !== undefined),
             failedByNoSuchKey: result.noSuchKeyConversations,
             failed: result.failed
         };

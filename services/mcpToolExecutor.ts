@@ -57,7 +57,8 @@ export async function executeMCPTool(
   serverUrl: string,
   toolName: string,
   args: Record<string, unknown>,
-  timeout: number = 120000
+  timeout: number = 120000,
+  customHeaders: Record<string, string> = {}
 ): Promise<MCPToolResult> {
   const requestId = generateRequestId();
 
@@ -79,7 +80,8 @@ export async function executeMCPTool(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        ...customHeaders
       },
       body: JSON.stringify(request),
       signal: controller.signal
@@ -179,7 +181,7 @@ export async function executeMCPToolByServerId(
       };
     }
 
-    return await executeMCPTool(server.url, toolName, args);
+    return await executeMCPTool(server.url, toolName, args, 120000, server.headers ?? {});
   } catch (error) {
     return {
       success: false,
