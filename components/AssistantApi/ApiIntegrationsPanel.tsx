@@ -1,32 +1,30 @@
-import React, { useContext, useState, useRef, useEffect } from 'react';
-import { IconPlus, IconHomeBolt, IconWorldBolt, IconTools, IconTool, IconCheck, IconChevronDown, IconLoader2 } from '@tabler/icons-react';
-import AgentToolsSelector from '../Agent/AgentToolsSelector';
+import React, { useContext, useState } from 'react';
+import { IconChevronDown, IconChevronRight, IconPlus, IconHomeBolt } from '@tabler/icons-react';
 import { ApiItemSelector } from './ApiSelector';
-import APIComponent, { ExternalAPI } from './CustomAPIEditor';
+import { ExternalAPI } from './CustomAPIEditor';
 import HomeContext from '@/pages/api/home/home.context';
 import { PythonFunctionModal } from '../Operations/PythonFunctionModal';
 import { createPortal } from 'react-dom';
-import { OpDef } from '@/types/op';
+import { OpBindingMode, OpDef } from '@/types/op';
+import CompositeActionsPanel from '../Agent/CompositeActionsPanel';
+import AgentToolsSelector from '../Agent/AgentToolsSelector';
+import { COMPOSITE_FUNCTION_CATEGORIES } from '@/utils/app/compositeFunctions';
 
 interface ApiIntegrationsPanelProps {
-  // API-related props
   availableApis: OpDef[] | null;
 
   selectedApis?: OpDef[];
   setSelectedApis?: (apis: OpDef[]) => void;
   onClickApiItem?: (api: OpDef) => void;
-  
-  // External API props
+
   apiInfo?: ExternalAPI[];
   setApiInfo?: React.Dispatch<React.SetStateAction<ExternalAPI[]>>;
-  
-  // Agent tools props
+
   availableAgentTools?: Record<string, any> | null;
   builtInAgentTools?: string[];
   setBuiltInAgentTools?: (tools: string[]) => void;
   onClickAgentTool?: (tool: any) => void;
-  
-  // python function onsave
+
   pythonFunctionOnSave?: (fn: { name: string; code: string; schema: string; testJson: string }) => void;
   allowCreatePythonFunction?: boolean;
 
@@ -37,287 +35,263 @@ interface ApiIntegrationsPanelProps {
   labelPrefix?: string;
   compactDisplay?: boolean;
   height?: string;
-  
-  // Configuration props
   allowConfiguration?: boolean;
 }
 
-
 const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
-  availableApis, selectedApis=[], setSelectedApis, apiInfo=[], setApiInfo,
-  availableAgentTools, builtInAgentTools=[], setBuiltInAgentTools,
-  pythonFunctionOnSave = (fn: { name: string; code: string; schema: string; testJson: string }) => {}, 
-  allowCreatePythonFunction = true, onClickApiItem, onClickAgentTool, hideApisPanel=[], disabled=false, 
-  labelPrefix="Manage", showDetails, compactDisplay=false, height,
-  allowConfiguration = false
+  availableApis,
+  selectedApis = [],
+  setSelectedApis,
+  apiInfo = [],
+  setApiInfo,
+  availableAgentTools,
+  builtInAgentTools = [],
+  setBuiltInAgentTools,
+  pythonFunctionOnSave = () => {},
+  allowCreatePythonFunction = true,
+  onClickApiItem,
+  onClickAgentTool,
+  hideApisPanel = [],
+  disabled = false,
+  showDetails,
+  labelPrefix = 'Manage',
+  compactDisplay = false,
+  height,
+  allowConfiguration = false,
 }) => {
-  const { state: {featureFlags, lightMode} } = useContext(HomeContext);
-  const [shownAPIComponent, setShownAPIComponent] = useState<string>(compactDisplay ? "internal": "");
+  const { state: { featureFlags, lightMode } } = useContext(HomeContext);
+
+  // Top-level toggle — nothing shown unless this is open
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  // Track which composite IDs are explicitly checked — independent of the ops list
+  // so composites that share ops don't bleed checked state into each other.
+  const [selectedCompositeIds, setSelectedCompositeIds] = useState<Set<string>>(new Set());
+
+  // Sub-section disclosure states (inside the panel)
+  const [agentToolsOpen, setAgentToolsOpen] = useState(true);
+  const [integrationApisOpen, setIntegrationApisOpen] = useState(true);
+  const [customApisOpen, setCustomApisOpen] = useState(true);
+  const [rawActionsOpen, setRawActionsOpen] = useState(false);
+
   const [addFunctionOpen, setAddFunctionOpen] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const dropdownButtonRef = useRef<HTMLButtonElement>(null);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
 
-  const buttonClassName = (shown: boolean) => 
-  `mt-2 mb-4 flex items-center gap-2 rounded border border-neutral-500 px-3 py-2 text-sm text-neutral-800 dark:border-neutral-700 dark:text-neutral-100 whitespace-nowrap ${shown ? "bg-neutral-300 dark:bg-[#40414F]" : "hover:bg-neutral-200 dark:hover:bg-neutral-700"}`;
+  const showInternal = featureFlags.integrations && !hideApisPanel?.includes('internal');
+  const showTools = featureFlags.agentTools && !hideApisPanel?.includes('tools');
+  const showCustom = featureFlags.pythonFunctionApis && !hideApisPanel?.includes('custom');
 
-  // Define integration options
-  const integrationOptions = [
-    {
-      id: "custom",
-      label: `${labelPrefix} Custom APIs`,
-      loadingLabel: "Loading APIs...",
-      icon: <IconTools className='flex-shrink-0' size={18} />,
-      isEnabled: featureFlags.pythonFunctionApis && !hideApisPanel?.includes("custom"),
-      isDisabled: !availableApis
-    },
-    {
-      id: "internal",
-      label: `${labelPrefix} Internal APIs`,
-      loadingLabel: "Loading APIs...",
-      icon: <IconHomeBolt className='flex-shrink-0' size={18} />,
-      isEnabled: featureFlags.integrations && !hideApisPanel?.includes("internal"),
-      isDisabled: !availableApis
-    },
-    // {
-    //   id: "external",
-    //   label: `${labelPrefix} External APIs`,
-    //   loadingLabel: null,
-    //   icon: <IconWorldBolt className='flex-shrink-0' size={18} />,
-    //   isEnabled: featureFlags.assistantApis && !hideApisPanel?.includes("external"),
-    //   isDisabled: false
-    // },
-    {
-      id: "tools",
-      label: `${labelPrefix} Agent Tools`,
-      loadingLabel: "Loading Agent Tools...",
-      icon: <IconTool className='flex-shrink-0' size={18} />,
-      isEnabled: featureFlags.agentTools && !hideApisPanel?.includes("tools"),
-      isDisabled: !availableAgentTools
-    }
-  ];
-
-  const handleOptionClick = (optionId: string, allowClose=false) => {
-    setShownAPIComponent(!allowClose ? optionId :
-      (shownAPIComponent === optionId ? "" : optionId)
-    );
-    setDropdownOpen(false);
-  };
-
-  const getCurrentSelectionDisplayName = () => {
-    if (!shownAPIComponent) return <>Select Integration Type</>;
-    const option = integrationOptions.find(opt => opt.id === shownAPIComponent);
-    return option ? <>{option.icon} {option.label}</> : <>Select Integration Type</>;
-  };
-
-  const renderApiComponent = () => {
-    const option = integrationOptions.find(opt => opt.id === shownAPIComponent);
-    // Check if the option exists and if it's disabled
-
-    if (option && option.isDisabled) {
-      return (
-        <div className="flex items-center justify-center py-8">
-          <IconLoader2 size={24} className="animate-spin text-gray-500 mr-2" />
-          <span>{option.loadingLabel ?? "Loading..."}</span>
-        </div>
-      );
-    }
-    switch (shownAPIComponent) {
-      case "internal":
-        if (featureFlags.integrations) return (
-          <ApiItemSelector
-            availableApis={availableApis}
-            selectedApis={selectedApis}
-            setSelectedApis={setSelectedApis ?? ((apis: any[]) => {})}
-            apiFilter={(apis) => apis.filter((api) => api.type !== "custom")}
-            onClickApiItem={onClickApiItem}
-            disableSelection={setSelectedApis === undefined || disabled}
-            showDetails={showDetails}
-            allowConfiguration={allowConfiguration}
-          />
-        );
-      case "external":
-        if (featureFlags.assistantApis && setApiInfo) return (
-          <APIComponent
-            apiInfo={apiInfo}
-            setApiInfo={setApiInfo}
-            disabled={disabled}
-          />
-        );
-      case "custom":
-        if (featureFlags.pythonFunctionApis) return (
-          <>
-            {allowCreatePythonFunction && featureFlags.createPythonFunctionApis &&
-              <div className="relative">
-              {!disabled && <button 
-                className={`${buttonClassName(false)} absolute -top-6 mt-0 z-10 shadow-xl`}
-                onClick={() => setAddFunctionOpen(!addFunctionOpen)}
-              >
-                <IconPlus size={18} />
-                Add Custom APIs
-              </button>}
-            </div>}
-            <ApiItemSelector
-              availableApis={availableApis}
-              selectedApis={selectedApis}
-              setSelectedApis={setSelectedApis ?? ((apis: any[]) => {})}
-              apiFilter={(apis) => apis.filter((api) => api.type === "custom")}
-              onClickApiItem={onClickApiItem}
-              disableSelection={setSelectedApis === undefined || disabled}
-              showDetails={showDetails}
-              allowConfiguration={allowConfiguration}
-            />
-            
-            {addFunctionOpen && createPortal(
-              <div className={lightMode}>
-                <PythonFunctionModal
-                  onCancel={() => setAddFunctionOpen(false)}
-                  onSave={pythonFunctionOnSave}
-                />
-              </div>,
-              document.body
-            )}
-          </>
-        );
-      case "tools":
-        if (featureFlags.agentTools) return (
-          <AgentToolsSelector 
-            availableTools={availableAgentTools || {}}
-            selectedTools={builtInAgentTools}
-            onToolSelectionChange={setBuiltInAgentTools ?? ((tools: string[]) => {})}
-            onClickAgentTool={onClickAgentTool}
-            disableSelection={setBuiltInAgentTools === undefined || disabled}
-            showDetails={showDetails}
-          />
-        );
-    }
-    return <></>;
-  };
-
-  // Handle dropdown positioning and outside clicks
-  useEffect(() => {
-    const updatePosition = () => {
-      if (dropdownButtonRef.current) {
-        const rect = dropdownButtonRef.current.getBoundingClientRect();
-        setDropdownPosition({
-          top: rect.bottom + window.scrollY,
-          left: rect.left + window.scrollX,
-          width: rect.width
-        });
-      }
-    };
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        dropdownOpen &&
-        dropdownButtonRef.current &&
-        !dropdownButtonRef.current.contains(e.target as Node)
-      ) {
-        // Check if the click was inside the dropdown menu
-        const dropdownMenu = document.getElementById('api-dropdown-menu');
-        if (!dropdownMenu || !dropdownMenu.contains(e.target as Node)) {
-          setDropdownOpen(false);
-        }
-      }
-    };
-
-    if (dropdownOpen) {
-      updatePosition();
-      document.addEventListener('mousedown', handleClickOutside);
-      window.addEventListener('resize', updatePosition);
-      window.addEventListener('scroll', updatePosition);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition);
-    };
-  }, [dropdownOpen]);
-
-  // Create portal for dropdown
-  const renderDropdown = () => {
-    if (!dropdownOpen) return null;
-
-    return createPortal(
-      <div 
-        id="api-dropdown-menu"
-        className="fixed z-[1000] rounded-md bg-white shadow-lg dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700"
-        style={{ 
-          top: `${dropdownPosition.top}px`, 
-          left: `${dropdownPosition.left}px`,
-          width: `${dropdownPosition.width}px`
-        }}
-      >
-        <div className="py-1" role="menu" aria-orientation="vertical">
-          {integrationOptions.map(option => 
-            option.isEnabled && (
-              <button 
-                key={option.id}
-                className="w-full text-left dark:text-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center gap-2"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  handleOptionClick(option.id);
-                }}
-                disabled={option.isDisabled}
-              >
-                {option.icon}
-                {option.isDisabled && option.loadingLabel ? option.loadingLabel : option.label}
-                {option.id === shownAPIComponent && <IconCheck className="text-green-500 ml-auto" size={18} />}
-              </button>
-            )
-          )}
-        </div>
-      </div>,
-      document.body
-    );
-  };
+  if (!showInternal && !showTools && !showCustom) return null;
 
   return (
     <div className="text-black dark:text-neutral-100">
-      {compactDisplay ? (
-        <div className="pb-2 relative">
-          <button 
-            ref={dropdownButtonRef}
-            className={`${buttonClassName(!!shownAPIComponent)} w-full`}
-            onClick={(e) => {
-              e.stopPropagation();
-              setDropdownOpen(!dropdownOpen);
-            }}
-          >
-            {getCurrentSelectionDisplayName()}
-            <IconChevronDown className="ml-auto" size={18} />
-          </button>
-          
-          {renderDropdown()}
-        </div>
-      ) : (
-        <div className="flex flex-row gap-4 items-center">
-          {integrationOptions.map(option => 
-            option.isEnabled && (
-              <button 
-                key={option.id}
-                className={buttonClassName(shownAPIComponent === option.id)}
-                onClick={() => handleOptionClick(option.id, true)}
-                disabled={option.isDisabled}
-              >
-                {option.icon}
-                {option.isDisabled && option.loadingLabel ? option.loadingLabel : option.label}
-              </button>
-            )
+      {/* ── Toggle button ── */}
+      <button
+        className="flex items-center gap-2 rounded border border-neutral-500 px-4 py-2 text-sm text-neutral-800 dark:border-neutral-700 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+        onClick={() => setPanelOpen(v => !v)}
+        disabled={disabled}
+      >
+        <IconHomeBolt size={18} className="flex-shrink-0" />
+        Add Actions
+        {panelOpen
+          ? <IconChevronDown size={14} stroke={2} />
+          : <IconChevronRight size={14} stroke={2} />}
+      </button>
+
+      {/* ── Panel contents — only shown when open ── */}
+      {panelOpen && (
+        <div className="mt-3 flex flex-col gap-3">
+
+          {/* ── Composite / task-based actions ── */}
+          {showInternal && availableApis && setSelectedApis && (
+            <CompositeActionsPanel
+              selectedId={null}
+              allOperations={availableApis}
+              selectedApis={selectedApis}
+              allowConfiguration={true}
+              isSelected={(fn) => selectedCompositeIds.has(fn.id)}
+              onToggle={(fn, checked) => {
+                if (disabled) return;
+                // Update the independent composite-ID set
+                setSelectedCompositeIds(prev => {
+                  const next = new Set(prev);
+                  if (checked) next.add(fn.id); else next.delete(fn.id);
+                  return next;
+                });
+                // Also sync the flat ops list
+                const opNames = new Set(fn.operations);
+                const ops = availableApis.filter(a => opNames.has(a.name));
+                if (checked) {
+                  const existingNames = new Set(selectedApis.map(a => a.name));
+                  const toAdd = ops.filter(op => !existingNames.has(op.name));
+                  if (toAdd.length > 0) setSelectedApis([...selectedApis, ...toAdd]);
+                } else {
+                  // Only remove ops that are NOT used by any other still-checked composite
+                  const otherCheckedOps = new Set(
+                    Array.from(selectedCompositeIds)
+                      .filter(id => id !== fn.id)
+                      .flatMap(id => {
+                        const cat = ([] as any[]).concat(
+                          ...COMPOSITE_FUNCTION_CATEGORIES.map(c => c.functions)
+                        ).find((f: any) => f.id === id);
+                        return cat ? cat.operations : [];
+                      })
+                  );
+                  setSelectedApis(selectedApis.filter(a => !opNames.has(a.name) || otherCheckedOps.has(a.name)));
+                }
+              }}
+              onUpdateOpBindings={(opId, modes, values) => {
+                // Update bindings on the matching selected op
+                const updatedApis = selectedApis.map(a => {
+                  if (a.id !== opId) return a;
+                  const bindings: Record<string, { value: string; mode: OpBindingMode }> = {};
+                  if (a.parameters?.properties) {
+                    Object.keys(a.parameters.properties).forEach(param => {
+                      const mode = modes[param] || 'ai';
+                      const value = values[param] || '';
+                      if (value || mode === 'manual') {
+                        bindings[param] = { value, mode };
+                      }
+                    });
+                  }
+                  return { ...a, bindings };
+                });
+                setSelectedApis(updatedApis);
+              }}
+              onSelect={(fn) => {
+                // Fallback click handler (used when no checkbox mode)
+                if (disabled) return;
+                const opNames = new Set(fn.operations);
+                const ops = availableApis.filter(a => opNames.has(a.name));
+                const existingNames = new Set(selectedApis.map(a => a.name));
+                const toAdd = ops.filter(op => !existingNames.has(op.name));
+                if (toAdd.length > 0) setSelectedApis([...selectedApis, ...toAdd]);
+              }}
+            />
           )}
+
+          {/* ── Browse individual actions ── */}
+          <div className="border-t border-neutral-300 dark:border-neutral-600 pt-2">
+            <button
+              className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors select-none mb-2"
+              onClick={() => setRawActionsOpen(v => !v)}
+            >
+              {rawActionsOpen
+                ? <IconChevronDown size={13} stroke={2} />
+                : <IconChevronRight size={13} stroke={2} />}
+              Browse individual actions
+            </button>
+
+            {rawActionsOpen && (
+              <div className="flex flex-col gap-3 pl-2">
+
+                {/* Agent Tools */}
+                {showTools && availableAgentTools && Object.keys(availableAgentTools).length > 0 && (
+                  <div>
+                    <button
+                      className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors select-none mb-1"
+                      onClick={() => setAgentToolsOpen(v => !v)}
+                    >
+                      {agentToolsOpen
+                        ? <IconChevronDown size={12} stroke={2} />
+                        : <IconChevronRight size={12} stroke={2} />}
+                      Agent Tools
+                    </button>
+                    {agentToolsOpen && (
+                      <AgentToolsSelector
+                        availableTools={availableAgentTools}
+                        selectedTools={builtInAgentTools}
+                        onToolSelectionChange={setBuiltInAgentTools ?? (() => {})}
+                        onClickAgentTool={onClickAgentTool}
+                        disableSelection={!setBuiltInAgentTools || disabled}
+                        showDetails={true}
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Integration APIs */}
+                {showInternal && availableApis && (
+                  <div>
+                    <button
+                      className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors select-none mb-1"
+                      onClick={() => setIntegrationApisOpen(v => !v)}
+                    >
+                      {integrationApisOpen
+                        ? <IconChevronDown size={12} stroke={2} />
+                        : <IconChevronRight size={12} stroke={2} />}
+                      Integration APIs
+                    </button>
+                    {integrationApisOpen && (
+                      <ApiItemSelector
+                        availableApis={availableApis}
+                        selectedApis={selectedApis}
+                        setSelectedApis={setSelectedApis ?? (() => {})}
+                        apiFilter={apis => apis.filter(api => api.type !== 'custom')}
+                        onClickApiItem={onClickApiItem}
+                        disableSelection={!setSelectedApis || disabled}
+                        showDetails={true}
+                        allowConfiguration={true}
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Custom APIs */}
+                {showCustom && availableApis && (
+                  <div>
+                    <button
+                      className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors select-none mb-1"
+                      onClick={() => setCustomApisOpen(v => !v)}
+                    >
+                      {customApisOpen
+                        ? <IconChevronDown size={12} stroke={2} />
+                        : <IconChevronRight size={12} stroke={2} />}
+                      Custom APIs
+                    </button>
+                    {customApisOpen && (
+                      <>
+                        {allowCreatePythonFunction && featureFlags.createPythonFunctionApis && !disabled && (
+                          <button
+                            className="mb-2 flex items-center gap-2 rounded border border-neutral-500 px-3 py-2 text-sm text-neutral-800 dark:border-neutral-700 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                            onClick={() => setAddFunctionOpen(true)}
+                          >
+                            <IconPlus size={16} />
+                            Add Custom API
+                          </button>
+                        )}
+                        <ApiItemSelector
+                          availableApis={availableApis}
+                          selectedApis={selectedApis}
+                          setSelectedApis={setSelectedApis ?? (() => {})}
+                          apiFilter={apis => apis.filter(api => api.type === 'custom')}
+                          onClickApiItem={onClickApiItem}
+                          disableSelection={!setSelectedApis || disabled}
+                          showDetails={true}
+                          allowConfiguration={true}
+                        />
+                      </>
+                    )}
+                  </div>
+                )}
+
+              </div>
+            )}
+          </div>
+
         </div>
       )}
-      
-      <div 
-        className={height ? "overflow-y-auto" : ""}
-        style={height ? { maxHeight: height } : {}}
-      >
-        {renderApiComponent()}
-      </div>
+
+      {addFunctionOpen && createPortal(
+        <div className={lightMode}>
+          <PythonFunctionModal
+            onCancel={() => setAddFunctionOpen(false)}
+            onSave={pythonFunctionOnSave}
+          />
+        </div>,
+        document.body
+      )}
     </div>
   );
 };
 
-export default ApiIntegrationsPanel; 
+export default ApiIntegrationsPanel;
