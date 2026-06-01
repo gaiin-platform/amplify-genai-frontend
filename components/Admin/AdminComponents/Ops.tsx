@@ -42,7 +42,7 @@ export const opsSearchToggleButtons = (opSearchBy: string, setOpSearchBy: Dispat
         </div>
         <div className="w-[200px]" >
             <Search
-            placeholder={'Search actions...'}
+            placeholder={'Search tools...'}
             searchTerm={opSearchTerm}
             onSearch={(searchTerm: string) => setOpSearchTerm(searchTerm.toLocaleLowerCase())}
             />

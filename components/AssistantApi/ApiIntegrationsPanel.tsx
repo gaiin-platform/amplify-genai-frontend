@@ -36,6 +36,9 @@ interface ApiIntegrationsPanelProps {
   compactDisplay?: boolean;
   height?: string;
   allowConfiguration?: boolean;
+  /** When true, skip the outer toggle button and "Browse individual tools" collapsible
+   *  and render Agent Tools + Integration APIs directly (used in StepEditor). */
+  flat?: boolean;
 }
 
 const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
@@ -58,6 +61,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
   compactDisplay = false,
   height,
   allowConfiguration = false,
+  flat = false,
 }) => {
   const { state: { featureFlags, lightMode } } = useContext(HomeContext);
 
@@ -82,26 +86,11 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
 
   if (!showInternal && !showTools && !showCustom) return null;
 
-  return (
-    <div className="text-black dark:text-neutral-100">
-      {/* ── Toggle button ── */}
-      <button
-        className="flex items-center gap-2 rounded border border-neutral-500 px-4 py-2 text-sm text-neutral-800 dark:border-neutral-700 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
-        onClick={() => setPanelOpen(v => !v)}
-        disabled={disabled}
-      >
-        <IconHomeBolt size={18} className="flex-shrink-0" />
-        Add Actions
-        {panelOpen
-          ? <IconChevronDown size={14} stroke={2} />
-          : <IconChevronRight size={14} stroke={2} />}
-      </button>
+  // In flat mode the inner content is always visible — no toggle, no collapsible.
+  const innerContent = (
+    <div className="flex flex-col gap-3">
 
-      {/* ── Panel contents — only shown when open ── */}
-      {panelOpen && (
-        <div className="mt-3 flex flex-col gap-3">
-
-          {/* ── Composite / task-based actions ── */}
+          {/* ── Composite / task-based tools ── */}
           {showInternal && availableApis && setSelectedApis && (
             <CompositeActionsPanel
               selectedId={null}
@@ -169,20 +158,22 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
             />
           )}
 
-          {/* ── Browse individual actions ── */}
-          <div className="border-t border-neutral-300 dark:border-neutral-600 pt-2">
-            <button
-              className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors select-none mb-2"
-              onClick={() => setRawActionsOpen(v => !v)}
-            >
-              {rawActionsOpen
-                ? <IconChevronDown size={13} stroke={2} />
-                : <IconChevronRight size={13} stroke={2} />}
-              Browse individual actions
-            </button>
+          {/* ── Browse individual tools ── */}
+          <div className={flat ? '' : 'border-t border-neutral-300 dark:border-neutral-600 pt-2'}>
+            {!flat && (
+              <button
+                className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors select-none mb-2"
+                onClick={() => setRawActionsOpen(v => !v)}
+              >
+                {rawActionsOpen
+                  ? <IconChevronDown size={13} stroke={2} />
+                  : <IconChevronRight size={13} stroke={2} />}
+                Browse individual tools
+              </button>
+            )}
 
-            {rawActionsOpen && (
-              <div className="flex flex-col gap-3 pl-2">
+            {(flat || rawActionsOpen) && (
+              <div className={`flex flex-col gap-3 ${flat ? '' : 'pl-2'}`}>
 
                 {/* Agent Tools */}
                 {showTools && availableAgentTools && Object.keys(availableAgentTools).length > 0 && (
@@ -209,7 +200,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
                   </div>
                 )}
 
-                {/* Integration APIs */}
+                {/* Integrations */}
                 {showInternal && availableApis && (
                   <div>
                     <button
@@ -219,7 +210,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
                       {integrationApisOpen
                         ? <IconChevronDown size={12} stroke={2} />
                         : <IconChevronRight size={12} stroke={2} />}
-                      Integration APIs
+                      Integrations
                     </button>
                     {integrationApisOpen && (
                       <ApiItemSelector
@@ -279,6 +270,34 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
           </div>
 
         </div>
+  );
+
+  return (
+    <div className="text-black dark:text-neutral-100">
+      {flat ? (
+        innerContent
+      ) : (
+        <>
+          {/* ── Toggle button ── */}
+          <button
+            className="flex items-center gap-2 rounded border border-neutral-500 px-4 py-2 text-sm text-neutral-800 dark:border-neutral-700 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+            onClick={() => setPanelOpen(v => !v)}
+            disabled={disabled}
+          >
+            <IconHomeBolt size={18} className="flex-shrink-0" />
+            Add Tools
+            {panelOpen
+              ? <IconChevronDown size={14} stroke={2} />
+              : <IconChevronRight size={14} stroke={2} />}
+          </button>
+
+          {/* ── Panel contents — only shown when open ── */}
+          {panelOpen && (
+            <div className="mt-3">
+              {innerContent}
+            </div>
+          )}
+        </>
       )}
 
       {addFunctionOpen && createPortal(

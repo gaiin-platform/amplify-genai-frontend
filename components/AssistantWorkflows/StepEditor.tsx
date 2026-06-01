@@ -92,7 +92,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
       });
     }
     const updatedStep = cloneDeep(step);
-    updatedStep.tool = tool.name ?? tool.id ?? tool;
+    updatedStep.tool = tool.tool_name ?? tool.name ?? tool.id ?? String(tool);
     updatedStep.args = args;
     onStepChange(updatedStep);
   };
@@ -349,6 +349,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
                 allowCreatePythonFunction={false}
                 allowConfiguration={false}
                 compactDisplay={false}
+                flat={true}
               />
             </div>
           )}

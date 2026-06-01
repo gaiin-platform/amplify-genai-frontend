@@ -332,7 +332,7 @@ const CompositeActionsPanel: React.FC<CompositeActionsPanelProps> = ({
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center">
           <IconTool size={16} stroke={1.5} className="mr-2" />
-          Available Actions
+          Available Tools
         </h3>
         <button
           onClick={toggleAll}
@@ -348,7 +348,7 @@ const CompositeActionsPanel: React.FC<CompositeActionsPanelProps> = ({
 
       <div className="mb-3">
         <Search
-          placeholder="Search actions by name..."
+          placeholder="Search tools by name..."
           searchTerm={searchTerm}
           onSearch={setSearchTerm}
         />
