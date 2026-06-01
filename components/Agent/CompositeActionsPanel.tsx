@@ -89,6 +89,7 @@ const CompositeActionsPanel: React.FC<CompositeActionsPanelProps> = ({ onSelect,
     functions: cat.functions.filter(
       (fn) =>
         searchTerm === '' ||
+        cat.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
         fn.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         fn.description.toLowerCase().includes(searchTerm.toLowerCase())
     ),

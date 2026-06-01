@@ -69,13 +69,15 @@ export const ActionSetList: FC<LoadActionSetModalProps> = ({ onLoad }) => {
   };
 
   const filteredSets = actionSets.filter(set => {
-    const nameMatch = set?.name && typeof set.name === 'string'
-      ? set.name.toLowerCase().includes(searchTerm.toLowerCase())
-      : false;
-    const tagMatch = set?.tags && Array.isArray(set.tags)
-      ? set.tags.some(tag => typeof tag === 'string' && tag.toLowerCase().includes(searchTerm.toLowerCase()))
-      : false;
-    return nameMatch || tagMatch;
+    if (!searchTerm) return true;
+    const q = searchTerm.toLowerCase();
+    const nameMatch = typeof set?.name === 'string' && set.name.toLowerCase().includes(q);
+    const setTagMatch = Array.isArray(set?.tags) && set.tags.some(tag => typeof tag === 'string' && tag.toLowerCase().includes(q));
+    const actionTagMatch = Array.isArray(set?.actions) && set.actions.some((action: any) => {
+      const opTags: string[] = action?.operation?.tags ?? action?.tags ?? [];
+      return opTags.some((tag: string) => typeof tag === 'string' && tag.toLowerCase().includes(q));
+    });
+    return nameMatch || setTagMatch || actionTagMatch;
   });
 
   return (
