@@ -163,6 +163,13 @@ const StepEditor: React.FC<StepEditorProps> = ({
     setIsGenerating(true);
     
     try {
+      // Pass only the steps that come BEFORE the current step so the AI knows
+      // what {{stepName.fieldName}} references are available to wire in.
+      const priorSteps = (allSteps || [])
+        .slice(0, currentStepIndex ?? (allSteps?.length ?? 0))
+        .filter(s => !!s.stepName && s.outputs && s.outputs.length > 0)
+        .map(s => ({ stepName: s.stepName as string, outputs: s.outputs }));
+
       const result: AIStepGenerationResult = await generateSingleStep(
         aiDescription,
         step.tool || null,
@@ -171,7 +178,8 @@ const StepEditor: React.FC<StepEditorProps> = ({
         chatEndpoint!,
         getDefaultModel,
         defaultAccount,
-        statsService
+        statsService,
+        priorSteps
       );
 
       if (result.success && result.step) {
