@@ -360,7 +360,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                                                     tool_name: api.name,
                                                                     description: api.description || '',
                                                                     parameters: api.parameters,
-                                                                    tags: ['API', 'Integration'],
+                                                                    tags: (api.tags ?? []).filter((t: string) => !['all', 'default'].includes(t)),
                                                                     type: 'api',
                                                                     iconSize: 12,
                                                                 };
@@ -614,6 +614,17 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                             </div>
                         )}
 
+                        {/* Backend tags */}
+                        {selectedOp.tags && selectedOp.tags.filter((t: string) => !['all', 'default'].includes(t)).length > 0 && (
+                            <div className="mt-3 mb-2 flex flex-wrap gap-1.5">
+                                {selectedOp.tags.filter((t: string) => !['all', 'default'].includes(t)).map((tag: string) => (
+                                    <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                                        {tag}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+
                         {selectedOp.description ? (
                             <div className="bg-blue-50 dark:bg-[#3e3f4b] border border-blue-100 dark:border-neutral-600 rounded-md p-3 mb-6 flex items-start">
                                 <IconInfoCircle size={18} stroke={1.5} className="text-blue-600 dark:text-blue-400 mt-0.5 mr-2 flex-shrink-0" />
@@ -759,6 +770,17 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                 </button>
                             </div>
                         </div>
+
+                        {/* Backend tags */}
+                        {selectedOp.tags && selectedOp.tags.filter((t: string) => !['all', 'default'].includes(t)).length > 0 && (
+                            <div className="mt-3 mb-2 flex flex-wrap gap-1.5">
+                                {selectedOp.tags.filter((t: string) => !['all', 'default'].includes(t)).map((tag: string) => (
+                                    <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                                        {tag}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
 
                         {selectedOp.description ? (
                             <div className="bg-blue-50 dark:bg-[#3e3f4b] border border-blue-100 dark:border-neutral-600 rounded-md p-3 mb-6 flex items-start">
@@ -927,15 +949,6 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                                             <h4 className="font-medium text-gray-900 dark:text-white ml-2">
                                                                 {action2.customName || formatOperationName(action2.name) || 'Unnamed Action'}
                                                             </h4>
-                                                            {action2.operation?.type === 'api' && (
-                                                                <div className="ml-2 flex flex-wrap gap-1">
-                                                                    {['API', 'Integration'].map((tag) => (
-                                                                        <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-900 dark:bg-blue-900/30 dark:text-blue-300">
-                                                                            {tag}
-                                                                        </span>
-                                                                    ))}
-                                                                </div>
-                                                            )}
                                                         </div>
                                                         
                                                         {action2.customDescription ? (
@@ -947,7 +960,24 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                                                 {action2.operation.description.split('\n')[0]}
                                                             </p>
                                                         ) : null}
-                                                        
+
+                                                        {/* Backend tags */}
+                                                        {(() => {
+                                                            const opTags: string[] = action2.operation?.tags ?? action2.tags ?? [];
+                                                            const visibleTags = opTags.filter((t: string) =>
+                                                                !['all', 'default'].includes(t));
+                                                            if (visibleTags.length === 0) return null;
+                                                            return (
+                                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                    {visibleTags.map((tag: string) => (
+                                                                        <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                                                                            {tag}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            );
+                                                        })()}
+
                                                         {/* Parameters display */}
                                                         {(() => {
                                                             // Use pre-configured bindings if present, otherwise fall back to schema properties

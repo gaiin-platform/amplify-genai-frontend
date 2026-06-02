@@ -7,6 +7,8 @@ import {
   IconAlertCircle,
   IconLoader2,
   IconPlugConnectedX,
+  IconAdjustments,
+  IconX,
 } from '@tabler/icons-react';
 import { translateIntegrationIcon } from '../Integrations/IntegrationsDialog';
 
@@ -18,12 +20,26 @@ import {
 import Search from '../Search';
 import { getOperationIcon } from '@/utils/app/integrations';
 import { getConnectedIntegrations } from '@/services/oauthIntegrationsService';
+import { Checkbox } from '@/components/ReusableComponents/CheckBox';
+import ApiParameterBindingEditor from '../AssistantApi/ApiParameterBindingEditor';
+import ActionButton from '../ReusableComponents/ActionButton';
+import { OpBindingMode, OpDef } from '@/types/op';
 
 interface CompositeActionsPanelProps {
   onSelect: (fn: CompositeFunction) => void;
   selectedId?: string | null;
   /** Live operations list from the backend — used to determine composite availability */
   allOperations: any[] | null;
+  /** Optional: whether a composite is currently selected (for checkbox mode) */
+  isSelected?: (fn: CompositeFunction) => boolean;
+  /** Optional: called when the composite checkbox is toggled */
+  onToggle?: (fn: CompositeFunction, checked: boolean) => void;
+  /** Whether to show the ⚙ parameter configuration button */
+  allowConfiguration?: boolean;
+  /** Currently selected/configured ops (used to read existing bindings) */
+  selectedApis?: OpDef[];
+  /** Callback to update bindings on a specific op within this composite */
+  onUpdateOpBindings?: (opId: string, modes: Record<string, OpBindingMode>, values: Record<string, string>) => void;
 }
 
 const getIcon = (opName: string) => {
@@ -31,7 +47,16 @@ const getIcon = (opName: string) => {
   return <IconComponent size={18} />;
 };
 
-const CompositeActionsPanel: React.FC<CompositeActionsPanelProps> = ({ onSelect, selectedId, allOperations }) => {
+const CompositeActionsPanel: React.FC<CompositeActionsPanelProps> = ({
+  onSelect,
+  selectedId,
+  allOperations,
+  isSelected,
+  onToggle,
+  allowConfiguration = false,
+  selectedApis = [],
+  onUpdateOpBindings,
+}) => {
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>(
     Object.fromEntries(COMPOSITE_FUNCTION_CATEGORIES.map((c) => [c.id, true]))
   );
@@ -89,6 +114,7 @@ const CompositeActionsPanel: React.FC<CompositeActionsPanelProps> = ({ onSelect,
     functions: cat.functions.filter(
       (fn) =>
         searchTerm === '' ||
+        cat.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
         fn.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         fn.description.toLowerCase().includes(searchTerm.toLowerCase())
     ),
@@ -104,9 +130,60 @@ const CompositeActionsPanel: React.FC<CompositeActionsPanelProps> = ({ onSelect,
   const connectedCategories = filteredCategories.filter((cat) => isCategoryConnected(cat));
   const disconnectedCategories = filteredCategories.filter((cat) => !isCategoryConnected(cat));
 
+  // Per-composite config state: map of compositeId -> { opName -> { modes, values } }
+  const [configExpandedId, setConfigExpandedId] = useState<string | null>(null);
+  const [compositeParamModes, setCompositeParamModes] = useState<Record<string, Record<string, Record<string, OpBindingMode>>>>({});
+  const [compositeParamValues, setCompositeParamValues] = useState<Record<string, Record<string, Record<string, string>>>>({});
+
+  const handleParamModeChange = (compositeId: string, opId: string, param: string, mode: OpBindingMode) => {
+    setCompositeParamModes(prev => {
+      const updated = {
+        ...prev,
+        [compositeId]: {
+          ...prev[compositeId],
+          [opId]: { ...(prev[compositeId]?.[opId] ?? {}), [param]: mode },
+        },
+      };
+      if (onUpdateOpBindings) {
+        onUpdateOpBindings(opId, updated[compositeId][opId], compositeParamValues[compositeId]?.[opId] ?? {});
+      }
+      return updated;
+    });
+  };
+
+  const handleParamValueChange = (compositeId: string, opId: string, param: string, value: string) => {
+    setCompositeParamValues(prev => {
+      const updated = {
+        ...prev,
+        [compositeId]: {
+          ...prev[compositeId],
+          [opId]: { ...(prev[compositeId]?.[opId] ?? {}), [param]: value },
+        },
+      };
+      if (onUpdateOpBindings) {
+        onUpdateOpBindings(opId, compositeParamModes[compositeId]?.[opId] ?? {}, updated[compositeId][opId]);
+      }
+      return updated;
+    });
+  };
+
   const renderCard = (fn: CompositeFunction, connected: boolean) => {
-    const isSelected = selectedId === fn.id;
+    const isHighlighted = selectedId === fn.id;
     const available = connected && isCompositeAvailable(fn);
+    const checked = isSelected ? isSelected(fn) : false;
+    const hasCheckbox = !!onToggle;
+    const isConfigOpen = configExpandedId === fn.id;
+
+    // Resolved ops that exist in the live backend list
+    const resolvedOps: OpDef[] = allOperations
+      ? (fn.operations
+          .map(opName => (allOperations as OpDef[]).find(op => op.name === opName))
+          .filter(Boolean) as OpDef[])
+      : [];
+
+    const hasConfigurableOps = resolvedOps.some(
+      op => op.parameters?.properties && Object.keys(op.parameters.properties).length > 0
+    );
 
     // Use the first op name for the icon
     const firstOpName = fn.operations[0] ?? fn.id;
@@ -115,18 +192,92 @@ const CompositeActionsPanel: React.FC<CompositeActionsPanelProps> = ({ onSelect,
       <div
         key={fn.id}
         className={`api-item border transition-all duration-200 ease-in-out
-          ${available ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}
-          ${isSelected && available
+          ${!available ? 'cursor-not-allowed opacity-60' : ''}
+          ${isHighlighted && available
             ? 'border-blue-400 dark:border-blue-500 bg-gradient-to-br from-blue-100 via-blue-50 to-blue-100 dark:from-blue-900/40 dark:via-blue-800/30 dark:to-blue-900/40 shadow-lg'
             : 'border-gray-400 dark:border-gray-500 bg-gradient-to-br from-gray-200 via-gray-100 to-gray-300 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 shadow-lg hover:shadow-xl'
           }`}
         style={{ padding: '10px', margin: '10px 0', borderRadius: '8px' }}
-        onClick={() => available && onSelect(fn)}
+        onClick={() => !hasCheckbox && available && onSelect(fn)}
       >
-        <span className="flex flex-row gap-2 mt-[1px] font-bold text-gray-800 dark:text-gray-100">
-          {getIcon(firstOpName)}
-          {fn.name}
-        </span>
+        {/* Card header row */}
+        <div className="flex flex-row items-center">
+          {hasCheckbox ? (
+            <Checkbox
+              id={`composite-${fn.id}`}
+              label={fn.name}
+              checked={checked}
+              onChange={(c) => available && onToggle!(fn, c)}
+              bold={true}
+              disabled={!available}
+            />
+          ) : (
+            <span className="flex flex-row gap-2 mt-[1px] font-bold text-gray-800 dark:text-gray-100 cursor-pointer">
+              {getIcon(firstOpName)}
+              {fn.name}
+            </span>
+          )}
+
+          {/* ⚙ Config button */}
+          {allowConfiguration && available && hasConfigurableOps && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setConfigExpandedId(isConfigOpen ? null : fn.id);
+              }}
+              className="ml-2 -mt-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-1"
+              title="Configure composite parameters"
+            >
+              <IconAdjustments size={18} />
+            </button>
+          )}
+        </div>
+
+        {/* Composite description */}
+        {fn.description && (
+          <p className="text-sm text-gray-700 dark:text-gray-300 mt-1 leading-relaxed">
+            {fn.description}
+          </p>
+        )}
+
+        {/* Per-op parameter configuration panel */}
+        {allowConfiguration && isConfigOpen && resolvedOps.length > 0 && (
+          <div
+            className="relative py-3 mb-4 border-t border-b border-neutral-200 dark:border-neutral-600 bg-gray-100 dark:bg-gray-700 rounded-md mt-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="absolute right-2 top-2 z-10">
+              <ActionButton
+                title="Collapse Configurations"
+                handleClick={(e) => {
+                  e.stopPropagation();
+                  setConfigExpandedId(null);
+                }}
+              >
+                <IconX size={18} />
+              </ActionButton>
+            </div>
+
+            {resolvedOps.map((op) => {
+              const opHasParams = op.parameters?.properties && Object.keys(op.parameters.properties).length > 0;
+              if (!opHasParams) return null;
+              return (
+                <div key={op.id} className="mb-4 px-3">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                    {op.name}
+                  </p>
+                  <ApiParameterBindingEditor
+                    paramSource={op.parameters}
+                    paramModes={compositeParamModes[fn.id]?.[op.id] ?? {}}
+                    paramValues={compositeParamValues[fn.id]?.[op.id] ?? {}}
+                    onParamModeChange={(param, mode) => handleParamModeChange(fn.id, op.id, param, mode)}
+                    onParamValueChange={(param, value) => handleParamValueChange(fn.id, op.id, param, value)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };
@@ -181,7 +332,7 @@ const CompositeActionsPanel: React.FC<CompositeActionsPanelProps> = ({ onSelect,
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center">
           <IconTool size={16} stroke={1.5} className="mr-2" />
-          Available Actions
+          Available Tools
         </h3>
         <button
           onClick={toggleAll}
@@ -197,7 +348,7 @@ const CompositeActionsPanel: React.FC<CompositeActionsPanelProps> = ({ onSelect,
 
       <div className="mb-3">
         <Search
-          placeholder="Search actions by name..."
+          placeholder="Search tools by name..."
           searchTerm={searchTerm}
           onSearch={setSearchTerm}
         />
