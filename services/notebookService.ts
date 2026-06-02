@@ -105,7 +105,16 @@ export const createNotebook = async (
 };
 
 export const deleteNotebook = async (id: string): Promise<boolean> => {
-    const result = await notebookCall('DELETE', `/notebooks/${encodeURIComponent(id)}`);
+    // delete_exclusive_sources=true so sources belonging only to this notebook are
+    // deleted (matching the confirm dialog's promise), while sources shared with
+    // other notebooks are merely unlinked. Without this flag the backend defaults
+    // to False and leaves orphaned source records behind.
+    const result = await notebookCall(
+        'DELETE',
+        `/notebooks/${encodeURIComponent(id)}`,
+        null,
+        { delete_exclusive_sources: true },
+    );
     return result !== null;
 };
 
@@ -534,22 +543,141 @@ export const buildChatContext = async (
     });
 };
 
+// Sends the per-source/per-note context_config (not a pre-built context blob),
+// so the backend builds context in the same round-trip — this avoids a separate
+// /chat/context call and stops a potentially large context payload from bouncing
+// through the browser.
+//
+// Older backends' /chat/execute predates context_config and require a pre-built
+// `context` field instead (they 422 on context_config). To stay compatible with
+// both, we try the fast single-round-trip path first and, only if it fails, fall
+// back to building context via /chat/context and resending. The fast path stays
+// fast on merged backends; the fallback costs one extra round-trip on older ones.
 export const sendChatMessage = async (
+    notebookId: string,
     sessionId: string,
     message: string,
-    context: BuildContextResponse['context'],
+    selections: ContextSelections,
     modelOverride?: string,
 ): Promise<{ session_id: string; messages: ChatMessage[] } | null> => {
+    const fast = await notebookCall<{ session_id: string; messages: ChatMessage[] }>(
+        'POST',
+        '/chat/execute',
+        {
+            session_id: sessionId,
+            message,
+            context_config: buildContextConfig(selections),
+            model_override: modelOverride,
+        },
+    );
+    if (fast) return fast;
+
+    const built = await buildChatContext(notebookId, selections);
+    if (!built) return null;
     return notebookCall<{ session_id: string; messages: ChatMessage[] }>(
         'POST',
         '/chat/execute',
         {
             session_id: sessionId,
             message,
-            context,
+            context: built.context,
             model_override: modelOverride,
         },
     );
+};
+
+export interface ChatStreamHandlers {
+    // Token delta to append to the in-flight assistant message.
+    onDelta: (delta: string) => void;
+    // Final, canonical persisted message list (real IDs, cleaned content).
+    onComplete: (data: { session_id: string; messages: ChatMessage[] }) => void;
+}
+
+// Streams a chat response token-by-token from the dedicated streaming endpoint
+// (a Lambda Function URL in prod, or open-notebook's /api/chat/execute/stream
+// directly in dev). Unlike sendChatMessage this bypasses the buffering
+// requestOp/Lambda proxy and reads the SSE body incrementally, mirroring how the
+// regular Amplify chat streams. Resolves once the `complete` event arrives;
+// throws on a non-OK response, a `error` SSE event, or a network/transport
+// failure (callers can fall back to sendChatMessage if nothing has streamed yet).
+export const streamChatMessage = async (
+    endpoint: string,
+    accessToken: string,
+    sessionId: string,
+    message: string,
+    selections: ContextSelections,
+    handlers: ChatStreamHandlers,
+    modelOverride?: string,
+    abortSignal?: AbortSignal,
+): Promise<void> => {
+    const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+        },
+        signal: abortSignal,
+        body: JSON.stringify({
+            session_id: sessionId,
+            message,
+            context_config: buildContextConfig(selections),
+            model_override: modelOverride,
+        }),
+    });
+
+    if (!res.ok || !res.body) {
+        throw new Error(`Chat stream request failed: ${res.status} ${res.statusText}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    const handleEvent = (raw: string) => {
+        // An SSE event is one or more lines; we only care about `data:` lines.
+        const data = raw
+            .split('\n')
+            .filter((l) => l.startsWith('data:'))
+            .map((l) => l.replace(/^data:\s?/, ''))
+            .join('\n');
+        if (!data) return;
+        let evt: any;
+        try {
+            evt = JSON.parse(data);
+        } catch {
+            return; // ignore keep-alives / non-JSON frames
+        }
+        switch (evt.type) {
+            case 'delta':
+                if (evt.content) handlers.onDelta(evt.content);
+                break;
+            case 'complete':
+                handlers.onComplete({
+                    session_id: evt.session_id,
+                    messages: Array.isArray(evt.messages) ? evt.messages : [],
+                });
+                break;
+            case 'error':
+                throw new Error(evt.message || 'Chat stream error.');
+            // 'user_message' is echoed back; the client already rendered it
+            // optimistically, so we ignore it.
+        }
+    };
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let sep: number;
+        while ((sep = buffer.indexOf('\n\n')) !== -1) {
+            const rawEvent = buffer.slice(0, sep);
+            buffer = buffer.slice(sep + 2);
+            handleEvent(rawEvent);
+        }
+    }
+    // Flush any trailing event without a terminating blank line.
+    if (buffer.trim()) handleEvent(buffer);
 };
 
 // -----------------------------------------------------------------------------
@@ -618,6 +746,106 @@ export const askKnowledgeBaseSimple = async (
     params: AskRequest,
 ): Promise<AskResponse | null> => {
     return notebookCall<AskResponse>('POST', '/search/ask/simple', params);
+};
+
+export interface AskStreamHandlers {
+    // The strategy step decides which searches to run; surfaced for progress UI.
+    onStrategy?: (
+        searches: { term: string; instructions: string }[],
+        reasoning: string,
+    ) => void;
+    // Intermediate sub-answers as each retrieval is summarized.
+    onAnswer?: (content: string) => void;
+    // The synthesized final answer (the value the UI renders).
+    onFinalAnswer: (content: string) => void;
+    onComplete?: (finalAnswer: string | null) => void;
+}
+
+// Streams an "ask" answer from the dedicated streaming endpoint
+// (NOTEBOOK_ASK_STREAM_ENDPOINT — the chat-stream Lambda Function URL with "/ask"
+// appended in prod, or Open Notebook's /api/search/ask directly in dev). Mirrors
+// streamChatMessage: the caller passes the full endpoint and we fetch it as-is.
+// The ask graph runs several sequential model calls — strategy -> per-search
+// answers -> final synthesis — which routinely exceeds the 29s API Gateway cap
+// on the requestOp/notebook_proxy path, so it MUST NOT go through
+// askKnowledgeBaseSimple in production. Resolves once the stream ends; throws on
+// a non-OK response, an `error` SSE event, or a transport failure (callers can
+// fall back to the non-streaming endpoint if nothing has streamed yet).
+export const streamAskQuestion = async (
+    endpoint: string,
+    accessToken: string,
+    params: AskRequest,
+    handlers: AskStreamHandlers,
+    abortSignal?: AbortSignal,
+): Promise<void> => {
+    const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+        },
+        signal: abortSignal,
+        body: JSON.stringify(params),
+    });
+
+    if (!res.ok || !res.body) {
+        throw new Error(`Ask stream request failed: ${res.status} ${res.statusText}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    const handleEvent = (raw: string) => {
+        const data = raw
+            .split('\n')
+            .filter((l) => l.startsWith('data:'))
+            .map((l) => l.replace(/^data:\s?/, ''))
+            .join('\n');
+        if (!data) return;
+        let evt: any;
+        try {
+            evt = JSON.parse(data);
+        } catch {
+            return; // ignore keep-alives / non-JSON frames
+        }
+        switch (evt.type) {
+            case 'strategy':
+                handlers.onStrategy?.(
+                    Array.isArray(evt.searches) ? evt.searches : [],
+                    evt.reasoning || '',
+                );
+                break;
+            case 'answer':
+                if (evt.content) handlers.onAnswer?.(evt.content);
+                break;
+            case 'final_answer':
+                if (typeof evt.content === 'string') handlers.onFinalAnswer(evt.content);
+                break;
+            case 'complete':
+                handlers.onComplete?.(
+                    typeof evt.final_answer === 'string' ? evt.final_answer : null,
+                );
+                break;
+            case 'error':
+                throw new Error(evt.message || 'Ask stream error.');
+        }
+    };
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let sep: number;
+        while ((sep = buffer.indexOf('\n\n')) !== -1) {
+            const rawEvent = buffer.slice(0, sep);
+            buffer = buffer.slice(sep + 2);
+            handleEvent(rawEvent);
+        }
+    }
+    // Flush any trailing event without a terminating blank line.
+    if (buffer.trim()) handleEvent(buffer);
 };
 
 // -----------------------------------------------------------------------------

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { getSession } from 'next-auth/react';
 import {
     IconAlertCircle,
     IconChevronDown,
@@ -7,7 +8,9 @@ import {
     IconSearch,
     IconSparkles,
 } from '@tabler/icons-react';
+import HomeContext from '@/pages/api/home/home.context';
 import {
+    AskRequest,
     ModelDefaults,
     SearchResponse,
     SearchResult,
@@ -18,6 +21,7 @@ import {
     getNote,
     listSources,
     searchKnowledgeBase,
+    streamAskQuestion,
 } from '@/services/notebookService';
 
 type Tab = 'ask' | 'search';
@@ -112,6 +116,10 @@ const scoreFor = (r: SearchResult): number =>
     r.relevance ?? r.similarity ?? r.score ?? 0;
 
 export const AskSearchPage = () => {
+    const {
+        state: { notebookAskStreamEndpoint },
+    } = useContext(HomeContext);
+
     const [tab, setTab] = useState<Tab>('ask');
 
     // Shared state
@@ -121,6 +129,7 @@ export const AskSearchPage = () => {
     // Ask state
     const [question, setQuestion] = useState<string>('');
     const [asking, setAsking] = useState<boolean>(false);
+    const [askStatus, setAskStatus] = useState<string | null>(null);
     const [answer, setAnswer] = useState<string | null>(null);
     const [answerCitations, setAnswerCitations] = useState<Citation[]>([]);
     const [askError, setAskError] = useState<string | null>(null);
@@ -168,8 +177,15 @@ export const AskSearchPage = () => {
             const sourceById = new Map<string, SourceListItem>();
             if (needSources) {
                 const all = await listSources({ limit: 500 });
-                for (const s of all) sourceById.set(s.id, s);
+                for (const s of all) {
+                    sourceById.set(s.id, s);
+                    const recordId = s.id.includes(':') ? s.id.split(':').slice(1).join(':') : s.id;
+                    if (recordId !== s.id) sourceById.set(recordId, s);
+                }
             }
+
+            const sourceName = (s: SourceListItem): string =>
+                s.title || s.asset?.file_path || s.asset?.url || '(untitled source)';
 
             const citations: Citation[] = [];
             let n = 1;
@@ -177,7 +193,8 @@ export const AskSearchPage = () => {
                 const fullId = `${r.type}:${r.id}`;
                 let label = '(untitled)';
                 if (r.type === 'source') {
-                    label = sourceById.get(fullId)?.title || '(untitled source)';
+                    const found = sourceById.get(fullId) || sourceById.get(r.id);
+                    label = found ? sourceName(found) : '(untitled source)';
                 } else if (r.type === 'note') {
                     const note = await getNote(fullId);
                     label = note?.title || '(untitled note)';
@@ -192,37 +209,96 @@ export const AskSearchPage = () => {
         [],
     );
 
-    const handleAsk = async () => {
-        if (!canAsk || !defaults?.default_chat_model) return;
-        setAsking(true);
-        setAnswer(null);
-        setAnswerCitations([]);
-        setAskError(null);
-
-        const result = await askKnowledgeBaseSimple({
-            question: question.trim(),
-            strategy_model: defaults.default_chat_model,
-            answer_model: defaults.default_chat_model,
-            final_answer_model: defaults.default_chat_model,
-        });
-
-        if (!result) {
-            setAsking(false);
-            setAskError(
-                'Failed to get an answer. Make sure chat and embedding models are configured.',
-            );
-            return;
-        }
-
-        setAnswer(result.answer);
+    const finalizeAnswer = async (text: string) => {
+        setAnswer(text);
         try {
-            const { orderedRefs } = renderAnswer(result.answer);
+            const { orderedRefs } = renderAnswer(text);
             const citations = await resolveCitations(orderedRefs);
             setAnswerCitations(citations);
         } catch {
             // Non-fatal — answer renders without citation labels.
         }
-        setAsking(false);
+    };
+
+    const handleAsk = async () => {
+        if (!canAsk || !defaults?.default_chat_model) return;
+        setAsking(true);
+        setAskStatus(null);
+        setAnswer(null);
+        setAnswerCitations([]);
+        setAskError(null);
+
+        const params: AskRequest = {
+            question: question.trim(),
+            strategy_model: defaults.default_chat_model,
+            answer_model: defaults.default_chat_model,
+            final_answer_model: defaults.default_chat_model,
+        };
+
+        // Non-streaming path. The ask graph runs several sequential model calls,
+        // so this only succeeds where the whole pipeline fits inside the 29s
+        // notebook_proxy/API Gateway cap — otherwise it 504s. Used only when no
+        // stream endpoint is configured, or as a fallback if the stream dies
+        // before producing an answer.
+        const askNonStreaming = async () => {
+            const result = await askKnowledgeBaseSimple(params);
+            if (!result) {
+                throw new Error(
+                    'Failed to get an answer. Make sure chat and embedding models are configured.',
+                );
+            }
+            await finalizeAnswer(result.answer);
+        };
+
+        try {
+            if (notebookAskStreamEndpoint) {
+                const session = await getSession();
+                const accessToken = (session as any)?.accessToken;
+                if (!accessToken) throw new Error('Not authenticated.');
+
+                let finalText: string | null = null;
+                try {
+                    setAskStatus('Planning searches…');
+                    await streamAskQuestion(notebookAskStreamEndpoint, accessToken, params, {
+                        onStrategy: (searches) =>
+                            setAskStatus(
+                                searches.length
+                                    ? `Searching (${searches.length} ${
+                                          searches.length === 1 ? 'query' : 'queries'
+                                      })…`
+                                    : 'Planning searches…',
+                            ),
+                        onAnswer: () => setAskStatus('Reading sources…'),
+                        onFinalAnswer: (content) => {
+                            finalText = content;
+                            setAskStatus('Writing answer…');
+                        },
+                        onComplete: (fa) => {
+                            if (fa != null) finalText = fa;
+                        },
+                    });
+                } catch (streamErr) {
+                    // Stream died before any answer — fall back to the
+                    // non-streaming endpoint so a cold/misconfigured Function URL
+                    // doesn't break ask. If we already have an answer, surface it.
+                    if (finalText == null) {
+                        await askNonStreaming();
+                        return;
+                    }
+                    throw streamErr;
+                }
+
+                if (finalText == null) throw new Error('No answer was generated.');
+                await finalizeAnswer(finalText);
+            } else {
+                await askNonStreaming();
+            }
+        } catch (e: any) {
+            setAskError(e?.message || 'Failed to get an answer.');
+        } finally {
+            setAskStatus(null);
+            setAsking(false);
+        }
     };
 
     const handleSearch = async () => {
@@ -369,7 +445,7 @@ export const AskSearchPage = () => {
                             {asking ? (
                                 <>
                                     <IconLoader2 size={16} className="animate-spin" />
-                                    Thinking…
+                                    {askStatus || 'Thinking…'}
                                 </>
                             ) : (
                                 <>

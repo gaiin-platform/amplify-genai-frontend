@@ -25,6 +25,16 @@ import { RateLimit, RateLimits, HonorPersonalRateLimit } from '@/types/rateLimit
 export interface HomeInitialState {
   defaultAccount: Account | undefined;
   chatEndpoint: string | null;
+  // Direct streaming endpoint for notebook chat (bypasses the buffering
+  // requestOp/Lambda proxy so SSE token deltas reach the browser). Null when
+  // unset → notebook chat falls back to the non-streaming /chat/execute path.
+  notebookChatStreamEndpoint: string | null;
+  // Direct streaming endpoint for notebook "ask" (the multi-step RAG pipeline).
+  // Same transport as chat; the ask graph runs several sequential model calls
+  // and routinely exceeds the 29s requestOp/notebook_proxy cap, so streaming is
+  // the only viable path in production. Null when unset → ask falls back to the
+  // non-streaming /search/ask/simple path (which may 504 on long pipelines).
+  notebookAskStreamEndpoint: string | null;
   conversationStateId: string;
   loading: boolean;
   lightMode: 'light' | 'dark';
@@ -114,6 +124,8 @@ export interface HomeInitialState {
 export const initialState: HomeInitialState = {
   defaultAccount: undefined,
   chatEndpoint: null,
+  notebookChatStreamEndpoint: null,
+  notebookAskStreamEndpoint: null,
   conversationStateId: "init",
   loading: false,
   lightMode: 'dark',

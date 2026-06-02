@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { getSession } from 'next-auth/react';
 import {
     IconPlus,
     IconSend,
@@ -11,13 +12,14 @@ import {
     ContextSelections,
     Note,
     SourceListItem,
-    buildChatContext,
     createChatSession,
     deleteChatSession,
     getChatSession,
     listChatSessions,
     sendChatMessage,
+    streamChatMessage,
 } from '@/services/notebookService';
+import HomeContext from '@/pages/api/home/home.context';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 
 interface Props {
@@ -134,7 +136,21 @@ const focusReference = (domId: string) => {
     window.setTimeout(() => el.classList.remove('notebook-ref-flash'), 1500);
 };
 
+// Mirrors components/Chat/ChatInput.tsx: on mobile, Enter inserts a newline
+// (send is via the button) rather than submitting.
+const isMobile = () => {
+    const userAgent = typeof window.navigator === 'undefined' ? '' : navigator.userAgent;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i.test(
+        userAgent,
+    );
+};
+
+const COMPOSER_MAX_HEIGHT = 160;
+
 export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Props) => {
+    const {
+        state: { notebookChatStreamEndpoint },
+    } = useContext(HomeContext);
     const sourceCount = sources.length;
     const noteCount = notes.length;
     const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -148,9 +164,13 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
     const [pendingDelete, setPendingDelete] = useState<ChatSession | null>(null);
     const [deleting, setDeleting] = useState<boolean>(false);
     const [showSessionPicker, setShowSessionPicker] = useState<boolean>(false);
+    // IME composition guard — don't submit on the Enter that confirms a
+    // composition (matches the main chat input).
+    const [isTyping, setIsTyping] = useState<boolean>(false);
 
     const scrollRef = useRef<HTMLDivElement | null>(null);
     const pickerRef = useRef<HTMLDivElement | null>(null);
+    const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     // Sessions we created locally in this tab — skip the fetch-on-mount
     // for them so the optimistic user message isn't wiped.
     const locallyCreatedRef = useRef<Set<string>>(new Set());
@@ -217,6 +237,18 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
         }
     }, [messages, isSending]);
 
+    // Auto-grow the composer as the draft changes so a Shift+Enter newline is
+    // actually visible (a fixed-height textarea hides newlines as they scroll
+    // off). Mirrors the main chat input's height handling. The CSS min-height
+    // keeps the resting size at ~2 lines even though we set height inline.
+    useEffect(() => {
+        const ta = textareaRef.current;
+        if (!ta) return;
+        ta.style.height = 'auto';
+        ta.style.height = `${Math.min(ta.scrollHeight, COMPOSER_MAX_HEIGHT)}px`;
+        ta.style.overflowY = ta.scrollHeight > COMPOSER_MAX_HEIGHT ? 'auto' : 'hidden';
+    }, [draft]);
+
     useEffect(() => {
         if (!showSessionPicker) return;
         const onClick = (e: MouseEvent) => {
@@ -228,16 +260,13 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
         return () => document.removeEventListener('mousedown', onClick);
     }, [showSessionPicker]);
 
-    const handleNewSession = async () => {
-        const created = await createChatSession(notebookId);
-        if (!created) {
-            setError('Failed to create session.');
-            return;
-        }
-        locallyCreatedRef.current.add(created.id);
-        setSessions((prev) => [created, ...prev]);
-        setCurrentSessionId(created.id);
+    const handleNewSession = () => {
+        // Defer backend creation until the first message is sent, so the session
+        // is named from its content (see handleSend) instead of a placeholder
+        // like "Chat Session 12345". Until then this is a local draft session.
+        setCurrentSessionId(null);
         setMessages([]);
+        setError(null);
         setShowSessionPicker(false);
     };
 
@@ -265,7 +294,13 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
 
         let sessionId = currentSessionId;
         if (!sessionId) {
-            const title = text.length > 30 ? `${text.slice(0, 30)}…` : text;
+            // Name the session from the first message, trimmed to a clean word
+            // boundary, so the sidebar shows something relevant.
+            const trimmed = text.replace(/\s+/g, ' ').trim();
+            const title =
+                trimmed.length > 48
+                    ? `${trimmed.slice(0, 48).replace(/\s+\S*$/, '')}…`
+                    : trimmed;
             const created = await createChatSession(notebookId, title);
             if (!created) {
                 setError('Failed to create session.');
@@ -287,16 +322,61 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
         setMessages((prev) => [...prev, userMsg]);
         setIsSending(true);
 
-        try {
-            const ctxResp = await buildChatContext(notebookId, contextSelections);
-            if (!ctxResp) {
-                throw new Error('Failed to build context.');
-            }
-            const result = await sendChatMessage(sessionId, text, ctxResp.context);
+        // Either path builds context from the selections server-side, so there's
+        // no separate buildChatContext round-trip on the send path.
+        const sendNonStreaming = async () => {
+            const result = await sendChatMessage(notebookId, sessionId!, text, contextSelections);
             if (!result) {
                 throw new Error('Failed to send message.');
             }
             setMessages(result.messages);
+        };
+
+        try {
+            if (notebookChatStreamEndpoint) {
+                const session = await getSession();
+                const accessToken = (session as any)?.accessToken;
+                if (!accessToken) throw new Error('Not authenticated.');
+
+                // Placeholder assistant message we stream tokens into.
+                const aiId = `temp-ai-${Date.now()}`;
+                let acc = '';
+                let streamed = false;
+                setMessages((prev) => [...prev, { id: aiId, type: 'ai', content: '' }]);
+
+                try {
+                    await streamChatMessage(
+                        notebookChatStreamEndpoint,
+                        accessToken,
+                        sessionId,
+                        text,
+                        contextSelections,
+                        {
+                            onDelta: (delta) => {
+                                streamed = true;
+                                acc += delta;
+                                setMessages((prev) =>
+                                    prev.map((m) =>
+                                        m.id === aiId ? { ...m, content: acc } : m,
+                                    ),
+                                );
+                            },
+                            onComplete: ({ messages }) => {
+                                if (messages.length) setMessages(messages);
+                            },
+                        },
+                    );
+                } catch (streamErr) {
+                    // If the stream failed before producing any text, fall back to
+                    // the non-streaming path so a misconfigured/cold endpoint
+                    // doesn't break chat. If tokens already streamed, surface it.
+                    if (streamed) throw streamErr;
+                    setMessages((prev) => prev.filter((m) => m.id !== aiId));
+                    await sendNonStreaming();
+                }
+            } else {
+                await sendNonStreaming();
+            }
         } catch (e: any) {
             setError(e?.message || 'Failed to send message.');
             setMessages((prev) => prev.filter((m) => !m.id.startsWith('temp-')));
@@ -306,7 +386,10 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        // Enter submits; Shift+Enter inserts a newline (default textarea
+        // behavior). Skip submit during IME composition or on mobile, matching
+        // the main model chat input.
+        if (e.key === 'Enter' && !isTyping && !isMobile() && !e.shiftKey) {
             e.preventDefault();
             handleSend();
         }
@@ -423,13 +506,16 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
             <div className="border-t border-gray-200 p-3 dark:border-neutral-700">
                 <div className="flex items-end gap-2">
                     <textarea
+                        ref={textareaRef}
                         value={draft}
                         onChange={(e) => setDraft(e.target.value)}
                         onKeyDown={handleKeyDown}
+                        onCompositionStart={() => setIsTyping(true)}
+                        onCompositionEnd={() => setIsTyping(false)}
                         placeholder="Ask anything…"
                         rows={2}
                         disabled={isSending}
-                        className="flex-1 resize-none rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                        className="flex-1 resize-none rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100 min-h-[3.5rem]"
                     />
                     <button
                         onClick={handleSend}
