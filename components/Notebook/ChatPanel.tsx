@@ -1,5 +1,4 @@
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { getSession } from 'next-auth/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     IconPlus,
     IconSend,
@@ -17,9 +16,7 @@ import {
     getChatSession,
     listChatSessions,
     sendChatMessage,
-    streamChatMessage,
 } from '@/services/notebookService';
-import HomeContext from '@/pages/api/home/home.context';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 
 interface Props {
@@ -148,9 +145,6 @@ const isMobile = () => {
 const COMPOSER_MAX_HEIGHT = 160;
 
 export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Props) => {
-    const {
-        state: { notebookChatStreamEndpoint },
-    } = useContext(HomeContext);
     const sourceCount = sources.length;
     const noteCount = notes.length;
     const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -322,9 +316,9 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
         setMessages((prev) => [...prev, userMsg]);
         setIsSending(true);
 
-        // Either path builds context from the selections server-side, so there's
-        // no separate buildChatContext round-trip on the send path.
-        const sendNonStreaming = async () => {
+        // Context is built from the selections server-side, so there's no
+        // separate buildChatContext round-trip on the send path.
+        const sendMessage = async () => {
             const result = await sendChatMessage(notebookId, sessionId!, text, contextSelections);
             if (!result) {
                 throw new Error('Failed to send message.');
@@ -333,50 +327,7 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
         };
 
         try {
-            if (notebookChatStreamEndpoint) {
-                const session = await getSession();
-                const accessToken = (session as any)?.accessToken;
-                if (!accessToken) throw new Error('Not authenticated.');
-
-                // Placeholder assistant message we stream tokens into.
-                const aiId = `temp-ai-${Date.now()}`;
-                let acc = '';
-                let streamed = false;
-                setMessages((prev) => [...prev, { id: aiId, type: 'ai', content: '' }]);
-
-                try {
-                    await streamChatMessage(
-                        notebookChatStreamEndpoint,
-                        accessToken,
-                        sessionId,
-                        text,
-                        contextSelections,
-                        {
-                            onDelta: (delta) => {
-                                streamed = true;
-                                acc += delta;
-                                setMessages((prev) =>
-                                    prev.map((m) =>
-                                        m.id === aiId ? { ...m, content: acc } : m,
-                                    ),
-                                );
-                            },
-                            onComplete: ({ messages }) => {
-                                if (messages.length) setMessages(messages);
-                            },
-                        },
-                    );
-                } catch (streamErr) {
-                    // If the stream failed before producing any text, fall back to
-                    // the non-streaming path so a misconfigured/cold endpoint
-                    // doesn't break chat. If tokens already streamed, surface it.
-                    if (streamed) throw streamErr;
-                    setMessages((prev) => prev.filter((m) => m.id !== aiId));
-                    await sendNonStreaming();
-                }
-            } else {
-                await sendNonStreaming();
-            }
+            await sendMessage();
         } catch (e: any) {
             setError(e?.message || 'Failed to send message.');
             setMessages((prev) => prev.filter((m) => !m.id.startsWith('temp-')));

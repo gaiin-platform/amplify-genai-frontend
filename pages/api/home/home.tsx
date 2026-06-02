@@ -112,8 +112,6 @@ interface Props {
     cognitoClientId: string | null;
     mixPanelToken: string;
     chatEndpoint: string | null;
-    notebookChatStreamEndpoint: string | null;
-    notebookAskStreamEndpoint: string | null;
 }
 
 
@@ -122,8 +120,6 @@ const Home = ({
     cognitoDomain,
     mixPanelToken,
     chatEndpoint,
-    notebookChatStreamEndpoint,
-    notebookAskStreamEndpoint,
 }: Props) => {
     const { t } = useTranslation('chat');
     const [initialRender, setInitialRender] = useState<boolean>(true);
@@ -253,16 +249,6 @@ const Home = ({
     useEffect(() => {
         if (chatEndpoint) dispatch({ field: 'chatEndpoint', value: chatEndpoint });
     }, [chatEndpoint]);
-
-    useEffect(() => {
-        if (notebookChatStreamEndpoint)
-            dispatch({ field: 'notebookChatStreamEndpoint', value: notebookChatStreamEndpoint });
-    }, [notebookChatStreamEndpoint]);
-
-    useEffect(() => {
-        if (notebookAskStreamEndpoint)
-            dispatch({ field: 'notebookAskStreamEndpoint', value: notebookAskStreamEndpoint });
-    }, [notebookAskStreamEndpoint]);
 
     const router = useRouter();
 
@@ -1695,8 +1681,6 @@ export default Home;
 export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
 
     const chatEndpoint = process.env.CHAT_ENDPOINT;
-    const notebookChatStreamEndpoint = process.env.NOTEBOOK_CHAT_STREAM_ENDPOINT || null;
-    const notebookAskStreamEndpoint = process.env.NOTEBOOK_ASK_STREAM_ENDPOINT || null;
     const mixPanelToken = process.env.MIXPANEL_TOKEN;
     const cognitoClientId = process.env.COGNITO_CLIENT_ID;
     const cognitoDomain = process.env.COGNITO_DOMAIN;
@@ -1710,8 +1694,6 @@ export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
     return {
         props: {
             chatEndpoint,
-            notebookChatStreamEndpoint,
-            notebookAskStreamEndpoint,
             mixPanelToken,
             cognitoClientId,
             cognitoDomain,
