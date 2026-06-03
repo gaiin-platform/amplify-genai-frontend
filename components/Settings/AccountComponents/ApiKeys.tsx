@@ -97,10 +97,21 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
     const [selectedAccount, setSelectedAccount] = useState<Account | null>(defaultAccount.name === noCoaAccount.name ? validAccounts[0] || null : defaultAccount);
 
     const editedKeysRef = useRef<any>({});
+    const delegateWrapperRef = useRef<HTMLDivElement>(null);
 
     // Purpose filtering state
     const [selectedPurposeFilter, setSelectedPurposeFilter] = useState<string>("All");
     const [expandedKey, setExpandedKey] = useState<string | null>(null);
+
+    // Search / filter / sort state — Your Keys
+    const [keySearch, setKeySearch] = useState<string>('');
+    const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Inactive'>('All');
+    const [sortBy, setSortBy] = useState<'name' | 'lastAccessed' | 'expiration'>('name');
+
+    // Search / filter / sort state — Delegated Keys
+    const [delegateSearch, setDelegateSearch] = useState<string>('');
+    const [delegateStatusFilter, setDelegateStatusFilter] = useState<'All' | 'Active' | 'Inactive'>('All');
+    const [delegateSortBy, setDelegateSortBy] = useState<'name' | 'lastAccessed' | 'expiration'>('name');
 
     // MTD Cost state
     const [mtdCostData, setMtdCostData] = useState<any>(null);
@@ -108,6 +119,11 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
     const [fullAccess, setFullAccess] = useState<boolean>(true);
     const [options, setOptions] = useState<Record<string, boolean>>(cloneDeep(optionChoices));
     const [spendingLimitOpen, setSpendingLimitOpen] = useState<boolean>(false);
+
+    useEffect(() => {
+        const input = delegateWrapperRef.current?.querySelector('input');
+        if (input) input.blur();
+    }, []);
 
     const [documentComponent, setDocumentComponent] = useState<React.ReactElement | null>(null);
 
@@ -124,6 +140,46 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
             .map(key => key.purpose!)
             .filter((purpose, index, arr) => arr.indexOf(purpose) === index);
         return ["All", ...purposes];
+    };
+
+    // Returns filtered + sorted keys — works for both owner and delegate sections
+    const getFilteredSortedKeys = (
+        keys: ApiKey[],
+        search: string = keySearch,
+        status: 'All' | 'Active' | 'Inactive' = statusFilter,
+        sort: 'name' | 'lastAccessed' | 'expiration' = sortBy
+    ): ApiKey[] => {
+        let result = [...keys];
+
+        // Search
+        if (search.trim()) {
+            const q = search.trim().toLowerCase();
+            result = result.filter(k => k.applicationName?.toLowerCase().includes(q));
+        }
+
+        // Status
+        if (status === 'Active') result = result.filter(k => k.active);
+        else if (status === 'Inactive') result = result.filter(k => !k.active);
+
+        // Sort
+        result.sort((a, b) => {
+            if (sort === 'name') {
+                return (a.applicationName || '').localeCompare(b.applicationName || '');
+            }
+            if (sort === 'lastAccessed') {
+                const ta = a.lastAccessed ? new Date(a.lastAccessed).getTime() : 0;
+                const tb = b.lastAccessed ? new Date(b.lastAccessed).getTime() : 0;
+                return tb - ta;
+            }
+            if (sort === 'expiration') {
+                const ta = a.expirationDate ? new Date(a.expirationDate).getTime() : Infinity;
+                const tb = b.expirationDate ? new Date(b.expirationDate).getTime() : Infinity;
+                return ta - tb;
+            }
+            return 0;
+        });
+
+        return result;
     };
 
     // Helper function to group owner API keys by purpose
@@ -449,28 +505,32 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                         <span className="accounts-info-icon">🔐</span>
                     </h3>
                     <p className="accounts-info-description">
-                        Create and manage keys to authenticate access to Amplify services.{' '}
-                        <strong>Keys are shown only once</strong> — copy and store yours securely.
+                        Authenticate and authorize access to Amplify services. You can create keys for yourself or others.
+                    </p>
+                    <p className="accounts-info-description mt-1">
+                        <strong>⚠ Keys are shown only once</strong> — copy and store yours securely. Lost your key? Use <strong>Rotate</strong> to generate a new one while preserving all settings. If compromised, rotate or deactivate immediately.
+                    </p>
+                    <p className="accounts-info-description mt-1">
+                        Editable on active keys: <strong>Account</strong>, <strong>Expiration</strong>, <strong>Spending Limit</strong>, <strong>Access Types</strong>. Clear the calendar to remove an expiration. Toggle the green check mark to deactivate a key.
                     </p>
                     <div className="mt-3">
                         <ExpansionComponent
-                            title="Key types &amp; editing tips"
+                            title="Types of API Keys"
                             isOpened={false}
                             content={
-                                <div className="mt-1 space-y-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+                                <div className="mt-1 space-y-2.5 text-xs text-neutral-500 dark:text-neutral-400">
                                     <div className="flex flex-row gap-2 items-start">
                                         <IconUser className='flex-shrink-0 mt-0.5' style={{ strokeWidth: 2.5 }} size={14}/>
-                                        <span><span className="font-semibold">Personal</span> — acts on your behalf using your account permissions.</span>
+                                        <span><span className="font-semibold">Personal</span> — Acts on your behalf using your account's permissions and data.</span>
                                     </div>
                                     <div className="flex flex-row gap-2 items-start">
                                         <IconUser className='flex-shrink-0 mt-0.5 text-green-600' style={{ strokeWidth: 2.5 }} size={14}/>
-                                        <span><span className="font-semibold">System</span> — independent of any user; ideal for automated processes.</span>
+                                        <span><span className="font-semibold">System</span> — Operates as its own independent account, not tied to any user. Ideal for automated processes.</span>
                                     </div>
                                     <div className="flex flex-row gap-2 items-start">
                                         <IconUser className='flex-shrink-0 mt-0.5 text-yellow-500' style={{ strokeWidth: 2.5 }} size={14}/>
-                                        <span><span className="font-semibold">Delegate</span> — for another user; billing is charged to your account.</span>
+                                        <span><span className="font-semibold">Delegate</span> — Grants another user access under their own account, with billing charged to yours. You will not be able to view this key.</span>
                                     </div>
-                                    <p className="pt-0.5">Editable fields on active keys: Account, Expiration, Rate Limit, Access Types. If compromised, rotate or deactivate immediately.</p>
                                 </div>
                             }
                         />
@@ -527,7 +587,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                 Delegate{' '}
                                                 <span className="text-xs font-normal text-neutral-400 dark:text-neutral-500">(optional — bill this key to your account but let another user use it)</span>
                                             </div>
-                                            <div className="mt-2">
+                                            <div ref={delegateWrapperRef} className="mt-2 [&_input]:!border-neutral-300 [&_input]:dark:!border-neutral-600">
                                                 <EmailsAutoComplete
                                                     input={delegateInput}
                                                     setInput={setDelegateInput}
@@ -668,24 +728,50 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                         <h3 className="settings-card-title">Your API Keys</h3>
                         <p className="settings-card-description">Keys you own. Click a key to view or edit its details.</p>
                     </div>
-                    {/* Purpose Filter — inline, no absolute positioning */}
+                </div>
+                {/* Toolbar: search + status + sort + purpose */}
+                <div className="flex flex-wrap items-center gap-2 px-3 pt-3 pb-3">
+                    <input
+                        type="text"
+                        placeholder="Search by name…"
+                        value={keySearch}
+                        onChange={e => setKeySearch(e.target.value)}
+                        className="flex-1 min-w-[160px] px-3 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                    />
+                    <div className="flex items-center rounded-md border border-neutral-500 dark:border-neutral-700 overflow-hidden text-sm">
+                        {(['All', 'Active', 'Inactive'] as const).map(s => (
+                            <button
+                                key={s}
+                                onClick={() => setStatusFilter(s)}
+                                className={`px-3 py-1.5 transition-colors ${
+                                    statusFilter === s
+                                        ? 'bg-neutral-600 text-white'
+                                        : 'bg-neutral-100 dark:bg-[#2a2b32] text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+                                }`}
+                            >{s}</button>
+                        ))}
+                    </div>
+                    <select
+                        value={sortBy}
+                        onChange={e => setSortBy(e.target.value as any)}
+                        className="px-2 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                    >
+                        <option value="name">Sort: Name</option>
+                        <option value="lastAccessed">Sort: Last Accessed</option>
+                        <option value="expiration">Sort: Expiration</option>
+                    </select>
                     {getAvailablePurposes().length > 1 && (
-                        <div className="flex flex-row items-center gap-2">
-                            <label className="text-sm font-medium dark:text-neutral-200 whitespace-nowrap">
-                                Filter by purpose
-                            </label>
-                            <select
-                                className="px-2 py-1 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white text-sm"
-                                value={selectedPurposeFilter}
-                                onChange={(e) => setSelectedPurposeFilter(e.target.value)}
-                            >
-                                {getAvailablePurposes().map((purpose, i) => (
-                                    <option key={i} value={purpose}>
-                                        {purpose === 'All' ? 'All' : formatPurpose(purpose)}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                        <select
+                            className="px-2 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                            value={selectedPurposeFilter}
+                            onChange={(e) => setSelectedPurposeFilter(e.target.value)}
+                        >
+                            {getAvailablePurposes().map((purpose, i) => (
+                                <option key={i} value={purpose}>
+                                    {purpose === 'All' ? 'All purposes' : formatPurpose(purpose)}
+                                </option>
+                            ))}
+                        </select>
                     )}
                 </div>
                 <div className="settings-card-content">
@@ -695,22 +781,37 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                         </div> : (
                 <div className='overflow-x-auto'>
                 {ownerApiKeys && ownerApiKeys.length === 0 ? (
-                    <div className="text-center text-md italic text-black dark:text-neutral-200">
+                    <div className="text-center text-sm italic text-neutral-400 dark:text-neutral-500 py-3">
                         You do not have any API keys set up. Add one above.
                     </div>
-                ) : ( 
+                ) : (
                     <div className='flex flex-col gap-4'>
                         {/* API Keys Display */}
-                        {Object.entries(getOwnerApiKeysByPurpose())
-                            .filter(([purpose, _]) => selectedPurposeFilter === "All" || purpose === selectedPurposeFilter)
-                            .map(([purpose, keys]) => (
+                        {(() => {
+                            const filtered = getFilteredSortedKeys(
+                                Object.entries(getOwnerApiKeysByPurpose())
+                                    .filter(([purpose]) => selectedPurposeFilter === "All" || purpose === selectedPurposeFilter)
+                                    .flatMap(([, keys]) => keys)
+                            );
+                            if (filtered.length === 0) return (
+                                <div className="text-center text-sm italic text-neutral-400 dark:text-neutral-500 py-4">
+                                    No keys match your filters.
+                                </div>
+                            );
+                            return Object.entries(
+                                filtered.reduce((acc, key) => {
+                                    const p = key.purpose || '';
+                                    if (!acc[p]) acc[p] = [];
+                                    acc[p].push(key);
+                                    return acc;
+                                }, {} as Record<string, ApiKey[]>)
+                            ).map(([purpose, keys]) => (
                                 <div key={purpose} className="space-y-2">
                                     {selectedPurposeFilter === "All" && purpose && (
                                         <div className="flex flex-row gap-2 text-sm font-semibold justify-center text-neutral-400 dark:text-neutral-500 border-b border-neutral-500 pb-1">
                                             {formatPurpose(purpose)} Keys
                                         </div>
                                     )}
-                                    
                                     {/* Modern Card Layout */}
                                     <div className="apikeys-grid">
                                         {keys.map((apiKey: ApiKey, index: number) => {
@@ -825,7 +926,8 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                         )})}
                                     </div>
                                 </div>
-                            ))}
+                            ));
+                        })()}
                     </div>
                 )}
                 </div>
@@ -841,6 +943,38 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                         <p className="settings-card-description">Keys created by others and assigned to you. Billing is charged to the key owner&apos;s account.</p>
                     </div>
                 </div>
+                {/* Toolbar: search + status + sort */}
+                <div className="flex flex-wrap items-center gap-2 px-3 pt-3 pb-3">
+                    <input
+                        type="text"
+                        placeholder="Search by name…"
+                        value={delegateSearch}
+                        onChange={e => setDelegateSearch(e.target.value)}
+                        className="flex-1 min-w-[160px] px-3 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                    />
+                    <div className="flex items-center rounded-md border border-neutral-500 dark:border-neutral-700 overflow-hidden text-sm">
+                        {(['All', 'Active', 'Inactive'] as const).map(s => (
+                            <button
+                                key={s}
+                                onClick={() => setDelegateStatusFilter(s)}
+                                className={`px-3 py-1.5 transition-colors ${
+                                    delegateStatusFilter === s
+                                        ? 'bg-neutral-600 text-white'
+                                        : 'bg-neutral-100 dark:bg-[#2a2b32] text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+                                }`}
+                            >{s}</button>
+                        ))}
+                    </div>
+                    <select
+                        value={delegateSortBy}
+                        onChange={e => setDelegateSortBy(e.target.value as any)}
+                        className="px-2 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                    >
+                        <option value="name">Sort: Name</option>
+                        <option value="lastAccessed">Sort: Last Accessed</option>
+                        <option value="expiration">Sort: Expiration</option>
+                    </select>
+                </div>
                 <div className="settings-card-content">
                 {(!delegateApiKeys || delegateApiKeys.length === 0) ? (
                     <div className="text-center text-sm italic text-neutral-400 dark:text-neutral-500 py-3">
@@ -848,8 +982,15 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                     </div>
                 ) : (
                 <>
-                <div className="apikeys-grid">
-                    {delegateApiKeys.map((apiKey: ApiKey) => {
+                {(() => {
+                    const filteredDelegates = getFilteredSortedKeys(delegateApiKeys, delegateSearch, delegateStatusFilter, delegateSortBy);
+                    if (filteredDelegates.length === 0) return (
+                        <div className="text-center text-sm italic text-neutral-400 dark:text-neutral-500 py-4">
+                            No delegated keys match your filters.
+                        </div>
+                    );
+                    return (<div className="apikeys-grid">
+                    {filteredDelegates.map((apiKey: ApiKey) => {
                         const isExpanded = expandedKey === apiKey.api_owner_id;
                         return (
                         <div key={apiKey.api_owner_id}
@@ -934,7 +1075,8 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                             </div>
                         </div>
                     )})}
-                </div>
+                    </div>);
+                })()}
                 </>
                 )}
                 </div>
