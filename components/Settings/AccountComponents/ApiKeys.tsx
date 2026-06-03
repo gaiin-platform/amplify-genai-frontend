@@ -24,7 +24,6 @@ import ActionButton from '@/components/ReusableComponents/ActionButton';
 import { InfoBox } from '@/components/ReusableComponents/InfoBox';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
 import { fetchFile } from '@/utils/app/files';
-import { ActiveTabs } from '@/components/ReusableComponents/ActiveTabs';
 import { IconRotateClockwise2 } from '@tabler/icons-react';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import { getUserMtdCosts } from '@/services/mtdCostService';
@@ -1618,76 +1617,52 @@ const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
 
 
     const documentComponent = (loading: boolean) => {
-        return (<>
-             {loading ? (
-                    <div className="p-3 flex flex-row items-center">
-                        <LoadingIcon style={{ width: "24px", height: "24px" }}/>
-                        <span className="text-lg font-bold ml-2 text-neutral-600 dark:text-white">Loading API Documentation...</span>
-                    </div>
-            ) : (
-                <div>
-                <div className='absolute top-[130px] h-[100px] bg-pink-100 dark:bg-[#2b2c36]'> </div>
-                <ActiveTabs
-                onClose={() => {
-                    showDocsRef.current = false;
-                    setDocumentElement(null)
-                }}
-                id="ApiDocumentationTabs"
-                depth={1}
-                tabs={[
-
-                {label: `API Documentation`, 
-                title: "View Amplify API",
-                id: "viewAmplifyAPI",
-                content:
-                <div>
-                <iframe
-                    src={fileContentsRef.current}
-                    width={`${window.innerWidth * .85 }px`}
-                    height={`${window.innerHeight * 0.5}px`}
-                    onError={() => docError()}
-                    style={{ border: 'none' }} />   
-                </div>},
-                   {label: `Downloads`, 
-                    title: "Download Amplify API Help Materials",
-                    id: "downloadsAPI",
-                    content:
-                    <div className="settings-card">
-                        <div className="settings-card-header flex flex-row items-center gap-4">
-                          <h3 id="downloadsAPITabTitle" className="settings-card-title">{"Available Amplify API Documentation Formats"}</h3>
-                        </div>
-                        <div className="settings-card-content">
-                        <div className='text-lg'>
-                            {docUrlRef.current &&
-                                    <APIDownloadFile
-                                    label="Amplify API PDF"
-                                    presigned_url={docUrlRef.current}
-                                    IconSize={24}
-                                    />
-                            }
-                            {csvUrlRef.current && 
-                                <APIDownloadFile
-                                    label="Amplify API CSV"
-                                    presigned_url={csvUrlRef.current}
-                                    IconSize={24}
-                                />
-                            }
-                            {postmanUrlRef.current &&
-                                    <APIDownloadFile
-                                    label="Amplify API Postman Collection"
-                                    presigned_url={postmanUrlRef.current}
-                                    IconSize={24}
-                                    />
-                            }
-                            </div>
-                        </div>
-                    </div>}
-                ]}
-                />
+        const handleClose = () => {
+            showDocsRef.current = false;
+            setDocumentElement(null);
+        };
+        return (
+            <div className="flex flex-col">
+                {/* Toolbar */}
+                <div className="flex flex-row items-center gap-3 px-4 py-2 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2b2c36] sticky top-0 z-10">
+                    <span className="font-semibold text-neutral-800 dark:text-neutral-100 mr-auto">API Documentation</span>
+                    {!loading && (
+                        <>
+                            {docUrlRef.current && (
+                                <APIDownloadFile label="PDF" presigned_url={docUrlRef.current} IconSize={15} />
+                            )}
+                            {csvUrlRef.current && (
+                                <APIDownloadFile label="CSV" presigned_url={csvUrlRef.current} IconSize={15} />
+                            )}
+                            {postmanUrlRef.current && (
+                                <APIDownloadFile label="Postman" presigned_url={postmanUrlRef.current} IconSize={15} />
+                            )}
+                        </>
+                    )}
+                    <button
+                        onClick={handleClose}
+                        title="Close"
+                        className="ml-2 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-100 transition-colors"
+                    >
+                        <IconX size={20} />
+                    </button>
                 </div>
-            )}
-        </>);
 
+                {/* Content */}
+                {loading ? (
+                    <div className="p-4 flex flex-row items-center gap-2">
+                        <LoadingIcon style={{ width: "20px", height: "20px" }} />
+                        <span className="text-neutral-600 dark:text-neutral-300">Loading API Documentation...</span>
+                    </div>
+                ) : (
+                    <iframe
+                        src={fileContentsRef.current}
+                        style={{ width: '100%', height: `${window.innerHeight * 0.6}px`, border: 'none' }}
+                        onError={() => docError()}
+                    />
+                )}
+            </div>
+        );
     }
 
     return (
