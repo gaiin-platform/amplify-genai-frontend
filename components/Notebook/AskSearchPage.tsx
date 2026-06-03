@@ -228,16 +228,12 @@ export const AskSearchPage = () => {
             final_answer_model: defaults.default_chat_model,
         };
 
-        // The ask graph runs several sequential model calls, so this only
-        // succeeds where the whole pipeline fits inside the 29s
-        // notebook_proxy/API Gateway cap — otherwise it 504s.
+        // The ask graph runs several sequential model calls server-side; when
+        // that outlives the notebook_proxy Lambda timeout, askKnowledgeBaseSimple
+        // rejects with a timeout-aware message instead of returning null, so the
+        // catch below surfaces the real cause rather than a config red herring.
         const runAsk = async () => {
             const result = await askKnowledgeBaseSimple(params);
-            if (!result) {
-                throw new Error(
-                    'Failed to get an answer. Make sure chat and embedding models are configured.',
-                );
-            }
             await finalizeAnswer(result.answer);
         };
 
