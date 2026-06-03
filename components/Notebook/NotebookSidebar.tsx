@@ -6,21 +6,17 @@ import {
     IconMicrophone,
     IconNotebook,
     IconPlus,
-    IconSettings,
 } from '@tabler/icons-react';
 import { CloseSidebarButton } from '@/components/Sidebar/components/OpenCloseButton';
-import { LucideBook, LucideBot, LucideSearch, LucideShuffle } from './LucideIcons';
+import { LucideBook, LucideSearch } from './LucideIcons';
 
 export type NotebookSection =
     | 'notebooks'
     | 'sources'
     | 'ask'
-    | 'podcasts'
-    | 'models'
-    | 'transformations'
-    | 'settings';
+    | 'podcasts';
 
-type SectionGroup = 'COLLECT' | 'PROCESS' | 'CREATE' | 'MANAGE';
+type SectionGroup = 'COLLECT' | 'PROCESS' | 'CREATE';
 
 interface SectionItem {
     id: NotebookSection;
@@ -35,12 +31,9 @@ const SECTIONS: SectionItem[] = [
     { id: 'notebooks', label: 'Notebooks', icon: <LucideBook size={22} />, group: 'PROCESS' },
     { id: 'ask', label: 'Ask and Search', icon: <LucideSearch size={22} />, group: 'PROCESS' },
     { id: 'podcasts', label: 'Podcasts', icon: <IconMicrophone size={22} />, group: 'CREATE' },
-    { id: 'models', label: 'Models', icon: <LucideBot size={22} />, group: 'MANAGE' },
-    { id: 'transformations', label: 'Transformations', icon: <LucideShuffle size={22} />, group: 'MANAGE' },
-    { id: 'settings', label: 'Settings', icon: <IconSettings size={22} />, group: 'MANAGE' },
 ];
 
-const GROUP_ORDER: SectionGroup[] = ['COLLECT', 'PROCESS', 'CREATE', 'MANAGE'];
+const GROUP_ORDER: SectionGroup[] = ['COLLECT', 'PROCESS', 'CREATE'];
 
 interface NotebookSidebarProps {
     section: NotebookSection;
