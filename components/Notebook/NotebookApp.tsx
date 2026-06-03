@@ -17,20 +17,14 @@ import { CreateNotebookDialog } from './CreateNotebookDialog';
 import { NotebookDetail } from './NotebookDetail';
 import { NotebookSidebar, NotebookSection } from './NotebookSidebar';
 import { SourcesPage } from './SourcesPage';
-import { ModelsPage } from './ModelsPage';
 import { AskSearchPage } from './AskSearchPage';
 import { PodcastsPage } from './PodcastsPage';
-import { TransformationsPage } from './TransformationsPage';
-import { SettingsPage } from './SettingsPage';
 
 const SECTION_TITLES: Record<NotebookSection, string> = {
     notebooks: 'Notebooks',
     sources: 'Sources',
     ask: 'Ask and Search',
     podcasts: 'Podcasts',
-    models: 'Models',
-    transformations: 'Transformations',
-    settings: 'Settings',
 };
 
 const SECTION_DESCRIPTIONS: Record<NotebookSection, string> = {
@@ -38,9 +32,6 @@ const SECTION_DESCRIPTIONS: Record<NotebookSection, string> = {
     sources: 'A unified view of every source across your notebooks.',
     ask: 'Run semantic search and ask questions across all your sources and notes.',
     podcasts: 'Generate podcast episodes from your notebook content.',
-    models: 'Register and assign the LLM and embedding models used by notebooks.',
-    transformations: 'Run AI transformations against your sources to extract insights, summaries, or rewrites.',
-    settings: 'Configure default processing engines, embedding behavior, and file management.',
 };
 
 const ComingSoonPanel: React.FC<{ section: NotebookSection }> = ({ section }) => (
@@ -87,11 +78,23 @@ export const NotebookApp = () => {
     const [searchQuery, setSearchQuery] = useState<string>('');
 
     const goBackToChat = () => dispatch({ field: 'page', value: 'chat' });
-    const goBackToList = () => setSelected(null);
+    const goBackToList = () => {
+        setSelected(null);
+        // Refresh so each card's source/note count (and ordering) reflects any
+        // sources/notes added or removed while the detail was open. Background
+        // refresh: the loader only shows when the list is empty, so no flicker.
+        fetchNotebooks();
+    };
 
     const handleSectionChange = (next: NotebookSection) => {
         setSection(next);
-        if (next !== 'notebooks') setSelected(null);
+        // Always clear any open notebook so a sidebar click lands on the section's
+        // home view. In particular, clicking "Notebooks" while a notebook detail is
+        // open returns to the list (home), not the currently-open notebook.
+        setSelected(null);
+        // Returning to the notebooks list re-fetches for the same reason as
+        // goBackToList — counts may be stale after work in another section.
+        if (next === 'notebooks') fetchNotebooks();
     };
 
     const fetchNotebooks = async () => {
@@ -112,8 +115,9 @@ export const NotebookApp = () => {
     }, []);
 
     const handleCreated = (created: NotebookSummary) => {
+        // Add it to the list and stay on the notebooks page — the user opens it
+        // by clicking its card (setSelected). Don't auto-navigate into it.
         setNotebooks((prev) => [created, ...prev]);
-        setSelected(created);
     };
 
     const confirmDelete = async () => {
@@ -218,16 +222,10 @@ export const NotebookApp = () => {
             <div className="flex-1 overflow-auto px-6 py-6 bg-neutral-50 dark:bg-[#343541]">
                 {section === 'sources' ? (
                     <SourcesPage />
-                ) : section === 'models' ? (
-                    <ModelsPage />
                 ) : section === 'ask' ? (
                     <AskSearchPage />
                 ) : section === 'podcasts' ? (
                     <PodcastsPage />
-                ) : section === 'transformations' ? (
-                    <TransformationsPage />
-                ) : section === 'settings' ? (
-                    <SettingsPage />
                 ) : !isNotebooksSection ? (
                     <ComingSoonPanel section={section} />
                 ) : selected ? (

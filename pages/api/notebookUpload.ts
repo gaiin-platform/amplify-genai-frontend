@@ -1,4 +1,3 @@
-import https from 'https';
 import axios from 'axios';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
@@ -11,23 +10,6 @@ export const config = {
     },
 };
 
-// When true, route uploads through the Lambda proxy endpoint instead of
-// calling the Open Notebook service directly. Set NEXT_PUBLIC_NOTEBOOK_USE_PROXY=true
-// in deployed environments.
-const USE_PROXY = process.env.NEXT_PUBLIC_NOTEBOOK_USE_PROXY === 'true';
-
-const NOTEBOOK_BASE_URL =
-    'https://open-notebook.apps.amplify-ai-pod.ccc.vanderbilt.edu';
-
-// The dev OpenShift route is signed by Vanderbilt's internal CA, which Node's
-// bundled CA store doesn't trust. Browsers work because the machine keychain
-// has the CA installed. Setting NOTEBOOK_ALLOW_INSECURE_TLS=true in .env.local
-// lets the proxy reach it; leave unset in prod so cert verification stays on.
-const httpsAgent =
-    process.env.NOTEBOOK_ALLOW_INSECURE_TLS === 'true'
-        ? new https.Agent({ rejectUnauthorized: false })
-        : undefined;
-
 const readRawBody = (req: NextApiRequest): Promise<Buffer> =>
     new Promise((resolve, reject) => {
         const chunks: Buffer[] = [];
@@ -38,6 +20,26 @@ const readRawBody = (req: NextApiRequest): Promise<Buffer> =>
         req.on('error', reject);
     });
 
+// Resolve the upload URL the same way doRequestOp resolves every other notebook
+// call: route to the local service emulator when NEXT_PUBLIC_LOCAL_SERVICES lists
+// `notebook`, otherwise to the deployed API_BASE_URL. This keeps uploads on the
+// identical backend as the rest of the notebook API in every environment, with no
+// upload-specific configuration of its own.
+const resolveUploadUrl = (): string | null => {
+    const localServices = process.env.NEXT_PUBLIC_LOCAL_SERVICES || '';
+    for (const cfg of localServices.split(',')) {
+        const [service, port, stage] = cfg.trim().split(':');
+        if (service === 'notebook') {
+            return `http://localhost:${port || '3015'}/${stage || 'dev'}/notebook/upload`;
+        }
+    }
+    const apiBaseUrl = process.env.API_BASE_URL;
+    return apiBaseUrl ? `${apiBaseUrl}/notebook/upload` : null;
+};
+
+// Multipart uploads can't go through the JSON requestOp pipeline, so this route
+// reads the raw body and forwards it to the VPC-attached notebook_upload Lambda,
+// which reaches the internal Open Notebook service and posts to /api/sources.
 const notebookUpload = async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== 'POST') {
         res.setHeader('Allow', 'POST');
@@ -54,70 +56,39 @@ const notebookUpload = async (req: NextApiRequest, res: NextApiResponse) => {
         return res.status(400).json({ error: 'Expected multipart/form-data' });
     }
 
+    const uploadUrl = resolveUploadUrl();
+    if (!uploadUrl) {
+        return res.status(500).json({ error: 'API_BASE_URL not configured' });
+    }
+
     try {
         const body = await readRawBody(req);
 
-        if (USE_PROXY) {
-            // Route through the Lambda upload proxy endpoint.
-            // The Lambda is VPC-attached and can reach the internal Open Notebook URL.
-            const apiBaseUrl = process.env.API_BASE_URL;
-            if (!apiBaseUrl) {
-                return res.status(500).json({ error: 'API_BASE_URL not configured' });
-            }
-            const upstream = await axios.post(
-                `${apiBaseUrl}/notebook/upload`,
-                // Encode body as base64 so it can be sent in a JSON payload to the Lambda
-                JSON.stringify({
-                    data: {
-                        body_b64: body.toString('base64'),
-                        content_type: contentType,
-                    },
-                }),
-                {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${accessToken}`,
-                    },
-                    responseType: 'json',
-                    validateStatus: () => true,
-                    maxBodyLength: Infinity,
-                    maxContentLength: Infinity,
-                },
-            );
-            if (!upstream.data?.success) {
-                console.error('notebookUpload (proxy) upstream error:', upstream.data);
-                return res.status(502).json({ error: upstream.data?.message ?? 'Upload failed' });
-            }
-            return res.status(200).json(upstream.data.data);
-        }
-
-        // Direct path — used in local development
+        // Base64-encode the body so it fits inside the JSON payload the Lambda expects.
         const upstream = await axios.post(
-            `${NOTEBOOK_BASE_URL}/api/sources`,
-            body,
+            uploadUrl,
+            JSON.stringify({
+                data: {
+                    body_b64: body.toString('base64'),
+                    content_type: contentType,
+                },
+            }),
             {
                 headers: {
-                    'Content-Type': contentType,
+                    'Content-Type': 'application/json',
                     Authorization: `Bearer ${accessToken}`,
                 },
-                httpsAgent,
-                responseType: 'arraybuffer',
+                responseType: 'json',
                 validateStatus: () => true,
                 maxBodyLength: Infinity,
                 maxContentLength: Infinity,
             },
         );
-
-        const buffer = Buffer.from(upstream.data);
-        if (upstream.status < 200 || upstream.status >= 300) {
-            console.error(
-                `notebookUpload upstream ${upstream.status}: ${buffer.toString('utf8').slice(0, 500)}`,
-            );
+        if (!upstream.data?.success) {
+            console.error('notebookUpload upstream error:', upstream.data);
+            return res.status(502).json({ error: upstream.data?.message ?? 'Upload failed' });
         }
-        const upstreamCt = upstream.headers['content-type'];
-        if (typeof upstreamCt === 'string') res.setHeader('Content-Type', upstreamCt);
-        res.status(upstream.status);
-        return res.send(buffer);
+        return res.status(200).json(upstream.data.data);
     } catch (error) {
         console.error('notebookUpload failed:', error);
         return res.status(500).json({ error: 'Upload failed' });

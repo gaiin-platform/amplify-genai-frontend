@@ -113,6 +113,17 @@ export const NotebookDetail = ({ notebookId, initialData }: Props) => {
         }));
     };
 
+    // Lets dialogs in other panels (e.g. "Save as note" in the source insights
+    // dialog) surface a freshly-created note in the Notes panel immediately,
+    // instead of waiting for the next full notebook refetch.
+    const handleNoteSaved = useCallback((saved: Note) => {
+        setNotes((prev) => {
+            const exists = prev.some((n) => n.id === saved.id);
+            if (exists) return prev.map((n) => (n.id === saved.id ? saved : n));
+            return [saved, ...prev];
+        });
+    }, []);
+
     if (loading) {
         return <div className="text-gray-500 dark:text-gray-400">Loading notebook…</div>;
     }
@@ -139,6 +150,7 @@ export const NotebookDetail = ({ notebookId, initialData }: Props) => {
                     onSourcesChange={setSources}
                     contextSelections={contextSelections.sources}
                     onModeChange={setSourceMode}
+                    onNoteSaved={handleNoteSaved}
                 />
                 <NotesPanel
                     notebookId={notebookId}
@@ -182,12 +194,14 @@ const SourcesPanel = ({
     onSourcesChange,
     contextSelections,
     onModeChange,
+    onNoteSaved,
 }: {
     notebookId: string;
     sources: SourceListItem[];
     onSourcesChange: (next: SourceListItem[] | ((prev: SourceListItem[]) => SourceListItem[])) => void;
     contextSelections: Record<string, SourceContextMode>;
     onModeChange: (id: string, mode: SourceContextMode) => void;
+    onNoteSaved: (note: Note) => void;
 }) => {
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -402,6 +416,7 @@ const SourcesPanel = ({
                     source={insightsFor}
                     onClose={() => setInsightsFor(null)}
                     onInsightsCountChange={handleInsightsCountChange}
+                    onNoteSaved={onNoteSaved}
                 />
             )}
         </PanelShell>
