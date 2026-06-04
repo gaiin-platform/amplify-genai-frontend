@@ -1,6 +1,6 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
-import { IconPlus, IconEye, IconCopy, IconCheck, IconX, IconUser, IconEdit, IconArticle, IconRobot, IconLoader2, IconExclamationCircle, IconCaretDown, IconCaretRight } from "@tabler/icons-react";
+import { IconPlus, IconEye, IconCopy, IconCheck, IconX, IconUser, IconEdit, IconArticle, IconRobot, IconLoader2, IconExclamationCircle, IconCaretDown, IconCaretRight, IconSearch } from "@tabler/icons-react";
 import HomeContext from '@/pages/api/home/home.context';
 import ExpansionComponent from '../../Chat/ExpansionComponent';
 import { EmailsAutoComplete } from '@/components/Emails/EmailsAutoComplete';
@@ -112,6 +112,10 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
     const [delegateSearch, setDelegateSearch] = useState<string>('');
     const [delegateStatusFilter, setDelegateStatusFilter] = useState<'All' | 'Active' | 'Inactive'>('All');
     const [delegateSortBy, setDelegateSortBy] = useState<'name' | 'lastAccessed' | 'expiration'>('name');
+
+    // Search expand state
+    const [showKeySearch, setShowKeySearch] = useState<boolean>(false);
+    const [showDelegateSearch, setShowDelegateSearch] = useState<boolean>(false);
 
     // MTD Cost state
     const [mtdCostData, setMtdCostData] = useState<any>(null);
@@ -746,56 +750,71 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
             </div>
 
             <div className="settings-card">
-                <div className="settings-card-header" style={{ justifyContent: 'space-between' }}>
+                <div className="settings-card-header" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                         <h3 className="settings-card-title">Your API Keys</h3>
                         <p className="settings-card-description">Keys you own. Click a key to view or edit its details.</p>
                     </div>
-                </div>
-                {/* Toolbar: search + status + sort + optional purpose */}
-                <div className="flex flex-wrap items-center gap-2 px-3 pt-3 pb-3">
-                    <input
-                        type="text"
-                        placeholder="Search…"
-                        value={keySearch}
-                        onChange={e => setKeySearch(e.target.value)}
-                        className="flex-1 min-w-[160px] px-3 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
-                    />
-                    <div className="flex items-center rounded-md border border-neutral-500 dark:border-neutral-700 overflow-hidden text-sm">
-                        {(['All', 'Active', 'Inactive'] as const).map(s => (
-                            <button
-                                key={s}
-                                onClick={() => setStatusFilter(s)}
-                                className={`px-3 py-1.5 transition-colors ${
-                                    statusFilter === s
-                                        ? 'bg-neutral-600 text-white'
-                                        : 'bg-neutral-100 dark:bg-[#2a2b32] text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
-                                }`}
-                            >{s}</button>
-                        ))}
-                    </div>
-                    <select
-                        value={sortBy}
-                        onChange={e => setSortBy(e.target.value as any)}
-                        className="px-2 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
-                    >
-                        <option value="name">Name</option>
-                        <option value="lastAccessed">Last Accessed</option>
-                        <option value="expiration">Expiration</option>
-                    </select>
-                    {getAvailablePurposes().length > 1 && (
-                        <select
-                            className="px-2 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
-                            value={selectedPurposeFilter}
-                            onChange={(e) => setSelectedPurposeFilter(e.target.value)}
+                    {/* Inline toolbar on the right of heading */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                        {showKeySearch && (
+                            <input
+                                type="text"
+                                placeholder="Search…"
+                                value={keySearch}
+                                onChange={e => setKeySearch(e.target.value)}
+                                autoFocus
+                                onBlur={() => { if (!keySearch) setShowKeySearch(false); }}
+                                className="w-[160px] px-3 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                            />
+                        )}
+                        <button
+                            onClick={() => setShowKeySearch(v => !v)}
+                            title="Search"
+                            className={`p-1.5 rounded-md transition-colors ${
+                                showKeySearch || keySearch
+                                    ? 'text-blue-600 dark:text-blue-400'
+                                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
+                            }`}
                         >
-                            {getAvailablePurposes().map((purpose, i) => (
-                                <option key={i} value={purpose}>
-                                    {purpose === 'All' ? 'All Types' : formatPurpose(purpose)}
-                                </option>
+                            <IconSearch size={16} />
+                        </button>
+                        <div className="flex items-center rounded-md border border-neutral-500 dark:border-neutral-700 overflow-hidden text-sm">
+                            {(['All', 'Active', 'Inactive'] as const).map(s => (
+                                <button
+                                    key={s}
+                                    onClick={() => setStatusFilter(s)}
+                                    className={`px-3 py-1.5 transition-colors ${
+                                        statusFilter === s
+                                            ? 'bg-neutral-600 text-white'
+                                            : 'bg-neutral-100 dark:bg-[#2a2b32] text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+                                    }`}
+                                >{s}</button>
                             ))}
+                        </div>
+                        <select
+                            value={sortBy}
+                            onChange={e => setSortBy(e.target.value as any)}
+                            className="px-2 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                        >
+                            <option value="name">Name</option>
+                            <option value="lastAccessed">Last Accessed</option>
+                            <option value="expiration">Expiration</option>
                         </select>
-                    )}
+                        {getAvailablePurposes().length > 1 && (
+                            <select
+                                className="px-2 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                                value={selectedPurposeFilter}
+                                onChange={(e) => setSelectedPurposeFilter(e.target.value)}
+                            >
+                                {getAvailablePurposes().map((purpose, i) => (
+                                    <option key={i} value={purpose}>
+                                        {purpose === 'All' ? 'All Types' : formatPurpose(purpose)}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
+                    </div>
                 </div>
                 <div className="settings-card-content">
                 {isLoading ? <div className="flex items-center justify-center py-8">
@@ -949,46 +968,61 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
             </div>
 
             <div className="settings-card">
-                <div className="settings-card-header">
+                <div className="settings-card-header" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                         <h3 className="settings-card-title">Delegated API Keys</h3>
                         <p className="settings-card-description">Keys created by others and assigned to you. Billing is charged to the key owner&apos;s account.</p>
                     </div>
-                </div>
-                {/* Toolbar: only shown when there are delegated keys to filter */}
-                {delegateApiKeys && delegateApiKeys.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 px-3 pt-3 pb-3">
-                    <input
-                        type="text"
-                        placeholder="Search by name…"
-                        value={delegateSearch}
-                        onChange={e => setDelegateSearch(e.target.value)}
-                        className="flex-1 min-w-[160px] px-3 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
-                    />
-                    <div className="flex items-center rounded-md border border-neutral-500 dark:border-neutral-700 overflow-hidden text-sm">
-                        {(['All', 'Active', 'Inactive'] as const).map(s => (
-                            <button
-                                key={s}
-                                onClick={() => setDelegateStatusFilter(s)}
-                                className={`px-3 py-1.5 transition-colors ${
-                                    delegateStatusFilter === s
-                                        ? 'bg-neutral-600 text-white'
-                                        : 'bg-neutral-100 dark:bg-[#2a2b32] text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
-                                }`}
-                            >{s}</button>
-                        ))}
+                    {/* Inline toolbar — only shown when there are delegated keys */}
+                    {delegateApiKeys && delegateApiKeys.length > 0 && (
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                        {showDelegateSearch && (
+                            <input
+                                type="text"
+                                placeholder="Search…"
+                                value={delegateSearch}
+                                onChange={e => setDelegateSearch(e.target.value)}
+                                autoFocus
+                                onBlur={() => { if (!delegateSearch) setShowDelegateSearch(false); }}
+                                className="w-[160px] px-3 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                            />
+                        )}
+                        <button
+                            onClick={() => setShowDelegateSearch(v => !v)}
+                            title="Search"
+                            className={`p-1.5 rounded-md transition-colors ${
+                                showDelegateSearch || delegateSearch
+                                    ? 'text-blue-600 dark:text-blue-400'
+                                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
+                            }`}
+                        >
+                            <IconSearch size={16} />
+                        </button>
+                        <div className="flex items-center rounded-md border border-neutral-500 dark:border-neutral-700 overflow-hidden text-sm">
+                            {(['All', 'Active', 'Inactive'] as const).map(s => (
+                                <button
+                                    key={s}
+                                    onClick={() => setDelegateStatusFilter(s)}
+                                    className={`px-3 py-1.5 transition-colors ${
+                                        delegateStatusFilter === s
+                                            ? 'bg-neutral-600 text-white'
+                                            : 'bg-neutral-100 dark:bg-[#2a2b32] text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+                                    }`}
+                                >{s}</button>
+                            ))}
+                        </div>
+                        <select
+                            value={delegateSortBy}
+                            onChange={e => setDelegateSortBy(e.target.value as any)}
+                            className="px-2 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                        >
+                            <option value="name">Name</option>
+                            <option value="lastAccessed">Last Accessed</option>
+                            <option value="expiration">Expiration</option>
+                        </select>
                     </div>
-                    <select
-                        value={delegateSortBy}
-                        onChange={e => setDelegateSortBy(e.target.value as any)}
-                        className="px-2 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
-                    >
-                        <option value="name">Name</option>
-                        <option value="lastAccessed">Last Accessed</option>
-                        <option value="expiration">Expiration</option>
-                    </select>
+                    )}
                 </div>
-                )}
                 <div className="settings-card-content">
                 {(!delegateApiKeys || delegateApiKeys.length === 0) ? (
                     <div className="text-center text-sm italic text-neutral-400 dark:text-neutral-500 py-3">
