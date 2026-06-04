@@ -98,25 +98,215 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: #ccc;
+  background-color:  var(--color-primary-400);
   border-radius: 10px;
+  transition: background-color 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #aaa;
+  background-color: var(--color-primary-500);
 }
 
 ::-webkit-scrollbar-track:hover {
-  background-color: #f2f2f2;
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.dark ::-webkit-scrollbar-track:hover {
+  background-color: rgba(255, 255, 255, 0.03);
 }
 
 ::-webkit-scrollbar-corner {
   background-color: transparent;
 }
 
+/* ===================================
+   Color Scheme Specific Scrollbars
+   =================================== */
+
+/* Warm Browns */
+[data-chat-palette="warm-browns"] ::-webkit-scrollbar-thumb {
+  background-color: #B45309;
+}
+
+[data-chat-palette="warm-browns"] ::-webkit-scrollbar-thumb:hover {
+  background-color: #92400e;
+}
+
+[data-chat-palette="warm-browns"].dark ::-webkit-scrollbar-thumb {
+  background-color: #d97706;
+}
+
+[data-chat-palette="warm-browns"].dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #B45309;
+}
+
+/* Blue & Green */
+[data-chat-palette="blue-green"] ::-webkit-scrollbar-thumb {
+  background-color: #3B82F6;
+}
+
+[data-chat-palette="blue-green"] ::-webkit-scrollbar-thumb:hover {
+  background-color: #2563eb;
+}
+
+[data-chat-palette="blue-green"].dark ::-webkit-scrollbar-thumb {
+  background-color: #60a5fa;
+}
+
+[data-chat-palette="blue-green"].dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #3B82F6;
+}
+
+/* Purple & Pink */
+[data-chat-palette="purple-pink"] ::-webkit-scrollbar-thumb {
+  background-color: #8B5CF6;
+}
+
+[data-chat-palette="purple-pink"] ::-webkit-scrollbar-thumb:hover {
+  background-color: #7c3aed;
+}
+
+[data-chat-palette="purple-pink"].dark ::-webkit-scrollbar-thumb {
+  background-color: #a855f7;
+}
+
+[data-chat-palette="purple-pink"].dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #8B5CF6;
+}
+
+/* Cool Grays */
+[data-chat-palette="cool-grays"] ::-webkit-scrollbar-thumb {
+  background-color: #6B7280;
+}
+
+[data-chat-palette="cool-grays"] ::-webkit-scrollbar-thumb:hover {
+  background-color: #4B5563;
+}
+
+[data-chat-palette="cool-grays"].dark ::-webkit-scrollbar-thumb {
+  background-color: #9ca3af;
+}
+
+[data-chat-palette="cool-grays"].dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #6B7280;
+}
+
+/* Ocean Depths */
+[data-chat-palette="ocean-depths"] ::-webkit-scrollbar-thumb {
+  background-color: #06B6D4;
+}
+
+[data-chat-palette="ocean-depths"] ::-webkit-scrollbar-thumb:hover {
+  background-color: #0891b2;
+}
+
+[data-chat-palette="ocean-depths"].dark ::-webkit-scrollbar-thumb {
+  background-color: #22d3ee;
+}
+
+[data-chat-palette="ocean-depths"].dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #06B6D4;
+}
+
+/* High Contrast */
+[data-chat-palette="high-contrast"] ::-webkit-scrollbar-thumb {
+  background-color: #2D2D32;
+}
+
+[data-chat-palette="high-contrast"] ::-webkit-scrollbar-thumb:hover {
+  background-color: #1a1a1d;
+}
+
+[data-chat-palette="high-contrast"].dark ::-webkit-scrollbar-thumb {
+  background-color: #52525b;
+}
+
+[data-chat-palette="high-contrast"].dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #3f3f46;
+}
+
+/* Firefox scrollbar support for color schemes */
+[data-chat-palette="warm-browns"] * {
+  scrollbar-color: #B45309 transparent;
+}
+
+[data-chat-palette="blue-green"] * {
+  scrollbar-color: #3B82F6 transparent;
+}
+
+[data-chat-palette="purple-pink"] * {
+  scrollbar-color: #8B5CF6 transparent;
+}
+
+[data-chat-palette="cool-grays"] * {
+  scrollbar-color: #6B7280 transparent;
+}
+
+[data-chat-palette="ocean-depths"] * {
+  scrollbar-color: #06B6D4 transparent;
+}
+
+[data-chat-palette="high-contrast"] * {
+  scrollbar-color: #2D2D32 transparent;
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 12px;
+  height: 12px;
+}
+
+/* Input and textarea scrollbar - prevent text overlap */
+input[type="text"]::-webkit-scrollbar,
+input[type="email"]::-webkit-scrollbar,
+input[type="search"]::-webkit-scrollbar,
+textarea::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+input[type="text"]::-webkit-scrollbar-track,
+input[type="email"]::-webkit-scrollbar-track,
+input[type="search"]::-webkit-scrollbar-track,
+textarea::-webkit-scrollbar-track {
+  background-color: #f5f5f5;
+  border-radius: 4px;
+}
+
+input[type="text"]::-webkit-scrollbar-thumb,
+input[type="email"]::-webkit-scrollbar-thumb,
+input[type="search"]::-webkit-scrollbar-thumb,
+textarea::-webkit-scrollbar-thumb {
+  background-color: #999;
+  border-radius: 4px;
+}
+
+input[type="text"]::-webkit-scrollbar-thumb:hover,
+input[type="email"]::-webkit-scrollbar-thumb:hover,
+input[type="search"]::-webkit-scrollbar-thumb:hover,
+textarea::-webkit-scrollbar-thumb:hover {
+  background-color: #777;
+}
+
+/* Dark mode input scrollbars */
+.dark input[type="text"]::-webkit-scrollbar-track,
+.dark input[type="email"]::-webkit-scrollbar-track,
+.dark input[type="search"]::-webkit-scrollbar-track,
+.dark textarea::-webkit-scrollbar-track {
+  background-color: #2a2b32;
+}
+
+.dark input[type="text"]::-webkit-scrollbar-thumb,
+.dark input[type="email"]::-webkit-scrollbar-thumb,
+.dark input[type="search"]::-webkit-scrollbar-thumb,
+.dark textarea::-webkit-scrollbar-thumb {
+  background-color: #666;
+}
+
+.dark input[type="text"]::-webkit-scrollbar-thumb:hover,
+.dark input[type="email"]::-webkit-scrollbar-thumb:hover,
+.dark input[type="search"]::-webkit-scrollbar-thumb:hover,
+.dark textarea::-webkit-scrollbar-thumb:hover {
+  background-color: #888;
 }
 
 html {
