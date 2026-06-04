@@ -559,9 +559,9 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
       <div className="flex justify-between items-center mb-2">
           <div className="text-sm font-bold">Workflow Templates</div>
           <div className="relative" ref={createMenuRef}>
-            <button 
-              onClick={() => setShowCreateMenu(!showCreateMenu)} 
-              title="Create New Workflow Template using different methods" 
+            <button
+              onClick={() => { setSelectedWorkflowId(null); setSelectedWorkflow(emptyTemplate(isBaseTemplate)); setIsPreviewing(false); setShowCreateMenu(false); }}
+              title="Create New Workflow Template"
               className="hover:text-blue-600 relative"
             >
               <IconPlus size={18} />
@@ -1078,7 +1078,7 @@ export const AssistantWorkflowBuilder: React.FC<WorkflowTemplateBuilderProps> = 
                 </button>
                 <button
                   className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
-                  onClick={() => { setShowEditDetails(true); setShowEditMenu(false); }}
+                  onClick={() => { setEditDetailsData({ name: selectedWorkflow.name || '', description: selectedWorkflow.description || '', isPublic: selectedWorkflow.isPublic || false }); setShowEditDetails(true); setShowEditMenu(false); }}
                   title="Edit workflow name, description and settings"
                 >
                   <IconEdit size={16} className="text-gray-500 dark:text-gray-400" />
