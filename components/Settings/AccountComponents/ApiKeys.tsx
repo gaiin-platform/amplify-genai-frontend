@@ -543,7 +543,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                 </div>
 
             </div>
-            <div className="settings-card create-api-key-card">
+            <div className="settings-card">
                 <div
                     className="settings-card-header cursor-pointer select-none"
                     style={{ justifyContent: 'space-between' }}
@@ -752,11 +752,11 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                         <p className="settings-card-description">Keys you own. Click a key to view or edit its details.</p>
                     </div>
                 </div>
-                {/* Toolbar: search + status + sort + purpose */}
+                {/* Toolbar: search + status + sort + optional purpose */}
                 <div className="flex flex-wrap items-center gap-2 px-3 pt-3 pb-3">
                     <input
                         type="text"
-                        placeholder="Search by name…"
+                        placeholder="Search…"
                         value={keySearch}
                         onChange={e => setKeySearch(e.target.value)}
                         className="flex-1 min-w-[160px] px-3 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
@@ -779,9 +779,9 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                         onChange={e => setSortBy(e.target.value as any)}
                         className="px-2 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
                     >
-                        <option value="name">Sort: Name</option>
-                        <option value="lastAccessed">Sort: Last Accessed</option>
-                        <option value="expiration">Sort: Expiration</option>
+                        <option value="name">Name</option>
+                        <option value="lastAccessed">Last Accessed</option>
+                        <option value="expiration">Expiration</option>
                     </select>
                     {getAvailablePurposes().length > 1 && (
                         <select
@@ -791,7 +791,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                         >
                             {getAvailablePurposes().map((purpose, i) => (
                                 <option key={i} value={purpose}>
-                                    {purpose === 'All' ? 'All purposes' : formatPurpose(purpose)}
+                                    {purpose === 'All' ? 'All Types' : formatPurpose(purpose)}
                                 </option>
                             ))}
                         </select>
@@ -821,23 +821,11 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                     No keys match your filters.
                                 </div>
                             );
-                            return Object.entries(
-                                filtered.reduce((acc, key) => {
-                                    const p = key.purpose || '';
-                                    if (!acc[p]) acc[p] = [];
-                                    acc[p].push(key);
-                                    return acc;
-                                }, {} as Record<string, ApiKey[]>)
-                            ).map(([purpose, keys]) => (
-                                <div key={purpose} className="space-y-2">
-                                    {selectedPurposeFilter === "All" && purpose && (
-                                        <div className="flex flex-row gap-2 text-sm font-semibold justify-center text-neutral-400 dark:text-neutral-500 border-b border-neutral-500 pb-1">
-                                            {formatPurpose(purpose)} Keys
-                                        </div>
-                                    )}
+                            return (
+                                <div className="space-y-2">
                                     {/* Modern Card Layout */}
                                     <div className="apikeys-grid">
-                                        {keys.map((apiKey: ApiKey, index: number) => {
+                                        {filtered.map((apiKey: ApiKey, index: number) => {
                                             const isExpanded = expandedKey === apiKey.api_owner_id;
                                             return (
                                             <div key={apiKey.api_owner_id}
@@ -946,10 +934,11 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                         )}
                                                 </div>
                                             </div>
-                                        )})}
+                                            );
+                                        })}
                                     </div>
                                 </div>
-                            ));
+                            );
                         })()}
                     </div>
                 )}
@@ -994,9 +983,9 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                         onChange={e => setDelegateSortBy(e.target.value as any)}
                         className="px-2 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
                     >
-                        <option value="name">Sort: Name</option>
-                        <option value="lastAccessed">Sort: Last Accessed</option>
-                        <option value="expiration">Sort: Expiration</option>
+                        <option value="name">Name</option>
+                        <option value="lastAccessed">Last Accessed</option>
+                        <option value="expiration">Expiration</option>
                     </select>
                 </div>
                 )}

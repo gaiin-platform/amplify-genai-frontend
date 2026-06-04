@@ -3515,24 +3515,12 @@
   }
   
   /* Dark Mode Styles for Settings Cards */
-  .settings-card.create-api-key-card {
-    background: rgba(239, 246, 255, 0.7);
-    border-color: rgba(59, 130, 246, 0.2);
-    border-left: 3px solid #3b82f6;
-  }
-
   .dark .settings-card {
     background: rgba(31, 41, 55, 0.8);
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   }
 
-  .dark .settings-card.create-api-key-card {
-    background: rgba(30, 58, 138, 0.15);
-    border-color: rgba(59, 130, 246, 0.25);
-    border-left: 3px solid #3b82f6;
-  }
-  
   .dark .settings-card:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     border-color: rgba(255, 255, 255, 0.15);
@@ -5528,15 +5516,15 @@
   }
 
   .apitools-tab-docs {
-    background: rgba(59, 130, 246, 0.08);
-    border-color: rgba(59, 130, 246, 0.25);
-    color: #2563eb;
+    background: rgba(234, 179, 8, 0.1);
+    border-color: rgba(234, 179, 8, 0.4);
+    color: #a16207;
   }
 
   .apitools-tab-docs:hover {
-    background: rgba(59, 130, 246, 0.14);
-    border-color: rgba(59, 130, 246, 0.4);
-    color: #1d4ed8;
+    background: rgba(234, 179, 8, 0.18);
+    border-color: rgba(234, 179, 8, 0.6);
+    color: #854d0e;
   }
 
   .apitools-tab-manager {
@@ -5582,15 +5570,15 @@
   }
   
   .dark .apitools-tab-docs {
-    background: rgba(59, 130, 246, 0.12);
-    border-color: rgba(59, 130, 246, 0.3);
-    color: #60a5fa;
+    background: rgba(234, 179, 8, 0.12);
+    border-color: rgba(234, 179, 8, 0.35);
+    color: #fbbf24;
   }
 
   .dark .apitools-tab-docs:hover {
-    background: rgba(59, 130, 246, 0.2);
-    border-color: rgba(59, 130, 246, 0.45);
-    color: #93c5fd;
+    background: rgba(234, 179, 8, 0.2);
+    border-color: rgba(234, 179, 8, 0.5);
+    color: #fcd34d;
   }
 
   .dark .apitools-tab-manager {
