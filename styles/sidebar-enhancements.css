@@ -1411,7 +1411,7 @@
   
   /* Custom scrollbar */
   .enhanced-sidebar::-webkit-scrollbar {
-    width: 5px;
+    width: 8px;
   }
   
   .enhanced-sidebar::-webkit-scrollbar-track {
@@ -1419,12 +1419,12 @@
   }
   
   .enhanced-sidebar::-webkit-scrollbar-thumb {
-    background-color: rgba(0, 0, 0, 0.2);
+    background-color: rgba(0, 0, 0, 0.4);
     border-radius: 20px;
   }
   
   .dark .enhanced-sidebar::-webkit-scrollbar-thumb {
-    background-color: rgba(255, 255, 255, 0.2);
+    background-color: rgba(255, 255, 255, 0.4);
   }
   
   /* Empty state styling */
@@ -3803,8 +3803,8 @@
   
   /* Admin Table Scrollbar Styling */
   .admin-interface-content .overflow-x-auto {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+    scrollbar-width: auto;
+    scrollbar-color: rgba(156, 163, 175, 0.6) transparent;
   }
   
   .admin-interface-content .overflow-x-auto::-webkit-scrollbar {
@@ -3817,12 +3817,12 @@
   }
   
   .admin-interface-content .overflow-x-auto::-webkit-scrollbar-thumb {
-    background: rgba(156, 163, 175, 0.5);
+    background: rgba(156, 163, 175, 0.6);
     border-radius: 4px;
   }
   
   .admin-interface-content .overflow-x-auto::-webkit-scrollbar-thumb:hover {
-    background: rgba(156, 163, 175, 0.7);
+    background: rgba(156, 163, 175, 0.8);
   }
   
   /* Dark mode scrollbar */
@@ -3831,11 +3831,11 @@
   }
   
   .dark .admin-interface-content .overflow-x-auto::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.4);
   }
   
   .dark .admin-interface-content .overflow-x-auto::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.5);
   }
   
   
