@@ -66,6 +66,7 @@ import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton"
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
 import { MemoryPresenter } from "@/components/Chat/MemoryPresenter";
+import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 // import { ProjectList } from './ProjectList';
 // import { } from '../../services/memoryService';
 import { Settings } from '@/types/settings';
@@ -280,6 +281,14 @@ export const ChatInput = ({
 
     // Action set modal states
     const [showSaveActionsModal, setShowSaveActionsModal] = useState(false);
+
+    // Pending duplicate action awaiting user confirmation
+    const [pendingDuplicateAction, setPendingDuplicateAction] = useState<{
+        operation: any;
+        parameters: any;
+        customName: string | undefined;
+        customDescription: string | undefined;
+    } | null>(null);
 
     // Drag and drop state management
     const [isDragging, setIsDragging] = useState(false);
@@ -1483,18 +1492,19 @@ export const ChatInput = ({
                                                 return newActions;
                                             });
                                         } else {
-                                            // Add a new action — block if this op name is already present
-                                            setAddedActions((prev) => {
-                                                if (prev.some((a: any) => a.name === operation.name)) return prev;
-                                                return [...prev, {
+                                            // Add a new action — if duplicate, ask for confirmation
+                                            if (addedActions.some((a: any) => a.name === operation.name)) {
+                                                setPendingDuplicateAction({ operation, parameters, customName, customDescription });
+                                            } else {
+                                                setAddedActions((prev) => [...prev, {
                                                     _id: `action-${Date.now()}-${prev.length}`,
                                                     name: operation.name,
                                                     operation,
                                                     customName,
                                                     customDescription,
                                                     parameters
-                                                }];
-                                            });
+                                                }]);
+                                            }
                                         }
                                         // Clear editing state and close the popup
                                         setEditingAction(null);
@@ -2148,6 +2158,29 @@ export const ChatInput = ({
                 </div>
 
             </div>
+
+            {/* Duplicate action confirmation */}
+            {pendingDuplicateAction && (
+                <ConfirmModal
+                    title="Action Already Added"
+                    message={`"${pendingDuplicateAction.customName || pendingDuplicateAction.operation.name}" is already in your conversation. Do you want to add it again?`}
+                    confirmLabel="Add Again"
+                    denyLabel="Cancel"
+                    onConfirm={() => {
+                        setAddedActions((prev) => [...prev, {
+                            _id: `action-${Date.now()}-${prev.length}`,
+                            name: pendingDuplicateAction.operation.name,
+                            operation: pendingDuplicateAction.operation,
+                            customName: pendingDuplicateAction.customName,
+                            customDescription: pendingDuplicateAction.customDescription,
+                            parameters: pendingDuplicateAction.parameters
+                        }]);
+                        setEditingAction(null);
+                        setPendingDuplicateAction(null);
+                    }}
+                    onDeny={() => setPendingDuplicateAction(null)}
+                />
+            )}
 
             {/* Save Actions Modal */}
             {showSaveActionsModal && (
