@@ -510,6 +510,14 @@ export const validateUrl = (inputUrl: string, isSitemap: boolean): { isValid: bo
 };
 
 export const formatCurrency = (amount: number) => {
+    // Show a sub-cent indicator for tiny non-zero amounts instead of rounding
+    // them down to "$0.00", which would otherwise hide real activity.
+    if (amount > 0 && amount < 0.01) {
+        return '<$0.01';
+    }
+    if (amount < 0 && amount > -0.01) {
+        return '>-$0.01';
+    }
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',

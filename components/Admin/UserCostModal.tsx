@@ -320,8 +320,11 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
         iconColor = '#f59e0b'; // amber-500
         textColor = 'text-amber-500';
         keyTypeLabel = 'Delegate';
-      } else if (apiKeyInfo.includes('/ownerKey/') && accountName.endsWith('_account')) {
-        // Agent key - personal key with agent account
+      } else if (apiKeyInfo.includes('/ownerKey/') && /_account(\s|$)/.test(accountName)) {
+        // Agent key - personal key with agent account.
+        // The account label may have a friendly app name appended, e.g.
+        // "scheduled_task_account (New Worfflow)", so we match "_account"
+        // whether it ends the string or is followed by the parenthetical name.
         keyType = 'agent';
         iconColor = '#8b5cf6'; // purple-500
         textColor = 'text-purple-500';
@@ -1015,7 +1018,26 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                                           </tr>
                                         </thead>
                                         <tbody>
-                                          {user.accounts.map((account, accountIndex) => (
+                                          {[...user.accounts].sort((a, b) => {
+                                            const aParts = a.accountInfo.split('#');
+                                            const bParts = b.accountInfo.split('#');
+                                            const aAccount = aParts[0];
+                                            const bAccount = bParts[0];
+                                            const aHasKey = !!(aParts[1] && aParts[1] !== 'NA');
+                                            const bHasKey = !!(bParts[1] && bParts[1] !== 'NA');
+                                            const aIsGeneral = aAccount === 'general_account' && !aHasKey;
+                                            const bIsGeneral = bAccount === 'general_account' && !bHasKey;
+                                            const aIsAgent = !aIsGeneral && /_account(\s|$)/.test(aAccount);
+                                            const bIsAgent = !bIsGeneral && /_account(\s|$)/.test(bAccount);
+                                            // 0 = general_account (first)
+                                            // 1 = non-API-key rows (plain accounts)
+                                            // 2 = API key rows (Personal/Delegate/System)
+                                            // 3 = agent _account rows (last)
+                                            const aOrder = aIsGeneral ? 0 : aIsAgent ? 3 : aHasKey ? 2 : 1;
+                                            const bOrder = bIsGeneral ? 0 : bIsAgent ? 3 : bHasKey ? 2 : 1;
+                                            if (aOrder !== bOrder) return aOrder - bOrder;
+                                            return b.totalCost - a.totalCost;
+                                          }).map((account, accountIndex) => (
                                             <tr key={`${account.accountInfo}-${accountIndex}`} className="border-b border-gray-100 dark:border-gray-800">
                                               <td className="py-2 px-4 text-gray-900 dark:text-white font-mono text-xs">
                                                 {formatAccountInfo(account.accountInfo)}
