@@ -96,7 +96,7 @@ export const AssistantGallery: FC<AssistantGalleryProps> = () => {
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                             activeAssistantGalleryTab === 'layered'
                                 ? 'bg-white dark:bg-gray-700 text-purple-600 dark:text-purple-600 shadow-md'
-                                : 'text-gray-600 dark:text-purple-300 hover:text-gray-900 dark:hover:text-purple-200'
+                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                         }`}
                     >
                         {syncingLayeredAssistants ? (
