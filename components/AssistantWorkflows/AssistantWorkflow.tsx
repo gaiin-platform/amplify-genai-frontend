@@ -194,10 +194,15 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
         }
       });
       // consider only allowing appending to the arg
-      const inputs = Object.keys(filteredArgs).map(argKey => ({
-        label: camelCaseToTitle(argKey), key: argKey, description: `Customize argument "${argKey}" value`, 
-        disabled: !enableCustomization
-      }));
+      const inputs = Object.keys(filteredArgs).map(argKey => {
+        const originalValue = originalArgs?.[argKey] ?? '';
+        return {
+          label: camelCaseToTitle(argKey),
+          key: argKey,
+          description: originalValue ? `Base: "${originalValue}" - Add additional instructions here` : `Customize argument "${argKey}" value`,
+          disabled: !enableCustomization
+        };
+      });
       return (
         <div className={`${shift} my-3 pb-4 border-y border-neutral-300 dark:border-neutral-600 pt-3 ${!enableCustomization ? 'opacity-70' : ''}`}>
         <div 
@@ -214,13 +219,8 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
           inputs={inputs}
           state={filteredArgs}
           inputChanged={(argKey, newValue) => {
-            if (originalArgs) {
-              const originalArgValue = originalArgs[argKey] ?? '';
-              // remove duplicate original value from new value
-              let newArgValue = newValue.slice(originalArgValue.length);
-              newArgValue = `${originalArgValue }${newArgValue}`;
-              handleArgChange(step, argKey, newArgValue);
-            }
+            // Store the full value as provided by the user
+            handleArgChange(step, argKey, newValue);
           }}
         />
       </div>
