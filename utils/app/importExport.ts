@@ -13,7 +13,7 @@ import { Prompt } from '@/types/prompt';
 import { cleanConversationHistory } from './clean';
 import { isAssistant } from './assistants';
 import { includeRemoteConversationData } from './conversationStorage';
-import { saveConversations } from './conversation';
+import { saveConversations, compressAllConversationMessages } from './conversation';
 import { savePrompts } from './prompts';
 import { saveFolders } from './folders';
 import { getDate } from './date';
@@ -127,7 +127,7 @@ export const importData = ( data: SupportedExportFormats, oldConversations: Conv
 
   const newHistory: Conversation[] = [
     ...oldConversations,
-    ...history,
+    ...compressAllConversationMessages(history),
   ].filter(
     (conversation, index, self) =>
       index === self.findIndex((c) => c.id === conversation.id),
