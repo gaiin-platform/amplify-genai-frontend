@@ -122,12 +122,12 @@ const ApiItem: React.FC<ApiItemProps> = ({
         {allowConfiguration && hasConfiguration() && (
             <button
               onClick={handleConfigToggle}
-              className="-mt-5 ml-2  text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-1"
+              className={`${onChange ? '-mt-5' : ''} ml-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-1 self-center`}
               title="Configure API parameters"
             >
               <IconAdjustments size={18} />
             </button>
-          )} 
+          )}
 
         <div className="ml-auto flex items-center gap-2">
           
