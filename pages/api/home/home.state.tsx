@@ -92,6 +92,7 @@ export interface HomeInitialState {
   memoryExtractionEnabled: boolean;
   supportEmail: string;
   aiEmailDomain: string;
+  defaultTimezone: string;
   ragOn: boolean;
   isStandalonePromptCreation: boolean;
   promptCostAlert: PromptCostAlert | null;
@@ -192,6 +193,7 @@ export const initialState: HomeInitialState = {
   memoryExtractionEnabled: true,
   supportEmail: '',
   aiEmailDomain: '',
+  defaultTimezone: 'America/Chicago',
   ragOn: false,
   isStandalonePromptCreation: false,
   promptCostAlert: null,
