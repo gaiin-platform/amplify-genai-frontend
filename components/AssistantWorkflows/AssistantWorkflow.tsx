@@ -219,8 +219,13 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
           inputs={inputs}
           state={filteredArgs}
           inputChanged={(argKey, newValue) => {
-            // Store the full value as provided by the user
-            handleArgChange(step, argKey, newValue);
+            if (originalArgs) {
+              const originalArgValue = originalArgs[argKey] ?? '';
+              // remove duplicate original value from new value
+              let newArgValue = newValue.slice(originalArgValue.length);
+              newArgValue = `${originalArgValue}${newArgValue}`;
+              handleArgChange(step, argKey, newArgValue);
+            }
           }}
         />
       </div>
