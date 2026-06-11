@@ -1039,19 +1039,18 @@
   /* Today Folder Special Styling */
   .enhanced-today-folder {
     background: linear-gradient(135deg, 
-      rgba(59, 130, 246, 0.1) 0%, 
-      rgba(139, 92, 246, 0.1) 100%);
-    border: 1px solid rgba(59, 130, 246, 0.2);
+     rgba(59, 130, 246, 0.3) 0%, 
+     rgba(139, 92, 246, 0.3) 100%); 
+    border: 1px solid rgba(59, 130, 246, 0.2); 
     box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
-    padding-left: 1rem !important;
   }
   
   .dark .enhanced-today-folder {
     background: linear-gradient(135deg, 
-      rgba(59, 130, 246, 0.15) 0%, 
-      rgba(139, 92, 246, 0.15) 100%);
-    border: 1px solid rgba(59, 130, 246, 0.3);
-    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+      rgba(var(--chat-user-primary), 0.83) 0%, 
+      rgba(var(--chat-user-secondary), 0.83) 100%);
+    border: 1px solid rgba(var(--chat-user-primary), 0.3);
+    box-shadow: 0 2px 8px rgba(var(--chat-user-primary), 0.2);
   }
   
   .enhanced-today-folder:hover {
@@ -1096,7 +1095,7 @@
   
   .enhanced-conversation-item:hover {
     background: rgba(59, 130, 246, 0.06);
-    transform: translateX(1px);
+    transform: scale(1);
     box-shadow: 0 1px 4px rgba(59, 130, 246, 0.1);
   }
   
