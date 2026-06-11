@@ -36,6 +36,12 @@ export interface CompositeFunctionCategory {
   emoji: string;
   /** Integration IDs required for this category to be enabled */
   integrationIds: string[];
+  /**
+   * Integration IDs that must ALL be connected for this category to be visible at all.
+   * If any of these are not connected, the category is hidden entirely.
+   * Use this for categories that are sub-features of another integration (e.g. Shared Mailbox requires Outlook).
+   */
+  requiresIntegrationIds?: string[];
   functions: CompositeFunction[];
 }
 
@@ -438,6 +444,7 @@ export const COMPOSITE_FUNCTION_CATEGORIES: CompositeFunctionCategory[] = [
     label: 'Microsoft Shared Mailbox',
     emoji: '📧',
     integrationIds: ['microsoft_exchange'],
+    requiresIntegrationIds: ['microsoft_outlook'],
     functions: [
       {
         id: 'readSharedMailbox',
