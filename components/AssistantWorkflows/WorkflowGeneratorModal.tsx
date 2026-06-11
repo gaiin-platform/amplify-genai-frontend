@@ -307,7 +307,7 @@ Generate ONLY the JSON, no additional text.`;
                     <span className="font-medium">APIs: </span>
                     <span className="inline-flex flex-wrap gap-1">
                       {selectedApis.map(api => (
-                        <span key={api.name} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded">
+                        <span key={api.name} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-900 rounded">
                           {api.name}
                           <button onClick={() => setSelectedApis(prev => prev.filter(a => a.name !== api.name))} className="hover:text-blue-600 dark:hover:text-blue-200" title={`Remove ${api.name}`}>
                             <IconX size={10} />
@@ -322,7 +322,7 @@ Generate ONLY the JSON, no additional text.`;
                     <span className="font-medium">Tools: </span>
                     <span className="inline-flex flex-wrap gap-1">
                       {selectedAgentTools.map(tool => (
-                        <span key={tool} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded">
+                        <span key={tool} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-900 rounded">
                           {tool}
                           <button onClick={() => setSelectedAgentTools(prev => prev.filter(t => t !== tool))} className="hover:text-green-600 dark:hover:text-green-200" title={`Remove ${tool}`}>
                             <IconX size={10} />
@@ -362,6 +362,7 @@ Generate ONLY the JSON, no additional text.`;
                     compactDisplay={true}
                     labelPrefix=''
                     allowConfiguration={true}
+                    hideApisPanel={['custom']}
                   />
                 </div>
               )}

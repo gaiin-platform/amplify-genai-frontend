@@ -117,12 +117,9 @@ export const PromptTemplatesGallery: FC = () => {
     };
 
     return (
-        <div className="relative flex-1 h-full overflow-hidden bg-gradient-to-br from-slate-50 via-indigo-50/30 to-violet-50/30 dark:from-gray-900 dark:via-indigo-950/20 dark:to-violet-950/20">
+        <div className="gallery-bg">
             {/* Animated gradient orbs */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute top-1/4 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-indigo-200/30 to-violet-200/30 dark:from-indigo-500/10 dark:to-violet-500/10 rounded-full blur-3xl animate-pulse" />
-                <div className="absolute bottom-1/3 left-1/4 w-[400px] h-[400px] bg-gradient-to-br from-teal-200/30 to-cyan-200/30 dark:from-teal-500/10 dark:to-cyan-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-            </div>
+            <div className="gallery-bg-orbs" />
 
             <div className="relative h-full overflow-y-auto">
                 {/* Header with glassmorphism */}
