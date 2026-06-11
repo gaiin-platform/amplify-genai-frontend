@@ -456,7 +456,6 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   // Inline right-panel step editor
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [selectedStepIsNew, setSelectedStepIsNew] = useState(false);
-  const [draftStep, setDraftStep] = useState<WorkflowStep | null>(null);
 
   // Tool items state
   const [toolItems, setToolItems] = useState<ToolItem[]>([]);
@@ -466,24 +465,9 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   const workflowSnapshot = useRef<AstWorkflow | null>(null);
 
   const [confirmDeleteStepId, setConfirmDeleteStepId] = useState<string | null>(null);
-  
-  // Discard draft changes — resets draftStep back to the last committed version
-  const handleDiscardStep = () => {
-    if (selectedStepId) {
-      const committed = workflowSteps.find(s => s.id === selectedStepId);
-      if (committed) {
-        setDraftStep({ ...committed });
-        toast('Changes discarded', { icon: '🗑️' });
-      }
-    }
-  };
 
-  // Close the panel — auto-saves any open draft first
+  // Close the panel
   const handleCloseStepEditor = () => {
-    if (draftStep) {
-      setWorkflowSteps(prev => prev.map(s => s.id === draftStep.id ? draftStep : s));
-    }
-    setDraftStep(null);
     setSelectedStepId(null);
     setSelectedStepIsNew(false);
   };
@@ -603,6 +587,8 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       setShowToolPicker(false);
       setShowToolReplacement(false);
       setReplacementData(null);
+      setSelectedStepId(null);
+      setSelectedStepIsNew(false);
     }
   }, [isOpen, initialWorkflow, forceReset]);
   
@@ -671,7 +657,6 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
 
         setSelectedStepId(updatedStep.id);
         setSelectedStepIsNew(true);
-        setDraftStep({ ...updatedStep });
       }
     }
     setShowToolPicker(false);
@@ -703,7 +688,6 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
 
         setSelectedStepId(updatedStep.id);
         setSelectedStepIsNew(false);
-        setDraftStep({ ...updatedStep });
       }
     }
     setShowToolReplacement(false);
@@ -715,18 +699,17 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
       setToolPickerPosition(step.position);
       setShowToolPicker(true);
     } else {
-      // Auto-save any open draft before switching to a different step
-      if (draftStep && selectedStepId && selectedStepId !== step.id) {
-        setWorkflowSteps(prev => prev.map(s => s.id === draftStep.id ? draftStep : s));
-      }
       setSelectedStepId(step.id);
       setSelectedStepIsNew(false);
-      setDraftStep({ ...step });
     }
   };
 
-  const handleStepChange = (updatedStep: Step) => {
-    setDraftStep(prev => prev ? { ...prev, ...updatedStep } : null);
+  const handleStepChange = (updatedStep: Step & { id?: string }) => {
+    // Directly update the step in workflowSteps
+    if (!updatedStep.id) return;
+    setWorkflowSteps(prev =>
+      prev.map(s => s.id === updatedStep.id ? { ...s, ...updatedStep } : s)
+    );
   };
 
   
@@ -836,7 +819,6 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
         const stepPosition = terminateIndex !== -1 ? terminateIndex : newSteps.length - 1;
         setSelectedStepId(newSteps[stepPosition].id);
         setSelectedStepIsNew(true);
-        setDraftStep({ ...newSteps[stepPosition] });
       }
     }
   };
@@ -882,18 +864,12 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
         const isTerminate = step.tool === 'terminate';
         
         if (!isTerminate) {
-          if (!step.description?.trim()) {
-            setSaveError(`Step ${i+1} is missing a description`);
-            setIsSaving(false);
-            return;
-          }
-          
           if (!step.tool?.trim()) {
             setSaveError(`Step ${i+1} is missing a tool`);
             setIsSaving(false);
             return;
           }
-          
+
           if (!step.instructions?.trim()) {
             setSaveError(`Step ${i+1} is missing instructions`);
             setIsSaving(false);
@@ -965,7 +941,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
 
 
   // Right-panel editor helpers
-  const editorStep = draftStep ?? (selectedStepId ? workflowSteps.find(s => s.id === selectedStepId) ?? null : null);
+  const editorStep = selectedStepId ? workflowSteps.find(s => s.id === selectedStepId) ?? null : null;
   const editorStepIndex = editorStep ? workflowSteps.findIndex(s => s.id === editorStep.id) : -1;
   const editorIsTerminate = editorStep?.tool === 'terminate';
   const editorMissingFields = (!editorStep || editorIsTerminate) ? [] : [
@@ -1123,8 +1099,8 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
                             onMove={handleStepMove}
                             onToolReplace={handleToolReplace}
                             onReorder={handleStepReorder}
-                            canMoveUp={index > 0}
-                            canMoveDown={index < workflowSteps.length - 1 && step.tool !== 'terminate'}
+                            canMoveUp={index > 0 && step.tool !== 'terminate'}
+                            canMoveDown={index < workflowSteps.length - 2 && step.tool !== 'terminate'}
                           />
                         </React.Fragment>
                       );
@@ -1152,7 +1128,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
               <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex items-center justify-between flex-shrink-0">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 truncate min-w-0">
                   <IconSettings size={16} className="flex-shrink-0 text-blue-500" />
-                  <span className="truncate">{(draftStep?.stepName || draftStep?.description) || (editorStep.stepName || editorStep.description) || 'Configure Step'}</span>
+                  <span className="truncate">{(editorStep?.stepName || editorStep?.description) || 'Configure Step'}</span>
                 </h3>
                 <button
                   onClick={handleCloseStepEditor}
@@ -1181,16 +1157,8 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
               </div>
 
               {/* Footer */}
-              <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
-                <span className="text-xs text-gray-400 dark:text-gray-500">Changes auto-saved when switching steps</span>
-                <button
-                  onClick={handleDiscardStep}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 rounded-md transition-colors"
-                  title="Discard unsaved changes"
-                >
-                  <IconTrash size={14} />
-                  Discard
-                </button>
+              <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+                <span className="text-xs text-gray-400 dark:text-gray-500">Changes saved automatically</span>
               </div>
             </div>
           )}
@@ -1251,7 +1219,7 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
               {(() => {
                 const nonTerminateSteps = workflowSteps.filter(s => s.tool !== 'terminate' && !s.isEmpty);
                 const allStepsValid = nonTerminateSteps.every(s =>
-                  s.stepName?.trim() && s.description?.trim() && s.tool?.trim() && s.instructions?.trim()
+                  s?.stepName?.trim() && s?.tool?.trim() && s?.instructions?.trim()
                 );
                 const canSave = !isSaving && !!workflow.name.trim() && allStepsValid;
                 return (
