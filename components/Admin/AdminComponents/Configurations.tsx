@@ -48,6 +48,9 @@ interface Props {
     aiEmailDomain: string;
     setAiEmailDomain?: (d: string) => void;
 
+    defaultTimezone: string;
+    setDefaultTimezone: (tz: string) => void;
+
     allEmails: Array<string> | null;
 
     admin_text: string;
@@ -60,6 +63,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                               promptCostAlert, setPromptCostAlert,
                                               defaultConversationStorage, setDefaultConversationStorage,
                                               emailSupport, setEmailSupport, aiEmailDomain, setAiEmailDomain,
+                                              defaultTimezone, setDefaultTimezone,
                                               admin_text, updateUnsavedConfigs, onModalStateChange}) => {
 
     const { data: session } = useSession();
@@ -142,6 +146,10 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
         updateUnsavedConfigs(AdminConfigTypes.AI_EMAIL_DOMAIN);
     }
 
+    const handleUpdateDefaultTimezone = (tz: string) => {
+        setDefaultTimezone(tz);
+        updateUnsavedConfigs(AdminConfigTypes.DEFAULT_TIMEZONE);
+    }
 
     const handleUpdateAmpGroups = (updatedGroups: Amplify_Groups) => {
         setAmpGroups(updatedGroups);
@@ -359,7 +367,47 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                     />
                 </div>
             </div>}
-       
+
+            <div className="admin-style-settings-card">
+                <div className="admin-style-settings-card-header">
+                    <h3 className="admin-style-settings-card-title">Default Timezone</h3>
+                    <p className="admin-style-settings-card-description">System-wide default timezone used for scheduled tasks, calendar events, and email timestamps</p>
+                </div>
+                <div className="mx-12 pb-4">
+                    <select
+                        className="w-full p-2 rounded border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                        value={defaultTimezone}
+                        onChange={(e) => handleUpdateDefaultTimezone(e.target.value)}
+                    >
+                        <optgroup label="US Timezones">
+                            <option value="America/New_York">Eastern Time (America/New York)</option>
+                            <option value="America/Chicago">Central Time (America/Chicago)</option>
+                            <option value="America/Denver">Mountain Time (America/Denver)</option>
+                            <option value="America/Los_Angeles">Pacific Time (America/Los Angeles)</option>
+                            <option value="America/Anchorage">Alaska Time (America/Anchorage)</option>
+                            <option value="Pacific/Honolulu">Hawaii Time (Pacific/Honolulu)</option>
+                        </optgroup>
+                        <optgroup label="Europe">
+                            <option value="Europe/London">London (Europe/London)</option>
+                            <option value="Europe/Paris">Paris / Berlin (Europe/Paris)</option>
+                            <option value="Europe/Helsinki">Helsinki (Europe/Helsinki)</option>
+                            <option value="Europe/Moscow">Moscow (Europe/Moscow)</option>
+                        </optgroup>
+                        <optgroup label="Asia / Pacific">
+                            <option value="Asia/Dubai">Dubai (Asia/Dubai)</option>
+                            <option value="Asia/Kolkata">India (Asia/Kolkata)</option>
+                            <option value="Asia/Bangkok">Bangkok (Asia/Bangkok)</option>
+                            <option value="Asia/Shanghai">China (Asia/Shanghai)</option>
+                            <option value="Asia/Tokyo">Japan (Asia/Tokyo)</option>
+                            <option value="Australia/Sydney">Sydney (Australia/Sydney)</option>
+                        </optgroup>
+                        <optgroup label="Other">
+                            <option value="UTC">UTC</option>
+                        </optgroup>
+                    </select>
+                </div>
+            </div>
+
             <div className="admin-style-settings-card">
                 <div className="admin-style-settings-card-header">
                     <div className="flex items-center gap-3 mb-2">

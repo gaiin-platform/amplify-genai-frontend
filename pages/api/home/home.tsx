@@ -858,6 +858,12 @@ const Home = ({
                             dispatch({ field: 'userDocumentationUrl', value: docUrl });
                         }
                     }
+                    if (AdminConfigTypes.DEFAULT_TIMEZONE in data) {
+                        const tz = data[AdminConfigTypes.DEFAULT_TIMEZONE];
+                        if (tz) {
+                            dispatch({ field: 'defaultTimezone', value: tz });
+                        }
+                    }
                     if (AdminConfigTypes.RATE_LIMIT in data) {
                         const rateLimitConfig = data[AdminConfigTypes.RATE_LIMIT];
                         // New shape from backend: { limits, honorPersonalRateLimit }
