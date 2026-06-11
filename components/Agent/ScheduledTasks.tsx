@@ -36,7 +36,7 @@ const emptyTask = (): ScheduledTask => {
     taskId: '',
     taskName: '',
     description: '',
-    cronExpression: '',
+    cronExpression: '0 9 * * *', // Default: daily at 9 AM — matches CronScheduleBuilder's visual default
     active: true,
     taskInstructions: '',
     taskType: 'assistant',
