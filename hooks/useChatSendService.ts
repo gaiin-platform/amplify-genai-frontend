@@ -305,7 +305,7 @@ export function useSendService() {
                     if (selectedConversation?.promptTemplate && isBasePrompt(selectedConversation.promptTemplate.id)) {
                         console.log("Artifacts disabled for base prompt template: ", selectedConversation.promptTemplate.name);
                     }
-                    const isSmartMessagesOn = featureFlags.smartMessages && featureOptions.includeFocusedMessages && (!pluginIds || (pluginIds.includes(PluginID.SMART_MESSAGES)));
+                    const isSmartMessagesOn = featureFlags.smartMessages && featureOptions.includeFocusedMessages; // && (!pluginIds || (pluginIds.includes(PluginID.SMART_MESSAGES)));
                     console.log("Smart Messages on: ", isSmartMessagesOn)
 
                     const isMemoryOn = featureFlags.memory && featureOptions.includeMemory && (!pluginIds || (pluginIds.includes(PluginID.MEMORY)));
