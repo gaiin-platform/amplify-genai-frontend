@@ -82,6 +82,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [appSecrets, setAppSecrets] = useState<{ [key: string]: string }>({});
     const [userDocumentationUrl, setUserDocumentationUrl] = useState<string>('');
     const [defaultTimezone, setDefaultTimezone] = useState<string>('America/Chicago');
+    const [smartMessagesEnabled, setSmartMessagesEnabled] = useState<boolean>(false);
     const [refreshingTypes, setRefreshingTypes] = useState< AdminConfigTypes[]>([]);
 
 
@@ -217,6 +218,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 setWebSearchConfig(data[AdminConfigTypes.WEB_SEARCH] || null);
                 setUserDocumentationUrl(data[AdminConfigTypes.USER_DOCUMENTATION_URL] || '');
                 setDefaultTimezone(data[AdminConfigTypes.DEFAULT_TIMEZONE] || 'America/Chicago');
+                setSmartMessagesEnabled(data[AdminConfigTypes.DEFAULT_SMART_MESSAGES] ?? false);
                 setLoadingMessage("");
             
                 const nonlazyResult = await nonlazyReq;
@@ -399,6 +401,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return userDocumentationUrl;
             case AdminConfigTypes.DEFAULT_TIMEZONE:
                 return defaultTimezone;
+            case AdminConfigTypes.DEFAULT_SMART_MESSAGES:
+                return smartMessagesEnabled;
             case AdminConfigTypes.OPENAI_ENDPOINTS:
                 const toTest:{key: string, url: string, model:string}[] = [];
                 
@@ -561,6 +565,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             homeDispatch({ field: 'webSearchUserMessage', value: webSearchConfig?.webSearchUserMessage?.trim() ?? null});
         });
         saveAction([AdminConfigTypes.USER_DOCUMENTATION_URL], () => homeDispatch({ field: 'userDocumentationUrl', value: userDocumentationUrl}));
+        saveAction([AdminConfigTypes.DEFAULT_SMART_MESSAGES], () => homeDispatch({ field: 'featureFlags', value: { ...featureFlags, smartMessages: smartMessagesEnabled }}));
         saveAction([AdminConfigTypes.RATE_LIMIT], () => {
             homeDispatch({ field: 'adminRateLimits', value: rateLimits });
             homeDispatch({ field: 'honorPersonalRateLimit', value: honorPersonalRateLimit });
@@ -692,7 +697,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     onSubmit={() => handleSave()
     }
     cancelLabel={"Close"}
-    submitLabel={"Save Changes"}
+    submitLabel={stillLoadingData ? "Still Loading..." : "Save Changes"}
     disableSubmit={unsavedConfigs.size === 0 || stillLoadingData}
     content={
       <div className="text-black dark:text-white overflow-x-hidden">
@@ -741,6 +746,9 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     setAiEmailDomain={featureFlags.assistantEmailEvents ? setAiEmailDomain : undefined}
                     defaultTimezone={defaultTimezone}
                     setDefaultTimezone={setDefaultTimezone}
+                    smartMessagesEnabled={smartMessagesEnabled}
+                    setSmartMessagesEnabled={setSmartMessagesEnabled}
+                    features={features}
                     allEmails={allEmails}
                     admin_text={admin_text}
                     updateUnsavedConfigs={updateUnsavedConfigs}

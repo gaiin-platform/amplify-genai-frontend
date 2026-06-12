@@ -888,6 +888,14 @@ const Home = ({
                             console.log("groupRateLimits", groupRateLimits);
                         dispatch({ field: 'groupRateLimits', value: groupRateLimits });
                     }
+                    if (AdminConfigTypes.DEFAULT_SMART_MESSAGES in data) {
+                        const defaultSmartMessages = data[AdminConfigTypes.DEFAULT_SMART_MESSAGES] as boolean;
+                        console.log("defaultSmartMessages", defaultSmartMessages);
+                        const updatedFlags = { ...featureFlagsRef.current, smartMessages: defaultSmartMessages };
+                        dispatch({ field: 'featureFlags', value: updatedFlags });
+                        // Re-derive settings so brand new users (no saved localStorage) get the admin default
+                        setSettings(getSettings(updatedFlags));
+                    }
 
                 } else {
                     console.log("Failed to fetch user app configs.");

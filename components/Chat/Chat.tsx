@@ -406,7 +406,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }, []);
 
         useEffect(() => {
-            if (!plugins && settingRef.current) setPlugins(getActivePlugins(settingRef.current, featureFlags));
+            settingRef.current = getSettings(featureFlags);
+            if (settingRef.current) {
+                // Re-derive any time featureFlags arrive/change so async admin defaults
+                // (from fetchUserAppConfigs) are honoured even after plugins was first set
+                if (!plugins || featureFlags.smartMessages !== undefined) {
+                    setPlugins(getActivePlugins(settingRef.current, featureFlags));
+                }
+            }
         }, [featureFlags]);
 
 

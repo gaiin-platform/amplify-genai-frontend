@@ -57,7 +57,7 @@ export const featureOptionFlags = [
   {
       "label": "Smart Focused Messages",
       "key": "includeFocusedMessages",
-      "defaultValue": true,
+      "defaultValue": true, // should default to admin setting
       "description" : "Automatically filter and send only the most relevant messages from the conversation based on the current user prompt. Instead of sending the entire conversation history, this feature ensures that only the messages closely related to your request are shared, making responses more efficient."
   },
   {
@@ -91,6 +91,8 @@ export const featureOptionFlags = [
 const featureOptionDefaults = (featureFlags:any) =>  featureOptionFlags.reduce((acc:{[key:string]:boolean}, x) => {
   if (x.key === 'includeArtifacts') {
     if (featureFlags.artifacts) acc[x.key] = x.defaultValue;
+  } else if (x.key === 'includeFocusedMessages') {
+    if (featureFlags.smartMessages !== undefined) acc[x.key] = featureFlags.smartMessages;
   } else if (x.key === 'includePluginSelector') {
       if (featureFlags.pluginsOnInput) acc[x.key] = x.defaultValue;
   } else if (x.key === "includeHighlighter") {
