@@ -139,10 +139,23 @@ Generate a workflow with the following JSON structure:
       "values": {
         "param_name": "Fixed value if known"
       },
-      "actionSegment": "optional_group_name"
+      "actionSegment": "optional_group_name",
+      "allowSkip": null,
+      "allowRepeat": false,
+      "maxRepeats": null,
+      "outputs": []
     }
   ]
 }
+
+Field explanations:
+- args: Parameter hints — the model is told how to determine these values but can override them
+- values: Hard-coded parameter values — the model cannot change these
+- actionSegment: Groups steps so users can toggle them on/off as a unit
+- allowSkip: null = LLM decides whether to skip, false = never skip this step, true = always allow skipping
+- allowRepeat: Set to true if this step should be re-run after each success (e.g. polling, paginated fetching). The step will stop repeating when its result contains {"done": true} or when maxRepeats is reached
+- maxRepeats: Max number of extra times to repeat the step (only relevant when allowRepeat is true). null means repeat once
+- outputs: Declare what this step produces so later steps can reference it via {{stepName.fieldName}}. Example: [{"name": "email_id", "type": "string", "description": "The ID of the created draft"}]
 
 Rules:
 - Each step must use a tool from the available tools list above
@@ -152,19 +165,12 @@ Rules:
 - Keep step names short, unique, and use underscores instead of spaces
 - Only use tools that were provided in the available tools list
 - If only the think tool is available, create a simple workflow with basic description and leave other tool names empty (empty string) so users can select tools manually later
-- Use "think" steps strategically when the agent needs to:
-  * Analyze or digest information from previous steps
-  * Understand context before making decisions
-  * Plan the approach for complex subsequent steps
-  * Process data or results to determine next actions
-  * Take a step back and evaluate progress
-- Think steps are NOT needed for every action - only when analysis/preparation is required
-- Action steps (API calls) should flow naturally when the task is straightforward
-- Example flow: API call → think (analyze results) → API call → think (plan next approach) → API call
-- For actionSegment usage:
-  * Core/essential steps that are required for the basic workflow should NOT have an actionSegment (leave undefined)
-  * Optional features, enhancements, or grouped functionality should use actionSegment
-  * Think steps that are essential should NOT have actionSegment
+- Use "think" steps strategically when the agent needs to analyze, plan, or process results between actions
+- Think steps are NOT needed for every action — only when analysis/preparation adds real value
+- Use allowRepeat for polling or paginated steps (e.g. fetch next page of results)
+- Use outputs to declare step results that later steps depend on; reference them in args/values as {{stepName.fieldName}}
+- Use allowSkip=false for critical steps that must always run
+- For actionSegment: core required steps get no segment; optional/grouped features get a segment name
 Generate ONLY the JSON, no additional text.`;
   };
 
@@ -254,8 +260,15 @@ Generate ONLY the JSON, no additional text.`;
     </span>
   ) as unknown as string;
 
+  const isSubmitDisabled = isGenerating || (!generatedWorkflow && !description.trim());
+
+  const modalHeight = Math.min(Math.max(window.innerHeight * 0.88, 600), window.innerHeight - 40);
+  // Modal header ~64px + Modal's own empty footer border ~48px = ~112px overhead
+  const contentHeight = modalHeight - 112;
+
   const modalContent = (
-    <div className="space-y-4 pt-1">
+    <div className="flex flex-col" style={{ height: contentHeight }}>
+    <div className="space-y-4 pt-1 flex-1 min-h-0 overflow-y-auto pr-1">
       {error && (
         <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg">
           <div className="flex items-start gap-2">
@@ -294,7 +307,7 @@ Generate ONLY the JSON, no additional text.`;
                     <span className="font-medium">APIs: </span>
                     <span className="inline-flex flex-wrap gap-1">
                       {selectedApis.map(api => (
-                        <span key={api.name} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded">
+                        <span key={api.name} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-900 rounded">
                           {api.name}
                           <button onClick={() => setSelectedApis(prev => prev.filter(a => a.name !== api.name))} className="hover:text-blue-600 dark:hover:text-blue-200" title={`Remove ${api.name}`}>
                             <IconX size={10} />
@@ -309,7 +322,7 @@ Generate ONLY the JSON, no additional text.`;
                     <span className="font-medium">Tools: </span>
                     <span className="inline-flex flex-wrap gap-1">
                       {selectedAgentTools.map(tool => (
-                        <span key={tool} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded">
+                        <span key={tool} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-900 rounded">
                           {tool}
                           <button onClick={() => setSelectedAgentTools(prev => prev.filter(t => t !== tool))} className="hover:text-green-600 dark:hover:text-green-200" title={`Remove ${tool}`}>
                             <IconX size={10} />
@@ -349,6 +362,7 @@ Generate ONLY the JSON, no additional text.`;
                     compactDisplay={true}
                     labelPrefix=''
                     allowConfiguration={true}
+                    hideApisPanel={['custom']}
                   />
                 </div>
               )}
@@ -383,6 +397,38 @@ Generate ONLY the JSON, no additional text.`;
         </div>
       )}
     </div>
+
+      {/* Footer */}
+      <div className="pt-3 mt-2 border-t border-gray-200 dark:border-neutral-600 flex justify-end gap-3 flex-shrink-0">
+        {generatedWorkflow && (
+          <button
+            type="button"
+            onClick={() => setGeneratedWorkflow(null)}
+            className="px-4 py-1.5 border rounded-lg shadow-md border-neutral-500 text-neutral-900 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-neutral-100 dark:text-black dark:hover:bg-neutral-300 transition-all duration-200 font-medium"
+          >
+            Regenerate
+          </button>
+        )}
+        {!generatedWorkflow && (
+          <button
+            type="button"
+            onClick={handleClose}
+            className="px-4 py-1.5 border rounded-lg shadow-md border-neutral-500 text-neutral-900 hover:bg-neutral-200 focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-neutral-100 dark:text-black dark:hover:bg-neutral-300 transition-all duration-200 font-medium"
+          >
+            Cancel
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={generatedWorkflow ? handleAccept : generateWorkflow}
+          disabled={isSubmitDisabled}
+          className="px-4 py-1.5 border rounded-lg shadow-md border-blue-600 text-white bg-blue-600 hover:bg-blue-700 focus:outline-none transition-all duration-200 font-medium"
+          style={{ cursor: isSubmitDisabled ? 'not-allowed' : 'pointer', opacity: isSubmitDisabled ? 0.4 : 1 }}
+        >
+          {generatedWorkflow ? 'Save This Workflow' : (isGenerating ? 'Generating...' : 'Generate Workflow')}
+        </button>
+      </div>
+    </div>
   );
 
   return (
@@ -390,14 +436,12 @@ Generate ONLY the JSON, no additional text.`;
       title={modalTitle}
       content={modalContent}
       onCancel={handleClose}
-      onSubmit={generatedWorkflow ? handleAccept : generateWorkflow}
-      cancelLabel={generatedWorkflow ? 'Close' : 'Cancel'}
-      submitLabel={generatedWorkflow ? 'Save This Workflow' : (isGenerating ? 'Generating...' : 'Generate Workflow')}
-      disableSubmit={isGenerating || (!generatedWorkflow && !description.trim())}
-      additionalButtonOptions={generatedWorkflow ? [{ label: 'Regenerate', handleClick: () => setGeneratedWorkflow(null) }] : []}
+      onSubmit={() => {}}
+      showCancel={false}
+      showSubmit={false}
       disableClickOutside={true}
       width={() => Math.max(window.innerWidth * 0.92, 1100)}
-      height={() => Math.max(window.innerHeight * 0.92, 700)}
+      height={() => Math.min(Math.max(window.innerHeight * 0.88, 600), window.innerHeight - 40)}
       resizeOnVarChange={generatedWorkflow}
     />
   );

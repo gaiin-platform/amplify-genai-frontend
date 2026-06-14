@@ -19,7 +19,7 @@ interface reqPayload {
 }
 
 // Paths that should not be compressed
-const NO_COMPRESSION_PATHS = ['/billing', '/se', "/amp", '/vu-agent', "/user-data", "/data-disclosure", "/integrations"];
+const NO_COMPRESSION_PATHS = ['/billing', '/se', "/amp", '/vu-agent', "/user-data", "/data-disclosure", "/integrations", "/notebook"];
 
 
 const requestOp =
@@ -47,7 +47,7 @@ const requestOp =
             method: method,
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${accessToken}` 
+                "Authorization": `Bearer ${accessToken}`,
             },
         }
 
@@ -55,11 +55,11 @@ const requestOp =
             // Use originalPath if available (set when running locally), otherwise use path
             const pathToCheck = reqData.originalPath || reqData.path;
             const shouldCompress = !NO_COMPRESSION_PATHS.includes(pathToCheck);
-            
+
             if (shouldCompress) {
                 try {
                     if (typeof payload === 'object') {
-                        payload = lzwCompress(JSON.stringify(payload));   
+                        payload = lzwCompress(JSON.stringify(payload));
                         console.log("Compressed payload");
                     } else if (typeof payload === 'string' && payload.length > 1000) {
                         // Compress large strings
@@ -81,7 +81,6 @@ const requestOp =
                 console.log(`Including pollRequestId in backend request: ${pollRequestId}`);
             }
             reqPayload.body = JSON.stringify(bodyData);
-
         }
 
         try {
@@ -91,6 +90,7 @@ const requestOp =
             if (!response.ok) throw new Error(`Request to ${apiUrl} failed with status: ${response.status}`);
 
             const responseData = await response.json();
+
             const encodedResponse = transformPayload.encode(responseData);
 
             res.status(200).json({ data: encodedResponse });
@@ -103,8 +103,11 @@ const requestOp =
 export default requestOp;
 
 
-const constructUrl = (data: any) => {  
-    let apiUrl = data.url ?? (process.env.API_BASE_URL || "");
+const constructUrl = (data: any) => {
+    let apiUrl = data.url;
+    if (!apiUrl) {
+        apiUrl = process.env.API_BASE_URL || "";
+    }
 
     const path: string = data.path || "";
     const op: string = data.op || "";

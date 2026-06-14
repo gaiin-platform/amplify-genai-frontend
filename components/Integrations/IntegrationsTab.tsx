@@ -2,6 +2,7 @@ import { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import HomeContext from '@/pages/api/home/home.context';
 import { IconCheck, IconLoader2 } from '@tabler/icons-react';
+import toast from 'react-hot-toast';
 
 import { deleteUserIntegration, getAvailableIntegrations, getOauthRedirect, getConnectedIntegrations } from '@/services/oauthIntegrationsService';
 import { ActiveTabs } from '../ReusableComponents/ActiveTabs';
@@ -148,6 +149,26 @@ export const IntegrationTabs: FC<Props> = ({ open, depth=0, allowedIntegrations=
     let location = null;
     try {
       const res = await getOauthRedirect(id, settings);
+
+      // Token-sharing shortcut: backend shared credentials from another
+      // integration without requiring a separate OAuth flow.
+      if (res?.body?.token_shared) {
+        refreshUserIntegrations();
+        setConnectingStates(prev => ({ ...prev, [id]: false }));
+        toast.success('Authentication Successful', {
+          duration: 4000,
+          position: 'top-center',
+        });
+        return;
+      }
+
+      // Handle error responses (e.g., token sharing failed)
+      if (res?.body?.error) {
+        alert(res.body.message || "An error occurred connecting this integration.");
+        setConnectingStates(prev => ({ ...prev, [id]: false }));
+        return;
+      }
+
       location = res.body.Location;
     } catch (e) {
       alert("An error occurred. Please try again.");

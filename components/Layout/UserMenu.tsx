@@ -18,7 +18,6 @@ import SharingDialog from '../Share/SharingDialog';
 import { ThemeService } from '@/utils/whiteLabel/themeService';
 import { Theme } from '@/types/settings';
 import toast from 'react-hot-toast';
-import { getMonthlyLimit } from '@/types/rateLimit';
 
 
 interface UserMenuProps {
@@ -36,7 +35,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   cognitoDomain,
   cognitoClientId,
 }) => {
-  const { dispatch, state: { lightMode, showUserMenu, featureFlags, supportEmail, adminRateLimits, defaultAccount }, dispatch: homeDispatch } = useContext(HomeContext);
+  const { dispatch, state: { lightMode, showUserMenu, featureFlags, supportEmail, defaultAccount, adminRateLimits, groupRateLimits, honorPersonalRateLimit }, dispatch: homeDispatch } = useContext(HomeContext);
   const [mtdCost, setMtdCost] = useState<string>('0');
   const [mtdCostNumeric, setMtdCostNumeric] = useState<number>(0);
   const [showCostBreakdown, setShowCostBreakdown] = useState<boolean>(false);
@@ -298,12 +297,16 @@ export const UserMenu: React.FC<UserMenuProps> = ({
     return email?.charAt(0).toUpperCase() || 'U';
   };
 
-  // Utilization helpers
+  // Utilization helpers — same showPersonal rule as RateLimitUtilization
   const getEffectiveRateLimit = () => {
     const personal = defaultAccount?.rateLimit;
-    if (personal && personal.rate !== null && personal.period !== 'Unlimited') return personal;
-    // From the admin limits list, only use the monthly limit for MTD comparison
-    return getMonthlyLimit(adminRateLimits ?? []);
+    const hasPersonal = !!(personal && personal.rate !== null && personal.period !== 'Unlimited');
+    const hasAdminOrGroup = (adminRateLimits ?? []).some((l: any) => l.rate !== null && l.period !== 'Unlimited')
+        || (groupRateLimits ?? []).some((g: any) => g.limits.some((l: any) => l.rate !== null && l.period !== 'Unlimited'));
+    const honorScope = honorPersonalRateLimit?.scope ?? 'both';
+    const honorApplies = !!(honorPersonalRateLimit?.enabled) && (honorScope === 'both' || honorScope === 'amplifyAccount');
+    const showPersonal = hasPersonal && (!hasAdminOrGroup || honorApplies);
+    return showPersonal ? personal : null;
   };
 
   const getUtilizationPercent = (): number | null => {

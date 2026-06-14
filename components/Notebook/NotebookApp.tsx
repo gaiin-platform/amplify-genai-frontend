@@ -1,0 +1,376 @@
+import React, { useContext, useEffect, useState } from 'react';
+import {
+    IconArrowLeft,
+    IconNotebook,
+    IconPlus,
+    IconSearch,
+    IconTrash,
+} from '@tabler/icons-react';
+import HomeContext from '@/pages/api/home/home.context';
+import {
+    deleteNotebook,
+    listNotebooks,
+    NotebookSummary,
+} from '@/services/notebookService';
+import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
+import { CreateNotebookDialog } from './CreateNotebookDialog';
+import { NotebookDetail } from './NotebookDetail';
+import { NotebookSidebar, NotebookSection } from './NotebookSidebar';
+import { SourcesPage } from './SourcesPage';
+import { AskSearchPage } from './AskSearchPage';
+import { PodcastsPage } from './PodcastsPage';
+
+const SECTION_TITLES: Record<NotebookSection, string> = {
+    notebooks: 'Notebooks',
+    sources: 'Sources',
+    ask: 'Ask and Search',
+    podcasts: 'Podcasts',
+};
+
+const SECTION_DESCRIPTIONS: Record<NotebookSection, string> = {
+    notebooks: '',
+    sources: 'A unified view of every source across your notebooks.',
+    ask: 'Run semantic search and ask questions across all your sources and notes.',
+    podcasts: 'Generate podcast episodes from your notebook content.',
+};
+
+const ComingSoonPanel: React.FC<{ section: NotebookSection }> = ({ section }) => (
+    <div className="flex h-full items-center justify-center">
+        <div className="max-w-md rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-sm">
+                <IconNotebook size={22} />
+            </div>
+            <h2 className="text-lg font-semibold">{SECTION_TITLES[section]}</h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {SECTION_DESCRIPTIONS[section]}
+            </p>
+        </div>
+    </div>
+);
+
+const formatRelative = (iso?: string) => {
+    if (!iso) return '';
+    const d = new Date(iso.replace(' ', 'T'));
+    if (isNaN(d.getTime())) return '';
+    const diffMs = Date.now() - d.getTime();
+    const mins = Math.round(diffMs / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.round(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.round(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    return d.toLocaleDateString();
+};
+
+export const NotebookApp = () => {
+    const { dispatch } = useContext(HomeContext);
+
+    const [notebooks, setNotebooks] = useState<NotebookSummary[]>([]);
+    const [loading, setLoading] = useState<boolean>(true);
+    const [error, setError] = useState<string | null>(null);
+    const [selected, setSelected] = useState<NotebookSummary | null>(null);
+    const [showCreate, setShowCreate] = useState<boolean>(false);
+    const [pendingDelete, setPendingDelete] = useState<NotebookSummary | null>(null);
+    const [deleting, setDeleting] = useState<boolean>(false);
+    const [section, setSection] = useState<NotebookSection>('notebooks');
+    const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
+    const [searchQuery, setSearchQuery] = useState<string>('');
+
+    const goBackToChat = () => dispatch({ field: 'page', value: 'chat' });
+    const goBackToList = () => {
+        setSelected(null);
+        // Refresh so each card's source/note count (and ordering) reflects any
+        // sources/notes added or removed while the detail was open. Background
+        // refresh: the loader only shows when the list is empty, so no flicker.
+        fetchNotebooks();
+    };
+
+    const handleSectionChange = (next: NotebookSection) => {
+        setSection(next);
+        // Always clear any open notebook so a sidebar click lands on the section's
+        // home view. In particular, clicking "Notebooks" while a notebook detail is
+        // open returns to the list (home), not the currently-open notebook.
+        setSelected(null);
+        // Returning to the notebooks list re-fetches for the same reason as
+        // goBackToList — counts may be stale after work in another section.
+        if (next === 'notebooks') fetchNotebooks();
+    };
+
+    const fetchNotebooks = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await listNotebooks({ order_by: 'updated desc' });
+            setNotebooks(data);
+        } catch (e: any) {
+            setError(e?.message || 'Failed to load notebooks');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchNotebooks();
+    }, []);
+
+    const handleCreated = (created: NotebookSummary) => {
+        // Add it to the list and stay on the notebooks page — the user opens it
+        // by clicking its card (setSelected). Don't auto-navigate into it.
+        setNotebooks((prev) => [created, ...prev]);
+    };
+
+    const confirmDelete = async () => {
+        if (!pendingDelete) return;
+        setDeleting(true);
+        const ok = await deleteNotebook(pendingDelete.id);
+        setDeleting(false);
+        if (!ok) {
+            setError(`Couldn't delete "${pendingDelete.name}".`);
+            setPendingDelete(null);
+            return;
+        }
+        setNotebooks((prev) => prev.filter((nb) => nb.id !== pendingDelete.id));
+        if (selected?.id === pendingDelete.id) setSelected(null);
+        setPendingDelete(null);
+    };
+
+    const isNotebooksSection = section === 'notebooks';
+    const headerTitle = isNotebooksSection
+        ? selected
+            ? selected.name || '(untitled)'
+            : 'Notebooks'
+        : SECTION_TITLES[section];
+    const showBackToList = isNotebooksSection && !!selected;
+    const showListControls = isNotebooksSection && !selected;
+
+    const filteredNotebooks = searchQuery.trim()
+        ? notebooks.filter((nb) => {
+              const q = searchQuery.toLowerCase();
+              return (
+                  (nb.name || '').toLowerCase().includes(q) ||
+                  (nb.description || '').toLowerCase().includes(q)
+              );
+          })
+        : notebooks;
+
+    return (
+        <div className="flex flex-1 h-full bg-white dark:bg-[#343541] text-neutral-800 dark:text-neutral-100">
+            <NotebookSidebar
+                section={section}
+                onSection={handleSectionChange}
+                onCreate={() => setShowCreate(true)}
+                onBack={goBackToChat}
+                collapsed={sidebarCollapsed}
+                onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
+            />
+            <div className="flex flex-col flex-1 min-w-0">
+            <div className="flex items-center gap-3 border-b border-gray-200 dark:border-neutral-700 bg-gradient-to-b from-gray-50 to-white dark:from-gray-800 dark:to-[#343541] pl-4 pr-20 py-3">
+                {showBackToList && (
+                    <button
+                        onClick={goBackToList}
+                        title="Back to notebooks"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-white transition-colors"
+                    >
+                        <IconArrowLeft size={20} />
+                    </button>
+                )}
+                <div className="flex flex-col min-w-0">
+                    <h1 className="text-base font-semibold leading-tight truncate">
+                        {headerTitle}
+                    </h1>
+                    {isNotebooksSection && selected?.description && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 max-w-xl">
+                            {selected.description}
+                        </span>
+                    )}
+                    {!isNotebooksSection && SECTION_DESCRIPTIONS[section] && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 max-w-xl">
+                            {SECTION_DESCRIPTIONS[section]}
+                        </span>
+                    )}
+                </div>
+
+                {showListControls && (
+                    <>
+                        <div className="ml-auto flex items-center gap-2">
+                            <div className="relative">
+                                <IconSearch
+                                    size={14}
+                                    className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                                />
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search notebooks…"
+                                    className="h-8 w-56 rounded-lg border border-gray-200 bg-white pl-8 pr-3 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 dark:border-neutral-700 dark:bg-[#2b2c36] dark:text-gray-100 dark:placeholder-gray-500"
+                                />
+                            </div>
+                            <button
+                                onClick={() => setShowCreate(true)}
+                                className="flex h-8 items-center gap-1.5 rounded-lg bg-purple-500 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-600"
+                            >
+                                <IconPlus size={16} />
+                                New Notebook
+                            </button>
+                        </div>
+                    </>
+                )}
+            </div>
+
+            <div className="flex-1 overflow-auto px-6 py-6 bg-neutral-50 dark:bg-[#343541]">
+                {section === 'sources' ? (
+                    <SourcesPage />
+                ) : section === 'ask' ? (
+                    <AskSearchPage />
+                ) : section === 'podcasts' ? (
+                    <PodcastsPage />
+                ) : !isNotebooksSection ? (
+                    <ComingSoonPanel section={section} />
+                ) : selected ? (
+                    <NotebookDetail notebookId={selected.id} initialData={selected} />
+                ) : (
+                    <>
+                        {loading && notebooks.length === 0 && (
+                            <div className="flex items-center justify-center py-20 text-sm text-gray-500 dark:text-gray-400">
+                                <svg
+                                    className="mr-2 h-4 w-4 animate-spin text-purple-500"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                >
+                                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
+                                    <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                                </svg>
+                                Loading notebooks…
+                            </div>
+                        )}
+
+                        {!loading && error && (
+                            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                                <div className="font-medium">Couldn&apos;t load notebooks</div>
+                                <div className="mt-1 text-sm opacity-80">{error}</div>
+                            </div>
+                        )}
+
+                        {!loading && !error && notebooks.length === 0 && !searchQuery && (
+                            <div className="flex flex-col items-center justify-center py-20 text-center">
+                                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-lg">
+                                    <IconNotebook size={28} />
+                                </div>
+                                <h2 className="text-lg font-semibold">No notebooks yet</h2>
+                                <p className="mt-1 max-w-sm text-sm text-gray-500 dark:text-gray-400">
+                                    Create your first notebook to start collecting sources, taking notes,
+                                    and chatting with your research.
+                                </p>
+                            </div>
+                        )}
+
+                        {!loading && !error && notebooks.length > 0 && filteredNotebooks.length === 0 && (
+                            <div className="flex flex-col items-center justify-center py-20 text-center">
+                                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-400 dark:border-neutral-700 dark:bg-[#2b2c36]">
+                                    <IconNotebook size={28} />
+                                </div>
+                                <h2 className="text-lg font-semibold">No results</h2>
+                                <p className="mt-1 max-w-sm text-sm text-gray-500 dark:text-gray-400">
+                                    No notebooks match &quot;{searchQuery}&quot;.
+                                </p>
+                            </div>
+                        )}
+
+                        {!loading && !error && filteredNotebooks.length > 0 && (
+                            <>
+                                <div className="mb-3 flex items-baseline gap-2">
+                                    <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
+                                        Active Notebooks
+                                    </h2>
+                                    <span className="text-sm text-gray-400 dark:text-gray-500">
+                                        ({filteredNotebooks.length})
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                {filteredNotebooks.map((nb) => (
+                                    <div
+                                        key={nb.id}
+                                        className="group relative cursor-pointer rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-purple-300 hover:shadow-md dark:border-neutral-700 dark:bg-[#2b2c36] dark:hover:border-purple-500/60"
+                                        onClick={() => setSelected(nb)}
+                                    >
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setPendingDelete(nb);
+                                            }}
+                                            title="Delete notebook"
+                                            className="absolute top-2 right-2 invisible rounded-full p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 group-hover:visible dark:text-gray-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                                        >
+                                            <IconTrash size={16} />
+                                        </button>
+
+                                        <div className="flex items-start gap-3">
+                                            <div className="min-w-0 flex-1">
+                                                <div className="truncate font-semibold leading-snug">
+                                                    {nb.name || '(untitled)'}
+                                                </div>
+                                                {nb.description ? (
+                                                    <div className="mt-0.5 line-clamp-2 text-xs text-gray-500 dark:text-gray-400">
+                                                        {nb.description}
+                                                    </div>
+                                                ) : (
+                                                    <div className="mt-0.5 text-xs italic text-gray-400 dark:text-gray-500">
+                                                        No description
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-4 flex flex-wrap items-center gap-1.5">
+                                            <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-medium text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                                                {nb.source_count ?? 0} sources
+                                            </span>
+                                            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                                                {nb.note_count ?? 0} notes
+                                            </span>
+                                            {nb.updated && (
+                                                <span className="ml-auto text-[11px] text-gray-400 dark:text-gray-500">
+                                                    {formatRelative(nb.updated)}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                                </div>
+                            </>
+                        )}
+                    </>
+                )}
+            </div>
+            </div>
+
+            {showCreate && (
+                <CreateNotebookDialog
+                    onClose={() => setShowCreate(false)}
+                    onCreated={handleCreated}
+                />
+            )}
+
+            {pendingDelete && (
+                <ConfirmModal
+                    title="Delete notebook?"
+                    message={
+                        <span>
+                            Delete <b>{pendingDelete.name || '(untitled)'}</b>? This will also remove
+                            its sources, notes, and chat sessions. This can&apos;t be undone.
+                        </span>
+                    }
+                    confirmLabel={deleting ? 'Deleting…' : 'Delete'}
+                    denyLabel="Cancel"
+                    onConfirm={confirmDelete}
+                    onDeny={() => setPendingDelete(null)}
+                />
+            )}
+        </div>
+    );
+};
+
+export default NotebookApp;

@@ -34,7 +34,7 @@ const RemovedDataSourcesBlock: React.FC<Props> = ({ message, supportEmail }) => 
     }
 
     const removed: RemovedDataSources = message.data.state.removedDataSources;
-    const totalRemoved = removed.invalidIds.length + removed.deniedAccess.length + removed.invalidImageIds.length;
+    const totalRemoved = (removed.invalidIds?.length ?? 0) + (removed.deniedAccess?.length ?? 0) + (removed.invalidImageIds?.length ?? 0);
     if (totalRemoved === 0) {
         return null;
     }

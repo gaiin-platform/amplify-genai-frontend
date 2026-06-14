@@ -1,7 +1,7 @@
 import { FC, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Amplify_Group, Amplify_Groups, AmplifyGroupSelect, EmailSupport, PromptCostAlert, titleLabel, UserAction } from "../AdminUI";
-import { AdminConfigTypes} from "@/types/admin";
+import { AdminConfigTypes, FeatureFlagConfig } from "@/types/admin";
 import { IconPlus, IconTrash, IconX, IconCloudFilled, IconMessage, IconCheck, IconEdit, IconFileImport } from "@tabler/icons-react";
 import Checkbox from "@/components/ReusableComponents/CheckBox";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
@@ -33,6 +33,9 @@ interface Props {
     rateLimits: RateLimits;
     setRateLimits: (l: RateLimits) => void;
 
+    honorPersonalRateLimit: { enabled: boolean; scope?: 'both' | 'apiKey' | 'amplifyAccount' };
+    setHonorPersonalRateLimit: (v: { enabled: boolean; scope?: 'both' | 'apiKey' | 'amplifyAccount' }) => void;
+
     promptCostAlert: PromptCostAlert;
     setPromptCostAlert: (a: PromptCostAlert) => void;
 
@@ -45,6 +48,13 @@ interface Props {
     aiEmailDomain: string;
     setAiEmailDomain?: (d: string) => void;
 
+    defaultTimezone: string;
+    setDefaultTimezone: (tz: string) => void;
+
+    smartMessagesEnabled: boolean;
+    setSmartMessagesEnabled: (v: boolean) => void;
+    features: FeatureFlagConfig;
+
     allEmails: Array<string> | null;
 
     admin_text: string;
@@ -53,10 +63,15 @@ interface Props {
 }
 
 export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setAmpGroups, amplifyUsers, allEmails,
-                                              rateLimits, setRateLimits, promptCostAlert, setPromptCostAlert,
+                                              rateLimits, setRateLimits, honorPersonalRateLimit, setHonorPersonalRateLimit,
+                                              promptCostAlert, setPromptCostAlert,
                                               defaultConversationStorage, setDefaultConversationStorage,
                                               emailSupport, setEmailSupport, aiEmailDomain, setAiEmailDomain,
+                                              defaultTimezone, setDefaultTimezone,
+                                              smartMessagesEnabled, setSmartMessagesEnabled, features,
                                               admin_text, updateUnsavedConfigs, onModalStateChange}) => {
+
+    const smartMessagesFlagOn = features.smartMessages?.enabled !== false;
 
     const { data: session } = useSession();
     const userEmail = getUserIdentifier(session?.user);
@@ -112,6 +127,11 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
         updateUnsavedConfigs(AdminConfigTypes.RATE_LIMIT);
     }
 
+    const handleUpdateHonorPersonalRateLimit = (value: { enabled: boolean; scope?: 'both' | 'apiKey' | 'amplifyAccount' }) => {
+        setHonorPersonalRateLimit(value);
+        updateUnsavedConfigs(AdminConfigTypes.RATE_LIMIT);
+    }
+
     const handleUpdatePromptCostAlert = (updatedPromptCostAlert: PromptCostAlert) => {
         setPromptCostAlert(updatedPromptCostAlert);
         updateUnsavedConfigs(AdminConfigTypes.PROMPT_COST_ALERT);
@@ -133,6 +153,15 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
         updateUnsavedConfigs(AdminConfigTypes.AI_EMAIL_DOMAIN);
     }
 
+    const handleUpdateDefaultTimezone = (tz: string) => {
+        setDefaultTimezone(tz);
+        updateUnsavedConfigs(AdminConfigTypes.DEFAULT_TIMEZONE);
+    }
+
+    const handleUpdateSmartMessages = (enabled: boolean) => {
+        setSmartMessagesEnabled(enabled);
+        updateUnsavedConfigs(AdminConfigTypes.DEFAULT_SMART_MESSAGES);
+    }
 
     const handleUpdateAmpGroups = (updatedGroups: Amplify_Groups) => {
         setAmpGroups(updatedGroups);
@@ -350,7 +379,47 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                     />
                 </div>
             </div>}
-       
+
+            <div className="admin-style-settings-card">
+                <div className="admin-style-settings-card-header">
+                    <h3 className="admin-style-settings-card-title">Default Timezone</h3>
+                    <p className="admin-style-settings-card-description">System-wide default timezone used for scheduled tasks, calendar events, and email timestamps</p>
+                </div>
+                <div className="mx-12 pb-4">
+                    <select
+                        className="w-full p-2 rounded border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                        value={defaultTimezone}
+                        onChange={(e) => handleUpdateDefaultTimezone(e.target.value)}
+                    >
+                        <optgroup label="US Timezones">
+                            <option value="America/New_York">Eastern Time (America/New York)</option>
+                            <option value="America/Chicago">Central Time (America/Chicago)</option>
+                            <option value="America/Denver">Mountain Time (America/Denver)</option>
+                            <option value="America/Los_Angeles">Pacific Time (America/Los Angeles)</option>
+                            <option value="America/Anchorage">Alaska Time (America/Anchorage)</option>
+                            <option value="Pacific/Honolulu">Hawaii Time (Pacific/Honolulu)</option>
+                        </optgroup>
+                        <optgroup label="Europe">
+                            <option value="Europe/London">London (Europe/London)</option>
+                            <option value="Europe/Paris">Paris / Berlin (Europe/Paris)</option>
+                            <option value="Europe/Helsinki">Helsinki (Europe/Helsinki)</option>
+                            <option value="Europe/Moscow">Moscow (Europe/Moscow)</option>
+                        </optgroup>
+                        <optgroup label="Asia / Pacific">
+                            <option value="Asia/Dubai">Dubai (Asia/Dubai)</option>
+                            <option value="Asia/Kolkata">India (Asia/Kolkata)</option>
+                            <option value="Asia/Bangkok">Bangkok (Asia/Bangkok)</option>
+                            <option value="Asia/Shanghai">China (Asia/Shanghai)</option>
+                            <option value="Asia/Tokyo">Japan (Asia/Tokyo)</option>
+                            <option value="Australia/Sydney">Sydney (Australia/Sydney)</option>
+                        </optgroup>
+                        <optgroup label="Other">
+                            <option value="UTC">UTC</option>
+                        </optgroup>
+                    </select>
+                </div>
+            </div>
+
             <div className="admin-style-settings-card">
                 <div className="admin-style-settings-card-header">
                     <div className="flex items-center gap-3 mb-2">
@@ -480,6 +549,36 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                         )}
                     </div>
                 </div>
+
+                <div className="mt-2">
+                    <Checkbox
+                        id="honorPersonalRateLimit"
+                        label="Honor personal rate limits — if a user has set their own personal rate limit, it will be honored even if it exceeds the admin or group limits. Enable with caution."
+                        checked={honorPersonalRateLimit.enabled}
+                        onChange={(v) => handleUpdateHonorPersonalRateLimit({ ...honorPersonalRateLimit, enabled: v, scope: honorPersonalRateLimit.scope ?? 'both' })}
+                    />
+                    {honorPersonalRateLimit.enabled && (
+                        <div className="ml-6 mt-2 flex flex-col gap-1">
+                            <p className="text-sm font-medium mb-1">Apply to:</p>
+                            {([
+                                { value: 'both', label: 'Both — API and Amplify accessed' },
+                                { value: 'apiKey', label: 'API key accessed only' },
+                                { value: 'amplifyAccount', label: 'Amplify accessed only' },
+                            ] as const).map(({ value, label }) => (
+                                <label key={value} className="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="honorPersonalScope"
+                                        value={value}
+                                        checked={(honorPersonalRateLimit.scope ?? 'both') === value}
+                                        onChange={() => handleUpdateHonorPersonalRateLimit({ ...honorPersonalRateLimit, scope: value })}
+                                    />
+                                    {label}
+                                </label>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
 
             
@@ -517,6 +616,45 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 </div>
             </div>
         
+
+            
+            <div className="admin-style-settings-card flex flex-row items-start gap-14">
+                <div className="admin-style-settings-card-header">
+                    <h3 className="admin-style-settings-card-title">Smart Focused Messages — Default Setting</h3>
+                    <p className="admin-style-settings-card-description">
+                        {smartMessagesFlagOn
+                            ? 'Default on/off for users without a saved preference'
+                            : <span className="text-amber-500 dark:text-amber-400 text-xs font-semibold">⚠ Enable the <strong>smartMessages</strong> feature flag first to configure this</span>
+                        }
+                    </p>
+                </div>
+                <div className={`flex-shrink-0 flex items-center rounded-md border border-neutral-600 bg-neutral-200 dark:bg-[#39394a] p-1 gap-1 ${
+                    !smartMessagesFlagOn ? 'opacity-40 pointer-events-none select-none' : ''
+                }`}>
+                    <button
+                        onClick={() => handleUpdateSmartMessages(true)}
+                        className={`px-3 py-1 rounded text-xs font-semibold transition-all duration-200 ${
+                            smartMessagesEnabled
+                                ? 'bg-white dark:bg-[#1f1f29] text-green-500 dark:text-green-400 font-bold scale-105'
+                                : 'bg-transparent text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-[#31313f]'
+                        }`}
+                    >
+                        ON
+                    </button>
+                    <button
+                        onClick={() => handleUpdateSmartMessages(false)}
+                        className={`px-3 py-1 rounded text-xs font-semibold transition-all duration-200 ${
+                            !smartMessagesEnabled
+                                ? 'bg-white dark:bg-[#1f1f29] text-red-400 dark:text-red-400 font-bold scale-105'
+                                : 'bg-transparent text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-[#31313f]'
+                        }`}
+                    >
+                        OFF
+                    </button>
+                </div>
+            </div>
+
+            
 
             <div className="admin-style-settings-card">
                 <div className="admin-style-settings-card-header">

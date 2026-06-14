@@ -20,7 +20,7 @@ import { ExtractedFact } from '@/types/memory';
 import { Features } from '@/types/features';
 import { PromptCostAlert } from '@/components/Admin/AdminUI';
 import { LayeredAssistant } from '@/types/layeredAssistant';
-import { RateLimit, RateLimits } from '@/types/rateLimit';
+import { RateLimit, RateLimits, HonorPersonalRateLimit } from '@/types/rateLimit';
 
 export interface HomeInitialState {
   defaultAccount: Account | undefined;
@@ -92,6 +92,7 @@ export interface HomeInitialState {
   memoryExtractionEnabled: boolean;
   supportEmail: string;
   aiEmailDomain: string;
+  defaultTimezone: string;
   ragOn: boolean;
   isStandalonePromptCreation: boolean;
   promptCostAlert: PromptCostAlert | null;
@@ -99,6 +100,7 @@ export interface HomeInitialState {
   webSearchUserMessage: string | null;
   userDocumentationUrl: string;
   adminRateLimits: RateLimits;
+  honorPersonalRateLimit: HonorPersonalRateLimit;
   groupRateLimits: { groupName: string; limits: RateLimits }[];
   promptCostAlertModal: {
     isOpen: boolean;
@@ -191,6 +193,7 @@ export const initialState: HomeInitialState = {
   memoryExtractionEnabled: true,
   supportEmail: '',
   aiEmailDomain: '',
+  defaultTimezone: 'America/Chicago',
   ragOn: false,
   isStandalonePromptCreation: false,
   promptCostAlert: null,
@@ -199,5 +202,6 @@ export const initialState: HomeInitialState = {
   webSearchUserMessage: null,
   userDocumentationUrl: '',
   adminRateLimits: [],
+  honorPersonalRateLimit: { enabled: false },
   groupRateLimits: []
 };

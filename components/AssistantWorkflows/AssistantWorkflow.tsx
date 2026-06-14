@@ -20,21 +20,27 @@ interface WorkflowProps {
     onWorkflowTemplateUpdate: (workflowTemplate: AstWorkflow) => void;
     computedDisabledSegments?: () => string[];
     obfuscate?: boolean;
+    showHeader?: boolean;
 }
   
-export const AssistantWorkflow: React.FC<WorkflowProps> = ({ 
+export const AssistantWorkflow: React.FC<WorkflowProps> = ({
     id,
     workflowTemplate,
     originalBaseWorkflowTemplate,
     onWorkflowTemplateUpdate,
     enableCustomization,
     computedDisabledSegments = () => [],
-    obfuscate
+    obfuscate,
+    showHeader = true
   }) => {
     const { state: {featureFlags} } = useContext(HomeContext);
     
     const [disabledActionSegments, setDisabledActionSegments] = useState<string[]>([]);
-    const [expandedSegments, setExpandedSegments] = useState<Record<string, boolean>>({});
+    const getInitialExpandedSegments = (template: AstWorkflow): Record<string, boolean> => {
+      const segments = template.template?.steps.map(s => s.actionSegment || 'default') ?? [];
+      return Object.fromEntries(Array.from(new Set(segments)).map(s => [s, true]));
+    };
+    const [expandedSegments, setExpandedSegments] = useState<Record<string, boolean>>(() => getInitialExpandedSegments(workflowTemplate));
     const [internalTemplate, setInternalTemplate] = useState(cloneDeep(workflowTemplate));
 
     const groupSteps = (template: AstWorkflow) => {
@@ -62,6 +68,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
         // Only update if the template ID or version changes
         if (workflowTemplate?.templateId !== internalTemplate?.templateId) {
             setInternalTemplate(cloneDeep(workflowTemplate));
+            setExpandedSegments(getInitialExpandedSegments(workflowTemplate));
         }
     }, [workflowTemplate?.templateId]);
   
@@ -126,7 +133,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
     const toggleSegmentExpanded = (segment: string) => {
       setExpandedSegments(prev => ({
         ...prev,
-        [segment]: !prev[segment] // Default false (collapsed)
+        [segment]: !(prev[segment] ?? true)
       }));
     };
 
@@ -187,10 +194,15 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
         }
       });
       // consider only allowing appending to the arg
-      const inputs = Object.keys(filteredArgs).map(argKey => ({
-        label: camelCaseToTitle(argKey), key: argKey, description: `Customize argument "${argKey}" value`, 
-        disabled: !enableCustomization
-      }));
+      const inputs = Object.keys(filteredArgs).map(argKey => {
+        const originalValue = originalArgs?.[argKey] ?? '';
+        return {
+          label: camelCaseToTitle(argKey),
+          key: argKey,
+          description: originalValue ? `Base: "${originalValue}" - Add additional instructions here` : `Customize argument "${argKey}" value`,
+          disabled: !enableCustomization
+        };
+      });
       return (
         <div className={`${shift} my-3 pb-4 border-y border-neutral-300 dark:border-neutral-600 pt-3 ${!enableCustomization ? 'opacity-70' : ''}`}>
         <div 
@@ -211,7 +223,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
               const originalArgValue = originalArgs[argKey] ?? '';
               // remove duplicate original value from new value
               let newArgValue = newValue.slice(originalArgValue.length);
-              newArgValue = `${originalArgValue }${newArgValue}`;
+              newArgValue = `${originalArgValue}${newArgValue}`;
               handleArgChange(step, argKey, newArgValue);
             }
           }}
@@ -223,17 +235,20 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
 
     return (
       <div className="mt-4 mb-6" key={id}>
-        <div className="text-sm text-black dark:text-neutral-200 mb-2">
-          <span className="font-bold">Name:</span> {capitalize(internalTemplate.name)} 
-        </div>
-        
-        {internalTemplate.description && (
-          <div className="text-sm text-neutral-700 dark:text-neutral-300 mb-4">
-            <span className="font-bold">Description:</span> {internalTemplate.description}
-          </div>
+        {showHeader && (
+          <>
+            <div className="text-sm text-black dark:text-neutral-200 mb-2">
+              <span className="font-bold">Name:</span> {capitalize(internalTemplate.name)}
+            </div>
+            {internalTemplate.description && (
+              <div className="text-sm text-neutral-700 dark:text-neutral-300 mb-4">
+                <span className="font-bold">Description:</span> {internalTemplate.description}
+              </div>
+            )}
+          </>
         )}
-        
-        <div 
+
+        <div
           className="text-sm text-neutral-700 dark:text-neutral-300 mb-4"
           title="Segments allow you to group related workflow steps together and enable/disable them as units"
         >

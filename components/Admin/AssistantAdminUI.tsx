@@ -685,6 +685,8 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                 {subTabs.filter((t: SubTabType) =>
                         (t !== 'conversations' || selectedGroup?.supportConvAnalysis)
                         && t !== 'edit_layered_assistant' // only shown when layered assistant is selected
+                        && t !== 'la_dashboard'           // only shown for layered assistants
+                        && t !== 'la_conversations'       // only shown for layered assistants
                     )
                     .map((label: SubTabType) =>
                         label === 'group' ? (
@@ -1188,7 +1190,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
 
                                                             {/* Content wrapper */}
                                                             <span className={`relative flex items-center gap-1.5 justify-center transition-transform duration-300`}>
-                                                                <IconGitBranch size={18} className={isActive ? 'text-purple-600 dark:text-purple-300' : ''} />
+                                                                <IconGitBranch size={18} className={isActive ? 'text-purple-600 dark:text-purple-800' : ''} />
                                                                 <h3 className="text-xl">{(la.name || 'Untitled').charAt(0).toUpperCase() + (la.name || 'Untitled').slice(1)}</h3>
                                                             </span>
                                                         </button>

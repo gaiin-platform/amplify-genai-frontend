@@ -193,12 +193,9 @@ export const GroupAssistantsGallery: FC<GroupAssistantsGalleryProps> = () => {
     };
 
     return (
-        <div className="relative flex-1 h-full flex flex-col bg-gradient-to-br from-slate-50 via-white to-slate-50/50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
-            {/* Very subtle ambient light effect */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-purple-100/5 to-blue-100/5 dark:from-purple-500/5 dark:to-blue-500/5 rounded-full blur-3xl" />
-                <div className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-br from-blue-100/5 to-purple-100/5 dark:from-blue-500/5 dark:to-purple-500/5 rounded-full blur-3xl" />
-            </div>
+        <div className="gallery-bg flex flex-col">
+            {/* Animated gradient orbs */}
+            <div className="gallery-bg-orbs" />
 
             <div className="relative flex-1 overflow-y-auto">
                 {/* Header */}

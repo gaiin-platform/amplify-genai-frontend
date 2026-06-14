@@ -65,6 +65,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [allEmails, setAllEmails] = useState<Array<string> | null>(null);
 
     const [rateLimits, setRateLimits] = useState<RateLimits>([]);
+    const [honorPersonalRateLimit, setHonorPersonalRateLimit] = useState<{ enabled: boolean; scope?: 'both' | 'apiKey' | 'amplifyAccount' }>({ enabled: false });
     const [promptCostAlert, setPromptCostAlert] = useState<PromptCostAlert>({isActive:false, alertMessage: '', cost: 0});
     const [emailSupport, setEmailSupport] = useState<EmailSupport>({isActive:false, email:''});
     const [criticalErrorsConfig, setCriticalErrorsConfig] = useState<CriticalErrorsConfig>({isActive:false, email:''});
@@ -80,6 +81,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [appVars, setAppVars] = useState<{ [key: string]: string }>({});
     const [appSecrets, setAppSecrets] = useState<{ [key: string]: string }>({});
     const [userDocumentationUrl, setUserDocumentationUrl] = useState<string>('');
+    const [defaultTimezone, setDefaultTimezone] = useState<string>('America/Chicago');
+    const [smartMessagesEnabled, setSmartMessagesEnabled] = useState<boolean>(false);
     const [refreshingTypes, setRefreshingTypes] = useState< AdminConfigTypes[]>([]);
 
 
@@ -191,7 +194,21 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
                 setAmpGroups(data[AdminConfigTypes.AMPLIFY_GROUPS] || {})
                 setTemplates(data[AdminConfigTypes.PPTX_TEMPLATES] || []);
-                setRateLimits(normalizeRateLimits(data[AdminConfigTypes.RATE_LIMIT]));
+                const rateLimitConfig = data[AdminConfigTypes.RATE_LIMIT];
+                if (rateLimitConfig && typeof rateLimitConfig === 'object' && 'limits' in rateLimitConfig) {
+                    setRateLimits(normalizeRateLimits(rateLimitConfig.limits));
+                    const rawHonor = rateLimitConfig.honorPersonalRateLimit;
+                    if (rawHonor && typeof rawHonor === 'object' && 'enabled' in rawHonor) {
+                        setHonorPersonalRateLimit(rawHonor);
+                    } else if (typeof rawHonor === 'boolean') {
+                        setHonorPersonalRateLimit({ enabled: rawHonor });
+                    } else {
+                        setHonorPersonalRateLimit({ enabled: false });
+                    }
+                } else {
+                    setRateLimits(normalizeRateLimits(rateLimitConfig));
+                    setHonorPersonalRateLimit({ enabled: false });
+                }
                 setPromptCostAlert(data[AdminConfigTypes.PROMPT_COST_ALERT || promptCostAlert]);
                 setDefaultConversationStorage(data[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE] || defaultConversationStorage);
                 setEmailSupport(data[AdminConfigTypes.EMAIL_SUPPORT || emailSupport]);
@@ -200,6 +217,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 setDefaultModels(data[AdminConfigTypes.DEFAULT_MODELS] || {});
                 setWebSearchConfig(data[AdminConfigTypes.WEB_SEARCH] || null);
                 setUserDocumentationUrl(data[AdminConfigTypes.USER_DOCUMENTATION_URL] || '');
+                setDefaultTimezone(data[AdminConfigTypes.DEFAULT_TIMEZONE] || 'America/Chicago');
+                setSmartMessagesEnabled(data[AdminConfigTypes.DEFAULT_SMART_MESSAGES] ?? false);
                 setLoadingMessage("");
             
                 const nonlazyResult = await nonlazyReq;
@@ -255,7 +274,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             case AdminConfigTypes.ADMINS:
                 return admins;
             case AdminConfigTypes.RATE_LIMIT:
-                return rateLimits;
+                return { limits: rateLimits, honorPersonalRateLimit }; // honorPersonalRateLimit is { enabled, scope? }
             case AdminConfigTypes.PROMPT_COST_ALERT:
                 return {
                     ...promptCostAlert,
@@ -380,6 +399,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return configData;
             case AdminConfigTypes.USER_DOCUMENTATION_URL:
                 return userDocumentationUrl;
+            case AdminConfigTypes.DEFAULT_TIMEZONE:
+                return defaultTimezone;
+            case AdminConfigTypes.DEFAULT_SMART_MESSAGES:
+                return smartMessagesEnabled;
             case AdminConfigTypes.OPENAI_ENDPOINTS:
                 const toTest:{key: string, url: string, model:string}[] = [];
                 
@@ -542,7 +565,11 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             homeDispatch({ field: 'webSearchUserMessage', value: webSearchConfig?.webSearchUserMessage?.trim() ?? null});
         });
         saveAction([AdminConfigTypes.USER_DOCUMENTATION_URL], () => homeDispatch({ field: 'userDocumentationUrl', value: userDocumentationUrl}));
-        saveAction([AdminConfigTypes.RATE_LIMIT], () => homeDispatch({ field: 'adminRateLimits', value: rateLimits }));
+        saveAction([AdminConfigTypes.DEFAULT_SMART_MESSAGES], () => homeDispatch({ field: 'featureFlags', value: { ...featureFlags, smartMessages: smartMessagesEnabled }}));
+        saveAction([AdminConfigTypes.RATE_LIMIT], () => {
+            homeDispatch({ field: 'adminRateLimits', value: rateLimits });
+            homeDispatch({ field: 'honorPersonalRateLimit', value: honorPersonalRateLimit });
+        });
         if (!storageSelection) saveAction([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () => homeDispatch({ field: 'storageSelection', value: defaultConversationStorage}));
     }
 
@@ -670,7 +697,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     onSubmit={() => handleSave()
     }
     cancelLabel={"Close"}
-    submitLabel={"Save Changes"}
+    submitLabel={stillLoadingData ? "Still Loading..." : "Save Changes"}
     disableSubmit={unsavedConfigs.size === 0 || stillLoadingData}
     content={
       <div className="text-black dark:text-white overflow-x-hidden">
@@ -707,6 +734,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     amplifyUsers={amplifyUsers}
                     rateLimits={rateLimits}
                     setRateLimits={setRateLimits}
+                    honorPersonalRateLimit={honorPersonalRateLimit}
+                    setHonorPersonalRateLimit={setHonorPersonalRateLimit}
                     promptCostAlert={promptCostAlert}
                     setPromptCostAlert={setPromptCostAlert}
                     defaultConversationStorage={defaultConversationStorage}
@@ -715,6 +744,11 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     setEmailSupport={setEmailSupport}
                     aiEmailDomain={aiEmailDomain}
                     setAiEmailDomain={featureFlags.assistantEmailEvents ? setAiEmailDomain : undefined}
+                    defaultTimezone={defaultTimezone}
+                    setDefaultTimezone={setDefaultTimezone}
+                    smartMessagesEnabled={smartMessagesEnabled}
+                    setSmartMessagesEnabled={setSmartMessagesEnabled}
+                    features={features}
                     allEmails={allEmails}
                     admin_text={admin_text}
                     updateUnsavedConfigs={updateUnsavedConfigs}

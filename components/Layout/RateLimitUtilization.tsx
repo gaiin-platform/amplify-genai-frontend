@@ -155,7 +155,7 @@ const PageNav: React.FC<PageNavProps> = ({ pages, activePage, setActivePage, com
 
 export const RateLimitUtilization: React.FC<Props> = ({ variant, mtd: externalMtd, mtdBreakdown, onHasEntries }) => {
     const {
-        state: { defaultAccount, adminRateLimits, groupRateLimits },
+        state: { defaultAccount, adminRateLimits, groupRateLimits, honorPersonalRateLimit },
     } = useContext(HomeContext);
 
     const [mtd, setMtd] = useState<UserMtdCosts | null>(externalMtd ?? null);
@@ -184,23 +184,47 @@ export const RateLimitUtilization: React.FC<Props> = ({ variant, mtd: externalMt
         return () => { cancelled = true; };
     }, [externalMtd, mtdBreakdown]);
 
-    // ── Build pages (personal-first: if personal exists, only show personal) ──
+    // ── Build pages ──
+    //
+    // Rule:
+    //   Show personal (full details: spent/cap + %) when:
+    //     - Has personal AND honor is ON AND scope is 'both' or 'amplifyAccount'
+    //     - Has personal AND no admin/group limits exist at all
+    //
+    //   Show admin + groups (bar + spent only, no cap, no %) when:
+    //     - Admin/group limits exist AND (honor is OFF OR no personal set)
+    //
+    //   i.e. if admin/group limits exist and honor is off → show admin/group, NOT personal
+    //
     const personal = defaultAccount?.rateLimit;
     const hasPersonal = !!(personal && personal.rate !== null && personal.period !== 'Unlimited');
 
+    const activeAdminLimits = normalizeRateLimits(adminRateLimits).filter(
+        l => l.rate !== null && l.period !== 'Unlimited'
+    );
+    const activeGroupLimits = (groupRateLimits ?? []).filter(
+        g => g.limits.some(l => l.rate !== null && l.period !== 'Unlimited')
+    );
+    const hasAdminOrGroup = activeAdminLimits.length > 0 || activeGroupLimits.length > 0;
+
+    const honorScope = honorPersonalRateLimit?.scope ?? 'both';
+    const honorEnabled = !!(honorPersonalRateLimit?.enabled);
+    // Amplify UI access is always non-apiKey, so 'both' or 'amplifyAccount' scope honors it
+    const honorApplies = honorEnabled && (honorScope === 'both' || honorScope === 'amplifyAccount');
+
+    // Decide whether to show personal or admin/group
+    const showPersonal = hasPersonal && (!hasAdminOrGroup || honorApplies);
+    const showAdminGroup = hasAdminOrGroup && !showPersonal;
+
     const pages: LimitPage[] = [];
 
-    if (hasPersonal) {
-        // Personal limit is the only one that matters — backend checks this first and stops
+    if (showPersonal) {
         pages.push({
             label: 'My Limit',
             source: 'personal',
             entries: buildEntries([personal!], 'personal', mtd, mtdBreakdown),
         });
-    } else {
-        const activeAdminLimits = normalizeRateLimits(adminRateLimits).filter(
-            l => l.rate !== null && l.period !== 'Unlimited'
-        );
+    } else if (showAdminGroup) {
         if (activeAdminLimits.length > 0) {
             pages.push({
                 label: 'Admin',
@@ -208,15 +232,13 @@ export const RateLimitUtilization: React.FC<Props> = ({ variant, mtd: externalMt
                 entries: buildEntries(activeAdminLimits, 'admin', mtd, mtdBreakdown),
             });
         }
-        for (const group of (groupRateLimits ?? [])) {
+        for (const group of activeGroupLimits) {
             const activeLimits = group.limits.filter(l => l.rate !== null && l.period !== 'Unlimited');
-            if (activeLimits.length > 0) {
-                pages.push({
-                    label: group.groupName,
-                    source: 'group',
-                    entries: buildEntries(activeLimits, 'group', mtd, mtdBreakdown),
-                });
-            }
+            pages.push({
+                label: group.groupName,
+                source: 'group',
+                entries: buildEntries(activeLimits, 'group', mtd, mtdBreakdown),
+            });
         }
     }
 
@@ -226,11 +248,11 @@ export const RateLimitUtilization: React.FC<Props> = ({ variant, mtd: externalMt
 
     const allEntries = pages.flatMap(p => p.entries);
 
+    // Report "has entries" as true whenever we have something to show (spend data or limit bars)
+    const hasContent = !loading && (allEntries.length > 0 || (mtd !== null || mtdBreakdown !== undefined));
     useEffect(() => {
-        onHasEntries?.(allEntries.length > 0);
-    }, [allEntries.length]);
-
-    if (!loading && allEntries.length === 0) return null;
+        onHasEntries?.(hasContent);
+    }, [hasContent]);
 
     // ── Shared spend values ───────────────────────────────────────────────────
     const hourlySpend  = mtdBreakdown?.hourly  ?? (mtd ? (mtd.hourlyCost?.[new Date().getUTCHours()] ?? 0) : 0);

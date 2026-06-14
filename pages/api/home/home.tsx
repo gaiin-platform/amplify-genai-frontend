@@ -42,7 +42,6 @@ import { Prompt } from '@/types/prompt';
 
 import { Chat } from '@/components/Chat/Chat';
 import { Chatbar } from '@/components/Chatbar/Chatbar';
-import { Navbar } from '@/components/Mobile/Navbar';
 import Promptbar from '@/components/Promptbar';
 import {
     Icon3dCubeSphere,
@@ -69,6 +68,7 @@ import Loader from "@/components/Loader/Loader";
 import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
 import { AssistantGallery } from "@/components/AssistantGallery/AssistantGallery";
+import { NotebookApp } from "@/components/Notebook/NotebookApp";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { deleteAssistant, listAssistants, listLayeredAssistants } from '@/services/assistantService';
 import { LayeredAssistant } from '@/types/layeredAssistant';
@@ -858,10 +858,23 @@ const Home = ({
                             dispatch({ field: 'userDocumentationUrl', value: docUrl });
                         }
                     }
-                    if (AdminConfigTypes.RATE_LIMIT in data) {
-                        dispatch({ field: 'adminRateLimits', value: normalizeRateLimits(data[AdminConfigTypes.RATE_LIMIT]) });
+                    if (AdminConfigTypes.DEFAULT_TIMEZONE in data) {
+                        const tz = data[AdminConfigTypes.DEFAULT_TIMEZONE];
+                        if (tz) {
+                            dispatch({ field: 'defaultTimezone', value: tz });
+                        }
                     }
-                    console.log("data", data);
+                    if (AdminConfigTypes.RATE_LIMIT in data) {
+                        const rateLimitConfig = data[AdminConfigTypes.RATE_LIMIT];
+                        // New shape from backend: { limits, honorPersonalRateLimit }
+                        // Legacy shape: single object or array (no 'limits' key)
+                        const rawLimits = rateLimitConfig?.limits ?? rateLimitConfig;
+                        dispatch({ field: 'adminRateLimits', value: normalizeRateLimits(rawLimits) });
+                        if (rateLimitConfig?.honorPersonalRateLimit) {
+                            dispatch({ field: 'honorPersonalRateLimit', value: rateLimitConfig.honorPersonalRateLimit });
+                        }
+                    }
+                    // console.log("data", data);
                     if ('groupRateLimits' in data) {
                         const rawGroupLimits: Record<string, any> = data['groupRateLimits'] || {};
                         const groupRateLimits = Object.entries(rawGroupLimits)
@@ -872,7 +885,16 @@ const Home = ({
                                 ),
                             }))
                             .filter((g) => g.limits.length > 0);
+                            console.log("groupRateLimits", groupRateLimits);
                         dispatch({ field: 'groupRateLimits', value: groupRateLimits });
+                    }
+                    if (AdminConfigTypes.DEFAULT_SMART_MESSAGES in data) {
+                        const defaultSmartMessages = data[AdminConfigTypes.DEFAULT_SMART_MESSAGES] as boolean;
+                        console.log("defaultSmartMessages", defaultSmartMessages);
+                        const updatedFlags = { ...featureFlagsRef.current, smartMessages: defaultSmartMessages };
+                        dispatch({ field: 'featureFlags', value: updatedFlags });
+                        // Re-derive settings so brand new users (no saved localStorage) get the admin default
+                        setSettings(getSettings(updatedFlags));
                     }
 
                 } else {
@@ -950,7 +972,7 @@ const Home = ({
                 const result = await getFeatureFlags();
                 if (result.success && result.data) {
                     const flags: { [key:string] : boolean } = result.data;
-                    // console.log("feature flags:", flags)
+                    console.log("feature flags:", flags)
                     if (Object.keys(flags).length > 0) dispatch({ field: 'featureFlags', value: flags});
                     localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
                     return flags;
@@ -1567,14 +1589,7 @@ const Home = ({
                     <main
                         className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
                     >
-                        <div className="fixed top-0 w-full sm:hidden">
-                            <Navbar
-                                selectedConversation={selectedConversation}
-                                onNewConversation={handleNewConversation}
-                            />
-                        </div>
-
-                        <div className="flex h-full w-full pt-[48px] sm:pt-0">
+                        <div className="flex h-full w-full">
                             <UserMenu
                                 email={user?.email}
                                 name={session?.user?.name}
@@ -1583,13 +1598,15 @@ const Home = ({
                             />
 
 
-                            <TabSidebar
-                                side={"left"}
-                            >
-                                <Tab icon={<IconMessage />} title="Chats"><Chatbar /></Tab>
-                                <Tab icon={<IconSparkles />} title="Assistants"><Promptbar /></Tab>
-                                <Tab icon={<IconHammer />} title="Settings"><SettingsBar /></Tab>
-                            </TabSidebar>
+                            {page !== 'notebook' && (
+                                <TabSidebar
+                                    side={"left"}
+                                >
+                                    <Tab icon={<IconMessage />} title="Chats" onClick={() => dispatch({ field: 'page', value: 'chat' })}><Chatbar /></Tab>
+                                    <Tab icon={<IconSparkles />} title="Assistants" onClick={() => dispatch({ field: 'page', value: 'chat' })}><Promptbar /></Tab>
+                                    <Tab icon={<IconHammer />} title="Settings" onClick={() => dispatch({ field: 'page', value: 'chat' })}><SettingsBar /></Tab>
+                                </TabSidebar>
+                            )}
 
                             <div className="flex flex-1">
                                 {page === 'chat' && (
@@ -1605,6 +1622,9 @@ const Home = ({
                                 )}
                                 {page === 'assistantGallery' && (
                                     <AssistantGallery />
+                                )}
+                                {page === 'notebook' && featureFlags.notebook && (
+                                    <NotebookApp />
                                 )}
                             </div>
                             

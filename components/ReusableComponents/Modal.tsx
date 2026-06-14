@@ -54,7 +54,12 @@ interface Props {
  }
 
    useEffect(() => {
-     if (fullScreen) sendEventToHideItemsAroundCodeBase(true);
+     if (fullScreen) {
+       sendEventToHideItemsAroundCodeBase(true);
+       return () => {
+         sendEventToHideItemsAroundCodeBase(false);
+       };
+     }
    }, [title])
 
 

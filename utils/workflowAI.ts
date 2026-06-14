@@ -108,7 +108,8 @@ export const createToolItemsFromAvailable = (
 export const createStepPrompt = (
   description: string,
   currentTool: string | null,
-  availableTools: ToolItem[]
+  availableTools: ToolItem[],
+  existingSteps?: Array<{ stepName: string; outputs?: Array<{ name?: string; type?: string; description?: string }> }>
 ): string => {
   // If a specific tool is selected, focus on that tool
   let toolContext = '';
@@ -133,10 +134,22 @@ export const createStepPrompt = (
     parameters: Object.keys(tool.parameters?.properties || {})
   }));
 
+  // Build prior step outputs context so the AI knows what references are available
+  let priorOutputsContext = '';
+  if (existingSteps && existingSteps.length > 0) {
+    const stepsWithOutputs = existingSteps.filter(s => s.outputs && s.outputs.length > 0);
+    if (stepsWithOutputs.length > 0) {
+      const outputLines = stepsWithOutputs.flatMap(s =>
+        (s.outputs || []).map(o => `  {{${s.stepName}.${o.name}}} — ${o.description} (${o.type})`)
+      ).join('\n');
+      priorOutputsContext = `\n\nPrior Step Outputs Available (use these in args/values as {{stepName.fieldName}}):\n${outputLines}`;
+    }
+  }
+
   return `You are an AI assistant that helps create individual workflow steps. Based on the user's description, generate a single step configuration.
 
 User Description: "${description}"
-${toolContext}
+${toolContext}${priorOutputsContext}
 
 Available Tools (for reference): ${JSON.stringify(allToolsInfo.slice(0, 10), null, 2)}${allToolsInfo.length > 10 ? '\n... and more tools available' : ''}
 
@@ -150,18 +163,28 @@ Generate a single step with the following JSON structure:
     "param_name": "Instructions for how to determine this parameter value"
   },
   "values": {
-    "param_name": "Fixed value if known"
+    "param_name": "Fixed value if known — use {{stepName.fieldName}} to reference a prior step's output"
   },
-  "actionSegment": "optional_group_name"
+  "actionSegment": "optional_group_name",
+  "outputs": [
+    { "name": "field_name", "type": "string", "description": "What this output contains" }
+  ],
+  "allowRepeat": false,
+  "maxRepeats": null,
+  "allowSkip": null
 }
 
-Rules:
+Field rules:
 - Use the selected tool "${currentTool}" if provided, otherwise choose the most appropriate tool from available tools
 - Instructions should be clear and actionable
 - Only include parameters that exist for the selected tool
 - Keep step name short, unique, and use underscores instead of spaces
 - Use actionSegment only for optional/grouped functionality (leave undefined for core steps)
-- If the selected tool is empty or unknown, choose the most appropriate tool from the available list
+- outputs: Declare fields this step produces so later steps can reference them via {{stepName.fieldName}}. Only include if this step produces data that downstream steps need. Use an empty array [] if nothing needs to be referenced later.
+- allowRepeat: Set to true if this step should re-run after each success (e.g. polling, paginated fetching). The step stops repeating when its result contains {"done": true} or maxRepeats is reached.
+- maxRepeats: Max number of extra times to repeat (only relevant when allowRepeat is true). null = repeat once.
+- allowSkip: null = LLM decides whether to skip, false = never skip this critical step, true = always allow skipping.
+- In args/values, reference prior step outputs as {{stepName.fieldName}} (see Prior Step Outputs above if any are listed).
 
 Generate ONLY the JSON, no additional text.`;
 };
@@ -182,13 +205,17 @@ export const validateAndFilterStep = (
       instructions: generatedStep.instructions || '',
       args: generatedStep.args || {},
       values: generatedStep.values || {},
-      actionSegment: generatedStep.actionSegment
+      actionSegment: generatedStep.actionSegment,
+      outputs: generatedStep.outputs || [],
+      allowRepeat: generatedStep.allowRepeat ?? false,
+      maxRepeats: generatedStep.maxRepeats ?? null,
+      allowSkip: generatedStep.allowSkip ?? null,
     };
   }
 
   // Get valid parameters for the selected tool
   const validParams = Object.keys(selectedTool.parameters.properties || {});
-  
+
   // Filter args and values to only include valid parameters
   const filteredArgs: Record<string, string> = {};
   const filteredValues: Record<string, string> = {};
@@ -217,7 +244,11 @@ export const validateAndFilterStep = (
     instructions: generatedStep.instructions || '',
     args: filteredArgs,
     values: filteredValues,
-    actionSegment: generatedStep.actionSegment
+    actionSegment: generatedStep.actionSegment,
+    outputs: generatedStep.outputs || [],
+    allowRepeat: generatedStep.allowRepeat ?? false,
+    maxRepeats: generatedStep.maxRepeats ?? null,
+    allowSkip: generatedStep.allowSkip ?? null,
   };
 };
 
@@ -232,7 +263,8 @@ export const generateSingleStep = async (
   chatEndpoint: string,
   getDefaultModel: (model: DefaultModels) => any,
   defaultAccount: any,
-  statsService: any
+  statsService: any,
+  existingSteps?: Array<{ stepName: string; outputs?: Array<{ name?: string; type?: string; description?: string }> }>
 ): Promise<AIStepGenerationResult> => {
   try {
     if (!description.trim()) {
@@ -250,7 +282,7 @@ export const generateSingleStep = async (
     const selectedToolItem = currentTool ? availableTools.find(t => t.name === currentTool) : null;
 
     // Create the prompt
-    const prompt = createStepPrompt(description, currentTool, availableTools);
+    const prompt = createStepPrompt(description, currentTool, availableTools, existingSteps);
     
     // Generate the step
     const messages: Message[] = [newMessage({"content": prompt})];
