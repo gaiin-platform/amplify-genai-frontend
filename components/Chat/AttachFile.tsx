@@ -222,8 +222,9 @@ export const AttachFile: FC<Props> = ({id, onAttach, onUploadProgress,onSetMetad
             className="sr-only"
             tabIndex={-1}
             type="file"
+            aria-label="Attach file"
             accept="*"
-            multiple 
+            multiple
             onChange={(e) => {
               if (!e.target.files?.length) return;
     

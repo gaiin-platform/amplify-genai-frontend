@@ -159,7 +159,7 @@ export const ModelSelect: React.FC<Props> = ({
   const defaultModelLabel =  (name: string) => {
     return <>
       <span>{name}</span>
-      <span className="text-blue-500 ml-2 text-xs">{"(Default)"}</span>
+      <span className="text-blue-700 ml-2 text-xs">{"(Default)"}</span>
     </>
   }
   
