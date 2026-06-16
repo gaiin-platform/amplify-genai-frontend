@@ -851,6 +851,12 @@ const Home = ({
                             dispatch({ field: 'userDocumentationUrl', value: docUrl });
                         }
                     }
+                    if (AdminConfigTypes.DEFAULT_TIMEZONE in data) {
+                        const tz = data[AdminConfigTypes.DEFAULT_TIMEZONE];
+                        if (tz) {
+                            dispatch({ field: 'defaultTimezone', value: tz });
+                        }
+                    }
                     if (AdminConfigTypes.RATE_LIMIT in data) {
                         const rateLimitConfig = data[AdminConfigTypes.RATE_LIMIT];
                         // New shape from backend: { limits, honorPersonalRateLimit }
@@ -874,6 +880,14 @@ const Home = ({
                             .filter((g) => g.limits.length > 0);
                             console.log("groupRateLimits", groupRateLimits);
                         dispatch({ field: 'groupRateLimits', value: groupRateLimits });
+                    }
+                    if (AdminConfigTypes.DEFAULT_SMART_MESSAGES in data) {
+                        const defaultSmartMessages = data[AdminConfigTypes.DEFAULT_SMART_MESSAGES] as boolean;
+                        console.log("defaultSmartMessages", defaultSmartMessages);
+                        const updatedFlags = { ...featureFlagsRef.current, smartMessages: defaultSmartMessages };
+                        dispatch({ field: 'featureFlags', value: updatedFlags });
+                        // Re-derive settings so brand new users (no saved localStorage) get the admin default
+                        setSettings(getSettings(updatedFlags));
                     }
 
                 } else {

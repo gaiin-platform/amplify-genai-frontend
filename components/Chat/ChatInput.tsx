@@ -66,6 +66,7 @@ import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton"
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
 import { MemoryPresenter } from "@/components/Chat/MemoryPresenter";
+import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 // import { ProjectList } from './ProjectList';
 // import { } from '../../services/memoryService';
 import { Settings } from '@/types/settings';
@@ -144,21 +145,25 @@ export const ChatInput = ({
     let settingRef = useRef<Settings | null>(null);
     // prevent recalling the getSettings function
     if (settingRef.current === null) settingRef.current = getSettings(featureFlags);
+    const [settingsVersion, setSettingsVersion] = useState(0);
     const [filteredModels, setFilteredModels] = useState<Model[]>([]);
 
     useEffect(() => {
         const handleEvent = (event: any) => {
-            settingRef.current = getSettings(featureFlags);
+            const newSettings = getSettings(featureFlags);
+            settingRef.current = newSettings;
             if (Object.keys(availableModels).length > 0) {
                 setFilteredModels(filterModels(availableModels, settingRef.current.hiddenModelIds));
             }
+            // trigger re-render so JSX that reads settingRef.current (e.g. includePluginSelector) updates
+            setSettingsVersion(v => v + 1);
         };
 
         window.addEventListener('updateFeatureSettings', handleEvent);
         return () => {
             window.removeEventListener('updateFeatureSettings', handleEvent);
         };
-    }, []);
+    }, [featureFlags, availableModels]);
 
     useEffect(() => {
         settingRef.current = getSettings(featureFlags);
@@ -280,6 +285,14 @@ export const ChatInput = ({
 
     // Action set modal states
     const [showSaveActionsModal, setShowSaveActionsModal] = useState(false);
+
+    // Pending duplicate action awaiting user confirmation
+    const [pendingDuplicateAction, setPendingDuplicateAction] = useState<{
+        operation: any;
+        parameters: any;
+        customName: string | undefined;
+        customDescription: string | undefined;
+    } | null>(null);
 
     // Drag and drop state management
     const [isDragging, setIsDragging] = useState(false);
@@ -1270,10 +1283,12 @@ export const ChatInput = ({
         }
     }, [plugins, selectedConversation, handleUpdateConversation]);
 
+    const showPluginSelector = featureFlags.pluginsOnInput && settingRef.current.featureOptions.includePluginSelector;
+
     return (
         <>
-            { featureFlags.pluginsOnInput &&
-                settingRef.current.featureOptions.includePluginSelector &&
+            <span style={{display:'none'}}>{settingsVersion}</span>
+            { showPluginSelector &&
                 <div className='relative z-20' style={{height: 0}}>
                     <FeaturePlugin
                         plugins={plugins}
@@ -1483,18 +1498,19 @@ export const ChatInput = ({
                                                 return newActions;
                                             });
                                         } else {
-                                            // Add a new action — block if this op name is already present
-                                            setAddedActions((prev) => {
-                                                if (prev.some((a: any) => a.name === operation.name)) return prev;
-                                                return [...prev, {
+                                            // Add a new action — if duplicate, ask for confirmation
+                                            if (addedActions.some((a: any) => a.name === operation.name)) {
+                                                setPendingDuplicateAction({ operation, parameters, customName, customDescription });
+                                            } else {
+                                                setAddedActions((prev) => [...prev, {
                                                     _id: `action-${Date.now()}-${prev.length}`,
                                                     name: operation.name,
                                                     operation,
                                                     customName,
                                                     customDescription,
                                                     parameters
-                                                }];
-                                            });
+                                                }]);
+                                            }
                                         }
                                         // Clear editing state and close the popup
                                         setEditingAction(null);
@@ -2148,6 +2164,29 @@ export const ChatInput = ({
                 </div>
 
             </div>
+
+            {/* Duplicate action confirmation */}
+            {pendingDuplicateAction && (
+                <ConfirmModal
+                    title="Action Already Added"
+                    message={`"${pendingDuplicateAction.customName || pendingDuplicateAction.operation.name}" is already in your conversation. Do you want to add it again?`}
+                    confirmLabel="Add Again"
+                    denyLabel="Cancel"
+                    onConfirm={() => {
+                        setAddedActions((prev) => [...prev, {
+                            _id: `action-${Date.now()}-${prev.length}`,
+                            name: pendingDuplicateAction.operation.name,
+                            operation: pendingDuplicateAction.operation,
+                            customName: pendingDuplicateAction.customName,
+                            customDescription: pendingDuplicateAction.customDescription,
+                            parameters: pendingDuplicateAction.parameters
+                        }]);
+                        setEditingAction(null);
+                        setPendingDuplicateAction(null);
+                    }}
+                    onDeny={() => setPendingDuplicateAction(null)}
+                />
+            )}
 
             {/* Save Actions Modal */}
             {showSaveActionsModal && (

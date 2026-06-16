@@ -950,7 +950,7 @@ const handleFile = async (file:File, name: string) => {
                     alert(`This file type is not supported. Please upload a file of type: ${allowedFileExtensions.join(', ')}`);
                     return;
                 }
-                handleFile(file, fileName);
+                handleFile(file, fileName.replace(/\s+/g, '_'));
                 e.target.value = ''; // Clear the input after files are handled
             }}
             />

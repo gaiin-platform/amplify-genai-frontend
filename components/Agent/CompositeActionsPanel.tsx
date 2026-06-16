@@ -97,6 +97,16 @@ const CompositeActionsPanel: React.FC<CompositeActionsPanelProps> = ({
     return cat.integrationIds.some((id) => connectedIntegrationIds.has(id));
   };
 
+  /**
+   * Returns false if the category has prerequisite integrations that are not yet connected.
+   * Hidden categories are not shown at all — not even in the "Not connected" section.
+   */
+  const isCategoryVisible = (cat: CompositeFunctionCategory): boolean => {
+    if (!cat.requiresIntegrationIds || cat.requiresIntegrationIds.length === 0) return true;
+    if (!connectedIntegrationIds) return false;
+    return cat.requiresIntegrationIds.every((id) => connectedIntegrationIds.has(id));
+  };
+
   // A composite is available if at least one of its ops exists in the live allOperations list.
   // This provides graceful degradation when some ops haven't been deployed yet.
   const isCompositeAvailable = (fn: CompositeFunction): boolean => {
@@ -127,8 +137,9 @@ const CompositeActionsPanel: React.FC<CompositeActionsPanelProps> = ({
     setExpandedCategories(Object.fromEntries(COMPOSITE_FUNCTION_CATEGORIES.map((c) => [c.id, next])));
   };
 
-  const connectedCategories = filteredCategories.filter((cat) => isCategoryConnected(cat));
-  const disconnectedCategories = filteredCategories.filter((cat) => !isCategoryConnected(cat));
+  const visibleCategories = filteredCategories.filter((cat) => isCategoryVisible(cat));
+  const connectedCategories = visibleCategories.filter((cat) => isCategoryConnected(cat));
+  const disconnectedCategories = visibleCategories.filter((cat) => !isCategoryConnected(cat));
 
   // Per-composite config state: map of compositeId -> { opName -> { modes, values } }
   const [configExpandedId, setConfigExpandedId] = useState<string | null>(null);
@@ -317,7 +328,15 @@ const CompositeActionsPanel: React.FC<CompositeActionsPanelProps> = ({
                 <IconAlertCircle size={14} stroke={2} className="flex-shrink-0 mt-0.5" />
                 <span>
                   Integration not connected.{' '}
-                  <span className="font-medium">Go to Integrations to enable this.</span>
+                  <button
+                    className="font-medium underline hover:opacity-75 transition-opacity cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.dispatchEvent(new CustomEvent('openSettingsTrigger', { detail: { openToTab: 'Integrations' } }));
+                    }}
+                  >
+                    Go to Integrations to enable this.
+                  </button>
                 </span>
               </div>
             )}
@@ -370,7 +389,14 @@ const CompositeActionsPanel: React.FC<CompositeActionsPanelProps> = ({
               <IconAlertCircle size={14} stroke={2} className="flex-shrink-0 mt-0.5" />
               <span>
                 No integrations are connected.{' '}
-                <span className="font-medium">Go to Integrations to get started.</span>
+                <button
+                  className="font-medium underline hover:opacity-75 transition-opacity cursor-pointer"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('openSettingsTrigger', { detail: { openToTab: 'Integrations' } }));
+                  }}
+                >
+                  Go to Integrations to get started.
+                </button>
               </span>
             </div>
           )}

@@ -78,7 +78,7 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
     const [rawIntegrationOpen, setRawIntegrationOpen] = useState<boolean>(true);
     // Selected add-on IDs for the currently selected composite function
     const [selectedAddonIds, setSelectedAddonIds] = useState<Set<string>>(new Set());
-    // Feedback banner for duplicate-action warnings
+    // Feedback banner for composite/action-set duplicate warnings
     const [feedbackBanner, setFeedbackBanner] = useState<{ msg: string } | null>(null);
     const showAlreadyAdded = (msg: string) => {
         setFeedbackBanner({ msg });
@@ -571,10 +571,6 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                     className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 shadow-sm"
                                     onClick={() => {
                                         if (onActionAdded && selectedOp) {
-                                            if (!editMode && (liveActions ?? []).some((a: any) => a.name === selectedOp.name)) {
-                                                showAlreadyAdded('This action is already attached to the conversation.');
-                                                return;
-                                            }
                                             const formattedParams = Object.fromEntries(
                                                 Object.keys(paramSource?.properties || {}).map((key) => [
                                                     key,
@@ -606,13 +602,6 @@ const OperationSelector: React.FC<OperationSelectorProps> = ({
                                 </button>
                             </div>
                         </div>
-
-                        {feedbackBanner && (
-                            <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-md text-sm border bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-300">
-                                <IconInfoCircle size={15} stroke={1.5} className="flex-shrink-0" />
-                                {feedbackBanner.msg}
-                            </div>
-                        )}
 
                         {/* Backend tags */}
                         {selectedOp.tags && selectedOp.tags.filter((t: string) => !['all', 'default'].includes(t)).length > 0 && (

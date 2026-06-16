@@ -419,7 +419,25 @@ export const UserCostBreakdownModal: React.FC<Props> = ({ email, onClose }) => {
                                             <span className="text-xs text-neutral-400">{mergedAccounts.length} account{mergedAccounts.length !== 1 ? 's' : ''}</span>
                                         </div>
                                         <div className="space-y-4 pr-1 overflow-y-auto flex-1 min-h-0">
-                                            {mergedAccounts.map((acc) => {
+                                            {[...mergedAccounts].sort((a, b) => {
+                                                const aParts = a.accountInfo?.split('#') ?? [];
+                                                const bParts = b.accountInfo?.split('#') ?? [];
+                                                const aType = aParts[0] ?? a.accountInfo;
+                                                const bType = bParts[0] ?? b.accountInfo;
+                                                const aKeyId = aParts[1];
+                                                const bKeyId = bParts[1];
+                                                const aIsApiKey = !!(aKeyId && aKeyId !== 'NA');
+                                                const bIsApiKey = !!(bKeyId && bKeyId !== 'NA');
+                                                const aActive = aIsApiKey ? (apiKeyMap.get(aKeyId)?.active !== false) : true;
+                                                const bActive = bIsApiKey ? (apiKeyMap.get(bKeyId)?.active !== false) : true;
+                                                const aIsGeneral = aType === 'general_account' && !aIsApiKey;
+                                                const bIsGeneral = bType === 'general_account' && !bIsApiKey;
+                                                // 0 = general_account, 1 = active API keys / other accounts, 2 = inactive keys
+                                                const aOrder = aIsGeneral ? 0 : !aActive ? 2 : 1;
+                                                const bOrder = bIsGeneral ? 0 : !bActive ? 2 : 1;
+                                                if (aOrder !== bOrder) return aOrder - bOrder;
+                                                return b.totalCost - a.totalCost;
+                                            }).map((acc) => {
                                                 const parts = acc.accountInfo?.split('#') ?? [];
                                                 const accountType = parts[0] ?? acc.accountInfo;
                                                 const keyId = parts[1];

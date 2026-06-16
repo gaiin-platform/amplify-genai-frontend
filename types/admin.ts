@@ -24,6 +24,8 @@ export enum AdminConfigTypes {
     DEFAULT_MODELS = 'defaultModels',
     CRITICAL_ERRORS = 'criticalErrors',
     USER_DOCUMENTATION_URL = 'userDocumentationUrl',
+    DEFAULT_TIMEZONE = 'defaultTimezone',
+    DEFAULT_SMART_MESSAGES = 'defaultSmartMessages',
 
   }
 
@@ -43,6 +45,8 @@ export const adminDataTabMap: Record<AdminTab, string[]> = {
       AdminConfigTypes.EMAIL_SUPPORT,
       AdminConfigTypes.AMPLIFY_GROUPS,
       AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE,
+      AdminConfigTypes.DEFAULT_TIMEZONE,
+      AdminConfigTypes.DEFAULT_SMART_MESSAGES,
     ],
 
     'Feature Flags' : [

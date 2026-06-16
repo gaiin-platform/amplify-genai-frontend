@@ -43,6 +43,8 @@ const StepEditor: React.FC<StepEditorProps> = ({
   const [hoveredArgIndex, setHoveredArgIndex] = useState<string | null>(null);
   const [hoveredValueIndex, setHoveredValueIndex] = useState<string | null>(null);
   const [confirmDeleteValueKey, setConfirmDeleteValueKey] = useState<string | null>(null);
+  const [confirmDeleteOutputIndex, setConfirmDeleteOutputIndex] = useState<number | null>(null);
+  const [confirmDeleteArgKey, setConfirmDeleteArgKey] = useState<string | null>(null);
   const [toolPickerOpen, setToolPickerOpen] = useState(false);
   const [openRefPickerKey, setOpenRefPickerKey] = useState<string | null>(null);
   
@@ -135,9 +137,15 @@ const StepEditor: React.FC<StepEditorProps> = ({
   };
 
   const removeArgument = (argName: string) => {
+    setConfirmDeleteArgKey(argName);
+  };
+
+  const confirmRemoveArgument = (argName: string) => {
     const newArgs = { ...step.args };
     delete newArgs[argName];
     updateStep({ args: newArgs });
+    setConfirmDeleteArgKey(null);
+    toast.success(`Argument "${argName}" deleted`, { icon: '🗑️' });
   };
 
   const toggleEditableArg = (argName: string) => {
@@ -317,14 +325,14 @@ const StepEditor: React.FC<StepEditorProps> = ({
       {/* Description */}
       <div className={`mb-4 ${isTerminate ? 'opacity-50' : ''}`}>
         <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-neutral-200">
-          Description <span className="text-red-500">*</span>
+          Description
         </label>
         <input
           type="text"
           value={step.description}
           onChange={(e) => updateStep({ description: e.target.value })}
           className="w-full p-2 border border-gray-300 rounded-lg bg-white dark:bg-[#40414F] dark:border-neutral-600 text-gray-900 dark:text-white"
-          placeholder="What this step does"
+          placeholder="What this step does (optional)"
           disabled={isTerminate}
         />
       </div>
@@ -528,10 +536,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
                   className="p-2 border border-gray-300 rounded-lg bg-white dark:bg-[#40414F] dark:border-neutral-600 text-gray-900 dark:text-white text-sm"
                 />
                 <button
-                  onClick={() => {
-                    const updated = (step.outputs || []).filter((_, i) => i !== outIdx);
-                    updateStep({ outputs: updated });
-                  }}
+                  onClick={() => setConfirmDeleteOutputIndex(outIdx)}
                   className="p-1 text-red-600 dark:text-red-400 hover:opacity-60 rounded"
                 >
                   <IconTrash size={16} />
@@ -816,6 +821,61 @@ const StepEditor: React.FC<StepEditorProps> = ({
               </button>
               <button
                 onClick={confirmRemoveArgumentValue}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors shadow-sm"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDeleteOutputIndex !== null && (
+        <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-600 p-6 max-w-sm w-full mx-4">
+            <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Delete Output Attribute</h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
+              Are you sure you want to delete the output attribute <span className="font-medium text-gray-900 dark:text-white">&ldquo;{step.outputs?.[confirmDeleteOutputIndex]?.name}&rdquo;</span>? This cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmDeleteOutputIndex(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-md transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const updated = (step.outputs || []).filter((_, i) => i !== confirmDeleteOutputIndex);
+                  updateStep({ outputs: updated });
+                  setConfirmDeleteOutputIndex(null);
+                  toast.success('Output attribute deleted', { icon: '🗑️' });
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors shadow-sm"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDeleteArgKey && (
+        <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-600 p-6 max-w-sm w-full mx-4">
+            <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Delete Argument</h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
+              Are you sure you want to delete the argument <span className="font-medium text-gray-900 dark:text-white">&ldquo;{confirmDeleteArgKey}&rdquo;</span>? This cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmDeleteArgKey(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 rounded-md transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => confirmRemoveArgument(confirmDeleteArgKey)}
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors shadow-sm"
               >
                 Delete
