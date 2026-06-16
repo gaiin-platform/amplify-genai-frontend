@@ -20,21 +20,32 @@ interface WorkflowProps {
     onWorkflowTemplateUpdate: (workflowTemplate: AstWorkflow) => void;
     computedDisabledSegments?: () => string[];
     obfuscate?: boolean;
+    defaultExpandedSegments?: boolean; // if true, all segments start expanded
+    hideHeader?: boolean; // if true, suppresses Name/Description/Workflow Segments header
 }
   
-export const AssistantWorkflow: React.FC<WorkflowProps> = ({ 
+export const AssistantWorkflow: React.FC<WorkflowProps> = ({
     id,
     workflowTemplate,
     originalBaseWorkflowTemplate,
     onWorkflowTemplateUpdate,
     enableCustomization,
     computedDisabledSegments = () => [],
-    obfuscate
+    obfuscate,
+    defaultExpandedSegments = false,
+    hideHeader = false
   }) => {
     const { state: {featureFlags} } = useContext(HomeContext);
     
     const [disabledActionSegments, setDisabledActionSegments] = useState<string[]>([]);
-    const [expandedSegments, setExpandedSegments] = useState<Record<string, boolean>>({});
+    const buildInitialExpanded = (template: AstWorkflow): Record<string, boolean> => {
+      if (!defaultExpandedSegments || !template.template?.steps) return {};
+      const segments = new Set(template.template.steps.map(s => s.actionSegment || 'default'));
+      const result: Record<string, boolean> = {};
+      segments.forEach(seg => { result[seg] = true; });
+      return result;
+    };
+    const [expandedSegments, setExpandedSegments] = useState<Record<string, boolean>>(() => buildInitialExpanded(workflowTemplate));
     const [internalTemplate, setInternalTemplate] = useState(cloneDeep(workflowTemplate));
 
     const groupSteps = (template: AstWorkflow) => {
@@ -223,22 +234,26 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
 
     return (
       <div className="mt-4 mb-6" key={id}>
-        <div className="text-sm text-black dark:text-neutral-200 mb-2">
-          <span className="font-bold">Name:</span> {capitalize(internalTemplate.name)} 
-        </div>
-        
-        {internalTemplate.description && (
-          <div className="text-sm text-neutral-700 dark:text-neutral-300 mb-4">
-            <span className="font-bold">Description:</span> {internalTemplate.description}
-          </div>
+        {!hideHeader && (
+          <>
+            <div className="text-sm text-black dark:text-neutral-200 mb-2">
+              <span className="font-bold">Name:</span> {capitalize(internalTemplate.name)}
+            </div>
+
+            {internalTemplate.description && (
+              <div className="text-sm text-neutral-700 dark:text-neutral-300 mb-4">
+                <span className="font-bold">Description:</span> {internalTemplate.description}
+              </div>
+            )}
+
+            <div
+              className="text-sm text-neutral-700 dark:text-neutral-300 mb-4"
+              title="Segments allow you to group related workflow steps together and enable/disable them as units"
+            >
+              <span className="font-bold">Workflow Segments:</span> Each segment groups related steps that will be executed together. Click the toggle icon to expand or collapse segment details.
+            </div>
+          </>
         )}
-        
-        <div 
-          className="text-sm text-neutral-700 dark:text-neutral-300 mb-4"
-          title="Segments allow you to group related workflow steps together and enable/disable them as units"
-        >
-          <span className="font-bold">Workflow Segments:</span> Each segment groups related steps that will be executed together. Click the toggle icon to expand or collapse segment details.
-        </div>
         
         <div className="space-y-3 mr-4">
           {Object.entries(groupedSteps).map(([segment, steps], index) => {
@@ -258,7 +273,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => toggleSegmentExpanded(segment)}
-                      className="flex-shrink-0 p-1 hover:bg-neutral-200 dark:hover:bg-neutral-600 rounded"
+                      className="flex-shrink-0 p-1 hover:bg-neutral-200 dark:hover:bg-neutral-600 rounded text-gray-900 dark:text-gray-100"
                       title={isExpanded ? "Click to collapse and hide step details" : "Click to expand and show detailed step information"}
                     >
                       {isExpanded ? (
@@ -267,7 +282,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                         <IconChevronRight size={18} />
                       )}
                     </button>
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
                       {segmentTitle}
                     </span>
                   </div>
@@ -331,14 +346,20 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                             )}
 
                             {step.instructions && (
-                              <ExpansionComponent
-                                title="Instructions"
-                                content={
-                                  <div className="text-gray-700 dark:text-gray-300">
-                                    <span className="font-medium">Instructions:</span> {step.instructions}
-                                  </div>
-                                }
-                              />
+                              <div className="mt-1">
+                                <ExpansionComponent
+                                  title="Instructions"
+                                  isOpened={true}
+                                  openWidget={<IconChevronDown size={16} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />}
+                                  closedWidget={<IconChevronRight size={16} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />}
+                                  content={
+                                    <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                                      <span className="font-medium text-gray-800 dark:text-gray-200">Instructions: </span>
+                                      {step.instructions}
+                                    </div>
+                                  }
+                                />
+                              </div>
                             )}
                           </div>
                         </div>
