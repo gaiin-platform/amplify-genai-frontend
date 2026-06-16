@@ -21,6 +21,7 @@ export const Import: FC<Props> = ({ onImport }) => {
         className="sr-only"
         tabIndex={-1}
         type="file"
+        aria-label="Import conversation JSON file"
         accept=".json"
         onChange={(e) => {
           if (!e.target.files?.length) return;
