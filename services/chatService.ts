@@ -212,6 +212,9 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
                                     json.choices = [{delta: {function_call: json.d.tool_calls[0].function}}];
                                 }
                                 //console.log("Translated Event:",json);
+                            } else if (json.d.delta && json.d.delta.text) {
+                                // Error/status message format: {delta: {text: "..."}}
+                                json.choices = [{delta: {content: json.d.delta.text}}];
                             }
 
                             lastSource = json.s;
@@ -222,6 +225,8 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
                         if (functions) {
                             fnCallHandler(controller, json);
                         } else {
+                            if (!json.choices?.[0]) return;
+
                             if (json.choices[0].finish_reason != null) {
 
                                 console.log("Chat request completed",
@@ -232,7 +237,8 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
                                 return;
                             }
 
-                            const text = json.choices[0].delta.content;
+                            const text = json.choices[0].delta?.content;
+                            if (text == null) return;
                             const queue = encoder.encode(text);
                             controller.enqueue(queue);
                         }
@@ -252,21 +258,38 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
 
+            let streamError = false;
             try {
                 while (true) {
                     const {value: chunk, done} = await reader.read();
                     if (done) {
-                        // Ensure the end of the parser is dealt with
-                        //parser.finish();
+                        // Stream completed successfully
                         break;
                     }
                     parser.feed(decoder.decode(chunk));
                 }
             } catch (e) {
+                console.error('Stream error:', e);
+                console.error('Stream error details:', {
+                    name: (e as any)?.name,
+                    message: (e as any)?.message,
+                    code: (e as any)?.code,
+                    type: (e as any)?.type,
+                    stack: (e as any)?.stack
+                });
+                streamError = true;
                 controller.error(e);
             } finally {
-                await reader.cancel();
-                reader.releaseLock(); 
+                // Only cancel the reader if there was an error
+                // Canceling on success causes ERR_HTTP2_PROTOCOL_ERROR
+                if (streamError) {
+                    try {
+                        await reader.cancel();
+                    } catch (cancelError) {
+                        console.warn('Error canceling reader:', cancelError);
+                    }
+                }
+                reader.releaseLock();
             }
 
             controller.close();

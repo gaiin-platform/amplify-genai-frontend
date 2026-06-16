@@ -3,7 +3,7 @@ import { lzwCompress, lzwUncompress } from "./lzwCompression";
 import cloneDeep from 'lodash/cloneDeep';
 
 export const compressMessages = (messages: Message[]) => {
-    if (messages.length === 0) return [];
+    if (!messages || messages.length === 0) return [];
     try {
       const data = JSON.stringify(messages);
       return lzwCompress(data);
@@ -14,7 +14,7 @@ export const compressMessages = (messages: Message[]) => {
   }
   
   export const uncompressMessages = (compressedData: number[]) => {
-    if (compressedData.length === 0) return [];
+    if (!compressedData || compressedData.length === 0) return [];
     try {
       const messages: string = lzwUncompress(compressedData);
       return JSON.parse(messages) as Message[];

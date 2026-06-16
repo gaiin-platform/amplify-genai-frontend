@@ -220,10 +220,18 @@ const InvokeBlock: React.FC<Props> = ({
 
       // if(opDef) {
 
+        // Strip layered-assistant prefixes — the API call executor receives a plain
+        // assistant ID, not the router ID. The router prefix is only meaningful for
+        // chat routing and would cause an unnecessary re-route here.
+        const rawAssistantId = selectedAssistant?.id ?? '';
+        const resolvedAssistantId = (rawAssistantId.startsWith('astr/') || rawAssistantId.startsWith('astgr/'))
+          ? undefined
+          : rawAssistantId || undefined;
+
         const requestData = {
           action: actionData,
           conversation: selectedConversation?.id,
-          assistant: selectedAssistant?.id,
+          assistant: resolvedAssistantId,
           message: message.id,
           operationDefinition: opDef
         };

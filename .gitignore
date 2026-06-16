@@ -56,3 +56,6 @@ tests/chrome_profile/
 
 # Kiro IDE specific files
 .kiro/
+
+# open-notebook deployments
+deployment/

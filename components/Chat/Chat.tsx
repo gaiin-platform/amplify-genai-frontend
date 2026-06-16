@@ -7,6 +7,7 @@ import {
     IconBoxAlignTopFilled,
     IconBoxAlignTopRightFilled,
     IconChevronRight,
+    IconChartHistogram,
 } from '@tabler/icons-react';
 import {
     MutableRefObject,
@@ -27,6 +28,8 @@ import {Conversation, DataSource, Message, MessageType, newMessage} from '@/type
 import {Plugin} from '@/types/plugin';
 
 import HomeContext from '@/pages/api/home/home.context';
+import { normalizeRateLimits } from '@/types/rateLimit';
+import { RateLimitUtilization } from '@/components/Layout/RateLimitUtilization';
 
 import Spinner from '../Spinner';
 import {ChatInput} from './ChatInput';
@@ -52,7 +55,7 @@ import {ChatRequest, useSendService} from "@/hooks/useChatSendService";
 import {CloudStorage} from './CloudStorage';
 import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
 import { getFullTimestamp } from '@/utils/app/date';
-import { doMtdCostOp } from '@/services/mtdCostService'; // MTDCOST
+import { getUserMtdCosts } from '@/services/mtdCostService'; // MTDCOST
 import { GroupTypeSelector } from './GroupTypeSelector';
 import { Artifacts } from '../Artifacts/Artifacts';
 import { downloadDataSourceFile } from '@/utils/app/files';
@@ -100,7 +103,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 extractedFacts,
                 defaultAccount,
                 isStandalonePromptCreation,
-                promptCostAlertModal
+                promptCostAlertModal,
+                layeredAssistants,
+                honorPersonalRateLimit,
+                adminRateLimits,
+                groupRateLimits,
             },
             setLoadingMessage,
             handleUpdateConversation,
@@ -207,10 +214,27 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [variables, setVariables] = useState<string[]>([]);
         const [showScrollDownButton, setShowScrollDownButton] = useState<boolean>(false);
         const [promptTemplate, setPromptTemplate] = useState<Prompt | null>(null);
-        const [mtdCost, setMtdCost] = useState<string>('Loading...'); // MTDCOST
+        const [mtdCost, setMtdCost] = useState<string>('$0.00'); // MTDCOST
+        const [mtdCostNumeric, setMtdCostNumeric] = useState<number>(0);
+        const [mtdDailyCost, setMtdDailyCost] = useState<number>(0);
+        const [mtdHourlyCost, setMtdHourlyCost] = useState<number>(0);
+        const [mtdLoading, setMtdLoading] = useState<boolean>(true);
 
         const [isBarSticky, setIsBarSticky] = useState(getIsBarSticky());
         const [isPillExpanded, setIsPillExpanded] = useState(false);
+        const [showUtilPopover, setShowUtilPopover] = useState(false);
+        const utilPopoverHideTimer = useRef<NodeJS.Timeout | null>(null);
+
+        const showUtil = () => {
+            if (utilPopoverHideTimer.current) clearTimeout(utilPopoverHideTimer.current);
+            setShowUtilPopover(true);
+        };
+        const hideUtil = (collapsePill = false) => {
+            utilPopoverHideTimer.current = setTimeout(() => {
+                setShowUtilPopover(false);
+                if (collapsePill) setIsPillExpanded(false);
+            }, 120);
+        };
 
         const messagesEndRef = useRef<HTMLDivElement>(null);
         const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -221,6 +245,39 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         const [isRenaming, setIsRenaming] = useState<boolean>(false);
 
         const chat_button_blue_color = "text-[#1dbff5] dark:text-[#8edffa]"
+
+        const personal = defaultAccount?.rateLimit;
+        const hasPersonal = !!(personal && personal.rate !== null && personal.period !== 'Unlimited');
+        const hasAdminOrGroup = normalizeRateLimits(adminRateLimits).some(l => l.rate !== null && l.period !== 'Unlimited')
+            || groupRateLimits.some(g => g.limits.some(l => l.rate !== null && l.period !== 'Unlimited'));
+        const honorScope = honorPersonalRateLimit?.scope ?? 'both';
+        const honorApplies = !!(honorPersonalRateLimit?.enabled) && (honorScope === 'both' || honorScope === 'amplifyAccount');
+        // showPersonal: same rule as RateLimitUtilization — personal shown only when no admin/group OR honor applies
+        const showPersonal = hasPersonal && (!hasAdminOrGroup || honorApplies);
+        // hasActiveLimits: any limits exist — controls whether the chart icon appears
+        const hasActiveLimits = hasPersonal || hasAdminOrGroup;
+
+        const getMtdPillColor = () => {
+            // Only color-code against personal when it's what's being shown
+            if (!showPersonal) return chat_button_blue_color;
+            if (!personal!.rate || personal!.rate === 0) return chat_button_blue_color;
+            const pct = (mtdCostNumeric / personal!.rate) * 100;
+            if (pct >= 80) return 'text-red-500 dark:text-red-400';
+            if (pct >= 50) return 'text-yellow-500 dark:text-yellow-400';
+            return chat_button_blue_color;
+        };
+
+        /** Returns a color class for a specific period's spend against its limit */
+        const getPeriodColor = (period: 'Hourly' | 'Daily' | 'Monthly', spent: number): string => {
+            // Only color-code against personal when it's what's being shown
+            if (!showPersonal) return chat_button_blue_color;
+            if (personal!.period === period || (period === 'Monthly' && personal!.period === 'Total')) {
+                const pct = (spent / (personal!.rate as number)) * 100;
+                if (pct >= 80) return 'text-red-500 dark:text-red-400';
+                if (pct >= 50) return 'text-yellow-500 dark:text-yellow-400';
+            }
+            return chat_button_blue_color;
+        };
 
         const [showOnEditMessagePrompt, setShowOnEditMessagePrompt] = useState< {editedMessage: Message, index: number}| null>(null);
         const [showTempEdit, setShowTempEdit] = useState(false);
@@ -372,7 +429,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         }, []);
 
         useEffect(() => {
-            if (!plugins && settingRef.current) setPlugins(getActivePlugins(settingRef.current, featureFlags));
+            settingRef.current = getSettings(featureFlags);
+            if (settingRef.current) {
+                // Re-derive any time featureFlags arrive/change so async admin defaults
+                // (from fetchUserAppConfigs) are honoured even after plugins was first set
+                if (!plugins || featureFlags.smartMessages !== undefined) {
+                    setPlugins(getActivePlugins(settingRef.current, featureFlags));
+                }
+            }
         }, [featureFlags]);
 
 
@@ -1103,15 +1167,19 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
-                    // make sure assistant hasnt been deleted 
-                    if (prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
+                    // make sure assistant hasnt been deleted (check prompts OR layered assistants)
+                    const existsInPrompts = prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
+                    const existsInLayered = layeredAssistants.some((la: any) => la.assistantId === assistant.definition.assistantId);
+                    if (existsInPrompts || existsInLayered) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
             }
             else if (!isStandalonePromptCreation && selectedConversation && selectedConversation.promptTemplate && selectedConversation.messages?.length == 0) {
                 if (isAssistant(selectedConversation.promptTemplate) && selectedConversation.promptTemplate.data) {
                     const assistant = selectedConversation.promptTemplate.data.assistant;
-                    // make sure assistant hasnt been deleted 
-                    if (prompts.some((prompt:Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId)) homeDispatch({field: 'selectedAssistant', value: assistant});
+                    // make sure assistant hasnt been deleted (check prompts OR layered assistants)
+                    const existsInPrompts = prompts.some((prompt: Prompt) => prompt?.data?.assistant?.definition.assistantId === assistant.definition.assistantId);
+                    const existsInLayered = layeredAssistants.some((la: any) => la.assistantId === assistant.definition.assistantId);
+                    if (existsInPrompts || existsInLayered) homeDispatch({field: 'selectedAssistant', value: assistant});
                 }
 
                 setVariables(parseEditableVariables(selectedConversation.promptTemplate.content))
@@ -1163,17 +1231,26 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     isFetching = true;
 
                     try {
-                        const result = await doMtdCostOp();
-                        if (result && "MTD Cost" in result && result["MTD Cost"] !== undefined) {
-                            setMtdCost(`$${result["MTD Cost"].toFixed(2)}`);
+                        const result = await getUserMtdCosts();
+                        if (result.success) {
+                            const data = result.data;
+                            setMtdCostNumeric(data.totalCost);
+                            setMtdCost(`$${data.totalCost.toFixed(2)}`);
+                            setMtdDailyCost(data.dailyCost);
+                            const nowUtc = new Date().getUTCHours();
+                            setMtdHourlyCost(data.hourlyCost?.[nowUtc] ?? 0);
                         } else {
+                            setMtdCostNumeric(0);
                             setMtdCost('$0.00');
+                            setMtdDailyCost(0);
+                            setMtdHourlyCost(0);
                         }
                     } catch (error) {
                         console.error("Error fetching MTD cost:", error);
                         setMtdCost('$0.00');
                     } finally {
                         isFetching = false;
+                        setMtdLoading(false);
                     }
                 };
 
@@ -1373,23 +1450,45 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                         {isBarSticky ? (
                                             // Sticky bar content
                                             <>
-                                                {featureFlags.mtdCost && (
-                                                    <button
-                                                        className="ml-2 mr-1 cursor-pointer hover:opacity-50 flex flex-row items-center"
-                                                        disabled={messageIsStreaming}
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            setIsAccountDialogVisible(true);
-                                                        }}
-                                                        title="Month-To-Date Cost"
-                                                        id="month-to-date-cost"
-                                                    >
-                                                        <div className={`text-[0.93rem] ${chat_button_blue_color} mr-1`}>
-                                                            <div className="ml-1">MTD Cost: {mtdCost}</div>
-                                                        </div> {"|"}
-                                                    </button>
-                                                )}          
+                                                {featureFlags.mtdCost && mtdLoading && (
+                                                    <div className="flex flex-row items-center ml-2 mr-1 gap-2 animate-pulse">
+                                                        <div className="h-3 w-14 rounded bg-neutral-300 dark:bg-neutral-600" />
+                                                        <div className="h-3 w-16 rounded bg-neutral-300 dark:bg-neutral-600" />
+                                                        <div className="h-3 w-20 rounded bg-neutral-300 dark:bg-neutral-600" />
+                                                    </div>
+                                                )}
+                                                {featureFlags.mtdCost && !mtdLoading && mtdCostNumeric > 0 && (
+                                                    <div className="flex flex-row items-center ml-2 mr-1 gap-1">
+                                                        <button
+                                                            className={`text-[0.85rem] font-medium ${chat_button_blue_color} hover:opacity-70 transition-opacity cursor-pointer`}
+                                                            onClick={() => window.dispatchEvent(new Event('openCostBreakdown'))}
+                                                            title="View cost breakdown"
+                                                        >
+                                                            MTD Cost: {mtdCostNumeric > 0 && mtdCostNumeric < 0.01 ? '<$0.01' : `$${mtdCostNumeric.toFixed(2)}`}
+                                                        </button>
+                                                        {hasActiveLimits && (
+                                                            <div className="relative">
+                                                                <button
+                                                                    className={`cursor-pointer transition-opacity text-black dark:text-white ml-1 ${showUtilPopover ? 'opacity-100' : 'opacity-50 hover:opacity-100'}`}
+                                                                    title="Rate limit utilization"
+                                                                    onMouseEnter={showUtil}
+                                                                    onMouseLeave={() => hideUtil()}
+                                                                >
+                                                                    <IconChartHistogram size={16} />
+                                                                </button>
+                                                                {showUtilPopover && (
+                                                                    <div
+                                                                        className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 bg-white dark:bg-[#2b2c36] border border-neutral-200 dark:border-neutral-600 rounded-xl shadow-xl p-3"
+                                                                        onMouseEnter={showUtil}
+                                                                        onMouseLeave={() => hideUtil()}
+                                                                    >
+                                                                        <RateLimitUtilization variant="mini" />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                                 <button
                                                     className="font-medium mx-1 cursor-pointer hover:opacity-50 flex flex-row items-center"
                                                     onClick={(e) => {
@@ -1471,7 +1570,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 id="chatUpperMenu"
                                                 role="group"
                                                 onMouseEnter={() => setIsPillExpanded(true)}
-                                                onMouseLeave={() => setIsPillExpanded(false)}
+                                                onMouseLeave={() => { if (!showUtilPopover) setIsPillExpanded(false); hideUtil(false); }}
                                             >
                                                 {/* Always visible - Model name and expand indicator */}
                                                 <button
@@ -1484,19 +1583,30 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                     }}
                                                 >
                                                     {selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
-                                                                        ? Object.values(availableModels).find(m => m.id === selectedAssistant.definition?.data?.model)?.name 
+                                                                        ? Object.values(availableModels).find(m => m.id === selectedAssistant.definition?.data?.model)?.name
                                                                         : selectedConversation?.model?.name || ''}
-                                                    <IconChevronRight 
-                                                        size={16} 
+                                                    <IconChevronRight
+                                                        size={16}
                                                         className={`ml-2 transition-transform duration-300 ${isPillExpanded ? 'rotate-90' : ''} text-gray-500`}
                                                     />
-                                                                        
                                                 </button>
 
                                                 {/* Expanded content - appears on hover */}
                                                 <div className={`flex flex-row gap-2 items-center transition-all duration-300 overflow-hidden
-                                                        ${isPillExpanded ? 'max-w-[600px] opacity-100 ml-4' : 'max-w-0 opacity-0 ml-0'}
+                                                        ${isPillExpanded ? 'max-w-[800px] opacity-100 ml-4' : 'max-w-0 opacity-0 ml-0'}
                                                     `}>
+
+                                                    {featureFlags.mtdCost && hasActiveLimits && (
+                                                        <button
+                                                            className={`cursor-pointer transition-opacity text-black dark:text-white ${showUtilPopover ? 'opacity-100' : 'opacity-50 hover:opacity-100'}`}
+                                                            title="Rate limit utilization"
+                                                            onMouseEnter={showUtil}
+                                                            onMouseLeave={() => hideUtil()}
+                                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                                        >
+                                                            <IconChartHistogram size={16} />
+                                                        </button>
+                                                    )}
 
                                                     {renderChatSettings()}
 
@@ -1549,6 +1659,19 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         {isBarSticky ?  <IconBoxAlignTopRightFilled size={18}/> : <IconBoxAlignTopFilled size={18}/>}
                                                     </button>
                                                 </div>
+
+                                                {/* Util popover — rendered outside overflow-hidden so it isn't clipped */}
+                                                {featureFlags.mtdCost && hasActiveLimits && showUtilPopover && (
+                                                    <div
+                                                        className="-mt-2 absolute top-full left-1/2 -translate-x-1/2 z-50 pt-2"
+                                                        onMouseEnter={showUtil}
+                                                        onMouseLeave={() => hideUtil(true)}
+                                                    >
+                                                        <div className="bg-white dark:bg-[#2b2c36] border border-neutral-200 dark:border-neutral-600 rounded-xl shadow-xl p-3">
+                                                            <RateLimitUtilization variant="mini" />
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>

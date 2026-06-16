@@ -16,12 +16,15 @@ import toast from 'react-hot-toast';
 
 interface Props {
   open: boolean;
+  setUnsavedChanges: (b: boolean) => void;
+  pendingSelection: string | null;
+  setPendingSelection: (selection: string | null) => void;
 }
 
 
-export const ConversationsStorage: FC<Props> = ({ open }) => {
+export const ConversationsStorage: FC<Props> = ({ open, setUnsavedChanges, pendingSelection, setPendingSelection }) => {
 
-  const { dispatch: homeDispatch, state:{conversations, selectedConversation, folders, statsService, storageSelection} } = useContext(HomeContext);
+  const { dispatch: homeDispatch, state:{conversations, selectedConversation, folders, statsService, storageSelection, storageProcessing} } = useContext(HomeContext);
 
   const storageRef = useRef(storageSelection);
 
@@ -29,8 +32,9 @@ export const ConversationsStorage: FC<Props> = ({ open }) => {
     storageRef.current = storageSelection;
   }, [storageSelection]);
 
-  const [selectedOption, setSelectedOption] = useState( storageRef.current || '');
-  const [hasChanges, setHasChanges] = useState(false);
+  // Use pendingSelection from parent if it exists, otherwise use storageSelection
+  const selectedOption = pendingSelection !== null ? pendingSelection : (storageSelection || '');
+  const hasChanges = pendingSelection !== null && pendingSelection !== storageSelection;
 
 
   const { t } = useTranslation('conversationStorage');
@@ -50,29 +54,116 @@ export const ConversationsStorage: FC<Props> = ({ open }) => {
   }, [folders]);
 
   const handleSelectedOptionChanged = (option: string) => {
-      if (!hasChanges) toast('Click "Apply Changes" to save your selection.'); 
-      setSelectedOption(option);
-      setHasChanges(true);
+      // Check if the new selection is different from the original
+      if (option === storageSelection) {
+        // Switched back to original - no changes
+        setPendingSelection(null);
+        setUnsavedChanges(false);
+      } else {
+        // Changed to something different
+        setPendingSelection(option);
+        setUnsavedChanges(true);
+      }
   }
 
 
   const handleSave = async () => {
-    setHasChanges(false);
-    saveStorageSettings(selectedOption as ConversationStorage);
-    homeDispatch({field: 'storageSelection', value: selectedOption});
-
-    const updatedConversations = await handleStorageSelection(selectedOption, conversationsRef.current, foldersRef.current, statsService);
-    if (updatedConversations) {
-      homeDispatch({field: 'conversations', value: updatedConversations});
-      saveConversations(updatedConversations);
-      if (selectedConversation) {
-        const updateSelected = updatedConversations.find((c) => c.id === selectedConversation.id);
-        homeDispatch({field: 'selectedConversation', value: updateSelected});
-      }
+    if (!hasChanges) {
+      console.log('[ConversationStorage] No changes to save');
+      return;
     }
-    toast("Storage Settings Saved");
-    
+
+    // console.log('[ConversationStorage] Starting save process');
+    // console.log('[ConversationStorage] Selected option:', selectedOption);
+    // console.log('[ConversationStorage] Current storageSelection:', storageSelection);
+    // console.log('[ConversationStorage] Total conversations:', conversationsRef.current.length);
+
+    // Show processing bar for "all" options
+    const isAllOption = selectedOption === 'local-only' || selectedOption === 'cloud-only';
+    if (isAllOption) {
+      homeDispatch({
+        field: 'storageProcessing',
+        value: {
+          isProcessing: true,
+          message: selectedOption === 'local-only'
+            ? 'Moving all conversations to local storage...'
+            : 'Moving all conversations to cloud storage...',
+          progress: 0,
+          total: 0,
+        }
+      });
+      // Small delay to ensure the progress bar renders before async work starts
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    try {
+      // No confirmation needed here - it's handled in SettingDialog before the event is dispatched
+      setUnsavedChanges(false);
+      setPendingSelection(null);
+
+      saveStorageSettings(selectedOption as ConversationStorage);
+      homeDispatch({field: 'storageSelection', value: selectedOption});
+      const updatedConversations = await handleStorageSelection(
+        selectedOption,
+        conversationsRef.current,
+        foldersRef.current,
+        statsService,
+        (current, total) => {
+          homeDispatch({
+            field: 'storageProcessing',
+            value: {
+              isProcessing: true,
+              message: selectedOption === 'local-only'
+                ? 'Moving all conversations to local storage...'
+                : 'Moving all conversations to cloud storage...',
+              progress: current,
+              total: total,
+            }
+          });
+        }
+      );
+
+      if (updatedConversations) {
+        homeDispatch({field: 'conversations', value: updatedConversations});
+        saveConversations(updatedConversations);
+        if (selectedConversation) {
+          const updateSelected = updatedConversations.find((c) => c.id === selectedConversation.id);
+          homeDispatch({field: 'selectedConversation', value: updateSelected});
+        }
+      }
+
+      toast("Storage Settings Saved");
+    } catch (error) {
+      console.error('[ConversationStorage] Error during save:', error);
+      toast.error('Failed to save storage settings');
+    } finally {
+      homeDispatch({
+        field: 'storageProcessing',
+        value: {
+          isProcessing: false,
+          message: '',
+          progress: 0,
+          total: 0,
+        }
+      });
+    }
   };
+
+  useEffect(() => {
+    window.addEventListener('settingsSave', handleSaveWithConfirmation);
+    return () => window.removeEventListener('settingsSave', handleSaveWithConfirmation);
+  }, [hasChanges, selectedOption]);
+
+  // Reset to original value when modal closes without saving
+  useEffect(() => {
+    const handleCleanup = () => {
+      setPendingSelection(null);
+      setUnsavedChanges(false);
+    };
+
+    window.addEventListener('cleanupApiKeys', handleCleanup);
+    return () => window.removeEventListener('cleanupApiKeys', handleCleanup);
+  }, [setPendingSelection, setUnsavedChanges]);
   
   const confirmationMessage = () => {
     switch (selectedOption) {
@@ -87,7 +178,19 @@ export const ConversationsStorage: FC<Props> = ({ open }) => {
     }
   }
 
-  return ( open ? (
+  const handleSaveWithConfirmation = async () => {
+    if (!hasChanges) return;
+
+    const message = confirmationMessage();
+    const confirmed = confirm(message);
+    if (!confirmed) return;
+
+    await handleSave();
+  };
+
+  return (
+    <>
+      {open && (
         <div className="settings-card">
             <div className="settings-card-header flex flex-row items-center gap-4">
               <h3 className="settings-card-title">{t('Conversation Storage')}</h3>
@@ -110,20 +213,6 @@ export const ConversationsStorage: FC<Props> = ({ open }) => {
 
           <div className="flex flex-row justify-center text-sm font-bold mt-4 text-black dark:text-neutral-200">
             {t('Where would you like to store your conversations?')}
-            <button
-              type="button"
-              id="applyConversationStorage"
-              title='Apply Conversation Storage Changes To The Current Browser'
-              className={`text-xs ml-10 p-2 py-1 rounded-lg shadow-md focus:outline-none  bg-neutral-100 text-black hover:bg-neutral-200
-                          ${hasChanges ? 'border-2 border-green-500' : 'border border-neutral-800'}`}
-              onClick={() => {
-                  if (confirm(`${confirmationMessage()} \n\n Would you like to continue?`)) handleSave();
-              }}
-              >
-              <>{t('Apply Changes')}
-                {hasChanges && <span className='ml-0.5 text-[0.9rem]'>*</span>}
-              </>
-              </button>
           </div>
        
        <div className="m-4 storage-options-container">
@@ -224,8 +313,10 @@ export const ConversationsStorage: FC<Props> = ({ open }) => {
                     <div className="storage-choice-indicator"></div>
                   </label>
                 </div>
-              </div>        
+              </div>
         </div>
       </div>
-  ) : <></>)
+      )}
+    </>
+  )
 };

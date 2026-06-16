@@ -12,7 +12,9 @@ import {
     IconCheck,
     IconX,
     IconWorldSearch,
-    IconGripHorizontal
+    IconGripHorizontal,
+    IconSparkles,
+    IconLayoutList
 } from '@tabler/icons-react';
 import SaveActionsModal from './SaveActionsModal';
 import {
@@ -28,7 +30,7 @@ import {
 
 import {useTranslation} from 'next-i18next';
 import {parsePromptVariables} from "@/utils/app/prompts";
-import {Conversation, Message, MessageType, newMessage} from '@/types/chat';
+import {Conversation, ConversationContextEntry, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin, PluginID, PluginList, Plugins} from '@/types/plugin';
 import {Prompt} from '@/types/prompt';
 import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
@@ -39,14 +41,17 @@ import HomeContext from '@/pages/api/home/home.context';
 import {PromptList} from './PromptList';
 import {VariableModal} from './VariableModal';
 import {DefaultModels, Model, REASONING_LEVELS, ReasoningLevels} from "@/types/model";
-import {Assistant, DEFAULT_ASSISTANT} from "@/types/assistant";
+import {Assistant, AssistantProviderID, DEFAULT_ASSISTANT} from "@/types/assistant";
+import { LayeredAssistant } from '@/types/layeredAssistant';
 import {COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS} from "@/utils/app/const";
 import {useChatService} from "@/hooks/useChatService";
 import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
-import {getAssistants} from "@/utils/app/assistants";
-import { isImageFile, processDragDropFiles, processPastedFiles } from '@/utils/fileHandler';
+import {ConversationContextManager} from "@/components/Chat/ConversationContextManager";
+import {getAssistants, isAssistant} from "@/utils/app/assistants";
+import { isImageFile, isVideoFile, processDragDropFiles, processPastedFiles } from '@/utils/fileHandler';
 import AssistantsInUse from "@/components/Chat/AssistantsInUse";
 import {AssistantSelect} from "@/components/Assistants/AssistantSelect";
+import {AssistantSelectModal} from "@/components/Assistants/AssistantSelectModal";
 import QiModal from './QiModal';
 import { QiSummary, QiSummaryType } from '@/types/qi';
 import {LoadingDialog} from "@/components/Loader/LoadingDialog";
@@ -61,8 +66,9 @@ import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton"
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
 import { MemoryPresenter } from "@/components/Chat/MemoryPresenter";
+import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 // import { ProjectList } from './ProjectList';
-import {  } from '../../services/memoryService';
+// import { } from '../../services/memoryService';
 import { Settings } from '@/types/settings';
 import { ToggleOptionButtons } from '../ReusableComponents/ToggleOptionButtons';
 import { capitalize } from '@/utils/app/data';
@@ -70,8 +76,9 @@ import OperationSelector from "@/components/Agent/OperationSelector";
 import ActionsList from "@/components/Chat/ActionsList";
 import { resolveRagEnabled } from '@/types/features';
 import { OpBindings } from '@/types/op';
-import { 
-    LargeTextBlock, 
+import { getActionSet, saveActionSet } from '@/services/actionSetsService';
+import {
+    LargeTextBlock,
     replacePlaceholdersWithText,
     removeLargeTextBlockFromContent
 } from '@/utils/app/largeText';
@@ -82,6 +89,7 @@ import { AttachmentDisplay } from '@/components/Chat/AttachmentDisplay';
 import { useLargeTextManager } from '@/hooks/useLargeTextManager';
 import { useTextBlockEditor } from '@/hooks/useTextBlockEditor';
 import toast from 'react-hot-toast';
+import { SkillsToggle } from '@/components/Skills';
 
 
 
@@ -103,24 +111,24 @@ interface Props {
 // }
 
 export const ChatInput = ({
-                              onSend,
-                              onRegenerate,
-                              onScrollDownClick,
-                              stopConversationRef,
-                              textareaRef,
-                              handleUpdateModel,
-                              showScrollDownButton,
-                              plugins,
-                              setPlugins
-                          }: Props) => {
-    const {t} = useTranslation('chat');
+    onSend,
+    onRegenerate,
+    onScrollDownClick,
+    stopConversationRef,
+    textareaRef,
+    handleUpdateModel,
+    showScrollDownButton,
+    plugins,
+    setPlugins
+}: Props) => {
+    const { t } = useTranslation('chat');
 
-    const {killRequest} = useChatService();
+    const { killRequest } = useChatService();
 
     const {
-        state: {selectedConversation, selectedAssistant, messageIsStreaming, artifactIsStreaming,
-            prompts,  featureFlags, currentRequestId, chatEndpoint, statsService, availableModels,
-            extractedFacts, memoryExtractionEnabled, ragOn, defaultAccount},
+        state: {selectedConversation, conversations, folders, selectedAssistant, messageIsStreaming, artifactIsStreaming,
+            prompts, layeredAssistants, groups, featureFlags, currentRequestId, chatEndpoint, statsService, availableModels,
+            extractedFacts, memoryExtractionEnabled, ragOn, defaultAccount, webSearchUserMessage},
         getDefaultModel, handleUpdateConversation,
         dispatch: homeDispatch
     } = useContext(HomeContext);
@@ -137,21 +145,25 @@ export const ChatInput = ({
     let settingRef = useRef<Settings | null>(null);
     // prevent recalling the getSettings function
     if (settingRef.current === null) settingRef.current = getSettings(featureFlags);
+    const [settingsVersion, setSettingsVersion] = useState(0);
     const [filteredModels, setFilteredModels] = useState<Model[]>([]);
 
     useEffect(() => {
-        const handleEvent = (event:any) => {
-            settingRef.current = getSettings(featureFlags);
+        const handleEvent = (event: any) => {
+            const newSettings = getSettings(featureFlags);
+            settingRef.current = newSettings;
             if (Object.keys(availableModels).length > 0) {
                 setFilteredModels(filterModels(availableModels, settingRef.current.hiddenModelIds));
             }
+            // trigger re-render so JSX that reads settingRef.current (e.g. includePluginSelector) updates
+            setSettingsVersion(v => v + 1);
         };
 
         window.addEventListener('updateFeatureSettings', handleEvent);
         return () => {
             window.removeEventListener('updateFeatureSettings', handleEvent);
         };
-    }, []);
+    }, [featureFlags, availableModels]);
 
     useEffect(() => {
         settingRef.current = getSettings(featureFlags);
@@ -197,7 +209,7 @@ export const ChatInput = ({
         !artifactIsStreaming;
 
     useEffect(() => {
-       const updateWidth = () => {
+        const updateWidth = () => {
             if (!messageIsStreaming && !artifactIsStreaming) setChatContainerWidth(updateSize());
         }
         window.addEventListener('resize', updateWidth);
@@ -248,26 +260,39 @@ export const ChatInput = ({
     const [qiSummary, setQiSummary] = useState<QiSummary | null>(null)
     const [isInputInFocus, setIsInputInFocus] = useState(false);
     // State to track the list of added actions
-    const [addedActions, setAddedActions] = useState<{ 
-        name: string; 
+    const [addedActions, setAddedActions] = useState<{
+        _id: string;
+        name: string;
         customName?: string;
         customDescription?: string;
         operation?: any;
         parameters?: OpBindings;
+        // Track which saved action set this action belongs to (for auto-save on edit)
+        _actionSetId?: string;
+        _actionSetName?: string;
+        _actionSetTags?: string[];
     }[]>([]);
 
     // Show Ops popup toggle state
     const [showOpsPopup, setShowOpsPopup] = useState(false);
     const [editingAction, setEditingAction] = useState<{
-        name: string; 
+        name: string;
         customName?: string;
         customDescription?: string;
         index: number;
         parameters?: OpBindings;
     } | null>(null);
-    
+
     // Action set modal states
     const [showSaveActionsModal, setShowSaveActionsModal] = useState(false);
+
+    // Pending duplicate action awaiting user confirmation
+    const [pendingDuplicateAction, setPendingDuplicateAction] = useState<{
+        operation: any;
+        parameters: any;
+        customName: string | undefined;
+        customDescription: string | undefined;
+    } | null>(null);
 
     // Drag and drop state management
     const [isDragging, setIsDragging] = useState(false);
@@ -323,21 +348,22 @@ export const ChatInput = ({
     }, [isResizing, textareaHeight]);
 
     const [showDataSourceSelector, setShowDataSourceSelector] = useState(false);
+    const [showContextManager, setShowContextManager] = useState(false);
     //const [assistant, setAssistant] = useState<Assistant>(selectedAssistant || DEFAULT_ASSISTANT);
     const [availableAssistants, setAvailableAssistants] = useState<Assistant[]>([DEFAULT_ASSISTANT]);
-    
+
     // Large text handling - using custom hook for state management
-    const { 
-        largeTextBlocks, 
-        showLargeTextPreview, 
+    const {
+        largeTextBlocks,
+        showLargeTextPreview,
         hasLargeTextBlocks,
-        handleLargeTextPaste, 
+        handleLargeTextPaste,
         removeLargeTextBlock: removeLargeTextBlockFromHook,
         removeMultipleLargeTextBlocks,
         clearLargeText,
         setLargeTextBlocks
     } = useLargeTextManager();
-    
+
     // Text block editing - using custom hook for edit mode management
     const {
         editMode,
@@ -366,10 +392,15 @@ export const ChatInput = ({
     // Per-conversation web search toggle (independent from FeaturePlugin) - persists across messages
     const isWebSearchEnabledForConversation = selectedConversation?.data?.webSearchEnabled ?? false;
 
+    // Skills toggle state - stores skill IDs (persists in conversation data)
+    const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
+    const skillSelectionMode = selectedConversation?.data?.skillSelectionMode ?? 'auto';
+
     const promptListRef = useRef<HTMLUListElement | null>(null);
     const dataSourceSelectorRef = useRef<HTMLDivElement | null>(null);
     const actionSelectorRef = useRef<HTMLDivElement | null>(null);
     const assistantSelectorRef = useRef<HTMLDivElement | null>(null);
+    const contextManagerRef = useRef<HTMLDivElement | null>(null);
 
     const [isWorkflowOn, setWorkflowOn] = useState(false);
 
@@ -380,8 +411,8 @@ export const ChatInput = ({
 
     const extractDocumentsLocally = featureFlags.extractDocumentsLocally;
 
-    const filteredPrompts = useMemo(() => 
-        promptsRef.current.filter((prompt:Prompt) =>
+    const filteredPrompts = useMemo(() =>
+        promptsRef.current.filter((prompt: Prompt) =>
             prompt.name.toLowerCase().includes(promptInputValue.toLowerCase())
         ), [promptInputValue, prompts]
     );
@@ -413,8 +444,26 @@ export const ChatInput = ({
 
 
 
+    const onLayeredAssistantChange = (la: LayeredAssistant) => {
+        const syntheticAssistant: Assistant = {
+            id: la.assistantId!,
+            definition: {
+                name: la.name,
+                description: la.description,
+                assistantId: la.assistantId,
+                instructions: '',
+                tools: [],
+                tags: [],
+                fileKeys: [],
+                dataSources: [],
+                provider: AssistantProviderID.AMPLIFY,
+                data: { isLayeredAssistant: true, ...(la.model ? { model: la.model } : {}) },
+            },
+        };
+        homeDispatch({ field: 'selectedAssistant', value: syntheticAssistant });
+    };
+
     const onAssistantChange = (assistant: Assistant) => {
-        setShowAssistantSelect(false);
 
         if (selectedConversation) {
             const oldAstTags = selectedAssistant?.definition.data?.conversationTags || [];
@@ -441,26 +490,33 @@ export const ChatInput = ({
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const value = e.target.value;
-        const maxLength =  selectedConversation?.model?.inputContextWindow;
 
-        if (maxLength && value.length > maxLength) {
-            alert(
-                t(
-                    `Message limit is {{maxLength}} characters. You have entered {{valueLength}} characters.`,
-                    {maxLength, valueLength: value.length},
-                ),
-            );
-            return;
+        // Rough token-to-character conversion: 1 token ≈ 4 characters
+        // Limit single message to context window size (in characters)
+        const contextWindow = selectedConversation?.model?.inputContextWindow;
+        const maxTokens = selectedConversation?.model?.outputTokenLimit || 2000;
+        if (contextWindow) {
+            let maxChars = (contextWindow * 4); // Convert tokens to approximate characters
+            if (contextWindow !== maxTokens) maxChars -= (maxTokens * 4) // in case of misconfiguration
+            if (value.length > maxChars) {
+                alert(
+                    t(
+                        `Message limit is {{maxTokens}} tokens, approximately ({{maxChars}} characters). You have entered {{valueLength}} characters.`,
+                        { maxTokens: contextWindow, maxChars, valueLength: value.length },
+                    ),
+                );
+                return;
+            }
         }
 
         // Skip placeholder deletion logic when in edit mode
         let finalContent = value;
         if (!shouldSkipPlaceholderDeletion) {
             // Check for deleted placeholder characters and remove corresponding blocks
-            const blocksToRemove = largeTextBlocks.filter((block) => 
+            const blocksToRemove = largeTextBlocks.filter((block) =>
                 !value.includes(block.placeholderChar)
             );
-            
+
             if (blocksToRemove.length > 0) {
                 // Remove all deleted blocks at once using the multi-remove function
                 const blockIdsToRemove = blocksToRemove.map(block => block.id);
@@ -473,10 +529,7 @@ export const ChatInput = ({
     };
 
     const addDocument = (document: AttachedDocument) => {
-        let newDocuments = documents || [];
-        newDocuments.push(document);
-        setDocuments(newDocuments);
-
+        setDocuments(prevDocuments => [...(prevDocuments || []), document]);
         console.log("Document attached.");
     }
 
@@ -545,16 +598,19 @@ export const ChatInput = ({
             return;
         }
 
-        const maxLength = selectedConversation?.model?.inputContextWindow;
-
-        if (maxLength && content.length > maxLength) {
-            alert(
-                t(
-                    `Message limit is {{maxLength}} characters. You have entered {{valueLength}} characters.`,
-                    {maxLength, valueLength: content.length},
-                ),
-            );
-            return;
+        // Rough token-to-character conversion: 1 token ≈ 4 characters
+        const contextWindow = selectedConversation?.model?.inputContextWindow;
+        if (contextWindow) {
+            const maxChars = contextWindow * 4; // Convert tokens to approximate characters
+            if (content.length > maxChars) {
+                alert(
+                    t(
+                        `Message limit is approximately {{maxTokens}} tokens ({{maxChars}} characters). You have entered {{valueLength}} characters.`,
+                        { maxTokens: contextWindow, maxChars, valueLength: content.length },
+                    ),
+                );
+                return;
+            }
         }
 
         const type = (isWorkflowOn) ? MessageType.AUTOMATION : MessageType.PROMPT;
@@ -564,7 +620,10 @@ export const ChatInput = ({
         let messageLabel = content || '';
         let messageData: any = {
             // Include per-message web search toggle state
-            enableWebSearch: isWebSearchEnabledForConversation
+            enableWebSearch: isWebSearchEnabledForConversation,
+            // Include selected skills
+            skills: selectedSkillIds,
+            skillSelectionMode: skillSelectionMode
         };
 
         if (largeTextBlocks.length > 0) {
@@ -627,16 +686,19 @@ export const ChatInput = ({
                 msg.content = extractDocumentsLocally ?
                     handleAppendDocumentsToContent(content, documents) : content;
 
-                const maxLength = selectedConversation?.model.inputContextWindow;
-
-                if (maxLength && msg.content.length > maxLength) {
-                    alert(
-                        t(
-                            `Message limit is {{maxLength}} characters. Your prompt and attached documents are {{valueLength}} characters. Please remove the attached documents or choose smaller excerpts.`,
-                            {maxLength, valueLength: msg.content.length},
-                        ),
-                    );
-                    return;
+                // Rough token-to-character conversion: 1 token ≈ 4 characters
+                const contextWindow = selectedConversation?.model.inputContextWindow;
+                if (contextWindow) {
+                    const maxChars = contextWindow * 4; // Convert tokens to approximate characters
+                    if (msg.content.length > maxChars) {
+                        alert(
+                            t(
+                                `Message limit is approximately {{maxTokens}} tokens ({{maxChars}} characters). Your prompt and attached documents are {{valueLength}} characters. Please remove the attached documents or choose smaller excerpts.`,
+                                { maxTokens: contextWindow, maxChars, valueLength: msg.content.length },
+                            ),
+                        );
+                        return;
+                    }
                 }
             }
         }
@@ -644,7 +706,7 @@ export const ChatInput = ({
         let updatedDocuments = documents?.map((d) => {
             const metadata = documentMetadata[d.id];
             if (metadata) {
-                return {...d, metadata: metadata};
+                return { ...d, metadata: metadata };
             }
             return d;
         });
@@ -660,7 +722,7 @@ export const ChatInput = ({
                     const baseArtifactId = pa.artifactId.split(':')[0];
 
                     // Preserve the artifact with its original version and update the artifactId
-                    const artifact = {...pa.artifact, artifactId: baseArtifactId};
+                    const artifact = { ...pa.artifact, artifactId: baseArtifactId };
 
                     // Check if this artifactId already exists in conversation
                     if (Object.keys(conversationArtifacts).includes(baseArtifactId)) {
@@ -684,7 +746,7 @@ export const ChatInput = ({
             selectedConversation.artifacts = conversationArtifacts;
 
             // Dispatch to update global state so useSendService can access it
-            homeDispatch({field: 'selectedConversation', value: selectedConversation});
+            homeDispatch({ field: 'selectedConversation', value: selectedConversation });
         }
 
         statsService.userSendChatEvent(msg as Message, selectedConversation?.model?.id ?? '');
@@ -693,6 +755,11 @@ export const ChatInput = ({
         if (!selectedConversation?.model?.supportsImages && hasImages) {
             toast(" This model does not support images");
             updatedDocuments = updatedDocuments?.filter((d: AttachedDocument) => !isImageFile(d));
+        }
+        const hasVideos = updatedDocuments?.some((d) => isVideoFile(d));
+        if (!selectedConversation?.model?.supportsVideo && hasVideos) {
+            toast(" This model does not support videos");
+            updatedDocuments = updatedDocuments?.filter((d: AttachedDocument) => !isVideoFile(d));
         }
         onSend(msg, updatedDocuments || []);
 
@@ -727,20 +794,20 @@ export const ChatInput = ({
 
         if (artifactIsStreaming) {
             console.log("kill artifact even trigger: ");
-            const event = new Event( 'killArtifactRequest');
+            const event = new Event('killArtifactRequest');
             window.dispatchEvent(event);
             timeout = 100;
         } else {
-            const event = new Event( 'killChatRequest');
+            const event = new Event('killChatRequest');
             window.dispatchEvent(event);
         }
 
         setTimeout(() => {
             stopConversationRef.current = false;
-            homeDispatch({field: 'loading', value: false});
-            homeDispatch({field: 'messageIsStreaming', value: false});
-            homeDispatch({field: 'artifactIsStreaming', value: false});
-            homeDispatch({field: 'status', value: []});
+            homeDispatch({ field: 'loading', value: false });
+            homeDispatch({ field: 'messageIsStreaming', value: false });
+            homeDispatch({ field: 'artifactIsStreaming', value: false });
+            homeDispatch({ field: 'status', value: [] });
         }, timeout);
 
     };
@@ -773,7 +840,7 @@ export const ChatInput = ({
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 setActivePromptIndex((prevIndex) =>
-                    prevIndex <  promptsRef.current.length - 1 ? prevIndex + 1 : prevIndex,
+                    prevIndex < promptsRef.current.length - 1 ? prevIndex + 1 : prevIndex,
                 );
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
@@ -783,7 +850,7 @@ export const ChatInput = ({
             } else if (e.key === 'Tab') {
                 e.preventDefault();
                 setActivePromptIndex((prevIndex) =>
-                    prevIndex <  promptsRef.current.length - 1 ? prevIndex + 1 : 0,
+                    prevIndex < promptsRef.current.length - 1 ? prevIndex + 1 : 0,
                 );
             } else if (e.key === 'Enter') {
                 e.preventDefault();
@@ -844,7 +911,19 @@ export const ChatInput = ({
 
     useEffect(() => {
         if (prompts) {
-            const assistants = getAssistants(prompts);
+            // Map prompts to assistants, attaching groupId from the prompt onto
+            // the definition so the select modal can show a group indicator.
+            const assistants = prompts
+                .filter(isAssistant)
+                .map((p: any) => {
+                    const ast = p.data?.assistant;
+                    if (!ast) return null;
+                    if (p.groupId && !ast.definition?.groupId) {
+                        return { ...ast, definition: { ...ast.definition, groupId: p.groupId } };
+                    }
+                    return ast;
+                })
+                .filter(Boolean);
             setAvailableAssistants(assistants);
         }
     }, [prompts]);
@@ -860,25 +939,26 @@ export const ChatInput = ({
         if (textareaRef && textareaRef.current) {
             textareaRef.current.style.height = 'inherit';
             textareaRef.current.style.height = `${textareaRef.current?.scrollHeight}px`;
-            textareaRef.current.style.overflow = `${
-                textareaRef?.current?.scrollHeight > textareaHeight ? 'auto' : 'hidden'
-            }`;
+            textareaRef.current.style.overflow = `${textareaRef?.current?.scrollHeight > textareaHeight ? 'auto' : 'hidden'
+                }`;
         }
 
     }, [content, textareaHeight]);
 
     useEffect(() => {
         const handleOutsideClick = (e: MouseEvent) => {
-            if ( promptListRef.current &&
+            if (promptListRef.current &&
                 !promptListRef.current.contains(e.target as Node)) setShowPromptList(false);
 
             if (dataSourceSelectorRef.current &&
                 !dataSourceSelectorRef.current.contains(e.target as Node)) setShowDataSourceSelector(false);
-            
-            if (actionSelectorRef.current && 
+
+            if (actionSelectorRef.current &&
                 !actionSelectorRef.current.contains(e.target as Node)) setShowOpsPopup(false);
 
             if (assistantSelectorRef.current && !assistantSelectorRef.current.contains(e.target as Node)) setShowAssistantSelect(false);
+
+            if (contextManagerRef.current && !contextManagerRef.current.contains(e.target as Node)) setShowContextManager(false);
         };
 
         window.addEventListener('click', handleOutsideClick);
@@ -911,7 +991,7 @@ export const ChatInput = ({
 
     const handleDocumentAbortController = (document: AttachedDocument, abortController: any) => {
         setDocumentAborts((prevState) => {
-            let newState = {...prevState, [document.id]: abortController};
+            let newState = { ...prevState, [document.id]: abortController };
             return newState;
         });
     }
@@ -920,7 +1000,7 @@ export const ChatInput = ({
         console.log("Progress: " + progress);
 
         setDocumentState((prevState) => {
-            let newState = {...prevState, [document.id]: progress};
+            let newState = { ...prevState, [document.id]: progress };
             newState[document.id] = progress;
             return newState;
         });
@@ -930,25 +1010,27 @@ export const ChatInput = ({
     const handleSetMetadata = (document: AttachedDocument, metadata: any) => {
 
         setDocumentMetadata((prevState) => {
-            const newMetadata = {...prevState, [document.id]: metadata};
+            const newMetadata = { ...prevState, [document.id]: metadata };
             return newMetadata;
         });
 
     }
 
     const handleSetKey = (document: AttachedDocument, key: string) => {
-
-        const newDocuments = documents ? documents?.map((d) => {
-            if (d.id === document.id) {
-                return {...d, key: key};
+        setDocuments(prevDocuments => {
+            if (!prevDocuments || prevDocuments.length === 0) {
+                return [{ ...document, key: key }];
             }
-            return d;
-        }) : [{...document, key: key}];
-
-        setDocuments(newDocuments);
+            return prevDocuments.map((d) => {
+                if (d.id === document.id) {
+                    return { ...d, key: key };
+                }
+                return d;
+            });
+        });
 
     }
-    const handleGetQiSummary = async (conversation:Conversation) => {
+    const handleGetQiSummary = async (conversation: Conversation) => {
         handleCloseAllPopups();
         setShowMessageSelectDialog(false);
         setIsQiLoading(true);
@@ -959,9 +1041,8 @@ export const ChatInput = ({
     }
 
     const disallowedFileExtensions = useMemo(() => {
-   
         return [ ...COMMON_DISALLOWED_FILE_EXTENSIONS ];
-    }, [selectedConversation?.model?.supportsImages]);
+    }, [selectedConversation?.model?.supportsImages, selectedConversation?.model?.supportsVideo]);
 
     const handleCloseAllPopups = () => {
         setShowOpsPopup(false);
@@ -970,13 +1051,32 @@ export const ChatInput = ({
         setShowPromptList(false);
         setShowMessageSelectDialog(false);
         setShowQiDialog(false);
+        setShowContextManager(false);
+    }
+
+    const handleUpdateRemovedDocuments = (updatedRemovedDocumentIds: string[]) => {
+        if (selectedConversation) {
+            handleUpdateConversation(selectedConversation, {
+                key: 'removedDocumentIds',
+                value: updatedRemovedDocumentIds
+            });
+        }
+    }
+
+    const handleUpdateContextConversations = (entries: ConversationContextEntry[]) => {
+        if (selectedConversation) {
+            handleUpdateConversation(selectedConversation, {
+                key: 'contextConversations',
+                value: entries
+            });
+        }
     }
 
     // Drag and drop handlers
     const handleDragEnter = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         // Only handle file drags
         if (e.dataTransfer.types.includes('Files')) {
             setDragCounter(prev => prev + 1);
@@ -987,7 +1087,7 @@ export const ChatInput = ({
     const handleDragLeave = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         setDragCounter(prev => {
             const newCounter = prev - 1;
             if (newCounter === 0) {
@@ -1000,7 +1100,7 @@ export const ChatInput = ({
     const handleDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         // Only allow file drops
         if (e.dataTransfer.types.includes('Files')) {
             e.dataTransfer.dropEffect = 'copy';
@@ -1010,7 +1110,7 @@ export const ChatInput = ({
     const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         setIsDragging(false);
         setDragCounter(0);
 
@@ -1066,14 +1166,14 @@ export const ChatInput = ({
             if (textarea) {
                 const cursorPos = textarea.selectionStart;
                 const currentContent = content || '';
-                
+
                 // const { newContent, hasLargeText } = handleLargeTextPaste(
                 //     pastedText,
                 //     currentContent,
                 //     cursorPos,
                 //     textareaRef
                 // );
-                
+
                 // if (hasLargeText) {
                 //     e.preventDefault();
                 //     setContent(newContent);
@@ -1086,13 +1186,13 @@ export const ChatInput = ({
     // Handle individual large text block removal using hook
     const handleRemoveLargeTextBlock = useCallback((blockId: string) => {
         // Determine content to use based on edit state
-        const contentToUse = (isEditing && editingBlockId === blockId) 
-            ? editMode.originalConversationContent 
+        const contentToUse = (isEditing && editingBlockId === blockId)
+            ? editMode.originalConversationContent
             : (content || '');
-            
+
         if (contentToUse) {
             const updatedContent = removeLargeTextBlockFromHook(
-                blockId, 
+                blockId,
                 contentToUse,
                 // Callback to handle edit mode cleanup if the removed block was being edited
                 (removedBlockId) => {
@@ -1111,11 +1211,11 @@ export const ChatInput = ({
     // PluginID.CODE_INTERPRETER is not compatible with Selected Assistants for now
     useEffect(() => { // if code interpreter is toggled in plugin selector, set the selected assistant to the default assistant
         const containsCodeInterpreter = plugins.map((p: Plugin) => p.id).includes(PluginID.CODE_INTERPRETER);
-        if (containsCodeInterpreter) homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
+        if (containsCodeInterpreter) homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
     }, [plugins]);
 
     useEffect(() => { // if selected assistant change is not the default assistant, remove code interpreter from plugins
-        if (selectedAssistant !== DEFAULT_ASSISTANT) setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.CODE_INTERPRETER ));
+        if (selectedAssistant !== DEFAULT_ASSISTANT) setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.CODE_INTERPRETER));
     }, [selectedAssistant]);
 
     // don't remove Memory plugin when extraction is disabled
@@ -1154,7 +1254,7 @@ export const ChatInput = ({
         // will effectively detach ragOn state from rag plugin if feature flag is off 
         // ragOn is used to track the state of the rag plugin throughout the entire app when cached documents is on
         if (featureFlags.cachedDocuments && (containsRag && !ragOn) || (!containsRag && ragOn)) {
-            homeDispatch({field: 'ragOn', value: containsRag});
+            homeDispatch({ field: 'ragOn', value: containsRag });
         }
     }, [plugins]);
 
@@ -1178,15 +1278,17 @@ export const ChatInput = ({
         if (!containsWebSearch && selectedConversation && selectedConversation.data?.webSearchEnabled) {
             handleUpdateConversation(selectedConversation, {
                 key: 'data',
-                value: {...selectedConversation.data, webSearchEnabled: false},
+                value: { ...selectedConversation.data, webSearchEnabled: false },
             });
         }
     }, [plugins, selectedConversation, handleUpdateConversation]);
 
+    const showPluginSelector = featureFlags.pluginsOnInput && settingRef.current.featureOptions.includePluginSelector;
+
     return (
         <>
-            { featureFlags.pluginsOnInput &&
-                settingRef.current.featureOptions.includePluginSelector &&
+            <span style={{display:'none'}}>{settingsVersion}</span>
+            { showPluginSelector &&
                 <div className='relative z-20' style={{height: 0}}>
                     <FeaturePlugin
                         plugins={plugins}
@@ -1285,61 +1387,130 @@ export const ChatInput = ({
                         </div>
                     )}
 
+                    {showContextManager && (
+                        <div ref={contextManagerRef} className="rounded bg-white dark:bg-[#343541]"
+                             onClick={e => e.stopPropagation()}
+                             style={{transform: 'translateY(50px)', maxHeight: '500px', overflow: 'hidden'}}>
+                            <ConversationContextManager
+                                conversation={selectedConversation}
+                                allConversations={conversations}
+                                folders={folders}
+                                onUpdateRemovedDocuments={handleUpdateRemovedDocuments}
+                                onUpdateContextConversations={handleUpdateContextConversations}
+                                onClose={() => setShowContextManager(false)}
+                            />
+                        </div>
+                    )}
+
+                    {showAssistantSelect && (
+                        <div ref={assistantSelectorRef}
+                             className="rounded bg-white dark:bg-[#343541]"
+                             style={{transform: 'translateY(50px)', maxHeight: '500px', overflow: 'hidden', zIndex: 50}}>
+                            <AssistantSelectModal
+                                assistant={selectedAssistant || DEFAULT_ASSISTANT}
+                                availableAssistants={availableAssistants}
+                                layeredAssistants={[
+                                    ...layeredAssistants,
+                                    ...(groups ?? []).flatMap((g: any) => g.layeredAssistants ?? []),
+                                ]}
+                                onLayeredAssistantChange={(la: LayeredAssistant) => {
+                                    onLayeredAssistantChange(la);
+                                    if (textareaRef && textareaRef.current) textareaRef.current.focus();
+                                }}
+                                onKeyDown={(e: any) => {
+                                    if (e.key === 'Escape') {
+                                        e.preventDefault();
+                                        setShowAssistantSelect(false);
+                                        textareaRef.current?.focus();
+                                    }
+                                }}
+                                onAssistantChange={(assistant: Assistant) => {
+                                    onAssistantChange(assistant);
+                                    if (textareaRef && textareaRef.current) textareaRef.current.focus();
+                                }}
+                                onClose={() => {
+                                    setShowAssistantSelect(false);
+                                    textareaRef.current?.focus();
+                                }}
+                            />
+                        </div>
+                    )}
+
                     { featureFlags.actionSets &&  showOpsPopup && (
                             <div ref={actionSelectorRef} className="z-50 w-full" 
                                  style={{transform: 'translateY(50px)'}} >
                                 <OperationSelector
-                                    initialAction={editingAction ? 
-                                        { 
-                                          name: editingAction.name, 
+                                    initialAction={editingAction ?
+                                        {
+                                          name: editingAction.name,
                                           customName: editingAction.customName,
                                           customDescription: editingAction.customDescription,
-                                          parameters: editingAction.parameters || {} 
-                                        } : 
+                                          parameters: editingAction.parameters || {}
+                                        } :
                                         undefined
                                     }
                                     editMode={!!editingAction}
+                                    liveActions={addedActions}
                                     onCancel={() => {
                                         setShowOpsPopup(false);
                                         setEditingAction(null);
                                     }}
                                     onActionAdded={(operation, parameters, customName, customDescription) => {
                                         if (editingAction) {
-                                            // Update the existing action
+                                            // Update the existing action (preserve its _id and action set metadata)
                                             setAddedActions((prev) => {
+                                                const existing = prev[editingAction.index];
                                                 const newActions = [...prev];
-                                                newActions[editingAction.index] = { 
+                                                const updatedAction = {
+                                                    _id: existing?._id ?? `action-${Date.now()}-${editingAction.index}`,
+                                                    name: operation.name,
+                                                    operation,
+                                                    customName,
+                                                    customDescription,
+                                                    parameters,
+                                                    // Preserve action set membership
+                                                    ...(existing?._actionSetId ? {
+                                                        _actionSetId: existing._actionSetId,
+                                                        _actionSetName: existing._actionSetName,
+                                                        _actionSetTags: existing._actionSetTags,
+                                                    } : {})
+                                                };
+                                                newActions[editingAction.index] = updatedAction;
+
+                                                // If this action belongs to a saved action set, persist only
+                                                // the changed action back into that set — fetch the full stored
+                                                // set first so we never corrupt other actions in it.
+                                                if (existing?._actionSetId) {
+                                                    const actionSetId = existing._actionSetId;
+                                                    const actionName  = operation.name;
+                                                    getActionSet(actionSetId).then((storedSet) => {
+                                                        if (!storedSet) return;
+                                                        const updatedSetActions = storedSet.actions.map((a: any) =>
+                                                            a.name === actionName
+                                                                ? { ...a, parameters, customName, customDescription }
+                                                                : a
+                                                        );
+                                                        saveActionSet({ ...storedSet, actions: updatedSetActions })
+                                                            .catch((err: any) => console.error('Failed to persist action set parameter change:', err));
+                                                    }).catch((err: any) => console.error('Failed to fetch action set for update:', err));
+                                                }
+
+                                                return newActions;
+                                            });
+                                        } else {
+                                            // Add a new action — if duplicate, ask for confirmation
+                                            if (addedActions.some((a: any) => a.name === operation.name)) {
+                                                setPendingDuplicateAction({ operation, parameters, customName, customDescription });
+                                            } else {
+                                                setAddedActions((prev) => [...prev, {
+                                                    _id: `action-${Date.now()}-${prev.length}`,
                                                     name: operation.name,
                                                     operation,
                                                     customName,
                                                     customDescription,
                                                     parameters
-                                                };
-                                                return newActions;
-                                            });
-                                            console.log(
-                                                `Action Updated: ${operation.name}`,
-                                                customName ? `Custom Name: ${customName}` : '',
-                                                customDescription ? `Custom Description: ${customDescription}` : '',
-                                                'Parameters:', parameters,
-                                                'Operation:', operation
-                                            );
-                                        } else {
-                                            // Add a new action
-                                            setAddedActions((prev) => [...prev, { 
-                                                name: operation.name,
-                                                operation,
-                                                customName,
-                                                customDescription,
-                                                parameters
-                                            }]);
-                                            console.log(
-                                                `Action Added: ${operation.name}`,
-                                                customName ? `Custom Name: ${customName}` : '',
-                                                customDescription ? `Custom Description: ${customDescription}` : '',
-                                                'Parameters:', parameters,
-                                                'Operation:', operation
-                                            );
+                                                }]);
+                                            }
                                         }
                                         // Clear editing state and close the popup
                                         setEditingAction(null);
@@ -1347,7 +1518,22 @@ export const ChatInput = ({
                                     }}
                                     onActionSetAdded={
                                        (actionSet) => {
-                                            setAddedActions(actionSet.actions);
+                                            setAddedActions((prev) => {
+                                                const existingNames = new Set(prev.map((a: any) => a.name));
+                                                const newActions = actionSet.actions
+                                                    .filter((a: any) => !existingNames.has(a.name))
+                                                    .map((a: any, i: number) => ({
+                                                        ...a,
+                                                        _id: `action-${Date.now()}-${prev.length + i}`,
+                                                        // Tag with the source action set so edits can be persisted back
+                                                        ...(actionSet.id ? {
+                                                            _actionSetId: actionSet.id,
+                                                            _actionSetName: actionSet.name,
+                                                            _actionSetTags: actionSet.tags,
+                                                        } : {})
+                                                    }));
+                                                return [...prev, ...newActions];
+                                            });
                                         }
                                     }
                                 />
@@ -1374,9 +1560,6 @@ export const ChatInput = ({
                             onMouseDown={handleResizeStart}
                             style={{transform: 'translateY(24px)'}}
                             title="Drag to resize input area"
-                            role="separator"
-                            aria-orientation="horizontal"
-                            tabIndex={0}
                         >
                             <div className="flex items-center gap-1 text-gray-400 dark:text-gray-500">
                                 <IconGripHorizontal size={20} stroke={1.5} />
@@ -1384,7 +1567,7 @@ export const ChatInput = ({
                         </div>
                     )}
 
-                    <div className="relative z-10 mx-2 flex w-full flex-grow sm:mx-4 rounded-md mb-1">
+                    <div className="relative mx-2 flex w-full flex-grow sm:mx-4 bg-neutral-100 dark:bg-[#3d3e4c] rounded-md" style={{transform: 'translateY(24px)'}}>
 
                         {/* Only show AssistantsInUse when AttachmentDisplay is NOT shown */}
                         {!((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
@@ -1411,35 +1594,46 @@ export const ChatInput = ({
                         }}/>} */}
                      {/* Unified Attachment Display - Files, Large Text, and Assistant */}
                      {((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
-                        <AttachmentDisplay
-                            documents={documents}
-                            documentStates={documentState}
-                            onCancelUpload={onCancelUpload}
-                            setDocuments={setDocuments}
-                            largeTextBlocks={largeTextBlocks}
-                            onRemoveBlock={handleRemoveLargeTextBlock}
-                            onEditBlock={handleEditBlock}
-                            currentlyEditingId={editingBlockId || undefined}
-                            showLargeTextPreview={showLargeTextPreview || isEditing}
-                            selectedAssistant={selectedAssistant || undefined}
-                            onRemoveAssistant={() => homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT})}
-                        />
+                        <div style={{transform: 'translateY(-4px)'}}>
+                            <AttachmentDisplay
+                                documents={documents}
+                                documentStates={documentState}
+                                onCancelUpload={onCancelUpload}
+                                setDocuments={setDocuments}
+                                largeTextBlocks={largeTextBlocks}
+                                onRemoveBlock={handleRemoveLargeTextBlock}
+                                onEditBlock={handleEditBlock}
+                                currentlyEditingId={editingBlockId || undefined}
+                                showLargeTextPreview={showLargeTextPreview || isEditing}
+                                selectedAssistant={selectedAssistant || undefined}
+                                onRemoveAssistant={() => {
+                                    // Reset assistant to default
+                                    homeDispatch({field: 'selectedAssistant', value: DEFAULT_ASSISTANT});
+
+                                    // Clear the promptTemplate from conversation to prevent it from being re-applied
+                                    if (selectedConversation && selectedConversation.promptTemplate) {
+                                        handleUpdateConversation(selectedConversation, {
+                                            key: 'promptTemplate',
+                                            value: null
+                                        });
+                                    }
+                                }}
+                            />
+                        </div>
                      )}
 
                     </div>
 
-                    {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
-                    <div
+                    <div 
                         className={`relative mx-2 flex w-full flex-grow flex-col rounded-md border shadow-[0_0_10px_rgba(0,0,0,0.10)] dark:text-white dark:shadow-[0_0_15px_rgba(0,0,0,0.10)] sm:mx-4 transition-colors duration-200 ${
-                            isDragging
-                                ? 'border-blue-400 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-900/20'
+                            isDragging 
+                                ? 'border-blue-400 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-900/20' 
                                 : 'border-black/10 bg-white dark:border-gray-900/50 dark:bg-[#40414F]'
                         }`}
                         onDragEnter={handleDragEnter}
                         onDragLeave={handleDragLeave}
                         onDragOver={handleDragOver}
                         onDrop={handleDrop}
-                        role="application"
                     >
                         {/* Drag and drop overlay */}
                         {isDragging && (
@@ -1497,7 +1691,14 @@ export const ChatInput = ({
 
                                              onRemoveAction={
                                                  (i) =>{
-                                                     // Remove the action from added actions without alert
+                                                     // If we're currently editing this action, close the popup
+                                                     if (editingAction && editingAction.index === i) {
+                                                         setEditingAction(null);
+                                                         setShowOpsPopup(false);
+                                                     } else if (editingAction && editingAction.index > i) {
+                                                         // Shift the editing index down if a preceding action was removed
+                                                         setEditingAction({ ...editingAction, index: editingAction.index - 1 });
+                                                     }
                                                      setAddedActions((prevActions) => {
                                                          const newActions = [...prevActions];
                                                          newActions.splice(i, 1);
@@ -1515,6 +1716,8 @@ export const ChatInput = ({
                                              onClearActions={
                                                  () => {
                                                      setAddedActions([]);
+                                                     setEditingAction(null);
+                                                     setShowOpsPopup(false);
                                                  }
                                              }
                                 />
@@ -1733,7 +1936,48 @@ export const ChatInput = ({
                             />
                         </div>}
 
-                        
+                        <div className="relative overflow-visible group/ctxbtn" style={{zIndex: 10}}>
+                            {(() => {
+                                const msgs = selectedConversation?.messages ?? [];
+                                const docMap = new Map();
+                                msgs.forEach((msg: any) => {
+                                    msg.data?.dataSources?.forEach((ds: any) => { if (!docMap.has(ds.id)) docMap.set(ds.id, ds); });
+                                });
+                                const removed = new Set(selectedConversation?.removedDocumentIds ?? []);
+                                const docsActive = Array.from(docMap.keys()).filter((id: string) => !removed.has(id)).length;
+                                const convsActive = selectedConversation?.contextConversations?.length ?? 0;
+                                const total = docsActive + convsActive;
+                                return total > 0 ? (
+                                    <>
+                                        <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center" style={{zIndex: 11}}>
+                                            {total}
+                                        </span>
+                                        {/* Hover tooltip breakdown */}
+                                        <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/ctxbtn:block" style={{zIndex: 20}}>
+                                            <div className="bg-gray-800 dark:bg-gray-700 text-white text-[11px] rounded px-2 py-1.5 whitespace-nowrap shadow-lg text-center">
+                                                {docsActive > 0 && <div>{docsActive} datasource{docsActive !== 1 ? 's' : ''}</div>}
+                                                {convsActive > 0 && <div>{convsActive} conversation{convsActive !== 1 ? 's' : ''}</div>}
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : null;
+                            })()}
+                            <button
+                                className="chat-input-button rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                                id="contextManager"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCloseAllPopups();
+                                    setShowContextManager(!showContextManager);
+                                }}
+                                onKeyDown={(e) => {
+                                }}
+                                title="Manage Conversation Context"
+                            >
+                                <IconLayoutList size={20}/>
+                            </button>
+                        </div>
+
                         { featureFlags.actionSets && 
                         <>
                         {/* Add Action button toggles the operations popup */}
@@ -1779,10 +2023,18 @@ export const ChatInput = ({
                             onClick={(e) => {
                                 e.stopPropagation();
                                 if (selectedConversation) {
+                                    const newWebSearchState = !isWebSearchEnabledForConversation;
                                     handleUpdateConversation(selectedConversation, {
                                         key: 'data',
-                                        value: {...selectedConversation.data, webSearchEnabled: !isWebSearchEnabledForConversation},
+                                        value: {...selectedConversation.data, webSearchEnabled: newWebSearchState},
                                     });
+                                    // Show toast message when enabling web search (if admin configured one)
+                                    if (newWebSearchState && webSearchUserMessage) {
+                                        toast(webSearchUserMessage, {
+                                            duration: 6000,
+                                            icon: <IconWorldSearch size={35} />,
+                                        });
+                                    }
                                 }
                             }}
                             title={isWebSearchEnabledForConversation
@@ -1793,6 +2045,15 @@ export const ChatInput = ({
                         </button>
                         }
 
+                        {/* Skills Toggle - Select skills to use (only show if skills is enabled in FeaturePlugin) */}
+                        { featureFlags.skills && plugins?.some(p => p.id === PluginID.SKILLS) && chatEndpoint &&
+                            <SkillsToggle
+                                chatEndpoint={chatEndpoint}
+                                selectedSkillIds={selectedSkillIds}
+                                onSelectionChange={setSelectedSkillIds}
+                            />
+                        }
+
                         <div className='flex flex-row gap-2'>
 
                             <button
@@ -1800,8 +2061,10 @@ export const ChatInput = ({
                                 className={"chat-input-button rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"}
                                 onClick={ (e) => {
                                     e.preventDefault();
+                                    e.stopPropagation();
+                                    const isOpen = showAssistantSelect;
                                     handleCloseAllPopups();
-                                    handleShowAssistantSelector();
+                                    if (!isOpen) setShowAssistantSelect(true);
                                 }
                                 }
                                 onKeyDown={(e) => {
@@ -1812,28 +2075,6 @@ export const ChatInput = ({
                                 <IconAt size={20}/>
                             </button>
 
-                            {showAssistantSelect && (
-                                <div className="absolute rounded bg-white dark:bg-[#343541]"
-                                     style={{transform: 'translateX(30px) translateY(-2px)', zIndex: 10}}>
-                                    <AssistantSelect
-                                        assistant={selectedAssistant || DEFAULT_ASSISTANT}
-                                        availableAssistants={availableAssistants}
-                                        onKeyDown={(e: any) => {
-                                            if (e.key === 'Escape') {
-                                                e.preventDefault();
-                                                setShowAssistantSelect(false);
-                                                textareaRef.current?.focus();
-                                            }
-                                        }}
-                                        onAssistantChange={(assistant: Assistant) => {
-                                            onAssistantChange(assistant);
-                                            if (textareaRef && textareaRef.current) {
-                                                textareaRef.current.focus();
-                                            }
-                                        }}
-                                    />
-                                </div>
-                            )}
                         </div>
 
                        
@@ -1923,6 +2164,29 @@ export const ChatInput = ({
                 </div>
 
             </div>
+
+            {/* Duplicate action confirmation */}
+            {pendingDuplicateAction && (
+                <ConfirmModal
+                    title="Action Already Added"
+                    message={`"${pendingDuplicateAction.customName || pendingDuplicateAction.operation.name}" is already in your conversation. Do you want to add it again?`}
+                    confirmLabel="Add Again"
+                    denyLabel="Cancel"
+                    onConfirm={() => {
+                        setAddedActions((prev) => [...prev, {
+                            _id: `action-${Date.now()}-${prev.length}`,
+                            name: pendingDuplicateAction.operation.name,
+                            operation: pendingDuplicateAction.operation,
+                            customName: pendingDuplicateAction.customName,
+                            customDescription: pendingDuplicateAction.customDescription,
+                            parameters: pendingDuplicateAction.parameters
+                        }]);
+                        setEditingAction(null);
+                        setPendingDuplicateAction(null);
+                    }}
+                    onDeny={() => setPendingDuplicateAction(null)}
+                />
+            )}
 
             {/* Save Actions Modal */}
             {showSaveActionsModal && (

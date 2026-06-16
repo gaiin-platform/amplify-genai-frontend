@@ -1,5 +1,6 @@
 import {DEFAULT_SYSTEM_PROMPT} from "@/utils/app/const";
 import {AttachedDocument} from "@/types/attacheddocument";
+import { SkillReference, SkillSelectionMode } from "@/types/skill";
 
 
 export enum AssistantProviderID {
@@ -35,6 +36,9 @@ export interface AssistantDefinition {
     data?:{[key:string]:any};
     assistantId?:string;
     groupId?:string;
+    // Skills integration
+    skills?: SkillReference[];
+    skillSelectionMode?: SkillSelectionMode;
 }
 
 export const DEFAULT_ASSISTANT: Assistant = {

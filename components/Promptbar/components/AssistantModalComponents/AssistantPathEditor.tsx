@@ -250,7 +250,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                                 setAstPathData(newAstPathData);
                             }}/> }
                         <div title={`Upload an image to use as the assistant's icon. Supported formats: ${IMAGE_FILE_EXTENSIONS.map(ext => ext.toUpperCase()).join(', ')}`}
-                             className="text-xs flex flex-row -mt-2 -ml-1.5">
+                             className={`text-xs flex flex-row -mt-2 -ml-1.5 ${groupId ? 'mt-6' : ''}`}>
                             <AttachFile id={"__attachFile_assistant_path"}
                                     allowedFileExtensions={IMAGE_FILE_EXTENSIONS}
                                     onAttach={onAttach}
@@ -270,9 +270,9 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                             /> : <span className="py-1.5 text-xs text-gray-500">Add Assistant Icon</span>}
                         </div>
                         </div> : null)  
-                       : <label className={"mt-5 text-xs text-blue-500"}>
+                       : (!groupId ? <label className={"mt-5 text-xs text-blue-500"}>
                         {astPathData.isPublic ? "Public Access" : "Restricted Access"}
-                        </label>
+                        </label> : null)
                     }
                 </div> }
                 
@@ -344,7 +344,7 @@ export const AssistantPathEditor: React.FC<AssistantPathEditorProps> = ({
                 <br />No leading/trailing slashes or consecutive slashes. No reserved or inappropriate terms.
             </p>
 
-            {!isCheckingPath && astPathData && !astPathData.isPublic && 
+            {!isCheckingPath && astPathData && !astPathData.isPublic && !groupId &&
              <div className="mt-4">
                 <ExpansionComponent
                     isOpened={isOpenAccessDropDown}

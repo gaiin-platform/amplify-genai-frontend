@@ -4,14 +4,22 @@ import {authOptions} from "@/pages/api/auth/[...nextauth]";
 import { transformPayload } from "@/utils/app/data";
 import { lzwCompress } from "@/utils/app/lzwCompression";
 
+export const config = {
+    api: {
+        bodyParser: {
+            sizeLimit: '10mb' // Increased limit for large conversations
+        }
+    }
+}
+
 interface reqPayload {
-    method: any, 
+    method: any,
     headers: any,
     body?: any,
 }
 
 // Paths that should not be compressed
-const NO_COMPRESSION_PATHS = ['/billing', '/se', "/amp", '/vu-agent', "/user-data", "/data-disclosure", "/integrations"];
+const NO_COMPRESSION_PATHS = ['/billing', '/se', "/amp", '/vu-agent', "/user-data", "/data-disclosure", "/integrations", "/notebook"];
 
 
 const requestOp =
@@ -26,6 +34,7 @@ const requestOp =
 
         // Accessing itemData parameters from the request
         const reqData = req.body.data || {};
+        const pollRequestId = req.body.pollRequestId;  // Extract pollRequestId at top level
 
         const method = reqData.method || null;
         let payload = reqData.data ? transformPayload.decode(reqData.data) : null;
@@ -38,7 +47,7 @@ const requestOp =
             method: method,
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${accessToken}` 
+                "Authorization": `Bearer ${accessToken}`,
             },
         }
 
@@ -46,11 +55,11 @@ const requestOp =
             // Use originalPath if available (set when running locally), otherwise use path
             const pathToCheck = reqData.originalPath || reqData.path;
             const shouldCompress = !NO_COMPRESSION_PATHS.includes(pathToCheck);
-            
+
             if (shouldCompress) {
                 try {
                     if (typeof payload === 'object') {
-                        payload = lzwCompress(JSON.stringify(payload));   
+                        payload = lzwCompress(JSON.stringify(payload));
                         console.log("Compressed payload");
                     } else if (typeof payload === 'string' && payload.length > 1000) {
                         // Compress large strings
@@ -64,8 +73,14 @@ const requestOp =
             } else {
                 console.log(`Skipping compression for path: ${reqData.path}`);
             }
-            reqPayload.body = JSON.stringify( { data: payload });
 
+            // Include pollRequestId if present (for polling support)
+            const bodyData: any = { data: payload };
+            if (pollRequestId) {
+                bodyData.pollRequestId = pollRequestId;
+                console.log(`Including pollRequestId in backend request: ${pollRequestId}`);
+            }
+            reqPayload.body = JSON.stringify(bodyData);
         }
 
         try {
@@ -75,6 +90,7 @@ const requestOp =
             if (!response.ok) throw new Error(`Request to ${apiUrl} failed with status: ${response.status}`);
 
             const responseData = await response.json();
+
             const encodedResponse = transformPayload.encode(responseData);
 
             res.status(200).json({ data: encodedResponse });
@@ -87,8 +103,11 @@ const requestOp =
 export default requestOp;
 
 
-const constructUrl = (data: any) => {  
-    let apiUrl = data.url ?? (process.env.API_BASE_URL || "");
+const constructUrl = (data: any) => {
+    let apiUrl = data.url;
+    if (!apiUrl) {
+        apiUrl = process.env.API_BASE_URL || "";
+    }
 
     const path: string = data.path || "";
     const op: string = data.op || "";

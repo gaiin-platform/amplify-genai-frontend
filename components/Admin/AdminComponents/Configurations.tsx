@@ -1,12 +1,12 @@
 import { FC, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Amplify_Group, Amplify_Groups, AmplifyGroupSelect, EmailSupport, PromptCostAlert, titleLabel, UserAction } from "../AdminUI";
-import { AdminConfigTypes} from "@/types/admin";
+import { AdminConfigTypes, FeatureFlagConfig } from "@/types/admin";
 import { IconPlus, IconTrash, IconX, IconCloudFilled, IconMessage, IconCheck, IconEdit, IconFileImport } from "@tabler/icons-react";
 import Checkbox from "@/components/ReusableComponents/CheckBox";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import { RateLimiter } from "@/components/Settings/AccountComponents/RateLimit";
-import { PeriodType, formatRateLimit, rateLimitObj, noRateLimit } from "@/types/rateLimit";
+import { PeriodType, formatRateLimit, formatRateLimits, normalizeRateLimits, rateLimitObj, noRateLimit, RateLimit, RateLimits } from "@/types/rateLimit";
 import { InfoBox } from "@/components/ReusableComponents/InfoBox";
 import Search from "@/components/Search";
 import ActionButton from "@/components/ReusableComponents/ActionButton";
@@ -30,8 +30,11 @@ interface Props {
     
     amplifyUsers: { [key: string]: string };
 
-    rateLimit: {period: PeriodType, rate: string};
-    setRateLimit: (l: {period: PeriodType, rate: string}) => void;
+    rateLimits: RateLimits;
+    setRateLimits: (l: RateLimits) => void;
+
+    honorPersonalRateLimit: { enabled: boolean; scope?: 'both' | 'apiKey' | 'amplifyAccount' };
+    setHonorPersonalRateLimit: (v: { enabled: boolean; scope?: 'both' | 'apiKey' | 'amplifyAccount' }) => void;
 
     promptCostAlert: PromptCostAlert;
     setPromptCostAlert: (a: PromptCostAlert) => void;
@@ -45,6 +48,13 @@ interface Props {
     aiEmailDomain: string;
     setAiEmailDomain?: (d: string) => void;
 
+    defaultTimezone: string;
+    setDefaultTimezone: (tz: string) => void;
+
+    smartMessagesEnabled: boolean;
+    setSmartMessagesEnabled: (v: boolean) => void;
+    features: FeatureFlagConfig;
+
     allEmails: Array<string> | null;
 
     admin_text: string;
@@ -53,10 +63,15 @@ interface Props {
 }
 
 export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setAmpGroups, amplifyUsers, allEmails,
-                                              rateLimit, setRateLimit, promptCostAlert, setPromptCostAlert,
+                                              rateLimits, setRateLimits, honorPersonalRateLimit, setHonorPersonalRateLimit,
+                                              promptCostAlert, setPromptCostAlert,
                                               defaultConversationStorage, setDefaultConversationStorage,
                                               emailSupport, setEmailSupport, aiEmailDomain, setAiEmailDomain,
+                                              defaultTimezone, setDefaultTimezone,
+                                              smartMessagesEnabled, setSmartMessagesEnabled, features,
                                               admin_text, updateUnsavedConfigs, onModalStateChange}) => {
+
+    const smartMessagesFlagOn = features.smartMessages?.enabled !== false;
 
     const { data: session } = useSession();
     const userEmail = getUserIdentifier(session?.user);
@@ -71,8 +86,12 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     const [ampGroupSearchTerm, setAmpGroupSearchTerm] = useState<string>(''); 
     const [showAmpGroupSearch, setShowAmpGroupsSearch] = useState<boolean>(true);
     const [editingRateLimit, setEditingRateLimit] = useState<string | null>(null);
-    const [tempRateLimitPeriod, setTempRateLimitPeriod] = useState<PeriodType>('Unlimited');
-    const [tempRateLimitRate, setTempRateLimitRate] = useState<string>('0');  
+    const [tempRateLimits, setTempRateLimits] = useState<RateLimit[]>([]); // working copy for group being edited
+    const [addingGroupLimitRow, setAddingGroupLimitRow] = useState<{period: PeriodType, rate: string} | null>(null);
+    const [addingAdminLimitRow, setAddingAdminLimitRow] = useState<{period: PeriodType, rate: string} | null>(null);
+    const [editingAdminLimitIdx, setEditingAdminLimitIdx] = useState<{idx: number, period: PeriodType, rate: string} | null>(null);
+    const [hoveredAdminLimitIdx, setHoveredAdminLimitIdx] = useState<number | null>(null);
+    const [editingGroupLimitIdx, setEditingGroupLimitIdx] = useState<{idx: number, period: PeriodType, rate: string} | null>(null);
     const [hoveredRateLimit, setHoveredRateLimit] = useState<string | null>(null);
     const [showAddAdminInput, setShowAddAdminInput] = useState<boolean>(false);
     
@@ -103,8 +122,13 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
         updateUnsavedConfigs(AdminConfigTypes.ADMINS);
     }
 
-    const handleUpdateRateLimit = (updatedRateLimit: {period: PeriodType, rate: string }) => {
-        setRateLimit(updatedRateLimit);
+    const handleUpdateRateLimits = (updatedRateLimits: RateLimits) => {
+        setRateLimits(updatedRateLimits);
+        updateUnsavedConfigs(AdminConfigTypes.RATE_LIMIT);
+    }
+
+    const handleUpdateHonorPersonalRateLimit = (value: { enabled: boolean; scope?: 'both' | 'apiKey' | 'amplifyAccount' }) => {
+        setHonorPersonalRateLimit(value);
         updateUnsavedConfigs(AdminConfigTypes.RATE_LIMIT);
     }
 
@@ -129,6 +153,15 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
         updateUnsavedConfigs(AdminConfigTypes.AI_EMAIL_DOMAIN);
     }
 
+    const handleUpdateDefaultTimezone = (tz: string) => {
+        setDefaultTimezone(tz);
+        updateUnsavedConfigs(AdminConfigTypes.DEFAULT_TIMEZONE);
+    }
+
+    const handleUpdateSmartMessages = (enabled: boolean) => {
+        setSmartMessagesEnabled(enabled);
+        updateUnsavedConfigs(AdminConfigTypes.DEFAULT_SMART_MESSAGES);
+    }
 
     const handleUpdateAmpGroups = (updatedGroups: Amplify_Groups) => {
         setAmpGroups(updatedGroups);
@@ -347,21 +380,205 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                     />
                 </div>
             </div>}
-       
+
+            <div className="admin-style-settings-card">
+                <div className="admin-style-settings-card-header">
+                    <h3 className="admin-style-settings-card-title">Default Timezone</h3>
+                    <p className="admin-style-settings-card-description">System-wide default timezone used for scheduled tasks, calendar events, and email timestamps</p>
+                </div>
+                <div className="mx-12 pb-4">
+                    <select
+                        className="w-full p-2 rounded border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                        value={defaultTimezone}
+                        onChange={(e) => handleUpdateDefaultTimezone(e.target.value)}
+                    >
+                        <optgroup label="US Timezones">
+                            <option value="America/New_York">Eastern Time (America/New York)</option>
+                            <option value="America/Chicago">Central Time (America/Chicago)</option>
+                            <option value="America/Denver">Mountain Time (America/Denver)</option>
+                            <option value="America/Los_Angeles">Pacific Time (America/Los Angeles)</option>
+                            <option value="America/Anchorage">Alaska Time (America/Anchorage)</option>
+                            <option value="Pacific/Honolulu">Hawaii Time (Pacific/Honolulu)</option>
+                        </optgroup>
+                        <optgroup label="Europe">
+                            <option value="Europe/London">London (Europe/London)</option>
+                            <option value="Europe/Paris">Paris / Berlin (Europe/Paris)</option>
+                            <option value="Europe/Helsinki">Helsinki (Europe/Helsinki)</option>
+                            <option value="Europe/Moscow">Moscow (Europe/Moscow)</option>
+                        </optgroup>
+                        <optgroup label="Asia / Pacific">
+                            <option value="Asia/Dubai">Dubai (Asia/Dubai)</option>
+                            <option value="Asia/Kolkata">India (Asia/Kolkata)</option>
+                            <option value="Asia/Bangkok">Bangkok (Asia/Bangkok)</option>
+                            <option value="Asia/Shanghai">China (Asia/Shanghai)</option>
+                            <option value="Asia/Tokyo">Japan (Asia/Tokyo)</option>
+                            <option value="Australia/Sydney">Sydney (Australia/Sydney)</option>
+                        </optgroup>
+                        <optgroup label="Other">
+                            <option value="UTC">UTC</option>
+                        </optgroup>
+                    </select>
+                </div>
+            </div>
+
             <div className="admin-style-settings-card">
                 <div className="admin-style-settings-card-header">
                     <div className="flex items-center gap-3 mb-2">
-                        <h3 className="admin-style-settings-card-title">Chat Rate Limit</h3>
-                        <div className="h-[28px] flex flex-row gap-4">
-                            <RateLimiter
-                                period={rateLimit.period}
-                                setPeriod={(p: PeriodType) => handleUpdateRateLimit({...rateLimit, period: p})}
-                                rate={rateLimit.rate ? String(rateLimit.rate) : '0'}
-                                setRate={(r: string) => handleUpdateRateLimit({...rateLimit, rate: r})}
-                            />
-                        </div>
+                        <h3 className="admin-style-settings-card-title">Chat Rate Limits</h3>
+                        <button
+                            title="Add Rate Limit"
+                            disabled={addingAdminLimitRow !== null || rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).length >= 4}
+                            className={`flex items-center gap-1 px-2 py-1 rounded border border-neutral-300 dark:border-white/20 text-sm transition-colors ${(addingAdminLimitRow || rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).length >= 4) ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700'}`}
+                            onClick={() => {
+                                const usedPeriods = rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).map(l => l.period);
+                                const firstAvailable = (['Monthly', 'Daily', 'Hourly', 'Total'] as PeriodType[]).find(p => !usedPeriods.includes(p)) ?? 'Monthly';
+                                setAddingAdminLimitRow({ period: firstAvailable, rate: '$0.00' });
+                            }}
+                        >
+                            <IconPlus size={14} /> Add Limit
+                        </button>
                     </div>
-                    <p className="admin-style-settings-card-description">Configure rate limiting for chat messages to control usage</p>
+                    <p className="admin-style-settings-card-description">
+                        Configure one or more simultaneous rate limits (e.g. Monthly $300 <strong>AND</strong> Hourly $30). All limits must pass for a user to be allowed.
+                    </p>
+                </div>
+
+                <div className="px-6 pb-4">
+                    {rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).length === 0 && !addingAdminLimitRow && (
+                        <span className="text-sm text-neutral-500 dark:text-neutral-400 italic">No limits set — all users are Unlimited</span>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-2">
+                        {rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).map((limit, idx) => (
+                            editingAdminLimitIdx?.idx === idx ? (
+                                <div key={idx} className="flex items-center gap-2">
+                                    <RateLimiter
+                                        period={editingAdminLimitIdx.period}
+                                        setPeriod={(p: PeriodType) => setEditingAdminLimitIdx({ ...editingAdminLimitIdx, period: p })}
+                                        rate={editingAdminLimitIdx.rate}
+                                        setRate={(r: string) => setEditingAdminLimitIdx({ ...editingAdminLimitIdx, rate: r })}
+                                        excludePeriods={rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).filter((_, i) => i !== idx).map(l => l.period)}
+                                    />
+                                    <button
+                                        title="Confirm"
+                                        className="text-green-500 hover:text-green-600"
+                                        onClick={() => {
+                                            const updated = rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null);
+                                            updated[idx] = rateLimitObj(editingAdminLimitIdx.period, editingAdminLimitIdx.rate);
+                                            handleUpdateRateLimits(updated);
+                                            setEditingAdminLimitIdx(null);
+                                        }}
+                                    >
+                                        <IconCheck size={18} />
+                                    </button>
+                                    <button
+                                        title="Cancel"
+                                        className="text-red-400 hover:text-red-600"
+                                        onClick={() => setEditingAdminLimitIdx(null)}
+                                    >
+                                        <IconX size={18} />
+                                    </button>
+                                </div>
+                            ) : (
+                                <div
+                                    key={idx}
+                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-700"
+                                    onMouseEnter={() => setHoveredAdminLimitIdx(idx)}
+                                    onMouseLeave={() => setHoveredAdminLimitIdx(null)}
+                                >
+                                    <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
+                                        {formatRateLimit(limit)}
+                                    </span>
+                                    {hoveredAdminLimitIdx === idx && (<>
+                                        <button
+                                            title="Edit limit"
+                                            className="text-neutral-400 hover:text-blue-500 transition-colors"
+                                            onClick={() => {
+                                                setAddingAdminLimitRow(null);
+                                                setEditingAdminLimitIdx({ idx, period: limit.period, rate: `$${(limit.rate as number).toFixed(2)}` });
+                                            }}
+                                        >
+                                            <IconEdit size={13} />
+                                        </button>
+                                        <button
+                                            title="Remove limit"
+                                            className="text-neutral-400 hover:text-red-500 transition-colors"
+                                            onClick={() => {
+                                                const active = rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null);
+                                                active.splice(idx, 1);
+                                                handleUpdateRateLimits(active.length > 0 ? active : []);
+                                            }}
+                                        >
+                                            <IconTrash size={13} />
+                                        </button>
+                                    </>)}
+                                </div>
+                            )
+                        ))}
+
+                        {addingAdminLimitRow && (
+                            <div className="flex items-center gap-2">
+                                <RateLimiter
+                                    period={addingAdminLimitRow.period}
+                                    setPeriod={(p: PeriodType) => setAddingAdminLimitRow({ ...addingAdminLimitRow, period: p })}
+                                    rate={addingAdminLimitRow.rate}
+                                    setRate={(r: string) => setAddingAdminLimitRow({ ...addingAdminLimitRow, rate: r })}
+                                    excludePeriods={rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).map(l => l.period)}
+                                />
+                                <button
+                                    title="Confirm"
+                                    className="text-green-500 hover:text-green-600"
+                                    onClick={() => {
+                                        const newLimit = rateLimitObj(addingAdminLimitRow.period, addingAdminLimitRow.rate);
+                                        if (newLimit.period !== 'Unlimited') {
+                                            const existing = rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null);
+                                            handleUpdateRateLimits([...existing, newLimit]);
+                                        }
+                                        setAddingAdminLimitRow(null);
+                                    }}
+                                >
+                                    <IconCheck size={18} />
+                                </button>
+                                <button
+                                    title="Cancel"
+                                    className="text-red-400 hover:text-red-600"
+                                    onClick={() => setAddingAdminLimitRow(null)}
+                                >
+                                    <IconX size={18} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="mt-2">
+                    <Checkbox
+                        id="honorPersonalRateLimit"
+                        label="Honor personal rate limits — if a user has set their own personal rate limit, it will be honored even if it exceeds the admin or group limits. Enable with caution."
+                        checked={honorPersonalRateLimit.enabled}
+                        onChange={(v) => handleUpdateHonorPersonalRateLimit({ ...honorPersonalRateLimit, enabled: v, scope: honorPersonalRateLimit.scope ?? 'both' })}
+                    />
+                    {honorPersonalRateLimit.enabled && (
+                        <div className="ml-6 mt-2 flex flex-col gap-1">
+                            <p className="text-sm font-medium mb-1">Apply to:</p>
+                            {([
+                                { value: 'both', label: 'Both — API and Amplify accessed' },
+                                { value: 'apiKey', label: 'API key accessed only' },
+                                { value: 'amplifyAccount', label: 'Amplify accessed only' },
+                            ] as const).map(({ value, label }) => (
+                                <label key={value} className="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="honorPersonalScope"
+                                        value={value}
+                                        checked={(honorPersonalRateLimit.scope ?? 'both') === value}
+                                        onChange={() => handleUpdateHonorPersonalRateLimit({ ...honorPersonalRateLimit, scope: value })}
+                                    />
+                                    {label}
+                                </label>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -400,6 +617,45 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 </div>
             </div>
         
+
+            
+            <div className="admin-style-settings-card flex flex-row items-start gap-14">
+                <div className="admin-style-settings-card-header">
+                    <h3 className="admin-style-settings-card-title">Smart Focused Messages — Default Setting</h3>
+                    <p className="admin-style-settings-card-description">
+                        {smartMessagesFlagOn
+                            ? 'Default on/off for users without a saved preference'
+                            : <span className="text-amber-500 dark:text-amber-400 text-xs font-semibold">⚠ Enable the <strong>smartMessages</strong> feature flag first to configure this</span>
+                        }
+                    </p>
+                </div>
+                <div className={`flex-shrink-0 flex items-center rounded-md border border-neutral-600 bg-neutral-200 dark:bg-[#39394a] p-1 gap-1 ${
+                    !smartMessagesFlagOn ? 'opacity-40 pointer-events-none select-none' : ''
+                }`}>
+                    <button
+                        onClick={() => handleUpdateSmartMessages(true)}
+                        className={`px-3 py-1 rounded text-xs font-semibold transition-all duration-200 ${
+                            smartMessagesEnabled
+                                ? 'bg-white dark:bg-[#1f1f29] text-green-500 dark:text-green-400 font-bold scale-105'
+                                : 'bg-transparent text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-[#31313f]'
+                        }`}
+                    >
+                        ON
+                    </button>
+                    <button
+                        onClick={() => handleUpdateSmartMessages(false)}
+                        className={`px-3 py-1 rounded text-xs font-semibold transition-all duration-200 ${
+                            !smartMessagesEnabled
+                                ? 'bg-white dark:bg-[#1f1f29] text-red-400 dark:text-red-400 font-bold scale-105'
+                                : 'bg-transparent text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-[#31313f]'
+                        }`}
+                    >
+                        OFF
+                    </button>
+                </div>
+            </div>
+
+            
 
             <div className="admin-style-settings-card">
                 <div className="admin-style-settings-card-header">
@@ -721,79 +977,179 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                             <td className="text-center border border-neutral-500 px-1 py-2"
                                                 onMouseEnter={() => setHoveredRateLimit(groupName)}
                                                 onMouseLeave={() => setHoveredRateLimit(null)}>
-                                                <div className="flex items-center justify-center">
+                                                <div className="flex flex-col items-center justify-center gap-1">
                                                     {editingRateLimit === groupName ? (
-                                                        <div className="flex flex-row gap-2">
-                                                            <RateLimiter
-                                                                period={tempRateLimitPeriod}
-                                                                setPeriod={setTempRateLimitPeriod}
-                                                                rate={tempRateLimitRate}
-                                                                setRate={setTempRateLimitRate}
-                                                            />
-                                                            <ActionButton
-                                                                title='Confirm Change'
-                                                                id="confirmRateLimitChange"
-                                                                className='text-green-500'
-                                                                handleClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    const updatedRateLimit = rateLimitObj(tempRateLimitPeriod, tempRateLimitRate);
-                                                                    const updatedGroup = {...group, rateLimit: updatedRateLimit};
-                                                                    handleUpdateAmpGroups({...ampGroups, [groupName]: updatedGroup});
-                                                                    setEditingRateLimit(null);
-                                                                }}
-                                                            >
-                                                                <IconCheck size={18} />
-                                                            </ActionButton>
-                                                            <ActionButton
-                                                                title='Discard Change'
-                                                                id="discardRateLimitChange"
-                                                                className='text-red-500'
-                                                                handleClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setEditingRateLimit(null);
-                                                                }}
-                                                            >
-                                                                <IconX size={18} />
-                                                            </ActionButton>
+                                                        // ── EDIT MODE: list editor ──────────────────────────
+                                                        <div className="flex flex-col gap-1.5 w-full px-1">
+                                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                                {tempRateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).map((limit, idx) => (
+                                                                    editingGroupLimitIdx?.idx === idx ? (
+                                                                        <div key={idx} className="flex items-center gap-1 flex-wrap">
+                                                                            <RateLimiter
+                                                                                period={editingGroupLimitIdx.period}
+                                                                                setPeriod={(p: PeriodType) => setEditingGroupLimitIdx({ ...editingGroupLimitIdx, period: p })}
+                                                                                rate={editingGroupLimitIdx.rate}
+                                                                                setRate={(r: string) => setEditingGroupLimitIdx({ ...editingGroupLimitIdx, rate: r })}
+                                                                                excludePeriods={tempRateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).filter((_, i) => i !== idx).map(l => l.period)}
+                                                                            />
+                                                                            <button
+                                                                                title="Confirm"
+                                                                                className="text-green-500 hover:text-green-600"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    const updated = [...tempRateLimits];
+                                                                                    updated[idx] = rateLimitObj(editingGroupLimitIdx.period, editingGroupLimitIdx.rate);
+                                                                                    setTempRateLimits(updated);
+                                                                                    setEditingGroupLimitIdx(null);
+                                                                                }}
+                                                                            >
+                                                                                <IconCheck size={15} />
+                                                                            </button>
+                                                                            <button
+                                                                                title="Cancel"
+                                                                                className="text-red-400 hover:text-red-600"
+                                                                                onClick={(e) => { e.stopPropagation(); setEditingGroupLimitIdx(null); }}
+                                                                            >
+                                                                                <IconX size={15} />
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
+                                                                    <div key={idx} className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-neutral-400 dark:border-neutral-500 bg-neutral-100 dark:bg-neutral-700">
+                                                                        <span className="text-xs text-neutral-700 dark:text-neutral-200">{formatRateLimit(limit)}</span>
+                                                                        <button
+                                                                            title="Edit"
+                                                                            className="text-neutral-400 hover:text-blue-500"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setAddingGroupLimitRow(null);
+                                                                                setEditingGroupLimitIdx({ idx, period: limit.period, rate: `$${(limit.rate as number).toFixed(2)}` });
+                                                                            }}
+                                                                        >
+                                                                            <IconEdit size={11} />
+                                                                        </button>
+                                                                        <button
+                                                                            title="Remove"
+                                                                            className="text-neutral-400 hover:text-red-500"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                const updated = tempRateLimits.filter((_, i) => i !== idx);
+                                                                                setTempRateLimits(updated);
+                                                                            }}
+                                                                        >
+                                                                            <IconTrash size={11} />
+                                                                        </button>
+                                                                    </div>
+                                                                    )
+                                                                ))}
+                                                            </div>
+
+                                                            {addingGroupLimitRow ? (
+                                                                <div className="flex items-center gap-1 flex-wrap mt-1">
+                                                                    <RateLimiter
+                                                                        period={addingGroupLimitRow.period}
+                                                                        setPeriod={(p: PeriodType) => setAddingGroupLimitRow({ ...addingGroupLimitRow, period: p })}
+                                                                        rate={addingGroupLimitRow.rate}
+                                                                        setRate={(r: string) => setAddingGroupLimitRow({ ...addingGroupLimitRow, rate: r })}
+                                                                        excludePeriods={tempRateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).map(l => l.period)}
+                                                                    />
+                                                                    <button
+                                                                        title="Confirm add"
+                                                                        className="text-green-500 hover:text-green-600"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            const newLimit = rateLimitObj(addingGroupLimitRow.period, addingGroupLimitRow.rate);
+                                                                            if (newLimit.period !== 'Unlimited') {
+                                                                                setTempRateLimits(prev => [...prev.filter(l => l.period !== 'Unlimited'), newLimit]);
+                                                                            }
+                                                                            setAddingGroupLimitRow(null);
+                                                                        }}
+                                                                    >
+                                                                        <IconCheck size={15} />
+                                                                    </button>
+                                                                    <button
+                                                                        title="Cancel add"
+                                                                        className="text-red-400 hover:text-red-600"
+                                                                        onClick={(e) => { e.stopPropagation(); setAddingGroupLimitRow(null); }}
+                                                                    >
+                                                                        <IconX size={15} />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    title="Add limit"
+                                                                    disabled={tempRateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).length >= 4}
+                                                                    className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-0.5 mt-0.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        const usedPeriods = tempRateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).map(l => l.period);
+                                                                        const firstAvailable = (['Monthly', 'Daily', 'Hourly', 'Total'] as PeriodType[]).find(p => !usedPeriods.includes(p)) ?? 'Monthly';
+                                                                        setAddingGroupLimitRow({ period: firstAvailable, rate: '$0.00' });
+                                                                    }}
+                                                                >
+                                                                    <IconPlus size={12} /> Add
+                                                                </button>
+                                                            )}
+
+                                                            <div className="flex gap-1.5 mt-1">
+                                                                <ActionButton
+                                                                    title='Save'
+                                                                    id="confirmRateLimitChange"
+                                                                    className='text-green-500'
+                                                                    handleClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        const savedLimits = tempRateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null);
+                                                                        const updatedGroup = { ...group, rateLimit: savedLimits.length > 0 ? savedLimits : [noRateLimit] };
+                                                                        handleUpdateAmpGroups({ ...ampGroups, [groupName]: updatedGroup });
+                                                                        setEditingRateLimit(null);
+                                                                        setAddingGroupLimitRow(null);
+                                                                    }}
+                                                                >
+                                                                    <IconCheck size={16} />
+                                                                </ActionButton>
+                                                                <ActionButton
+                                                                    title='Discard'
+                                                                    id="discardRateLimitChange"
+                                                                    className='text-red-500'
+                                                                    handleClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setEditingRateLimit(null);
+                                                                        setAddingGroupLimitRow(null);
+                                                                    }}
+                                                                >
+                                                                    <IconX size={16} />
+                                                                </ActionButton>
+                                                            </div>
                                                         </div>
                                                     ) : (
-                                                        <div className="flex items-center justify-center gap-2">
-                                                            <span>{(() => {
-                                                                const rateLimit = group.rateLimit;
-                                                                if (!rateLimit) {
-                                                                    return formatRateLimit(noRateLimit);
-                                                                } else if (typeof rateLimit === 'number') {
-                                                                    // Handle legacy number format
-                                                                    return formatRateLimit(rateLimitObj('Daily', String(rateLimit)));
-                                                                } else {
-                                                                    // Proper RateLimit object
-                                                                    return formatRateLimit(rateLimit);
-                                                                }
-                                                            })()}</span>
+                                                        // ── DISPLAY MODE ────────────────────────────────────
+                                                        <div className="flex items-center justify-center gap-1.5">
+                                                            <span className="text-xs text-center leading-snug">
+                                                                {(() => {
+                                                                    const rl = group.rateLimit;
+                                                                    if (!rl) return 'Unlimited';
+                                                                    if (typeof rl === 'number') return formatRateLimit(rateLimitObj('Daily', String(rl)));
+                                                                    const normalized = normalizeRateLimits(rl);
+                                                                    return formatRateLimits(normalized);
+                                                                })()}
+                                                            </span>
                                                             {hoveredRateLimit === groupName && (
                                                                 <button
                                                                     type="button"
                                                                     id="editRateLimit"
-                                                                    className="text-neutral-400 hover:text-neutral-200"
+                                                                    className="text-neutral-400 hover:text-neutral-200 flex-shrink-0"
                                                                     onClick={() => {
+                                                                        const rl = group.rateLimit;
+                                                                        let normalized: RateLimit[];
+                                                                        if (!rl) normalized = [];
+                                                                        else if (typeof rl === 'number') normalized = [rateLimitObj('Daily', String(rl))];
+                                                                        else normalized = normalizeRateLimits(rl);
+                                                                        setTempRateLimits(normalized.filter(l => l.period !== 'Unlimited' && l.rate !== null));
                                                                         setEditingRateLimit(groupName);
-                                                                        const rateLimit = group.rateLimit;
-                                                                        if (!rateLimit) {
-                                                                            setTempRateLimitPeriod('Unlimited');
-                                                                            setTempRateLimitRate('0');
-                                                                        } else if (typeof rateLimit === 'number') {
-                                                                            // Handle legacy number format
-                                                                            setTempRateLimitPeriod('Daily');
-                                                                            setTempRateLimitRate(String(rateLimit));
-                                                                        } else {
-                                                                            // Proper RateLimit object
-                                                                            setTempRateLimitPeriod(rateLimit.period);
-                                                                            setTempRateLimitRate(rateLimit.rate ? String(rateLimit.rate) : '0');
-                                                                        }
+                                                                        setAddingGroupLimitRow(null);
                                                                     }}
-                                                                    title="Edit Rate Limit"
+                                                                    title="Edit Rate Limits"
                                                                 >
-                                                                    <IconEdit size={18} />
+                                                                    <IconEdit size={16} />
                                                                 </button>
                                                             )}
                                                         </div>

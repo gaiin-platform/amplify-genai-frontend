@@ -20,6 +20,7 @@ const AssistantMessageEditor: React.FC<Props> = (
         setMessageContent}) => {
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const buttonsRef = useRef<HTMLDivElement>(null);
     const [isTyping, setIsTyping] = useState<boolean>(false);
     const {t} = useTranslation('chat');
 
@@ -42,6 +43,25 @@ const AssistantMessageEditor: React.FC<Props> = (
         if (textareaRef.current) {
             textareaRef.current.style.height = 'inherit';
             textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+
+            // Focus the textarea
+            textareaRef.current.focus();
+
+            // Only scroll if the buttons are not fully visible in the viewport
+            setTimeout(() => {
+                if (buttonsRef.current) {
+                    const rect = buttonsRef.current.getBoundingClientRect();
+                    const isFullyVisible = rect.bottom <= window.innerHeight && rect.top >= 0;
+
+                    if (!isFullyVisible) {
+                        buttonsRef.current.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'end',
+                            inline: 'nearest'
+                        });
+                    }
+                }
+            }, 100);
         }
     }, [isEditing]);
 
@@ -64,7 +84,7 @@ const AssistantMessageEditor: React.FC<Props> = (
                                             overflow: 'hidden',
                                         }}
                                     />
-        <div className="my-6 flex justify-center space-x-4">
+        <div ref={buttonsRef} className="my-6 flex justify-center space-x-4">
             <button
                 id="cancelTextChange"
                 className="h-[40px] rounded-md border border-neutral-300 px-10 py-1 text-sm font-medium text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800 shadow-lg"

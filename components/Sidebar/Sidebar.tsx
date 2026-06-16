@@ -1,11 +1,12 @@
 import { IconFolderPlus, IconMistOff, IconPlus, IconSparkles, IconX } from '@tabler/icons-react';
-import { ReactNode, useContext, useState, useEffect, FC } from 'react';
+import { ReactNode, useContext, useState, useEffect, useRef, FC } from 'react';
 import { useTranslation } from 'react-i18next';
 import Search from '../Search';
 import { KebabMenu } from '@/components/Sidebar/components/KebabMenu';
 import { SortType } from '@/types/folder';
 import HomeContext from '@/pages/api/home/home.context';
 import { GroupAssistantsButton } from '../GroupAssistants/GroupAssistantsButton';
+import { LayeredAssistantButton } from '../LayeredAssistants/LayeredAssistantButton';
 
 
 interface Props<T> {
@@ -45,11 +46,19 @@ const Sidebar = <T,>({
   const { state: { messageIsStreaming }} = useContext(HomeContext);
   const { t } = useTranslation('promptbar');
   const [isAnimated, setIsAnimated] = useState(false);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(170);
 
-  // Trigger animation when sidebar is opened
   useEffect(() => {
     if (isOpen) resetAnimation();
   }, [isOpen]);
+
+  // Measure header height whenever side or isOpen changes
+  useEffect(() => {
+    if (headerRef.current) {
+      setHeaderHeight(headerRef.current.offsetHeight);
+    }
+  }, [isOpen, side]);
 
   const resetAnimation = () => {
     setIsAnimated(true);
@@ -86,7 +95,6 @@ const Sidebar = <T,>({
     </button>
   );
 
-
   const addButtonForSide = (side: string) => {
     if (side === 'left') return addItemButton("flex-1 min-w-0")
 
@@ -104,48 +112,59 @@ const Sidebar = <T,>({
       </button>
     );
 
-    return addAssistantButton
+    return <div className='w-full flex flex-col gap-2'>{addAssistantButton} {<LayeredAssistantButton />}</div>
   }
 
   return (
     <div className={`overflow-x-hidden h-full`}>
       <div
-        className={`enhanced-sidebar fixed top-0 ${side}-0 z-40 flex h-full w-[270px] flex-none flex-col space-y-3 
+        className={`enhanced-sidebar fixed top-0 ${side}-0 z-40 flex h-full w-[275px] flex-none flex-col space-y-3 
                    p-3 text-[14px] transition-all sm:relative sm:top-0 ${isAnimated ? 'slide-in' : ''}`}
         style={{ height: footerComponent ? 'calc(100% - 50px)' : '100%' }}
       >
-        <div className="flex items-center justify-between w-full gap-1">
-          <div className="flex items-center gap-1 flex-1 min-w-0">
-            {addButtonForSide(side)}
-           {handleCreateFolder && <button
-              className="enhanced-folder-button flex-shrink-0"
-              onClick={handleCreateFolder}
-              id="createFolderButton"
-              title="Create Folder"
-              style={{ minWidth: '32px', width: '32px', height: '38px' }}
-            >
-              <IconFolderPlus size={16} className="enhanced-icon" />
-            </button> }
+        {/* Everything above the scroll area — measured by headerRef */}
+        <div ref={headerRef} className="flex flex-col gap-2">
+          <div className="flex items-center justify-between w-full gap-1">
+            <div className="flex items-center gap-1 flex-1 min-w-0">
+              {addButtonForSide(side)}
+              {handleCreateFolder && (
+                <button
+                  className="enhanced-folder-button flex-shrink-0"
+                  onClick={handleCreateFolder}
+                  id="createFolderButton"
+                  title="Create Folder"
+                  style={{ minWidth: '32px', width: '32px', height: '38px' }}
+                >
+                  <IconFolderPlus size={16} className="enhanced-icon" />
+                </button>
+              )}
+            </div>
           </div>
+
+          {side === 'right' && addItemButton('w-full')}
+
+          <Search
+            placeholder={t('Search...') || ''}
+            searchTerm={searchTerm}
+            onSearch={handleSearchTerm}
+          />
+
+          {side === 'right' && <GroupAssistantsButton />}
+
+          <KebabMenu
+            label={side === 'left' ? "Conversations" : "Prompts"}
+            items={items}
+            handleSearchTerm={handleSearchTerm}
+            setFolderSort={setFolderSort}
+          />
         </div>
-        {side === 'right' && addItemButton('')}
 
-        <Search
-          placeholder={t('Search...') || ''}
-          searchTerm={searchTerm}
-          onSearch={handleSearchTerm}
-        />
-
-        {side === 'right' && <GroupAssistantsButton />}
-
-        <KebabMenu
-          label={side === 'left' ? "Conversations": "Prompts"} 
-          items={items}
-          handleSearchTerm={handleSearchTerm}
-          setFolderSort={setFolderSort}
-        />
-        
-        <div className="relative flex-grow w-[268px] enhanced-sidebar overflow-y-auto" id="sidebarScroll" style={{ height: 'calc(100vh - 170px)' }}>
+        {/* Scroll area — always fills remaining space to bottom */}
+        <div
+          className="relative w-[268px] enhanced-sidebar overflow-y-auto"
+          id="sidebarScroll"
+          style={{ height: `calc(100vh - ${headerHeight*1.50}px)` }}
+        >
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {items?.length > 0 && (
               <div className="flex border-b dark:border-white/20 pb-3 mb-2">
@@ -153,11 +172,8 @@ const Sidebar = <T,>({
               </div>
             )}
 
-            {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
             {items?.length > 0 ? (
-                <div
-                role="region"
-                aria-label="Items list drop zone"
+              <div
                 onDrop={handleDrop}
                 onDragOver={allowDrop}
                 onDragEnter={highlightDrop}
@@ -177,15 +193,16 @@ const Sidebar = <T,>({
         </div>
 
       </div>
+
       {footerComponent && (
-        <div 
-          className={`fixed bottom-0 ${side}-0 z-40 w-[270px] bg-white dark:bg-[#202123] border-t border-neutral-300 dark:border-neutral-600`}
+        <div
+          className={`fixed bottom-0 ${side}-0 z-40 w-[275px] bg-white dark:bg-[#202123] border-t border-neutral-300 dark:border-neutral-600`}
           style={{ left: side === 'left' ? '0' : 'auto', right: side === 'right' ? '0' : 'auto' }}
         >
           {footerComponent}
         </div>
       )}
-    
+
     </div>
   );
 };

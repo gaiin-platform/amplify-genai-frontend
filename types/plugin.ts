@@ -1,4 +1,4 @@
-import { IconRobot, IconChartBar, IconFileSearch, IconLibrary, IconMessageBolt, IconDeviceSdCard, IconWorldSearch, IconPlugConnected } from '@tabler/icons-react';
+import { IconRobot, IconChartBar, IconFileSearch, IconLibrary, IconMessageBolt, IconDeviceSdCard, IconWorldSearch, IconPlugConnected, IconBrain } from '@tabler/icons-react';
 import React from 'react';
 
 // Plugina are on and off features during the conversation chat requests
@@ -17,11 +17,12 @@ export enum PluginID {
   CODE_INTERPRETER = 'code-interpreter',
   RAG = 'rag',
   ARTIFACTS = 'artifacts',
-  SMART_MESSAGES = 'smart-focused-messages',
+  // SMART_MESSAGES = 'smart-focused-messages',
   RAG_EVAL = 'rag-eval',
   MEMORY = 'memory',
   WEB_SEARCH = 'web-search',
-  MCP = 'mcp'
+  MCP = 'mcp',
+  SKILLS = 'skills'
 }
 
 export const Plugins: Record<PluginID, Plugin> = {
@@ -52,12 +53,12 @@ export const Plugins: Record<PluginID, Plugin> = {
     title: "Allow Artifact Creation.",
     iconComponent: IconLibrary
   },
-  [PluginID.SMART_MESSAGES]: {
-    id: PluginID.SMART_MESSAGES,
-    name: "Smart Focused Messages",
-    title: "Filters and sends only the most relevant messages from the conversation based on the current user prompt.",
-    iconComponent: IconMessageBolt
-  },
+  // [PluginID.SMART_MESSAGES]: {
+  //   id: PluginID.SMART_MESSAGES,
+  //   name: "Smart Focused Messages",
+  //   title: "Filters and sends only the most relevant messages from the conversation based on the current user prompt.",
+  //   iconComponent: IconMessageBolt
+  // },
   [PluginID.MEMORY]: {
     id: PluginID.MEMORY,
     name: "Memory",
@@ -77,6 +78,13 @@ export const Plugins: Record<PluginID, Plugin> = {
     title: "Enable MCP (Model Context Protocol) tools. Configure MCP servers in Settings → MCP Servers.",
     default: false,
     iconComponent: IconPlugConnected
+  },
+  [PluginID.SKILLS]: {
+    id: PluginID.SKILLS,
+    name: "Skills",
+    title: "Enable Skills - specialized capabilities that can be auto-selected based on your conversation. Manage skills in Settings → Skills.",
+    default: false,
+    iconComponent: IconBrain
   }
 };
 

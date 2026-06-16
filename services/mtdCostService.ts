@@ -116,7 +116,24 @@ export const getAllUserMtdCostsRecursive = async (
 
 
 
-export const getUserMtdCosts = async () => {
+export interface UserMtdCosts {
+    email: string;
+    dailyCost: number;
+    monthlyCost: number;
+    totalCost: number;
+    hourlyCost: number[]; // 24 values, index = UTC hour
+    accounts: Array<{
+        accountInfo: string;
+        dailyCost: number;
+        monthlyCost: number;
+        totalCost: number;
+        timestamp: string | null;
+    }>;
+    lastUpdated: string | null;
+    timestamp: string;
+}
+
+export const getUserMtdCosts = async (): Promise<{ success: true; data: UserMtdCosts } | { success: false; message: string }> => {
     const op = {
         method: 'POST',
         path: URL_PATH,
@@ -127,7 +144,7 @@ export const getUserMtdCosts = async () => {
 
     try {
         const result = await doRequestOp(op);
-        if (result && result.email) return { success: true, data: result };
+        if (result && result.email) return { success: true, data: result as UserMtdCosts };
 
     } catch (error) {
         console.error('Error in getUserMtdCosts:', error);

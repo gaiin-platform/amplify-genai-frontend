@@ -11,7 +11,7 @@ import React from "react";
 import { ActiveTabs } from "../ReusableComponents/ActiveTabs";
 import { OpDef } from "@/types/op";
 import { AMPLIFY_ASSISTANTS_GROUP_NAME } from "@/utils/app/amplifyAssistants";
-import { noRateLimit, PeriodType, RateLimit, rateLimitObj } from "@/types/rateLimit";
+import { noRateLimit, normalizeRateLimits, RateLimit, RateLimits } from "@/types/rateLimit";
 import { adminTabHasChanges} from "@/utils/app/admin";
 import { OpenAIEndpointsTab } from "./AdminComponents/OpenAIEndpoints";
 import { FeatureFlagsTab } from "./AdminComponents/FeatureFlags";
@@ -64,7 +64,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [admins, setAdmins] = useState<string[]>([]);  
     const [allEmails, setAllEmails] = useState<Array<string> | null>(null);
 
-    const [rateLimit, setRateLimit] = useState<{period: PeriodType, rate: string}>({...noRateLimit, rate: '0'});
+    const [rateLimits, setRateLimits] = useState<RateLimits>([]);
+    const [honorPersonalRateLimit, setHonorPersonalRateLimit] = useState<{ enabled: boolean; scope?: 'both' | 'apiKey' | 'amplifyAccount' }>({ enabled: false });
     const [promptCostAlert, setPromptCostAlert] = useState<PromptCostAlert>({isActive:false, alertMessage: '', cost: 0});
     const [emailSupport, setEmailSupport] = useState<EmailSupport>({isActive:false, email:''});
     const [criticalErrorsConfig, setCriticalErrorsConfig] = useState<CriticalErrorsConfig>({isActive:false, email:''});
@@ -77,8 +78,11 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
     const [features, setFeatures] = useState<FeatureFlagConfig>({}); 
 
-    const [appVars, setAppVars] = useState<{ [key: string]: string }>({});    
-    const [appSecrets, setAppSecrets] = useState<{ [key: string]: string }>({});  
+    const [appVars, setAppVars] = useState<{ [key: string]: string }>({});
+    const [appSecrets, setAppSecrets] = useState<{ [key: string]: string }>({});
+    const [userDocumentationUrl, setUserDocumentationUrl] = useState<string>('');
+    const [defaultTimezone, setDefaultTimezone] = useState<string>('America/Chicago');
+    const [smartMessagesEnabled, setSmartMessagesEnabled] = useState<boolean>(false);
     const [refreshingTypes, setRefreshingTypes] = useState< AdminConfigTypes[]>([]);
 
 
@@ -190,7 +194,21 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
                 setAmpGroups(data[AdminConfigTypes.AMPLIFY_GROUPS] || {})
                 setTemplates(data[AdminConfigTypes.PPTX_TEMPLATES] || []);
-                setRateLimit(data[AdminConfigTypes.RATE_LIMIT || rateLimit]);
+                const rateLimitConfig = data[AdminConfigTypes.RATE_LIMIT];
+                if (rateLimitConfig && typeof rateLimitConfig === 'object' && 'limits' in rateLimitConfig) {
+                    setRateLimits(normalizeRateLimits(rateLimitConfig.limits));
+                    const rawHonor = rateLimitConfig.honorPersonalRateLimit;
+                    if (rawHonor && typeof rawHonor === 'object' && 'enabled' in rawHonor) {
+                        setHonorPersonalRateLimit(rawHonor);
+                    } else if (typeof rawHonor === 'boolean') {
+                        setHonorPersonalRateLimit({ enabled: rawHonor });
+                    } else {
+                        setHonorPersonalRateLimit({ enabled: false });
+                    }
+                } else {
+                    setRateLimits(normalizeRateLimits(rateLimitConfig));
+                    setHonorPersonalRateLimit({ enabled: false });
+                }
                 setPromptCostAlert(data[AdminConfigTypes.PROMPT_COST_ALERT || promptCostAlert]);
                 setDefaultConversationStorage(data[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE] || defaultConversationStorage);
                 setEmailSupport(data[AdminConfigTypes.EMAIL_SUPPORT || emailSupport]);
@@ -198,6 +216,9 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 setAiEmailDomain(data[AdminConfigTypes.AI_EMAIL_DOMAIN] || aiEmailDomain);
                 setDefaultModels(data[AdminConfigTypes.DEFAULT_MODELS] || {});
                 setWebSearchConfig(data[AdminConfigTypes.WEB_SEARCH] || null);
+                setUserDocumentationUrl(data[AdminConfigTypes.USER_DOCUMENTATION_URL] || '');
+                setDefaultTimezone(data[AdminConfigTypes.DEFAULT_TIMEZONE] || 'America/Chicago');
+                setSmartMessagesEnabled(data[AdminConfigTypes.DEFAULT_SMART_MESSAGES] ?? false);
                 setLoadingMessage("");
             
                 const nonlazyResult = await nonlazyReq;
@@ -253,7 +274,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             case AdminConfigTypes.ADMINS:
                 return admins;
             case AdminConfigTypes.RATE_LIMIT:
-                return rateLimitObj(rateLimit.period, rateLimit.rate);
+                return { limits: rateLimits, honorPersonalRateLimit }; // honorPersonalRateLimit is { enabled, scope? }
             case AdminConfigTypes.PROMPT_COST_ALERT:
                 return {
                     ...promptCostAlert,
@@ -304,7 +325,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     });
                     
                     // Ensure boolean fields are booleans
-                    const booleanFields = ["supportsImages", "supportsReasoning", "supportsSystemPrompts", "isAvailable", "isBuiltIn"] as const;
+                    const booleanFields = ["supportsImages", "supportsReasoning", "supportsSystemPrompts", "supportsImageGeneration", "supportsVideo", "isAvailable", "isBuiltIn"] as const;
                     booleanFields.forEach((field) => {
                         (sanitizedModel as any)[field] = Boolean(model[field]);
                     });
@@ -338,7 +359,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             case AdminConfigTypes.AMPLIFY_GROUPS:
                 Object.keys(ampGroups).forEach((key: string) => {
                     if (!ampGroups[key].isBillingGroup) ampGroups[key].isBillingGroup = false;
-                    if (!ampGroups[key].rateLimit) ampGroups[key].rateLimit = noRateLimit;
+                    if (!ampGroups[key].rateLimit) ampGroups[key].rateLimit = [noRateLimit];
+                    else ampGroups[key].rateLimit = normalizeRateLimits(ampGroups[key].rateLimit as any);
                     delete ampGroups[key].groupName;
                 });
                 return ampGroups;
@@ -367,7 +389,20 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     configData.api_key = webSearchConfig.api_key;
                 }
 
+                // Include webSearchUserMessage if it exists and is non-empty after trimming
+                if (webSearchConfig.webSearchUserMessage !== undefined &&
+                    webSearchConfig.webSearchUserMessage.trim()) {
+                    configData.webSearchUserMessage = webSearchConfig.webSearchUserMessage.trim();
+                }
+                console.log("Config Data: ", configData);
+
                 return configData;
+            case AdminConfigTypes.USER_DOCUMENTATION_URL:
+                return userDocumentationUrl;
+            case AdminConfigTypes.DEFAULT_TIMEZONE:
+                return defaultTimezone;
+            case AdminConfigTypes.DEFAULT_SMART_MESSAGES:
+                return smartMessagesEnabled;
             case AdminConfigTypes.OPENAI_ENDPOINTS:
                 const toTest:{key: string, url: string, model:string}[] = [];
                 
@@ -525,8 +560,17 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         saveAction([AdminConfigTypes.EMAIL_SUPPORT], () => homeDispatch({ field: 'supportEmail', value: emailSupport.email}));
         saveAction([AdminConfigTypes.AI_EMAIL_DOMAIN], () => homeDispatch({ field: 'aiEmailDomain', value: aiEmailDomain}));
         saveAction([AdminConfigTypes.PROMPT_COST_ALERT], () => homeDispatch({ field: 'promptCostAlert', value: promptCostAlert}));
-        saveAction([AdminConfigTypes.WEB_SEARCH], () => homeDispatch({ field: 'canAddWebSearchApiKey', value: webSearchConfig?.allowUserWebSearchKeys ?? false}));
-        if (!storageSelection) saveAction([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () => homeDispatch({ field: 'storageSelection', value: defaultConversationStorage})); 
+        saveAction([AdminConfigTypes.WEB_SEARCH], () => {
+            homeDispatch({ field: 'canAddWebSearchApiKey', value: webSearchConfig?.allowUserWebSearchKeys ?? false});
+            homeDispatch({ field: 'webSearchUserMessage', value: webSearchConfig?.webSearchUserMessage?.trim() ?? null});
+        });
+        saveAction([AdminConfigTypes.USER_DOCUMENTATION_URL], () => homeDispatch({ field: 'userDocumentationUrl', value: userDocumentationUrl}));
+        saveAction([AdminConfigTypes.DEFAULT_SMART_MESSAGES], () => homeDispatch({ field: 'featureFlags', value: { ...featureFlags, smartMessages: smartMessagesEnabled }}));
+        saveAction([AdminConfigTypes.RATE_LIMIT], () => {
+            homeDispatch({ field: 'adminRateLimits', value: rateLimits });
+            homeDispatch({ field: 'honorPersonalRateLimit', value: honorPersonalRateLimit });
+        });
+        if (!storageSelection) saveAction([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () => homeDispatch({ field: 'storageSelection', value: defaultConversationStorage}));
     }
 
     const handleSave = async () => {
@@ -654,7 +698,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     onSubmit={() => handleSave()
     }
     cancelLabel={"Close"}
-    submitLabel={"Save Changes"}
+    submitLabel={stillLoadingData ? "Still Loading..." : "Save Changes"}
     disableSubmit={unsavedConfigs.size === 0 || stillLoadingData}
     content={
       <div className="text-black dark:text-white overflow-x-hidden">
@@ -689,8 +733,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     ampGroups={ampGroups}
                     setAmpGroups={setAmpGroups}
                     amplifyUsers={amplifyUsers}
-                    rateLimit={rateLimit}
-                    setRateLimit={setRateLimit}
+                    rateLimits={rateLimits}
+                    setRateLimits={setRateLimits}
+                    honorPersonalRateLimit={honorPersonalRateLimit}
+                    setHonorPersonalRateLimit={setHonorPersonalRateLimit}
                     promptCostAlert={promptCostAlert}
                     setPromptCostAlert={setPromptCostAlert}
                     defaultConversationStorage={defaultConversationStorage}
@@ -699,6 +745,11 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     setEmailSupport={setEmailSupport}
                     aiEmailDomain={aiEmailDomain}
                     setAiEmailDomain={featureFlags.assistantEmailEvents ? setAiEmailDomain : undefined}
+                    defaultTimezone={defaultTimezone}
+                    setDefaultTimezone={setDefaultTimezone}
+                    smartMessagesEnabled={smartMessagesEnabled}
+                    setSmartMessagesEnabled={setSmartMessagesEnabled}
+                    features={features}
                     allEmails={allEmails}
                     admin_text={admin_text}
                     updateUnsavedConfigs={updateUnsavedConfigs}
@@ -779,6 +830,29 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                             obscure={true}
                             />      
                         </div> : <>No Application Variables Retrieved</>}
+                </div>
+
+                <br className="mt-4"></br>
+
+                <div className="admin-style-settings-card">
+                    <div className="admin-style-settings-card-header">
+                        <div className="flex flex-row items-center gap-3 mb-2">
+                            <h3 className="admin-style-settings-card-title">User Documentation URL</h3>
+                        </div>
+                        <p className="admin-style-settings-card-description">Configure the URL for user documentation (displayed when userDocumentation feature flag is enabled)</p>
+                    </div>
+                    <div className="mx-4">
+                        <input
+                            type="text"
+                            placeholder="https://your-documentation-url.com"
+                            value={userDocumentationUrl}
+                            onChange={(e) => {
+                                setUserDocumentationUrl(e.target.value);
+                                updateUnsavedConfigs(AdminConfigTypes.USER_DOCUMENTATION_URL);
+                            }}
+                            className="w-full rounded border border-neutral-500 px-4 py-2 dark:bg-[#40414F] dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
+                        />
+                    </div>
                 </div>
                 </>
             },
@@ -1087,12 +1161,12 @@ export const AmplifyGroupSelect: React.FC<AmplifyGroupSelectProps> = ({ groups, 
 
 
 
-export interface Amplify_Group { // can be a cognito group 
-    groupName?: string; 
+export interface Amplify_Group { // can be a cognito group
+    groupName?: string;
     members : string[];
     createdBy : string;
     includeFromOtherGroups? : string[]; // if is a cognito group, this will always be Absent
-    rateLimit? : RateLimit;
+    rateLimit? : RateLimit | RateLimit[];  // supports both legacy single and new multi-limit format
     isBillingGroup? : boolean;
 }
 

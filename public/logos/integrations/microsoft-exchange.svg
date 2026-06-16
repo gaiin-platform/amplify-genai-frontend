@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48px" height="48px">
+  <!-- Background rounded rectangle -->
+  <rect x="2" y="2" width="44" height="44" rx="6" ry="6" fill="#0078D4"/>
+  <!-- Server rack lines (representing Exchange server) -->
+  <rect x="8" y="10" width="32" height="7" rx="2" ry="2" fill="#ffffff" opacity="0.95"/>
+  <rect x="8" y="20" width="32" height="7" rx="2" ry="2" fill="#ffffff" opacity="0.85"/>
+  <rect x="8" y="30" width="32" height="7" rx="2" ry="2" fill="#ffffff" opacity="0.75"/>
+  <!-- Status dots on each server row -->
+  <circle cx="36" cy="13.5" r="2" fill="#50E6FF"/>
+  <circle cx="36" cy="23.5" r="2" fill="#50E6FF"/>
+  <circle cx="36" cy="33.5" r="2" fill="#50E6FF" opacity="0.6"/>
+  <!-- Small envelope icon overlay at bottom right -->
+  <g transform="translate(26, 32)">
+    <rect x="0" y="0" width="16" height="11" rx="2" ry="2" fill="#0078D4" stroke="#50E6FF" stroke-width="1.5"/>
+    <polyline points="0,0 8,6 16,0" fill="none" stroke="#50E6FF" stroke-width="1.5"/>
+  </g>
+</svg>

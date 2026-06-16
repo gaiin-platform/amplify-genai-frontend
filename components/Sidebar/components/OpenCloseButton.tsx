@@ -63,8 +63,8 @@ export const OpenSidebarButton = ({ onClick, side }: Props) => {
   }, []);
 
   const closedButton = () => (
-    <div
-          title={`Open ${promptSide() ? 'Chat' : 'Assistant'} Sidebar`}
+    <div 
+          title={`Open Sidebar`}
           className="p-2 text-neutral-800 bg-neutral-100 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700 cursor-pointer animate-pop"
           style={{
               borderRadius: '10px',
@@ -84,7 +84,7 @@ export const OpenSidebarButton = ({ onClick, side }: Props) => {
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1.0)';
           }}
-          role="presentation"
+          
       >
           {promptSide() ? <IconSparkles size={24} /> : <IconLayoutSidebar size={24} />}
           <style jsx>{`
@@ -110,7 +110,7 @@ export const OpenSidebarButton = ({ onClick, side }: Props) => {
 
   return (
     <button
-      className={`fixed top-4 ${promptSide() ? 'right-4' : 'left-4'} z-50`}
+      className={`fixed top-4 ${promptSide() ? 'right-4' : 'left-4'} z-40`}
       onClick={onClick}
       id="expandSidebar"
       title="Expand Sidebar"

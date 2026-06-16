@@ -196,6 +196,52 @@ export const migrateAllLocalStorageData = async (): Promise<void> => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Context-conversation cache helpers
+// Stores lightweight {id, role, content} message arrays so we don't need to
+// re-fetch cloud conversations every time the user opens the context panel.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CONTEXT_CACHE_PREFIX = 'contextCache:';
+export const CONTEXT_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/** Stripped-down message — just the text content we need for context injection */
+export interface CachedConversationMessage {
+    id: string;
+    role: string;
+    content: string;
+}
+
+export interface ContextCacheEntry {
+    conversationId: string;
+    conversationName: string;
+    /** Bare-text messages: role + content only */
+    messages: CachedConversationMessage[];
+    fetchedAt: number; // epoch ms
+}
+
+export const saveContextCache = async (entry: ContextCacheEntry): Promise<void> => {
+    await storageSet(`${CONTEXT_CACHE_PREFIX}${entry.conversationId}`, JSON.stringify(entry));
+};
+
+export const loadContextCache = async (conversationId: string): Promise<ContextCacheEntry | null> => {
+    const raw = await storageGet(`${CONTEXT_CACHE_PREFIX}${conversationId}`);
+    if (!raw) return null;
+    try {
+        return JSON.parse(raw) as ContextCacheEntry;
+    } catch {
+        return null;
+    }
+};
+
+export const isContextCacheValid = (entry: ContextCacheEntry): boolean => {
+    return (Date.now() - entry.fetchedAt) < CONTEXT_CACHE_TTL_MS;
+};
+
+export const deleteContextCache = async (conversationId: string): Promise<void> => {
+    await storageRemove(`${CONTEXT_CACHE_PREFIX}${conversationId}`);
+};
+
 // Check migration status
 export const getMigrationStatus = async (): Promise<{ 
   totalKeys: number, 

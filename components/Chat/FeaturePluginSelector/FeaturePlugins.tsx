@@ -21,11 +21,17 @@ const FeaturePlugin = ({ plugins, setPlugins }: Props) => {
     const [showPluginSelect, setShowPluginSelect] = useState(false);
     const showPluginSelectRef = useRef(showPluginSelect);
     const [isDragging, setIsDragging] = useState(false);
-    const positionRef = useRef(pluginLocation); 
+    const positionRef = useRef(pluginLocation);
     const [startPosition, setStartPosition] = useState(positionRef.current);
     const draggableRef = useRef<HTMLDivElement | null>(null);
 
     const width = 34;
+
+    useEffect(() => {
+        // On mount, ensure position is within bounds (ref is now attached)
+        ensureWithinBounds();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     useEffect(() => {
         showPluginSelectRef.current = showPluginSelect;
@@ -44,26 +50,35 @@ const FeaturePlugin = ({ plugins, setPlugins }: Props) => {
     }, []);
 
 
-    useEffect(() => {
-        const ensureWithinBounds = () => {
-            if (!draggableRef.current) return;
-    
+    const ensureWithinBounds = useCallback(() => {
+        if (!draggableRef.current) return;
+
         const bounds = getBounds();
         if (bounds) {
             let {leftBound, rightBound, topBound, bottomBound} = bounds;
-                // Adjust position if it's out of bounds
-                const currentPosition = positionRef.current;
-                currentPosition.x = Math.max(leftBound, Math.min(currentPosition.x, rightBound));
-                currentPosition.y = Math.max(topBound, Math.min(currentPosition.y, bottomBound));
-    
-                positionRef.current = currentPosition;
-                draggableRef.current.style.transform = `translate(${currentPosition.x}px, ${currentPosition.y}px)`;
-            }
-        };
-    
+            // Adjust position if it's out of bounds
+            const currentPosition = positionRef.current;
+            currentPosition.x = Math.max(leftBound, Math.min(currentPosition.x, rightBound));
+            currentPosition.y = Math.max(topBound, Math.min(currentPosition.y, bottomBound));
+
+            positionRef.current = currentPosition;
+            draggableRef.current.style.transform = `translate(${currentPosition.x}px, ${currentPosition.y}px)`;
+        }
+    }, []);
+
+    useEffect(() => {
         // Call the function to ensure the plugin is within bounds
         ensureWithinBounds();
-    }, [width, showPromptbar, showChatbar,]); // Dependencies array
+    }, [width, showPromptbar, showChatbar, ensureWithinBounds]); // Dependencies array
+
+    useEffect(() => {
+        const handleSettingsUpdate = () => {
+            // Re-check bounds after settings change (plugin selector may shift out of view)
+            ensureWithinBounds();
+        };
+        window.addEventListener('updateFeatureSettings', handleSettingsUpdate);
+        return () => window.removeEventListener('updateFeatureSettings', handleSettingsUpdate);
+    }, [ensureWithinBounds]);
 
 
 

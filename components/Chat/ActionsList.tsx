@@ -7,10 +7,8 @@ import {
     IconAdjustments,
     IconDeviceFloppy,
     IconTrashX,
-    IconChevronDown,
-    IconChevronUp
 } from '@tabler/icons-react';
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 
 interface AgentAction {
     name: string;
@@ -28,8 +26,6 @@ interface ActionsListProps {
     onClearActions?: () => void;
 }
 
-const ACTIONS_COLLAPSE_KEY = 'actionsListCollapsed';
-
 const ActionsList: React.FC<ActionsListProps> = ({
                                                      actions,
                                                      onRemoveAction,
@@ -41,23 +37,6 @@ const ActionsList: React.FC<ActionsListProps> = ({
                                                  }) => {
     // State to track which action is currently in delete confirmation mode
     const [confirmDeleteIndex, setConfirmDeleteIndex] = useState<number | null>(null);
-
-    // Load collapsed state from localStorage, default to expanded (false = expanded, true = collapsed)
-    const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem(ACTIONS_COLLAPSE_KEY);
-            return saved === 'true';
-        }
-        return false;
-    });
-
-    // Persist collapse state to localStorage
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            localStorage.setItem(ACTIONS_COLLAPSE_KEY, String(isCollapsed));
-        }
-    }, [isCollapsed]);
-
 
     // Format the action name for display
     const formatActionName = (name: string): string => {
@@ -141,37 +120,9 @@ const ActionsList: React.FC<ActionsListProps> = ({
                         <IconTrashX size={16} stroke={2} />
                     </button>
                 )}
-                <button
-                    onClick={() => setIsCollapsed(!isCollapsed)}
-                    className="mr-2 flex items-center gap-1 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors px-1"
-                    title={isCollapsed ? "Expand actions" : "Collapse actions"}
-                    aria-label={isCollapsed ? "Expand actions" : "Collapse actions"}
-                >
-                    {isCollapsed ? (
-                        <>
-                            <IconChevronDown size={16} stroke={2} />
-                            <span className="text-xs font-medium">Expand All</span>
-                        </>
-                    ) : (
-                        <>
-                            <IconChevronUp size={16} stroke={2} />
-                            <span className="text-xs font-medium">Collapse All</span>
-                        </>
-                    )}
-                </button>
                 <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
             </div>
-            <div
-                className={`flex gap-2 px-2 transition-all ${
-                    isCollapsed
-                        ? 'overflow-x-auto overflow-y-hidden flex-nowrap'
-                        : 'flex-wrap'
-                }`}
-                style={isCollapsed ? {
-                    scrollbarWidth: 'thin',
-                    scrollbarColor: 'rgba(156, 163, 175, 0.5) transparent',
-                } : {}}
-            >
+            <div className="flex gap-2 px-2 flex-wrap">
                 {actions.map((action, index) => (
                     <div
                         key={index}
@@ -179,7 +130,7 @@ const ActionsList: React.FC<ActionsListProps> = ({
                             ${confirmDeleteIndex === index
                             ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20'
                             : 'border-blue-100 dark:border-[#565869] hover:bg-blue-100 dark:hover:bg-[#4a4b59]'}
-                            transition-colors ${onActionClick ? 'cursor-pointer' : ''} ${isCollapsed ? 'flex-shrink-0' : ''}`}
+                            transition-colors ${onActionClick ? 'cursor-pointer' : ''}`}
                         onClick={() => onActionClick && onActionClick(action, index)}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onActionClick && onActionClick(action, index); }}}
                         role="button"
@@ -194,11 +145,6 @@ const ActionsList: React.FC<ActionsListProps> = ({
                             <span className={`text-xs font-medium ${confirmDeleteIndex === index ? 'text-red-700 dark:text-red-300' : 'text-gray-700 dark:text-gray-200'}`}>
                                 {action.customName || formatActionName(action.name)}
                             </span>
-                            {action.customName && confirmDeleteIndex !== index && (
-                                <span className="hidden group-hover:inline text-xs text-gray-500 dark:text-gray-400 ml-1">
-                                    ({formatActionName(action.name)})
-                                </span>
-                            )}
                         </div>
 
                         {confirmDeleteIndex === index ? (

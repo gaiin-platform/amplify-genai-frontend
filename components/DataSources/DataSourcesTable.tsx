@@ -15,10 +15,9 @@ import {MantineProvider} from "@mantine/core";
 import HomeContext from "@/pages/api/home/home.context";
 import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags, getFileDownloadUrl} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
-import { downloadDataSourceFile, deleteDatasourceFile, extractKey, getDocumentStatusConfig, getFileAction, startFileReprocessingWithPolling, startFileStatusPolling } from '@/utils/app/files';
+import { downloadDataSourceFile, deleteDatasourceFile, extractKey, getDocumentStatusConfig, getFileAction, startFileReprocessingWithPolling, startFileStatusPolling, disableSupportReprocess } from '@/utils/app/files';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
-import { IMAGE_FILE_TYPES } from '@/utils/app/const';
 import { embeddingDocumentStatus } from '@/services/adminService';
 import { capitalize } from '@/utils/app/data';
 import styled, {keyframes} from "styled-components";
@@ -577,7 +576,7 @@ const DataSourcesTable = () => {
                                 )}
                             </span>
                             {/* Show loader if actively polling, or action button based on status/time */}
-                            {!IMAGE_FILE_TYPES.includes(fileType) && (() => {
+                            {!disableSupportReprocess(fileType) && (() => {
                                 // Show spinner if actively polling this file
                                 if (pollingFiles.has(cell.row.original.id)) {
                                     return <LoadingIcon style={{ width: "18px", height: "18px" }} />;

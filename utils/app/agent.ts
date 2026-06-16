@@ -205,7 +205,13 @@ export const handleAgentRunResult = async (agentResult: any, selectedConversatio
         accountId: defaultAccount?.id,
         rateLimit: defaultAccount?.rateLimit,
         disableTools: true,
-        assistantId: msgData?.assistant?.definition?.assistantId,
+        assistantId: (() => {
+            const aid = msgData?.assistant?.definition?.assistantId;
+            // Strip layered-assistant prefixes so the agent summarization call
+            // is routed as a plain LLM request, not through the layered router.
+            if (aid && (aid.startsWith('astr/') || aid.startsWith('astgr/'))) return undefined;
+            return aid;
+        })(),
         dataSources: currentMessageDataSources || []
     };
 

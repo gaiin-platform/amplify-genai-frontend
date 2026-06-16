@@ -1,14 +1,13 @@
 import React, { useState, useEffect, ReactNode, useContext, useRef } from 'react';
 import { CloseSidebarButton, OpenSidebarButton } from "@/components/Sidebar/components/OpenCloseButton";
+import { FloatingActionButtons } from "@/components/Sidebar/components/FloatingActionButtons";
 import HomeContext from '@/pages/api/home/home.context';
-import { AssistantAdminUI } from '../Admin/AssistantAdminUI';
-import { AdminUI } from '../Admin/AdminUI';
-import { UserCostsModal } from '../Admin/UserCostModal';
 
 interface TabProps {
     icon: ReactNode;
     children: ReactNode;
     title?: string;
+    onClick?: () => void;
 }
 
 export const Tab: React.FC<TabProps> = ({ icon, children }) => (
@@ -28,7 +27,7 @@ const isMobileBrowser = () => {
 };
 
 export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerComponent }) => {
-    const { state: { featureFlags, showChatbar, showPromptbar }, dispatch: homeDispatch } = useContext(HomeContext);
+    const { state: { featureFlags, showChatbar, showPromptbar }, dispatch: homeDispatch, handleNewConversation } = useContext(HomeContext);
     const featureFlagsRef = useRef(featureFlags);
 
     const chatSide = () => side === 'left';
@@ -115,7 +114,7 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
                 zIndex: '20 !important'
               }}>
             {isMultipleTabs && (
-                <div className="relative flex flex-row gap-1 px-3 pt-3 pb-0 bg-gradient-to-r from-neutral-100 to-neutral-50 dark:from-[#202123] dark:to-[#1c1c1e] overflow-hidden">
+                <div className="relative flex flex-row gap-1 px-3 pt-3 pb-0 flex-shrink-0 bg-gradient-to-r from-neutral-100 to-neutral-50 dark:from-[#202123] dark:to-[#1c1c1e] overflow-hidden">
                 {/* Animated gradient background */}
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-50/30 via-purple-50/20 to-pink-50/30 dark:from-blue-900/5 dark:via-purple-900/5 dark:to-pink-900/5 animate-gradient-x"></div>
                     {!chatSide() && <CloseSidebarButton onClick={toggleOpen} side={side} isHovered={isHovered} /> } 
@@ -123,7 +122,10 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
                         <button
                             key={index}
                             id="tabSelection"
-                            onClick={() => setActiveTab(index)}
+                            onClick={() => {
+                                setActiveTab(index);
+                                child.props.onClick?.();
+                            }}
                             title={child.props.title}
                             className={`group relative px-5 pb-2.5 pt-2 rounded-t transition-all duration-300 overflow-hidden ${
                                 activeTab === index 
@@ -170,5 +172,21 @@ export const TabSidebar: React.FC<TabSidebarProps> = ({ side, children, footerCo
                 {footerComponent}
             </div>
         </div>
-    ) : ( <OpenSidebarButton onClick={toggleOpen} side={side}/> );
+    ) : (
+        <>
+            <OpenSidebarButton onClick={toggleOpen} side={side}/>
+            {chatSide() && (
+                <FloatingActionButtons
+                    side={side}
+                    onNewChat={() => {
+                        window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false }} ));
+                        handleNewConversation({});
+                    }}
+                    onAssistantGallery={() => {
+                        homeDispatch({ field: 'page', value: 'assistantGallery' });
+                    }}
+                />
+            )}
+        </>
+    );
 };

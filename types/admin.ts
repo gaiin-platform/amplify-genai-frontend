@@ -23,6 +23,9 @@ export enum AdminConfigTypes {
     DEFAULT_CONVERSATION_STORAGE = 'defaultConversationStorage',
     DEFAULT_MODELS = 'defaultModels',
     CRITICAL_ERRORS = 'criticalErrors',
+    USER_DOCUMENTATION_URL = 'userDocumentationUrl',
+    DEFAULT_TIMEZONE = 'defaultTimezone',
+    DEFAULT_SMART_MESSAGES = 'defaultSmartMessages',
 
   }
 
@@ -42,6 +45,8 @@ export const adminDataTabMap: Record<AdminTab, string[]> = {
       AdminConfigTypes.EMAIL_SUPPORT,
       AdminConfigTypes.AMPLIFY_GROUPS,
       AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE,
+      AdminConfigTypes.DEFAULT_TIMEZONE,
+      AdminConfigTypes.DEFAULT_SMART_MESSAGES,
     ],
 
     'Feature Flags' : [
@@ -70,6 +75,7 @@ export const adminDataTabMap: Record<AdminTab, string[]> = {
     'Application Variables' : [
       AdminConfigTypes.APP_VARS,
       AdminConfigTypes.APP_SECRETS,
+      AdminConfigTypes.USER_DOCUMENTATION_URL,
     ],
     'OpenAi Endpoints' : [
       AdminConfigTypes.OPENAI_ENDPOINTS,
@@ -155,6 +161,8 @@ export interface EmbeddingsConfig  {
     supportsImages: boolean;
     supportsReasoning: boolean;
     supportsSystemPrompts: boolean;
+    supportsImageGeneration: boolean;
+    supportsVideo: boolean;
     systemPrompt: string;
     isAvailable: boolean;
     isBuiltIn: boolean;

@@ -28,7 +28,7 @@ import { FolderInterface } from '@/types/folder';
 import HomeContext from '@/pages/api/home/home.context';
 
 import React from 'react';
-import { baseAssistantFolder, isBaseFolder } from '@/utils/app/basePrompts';
+import { baseAssistantFolder, baseLayeredAssistantFolder, isBaseFolder } from '@/utils/app/basePrompts';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
 import { hideGroupFolder, saveFolders } from '@/utils/app/folders';
 import { Group, GroupAccessType } from '@/types/groups';
@@ -75,13 +75,18 @@ const Folder = ({
   const todaysDateName = getDateName();
   const isTodaysFolder = currentFolder.name === todaysDateName;
   
-  const [isOpen, setIsOpen] = useState(isTodaysFolder); // Expand today's folder by default
+  const [isOpen, setIsOpen] = useState(isTodaysFolder);
   const [isHovered, setIsHovered] = useState(false);
   const [checkFolders, setCheckFolders] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
 
+  // Helper to check if a folder is a specific base folder
+  const isSpecificBaseFolder = (folderId: string, baseFolderId: string): boolean => {
+    return folderId === baseFolderId;
+  };
+
   const canDropInto =  !currentFolder.isGroupFolder && !isBaseFolder(currentFolder.id);
-  const showEditDelete = canDropInto && currentFolder.id !== baseAssistantFolder.id;
+  const showEditDelete = canDropInto && !isSpecificBaseFolder(currentFolder.id, baseAssistantFolder.id) && !isSpecificBaseFolder(currentFolder.id, baseLayeredAssistantFolder.id);
   
 
   const handleEnterDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -163,12 +168,13 @@ const Folder = ({
   }, [selectedConversation, currentFolder]);
 
   useEffect(() => {
-    // Always keep today's folder open, otherwise respect the global folder state
-    if (isTodaysFolder) {
-      setIsOpen(true);
-    } else {
-      if (currentFolder.type === 'chat') setIsOpen(allFoldersOpenConvs);
-      if (currentFolder.type === 'prompt') setIsOpen(allFoldersOpenPrompts);
+    if (currentFolder.type === 'chat') setIsOpen(allFoldersOpenConvs);
+    if (currentFolder.type === 'prompt') {
+      // Only open folders that actually contain deletable items:
+      // skip group folders (managed via admin UI) and base/system folders
+      // (Custom Instructions, Amplify Helpers, layered_assistants base folder etc.)
+      const isOpenable = !currentFolder.isGroupFolder && !isBaseFolder(currentFolder.id);
+      if (isOpenable) setIsOpen(allFoldersOpenPrompts);
     }
   }, [allFoldersOpenConvs, allFoldersOpenPrompts, isTodaysFolder]);
 
@@ -242,21 +248,19 @@ const Folder = ({
             </div>
           ) : (
             <button
-              className={`enhanced-folder-title group flex w-full cursor-pointer items-center gap-3 rounded-lg text-sm transition-all duration-200 ${isOpen && !isTodaysFolder ? 'enhanced-folder-open' : ''} ${isTodaysFolder ? 'enhanced-today-folder py-0.5' : ''}`}
+              className={`enhanced-folder-title group flex w-full cursor-pointer items-center gap-3 text-sm transition-all duration-200 ${isOpen && !isTodaysFolder ? 'enhanced-folder-open' : ''} ${isTodaysFolder ? 'enhanced-today-folder py-0.5' : ''}`}
               id={"dropDown"}
               onClick={() => {
-                // Don't allow collapsing today's folder
-                if (isTodaysFolder && isOpen) return;
                 setIsOpen(!isOpen);
               }}
               onDrop={(e) => dropHandler(e)}
               onDragOver={allowDrop}
               onDragEnter={highlightDrop}
               onDragLeave={removeHighlight}
-              title={isTodaysFolder ? "Today folder (always expanded)" : (isOpen ? "Collapse folder" : "Expand folder")}
+              title={isOpen ? "Collapse folder" : "Expand folder"}
             >
-              {!isTodaysFolder && (
-                <div className="transition-transform duration-200 ease-in-out transform relative">
+
+              <div className="transition-transform duration-200 ease-in-out transform relative">
                   <div className="group absolute inset-0 bg-neutral-200 dark:bg-neutral-700/20 rounded-full opacity-0 scale-0 transition-all duration-300 group-hover:opacity-20 group-hover:scale-100"></div>
                   {isOpen ? (
                     currentFolder.pinned ?
@@ -267,7 +271,6 @@ const Folder = ({
                       : <IconCaretRight className='icon-pop-group flex flex-shrink-0' size={20} />
                   )}
                 </div>
-              )}
 
               <div 
                 id={"dropName"}
@@ -313,7 +316,7 @@ const Folder = ({
             </div>
           )}
 
-          { checkFolders && !isTodaysFolder &&  (
+          { checkFolders && !isTodaysFolder && showEditDelete && (
             <div className="relative flex items-center">
               <div key={currentFolder.id} className="absolute right-4 z-10">
                 <input

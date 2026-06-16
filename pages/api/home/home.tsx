@@ -5,6 +5,7 @@ import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
 import { SettingsBar } from "@/components/Settings/SettingsBar";
+import { StorageProgressBar } from "@/components/Settings/StorageProgressBar";
 import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
 import { getIsLocalStorageSelection, saveStorageSettings, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
 import cloneDeep from 'lodash/cloneDeep';
@@ -41,7 +42,6 @@ import { Prompt } from '@/types/prompt';
 
 import { Chat } from '@/components/Chat/Chat';
 import { Chatbar } from '@/components/Chatbar/Chatbar';
-import { Navbar } from '@/components/Mobile/Navbar';
 import Promptbar from '@/components/Promptbar';
 import {
     Icon3dCubeSphere,
@@ -68,8 +68,10 @@ import Loader from "@/components/Loader/Loader";
 import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
 import { AssistantGallery } from "@/components/AssistantGallery/AssistantGallery";
+import { NotebookApp } from "@/components/Notebook/NotebookApp";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
-import { deleteAssistant, listAssistants } from '@/services/assistantService';
+import { deleteAssistant, listAssistants, listLayeredAssistants } from '@/services/assistantService';
+import { LayeredAssistant } from '@/types/layeredAssistant';
 import { filterAstsByFeatureFlags, getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
 import { fetchAllRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
 import {killRequest as killReq} from "@/services/chatService";
@@ -77,11 +79,11 @@ import { addDateAttribute, getFullTimestamp, getDateName } from '@/utils/app/dat
 import HomeContext, {  ClickContext, Processor } from './home.context';
 import { ReservedTags } from '@/types/tags';
 import { noCoaAccount } from '@/types/accounts';
-import { noRateLimit } from '@/types/rateLimit';
+import { noRateLimit, normalizeRateLimits } from '@/types/rateLimit';
 import { fetchAstAdminGroups } from '@/services/groupsService';
 import { contructGroupData } from '@/utils/app/groups';
 import { getAllArtifacts } from '@/services/artifactsService';
-import { baseAssistantFolder, basePrompts, isBaseFolder, isOutDatedBaseFolder } from '@/utils/app/basePrompts';
+import { baseAssistantFolder, baseLayeredAssistantFolder, basePrompts, isBaseFolder, isOutDatedBaseFolder } from '@/utils/app/basePrompts';
 import { fetchUserSettings } from '@/services/settingsService';
 import { Settings } from '@/types/settings';
 import { getAvailableModels, getFeatureFlags, getPowerPoints, getUserAppConfigs } from '@/services/adminService';
@@ -254,7 +256,9 @@ const Home = ({
     useEffect(() => {
         const callbackUrl = router.query.callbackUrl as string;
         if (session && callbackUrl) {
-            router.push(callbackUrl);
+            if (callbackUrl.startsWith('/') && !callbackUrl.startsWith('//')) {
+                router.push(callbackUrl);
+            }
         }
     }, [session, router]);
 
@@ -475,8 +479,9 @@ const Home = ({
 
     // CONVERSATION OPERATIONS  --------------------------------------------
 
-    const handleNewConversation = async (params = {}) => {
-        dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
+    const handleNewConversation = async (params: any = {}) => {
+        const { assistant: paramAssistant, ...conversationParams } = params;
+        dispatch({ field: 'selectedAssistant', value: paramAssistant ?? DEFAULT_ASSISTANT });
         dispatch({ field: 'page', value: 'chat' })
 
         const lastConversation = conversationsRef.current[conversationsRef.current.length - 1];
@@ -502,7 +507,7 @@ const Home = ({
             promptTemplate: null,
             isLocal: getIsLocalStorageSelection(storageSelection),
             date: getFullTimestamp(),
-            ...params
+            ...conversationParams
         };
         if (isRemoteConversation(newConversation)) uploadConversation(newConversation, foldersRef.current);
 
@@ -839,9 +844,62 @@ const Home = ({
                     }
                     if (AdminConfigTypes.WEB_SEARCH in data) {
                         const webSearchData = data[AdminConfigTypes.WEB_SEARCH];
-                        if (webSearchData && webSearchData.allowUserWebSearchKeys !== undefined) {
-                            dispatch({ field: 'canAddWebSearchApiKey', value: webSearchData.allowUserWebSearchKeys });
+                        if (webSearchData) {
+                            // console.log("Web Search Data: ", webSearchData);
+                            if (webSearchData.allowUserWebSearchKeys !== undefined) {
+                                dispatch({ field: 'canAddWebSearchApiKey', value: webSearchData.allowUserWebSearchKeys });
+                            }
+                            
+                            if (webSearchData.webSearchUserMessage !== undefined) {
+                                dispatch({ field: 'webSearchUserMessage', value: webSearchData.webSearchUserMessage });
+                            }
+
                         }
+                        
+                    }
+                    if (AdminConfigTypes.USER_DOCUMENTATION_URL in data) {
+                        const docUrl = data[AdminConfigTypes.USER_DOCUMENTATION_URL];
+                        if (docUrl) {
+                            dispatch({ field: 'userDocumentationUrl', value: docUrl });
+                        }
+                    }
+                    if (AdminConfigTypes.DEFAULT_TIMEZONE in data) {
+                        const tz = data[AdminConfigTypes.DEFAULT_TIMEZONE];
+                        if (tz) {
+                            dispatch({ field: 'defaultTimezone', value: tz });
+                        }
+                    }
+                    if (AdminConfigTypes.RATE_LIMIT in data) {
+                        const rateLimitConfig = data[AdminConfigTypes.RATE_LIMIT];
+                        // New shape from backend: { limits, honorPersonalRateLimit }
+                        // Legacy shape: single object or array (no 'limits' key)
+                        const rawLimits = rateLimitConfig?.limits ?? rateLimitConfig;
+                        dispatch({ field: 'adminRateLimits', value: normalizeRateLimits(rawLimits) });
+                        if (rateLimitConfig?.honorPersonalRateLimit) {
+                            dispatch({ field: 'honorPersonalRateLimit', value: rateLimitConfig.honorPersonalRateLimit });
+                        }
+                    }
+                    // console.log("data", data);
+                    if ('groupRateLimits' in data) {
+                        const rawGroupLimits: Record<string, any> = data['groupRateLimits'] || {};
+                        const groupRateLimits = Object.entries(rawGroupLimits)
+                            .map(([groupName, rateLimit]) => ({
+                                groupName,
+                                limits: normalizeRateLimits(rateLimit).filter(
+                                    (l: any) => l && l.rate !== null && l.period !== 'Unlimited'
+                                ),
+                            }))
+                            .filter((g) => g.limits.length > 0);
+                            console.log("groupRateLimits", groupRateLimits);
+                        dispatch({ field: 'groupRateLimits', value: groupRateLimits });
+                    }
+                    if (AdminConfigTypes.DEFAULT_SMART_MESSAGES in data) {
+                        const defaultSmartMessages = data[AdminConfigTypes.DEFAULT_SMART_MESSAGES] as boolean;
+                        console.log("defaultSmartMessages", defaultSmartMessages);
+                        const updatedFlags = { ...featureFlagsRef.current, smartMessages: defaultSmartMessages };
+                        dispatch({ field: 'featureFlags', value: updatedFlags });
+                        // Re-derive settings so brand new users (no saved localStorage) get the admin default
+                        setSettings(getSettings(updatedFlags));
                     }
 
                 } else {
@@ -849,7 +907,8 @@ const Home = ({
                 }
             } catch (e) {
                 console.log("Failed to fetch user app configs: ", e);
-            }  
+            }
+
         };
 
         const fetchSettings = async () => {
@@ -918,7 +977,7 @@ const Home = ({
                 const result = await getFeatureFlags();
                 if (result.success && result.data) {
                     const flags: { [key:string] : boolean } = result.data;
-                    // console.log("feature flags:", flags)
+                    console.log("feature flags:", flags)
                     if (Object.keys(flags).length > 0) dispatch({ field: 'featureFlags', value: flags});
                     localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
                     return flags;
@@ -990,7 +1049,21 @@ const Home = ({
             return {updatedConversations: conversationsRef.current, updatedFolders, updatedPrompts};
         }
 
-        // return list of assistants 
+        // return list of layered assistants
+        const fetchLayeredAssistants = async () => {
+            try {
+                const result = await listLayeredAssistants();
+                if (result?.success && Array.isArray(result.data)) {
+                    dispatch({ field: 'layeredAssistants', value: result.data as LayeredAssistant[] });
+                }
+            } catch (e) {
+                console.log("Failed to list layered assistants: ", e);
+            } finally {
+                dispatch({ field: 'syncingLayeredAssistants', value: false });
+            }
+        };
+
+        // return list of assistants
         const fetchAssistants = async (promptList:Prompt[], foldersList: FolderInterface[]) => {
             console.log("Fetching Assistants...");
             try {
@@ -1062,6 +1135,9 @@ const Home = ({
                 dispatch({field: 'syncingConversations', value: false});
             }
 
+            // Fetch layered assistants (independent of the regular assistant fetch)
+            fetchLayeredAssistants();
+
             // Fetch assistants
             fetchAssistants(updatedPrompts, updatedFolders)
                     .then(assistantsResultPrompts => {
@@ -1091,9 +1167,9 @@ const Home = ({
                     saveFolders(updatedFolders);
 
                     const groupPrompts = filterAstsByFeatureFlags(groupsResult.groupPrompts, flags);
-                    updatedPrompts = [...updatedPrompts.filter((p : Prompt) => !p.groupId ), 
+                    updatedPrompts = [...updatedPrompts.filter((p : Prompt) => !p.groupId ),
                                         ...groupPrompts];
-                    
+
                     groupsLoaded = true;
                     console.log('sync groups complete');
                     checkAndFinalizeUpdates();
@@ -1219,6 +1295,8 @@ const Home = ({
                 // Make sure the "assistants" folder exists and create it if necessary
                 const assistantsFolder = updatedFolders.find((f:FolderInterface) => f.id === "assistants");
                 if (!assistantsFolder) updatedFolders.push( baseAssistantFolder );
+                const layeredAssistantsFolder = updatedFolders.find((f:FolderInterface) => f.id === "layered_assistants");
+                if (!layeredAssistantsFolder) updatedFolders.push( baseLayeredAssistantFolder );
                 
                 dispatch({ field: 'folders', value: updatedFolders});
                 folderIds = updatedFolders.map((f: FolderInterface) => f.id)
@@ -1352,8 +1430,24 @@ const Home = ({
         if (scrollableElement) {
             const hasScrollableContent = scrollableElement.scrollHeight > scrollableElement.clientHeight;
             dispatch({ field: 'hasScrolledToBottom', value: !hasScrollableContent });
+        } else {
+            // Element not yet in DOM; defer until dataDisclosure renders
+            dispatch({ field: 'hasScrolledToBottom', value: false });
         }
     };
+
+    useEffect(() => {
+        if (dataDisclosure?.html) {
+            // Re-check after the disclosure HTML has been rendered into the DOM
+            requestAnimationFrame(() => {
+                const scrollableElement = document.querySelector('.data-disclosure');
+                if (scrollableElement) {
+                    const hasScrollableContent = scrollableElement.scrollHeight > scrollableElement.clientHeight;
+                    dispatch({ field: 'hasScrolledToBottom', value: !hasScrollableContent });
+                }
+            });
+        }
+    }, [dataDisclosure]);
 
 
     if (session) {                          // dont want to go here if its null
@@ -1486,6 +1580,9 @@ const Home = ({
                     getDefaultModel
                 }}
             >
+                {/* Global Storage Progress Bar */}
+                <StorageProgressBar />
+
                 <Head>
                     <title>Amplify</title>
                     <meta name="description" content="ChatGPT but better." />
@@ -1499,14 +1596,7 @@ const Home = ({
                     <main
                         className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
                     >
-                        <div className="fixed top-0 w-full sm:hidden">
-                            <Navbar
-                                selectedConversation={selectedConversation}
-                                onNewConversation={handleNewConversation}
-                            />
-                        </div>
-
-                        <div className="flex h-full w-full pt-[48px] sm:pt-0">
+                        <div className="flex h-full w-full">
                             <UserMenu
                                 email={user?.email}
                                 name={session?.user?.name}
@@ -1515,13 +1605,15 @@ const Home = ({
                             />
 
 
-                            <TabSidebar
-                                side={"left"}
-                            >
-                                <Tab icon={<IconMessage />} title="Chats"><Chatbar /></Tab>
-                                <Tab icon={<IconSparkles />} title="Assistants"><Promptbar /></Tab>
-                                <Tab icon={<IconHammer />} title="Settings"><SettingsBar /></Tab>
-                            </TabSidebar>
+                            {page !== 'notebook' && (
+                                <TabSidebar
+                                    side={"left"}
+                                >
+                                    <Tab icon={<IconMessage />} title="Chats" onClick={() => dispatch({ field: 'page', value: 'chat' })}><Chatbar /></Tab>
+                                    <Tab icon={<IconSparkles />} title="Assistants" onClick={() => dispatch({ field: 'page', value: 'chat' })}><Promptbar /></Tab>
+                                    <Tab icon={<IconHammer />} title="Settings" onClick={() => dispatch({ field: 'page', value: 'chat' })}><SettingsBar /></Tab>
+                                </TabSidebar>
+                            )}
 
                             <div className="flex flex-1">
                                 {page === 'chat' && (
@@ -1537,6 +1629,9 @@ const Home = ({
                                 )}
                                 {page === 'assistantGallery' && (
                                     <AssistantGallery />
+                                )}
+                                {page === 'notebook' && featureFlags.notebook && (
+                                    <NotebookApp />
                                 )}
                             </div>
                             

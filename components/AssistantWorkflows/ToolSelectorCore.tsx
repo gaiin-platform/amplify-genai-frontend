@@ -139,9 +139,6 @@ export const ToolSelectorCore: React.FC<ToolSelectorCoreProps> = ({
         e.dataTransfer.setData('tool', JSON.stringify(serializableTool));
       } : undefined}
       onClick={handleSelect}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelect(); }}}
-      role="button"
-      tabIndex={0}
       className={`p-4 border rounded-lg transition-colors ${
         variant === 'panel' ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
       } ${
@@ -202,34 +199,31 @@ export const ToolSelectorCore: React.FC<ToolSelectorCoreProps> = ({
   );
 
   if (variant === 'panel') {
-    // Panel variant: Single scrollable area for everything
     return (
-      <div className={`flex-1 overflow-y-auto p-4 ${
-        isDarkMode ? 'bg-gray-50 dark:bg-gray-900/50' : 'bg-gray-50'
-      }`}>
-        <div className="space-y-4">
-          {/* Clear Search Button */}
-          {showClearSearch && (
-            <div className="flex justify-end">
-              <button
-                onClick={clearAllFilters}
-                className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-md transition-colors"
-                title="Reset all filters to show all available tools"
-              >
-                Clear All
-              </button>
-            </div>
-          )}
-          
-          {/* Category Filter */}
+      <div className="flex flex-col flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900/50">
+        {/* Filters — fixed at top */}
+        <div className="flex-shrink-0 p-4 space-y-3">
+          {/* Tool Type + Clear All on same row */}
           <div>
-            <label className="block text-xs font-semibold text-gray-800 dark:text-gray-200 mb-2">
-              Tool Type
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+                Tool Type
+              </label>
+              {showClearSearch && (
+                <button
+                  onClick={clearAllFilters}
+                  className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 underline transition-colors"
+                  title="Reset all filters"
+                >
+                  Clear All
+                </button>
+              )}
+            </div>
             <select
               value={selectedToolType}
               onChange={(e) => setSelectedToolType(e.target.value)}
               className="w-full px-3 py-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              title="Filter tools by type (API integrations, agent tools, etc.)"
+              title="Filter tools by type"
             >
               {categories.map(category => (
                 <option key={category} value={category}>
@@ -237,27 +231,25 @@ export const ToolSelectorCore: React.FC<ToolSelectorCoreProps> = ({
                 </option>
               ))}
             </select>
-            </label>
           </div>
-          
-          {/* Search Filter */}
+
+          {/* Search */}
           <div>
-            <label className="block text-xs font-semibold text-gray-800 dark:text-gray-200 mb-2">
+            <label className="block text-xs font-semibold text-gray-800 dark:text-gray-200 mb-1.5">
               Search Tools
+            </label>
             <div className="relative">
-              <IconSearch size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <IconSearch size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search tools..."
                 className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                title="Search by tool name, description, or tags"
               />
             </div>
-            </label>
           </div>
-          
+
           {/* Smart Tag Filter */}
           {showAdvancedFiltering && (
             <div title="Filter tools by functionality tags">
@@ -270,77 +262,57 @@ export const ToolSelectorCore: React.FC<ToolSelectorCoreProps> = ({
               />
             </div>
           )}
-          
-          {/* Selection Preview Section */}
+
+          {/* Selection Preview */}
           {allowMultiSelect && showSelectionPreview && (
-            <div className={`border-b p-4 ${
-              isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'
+            <div className={`rounded-lg border p-3 ${
+              isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
             }`}>
-              <h4 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${
+              <h4 className={`text-xs font-semibold mb-2 flex items-center gap-2 ${
                 isDarkMode ? 'text-white' : 'text-gray-900'
               }`}>
-                <IconTool size={16} />
+                <IconTool size={14} />
                 Selected Tools ({selectedTools.length})
               </h4>
-              
               {selectedTools.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {selectedTools.map(tool => (
-                    <div
-                      key={tool.id}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
-                        isDarkMode 
-                          ? 'bg-blue-900/30 border border-blue-700 text-blue-200' 
-                          : 'bg-blue-100 border border-blue-300 text-blue-800'
-                      }`}
-                    >
-                      <div className="flex-shrink-0">
-                        {tool.icon}
-                      </div>
-                      <span className="text-sm font-medium">
-                        {snakeCaseToTitleCase(tool.name)}
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveTool(tool);
-                        }}
-                        className={`ml-1 hover:bg-opacity-20 hover:bg-red-500 rounded-full p-1 transition-colors ${
-                          isDarkMode ? 'text-blue-300 hover:text-red-300' : 'text-blue-600 hover:text-red-600'
-                        }`}
-                      >
-                        <IconX size={14} />
+                    <div key={tool.id} className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs ${
+                      isDarkMode ? 'bg-blue-900/30 border border-blue-700 text-blue-200' : 'bg-blue-100 border border-blue-300 text-blue-800'
+                    }`}>
+                      <span className="font-medium">{snakeCaseToTitleCase(tool.name)}</span>
+                      <button onClick={(e) => { e.stopPropagation(); handleRemoveTool(tool); }} className="hover:text-red-500 transition-colors">
+                        <IconX size={12} />
                       </button>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  No tools selected yet. Click on tools below to add them to your workflow.
-                </div>
+                <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>No tools selected yet.</p>
               )}
             </div>
           )}
-          
-          {/* Tool List */}
+
+          {/* Available Tools header */}
+          <div className="flex items-center gap-2 pt-1 border-t border-gray-200 dark:border-gray-700">
+            <IconTool size={14} className="text-gray-500 dark:text-gray-400" />
+            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Available Tools</span>
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium">
+              {filteredTools.length}
+            </span>
+          </div>
+        </div>
+
+        {/* Tool list — fills remaining height */}
+        <div className="flex-1 overflow-y-auto px-4 pb-4">
           <div className="space-y-2">
-            <div className="text-sm font-semibold text-gray-900 dark:text-white border-t border-gray-300 dark:border-gray-600 pt-4 pb-2 flex items-center gap-2">
-              <IconTool size={16} className="text-gray-600 dark:text-gray-400" />
-              Available Tools 
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium">
-                {filteredTools.length}
-              </span>
-            </div>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {filteredTools.map(tool => {
-                const isSelected = isToolSelected(tool);
-                const handleSelect = () => handleToolSelect(tool);
-                
-                return renderTool 
-                  ? renderTool(tool, handleSelect, isSelected)
-                  : defaultToolRenderer(tool, handleSelect, isSelected);
-              })}
-            </div>
+            {filteredTools.map(tool => {
+              const isSelected = isToolSelected(tool);
+              const handleSelect = () => handleToolSelect(tool);
+              return renderTool
+                ? renderTool(tool, handleSelect, isSelected)
+                : defaultToolRenderer(tool, handleSelect, isSelected);
+            })}
           </div>
         </div>
       </div>
@@ -453,7 +425,7 @@ export const ToolSelectorCore: React.FC<ToolSelectorCoreProps> = ({
                     <div className="flex-shrink-0">
                       {tool.icon}
                     </div>
-                    <span className="text-sm font-medium">
+                    <span className="text-sm font-medium dark:text-blue-900">
                       {snakeCaseToTitleCase(tool.name)}
                     </span>
                     <button

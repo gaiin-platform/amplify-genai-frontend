@@ -1,6 +1,6 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
-import { IconPlus, IconEye, IconCopy, IconCheck, IconX, IconUser, IconEdit, IconArticle, IconRobot, IconLoader2, IconExclamationCircle } from "@tabler/icons-react";
+import { IconPlus, IconEye, IconCopy, IconCheck, IconX, IconUser, IconEdit, IconArticle, IconRobot, IconLoader2, IconExclamationCircle, IconCaretDown, IconCaretRight, IconSearch } from "@tabler/icons-react";
 import HomeContext from '@/pages/api/home/home.context';
 import ExpansionComponent from '../../Chat/ExpansionComponent';
 import { EmailsAutoComplete } from '@/components/Emails/EmailsAutoComplete';
@@ -24,7 +24,6 @@ import ActionButton from '@/components/ReusableComponents/ActionButton';
 import { InfoBox } from '@/components/ReusableComponents/InfoBox';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
 import { fetchFile } from '@/utils/app/files';
-import { ActiveTabs } from '@/components/ReusableComponents/ActiveTabs';
 import { IconRotateClockwise2 } from '@tabler/icons-react';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import { getUserMtdCosts } from '@/services/mtdCostService';
@@ -97,16 +96,42 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
     const [selectedAccount, setSelectedAccount] = useState<Account | null>(defaultAccount.name === noCoaAccount.name ? validAccounts[0] || null : defaultAccount);
 
     const editedKeysRef = useRef<any>({});
+    const delegateWrapperRef = useRef<HTMLDivElement>(null);
+    const appNameRef = useRef<HTMLTextAreaElement>(null);
 
     // Purpose filtering state
     const [selectedPurposeFilter, setSelectedPurposeFilter] = useState<string>("All");
     const [expandedKey, setExpandedKey] = useState<string | null>(null);
+
+    // Search / filter / sort state — Your Keys
+    const [keySearch, setKeySearch] = useState<string>('');
+    const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Inactive'>('All');
+    const [sortBy, setSortBy] = useState<'name' | 'lastAccessed' | 'expiration'>('name');
+
+    // Search / filter / sort state — Delegated Keys
+    const [delegateSearch, setDelegateSearch] = useState<string>('');
+    const [delegateStatusFilter, setDelegateStatusFilter] = useState<'All' | 'Active' | 'Inactive'>('All');
+    const [delegateSortBy, setDelegateSortBy] = useState<'name' | 'lastAccessed' | 'expiration'>('name');
+
+    // Search expand state
+    const [showKeySearch, setShowKeySearch] = useState<boolean>(false);
+    const [showDelegateSearch, setShowDelegateSearch] = useState<boolean>(false);
 
     // MTD Cost state
     const [mtdCostData, setMtdCostData] = useState<any>(null);
 
     const [fullAccess, setFullAccess] = useState<boolean>(true);
     const [options, setOptions] = useState<Record<string, boolean>>(cloneDeep(optionChoices));
+    const [showCreateForm, setShowCreateForm] = useState<boolean>(false);
+    const [showDelegate, setShowDelegate] = useState<boolean>(false);
+
+    useEffect(() => {
+        if (showCreateForm) {
+            const input = delegateWrapperRef.current?.querySelector('input');
+            if (input) input.blur();
+            appNameRef.current?.focus();
+        }
+    }, [showCreateForm]);
 
     const [documentComponent, setDocumentComponent] = useState<React.ReactElement | null>(null);
 
@@ -123,6 +148,46 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
             .map(key => key.purpose!)
             .filter((purpose, index, arr) => arr.indexOf(purpose) === index);
         return ["All", ...purposes];
+    };
+
+    // Returns filtered + sorted keys — works for both owner and delegate sections
+    const getFilteredSortedKeys = (
+        keys: ApiKey[],
+        search: string = keySearch,
+        status: 'All' | 'Active' | 'Inactive' = statusFilter,
+        sort: 'name' | 'lastAccessed' | 'expiration' = sortBy
+    ): ApiKey[] => {
+        let result = [...keys];
+
+        // Search
+        if (search.trim()) {
+            const q = search.trim().toLowerCase();
+            result = result.filter(k => k.applicationName?.toLowerCase().includes(q));
+        }
+
+        // Status
+        if (status === 'Active') result = result.filter(k => k.active);
+        else if (status === 'Inactive') result = result.filter(k => !k.active);
+
+        // Sort
+        result.sort((a, b) => {
+            if (sort === 'name') {
+                return (a.applicationName || '').localeCompare(b.applicationName || '');
+            }
+            if (sort === 'lastAccessed') {
+                const ta = a.lastAccessed ? new Date(a.lastAccessed).getTime() : 0;
+                const tb = b.lastAccessed ? new Date(b.lastAccessed).getTime() : 0;
+                return tb - ta;
+            }
+            if (sort === 'expiration') {
+                const ta = a.expirationDate ? new Date(a.expirationDate).getTime() : Infinity;
+                const tb = b.expirationDate ? new Date(b.expirationDate).getTime() : Infinity;
+                return ta - tb;
+            }
+            return 0;
+        });
+
+        return result;
     };
 
     // Helper function to group owner API keys by purpose
@@ -161,6 +226,10 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
             console.error('Error fetching MTD costs:', err);
         } 
     };
+
+    const getDisplayId = (userId: string) => {
+        return amplifyUsers[userId] || userId;
+    }
 
 
     // Get MTD cost for specific API key by matching api_owner_id to keyId after #
@@ -436,64 +505,63 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                     width={800}
                 />
             )}
-         <div className='flex flex-col gap-4 mx-2' > 
-            <div className="text-l text-black dark:text-neutral-200">
-            
-                <div className="accounts-info-banner">
-                    <div className="accounts-info-content">
-                        <h3 className="accounts-info-title flex flex-row items-center gap-3">API Key Management
-                            <div className="accounts-info-icon">🔐</div>
-                        </h3>
-                        <p className="accounts-info-description">
-                        API keys are used to authenticate and authorize access to specific Amplify services. You can create API keys for yourself and others.  
-                        <br className='mb-2'></br>
-                        <strong>Important:</strong> API keys are shown only once upon creation. Make sure to copy and store your API key securely as you will not be able to view it again. If you lose your API key, you can rotate it to generate a new key while preserving all associated data and settings.
-                        <br className='mb-2'></br>
-                        The following fields are editable for your active API keys: Account, Expiration, Rate Limit, and Access Types. Remove an expiration date by clearing the date in the calendar. Always remember to confirm and save your changes.
-                        You can automatically deactivate any active API key by clicking the active button with the green check mark.
-                        <br className='mb-1'></br>
-                        </p>
-                    </div>
+         <div className="accounts-settings-container mx-2">
+            <div className="accounts-info-banner flex-col" style={{position: 'relative'}}>
+                {/* Top row: title + resources */}
+                <div style={{position: 'absolute', top: '16px', right: '16px'}}>
+                    <APITools setDocumentElement={setDocumentComponent} onClose={handleClose}/>
+                </div>
+                <h3 className="accounts-info-title flex flex-row items-center gap-3 mb-2">
+                    API Key Management
+                    <span className="accounts-info-icon">🔐</span>
+                </h3>
+                {/* API Key Management */}
+                <div className="accounts-info-content">
+                    <p className="accounts-info-description">
+                        API keys are used to authenticate and authorize access to specific Amplify services. You can create API keys for yourself and others.
+                    </p>
+                    <p className="accounts-info-description mt-1">
+                        <strong>Important:</strong> API keys are shown only once upon creation. Make sure to copy and store your API key securely as you will not be able to view it again. If you lose your API key, you can <strong>rotate</strong> it to generate a new key while preserving all associated data and settings.
+                    </p>
+                    <p className="accounts-info-description mt-1">
+                        The following fields are editable for your active API keys: <strong>Account</strong>, <strong>Expiration</strong>, <strong>Rate Limit</strong>, and <strong>Access Types</strong>. Remove an expiration date by clearing the date in the calendar. Always remember to confirm and save your changes. You can automatically deactivate any active API key by clicking the active button with the green check mark.
+                    </p>
                 </div>
 
-                <InfoBox 
-                content={
-                    <span className="ml-2 text-xs"> 
-                        <div className='mb-2 ml-5 text-[0.8rem]'> {"Types of API Keys"}</div>
-                        {/* <br className='mb-1'></br> */}
-                        <div className='mt-1 flex flex-row gap-2'>          
-                            <IconUser className='flex-shrink-0' style={{ strokeWidth: 2.5}} size={16}/>
-                            Personal Use
-                            <br className='mb-1'></br>
-                            A Personal API Key allows you to interact directly with your Amplify account. This key acts on your behalf, granting access to all the data and permissions associated with your account. Use this key when you need to perform tasks or retrieve information as yourself within the Amplify environment.
-                        </div>
-                        <div className='mt-1 flex flex-row gap-2'> 
-                            <IconUser className='flex-shrink-0 text-green-600' style={{ strokeWidth: 2.5 }} size={16}/>
-                            System Use
-                            <br className='mb-1'></br>
-                            A System API Key operates independently of any individual user account. It comes with its own set of permissions and behaves as though it is a completely separate account. This type of key is ideal for automated processes or applications that need their own dedicated permissions and do not require access linked to any specific user.
-                        </div>
-                        <div className='mt-1 flex flex-row gap-2'> 
-                            <IconUser className='flex-shrink-0 text-yellow-500' style={{ strokeWidth: 2.5 }} size={16}/>
-                            Delegate Use
-                            <br className='mb-1'></br>
-                            A Delegate API Key is like a personal key for another Amplify user, but with your account being responsible for the associated payments. This type of key is useful when you want to grant someone else access or certain capabilities within their own Amplify account while ensuring that the billing responsibility falls on your account. You will not be able to see this API key at any time.
-                        </div>
-                        <div className='mt-2 text-black dark:text-neutral-200 text-sm text-center'> {"*** If your key has been compromised, rotate or deactivate it as soon as possible ***"} </div>
-                        
-                    </span>}
-                />
-                <div className='z-60'> 
-                   <APITools setDocumentElement={setDocumentComponent} onClose={handleClose}/> 
+                {/* Types of API Keys */}
+                <div className="mt-3 space-y-2.5 text-xs text-neutral-500 dark:text-neutral-400">
+                    <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Types of API Keys</p>
+                    <div className="flex flex-row gap-2 items-start">
+                        <IconUser className='flex-shrink-0 mt-0.5' style={{ strokeWidth: 2.5 }} size={14}/>
+                        <span><span className="font-semibold">Personal Use</span> — A Personal API Key allows you to interact directly with your Amplify account. This key acts on your behalf, granting access to all the data and permissions associated with your account. Use this key when you need to perform tasks or retrieve information as yourself within the Amplify environment.</span>
+                    </div>
+                    <div className="flex flex-row gap-2 items-start">
+                        <IconUser className='flex-shrink-0 mt-0.5 text-green-600' style={{ strokeWidth: 2.5 }} size={14}/>
+                        <span><span className="font-semibold">System Use</span> — A System API Key operates independently of any individual user account. It comes with its own set of permissions and behaves as though it is a completely separate account. This type of key is ideal for automated processes or applications that need their own dedicated permissions and do not require access linked to any specific user.</span>
+                    </div>
+                    <div className="flex flex-row gap-2 items-start">
+                        <IconUser className='flex-shrink-0 mt-0.5 text-yellow-500' style={{ strokeWidth: 2.5 }} size={14}/>
+                        <span><span className="font-semibold">Delegate Use</span> — A Delegate API Key is like a personal key for another Amplify user, but with your account being responsible for the associated payments. This type of key is useful when you want to grant someone else access or certain capabilities within their own Amplify account while ensuring that the billing responsibility falls on your account. You will not be able to see this API key at any time.</span>
+                    </div>
+                    <p className="pt-1 font-semibold text-amber-600 dark:text-amber-400">⚠ If your key has been compromised, rotate or deactivate it as soon as possible.</p>
                 </div>
-                
 
             </div>
-            <div className='border p-2 border-gray-400 dark:border-gray-700 rounded custom-shadow' >
-                <ExpansionComponent 
-                    title={'Create API Key'} 
-                    content={
-                        <div className='flex flex-col gap-2 '>
+            <div className="settings-card">
+                <div
+                    className="settings-card-header cursor-pointer select-none"
+                    style={{ justifyContent: 'space-between' }}
+                    onClick={() => setShowCreateForm(v => !v)}
+                    title={showCreateForm ? 'Collapse form' : 'Expand form'}
+                >
+                    <div>
+                        <h3 className="settings-card-title">Create API Key</h3>
+                        <p className="settings-card-description">Fill in the details below to generate a new key.</p>
+                    </div>
+                    {showCreateForm ? <IconCaretDown size={16} className="text-neutral-400 flex-shrink-0" /> : <IconCaretRight size={16} className="text-neutral-400 flex-shrink-0" />}
+                </div>
+                {showCreateForm && <div className="settings-card-content">
+                        <div className='flex flex-col gap-2'>
                                                  <>
                         {isCreating && (
                             createPortal(
@@ -510,13 +578,14 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
 
                             <div className='flex flex-col  gap-2 w-full '>
 
-                                   <div className='flex flex-row justify-between'>
+                                   <div className='flex flex-row gap-6 flex-wrap items-center'>
                                         <div className='flex flex-col pb-1 sm:min-w-[340px]' style={{width: `${window.innerWidth * 0.35 }px` }}>
-                                            <div className="text-sm text-black dark:text-neutral-200">
+                                            <div className="text-sm font-medium text-black dark:text-neutral-200">
                                                 {t('Application Name')}
                                             </div>
 
                                             <textarea
+                                                ref={appNameRef}
                                                 className= "mt-2 rounded-md border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100"
                                                 style={{resize: 'none'}}
                                                 id="applicationName"
@@ -527,23 +596,37 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                             />
                                         </div>
 
-                                        <div className='ml-8 mr-8 relative sm:min-w-[300px] sm:max-w-[440px]' style={{width: `${window.innerWidth * 0.35 }px` }}>
-
-                                            <ExpansionComponent 
-                                                title={'Add Delegate'} 
-                                                content={ 
-                                                    <div >
+                                        <div className='flex flex-col sm:min-w-[300px] sm:max-w-[440px] ml-6' style={{width: `${window.innerWidth * 0.35 }px` }}>
+                                            {!showDelegate ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowDelegate(true)}
+                                                    className="self-start flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 border border-neutral-300 dark:border-neutral-600 rounded px-2 py-1"
+                                                    title="Add a delegate user"
+                                                >
+                                                    <IconPlus size={14}/> Add Delegate
+                                                </button>
+                                            ) : (
+                                                <>
+                                                    <div className="flex flex-row items-center gap-2 text-sm font-medium text-black dark:text-neutral-200">
+                                                        Delegate
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { setShowDelegate(false); setDelegateInput(''); }}
+                                                            className="text-xs text-neutral-400 hover:text-red-500 dark:hover:text-red-400"
+                                                            title="Remove delegate"
+                                                        >✕</button>
+                                                    </div>
+                                                    <div ref={delegateWrapperRef} className="mt-2 [&_input]:!border-neutral-300 [&_input]:dark:!border-neutral-600">
                                                         <EmailsAutoComplete
-                                                            input = {delegateInput}
-                                                            setInput =  {setDelegateInput}
-                                                            allEmails = {allEmails}
+                                                            input={delegateInput}
+                                                            setInput={setDelegateInput}
+                                                            allEmails={allEmails}
                                                             addMultipleUsers={false}
-
                                                         />
                                                     </div>
-                                                }
-                                                closedWidget= { <IconPlus size={18} />}
-                                            />
+                                                </>
+                                            )}
                                         </div>
                                    </div>
 
@@ -564,6 +647,12 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                             
                             </div>
 
+                            {validAccounts.length === 0 && (
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-sm mr-6">
+                                    <span className="text-base">⚠️</span>
+                                    <span>No billing accounts found. <strong>Add an account</strong> in the Accounts tab before creating a key.</span>
+                                </div>
+                            )}
                             <div className='flex flex-row gap-2 mr-6'>
                                 <label className="text-sm mt-1 w-[48px] ml-2 " htmlFor="BillTo">Bill To</label>
                                 <AccountSelect
@@ -573,18 +662,19 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                 />
                                 </div>
                             
-                            <div className='flex flex-row justify-between mx-8 py-1'>
-                                <div className='flex flex-row gap-4 items-center' style={{ width: '240px', whiteSpace: 'nowrap', overflowWrap: 'break-word'}}>
-                                    <label className="text-sm " htmlFor="rateLimitType">Rate Limit</label>
-                                    <RateLimiter
-                                        period={rateLimitPeriod}
-                                        setPeriod={setRateLimitPeriod}
-                                        rate={rateLimitRate}
-                                        setRate={setRateLimitRate}
-                                    />
-                                 </div>
-
-                                <div className='flex flex-row items-center' style={{width: '296px', whiteSpace: 'nowrap', overflowWrap: 'break-word'}}> 
+                            <div className='flex flex-col py-1 ml-8'>
+                                <div className='flex flex-row justify-between'>
+                                    <div className='flex flex-row gap-2 items-center flex-shrink-0 flex-nowrap' style={{width: '280px'}}>
+                                        <span className="text-sm">Rate Limit</span>
+                                        <RateLimiter
+                                            period={rateLimitPeriod}
+                                            setPeriod={setRateLimitPeriod}
+                                            rate={rateLimitRate}
+                                            setRate={setRateLimitRate}
+                                            allowUnlimited={true}
+                                        />
+                                    </div>
+                                    <div className='flex flex-row items-center' style={{width: '296px', whiteSpace: 'nowrap', overflowWrap: 'break-word'}}>
                                     <div className='mt-1'> <Checkbox
                                             id={`expirationDate`}
                                             label={'Set Expiration Date'}
@@ -601,27 +691,30 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                             min={today}
                                             onChange={(e) => setSelectedDate(e.target.value)}
                                         />}
-                                </div>
+                                    </div>
 
-                                
-                                <div className='mt-1 mr-6 w-[140px]' title='If the API key is not for personal use' >
-                                   {delegateInput.length === 0 ?
-                                       <Checkbox
-                                            id={`SystemUse`}
-                                            label={'For System Use'}
-                                            checked={systemUse}
-                                            onChange={(checked:boolean) => setSystemUse(checked)}
-                                        />
-                                    : <></>}
+
+                                    <div
+                                        className='mt-1 mr-6 w-[140px]'
+                                        title={delegateInput.length > 0 ? 'System use is not available when a delegate is set' : 'Mark this key as a system key — not tied to any individual user'}
+                                    >
+                                        <div className={delegateInput.length > 0 ? 'opacity-40 cursor-not-allowed pointer-events-none select-none' : ''}>
+                                            <Checkbox
+                                                id={`SystemUse`}
+                                                label={'For System Use'}
+                                                checked={systemUse}
+                                                onChange={(checked:boolean) => setSystemUse(checked)}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
-                                
                                 
                             </div>
                             <div className='flex flex-row py-1 '>
                                 <div className='py-1 w-full' title='Full Access is the default configuration.'>
-                                    <ExpansionComponent 
-                                                title={'Access Controls'} 
-                                                content={ 
+                                    <ExpansionComponent
+                                                title={`Access Controls — ${fullAccess ? 'Full Access' : Object.keys(options).filter(k => options[k]).map(k => formatAccessType(k)).join(', ') || 'None'}`}
+                                                content={
                                                     <AccessTypesCheck
                                                      fullAccess={fullAccess}
                                                      setFullAccess={setFullAccess}
@@ -634,20 +727,18 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
 
                                 <button
                                     type="button"
-                                    title='Create Api Key'
+                                    title={!selectedAccount ? 'Add a billing account before creating a key' : 'Create API Key'}
                                     id="createAPIKeyConfirm"
-                                    className={`ml-auto mr-6 mt-4 px-2 py-1.5 text-white rounded bg-neutral-600 hover:bg-${!selectedAccount ? 'red': 'green'}-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500`}
+                                    disabled={!selectedAccount}
+                                    className={`ml-auto mr-6 mt-4 px-2 py-1.5 text-white rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500 transition-colors ${
+                                        !selectedAccount
+                                            ? 'bg-neutral-400 dark:bg-neutral-600 cursor-not-allowed opacity-60'
+                                            : 'bg-neutral-600 hover:bg-red-700 cursor-pointer'
+                                    }`}
                                     style= {{width: '146px', height: '36px'}}
-                                    onClick={() => {
-                                        if (!selectedAccount) {
-                                            alert("Please add an account with a valid COA string to create an API key.")
-                                        } else {
-                                           handleCreateApiKey();
-                                        }
-                                        
-                                    }}
+                                    onClick={() => handleCreateApiKey()}
                                 >
-                                    <div className=' flex flex-row gap-2 mr-1 truncate'> 
+                                    <div className=' flex flex-row gap-2 mr-1 truncate'>
                                     <IconPlus size={20} />
                                     Create Key
                                     </div>
@@ -655,63 +746,105 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                             </div>
 
                         </div>
-                    }   
-                    closedWidget= { <IconPlus size={18} />}                            
-
-                    />
+                </div>}
             </div>
-            
-            <div>
-                <div className='flex flex-row'>
-                    <div className="w-full text-lg text-black dark:text-neutral-200 border-b border-gray-400 ">
-                            Your API Keys
+
+            <div className="settings-card">
+                <div className="settings-card-header" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                        <h3 className="settings-card-title">Your API Keys</h3>
+                        <p className="settings-card-description">Keys you own. Click a key to view or edit its details.</p>
                     </div>
-                     {/* Purpose Filter */}
-                     {getAvailablePurposes().length > 1 && (
-                             <div className="absolute right-6  ml-auto pl-2 flex flex-row items-center gap-2">
-                                  <label className="text-sm font-medium dark:text-neutral-200 whitespace-nowrap">
-                                      Filter by purpose
-                                      <select
-                                          className="w-auto px-2 py-1 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white ml-2"
-                                          value={selectedPurposeFilter}
-                                          onChange={(e) => setSelectedPurposeFilter(e.target.value)}
-                                      >
-                                          {getAvailablePurposes().map((purpose, i) => (
-                                              <option key={i} value={purpose}>
-                                                  {purpose === 'All' ? 'All' : formatPurpose(purpose)}
-                                              </option>
-                                          ))}
-                                      </select>
-                                  </label>
-                            </div>
+                    {/* Inline toolbar on the right of heading */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                        {showKeySearch && (
+                            <input
+                                type="text"
+                                placeholder="Search…"
+                                value={keySearch}
+                                onChange={e => setKeySearch(e.target.value)}
+                                autoFocus
+                                onBlur={() => { if (!keySearch) setShowKeySearch(false); }}
+                                className="w-[160px] px-3 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                            />
                         )}
+                        <button
+                            onClick={() => setShowKeySearch(v => !v)}
+                            title="Search"
+                            className={`p-1.5 rounded-md transition-colors ${
+                                showKeySearch || keySearch
+                                    ? 'text-blue-600 dark:text-blue-400'
+                                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
+                            }`}
+                        >
+                            <IconSearch size={16} />
+                        </button>
+                        <div className="flex items-center rounded-md border border-neutral-500 dark:border-neutral-700 overflow-hidden text-sm">
+                            {(['All', 'Active', 'Inactive'] as const).map(s => (
+                                <button
+                                    key={s}
+                                    onClick={() => setStatusFilter(s)}
+                                    className={`px-3 py-1.5 transition-colors ${
+                                        statusFilter === s
+                                            ? 'bg-neutral-600 text-white'
+                                            : 'bg-neutral-100 dark:bg-[#2a2b32] text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+                                    }`}
+                                >{s}</button>
+                            ))}
+                        </div>
+                        <select
+                            value={sortBy}
+                            onChange={e => setSortBy(e.target.value as any)}
+                            className="px-2 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                        >
+                            <option value="name">Name</option>
+                            <option value="lastAccessed">Last Accessed</option>
+                            <option value="expiration">Expiration</option>
+                        </select>
+                        {getAvailablePurposes().length > 1 && (
+                            <select
+                                className="px-2 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                                value={selectedPurposeFilter}
+                                onChange={(e) => setSelectedPurposeFilter(e.target.value)}
+                            >
+                                {getAvailablePurposes().map((purpose, i) => (
+                                    <option key={i} value={purpose}>
+                                        {purpose === 'All' ? 'All Types' : formatPurpose(purpose)}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
+                    </div>
                 </div>
-                
+                <div className="settings-card-content">
                 {isLoading ? <div className="flex items-center justify-center py-8">
                             <IconLoader2 size={24} className="animate-spin text-gray-500 mr-2" />
                             <span>{"Loading API Keys..."}</span>
                         </div> : (
                 <div className='overflow-x-auto'>
                 {ownerApiKeys && ownerApiKeys.length === 0 ? (
-                    <div className="text-center text-md italic text-black dark:text-neutral-200">
+                    <div className="text-center text-sm italic text-neutral-400 dark:text-neutral-500 py-3">
                         You do not have any API keys set up. Add one above.
                     </div>
-                ) : ( 
+                ) : (
                     <div className='flex flex-col gap-4'>
                         {/* API Keys Display */}
-                        {Object.entries(getOwnerApiKeysByPurpose())
-                            .filter(([purpose, _]) => selectedPurposeFilter === "All" || purpose === selectedPurposeFilter)
-                            .map(([purpose, keys]) => (
-                                <div key={purpose} className="space-y-2">
-                                    {selectedPurposeFilter === "All" && purpose && (
-                                        <div className="flex flex-row gap-2 text-sm font-semibold justify-center text-neutral-400 dark:text-neutral-500 border-b border-neutral-500 pb-1">
-                                            {formatPurpose(purpose)} Keys
-                                        </div>
-                                    )}
-                                    
+                        {(() => {
+                            const filtered = getFilteredSortedKeys(
+                                Object.entries(getOwnerApiKeysByPurpose())
+                                    .filter(([purpose]) => selectedPurposeFilter === "All" || purpose === selectedPurposeFilter)
+                                    .flatMap(([, keys]) => keys)
+                            );
+                            if (filtered.length === 0) return (
+                                <div className="text-center text-sm italic text-neutral-400 dark:text-neutral-500 py-4">
+                                    No keys match your filters.
+                                </div>
+                            );
+                            return (
+                                <div className="space-y-2">
                                     {/* Modern Card Layout */}
                                     <div className="apikeys-grid">
-                                        {keys.map((apiKey: ApiKey, index: number) => {
+                                        {filtered.map((apiKey: ApiKey, index: number) => {
                                             const isExpanded = expandedKey === apiKey.api_owner_id;
                                             return (
                                             <div key={apiKey.api_owner_id}
@@ -727,17 +860,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                         e.preventDefault();
                                                         e.stopPropagation();
                                                         setExpandedKey(isExpanded ? null : apiKey.api_owner_id);
-                                                    }}
-                                                     onKeyDown={(e) => {
-                                                        if (e.key === 'Enter' || e.key === ' ') {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            setExpandedKey(isExpanded ? null : apiKey.api_owner_id);
-                                                        }
-                                                    }}
-                                                     role="button"
-                                                     tabIndex={0}
-                                                >
+                                                    }}>
                                                     <div className='flex items-center gap-3 flex-1 min-w-0'>
                                                         <IconUser 
                                                             style={{ strokeWidth: 2.5 }} 
@@ -749,12 +872,12 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                             <div className="apikeys-item-name flex items-center">
                                                                 {apiKey.applicationName}
                                                                 {apiKey.systemId && <label className={`ml-4 text-green-700 text-xs`}> System ID: {apiKey.systemId}</label>}
-                                                                {apiKey.delegate && <label className={`ml-4 text-amber-500 text-xs`}> Delegate: {apiKey.delegate}</label>}
+                                                                {apiKey.delegate && <label className={`ml-4 text-amber-500 text-xs`}> Delegate: {getDisplayId(apiKey.delegate)}</label>}
                                                                 {mtdDisplay(apiKey)}
                                                             </div>
                                                             <div className='apikeys-item-summary'>
                                                                 <span>{apiKey.account ? `• ${apiKey.account.name}` : '• No Account'}</span>
-                                                                {apiKey.expirationDate && <>•<span className={isExpired(apiKey.expirationDate) ? "text-red-600": ""}>Expires: {formatDateYMDToMDY(apiKey.expirationDate)}</span></>}
+                                                                {apiKey.expirationDate && <>•<span className={isExpired(apiKey.expirationDate) ? "text-red-600": ""}>{isExpired(apiKey.expirationDate) ? 'Expired:' : 'Expires:'} {formatDateYMDToMDY(apiKey.expirationDate)}</span></>}
                                                                 {apiKey.lastAccessed && <>•<span>Last Accessed: {userFriendlyDate(apiKey.lastAccessed)}</span></>}
                                                                 
                                                             </div>
@@ -830,26 +953,92 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                         )}
                                                 </div>
                                             </div>
-                                        )})}
+                                            );
+                                        })}
                                     </div>
                                 </div>
-                            ))}
+                            );
+                        })()}
                     </div>
                 )}
                 </div>
                 )}
 
-
-
-            </div>
-            <div>
-                {delegateApiKeys && delegateApiKeys.length > 0 &&
-                <>
-                <div className="text-lg text-black dark:text-neutral-200 border-b">
-                        Delegated API Keys
                 </div>
-                <div className="apikeys-grid">
-                    {delegateApiKeys.map((apiKey: ApiKey) => {
+            </div>
+
+            <div className="settings-card">
+                <div className="settings-card-header" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                        <h3 className="settings-card-title">Delegated API Keys</h3>
+                        <p className="settings-card-description">Keys created by others and assigned to you. Billing is charged to the key owner&apos;s account.</p>
+                    </div>
+                    {/* Inline toolbar — only shown when there are delegated keys */}
+                    {delegateApiKeys && delegateApiKeys.length > 0 && (
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                        {showDelegateSearch && (
+                            <input
+                                type="text"
+                                placeholder="Search…"
+                                value={delegateSearch}
+                                onChange={e => setDelegateSearch(e.target.value)}
+                                autoFocus
+                                onBlur={() => { if (!delegateSearch) setShowDelegateSearch(false); }}
+                                className="w-[160px] px-3 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                            />
+                        )}
+                        <button
+                            onClick={() => setShowDelegateSearch(v => !v)}
+                            title="Search"
+                            className={`p-1.5 rounded-md transition-colors ${
+                                showDelegateSearch || delegateSearch
+                                    ? 'text-blue-600 dark:text-blue-400'
+                                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
+                            }`}
+                        >
+                            <IconSearch size={16} />
+                        </button>
+                        <div className="flex items-center rounded-md border border-neutral-500 dark:border-neutral-700 overflow-hidden text-sm">
+                            {(['All', 'Active', 'Inactive'] as const).map(s => (
+                                <button
+                                    key={s}
+                                    onClick={() => setDelegateStatusFilter(s)}
+                                    className={`px-3 py-1.5 transition-colors ${
+                                        delegateStatusFilter === s
+                                            ? 'bg-neutral-600 text-white'
+                                            : 'bg-neutral-100 dark:bg-[#2a2b32] text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+                                    }`}
+                                >{s}</button>
+                            ))}
+                        </div>
+                        <select
+                            value={delegateSortBy}
+                            onChange={e => setDelegateSortBy(e.target.value as any)}
+                            className="px-2 py-1.5 text-sm rounded-md border border-neutral-500 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2a2b32] text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                        >
+                            <option value="name">Name</option>
+                            <option value="lastAccessed">Last Accessed</option>
+                            <option value="expiration">Expiration</option>
+                        </select>
+                    </div>
+                    )}
+                </div>
+                <div className="settings-card-content">
+                {(!delegateApiKeys || delegateApiKeys.length === 0) ? (
+                    <div className="text-center text-sm italic text-neutral-400 dark:text-neutral-500 py-3">
+                        No keys have been delegated to you. Keys created by others for your account will appear here.
+                    </div>
+                ) : (
+                <>
+                {(() => {
+                    const filteredDelegates = getFilteredSortedKeys(delegateApiKeys, delegateSearch, delegateStatusFilter, delegateSortBy);
+                    if (filteredDelegates.length === 0) return (
+                        <div className="text-center text-sm italic text-neutral-400 dark:text-neutral-500 py-4">
+                            No delegated keys match your filters.
+                        </div>
+                    );
+                    return (<div className="apikeys-grid">
+                    {filteredDelegates.map((apiKey: ApiKey) => {
                         const isExpanded = expandedKey === apiKey.api_owner_id;
                         return (
                         <div key={apiKey.api_owner_id}
@@ -865,17 +1054,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                     e.preventDefault();
                                     e.stopPropagation();
                                     setExpandedKey(isExpanded ? null : apiKey.api_owner_id);
-                                 }}
-                                 onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setExpandedKey(isExpanded ? null : apiKey.api_owner_id);
-                                    }
-                                 }}
-                                 role="button"
-                                 tabIndex={0}
-                            >
+                                 }}>
                                 <div className='flex items-center gap-3 flex-1 min-w-0'>
                                     <IconUser 
                                         style={{ strokeWidth: 2.5 }} 
@@ -885,11 +1064,11 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                     <div className='flex flex-col flex-1 min-w-0'>
                                         <div className="apikeys-item-name">
                                             {apiKey.applicationName}
-                                            <label className={`ml-4 text-gray-400 text-xs`}> Owner: {apiKey.owner}</label>
+                                            <label className={`ml-4 text-gray-400 text-xs`}> Owner: {getDisplayId(apiKey.owner)}</label>
                                             {mtdDisplay(apiKey)}
                                         </div>
                                         <div className='apikeys-item-summary'>
-                                            {apiKey.expirationDate && <>•<span className={isExpired(apiKey.expirationDate) ? "text-red-600": ""}>Expires: {formatDateYMDToMDY(apiKey.expirationDate)}</span></>}
+                                            {apiKey.expirationDate && <>•<span className={isExpired(apiKey.expirationDate) ? "text-red-600": ""}>{isExpired(apiKey.expirationDate) ? 'Expired:' : 'Expires:'} {formatDateYMDToMDY(apiKey.expirationDate)}</span></>}
                                             {apiKey.lastAccessed && <>•<span>Last Accessed: {userFriendlyDate(apiKey.lastAccessed)}</span></>}
 
                                         </div>
@@ -904,7 +1083,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                 <div className="apikeys-item-details">
                                     <div>
                                         <span className="apikeys-item-label">Owner:</span>
-                                        <Label label={apiKey.owner} />
+                                        <Label label={getDisplayId(apiKey.owner)} />
                                     </div>
                                     
                                     <div>
@@ -944,18 +1123,16 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                             </div>
                         </div>
                     )})}
-                </div>
+                    </div>);
+                })()}
                 </>
-                }
+                )}
+                </div>
             </div>
-            </div>
-
-            <br className='mb-20'></br>
-            <br className='mb-20'></br>
-           
 
         </div>
-                        
+        </div>
+
     );
 };
 
@@ -1200,10 +1377,8 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
 
     const formattedLabel = displayLabel && isDate? displayLabel?.replace(' at ', ' \n at ') : displayLabel;
 
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     return (
         <div
-            role="group"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             ref={labelRef}
@@ -1252,6 +1427,7 @@ const Label: FC<LabelProps> = ({ label, widthPx='full', textColor, editableField
                     setPeriod={setRateLimitPeriod}
                     rate={rateLimitRate}
                     setRate={setRateLimitRate}
+                    allowUnlimited={true}
                 />
             </div>)}
             {editableField && editableField === 'accessTypes' && (
@@ -1368,7 +1544,6 @@ const AccessTypesCheck: FC<AccessProps> = ({fullAccess, setFullAccess, options, 
 }
 
 
-
 interface ToolsProps {
     setDocumentElement: (e: React.ReactElement | null) => void;
     onClose: () => void;
@@ -1376,8 +1551,7 @@ interface ToolsProps {
 
 
 const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
-    const { state: {prompts, statsService}, dispatch: homeDispatch, handleNewConversation} = useContext(HomeContext);
-
+    const { state: {prompts, statsService, groups, availableModels}, dispatch: homeDispatch, handleNewConversation} = useContext(HomeContext);
     const promptsRef = useRef(prompts);
 
     useEffect(() => {
@@ -1388,14 +1562,36 @@ const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
     const csvUrlRef = useRef<string | undefined>(undefined);
     const postmanUrlRef = useRef<string | undefined>(undefined);
     const fileContentsRef = useRef<any>(undefined);
-   
+
     const showDocsRef = useRef<boolean | null>(null);
     // prevent recalling the getSettings function
     if (showDocsRef.current === null) showDocsRef.current = false;
-    
-    const [keyManager, setKeyManager] = useState<Prompt | undefined>(promptsRef.current.find((a: Prompt) => a.data?.tags && a.data.tags.includes(ReservedTags.ASSISTANT_API_KEY_MANAGER)));
-    const [apiAst, setApiAst] = useState<Prompt | undefined>(promptsRef.current.find((a: Prompt) => a.data?.tags && a.data.tags.includes(ReservedTags.ASSISTANT_API_HELPER)));
 
+    // Helper function to find assistants in AmplifyAssistants groups
+    const findAssistantByTag = (tag: string): Prompt | undefined => {
+        if (!groups) return undefined;
+
+        for (const group of groups) {
+            // Check if this is an AmplifyAssistants group
+            if (group.id?.startsWith('AmplifyAssistants_') && group.assistants) {
+                // Search through assistants in this group
+                const assistant = group.assistants.find((a: Prompt) =>
+                    a.data?.tags && a.data.tags.includes(tag)
+                );
+                if (assistant) return assistant;
+            }
+        }
+        return undefined;
+    };
+
+    const [keyManager, setKeyManager] = useState<Prompt | undefined>(findAssistantByTag(ReservedTags.ASSISTANT_API_KEY_MANAGER));
+    const [apiAst, setApiAst] = useState<Prompt | undefined>(findAssistantByTag(ReservedTags.ASSISTANT_API_HELPER));
+
+    // Update assistants when groups change
+    useEffect(() => {
+        setKeyManager(findAssistantByTag(ReservedTags.ASSISTANT_API_KEY_MANAGER));
+        setApiAst(findAssistantByTag(ReservedTags.ASSISTANT_API_HELPER));
+    }, [groups]);
 
     const isUrlExpired = (url: string): boolean => {
         const regex = /Expires=(\d+)/;
@@ -1443,7 +1639,7 @@ const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
             homeDispatch({field: 'selectedAssistant', value: startPrompt.data.assistant});
         }
         statsService.startConversationEvent(startPrompt);
-        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt);
+        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, startPrompt, availableModels);
         onClose();
     }
 
@@ -1455,125 +1651,87 @@ const APITools: FC<ToolsProps> = ({setDocumentElement, onClose}) => {
 
 
     const documentComponent = (loading: boolean) => {
-        return (<>
-             {loading ? (
-                    <div className="p-3 flex flex-row items-center">
-                        <LoadingIcon style={{ width: "24px", height: "24px" }}/>
-                        <span className="text-lg font-bold ml-2 text-neutral-600 dark:text-white">Loading API Documentation...</span>
-                    </div>
-            ) : (
-                <div>
-                <div className='absolute top-[130px] h-[100px] bg-pink-100 dark:bg-[#2b2c36]'> </div>
-                <ActiveTabs
-                onClose={() => {
-                    showDocsRef.current = false;
-                    setDocumentElement(null)
-                }}
-                id="ApiDocumentationTabs"
-                depth={1}
-                tabs={[
-
-                {label: `API Documentation`, 
-                title: "View Amplify API",
-                id: "viewAmplifyAPI",
-                content:
-                <div>
-                {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
-                <iframe
-                    src={fileContentsRef.current}
-                    title="Amplify API documentation"
-                    width={`${window.innerWidth * .85 }px`}
-                    height={`${window.innerHeight * 0.5}px`}
-                    onError={() => docError()}
-                    role="application"
-                    style={{ border: 'none' }} />   
-                </div>},
-                   {label: `Downloads`, 
-                    title: "Download Amplify API Help Materials",
-                    id: "downloadsAPI",
-                    content:
-                    <div className="settings-card">
-                        <div className="settings-card-header flex flex-row items-center gap-4">
-                          <h3 id="downloadsAPITabTitle" className="settings-card-title">{"Available Amplify API Documentation Formats"}</h3>
-                        </div>
-                        <div className="settings-card-content">
-                        <div className='text-lg'>
-                            {docUrlRef.current &&
-                                    <APIDownloadFile
-                                    label="Amplify API PDF"
-                                    presigned_url={docUrlRef.current}
-                                    IconSize={24}
-                                    />
-                            }
-                            {csvUrlRef.current && 
-                                <APIDownloadFile
-                                    label="Amplify API CSV"
-                                    presigned_url={csvUrlRef.current}
-                                    IconSize={24}
-                                />
-                            }
-                            {postmanUrlRef.current &&
-                                    <APIDownloadFile
-                                    label="Amplify API Postman Collection"
-                                    presigned_url={postmanUrlRef.current}
-                                    IconSize={24}
-                                    />
-                            }
-                            </div>
-                        </div>
-                    </div>}
-                ]}
-                />
+        const handleClose = () => {
+            showDocsRef.current = false;
+            setDocumentElement(null);
+        };
+        return (
+            <div className="flex flex-col">
+                {/* Toolbar */}
+                <div className="flex flex-row items-center gap-3 px-4 py-2 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-[#2b2c36] sticky top-0 z-10">
+                    <span className="font-semibold text-neutral-800 dark:text-neutral-100 mr-auto">API Documentation</span>
+                    {!loading && (
+                        <>
+                            {docUrlRef.current && (
+                                <APIDownloadFile label="PDF" presigned_url={docUrlRef.current} IconSize={15} />
+                            )}
+                            {csvUrlRef.current && (
+                                <APIDownloadFile label="CSV" presigned_url={csvUrlRef.current} IconSize={15} />
+                            )}
+                            {postmanUrlRef.current && (
+                                <APIDownloadFile label="Postman" presigned_url={postmanUrlRef.current} IconSize={15} />
+                            )}
+                        </>
+                    )}
+                    <button
+                        onClick={handleClose}
+                        title="Close"
+                        className="ml-2 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-100 transition-colors"
+                    >
+                        <IconX size={20} />
+                    </button>
                 </div>
-            )}
-        </>);
 
+                {/* Content */}
+                {loading ? (
+                    <div className="p-4 flex flex-row items-center gap-2">
+                        <LoadingIcon style={{ width: "20px", height: "20px" }} />
+                        <span className="text-neutral-600 dark:text-neutral-300">Loading API Documentation...</span>
+                    </div>
+                ) : (
+                    <iframe
+                        src={fileContentsRef.current}
+                        style={{ width: '100%', height: `${window.innerHeight * 0.6}px`, border: 'none' }}
+                        onError={() => docError()}
+                    />
+                )}
+            </div>
+        );
     }
 
     return (
-        <>
-            <div className='mt-2 ml-5 flex flex-row gap-2 mx-2 flex justify-center'>
-                <div className='mt-[-3px] text-sm py-2 mr-2 text-[0.8]'>API Tools and Resources</div>
-                <div className='mt-2 text-xs '>|</div>
-                    <ActionButton
-                    handleClick={() => handleShowApiDoc()}
+        <div className="flex flex-row items-center gap-3 flex-wrap">
+            <div className="apitools-tabs">
+                <button
+                    onClick={() => handleShowApiDoc()}
                     id="amplifyDocumentationButton"
-                    title='View Amplify API Documentation'>
-                      <div className='flex flex-row gap-1 text-[0.8]'>
-                        Amplify API Documentation
-                        <IconArticle size={18}/>
-                      </div>  
-                     </ActionButton> 
-                { keyManager && ( 
-                    <>
-                    <div className='mt-2 text-xs '>|</div>
-                     <ActionButton
-                        handleClick={()=> handleStartConversation(keyManager)}
-                        title='Chat with Amplify API Key Manager'>
-                        <div className='flex flex-row gap-1 text-[0.8]'>
-                            Amplify API Key Manager
-                            <IconRobot size={20}/>
-                        </div>  
-                     </ActionButton> 
-                    </>
+                    title="View Amplify API Documentation"
+                    className="apitools-tab apitools-tab-docs"
+                >
+                    <IconArticle size={16}/>
+                    <span>API Docs</span>
+                </button>
+                {keyManager && (
+                    <button
+                        onClick={() => handleStartConversation(keyManager)}
+                        title="Chat with Amplify API Key Manager"
+                        className="apitools-tab apitools-tab-manager"
+                    >
+                        <IconRobot size={16}/>
+                        <span>Key Manager</span>
+                    </button>
                 )}
-
-                { apiAst && ( 
-                    <>
-                    <div className='mt-2 text-xs '>|</div>
-                     <ActionButton
-                        handleClick={()=> handleStartConversation(apiAst)}
-                        title='Chat with Amplify API Assistant'>
-                        <div className='flex flex-row gap-1 text-[0.8]'>
-                            Amplify API Assistant
-                            <IconRobot size={20}/>
-                        </div>  
-                     </ActionButton> 
-                     </>
+                {apiAst && (
+                    <button
+                        onClick={() => handleStartConversation(apiAst)}
+                        title="Chat with Amplify API Assistant"
+                        className="apitools-tab apitools-tab-assistant"
+                    >
+                        <IconRobot size={16}/>
+                        <span>API Assistant</span>
+                    </button>
                 )}
-
-                </div>
-    
-        </>
+            </div>
+        </div>
     );
 }
