@@ -6,6 +6,26 @@ import { Artifact } from './artifacts';
 import { messageTopicData } from './topics';
 import { SkillSelectionMode } from './skill';
 
+export interface CodeInterpreterFileValues {
+  file_key: string;
+  presigned_url: string;
+  file_key_low_res?: string;
+  presigned_url_low_res?: string;
+  file_size: number;
+}
+
+export interface CodeInterpreterFileOutput {
+  type: string;
+  values: CodeInterpreterFileValues;
+}
+
+export interface CodeInterpreterMessageData {
+  codeInterpreterRecordId?: string;
+  role?: string;
+  textContent?: string;
+  content?: CodeInterpreterFileOutput[];
+}
+
 export interface Message {
   role: Role;
   content: string;
@@ -19,6 +39,9 @@ export interface Message {
   // Tool-related fields for MCP and function calling
   tool_calls?: ToolCall[];
   tool_call_id?: string; // For tool response messages
+  // Code interpreter file outputs — sent to the backend so it can see
+  // previously generated files in subsequent conversation turns.
+  codeInterpreterMessageData?: CodeInterpreterMessageData;
 }
 
 export interface ToolCall {
@@ -126,7 +149,7 @@ export interface ChatBody {
   endpoint?: string;
   maxTokens?: number;
   [key: string]: any;
-  codeInterpreterAssistantId?: string;
+  codeInterpreterRecordId?: string;
   projectId?: string;
   tools?: any[]; // Tool definitions in OpenAI function format
   enableWebSearch?: boolean; // Enable backend web search tool execution
@@ -156,7 +179,7 @@ export interface Conversation {
   maxTokens?: number;
   workflowDefinition?: WorkflowDefinition;
   data?: {[key:string]:any}
-  codeInterpreterAssistantId?: string;
+  codeInterpreterRecordId?: string;
   isLocal?: boolean;
   groupType?: string;
   artifacts?:  { [key: string]: Artifact[]};

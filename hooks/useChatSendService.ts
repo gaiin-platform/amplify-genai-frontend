@@ -289,7 +289,7 @@ export function useSendService() {
 
                     let isArtifactsOn = featureFlags.artifacts && featureOptions.includeArtifacts &&
                         // we only consider whats in the plugins if we have the feature option for it on.
-                        (!pluginIds || (pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER))) &&
+                        (!pluginIds || pluginIds.includes(PluginID.ARTIFACTS)) &&
                         // turn off artifacts for base prompt templates
                         !(selectedConversation?.promptTemplate && isBasePrompt(selectedConversation.promptTemplate.id));
 
@@ -517,12 +517,11 @@ export function useSendService() {
 
 
                     if (!featureFlags.codeInterpreterEnabled) {
-                        //check if we need
                         options = { ...(options || {}), skipCodeInterpreter: true };
                     } else {
                         if (pluginIds?.includes(PluginID.CODE_INTERPRETER)) {
-                            chatBody.codeInterpreterAssistantId = updatedConversation.codeInterpreterAssistantId;
-                            options = { ...(options || {}), skipRag: true, codeInterpreterOnly: true };
+                            chatBody.codeInterpreterRecordId = updatedConversation.codeInterpreterRecordId;
+                            options = { ...(options || {}), skipRag: true, useAgentCoreCodeInterpreter: true };
                             statsService.codeInterpreterInUseEvent();
                         }
                     }
@@ -643,6 +642,7 @@ export function useSendService() {
                         let currentState: any = {};
                         let reasoningText = "";
                         let reasoningMode = false; // support gemini reasoning
+                        let text = ''; // declared here so it's accessible after the stream loop
 
                         const metaHandler: MetaHandler = {
                             status: (meta: any) => {
@@ -674,9 +674,7 @@ export function useSendService() {
                             "json!": () => sendJsonChatRequestWithSchema(chatBody, options as JsonSchema, controller.signal, metaHandler)
                         }
 
-                        const response = (existingResponse) ?
-                            existingResponse :
-                            await invokers[prefix]();
+                        const response = existingResponse ?? await invokers[prefix]();
 
 
                         if (!response || !response.ok) {
@@ -702,7 +700,7 @@ export function useSendService() {
                         const reader = data.getReader();
                         const decoder = new TextDecoder();
                         let done = false;
-                        let text = '';
+                        text = ''; // reset for this attempt (declared before the retry loop)
 
                         // Reset the status display
                         homeDispatch({
@@ -742,19 +740,6 @@ export function useSendService() {
                                 const chunkValue = decoder.decode(value);
 
                                 if (!outOfOrder) {
-                                    // check if codeInterpreterAssistantId
-                                    const assistantIdMatch = chunkValue.match(/codeInterpreterAssistantId=(.*)/);
-
-                                    if (assistantIdMatch) {
-                                        const assistantIdExtracted = assistantIdMatch[1];
-                                        //update conversation
-                                        updatedConversation = {
-                                            ...updatedConversation,
-                                            codeInterpreterAssistantId: assistantIdExtracted
-                                        };
-                                        //move onto the next iteration
-                                        continue;
-                                    }
                                     if (text.includes("<thought>")) reasoningMode = true;
 
                                     // Split by reasoning tags and process alternately
@@ -1344,6 +1329,53 @@ export function useSendService() {
                                 resolve(text);
                             }
                             return;
+                        }
+
+                        // Persist the AgentCore record ID returned by the backend via state.
+                        // The backend emits it nested under the codeInterpreter state key:
+                        // state.codeInterpreter.codeInterpreterRecordId
+                        if (currentState?.codeInterpreter?.codeInterpreterRecordId) {
+                            updatedConversation = {
+                                ...updatedConversation,
+                                codeInterpreterRecordId: currentState.codeInterpreter.codeInterpreterRecordId
+                            };
+                        }
+
+                        // Populate codeInterpreterMessageData on the final assistant message so
+                        // the backend can see previous file outputs in subsequent turns.
+                        // The backend schema requires files nested under a "values" object:
+                        // { type: "image/png", values: { file_key, presigned_url, file_size, ... } }
+                        // The stream already delivers files in this shape via currentState.codeInterpreter.content.
+                        const ciFiles: any[] = currentState?.codeInterpreter?.content ?? [];
+                        if (ciFiles.length > 0) {
+                            const recordId = updatedConversation.codeInterpreterRecordId
+                                          ?? chatBody.codeInterpreterRecordId;
+                            const codeInterpreterMessageData = {
+                                codeInterpreterRecordId: recordId,
+                                role: 'assistant',
+                                textContent: text,
+                                // Preserve the values wrapper — the backend schema requires it.
+                                content: ciFiles.map((file: any) => ({
+                                    type: file.type,
+                                    values: {
+                                        file_key: file.values?.file_key,
+                                        presigned_url: file.values?.presigned_url,
+                                        file_key_low_res: file.values?.file_key_low_res,
+                                        presigned_url_low_res: file.values?.presigned_url_low_res,
+                                        file_size: file.values?.file_size ?? 0,
+                                    },
+                                })),
+                            };
+                            // Attach to the last message in the conversation (the assistant reply).
+                            const msgs = updatedConversation.messages;
+                            const lastMsg = msgs[msgs.length - 1];
+                            updatedConversation = {
+                                ...updatedConversation,
+                                messages: [
+                                    ...msgs.slice(0, -1),
+                                    { ...lastMsg, codeInterpreterMessageData },
+                                ],
+                            };
                         }
 
                         //console.log("Dispatching post procs: " + postProcessingCallbacks.length);

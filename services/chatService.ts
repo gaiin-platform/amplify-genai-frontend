@@ -31,7 +31,7 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
         }
     }
 
-    const keysToExclude = ['messages', 'temperature', 'max_tokens', 'stream', 'dataSources'];
+    const keysToExclude = ['messages', 'temperature', 'max_tokens', 'stream', 'dataSources', 'codeInterpreterRecordId'];
     const vendorProps = Object.fromEntries(
         Object.entries(chatBody).filter(([key, _]) => !keysToExclude.includes(key))
     );
@@ -40,7 +40,7 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
     // Use the timzezone to get the user's local time
     const time = new Date().toLocaleString('en-US', {timeZone: timeZone});
 
-    let requestBody = {
+    let requestBody: any = {
         model: chatBody.model.id,
         temperature: chatBody.temperature,
         max_tokens: chatBody.maxTokens || 2048,
@@ -61,6 +61,12 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
             requestId: uuidv4(),
             ...vendorProps
         }
+    }
+
+    // codeInterpreterRecordId must be a top-level field so the backend can
+    // locate the correct AgentCore session without digging through options.
+    if (chatBody.codeInterpreterRecordId) {
+        requestBody.codeInterpreterRecordId = chatBody.codeInterpreterRecordId;
     }
 
     // console.log('sending chat request with dataSources', requestBody);

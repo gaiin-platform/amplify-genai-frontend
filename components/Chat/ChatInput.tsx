@@ -1196,12 +1196,12 @@ export const ChatInput = ({
     ////// Plugin Dependencies //////
 
     // PluginID.CODE_INTERPRETER is not compatible with Selected Assistants for now
-    useEffect(() => { // if code interpreter is toggled in plugin selector, set the selected assistant to the default assistant
+    useEffect(() => { // if code interpreter is toggled in plugin selector, set the selected assistant to default
         const containsCodeInterpreter = plugins.map((p: Plugin) => p.id).includes(PluginID.CODE_INTERPRETER);
         if (containsCodeInterpreter) homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
     }, [plugins]);
 
-    useEffect(() => { // if selected assistant change is not the default assistant, remove code interpreter from plugins
+    useEffect(() => { // if selected assistant change is not the default assistant, remove code interpreter
         if (selectedAssistant !== DEFAULT_ASSISTANT) setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.CODE_INTERPRETER));
     }, [selectedAssistant]);
 

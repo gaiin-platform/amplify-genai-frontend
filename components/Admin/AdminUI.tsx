@@ -463,9 +463,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             result =  await testEmbeddingEndpoint(`${url}${completion}`, endpoint.key);
 
           } else if (model === "code-interpreter") {
-            const url = processUrl(endpoint.url);
-            const completion = "openai/deployments/gpt-4o/chat/completions?api-version=2024-08-01-preview";
-            result =  await testEndpoint(`${url}${completion}`, endpoint.key, "gpt-4o");
+            result = await testEndpoint(endpoint.url, endpoint.key, model);
 
           } else {
             result =  await testEndpoint(endpoint.url, endpoint.key, model);
