@@ -93,7 +93,6 @@ import { useLargeTextManager } from '@/hooks/useLargeTextManager';
 import { useTextBlockEditor } from '@/hooks/useTextBlockEditor';
 import toast from 'react-hot-toast';
 import { SkillsToggle } from '@/components/Skills';
-import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 
 
 

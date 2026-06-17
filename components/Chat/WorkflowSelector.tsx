@@ -205,7 +205,6 @@ const WorkflowSelector: React.FC<Props> = ({ selectedWorkflowId, onSelect, onClo
                             workflowTemplate={previewWorkflow}
                             enableCustomization={false}
                             onWorkflowTemplateUpdate={() => {}}
-                            defaultExpandedSegments={true}
                         />
                     </div>
                 ) : (

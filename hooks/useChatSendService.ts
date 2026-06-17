@@ -2,7 +2,7 @@
 import { useCallback, useContext, useEffect, useRef } from 'react';
 import HomeContext from '@/pages/api/home/home.context';
 import { killRequest as killReq, MetaHandler } from '../services/chatService';
-import { ChatBody, Conversation, CustomFunction, JsonSchema, Message, newMessage } from "@/types/chat";
+import { ChatBody, Conversation, CustomFunction, JsonSchema, Message, MessageType, newMessage } from "@/types/chat";
 import { ColumnsSpec, } from "@/utils/app/csv";
 import { Plugin, PluginID } from '@/types/plugin';
 import json5 from "json5";
@@ -388,6 +388,7 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                                 const classifyMessages: Message[] = [{
                                     id: 'auto-route-classify',
                                     role: 'user',
+                                    type: MessageType.PROMPT,
                                     content: classifyPrompt,
                                     data: {}
                                 }];

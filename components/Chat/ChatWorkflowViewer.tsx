@@ -205,7 +205,6 @@ const ChatWorkflowViewer: React.FC<Props> = ({ selectedWorkflowId, onSelect, onC
                         workflowTemplate={selectedTemplate!}
                         enableCustomization={false}
                         onWorkflowTemplateUpdate={() => {}}
-                        defaultExpandedSegments={true}
                     />
                 )}
             </div>
