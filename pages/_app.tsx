@@ -37,6 +37,12 @@ function App({ Component, pageProps }: AppProps) {
             refetchWhenOffline={false}
         >
             <div className={inter.className}>
+                <a
+                    href="#main-content"
+                    className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[9999] focus:bg-white focus:text-black focus:p-2 focus:rounded focus:shadow"
+                >
+                    Skip to main content
+                </a>
                 <Toaster/>
                 <QueryClientProvider client={queryClient}>
                     <Component {...pageProps} />

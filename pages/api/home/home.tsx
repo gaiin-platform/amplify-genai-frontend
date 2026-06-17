@@ -1608,7 +1608,7 @@ const Home = ({
                                 </TabSidebar>
                             )}
 
-                            <div className="flex flex-1">
+                            <div id="main-content" tabIndex={-1} className="flex flex-1">
                                 {page === 'chat' && (
                                     <Chat stopConversationRef={stopConversationRef} />
                                 )}
