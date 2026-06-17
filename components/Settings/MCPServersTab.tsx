@@ -26,13 +26,14 @@ import {
   MCPTool,
   MCPOAuth2Config,
   MCP_SERVER_PRESETS,
-  validateMCPServerUrl,
+  validateMCPServerUrlWithReason,
 } from '@/types/mcp';
 import {
   listMCPServers,
   addMCPServer,
   deleteMCPServer,
   testMCPConnection,
+  updateMCPServer,
   toggleMCPServer,
   refreshMCPServerTools,
   startMCPOAuth,
@@ -61,6 +62,7 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [trustingId, setTrustingId] = useState<string | null>(null);
   const [expandedServerId, setExpandedServerId] = useState<string | null>(null);
 
   // OAuth2 state: which server is showing the OAuth form, and its field values
@@ -131,27 +133,16 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
       return;
     }
 
-    if (!validateMCPServerUrl(formData.url)) {
-      setError('Invalid URL format. Must start with http:// or https://');
+    const urlCheck = validateMCPServerUrlWithReason(formData.url);
+    if (!urlCheck.valid) {
+      setError(urlCheck.error || 'Invalid MCP server URL');
       return;
     }
 
-    setTesting(true);
-    setError(null);
-    setTestResult(null);
-
-    const headers: Record<string, string> = {};
-    if (authHeader.trim()) headers['Authorization'] = authHeader.trim();
-    const result = await testMCPConnection({ ...formData, headers });
-    setTesting(false);
-
-    if (result.success) {
-      setTestResult({ success: true, tools: result.tools });
-    } else if (result.requiresAuth) {
-      setTestResult({ success: false, error: 'Server requires authentication. Add an Authorization header above, or save the server first and connect via OAuth2.' });
-    } else {
-      setTestResult({ success: false, error: result.error });
-    }
+    setTestResult({
+      success: false,
+      error: 'New MCP servers are saved as client-side only by default. Save the server first, then use Trust for server-side execution on the saved server row if you want backend test, refresh, OAuth, and server-side tool execution.',
+    });
   };
 
   const handleAddServer = async () => {
@@ -165,8 +156,9 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
       return;
     }
 
-    if (!validateMCPServerUrl(formData.url)) {
-      setError('Invalid URL format. Must start with http:// or https://');
+    const urlCheck = validateMCPServerUrlWithReason(formData.url);
+    if (!urlCheck.valid) {
+      setError(urlCheck.error || 'Invalid MCP server URL');
       return;
     }
 
@@ -222,6 +214,27 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
       setOauthServerId(serverId);
     } else {
       alert(result.error || 'Failed to refresh tools');
+    }
+  };
+
+  const handleSetTrustMode = async (serverId: string, trustMode: 'trusted' | 'untrusted') => {
+    const message = trustMode === 'trusted'
+      ? 'Promote this MCP server to trusted for server-side execution? This enables backend test, refresh, OAuth, and server-side tool execution.'
+      : 'Move this MCP server back to client-side only mode? This disables backend test, refresh, OAuth, and server-side tool execution.';
+
+    if (!confirm(message)) return;
+
+    setTrustingId(serverId);
+    const result = await updateMCPServer(serverId, {
+      trustMode,
+      trustReason: trustMode === 'trusted' ? 'manual_override' : 'user_added',
+    });
+    setTrustingId(null);
+
+    if (result.success) {
+      await loadServers();
+    } else {
+      alert(result.error || 'Failed to update MCP trust mode');
     }
   };
 
@@ -392,6 +405,10 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
           </div>
 
           <div className="space-y-4">
+            <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/20 dark:text-amber-200">
+              New MCP servers are saved as client-side only by default. Existing servers you already added remain trusted and continue to work with backend refresh, OAuth, and server-side execution. After saving a new server, use the trust button on that row if you want to promote it.
+            </div>
+
             <div>
               <label className="block text-sm text-neutral-600 dark:text-neutral-400 mb-1">
                 Server Name
@@ -546,7 +563,9 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
         </div>
       ) : (
         <div className="space-y-3">
-          {servers.map(server => (
+          {servers.map(server => {
+            const isTrusted = (server.trustMode ?? 'trusted') === 'trusted';
+            return (
             <div
               key={server.id}
               className="border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden"
@@ -574,10 +593,24 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
                           Disabled
                         </span>
                       )}
+                      {isTrusted ? (
+                        <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full">
+                          Trusted
+                        </span>
+                      ) : (
+                        <span className="text-xs px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full">
+                          Client-side only
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1 font-mono">
                       {server.url}
                     </p>
+                    {!isTrusted && (
+                      <p className="text-xs text-amber-600 dark:text-amber-300 mt-1">
+                        This server is not trusted for backend execution. Backend test, refresh, and OAuth are disabled; use it only through client-side flows.
+                      </p>
+                    )}
                     {server.tools.length > 0 && (
                       <button
                         onClick={() => toggleExpanded(server.id)}
@@ -599,10 +632,22 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
 
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={() => handleSetTrustMode(server.id, isTrusted ? 'untrusted' : 'trusted')}
+                      disabled={trustingId === server.id}
+                      className={`px-2 py-1 text-xs rounded border disabled:opacity-50 ${isTrusted ? 'border-blue-300 text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-900/20' : 'border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/20'}`}
+                      title={isTrusted ? 'Move this server back to client-side only mode' : 'Promote this server to trusted server-side execution'}
+                    >
+                      {trustingId === server.id
+                        ? 'Saving...'
+                        : isTrusted
+                          ? 'Client-side only'
+                          : 'Trust for server-side'}
+                    </button>
+                    <button
                       onClick={() => handleRefreshTools(server.id)}
-                      disabled={refreshingId === server.id}
+                      disabled={refreshingId === server.id || !isTrusted}
                       className="p-2 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded"
-                      title="Refresh tools"
+                      title={isTrusted ? 'Refresh tools' : 'Backend refresh is disabled for untrusted MCP servers'}
                     >
                       {refreshingId === server.id ? (
                         <IconLoader2 className="w-4 h-4 animate-spin" />
@@ -664,7 +709,11 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
 
                 {/* OAuth2 section */}
                 <div className="mt-3 border-t border-neutral-100 dark:border-neutral-700 pt-3">
-                  {server.oauthConnected ? (
+                  {!isTrusted ? (
+                    <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                      Backend OAuth is unavailable for untrusted MCP servers.
+                    </div>
+                  ) : server.oauthConnected ? (
                     /* ── Already connected ── */
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
@@ -732,7 +781,8 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

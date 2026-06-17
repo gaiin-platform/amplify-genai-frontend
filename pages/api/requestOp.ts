@@ -3,6 +3,7 @@ import {getServerSession} from "next-auth/next";
 import {authOptions} from "@/pages/api/auth/[...nextauth]";
 import { transformPayload } from "@/utils/app/data";
 import { lzwCompress } from "@/utils/app/lzwCompression";
+import { validateUrlForSSRF } from "@/utils/app/urlValidation";
 
 export const config = {
     api: {
@@ -21,6 +22,33 @@ interface reqPayload {
 // Paths that should not be compressed
 const NO_COMPRESSION_PATHS = ['/billing', '/se', "/amp", '/vu-agent', "/user-data", "/data-disclosure", "/integrations", "/notebook"];
 
+const MCP_URL_OPS = new Set(['/mcp/servers/test', '/mcp/servers', '/mcp/server/update']);
+
+const validateMCPPayloadUrl = (path: string, op: string, payload: any): string | null => {
+    if (path !== '/integrations' || !MCP_URL_OPS.has(op)) {
+        return null;
+    }
+
+    if (!payload || typeof payload !== 'object') {
+        return null;
+    }
+
+    const candidate = typeof payload.url === 'string'
+        ? payload.url
+        : (payload.data && typeof payload.data.url === 'string' ? payload.data.url : null);
+
+    if (!candidate) {
+        return null;
+    }
+
+    const result = validateUrlForSSRF(candidate);
+    if (!result.valid) {
+        return result.error || 'Invalid MCP server URL';
+    }
+
+    return null;
+};
+
 
 const requestOp =
     async (req: NextApiRequest, res: NextApiResponse) => {
@@ -38,6 +66,14 @@ const requestOp =
 
         const method = reqData.method || null;
         let payload = reqData.data ? transformPayload.decode(reqData.data) : null;
+
+        const reqPath: string = reqData.path || '';
+        const reqOp: string = reqData.op || '';
+        const ssrfError = validateMCPPayloadUrl(reqPath, reqOp, payload);
+        if (ssrfError) {
+            console.warn(`Blocked unsafe MCP URL for path=${reqPath} op=${reqOp}: ${ssrfError}`);
+            return res.status(400).json({ error: ssrfError });
+        }
 
         const apiUrl = constructUrl(reqData);
         // @ts-ignore
