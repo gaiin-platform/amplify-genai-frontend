@@ -1138,7 +1138,7 @@
   
   /* Action Buttons Styling */
   .enhanced-action-button {
-    padding: 0.25rem;
+    padding: 0.375rem;
     border-radius: 0.25rem;
     color: var(--sidebar-text-light);
     opacity: 0.7;

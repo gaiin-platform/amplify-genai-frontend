@@ -651,7 +651,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                         <label className='ml-auto mt-2 text-sm flex flex-row gap-3 text-black dark:text-neutral-100'>
                             <div className={`mt-1.5 ${selectedLayeredAssistant.isPublished ? "bg-green-400 dark:bg-green-300" : "bg-gray-400 dark:bg-gray-500"}`}
                                 style={{ width: '8px', height: '8px', borderRadius: '50%', flexShrink: 0 }}></div>
-                            <div className='overflow-x-auto flex grow whitespace-nowrap'>
+                            <div className='overflow-x-auto flex grow whitespace-nowrap' tabIndex={0}>
                                 {selectedLayeredAssistant.assistantId
                                     ? `Layered Assistant Id: ${selectedLayeredAssistant.assistantId}`
                                     : 'No Layered Assistant Id — save to generate one'}
@@ -704,7 +704,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                         >
                                             <div className={`mt-1.5 ${selectedAssistant?.data?.isPublished ? "bg-green-400 dark:bg-green-300" : "bg-gray-400 dark:bg-gray-500"}`}
                                                 style={{ width: '8px', height: '8px', borderRadius: '50%' }}></div>
-                                            <div className='overflow-x-auto flex grow whitespace-nowrap'>
+                                            <div className='overflow-x-auto flex grow whitespace-nowrap' tabIndex={0}>
                                                 Assistant Id: {selectedAssistant.data.assistant.definition.assistantId}
                                             </div>
                                         </label>
