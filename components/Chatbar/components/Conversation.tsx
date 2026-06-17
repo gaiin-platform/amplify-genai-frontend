@@ -207,6 +207,7 @@ export const ConversationComponent = ({ conversation}: Props) => {
           <input
             className="flex-1 overflow-hidden overflow-ellipsis bg-transparent text-left text-[13px] leading-5 dark:text-white outline-none px-1 py-0.5 font-medium"
             id="isRenamingInput"
+            aria-label="Conversation name"
             type="text"
             value={renameValue}
             onChange={(e) => setRenameValue(e.target.value)}
@@ -251,15 +252,17 @@ export const ConversationComponent = ({ conversation}: Props) => {
       {(isDeleting || isRenaming) &&
         selectedConversation?.id === conversation.id && (
           <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10 flex gap-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-1 fade-in">
-            <ActionButton 
-              id="handleConfirm" 
+            <ActionButton
+              id="handleConfirm"
+              title="Confirm rename"
               handleClick={handleConfirm}
               className="enhanced-action-button text-green-600 hover:bg-green-100 dark:hover:bg-green-900/20 rounded-md"
             >
               <IconCheck size={16} />
             </ActionButton>
-            <ActionButton 
-              id="handleCancel" 
+            <ActionButton
+              id="handleCancel"
+              title="Cancel rename"
               handleClick={handleCancel}
               className="enhanced-action-button text-red-600 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-md"
             >

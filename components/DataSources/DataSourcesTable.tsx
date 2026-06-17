@@ -570,7 +570,7 @@ const DataSourcesTable = () => {
                             >
                                 {capitalize(config.text)}
                                 {metadata?.failedChunks !== undefined && metadata?.totalChunks !== undefined && (
-                                    <span className="ml-1 text-xs opacity-75">
+                                    <span className="ml-1 text-xs text-blue-700 dark:text-blue-400">
                                         ({metadata.failedChunks}/{metadata.totalChunks})
                                     </span>
                                 )}
