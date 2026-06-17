@@ -19,6 +19,7 @@ import {
     WebSearchProvider,
     WEB_SEARCH_PROVIDERS,
     AdminWebSearchConfig,
+    AgentCoreAuthMode,
 } from '@/types/integrations';
 import toast from 'react-hot-toast';
 
@@ -28,6 +29,9 @@ interface Props {
     updateUnsavedConfigs: () => void;
 }
 
+const isGatewayProvider = (provider: WebSearchProvider | null): boolean =>
+    !!provider && !!WEB_SEARCH_PROVIDERS[provider]?.isGateway;
+
 export const WebSearchIntegration: FC<Props> = ({ config, setConfig, updateUnsavedConfigs }) => {
     const [selectedProvider, setSelectedProvider] = useState<WebSearchProvider | null>(null);
     const [apiKey, setApiKey] = useState('');
@@ -35,20 +39,91 @@ export const WebSearchIntegration: FC<Props> = ({ config, setConfig, updateUnsav
     const [userMessage, setUserMessage] = useState(config?.webSearchUserMessage ?? '');
     const [error, setError] = useState<string | null>(null);
 
+    // Bedrock AgentCore gateway configuration
+    const [gatewayUrl, setGatewayUrl] = useState('');
+    const [authMode, setAuthMode] = useState<AgentCoreAuthMode>('user_token');
+    const [tokenUrl, setTokenUrl] = useState('');
+    const [clientId, setClientId] = useState('');
+    const [scope, setScope] = useState('');
+
+    const resetProviderFields = () => {
+        setApiKey('');
+        setGatewayUrl('');
+        setAuthMode('user_token');
+        setTokenUrl('');
+        setClientId('');
+        setScope('');
+        setError(null);
+    };
+
     const handleSelectProvider = (provider: WebSearchProvider) => {
         setSelectedProvider(provider);
-        setApiKey('');
-        setError(null);
+        resetProviderFields();
+        // Pre-fill gateway fields from any values the deployment-time provisioner
+        // (or a prior save) published into the config, so the admin doesn't have to
+        // re-enter the gateway URL. These are present even when AgentCore isn't yet
+        // the active provider.
+        if (isGatewayProvider(provider) && config) {
+            if (config.bedrockAgentCoreGatewayUrl) setGatewayUrl(config.bedrockAgentCoreGatewayUrl);
+            if (config.bedrockAgentCoreAuthMode) setAuthMode(config.bedrockAgentCoreAuthMode);
+            if (config.bedrockAgentCoreTokenUrl) setTokenUrl(config.bedrockAgentCoreTokenUrl);
+            if (config.bedrockAgentCoreClientId) setClientId(config.bedrockAgentCoreClientId);
+            if (config.bedrockAgentCoreScope) setScope(config.bedrockAgentCoreScope);
+        }
     };
 
     const handleCancel = () => {
         setSelectedProvider(null);
-        setApiKey('');
-        setError(null);
+        resetProviderFields();
     };
 
     const handleSave = () => {
-        if (!selectedProvider || !apiKey.trim()) return;
+        if (!selectedProvider) return;
+
+        // Bedrock AgentCore (gateway) provider: configured by gateway URL + auth mode,
+        // not a single API key.
+        if (isGatewayProvider(selectedProvider)) {
+            if (!gatewayUrl.trim()) {
+                setError('A gateway URL is required.');
+                return;
+            }
+            if ((authMode === 'oauth' || authMode === 'bearer') && !apiKey.trim()) {
+                setError(authMode === 'oauth'
+                    ? 'An OAuth client secret is required for client-credentials auth.'
+                    : 'A bearer token is required for bearer auth.');
+                return;
+            }
+            if (authMode === 'oauth' && (!tokenUrl.trim() || !clientId.trim())) {
+                setError('OAuth client-credentials auth requires a token URL and client ID.');
+                return;
+            }
+
+            const newConfig: AdminWebSearchConfig = {
+                provider: selectedProvider,
+                isEnabled: true,
+                allowUserWebSearchKeys: allowUserKeys,
+                bedrockAgentCoreGatewayUrl: gatewayUrl.trim(),
+                bedrockAgentCoreAuthMode: authMode,
+                lastUpdated: new Date().toISOString(),
+            };
+            if (authMode === 'oauth') {
+                newConfig.bedrockAgentCoreTokenUrl = tokenUrl.trim();
+                newConfig.bedrockAgentCoreClientId = clientId.trim();
+                if (scope.trim()) newConfig.bedrockAgentCoreScope = scope.trim();
+            }
+            // The secret (OAuth client secret or static bearer token) is stored via api_key.
+            if (authMode === 'oauth' || authMode === 'bearer') {
+                newConfig.api_key = apiKey;
+                newConfig.maskedKey = `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}`;
+            }
+            setConfig(newConfig);
+            updateUnsavedConfigs();
+            handleCancel();
+            return;
+        }
+
+        // Standard API-key providers
+        if (!apiKey.trim()) return;
 
         // Update config with the new configuration (local state only)
         setConfig({
@@ -198,7 +273,17 @@ export const WebSearchIntegration: FC<Props> = ({ config, setConfig, updateUnsav
                     </div>
                     <div className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
                         <p>Provider: <span className="font-medium">{WEB_SEARCH_PROVIDERS[config.provider]?.name || config.provider}</span></p>
-                        {config.maskedKey && <p>API Key: <span className="font-mono">{config.maskedKey}</span></p>}
+                        {isGatewayProvider(config.provider) ? (
+                            <>
+                                {config.bedrockAgentCoreGatewayUrl &&
+                                    <p>Gateway: <span className="font-mono break-all">{config.bedrockAgentCoreGatewayUrl}</span></p>}
+                                <p>Auth mode: <span className="font-medium">{config.bedrockAgentCoreAuthMode || 'user_token'}</span></p>
+                                {config.bedrockAgentCoreRegion && <p>Region: <span className="font-medium">{config.bedrockAgentCoreRegion}</span></p>}
+                                {config.maskedKey && <p>Secret: <span className="font-mono">{config.maskedKey}</span></p>}
+                            </>
+                        ) : (
+                            config.maskedKey && <p>API Key: <span className="font-mono">{config.maskedKey}</span></p>
+                        )}
                         {config.lastUpdated && <p>Last updated: {new Date(config.lastUpdated).toLocaleDateString()}</p>}
                     </div>
                 </div>
@@ -245,13 +330,115 @@ export const WebSearchIntegration: FC<Props> = ({ config, setConfig, updateUnsav
                                         rel="noopener noreferrer"
                                         className="flex items-center gap-1 text-sm text-blue-500 hover:text-blue-600"
                                     >
-                                        Get API Key
+                                        {provider.isGateway ? 'Documentation' : 'Get API Key'}
                                         <IconExternalLink className="w-3 h-3" />
                                     </a>
                                 </div>
 
                                 {/* API Key Input - shown when this provider is selected */}
                                 {selectedProvider === provider.id ? (
+                                    isGatewayProvider(provider.id) ? (
+                                        <div className="mt-4 space-y-3">
+                                            <div>
+                                                <label className="block text-sm font-medium text-black dark:text-white mb-1">
+                                                    Gateway URL
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={gatewayUrl}
+                                                    onChange={e => setGatewayUrl(e.target.value)}
+                                                    placeholder="https://<gateway-id>.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp"
+                                                    className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    autoFocus
+                                                />
+                                                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                                                    If you enabled auto-provisioning on deploy, this is filled in for you and can be left as-is.
+                                                </p>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-medium text-black dark:text-white mb-1">
+                                                    Authentication mode
+                                                </label>
+                                                <select
+                                                    value={authMode}
+                                                    onChange={e => setAuthMode(e.target.value as AgentCoreAuthMode)}
+                                                    className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                >
+                                                    <option value="user_token">Forward each user&apos;s sign-in (recommended)</option>
+                                                    <option value="oauth">OAuth client credentials</option>
+                                                    <option value="bearer">Static bearer token</option>
+                                                </select>
+                                            </div>
+
+                                            {authMode === 'user_token' && (
+                                                <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                                                    The gateway is authorized with each user&apos;s own sign-in. No secret to store.
+                                                </p>
+                                            )}
+
+                                            {authMode === 'oauth' && (
+                                                <>
+                                                    <input
+                                                        type="text"
+                                                        value={tokenUrl}
+                                                        onChange={e => setTokenUrl(e.target.value)}
+                                                        placeholder="OAuth token URL"
+                                                        className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        value={clientId}
+                                                        onChange={e => setClientId(e.target.value)}
+                                                        placeholder="Client ID"
+                                                        className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        value={scope}
+                                                        onChange={e => setScope(e.target.value)}
+                                                        placeholder="Scope (optional)"
+                                                        className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                </>
+                                            )}
+
+                                            {(authMode === 'oauth' || authMode === 'bearer') && (
+                                                <input
+                                                    type="password"
+                                                    value={apiKey}
+                                                    onChange={e => setApiKey(e.target.value)}
+                                                    placeholder={authMode === 'oauth' ? 'Client secret' : 'Bearer token'}
+                                                    className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                />
+                                            )}
+
+                                            {error && (
+                                                <p className="text-sm text-red-500 flex items-center gap-1">
+                                                    <IconX className="w-4 h-4" />
+                                                    {error}
+                                                </p>
+                                            )}
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={handleSave}
+                                                    disabled={!gatewayUrl.trim() ||
+                                                        ((authMode === 'oauth' || authMode === 'bearer') && !apiKey.trim()) ||
+                                                        (authMode === 'oauth' && (!tokenUrl.trim() || !clientId.trim()))}
+                                                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                                >
+                                                    <IconKey className="w-4 h-4" />
+                                                    Save Gateway
+                                                </button>
+                                                <button
+                                                    onClick={handleCancel}
+                                                    className="px-4 py-2 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
                                     <div className="mt-4 space-y-3">
                                         <input
                                             type="password"
@@ -284,6 +471,7 @@ export const WebSearchIntegration: FC<Props> = ({ config, setConfig, updateUnsav
                                             </button>
                                         </div>
                                     </div>
+                                    )
                                 ) : (
                                     <button
                                         onClick={() => handleSelectProvider(provider.id)}
