@@ -31,7 +31,7 @@ export const SkillsSection: FC<SkillsSectionProps> = ({
 }) => {
     const [skills, setSkills] = useState<Skill[]>([]);
     const [loading, setLoading] = useState(true);
-    const [expanded, setExpanded] = useState(true);
+    const [expanded, setExpanded] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [showEditor, setShowEditor] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -99,14 +99,14 @@ export const SkillsSection: FC<SkillsSectionProps> = ({
     const getSkillById = (skillId: string) => skills.find(s => s.id === skillId);
 
     return (
-        <div className="border border-neutral-200 dark:border-neutral-600 rounded-lg overflow-hidden">
+        <div className="overflow-hidden">
             {/* Header */}
             <button
                 onClick={() => setExpanded(!expanded)}
-                className="w-full flex items-center justify-between p-4 bg-neutral-50 dark:bg-[#2a2b32] hover:bg-neutral-100 dark:hover:bg-[#343541] transition-colors"
+                className="-ml-1 w-full flex items-center justify-between p-1 bg-neutral-50 dark:bg-[#2a2b32] hover:bg-neutral-100 dark:hover:bg-[#343541] transition-colors"
             >
                 <div className="flex items-center gap-3">
-                    <IconBrain size={24} className="text-purple-500" />
+                    <IconBrain size={20} className="text-purple-500" />
                     <div className="text-left">
                         <h3 className="font-semibold text-neutral-800 dark:text-neutral-200">
                             Skills

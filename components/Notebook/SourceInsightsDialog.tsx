@@ -12,6 +12,7 @@ import {
 import { Modal } from '@/components/ReusableComponents/Modal';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import {
+    Note,
     SourceInsight,
     SourceListItem,
     Transformation,
@@ -30,6 +31,9 @@ interface Props {
     // Bubble the new count up so the parent's source list reflects it without
     // a full refetch.
     onInsightsCountChange?: (sourceId: string, count: number) => void;
+    // Surface a note created via "Save as note" in the Notes panel right away,
+    // instead of waiting for the next notebook refetch.
+    onNoteSaved?: (note: Note) => void;
 }
 
 export const SourceInsightsDialog = ({
@@ -37,6 +41,7 @@ export const SourceInsightsDialog = ({
     source,
     onClose,
     onInsightsCountChange,
+    onNoteSaved,
 }: Props) => {
     const [insights, setInsights] = useState<SourceInsight[]>([]);
     const [transformations, setTransformations] = useState<Transformation[]>([]);
@@ -153,6 +158,7 @@ export const SourceInsightsDialog = ({
         const note = await saveInsightAsNote(insight.id, notebookId);
         setSavingNoteId(null);
         if (note) {
+            onNoteSaved?.(note);
             setSavedNoteId(insight.id);
             window.setTimeout(() => {
                 setSavedNoteId((curr) => (curr === insight.id ? null : curr));

@@ -68,6 +68,7 @@ import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton"
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
 import { MemoryPresenter } from "@/components/Chat/MemoryPresenter";
+import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 // import { ProjectList } from './ProjectList';
 // import { } from '../../services/memoryService';
 import { Settings } from '@/types/settings';
@@ -78,6 +79,7 @@ import ActionsList from "@/components/Chat/ActionsList";
 import { resolveRagEnabled } from '@/types/features';
 import { OpBindings } from '@/types/op';
 import { AstWorkflow } from '@/types/assistantWorkflows';
+import { getActionSet, saveActionSet } from '@/services/actionSetsService';
 import {
     LargeTextBlock,
     replacePlaceholdersWithText,
@@ -147,21 +149,25 @@ export const ChatInput = ({
     let settingRef = useRef<Settings | null>(null);
     // prevent recalling the getSettings function
     if (settingRef.current === null) settingRef.current = getSettings(featureFlags);
+    const [settingsVersion, setSettingsVersion] = useState(0);
     const [filteredModels, setFilteredModels] = useState<Model[]>([]);
 
     useEffect(() => {
         const handleEvent = (event: any) => {
-            settingRef.current = getSettings(featureFlags);
+            const newSettings = getSettings(featureFlags);
+            settingRef.current = newSettings;
             if (Object.keys(availableModels).length > 0) {
                 setFilteredModels(filterModels(availableModels, settingRef.current.hiddenModelIds));
             }
+            // trigger re-render so JSX that reads settingRef.current (e.g. includePluginSelector) updates
+            setSettingsVersion(v => v + 1);
         };
 
         window.addEventListener('updateFeatureSettings', handleEvent);
         return () => {
             window.removeEventListener('updateFeatureSettings', handleEvent);
         };
-    }, []);
+    }, [featureFlags, availableModels]);
 
     useEffect(() => {
         settingRef.current = getSettings(featureFlags);
@@ -259,11 +265,16 @@ export const ChatInput = ({
     const [isInputInFocus, setIsInputInFocus] = useState(false);
     // State to track the list of added actions
     const [addedActions, setAddedActions] = useState<{
+        _id: string;
         name: string;
         customName?: string;
         customDescription?: string;
         operation?: any;
         parameters?: OpBindings;
+        // Track which saved action set this action belongs to (for auto-save on edit)
+        _actionSetId?: string;
+        _actionSetName?: string;
+        _actionSetTags?: string[];
     }[]>([]);
 
     // Show Ops popup toggle state
@@ -300,6 +311,14 @@ export const ChatInput = ({
     );
     // True when the selected assistant is a real (non-default) assistant
     const hasRealAssistant = !!(selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id);
+
+    // Pending duplicate action awaiting user confirmation
+    const [pendingDuplicateAction, setPendingDuplicateAction] = useState<{
+        operation: any;
+        parameters: any;
+        customName: string | undefined;
+        customDescription: string | undefined;
+    } | null>(null);
 
     // Drag and drop state management
     const [isDragging, setIsDragging] = useState(false);
@@ -1335,10 +1354,12 @@ export const ChatInput = ({
         }
     }, [plugins, selectedConversation, handleUpdateConversation]);
 
+    const showPluginSelector = featureFlags.pluginsOnInput && settingRef.current.featureOptions.includePluginSelector;
+
     return (
         <>
-            { featureFlags.pluginsOnInput &&
-                settingRef.current.featureOptions.includePluginSelector &&
+            <span style={{display:'none'}}>{settingsVersion}</span>
+            { showPluginSelector &&
                 <div className='relative z-20' style={{height: 0}}>
                     <FeaturePlugin
                         plugins={plugins}
@@ -1490,57 +1511,77 @@ export const ChatInput = ({
                             <div ref={actionSelectorRef} className="z-50 w-full" 
                                  style={{transform: 'translateY(50px)'}} >
                                 <OperationSelector
-                                    initialAction={editingAction ? 
-                                        { 
-                                          name: editingAction.name, 
+                                    initialAction={editingAction ?
+                                        {
+                                          name: editingAction.name,
                                           customName: editingAction.customName,
                                           customDescription: editingAction.customDescription,
-                                          parameters: editingAction.parameters || {} 
-                                        } : 
+                                          parameters: editingAction.parameters || {}
+                                        } :
                                         undefined
                                     }
                                     editMode={!!editingAction}
+                                    liveActions={addedActions}
                                     onCancel={() => {
                                         setShowOpsPopup(false);
                                         setEditingAction(null);
                                     }}
                                     onActionAdded={(operation, parameters, customName, customDescription) => {
                                         if (editingAction) {
-                                            // Update the existing action
+                                            // Update the existing action (preserve its _id and action set metadata)
                                             setAddedActions((prev) => {
+                                                const existing = prev[editingAction.index];
                                                 const newActions = [...prev];
-                                                newActions[editingAction.index] = { 
+                                                const updatedAction = {
+                                                    _id: existing?._id ?? `action-${Date.now()}-${editingAction.index}`,
+                                                    name: operation.name,
+                                                    operation,
+                                                    customName,
+                                                    customDescription,
+                                                    parameters,
+                                                    // Preserve action set membership
+                                                    ...(existing?._actionSetId ? {
+                                                        _actionSetId: existing._actionSetId,
+                                                        _actionSetName: existing._actionSetName,
+                                                        _actionSetTags: existing._actionSetTags,
+                                                    } : {})
+                                                };
+                                                newActions[editingAction.index] = updatedAction;
+
+                                                // If this action belongs to a saved action set, persist only
+                                                // the changed action back into that set — fetch the full stored
+                                                // set first so we never corrupt other actions in it.
+                                                if (existing?._actionSetId) {
+                                                    const actionSetId = existing._actionSetId;
+                                                    const actionName  = operation.name;
+                                                    getActionSet(actionSetId).then((storedSet) => {
+                                                        if (!storedSet) return;
+                                                        const updatedSetActions = storedSet.actions.map((a: any) =>
+                                                            a.name === actionName
+                                                                ? { ...a, parameters, customName, customDescription }
+                                                                : a
+                                                        );
+                                                        saveActionSet({ ...storedSet, actions: updatedSetActions })
+                                                            .catch((err: any) => console.error('Failed to persist action set parameter change:', err));
+                                                    }).catch((err: any) => console.error('Failed to fetch action set for update:', err));
+                                                }
+
+                                                return newActions;
+                                            });
+                                        } else {
+                                            // Add a new action — if duplicate, ask for confirmation
+                                            if (addedActions.some((a: any) => a.name === operation.name)) {
+                                                setPendingDuplicateAction({ operation, parameters, customName, customDescription });
+                                            } else {
+                                                setAddedActions((prev) => [...prev, {
+                                                    _id: `action-${Date.now()}-${prev.length}`,
                                                     name: operation.name,
                                                     operation,
                                                     customName,
                                                     customDescription,
                                                     parameters
-                                                };
-                                                return newActions;
-                                            });
-                                            console.log(
-                                                `Action Updated: ${operation.name}`,
-                                                customName ? `Custom Name: ${customName}` : '',
-                                                customDescription ? `Custom Description: ${customDescription}` : '',
-                                                'Parameters:', parameters,
-                                                'Operation:', operation
-                                            );
-                                        } else {
-                                            // Add a new action
-                                            setAddedActions((prev) => [...prev, { 
-                                                name: operation.name,
-                                                operation,
-                                                customName,
-                                                customDescription,
-                                                parameters
-                                            }]);
-                                            console.log(
-                                                `Action Added: ${operation.name}`,
-                                                customName ? `Custom Name: ${customName}` : '',
-                                                customDescription ? `Custom Description: ${customDescription}` : '',
-                                                'Parameters:', parameters,
-                                                'Operation:', operation
-                                            );
+                                                }]);
+                                            }
                                         }
                                         // Clear editing state and close the popup
                                         setEditingAction(null);
@@ -1548,7 +1589,22 @@ export const ChatInput = ({
                                     }}
                                     onActionSetAdded={
                                        (actionSet) => {
-                                            setAddedActions(actionSet.actions);
+                                            setAddedActions((prev) => {
+                                                const existingNames = new Set(prev.map((a: any) => a.name));
+                                                const newActions = actionSet.actions
+                                                    .filter((a: any) => !existingNames.has(a.name))
+                                                    .map((a: any, i: number) => ({
+                                                        ...a,
+                                                        _id: `action-${Date.now()}-${prev.length + i}`,
+                                                        // Tag with the source action set so edits can be persisted back
+                                                        ...(actionSet.id ? {
+                                                            _actionSetId: actionSet.id,
+                                                            _actionSetName: actionSet.name,
+                                                            _actionSetTags: actionSet.tags,
+                                                        } : {})
+                                                    }));
+                                                return [...prev, ...newActions];
+                                            });
                                         }
                                     }
                                 />
@@ -1725,7 +1781,14 @@ export const ChatInput = ({
 
                                              onRemoveAction={
                                                  (i) =>{
-                                                     // Remove the action from added actions without alert
+                                                     // If we're currently editing this action, close the popup
+                                                     if (editingAction && editingAction.index === i) {
+                                                         setEditingAction(null);
+                                                         setShowOpsPopup(false);
+                                                     } else if (editingAction && editingAction.index > i) {
+                                                         // Shift the editing index down if a preceding action was removed
+                                                         setEditingAction({ ...editingAction, index: editingAction.index - 1 });
+                                                     }
                                                      setAddedActions((prevActions) => {
                                                          const newActions = [...prevActions];
                                                          newActions.splice(i, 1);
@@ -1743,6 +1806,8 @@ export const ChatInput = ({
                                              onClearActions={
                                                  () => {
                                                      setAddedActions([]);
+                                                     setEditingAction(null);
+                                                     setShowOpsPopup(false);
                                                  }
                                              }
                                 />
@@ -2249,6 +2314,29 @@ export const ChatInput = ({
                 </div>
 
             </div>
+
+            {/* Duplicate action confirmation */}
+            {pendingDuplicateAction && (
+                <ConfirmModal
+                    title="Action Already Added"
+                    message={`"${pendingDuplicateAction.customName || pendingDuplicateAction.operation.name}" is already in your conversation. Do you want to add it again?`}
+                    confirmLabel="Add Again"
+                    denyLabel="Cancel"
+                    onConfirm={() => {
+                        setAddedActions((prev) => [...prev, {
+                            _id: `action-${Date.now()}-${prev.length}`,
+                            name: pendingDuplicateAction.operation.name,
+                            operation: pendingDuplicateAction.operation,
+                            customName: pendingDuplicateAction.customName,
+                            customDescription: pendingDuplicateAction.customDescription,
+                            parameters: pendingDuplicateAction.parameters
+                        }]);
+                        setEditingAction(null);
+                        setPendingDuplicateAction(null);
+                    }}
+                    onDeny={() => setPendingDuplicateAction(null)}
+                />
+            )}
 
             {/* Save Actions Modal */}
             {showSaveActionsModal && (

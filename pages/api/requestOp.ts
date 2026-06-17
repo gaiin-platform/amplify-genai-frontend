@@ -19,7 +19,7 @@ interface reqPayload {
 }
 
 // Paths that should not be compressed
-const NO_COMPRESSION_PATHS = ['/billing', '/se', "/amp", '/vu-agent', "/user-data", "/data-disclosure", "/integrations"];
+const NO_COMPRESSION_PATHS = ['/billing', '/se', "/amp", '/vu-agent', "/user-data", "/data-disclosure", "/integrations", "/notebook"];
 
 
 const requestOp =
@@ -90,6 +90,7 @@ const requestOp =
             if (!response.ok) throw new Error(`Request to ${apiUrl} failed with status: ${response.status}`);
 
             const responseData = await response.json();
+
             const encodedResponse = transformPayload.encode(responseData);
 
             res.status(200).json({ data: encodedResponse });

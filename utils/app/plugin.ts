@@ -9,9 +9,9 @@ const getPluginDefaults = (settings: Settings, featureFlags: any) => {
           case (PluginID.ARTIFACTS):
             defaultVal = settings.featureOptions.includeArtifacts;
             break;
-          case (PluginID.SMART_MESSAGES):
-            defaultVal = settings.featureOptions.includeFocusedMessages;
-            break;
+          // case (PluginID.SMART_MESSAGES):
+          //   defaultVal = settings.featureOptions.includeFocusedMessages;
+          //   break;
           case (PluginID.MEMORY):
             defaultVal = settings.featureOptions.includeMemory;
             break;
@@ -38,10 +38,16 @@ export const getActivePlugins = (settings: Settings, featureFlags: any, validPlu
         // in case we add new ones, we refer to both saved and defaults
         const defaults = getPluginDefaults(settings, featureFlags);
     
-        // we will base it off of the defaults in none have been saved yet
-        if (!savedSelections) savedSelections = defaults; 
+        // we will base it off of the defaults if none have been saved yet
+        if (!savedSelections) savedSelections = defaults;
+        // For plugins whose active state is driven by featureOptions (user settings),
+        // always let the settings value win over stale localStorage
+        const settingsDrivenPlugins = [PluginID.ARTIFACTS, PluginID.MEMORY, PluginID.WEB_SEARCH]; //PluginID.SMART_MESSAGES, 
+        for (const id of settingsDrivenPlugins) {
+            savedSelections[id] = defaults[id];
+        }
         // we always do this in case the valid plugins change
-        return validPlugins.filter((plugin: Plugin) => 
+        return validPlugins.filter((plugin: Plugin) =>
                       savedSelections && Object.keys(savedSelections).includes(plugin.id) ?
                                           savedSelections[plugin.id] : defaults[plugin.id]
         );

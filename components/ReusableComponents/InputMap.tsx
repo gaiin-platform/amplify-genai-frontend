@@ -38,7 +38,7 @@ export const InputsMap: React.FC<Props> = ({ id, inputs, state, inputChanged, sp
               <React.Fragment key={input.key}>
                 <label
                   htmlFor={`${id}-${input.key}`}
-                  className="border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
+                  className="border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center text-gray-700 dark:text-neutral-200"
                   title={input.description}
                 >
                   {input.label}

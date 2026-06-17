@@ -526,6 +526,9 @@ interface Props {
                 <button
                     disabled={isSyncing}
                     id="promptHandler"
+                    aria-label="More options"
+                    aria-haspopup="true"
+                    aria-expanded={isMenuOpen}
                     className={`outline-none focus:outline-none p-0.5 transition-all duration-200 rounded-md ${isMenuOpen ? 'bg-neutral-200 dark:bg-[#343541]/90' : ''}`}
                     onClick={toggleDropdown}>
                     <IconDotsVertical size={20} className="flex-shrink-0 text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 enhanced-icon transition-transform duration-300"/>

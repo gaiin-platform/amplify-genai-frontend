@@ -1039,19 +1039,18 @@
   /* Today Folder Special Styling */
   .enhanced-today-folder {
     background: linear-gradient(135deg, 
-      rgba(59, 130, 246, 0.1) 0%, 
-      rgba(139, 92, 246, 0.1) 100%);
-    border: 1px solid rgba(59, 130, 246, 0.2);
+     rgba(59, 130, 246, 0.3) 0%, 
+     rgba(139, 92, 246, 0.3) 100%); 
+    border: 1px solid rgba(59, 130, 246, 0.2); 
     box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
-    padding-left: 1rem !important;
   }
   
   .dark .enhanced-today-folder {
     background: linear-gradient(135deg, 
-      rgba(59, 130, 246, 0.15) 0%, 
-      rgba(139, 92, 246, 0.15) 100%);
-    border: 1px solid rgba(59, 130, 246, 0.3);
-    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+      rgba(var(--chat-user-primary), 0.83) 0%, 
+      rgba(var(--chat-user-secondary), 0.83) 100%);
+    border: 1px solid rgba(var(--chat-user-primary), 0.3);
+    box-shadow: 0 2px 8px rgba(var(--chat-user-primary), 0.2);
   }
   
   .enhanced-today-folder:hover {
@@ -1096,7 +1095,7 @@
   
   .enhanced-conversation-item:hover {
     background: rgba(59, 130, 246, 0.06);
-    transform: translateX(1px);
+    transform: scale(1);
     box-shadow: 0 1px 4px rgba(59, 130, 246, 0.1);
   }
   
@@ -1139,7 +1138,7 @@
   
   /* Action Buttons Styling */
   .enhanced-action-button {
-    padding: 0.25rem;
+    padding: 0.375rem;
     border-radius: 0.25rem;
     color: var(--sidebar-text-light);
     opacity: 0.7;
@@ -1411,7 +1410,7 @@
   
   /* Custom scrollbar */
   .enhanced-sidebar::-webkit-scrollbar {
-    width: 5px;
+    width: 8px;
   }
   
   .enhanced-sidebar::-webkit-scrollbar-track {
@@ -1419,12 +1418,12 @@
   }
   
   .enhanced-sidebar::-webkit-scrollbar-thumb {
-    background-color: rgba(0, 0, 0, 0.2);
+    background-color: rgba(0, 0, 0, 0.4);
     border-radius: 20px;
   }
   
   .dark .enhanced-sidebar::-webkit-scrollbar-thumb {
-    background-color: rgba(255, 255, 255, 0.2);
+    background-color: rgba(255, 255, 255, 0.4);
   }
   
   /* Empty state styling */
@@ -3544,7 +3543,7 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   }
-  
+
   .dark .settings-card:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     border-color: rgba(255, 255, 255, 0.15);
@@ -3827,8 +3826,8 @@
   
   /* Admin Table Scrollbar Styling */
   .admin-interface-content .overflow-x-auto {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+    scrollbar-width: auto;
+    scrollbar-color: rgba(156, 163, 175, 0.6) transparent;
   }
   
   .admin-interface-content .overflow-x-auto::-webkit-scrollbar {
@@ -3841,12 +3840,12 @@
   }
   
   .admin-interface-content .overflow-x-auto::-webkit-scrollbar-thumb {
-    background: rgba(156, 163, 175, 0.5);
+    background: rgba(156, 163, 175, 0.6);
     border-radius: 4px;
   }
   
   .admin-interface-content .overflow-x-auto::-webkit-scrollbar-thumb:hover {
-    background: rgba(156, 163, 175, 0.7);
+    background: rgba(156, 163, 175, 0.8);
   }
   
   /* Dark mode scrollbar */
@@ -3855,11 +3854,11 @@
   }
   
   .dark .admin-interface-content .overflow-x-auto::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.4);
   }
   
   .dark .admin-interface-content .overflow-x-auto::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.5);
   }
   
   
@@ -5500,10 +5499,10 @@
   
   .apitools-title {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 1rem;
+    font-size: 0.8rem;
     font-weight: 600;
     color: #374151;
-    margin: 0 0 6px 0;
+    margin: 0;
     line-height: 1.4;
   }
   
@@ -5518,74 +5517,63 @@
   
   .apitools-tabs {
     display: flex;
-    gap: 12px;
+    gap: 6px;
     flex-wrap: wrap;
   }
-  
+
   .apitools-tab {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 16px;
-    border-radius: 20px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    background: rgba(255, 255, 255, 0.9);
-    color: #374151;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid transparent;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.15s ease;
     white-space: nowrap;
-    backdrop-filter: blur(8px);
     outline: none;
     text-decoration: none;
   }
-  
-  .apitools-tab:hover {
-    background: rgba(255, 255, 255, 1);
-    border-color: rgba(0, 0, 0, 0.15);
-    color: #111827;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-  
+
   .apitools-tab-docs {
-    border-color: rgba(59, 130, 246, 0.2);
-    color: #2563eb;
+    background: rgba(234, 179, 8, 0.1);
+    border-color: rgba(234, 179, 8, 0.4);
+    color: #a16207;
   }
-  
+
   .apitools-tab-docs:hover {
-    background: rgba(59, 130, 246, 0.05);
-    border-color: rgba(59, 130, 246, 0.3);
-    color: #1d4ed8;
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+    background: rgba(234, 179, 8, 0.18);
+    border-color: rgba(234, 179, 8, 0.6);
+    color: #854d0e;
   }
-  
+
   .apitools-tab-manager {
-    border-color: rgba(16, 185, 129, 0.2);
+    background: rgba(5, 150, 105, 0.08);
+    border-color: rgba(5, 150, 105, 0.25);
     color: #059669;
   }
-  
+
   .apitools-tab-manager:hover {
-    background: rgba(16, 185, 129, 0.05);
-    border-color: rgba(16, 185, 129, 0.3);
+    background: rgba(5, 150, 105, 0.14);
+    border-color: rgba(5, 150, 105, 0.4);
     color: #047857;
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
   }
-  
+
   .apitools-tab-assistant {
-    border-color: rgba(139, 92, 246, 0.2);
+    background: rgba(124, 58, 237, 0.08);
+    border-color: rgba(124, 58, 237, 0.25);
     color: #7c3aed;
   }
-  
+
   .apitools-tab-assistant:hover {
-    background: rgba(139, 92, 246, 0.05);
-    border-color: rgba(139, 92, 246, 0.3);
+    background: rgba(124, 58, 237, 0.14);
+    border-color: rgba(124, 58, 237, 0.4);
     color: #6d28d9;
-    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
   }
-  
+
   .apitools-tab span {
     font-weight: 500;
   }
@@ -5604,48 +5592,39 @@
     color: #9ca3af;
   }
   
-  .dark .apitools-tab {
-    background: rgba(31, 41, 55, 0.8);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #d1d5db;
-  }
-  
-  .dark .apitools-tab:hover {
-    background: rgba(31, 41, 55, 0.95);
-    border-color: rgba(255, 255, 255, 0.15);
-    color: #f3f4f6;
-  }
-  
   .dark .apitools-tab-docs {
-    border-color: rgba(59, 130, 246, 0.3);
-    color: #60a5fa;
+    background: rgba(234, 179, 8, 0.12);
+    border-color: rgba(234, 179, 8, 0.35);
+    color: #fbbf24;
   }
 
   .dark .apitools-tab-docs:hover {
-    background: rgba(59, 130, 246, 0.1);
-    border-color: rgba(59, 130, 246, 0.4);
-    color: #93c5fd;
+    background: rgba(234, 179, 8, 0.2);
+    border-color: rgba(234, 179, 8, 0.5);
+    color: #fcd34d;
   }
-  
+
   .dark .apitools-tab-manager {
+    background: rgba(16, 185, 129, 0.12);
     border-color: rgba(16, 185, 129, 0.3);
     color: #34d399;
   }
-  
+
   .dark .apitools-tab-manager:hover {
-    background: rgba(16, 185, 129, 0.1);
-    border-color: rgba(16, 185, 129, 0.4);
+    background: rgba(16, 185, 129, 0.2);
+    border-color: rgba(16, 185, 129, 0.45);
     color: #6ee7b7;
   }
-  
+
   .dark .apitools-tab-assistant {
+    background: rgba(139, 92, 246, 0.12);
     border-color: rgba(139, 92, 246, 0.3);
     color: #a78bfa;
   }
-  
+
   .dark .apitools-tab-assistant:hover {
-    background: rgba(139, 92, 246, 0.1);
-    border-color: rgba(139, 92, 246, 0.4);
+    background: rgba(139, 92, 246, 0.2);
+    border-color: rgba(139, 92, 246, 0.45);
     color: #c4b5fd;
   }
   

@@ -6,12 +6,25 @@ const SERVICE_NAME = 'notebook';
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 type QueryParams = Record<string, string | number | boolean | undefined>;
 
-const notebookCall = async <T = unknown>(
+interface NotebookCallResult<T> {
+    success: boolean;
+    data: T | null;
+    // The proxy/doRequestOp error message when success is false (e.g. a backend
+    // 504 surfaces here). notebookCall() discards this; callers that need to tell
+    // a timeout apart from other failures use notebookCallResult() directly.
+    message?: string;
+}
+
+const notebookCallResult = async <T = unknown>(
     method: HttpMethod,
     path: string,
     body?: unknown,
     queryParams?: QueryParams,
-): Promise<T | null> => {
+    // enablePolling routes the call through doRequestOp's poll-status fallback so
+    // it can outlive API Gateway's 29s cap (the backend proxy uses support_polling
+    // for the same paths). Only slow ops like /search/ask/simple need it.
+    opts?: { enablePolling?: boolean },
+): Promise<NotebookCallResult<T>> => {
     const op = {
         method: 'POST',
         path: URL_PATH,
@@ -23,10 +36,24 @@ const notebookCall = async <T = unknown>(
             body: body ?? null,
         },
         service: SERVICE_NAME,
+        ...(opts?.enablePolling ? { enablePolling: true } : {}),
     };
     const result = await doRequestOp(op);
-    if (!result?.success) return null;
-    return (result.data as T) ?? null;
+    return {
+        success: !!result?.success,
+        data: result?.success ? ((result.data as T) ?? null) : null,
+        message: result?.message,
+    };
+};
+
+const notebookCall = async <T = unknown>(
+    method: HttpMethod,
+    path: string,
+    body?: unknown,
+    queryParams?: QueryParams,
+): Promise<T | null> => {
+    const { data } = await notebookCallResult<T>(method, path, body, queryParams);
+    return data;
 };
 
 // Binary response variant — open-notebook returns the bytes base64-encoded
@@ -105,7 +132,16 @@ export const createNotebook = async (
 };
 
 export const deleteNotebook = async (id: string): Promise<boolean> => {
-    const result = await notebookCall('DELETE', `/notebooks/${encodeURIComponent(id)}`);
+    // delete_exclusive_sources=true so sources belonging only to this notebook are
+    // deleted (matching the confirm dialog's promise), while sources shared with
+    // other notebooks are merely unlinked. Without this flag the backend defaults
+    // to False and leaves orphaned source records behind.
+    const result = await notebookCall(
+        'DELETE',
+        `/notebooks/${encodeURIComponent(id)}`,
+        null,
+        { delete_exclusive_sources: true },
+    );
     return result !== null;
 };
 
@@ -534,19 +570,44 @@ export const buildChatContext = async (
     });
 };
 
+// Sends the per-source/per-note context_config (not a pre-built context blob),
+// so the backend builds context in the same round-trip — this avoids a separate
+// /chat/context call and stops a potentially large context payload from bouncing
+// through the browser.
+//
+// Older backends' /chat/execute predates context_config and require a pre-built
+// `context` field instead (they 422 on context_config). To stay compatible with
+// both, we try the fast single-round-trip path first and, only if it fails, fall
+// back to building context via /chat/context and resending. The fast path stays
+// fast on merged backends; the fallback costs one extra round-trip on older ones.
 export const sendChatMessage = async (
+    notebookId: string,
     sessionId: string,
     message: string,
-    context: BuildContextResponse['context'],
+    selections: ContextSelections,
     modelOverride?: string,
 ): Promise<{ session_id: string; messages: ChatMessage[] } | null> => {
+    const fast = await notebookCall<{ session_id: string; messages: ChatMessage[] }>(
+        'POST',
+        '/chat/execute',
+        {
+            session_id: sessionId,
+            message,
+            context_config: buildContextConfig(selections),
+            model_override: modelOverride,
+        },
+    );
+    if (fast) return fast;
+
+    const built = await buildChatContext(notebookId, selections);
+    if (!built) return null;
     return notebookCall<{ session_id: string; messages: ChatMessage[] }>(
         'POST',
         '/chat/execute',
         {
             session_id: sessionId,
             message,
-            context,
+            context: built.context,
             model_override: modelOverride,
         },
     );
@@ -614,10 +675,26 @@ export const searchKnowledgeBase = async (
     });
 };
 
+// The ask graph runs several sequential model calls server-side and routinely
+// exceeds API Gateway's 29s cap. enablePolling lets it complete asynchronously:
+// the backend proxy (support_polling) keeps running past the gateway 504 and
+// writes the result to the poll-status table, which doRequestOp retrieves by
+// polling. On failure we throw the proxy's real message (rather than returning
+// null) so the UI reports the actual cause instead of falsely blaming model
+// configuration — callers already verify a default chat + embedding model exist
+// before allowing the ask.
 export const askKnowledgeBaseSimple = async (
     params: AskRequest,
-): Promise<AskResponse | null> => {
-    return notebookCall<AskResponse>('POST', '/search/ask/simple', params);
+): Promise<AskResponse> => {
+    const { success, data, message } = await notebookCallResult<AskResponse>(
+        'POST',
+        '/search/ask/simple',
+        params,
+        undefined,
+        { enablePolling: true },
+    );
+    if (success && data) return data;
+    throw new Error(message || 'Failed to generate an answer. Please try again.');
 };
 
 // -----------------------------------------------------------------------------

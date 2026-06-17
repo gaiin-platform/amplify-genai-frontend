@@ -26,6 +26,7 @@ import {FolderInterface} from "@/types/folder";
 import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
 import { getFullTimestamp } from '@/utils/app/date';
 import { DefaultModels } from '@/types/model';
+import toast from 'react-hot-toast';
 
 export const SettingsBar = () => {
     const { t } = useTranslation('sidebar');
@@ -80,8 +81,8 @@ export const SettingsBar = () => {
         });
         homeDispatch({ field: 'folders', value: folders });
         homeDispatch({ field: 'prompts', value: prompts });
-
-        window.location.reload();
+        
+        toast.success('Conversations imported successfully');
     };
 
     const handleClearConversations = () => {

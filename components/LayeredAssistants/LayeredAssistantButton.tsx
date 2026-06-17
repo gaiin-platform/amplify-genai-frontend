@@ -40,7 +40,7 @@ export const LayeredAssistantButton: FC = () => {
     return (
         <button
             onClick={handleOpen}
-            className="mt-3 enhanced-add-button w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-neutral-200 dark:hover:bg-[#343541]/90"
+            className="enhanced-add-button w-full flex items-center gap-2 rounded-lg text-sm"
             title="Create a layered assistant with intelligent routing"
         >
             <IconGitBranch size={18} className="text-blue-500 flex-shrink-0" />

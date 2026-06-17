@@ -55,13 +55,14 @@ const DepthDots: FC<{ depth: number }> = ({ depth }) => (
 
 interface CardProps {
     la: LayeredAssistant;
+    index: number;
     onSelect: (la: LayeredAssistant) => void;
     onEdit: (la: LayeredAssistant) => void;
     onDelete: (la: LayeredAssistant) => void;
     isDeleting: boolean;
 }
 
-const LayeredAssistantCard: FC<CardProps> = ({ la, onSelect, onEdit, onDelete, isDeleting }) => {
+const LayeredAssistantCard: FC<CardProps> = ({ la, index, onSelect, onEdit, onDelete, isDeleting }) => {
     const [hovered, setHovered] = useState(false);
     const stats = walkTree(la.rootNode);
     const updatedDate = la.updatedAt
@@ -70,7 +71,8 @@ const LayeredAssistantCard: FC<CardProps> = ({ la, onSelect, onEdit, onDelete, i
 
     return (
         <div
-            className="relative flex flex-col rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 cursor-pointer"
+            className="relative flex flex-col rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden shadow-sm hover:shadow-lg hover:scale-[1.02] transition-all duration-300 cursor-pointer opacity-0 animate-fadeInScale"
+            style={{ animationDelay: `${index * 60}ms`, animationFillMode: 'forwards' }}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
             onClick={() => onSelect(la)}
@@ -230,12 +232,9 @@ export const LayeredAssistantsGallery: FC = () => {
     };
 
     return (
-        <div className="relative flex-1 h-full flex flex-col overflow-hidden bg-gradient-to-br from-purple-50 via-blue-50/30 to-pink-50/30 dark:from-gray-900 dark:via-purple-950/20 dark:to-pink-950/20">
+        <div className="gallery-bg flex flex-col">
             {/* Animated gradient orbs */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute top-1/4 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-purple-200/30 to-pink-200/30 dark:from-purple-500/10 dark:to-pink-500/10 rounded-full blur-3xl animate-pulse" />
-                <div className="absolute bottom-1/3 left-1/4 w-[400px] h-[400px] bg-gradient-to-br from-blue-200/30 to-purple-200/30 dark:from-blue-500/10 dark:to-purple-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-            </div>
+            <div className="gallery-bg-orbs" />
 
             <div className="relative flex-1 flex flex-col overflow-hidden">
             {/* Search bar */}
@@ -268,10 +267,11 @@ export const LayeredAssistantsGallery: FC = () => {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {filtered.map(la => (
+                        {filtered.map((la, idx) => (
                             <LayeredAssistantCard
                                 key={la.assistantId ?? la.name}
                                 la={la}
+                                index={idx}
                                 onSelect={handleSelect}
                                 onEdit={handleEdit}
                                 onDelete={handleDelete}

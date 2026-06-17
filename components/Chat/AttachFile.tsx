@@ -251,6 +251,7 @@ export const AttachFile: FC<Props> = ({ id, onAttach, onUploadProgress, onSetMet
                 className="sr-only"
                 tabIndex={-1}
                 type="file"
+                aria-label="Attach file"
                 accept="*"
                 multiple
                 onChange={(e) => {
