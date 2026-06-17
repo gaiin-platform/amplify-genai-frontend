@@ -1467,9 +1467,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         handleToggleSettings();
                                                     }}
                                                 >
-                                                    {selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
-                                                                        ? Object.values(availableModels).find(m => m.id === selectedAssistant.definition?.data?.model)?.name 
-                                                                        : selectedConversation?.model?.name || ''}
+                                                    {(() => { try { return localStorage.getItem('autoRouteModel') === 'true'; } catch { return false; } })()
+                                                        ? <span className="font-normal text-sm">✦ Auto-route</span>
+                                                        : selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
+                                                            ? Object.values(availableModels).find(m => m.id === selectedAssistant.definition?.data?.model)?.name
+                                                            : selectedConversation?.model?.name || ''}
                                                     {' | '}
                                                                         
                                                 </button>
@@ -1550,9 +1552,11 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         handleToggleSettings();
                                                     }}
                                                 >
-                                                    {selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
-                                                                        ? Object.values(availableModels).find(m => m.id === selectedAssistant.definition?.data?.model)?.name
-                                                                        : selectedConversation?.model?.name || ''}
+                                                    {(() => { try { return localStorage.getItem('autoRouteModel') === 'true'; } catch { return false; } })()
+                                                        ? <span className="font-normal text-sm">✦ Auto-route</span>
+                                                        : selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
+                                                            ? Object.values(availableModels).find(m => m.id === selectedAssistant.definition?.data?.model)?.name
+                                                            : selectedConversation?.model?.name || ''}
                                                     <IconChevronRight
                                                         size={16}
                                                         className={`ml-2 transition-transform duration-300 ${isPillExpanded ? 'rotate-90' : ''} text-gray-500`}

@@ -72,6 +72,9 @@ export const ModelSelect: React.FC<Props> = ({
   const [selectModel, setSelectModel] = useState<string | undefined>(modelId ?? defaultModelId);
   const [isOpen, setIsOpen] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
+  const [autoRoute, setAutoRoute] = useState<boolean>(() => {
+    try { return localStorage.getItem('autoRouteModel') === 'true'; } catch { return false; }
+  });
   const [dropdownPosition, setDropdownPosition] = useState<{top: number, left: number, width: number} | null>(null);
 
   const selectRef = useRef<HTMLDivElement>(null);
@@ -165,84 +168,110 @@ export const ModelSelect: React.FC<Props> = ({
     </>
   }
   
-const getIcons = (model: Model) => {
-  return <div className="ml-auto flex flex-row gap-1 opacity-70">
-          {model.supportsImageGeneration && <div title="Supports Image Generation"><TbPhotoBolt size={18}/></div>}
-          {model.supportsVideo && <div title="Supports Videos in Prompts"><IconVideo size={18}/></div>}
-          {model.supportsImages && <div title="Supports Images in Prompts"><IconCamera size={18}/></div>}
-          {getCostIcon(model.inputTokenCost, model.outputTokenCost)}
-          {getOutputLimitIcon(model.outputTokenLimit)}
-        </div>
-}
+  const getIcons = (model: Model) => {
+    return <div className="ml-auto flex flex-row gap-1 opacity-70">
+            {model.supportsImageGeneration && <div title="Supports Image Generation"><TbPhotoBolt size={18}/></div>}
+            {model.supportsVideo && <div title="Supports Videos in Prompts"><IconVideo size={18}/></div>}
+            {model.supportsImages && <div title="Supports Images in Prompts"><IconCamera size={18}/></div>}
+            {getCostIcon(model.inputTokenCost, model.outputTokenCost)}
+            {getOutputLimitIcon(model.outputTokenLimit)}
+          </div>
+  }
+
+  const handleAutoRouteToggle = () => {
+    const next = !autoRoute;
+    setAutoRoute(next);
+    try { localStorage.setItem('autoRouteModel', String(next)); } catch {}
+    if (next) { setIsOpen(false); setDropdownPosition(null); }
+  };
 
   return (
     <div className="flex flex-col">
       {isTitled && (
-        <div className='flex flex-row'>
-          <label className="mb-2 text-left text-neutral-700 dark:text-neutral-400">
+        <div className='flex flex-row items-center mb-2'>
+          <label className="text-left text-neutral-700 dark:text-neutral-400">
             {t('Model')}
           </label>
-          <div id="legendHover" className='ml-auto relative' onMouseEnter={() => setShowLegend(true) } onMouseLeave={() => setShowLegend(false)}>
+          <div className="flex items-center gap-2 mr-16">
+            <span className="text-xs text-neutral-500 dark:text-neutral-400 ml-3">Auto-route</span>
+            <button
+              onClick={handleAutoRouteToggle}
+              title={autoRoute ? 'Auto-route ON: best model chosen automatically' : 'Auto-route OFF: select model manually'}
+              className={`relative inline-flex h-4 w-8 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${autoRoute ? 'bg-blue-500' : 'bg-neutral-300 dark:bg-neutral-600'}`}
+            >
+              <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${autoRoute ? 'translate-x-4' : 'translate-x-0'}`} />
+            </button>
+          </div>
+          <div id="legendHover" className='ml-auto relative' onMouseEnter={() => setShowLegend(true)} onMouseLeave={() => setShowLegend(false)}>
             <IconInfoCircle size={19} className='mr-1 mt-[-4px] flex-shrink-0 text-gray-600 dark:text-gray-300' />
             {showLegend && legend(showPricingBreakdown, featureFlags, models.some(m => m.supportsVideo), models.some(m => m.supportsImageGeneration))}
           </div>
         </div>
       )}
       <div ref={selectRef} className="relative w-full">
-        <button
-          disabled={isDisabled}
-          onClick={() => {
-            if (!isOpen) {
-              const position = calculateDropdownPosition();
-              setDropdownPosition(position);
-            } else {
-              setDropdownPosition(null);
-            }
-            setIsOpen(!isOpen);
-          }}
-          title={isDisabled ? disableMessage : 'Select Model'}
-          id="modelSelect"
-          className={`w-full flex items-center justify-between rounded-lg bg-transparent p-2 pr-2 text-neutral-900 dark:border-neutral-600 dark:text-white custom-shadow ${
-            isDisabled ? 'opacity-50 cursor-not-allowed' : ''} ${outlineColor ? `border-2 border-${outlineColor}` : ' border border-neutral-200'}`}
-        >
-          { selectedModel ? 
+        {autoRoute ? (
+          <div className="w-full flex items-center rounded-lg bg-transparent p-2 text-neutral-500 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-600 opacity-60 cursor-not-allowed select-none">
+            <span className="text-sm">✦ Best model chosen automatically</span>
+          </div>
+        ) : (
           <>
-          <span className="flex items-center">
-            {selectedModel?.id === defaultModelId
-              ? defaultModelLabel(selectedModel?.name)
-              : selectedModel?.name}
-          </span>
-          {getIcons(selectedModel)}
-          </> :
-            t('Select a model')
-          }
-          
-        </button>
-        {isOpen && dropdownPosition && (
-          <ul id="modelList" className="fixed mt-1 overflow-auto rounded-lg border border-neutral-200 bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-[#343541] sm:text-sm"
-              style={{
-                top: dropdownPosition.top,
-                left: dropdownPosition.left,
-                width: dropdownPosition.width,
-                maxHeight: window.innerHeight * 0.55,
-                zIndex: 9999
-              }}>
-            {models.sort((a, b) => a.name.localeCompare(b.name))
-                    .map((model: Model) => (
-              <li
-                key={model.id}
-                id={model.id}
-                onClick={() => handleOptionClick(model.id)}
-                className="flex cursor-pointer items-center justify-between px-4 py-2 text-neutral-900 hover:bg-neutral-100 dark:text-white dark:hover:bg-neutral-600"
-                title={model.description}
+            <button
+              disabled={isDisabled}
+              onClick={() => {
+                if (!isOpen) {
+                  const position = calculateDropdownPosition();
+                  setDropdownPosition(position);
+                } else {
+                  setDropdownPosition(null);
+                }
+                setIsOpen(!isOpen);
+              }}
+              title={isDisabled ? disableMessage : 'Select Model'}
+              id="modelSelect"
+              className={`w-full flex items-center justify-between rounded-lg bg-transparent p-2 pr-2 text-neutral-900 dark:border-neutral-600 dark:text-white custom-shadow ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''} ${outlineColor ? `border-2 border-${outlineColor}` : 'border border-neutral-200'}`}
+            >
+              {selectedModel ? (
+                <>
+                  <span className="flex items-center">
+                    {selectedModel?.id === defaultModelId
+                      ? defaultModelLabel(selectedModel?.name)
+                      : selectedModel?.name}
+                  </span>
+                  {getIcons(selectedModel)}
+                </>
+              ) : (
+                t('Select a model')
+              )}
+            </button>
+            {isOpen && dropdownPosition && (
+              <ul
+                id="modelList"
+                className="fixed mt-1 overflow-auto rounded-lg border border-neutral-200 bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-[#343541] sm:text-sm"
+                style={{
+                  top: dropdownPosition.top,
+                  left: dropdownPosition.left,
+                  width: dropdownPosition.width,
+                  maxHeight: window.innerHeight * 0.55,
+                  zIndex: 9999
+                }}
               >
-                <span>
-                  {model.id === defaultModelId ? defaultModelLabel(model.name) : model.name}
-                </span>
-                {getIcons(model)}
-              </li>
-            ))}
-          </ul>
+                {models.sort((a, b) => a.name.localeCompare(b.name)).map((model: Model) => (
+                  <li
+                    key={model.id}
+                    id={model.id}
+                    onClick={() => handleOptionClick(model.id)}
+                    className="flex cursor-pointer items-center justify-between px-4 py-2 text-neutral-900 hover:bg-neutral-100 dark:text-white dark:hover:bg-neutral-600"
+                    title={model.description}
+                  >
+                    <span>
+                      {model.id === defaultModelId ? defaultModelLabel(model.name) : model.name}
+                    </span>
+                    {getIcons(model)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </div>
     </div>

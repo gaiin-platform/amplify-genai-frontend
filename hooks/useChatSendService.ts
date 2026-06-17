@@ -354,12 +354,79 @@ export function useSendService() {
                     }
                     // ─────────────────────────────────────────────────────────
 
+                    // ── Auto-route model selection ────────────────────────────
+                    // If the user has enabled auto-route (toggle in ModelSelect),
+                    // classify the task complexity before sending and override the
+                    // conversation model with cheapest / default / advanced accordingly.
+                    let resolvedModel = updatedConversation.model;
+                    const autoRouteEnabled = (() => {
+                        try { return localStorage.getItem('autoRouteModel') === 'true'; } catch { return false; }
+                    })();
+
+                    if (autoRouteEnabled && chatEndpoint) {
+                        try {
+                            // If files/datasources are attached → always use advanced model
+                            // (no classification call — avoids competing with file processing)
+                            const hasAttachments = (message.data?.dataSources && message.data.dataSources.length > 0) ||
+                                                   (updatedConversation.messages.some((m: Message) => m.data?.dataSources?.length > 0));
+
+                            if (hasAttachments) {
+                                resolvedModel = getDefaultModel(DefaultModels.ADVANCED);
+                                console.log(`[Auto-route] Attachments detected → using advanced model: ${resolvedModel?.name}`);
+                            } else {
+                                const userMessageContent = message.content || '';
+                                const classifyPrompt = `Classify the following user message into exactly one of these three complexity levels:
+- SIMPLE: casual chat, short factual questions, greetings, basic lookups
+- MODERATE: multi-step questions, explanations, summarization, writing assistance
+- COMPLEX: deep analysis, large document processing, coding, research, legal/technical reasoning
+
+Respond with only one word: SIMPLE, MODERATE, or COMPLEX.
+
+User message: "${userMessageContent.slice(0, 500)}"`;
+
+                                const cheapestModel = getDefaultModel(DefaultModels.CHEAPEST);
+                                const classifyMessages: Message[] = [{
+                                    id: 'auto-route-classify',
+                                    role: 'user',
+                                    content: classifyPrompt,
+                                    data: {}
+                                }];
+
+                                const classification = await promptForData(
+                                    chatEndpoint,
+                                    classifyMessages,
+                                    cheapestModel,
+                                    '',
+                                    defaultAccount,
+                                    null,
+                                    50
+                                );
+
+                                const level = (classification || '').trim().toUpperCase();
+                                console.log(`[Auto-route] Classification: ${level}`);
+
+                                if (level.includes('SIMPLE')) {
+                                    resolvedModel = getDefaultModel(DefaultModels.CHEAPEST);
+                                } else if (level.includes('COMPLEX')) {
+                                    resolvedModel = getDefaultModel(DefaultModels.ADVANCED);
+                                } else {
+                                    resolvedModel = getDefaultModel(DefaultModels.DEFAULT);
+                                }
+
+                                console.log(`[Auto-route] Selected model: ${resolvedModel?.name}`);
+                            }
+                        } catch (e) {
+                            console.warn('[Auto-route] Classification failed, using conversation model:', e);
+                        }
+                    }
+                    // ─────────────────────────────────────────────────────────
+
                     let chatBody: ChatBody = {
-                        model: updatedConversation.model,
+                        model: resolvedModel,
                         messages: messagesForRequest,
                         prompt: rootPrompt || updatedConversation.prompt || "",
                         temperature: updatedConversation.temperature || DEFAULT_TEMPERATURE,
-                        maxTokens: updatedConversation.maxTokens || (Math.round(updatedConversation.model.outputTokenLimit / 2)),
+                        maxTokens: updatedConversation.maxTokens || (Math.round(resolvedModel.outputTokenLimit / 2)),
                         conversationId
                     };
 
