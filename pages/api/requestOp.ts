@@ -75,7 +75,6 @@ const requestOp =
             return res.status(400).json({ error: ssrfError });
         }
 
-        const apiUrl = constructUrl(reqData);
         // @ts-ignore
         const { accessToken } = session;
 
@@ -119,8 +118,9 @@ const requestOp =
             reqPayload.body = JSON.stringify(bodyData);
         }
 
-        try {
+        const apiUrl = constructUrl(reqData);
 
+        try {
             const response = await fetch(apiUrl, reqPayload);
 
             if (!response.ok) throw new Error(`Request to ${apiUrl} failed with status: ${response.status}`);
@@ -140,10 +140,7 @@ export default requestOp;
 
 
 const constructUrl = (data: any) => {
-    let apiUrl = data.url;
-    if (!apiUrl) {
-        apiUrl = process.env.API_BASE_URL || "";
-    }
+    let apiUrl = process.env.API_BASE_URL || "";
 
     const path: string = data.path || "";
     const op: string = data.op || "";
@@ -151,7 +148,7 @@ const constructUrl = (data: any) => {
     apiUrl += path + op;
 
     const queryParams: { [key: string]: string } | undefined = data.queryParams;
-  
+
     if (queryParams && Object.keys(queryParams).length > 0) {
       const queryString = Object.keys(queryParams)
         .map(key => `${encodeURIComponent(key)}=${encodeURIComponent( transformPayload.decode(queryParams[key]) )}`)
