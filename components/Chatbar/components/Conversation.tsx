@@ -254,7 +254,7 @@ export const ConversationComponent = ({ conversation}: Props) => {
           <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10 flex gap-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-1 fade-in">
             <ActionButton
               id="handleConfirm"
-              title="Confirm rename"
+              title={isDeleting ? "Confirm delete" : "Confirm rename"}
               handleClick={handleConfirm}
               className="enhanced-action-button text-green-600 hover:bg-green-100 dark:hover:bg-green-900/20 rounded-md"
             >
@@ -262,7 +262,7 @@ export const ConversationComponent = ({ conversation}: Props) => {
             </ActionButton>
             <ActionButton
               id="handleCancel"
-              title="Cancel rename"
+              title={isDeleting ? "Cancel delete" : "Cancel rename"}
               handleClick={handleCancel}
               className="enhanced-action-button text-red-600 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-md"
             >
@@ -291,7 +291,7 @@ export const ConversationComponent = ({ conversation}: Props) => {
               handleClick={handleOpenRenameModal} 
               id="isRenaming" 
               title="Rename Conversation"
-              className="enhanced-action-button bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-sm hover:shadow-md rounded p-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200"
+              className="enhanced-action-button bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-sm hover:shadow-md rounded p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200"
             >
               <IconPencil size={14} className="text-blue-600 dark:text-blue-400" />
             </ActionButton>
@@ -299,7 +299,7 @@ export const ConversationComponent = ({ conversation}: Props) => {
               handleClick={handleOpenDeleteModal} 
               id="isDeleting" 
               title="Delete Conversation"
-              className="enhanced-action-button bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-sm hover:shadow-md rounded p-1 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200"
+              className="enhanced-action-button bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-sm hover:shadow-md rounded p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200"
             >
               <IconTrash size={14} className="text-red-500" />
             </ActionButton>
