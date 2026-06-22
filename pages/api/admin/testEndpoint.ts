@@ -1,13 +1,31 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/pages/api/auth/[...nextauth]';
+import { decodeJwt } from 'jose';
 
 const testEndpoint = async (req: NextApiRequest, res: NextApiResponse) => {
-  // Authentication check - matches pattern used in requestOp.ts and other secure endpoints
   const session = await getServerSession(req, res, authOptions);
 
   if (!session) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const accessToken = (session as any).accessToken;
+  if (!accessToken) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  try {
+    const decodedToken = decodeJwt(accessToken);
+    const userGroups: string[] = (decodedToken['cognito:groups'] as string[]) || [];
+    const adminGroupName = process.env.COGNITO_ADMIN_GROUP_NAME || '';
+
+    if (!adminGroupName || !userGroups.includes(adminGroupName)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+  } catch (error) {
+    console.error('Error decoding access token for admin check:', error);
+    return res.status(403).json({ error: 'Forbidden' });
   }
 
   const { url, key, body } = req.body;
