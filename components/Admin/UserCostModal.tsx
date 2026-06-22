@@ -694,7 +694,13 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
   const usersSummary = {
     totalUsers: userCosts.length,
     totalCost: userCosts.reduce((sum, user) => sum + user.totalCost, 0),
-    avgCostPerUser: userCosts.length > 0 ? userCosts.reduce((sum, user) => sum + user.totalCost, 0) / userCosts.length : 0,
+    // Avg Cost/User excludes $0 users (only averages over users who actually incurred cost)
+    avgCostPerUser: (() => {
+      const payingUsers = userCosts.filter((user) => user.totalCost > 0);
+      return payingUsers.length > 0
+        ? payingUsers.reduce((sum, user) => sum + user.totalCost, 0) / payingUsers.length
+        : 0;
+    })(),
     // Only calculate top spender from complete data to avoid showing wrong user during progressive loading
     topSpender: (userCosts.length > 0 && autoLoadState.status === 'completed')
       ? userCosts.reduce((prev, current) => (prev.totalCost > current.totalCost) ? prev : current)
