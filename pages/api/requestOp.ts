@@ -139,11 +139,37 @@ const requestOp =
 export default requestOp;
 
 
+const sanitizePathSegment = (segment: string): string => {
+    // Iteratively decode URL-encoded characters to handle multi-layer encoding
+    // (e.g., %252e%252e → %2e%2e → ..)
+    let decoded = segment;
+    let prev = '';
+    const MAX_DECODE_ITERATIONS = 5;
+    for (let i = 0; i < MAX_DECODE_ITERATIONS && decoded !== prev; i++) {
+        prev = decoded;
+        try {
+            decoded = decodeURIComponent(decoded);
+        } catch {
+            break;
+        }
+    }
+    // Normalize backslashes to forward slashes (WHATWG URL spec treats \ as / in paths,
+    // so attackers can use %5c or literal \ to bypass forward-slash-only splitting)
+    const normalized = decoded.replace(/\\/g, '/');
+    // Remove path traversal sequences after full decoding and normalization
+    // Filter any "." or ".." path components to prevent directory traversal
+    const sanitized = normalized
+        .split('/')
+        .filter(part => part !== '..' && part !== '.')
+        .join('/');
+    return sanitized;
+};
+
 const constructUrl = (data: any) => {
     let apiUrl = process.env.API_BASE_URL || "";
 
     const path: string = data.path || "";
-    const op: string = data.op || "";
+    const op: string = sanitizePathSegment(data.op || "");
 
     apiUrl += path + op;
 
