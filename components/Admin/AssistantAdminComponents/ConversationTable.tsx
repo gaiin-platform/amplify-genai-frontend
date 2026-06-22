@@ -1,6 +1,8 @@
 import HomeContext from "@/pages/api/home/home.context";
 import { IconFiles, IconX } from "@tabler/icons-react";
 import { FC, useContext, useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { getGroupConversationData } from '@/services/groupAssistantService';
 
 export interface AstUserConversation {
@@ -576,8 +578,10 @@ const ConversationPopup: FC<{ conversation: AstUserConversation; onClose: () => 
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className="whitespace-pre-wrap text-gray-800 dark:text-gray-200">
-                                                {message.content}
+                                            <div className="prose prose-sm dark:prose-invert max-w-none text-gray-800 dark:text-gray-200">
+                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                    {message.content}
+                                                </ReactMarkdown>
                                             </div>
                                         </div>
                                     ))}
