@@ -28,23 +28,31 @@ export const authOptions = {
             return true;
         },
         async jwt({ token, profile, account }) {
+            const SESSION_MAX_AGE_MS = 59 * 60 * 1000;
             const attr = process.env.IMMUTABLE_ID_ATTRIBUTE;
             if (profile && attr && profile[attr]) {
                 token.immutableId = profile[attr];
             }
             // Persist the OAuth access_token to the token right after signin
             if (account) {
-                // New token
+                // New token — stamp absolute session start time
+                token.sessionIssuedAt = Date.now();
                 token.accessTokenExpiresAt = account.expires_at * 1000;
                 token.accessToken = account.access_token;
                 token.refreshToken = account.refresh_token;
-            } else if (Date.now() > token.accessTokenExpiresAt) {
-                // Expired token
-                const newToken = await refreshAccessToken(token);
-                token.accessToken = newToken.accessToken;
-                token.accessTokenExpiresAt = newToken.accessTokenExpires;
-                token.refreshToken = newToken.refreshToken;
-                token.error = newToken.error;
+            } else {
+                // Enforce absolute session lifetime — reject if older than maxAge regardless of rolling
+                if (token.sessionIssuedAt && (Date.now() - token.sessionIssuedAt) > SESSION_MAX_AGE_MS) {
+                    return { ...token, error: 'SessionExpiredError' };
+                }
+                if (Date.now() > token.accessTokenExpiresAt) {
+                    // Expired Cognito token — refresh it
+                    const newToken = await refreshAccessToken(token);
+                    token.accessToken = newToken.accessToken;
+                    token.accessTokenExpiresAt = newToken.accessTokenExpires;
+                    token.refreshToken = newToken.refreshToken;
+                    token.error = newToken.error;
+                }
             }
 
             // This is so we don't constantly call the upgrade/create endpoint
