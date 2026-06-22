@@ -168,7 +168,7 @@ const sanitizePathSegment = (segment: string): string => {
 const constructUrl = (data: any) => {
     let apiUrl = process.env.API_BASE_URL || "";
 
-    const path: string = data.path || "";
+    const path: string = sanitizePathSegment(data.path || "");
     const op: string = sanitizePathSegment(data.op || "");
 
     apiUrl += path + op;
