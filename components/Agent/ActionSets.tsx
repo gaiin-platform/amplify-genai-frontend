@@ -6,6 +6,7 @@ import Search from '../Search';
 
 interface LoadActionSetModalProps {
   onLoad: (actionSet: ActionSet) => void;
+  selectedId?: string;
 }
 
 const getIcon = (name: string | undefined) => {
@@ -20,12 +21,12 @@ const formatName = (name: string): string => {
     .replace(/\s+/g, ' ');
 };
 
-export const ActionSetList: FC<LoadActionSetModalProps> = ({ onLoad }) => {
+export const ActionSetList: FC<LoadActionSetModalProps> = ({ onLoad, selectedId }) => {
   const [actionSets, setActionSets] = useState<ActionSet[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSetId, setSelectedSetId] = useState<string | null>(null);
+  const [selectedSetId, setSelectedSetId] = useState<string | null>(selectedId ?? null);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
@@ -108,7 +109,7 @@ export const ActionSetList: FC<LoadActionSetModalProps> = ({ onLoad }) => {
       ) : (
         <div className="space-y-2">
           {filteredSets.map((set) => {
-            const isSelected = selectedSetId === set.id;
+            const isSelected = selectedSetId === set.id || (selectedId && selectedId === set.id);
             return (
               <div
                 key={set.id}
