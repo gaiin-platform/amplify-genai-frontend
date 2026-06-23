@@ -719,6 +719,13 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         return (
           <div className={`flex flex-col mb-4 space-y-3 ${isEnforced ? 'opacity-50 pointer-events-none' : ''}`}>
 
+            {/* ── Selected tool display (matches assistant/workflow style) ── */}
+            {selectedTask.objectInfo?.objectId && (
+              <div className="mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow flex justify-between items-center border-neutral-500 dark:border-neutral-800 dark:border-opacity-50">
+                <span>{selectedTask.objectInfo.objectName}</span>
+              </div>
+            )}
+
             {/* ── Three sub-option cards (API Action | Action Set | Create Action Set) ── */}
             <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${[featureFlags.integrations, featureFlags.actionSets, featureFlags.actionSets].filter(Boolean).length}, minmax(0, 1fr))` }}>
               {featureFlags.integrations && (
@@ -762,13 +769,6 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             {/* ── Action Set: show existing sets inline ── */}
             {actionSubMode === 'actionSet' && featureFlags.actionSets && (
               <div className="flex flex-col gap-2">
-                {selectedTask.objectInfo?.objectId && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-600 text-sm text-blue-800 dark:text-blue-200">
-                    <span className="font-medium">Selected:</span>
-                    <span>{selectedTask.objectInfo.objectName}</span>
-                    <button onClick={() => setSelectedTask({...selectedTask, objectInfo: {objectId: '', objectName: ''}})} className="ml-auto text-blue-400 hover:text-red-500 transition-colors"><IconX size={14} /></button>
-                  </div>
-                )}
                 <div className="border rounded-lg dark:border-neutral-600 overflow-y-auto p-3" style={{ maxHeight: '300px' }}>
                   <ActionSetList onLoad={handleActionSetSelect} selectedId={selectedTask.objectInfo?.objectId} />
                 </div>
@@ -778,13 +778,6 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             {/* ── API Action: pick a single action inline ── */}
             {actionSubMode === 'apiTool' && (
               <div className="flex flex-col gap-2">
-                {selectedTask.objectInfo?.objectId && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-600 text-sm text-blue-800 dark:text-blue-200">
-                    <span className="font-medium">Selected:</span>
-                    <span>{selectedTask.objectInfo.objectName}</span>
-                    <button onClick={() => setSelectedTask({...selectedTask, objectInfo: {objectId: '', objectName: ''}})} className="ml-auto text-blue-400 hover:text-red-500 transition-colors"><IconX size={14} /></button>
-                  </div>
-                )}
                 <div className="border rounded-lg dark:border-neutral-600 overflow-y-auto p-3" style={{ maxHeight: '300px' }}>
                   <div className="flex flex-col gap-2">
                     {availableAgentTools && Object.keys(availableAgentTools).length > 0 && (
