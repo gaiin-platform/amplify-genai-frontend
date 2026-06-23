@@ -75,7 +75,7 @@ export const ModelSelect: React.FC<Props> = ({
   const [autoRoute, setAutoRoute] = useState<boolean>(() => {
     try { return localStorage.getItem('autoRouteModel') === 'true'; } catch { return false; }
   });
-  const [dropdownPosition, setDropdownPosition] = useState<{top: number, left: number, width: number} | null>(null);
+  const [dropdownFlipUp, setDropdownFlipUp] = useState<boolean>(false);
 
   const selectRef = useRef<HTMLDivElement>(null);
 
@@ -98,50 +98,27 @@ export const ModelSelect: React.FC<Props> = ({
     const handleClickOutside = (event: MouseEvent) => {
       if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
         setIsOpen(false);
-        setDropdownPosition(null);
       }
     };
-    
-    const handleResize = () => {
-      if (isOpen) {
-        const position = calculateDropdownPosition();
-        setDropdownPosition(position);
-      }
-    };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
-    window.addEventListener('resize', handleResize);
-    
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      window.removeEventListener('resize', handleResize);
     };
   }, [isOpen]);
 
-  // Calculate dropdown position to avoid clipping
-  const calculateDropdownPosition = () => {
-    if (!selectRef.current) return null;
-    
+  // Determine whether the dropdown should flip up to avoid viewport clipping
+  const calculateFlipUp = () => {
+    if (!selectRef.current) return false;
+
     const rect = selectRef.current.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
     const dropdownMaxHeight = viewportHeight * 0.55;
-    
-    // Calculate available space below and above
     const spaceBelow = viewportHeight - rect.bottom;
     const spaceAbove = rect.top;
-    
-    let top = rect.bottom;
-    
-    // If not enough space below, show above if there's more space there
-    if (spaceBelow < dropdownMaxHeight && spaceAbove > spaceBelow) {
-      top = rect.top - Math.min(dropdownMaxHeight, spaceAbove);
-    }
-    
-    return {
-      top: Math.max(0, top),
-      left: rect.left,
-      width: rect.width
-    };
+
+    return spaceBelow < dropdownMaxHeight && spaceAbove > spaceBelow;
   };
 
   const handleOptionClick = (modelId: string) => {
@@ -156,7 +133,6 @@ export const ModelSelect: React.FC<Props> = ({
     }
     setSelectModel(modelId);
     setIsOpen(false);
-    setDropdownPosition(null);
   };
 
   const selectedModel:Model | undefined = models.find((model) => model.id === selectModel);
@@ -182,7 +158,7 @@ export const ModelSelect: React.FC<Props> = ({
     const next = !autoRoute;
     setAutoRoute(next);
     try { localStorage.setItem('autoRouteModel', String(next)); } catch {}
-    if (next) { setIsOpen(false); setDropdownPosition(null); }
+    if (next) { setIsOpen(false); }
   };
 
   return (
@@ -219,10 +195,7 @@ export const ModelSelect: React.FC<Props> = ({
               disabled={isDisabled}
               onClick={() => {
                 if (!isOpen) {
-                  const position = calculateDropdownPosition();
-                  setDropdownPosition(position);
-                } else {
-                  setDropdownPosition(null);
+                  setDropdownFlipUp(calculateFlipUp());
                 }
                 setIsOpen(!isOpen);
               }}
@@ -243,15 +216,16 @@ export const ModelSelect: React.FC<Props> = ({
                 t('Select a model')
               )}
             </button>
-            {isOpen && dropdownPosition && (
+            {isOpen && (
               <ul
                 id="modelList"
-                className="fixed mt-1 overflow-auto rounded-lg border border-neutral-200 bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-[#343541] sm:text-sm"
+                className="absolute w-full overflow-auto rounded-lg border border-neutral-200 bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-neutral-600 dark:bg-[#343541] sm:text-sm"
                 style={{
-                  top: dropdownPosition.top,
-                  left: dropdownPosition.left,
-                  width: dropdownPosition.width,
-                  maxHeight: window.innerHeight * 0.55,
+                  ...(dropdownFlipUp
+                    ? { bottom: 'calc(100% + 4px)', top: 'auto' }
+                    : { top: 'calc(100% + 4px)', bottom: 'auto' }),
+                  left: 0,
+                  maxHeight: '55vh',
                   zIndex: 9999
                 }}
               >

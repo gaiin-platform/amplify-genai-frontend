@@ -611,7 +611,12 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                     }
 
                     if (selectedConversation.model?.supportsReasoning) {
-                        const reasoningLevel = selectedConversation.data?.reasoningLevel;
+                        // If the assistant enforces a thinking level, use that; otherwise use the conversation setting
+                        const astDefinitionData = message.data?.assistant?.definition?.data;
+                        const enforcedThinking = astDefinitionData?.enforceThinkingLevel;
+                        const reasoningLevel = enforcedThinking
+                            ? astDefinitionData?.thinkingLevel
+                            : selectedConversation.data?.reasoningLevel;
 
                         if (reasoningLevel === 'off') {
                             console.log("Disabling reasoning");

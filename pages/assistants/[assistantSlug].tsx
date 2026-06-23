@@ -707,12 +707,22 @@ const AssistantPage = ({
         console.error('Model is missing id:', activeModel);
         throw new Error("The selected model is invalid. Please select a different model.");
       }
+      // Build reasoning options — enforced thinking level takes priority over any user setting
+      const enforcedThinking = assistantDefinition?.data?.enforceThinkingLevel;
+      const enforcedThinkingLevel = assistantDefinition?.data?.thinkingLevel;
+      const reasoningOpts = activeModel?.supportsReasoning && enforcedThinking && enforcedThinkingLevel
+        ? enforcedThinkingLevel === 'off'
+          ? { disableReasoning: true }
+          : { reasoningLevel: enforcedThinkingLevel }
+        : {};
+
       const options = {
         groupType:      requiredGroupType ? groupType : undefined,
         groupId:        assistantDefinition?.data?.groupId,
         accountId:      defaultAccount?.id,
         rateLimit:      defaultAccount?.rateLimit,
         conversationId: conversationId,
+        ...reasoningOpts,
       };
 
       // Send the message to the assistant with conversation history and selected model

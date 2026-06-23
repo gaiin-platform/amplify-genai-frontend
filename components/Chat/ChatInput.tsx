@@ -2278,31 +2278,36 @@ export const ChatInput = ({
                                     </button>
                                 }
 
-                                {selectedConversation?.model?.supportsReasoning &&
-                                    <div className='ml-auto'>
-                                        <ToggleOptionButtons
-                                            options={REASONING_LEVELS.map((lvl: string) => ({
-                                                id: lvl,
-                                                name: capitalize(lvl),
-                                                title: lvl === 'off'
-                                                    ? "Reasoning is disabled. The model will respond without extended thinking, providing faster but potentially less thorough responses."
-                                                    : `The model will use ${{low: "average amount of", medium: "additional", high: "more"}[lvl]} output tokens when crafting a response. \n${
-                                                        {low: "Optimized for quick responses to simple questions, prioritizing speed",
-                                                            medium: "Balanced approach for everyday questions, offering good accuracy without unnecessary processing time",
-                                                            high: "Provides in-depth analysis for complex problems where thoroughness and precision matter most"}[lvl]}`,
-                                                icon: lvl === 'off' ? undefined : ({low: IconBulb, medium: IconScale, high: IconBrain}[lvl])
-
-                                            }))}
-                                            selected={selectedConversation?.data?.reasoningLevel ?? 'low'}
-                                            onToggle={(reasonLevel: string) => {
-                                                handleUpdateConversation(selectedConversation, {
-                                                    key: 'data',
-                                                    value: {...selectedConversation.data, reasoningLevel: reasonLevel as ReasoningLevels},
-                                                })
-                                            }}
-                                        />
-                                    </div>
-                                }
+                                {selectedConversation?.model?.supportsReasoning && (() => {
+                                    const thinkingEnforced = !!selectedAssistant?.definition?.data?.enforceThinkingLevel;
+                                    const enforcedLevel = selectedAssistant?.definition?.data?.thinkingLevel ?? 'low';
+                                    return (
+                                        <div className={`ml-auto ${thinkingEnforced ? 'opacity-50 pointer-events-none' : ''}`}
+                                             title={thinkingEnforced ? `Thinking level locked to "${enforcedLevel}" by this assistant` : undefined}>
+                                            <ToggleOptionButtons
+                                                options={REASONING_LEVELS.map((lvl: string) => ({
+                                                    id: lvl,
+                                                    name: capitalize(lvl),
+                                                    title: lvl === 'off'
+                                                        ? "Reasoning is disabled. The model will respond without extended thinking, providing faster but potentially less thorough responses."
+                                                        : `The model will use ${{low: "average amount of", medium: "additional", high: "more"}[lvl]} output tokens when crafting a response. \n${
+                                                            {low: "Optimized for quick responses to simple questions, prioritizing speed",
+                                                                medium: "Balanced approach for everyday questions, offering good accuracy without unnecessary processing time",
+                                                                high: "Provides in-depth analysis for complex problems where thoroughness and precision matter most"}[lvl]}`,
+                                                    icon: lvl === 'off' ? undefined : ({low: IconBulb, medium: IconScale, high: IconBrain}[lvl])
+                                                }))}
+                                                selected={thinkingEnforced ? enforcedLevel : (selectedConversation?.data?.reasoningLevel ?? 'low')}
+                                                onToggle={(reasonLevel: string) => {
+                                                    if (thinkingEnforced) return;
+                                                    handleUpdateConversation(selectedConversation, {
+                                                        key: 'data',
+                                                        value: {...selectedConversation.data, reasoningLevel: reasonLevel as ReasoningLevels},
+                                                    });
+                                                }}
+                                            />
+                                        </div>
+                                    );
+                                })()}
 
                             </>
 

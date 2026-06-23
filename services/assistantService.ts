@@ -181,7 +181,6 @@ export const sendDirectAssistantMessage = async (
       assistantName: assistantName,
       skipRag: false,
       skipCodeInterpreter: false,
-      disableReasoning: true,
       enableWebSearch: false, // for now
       skipMemory: true, // Skip memory processing
       ...options,
