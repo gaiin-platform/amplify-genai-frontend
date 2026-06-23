@@ -11,10 +11,14 @@ export const webSearchProviders = {
     brave_search: 'brave_search',
     tavily: 'tavily',
     serper: 'serper',
-    serpapi: 'serpapi'
+    serpapi: 'serpapi',
+    bedrock_agentcore: 'bedrock_agentcore'
   } as const;
 
 export type WebSearchProvider = keyof typeof webSearchProviders;
+
+// Auth modes for the Bedrock AgentCore gateway provider.
+export type AgentCoreAuthMode = 'user_token' | 'oauth' | 'bearer';
 
 export interface WebSearchProviderConfig {
     id: WebSearchProvider;
@@ -23,6 +27,9 @@ export interface WebSearchProviderConfig {
     apiKeyUrl: string;
     apiKeyPlaceholder: string;
     freeQuota?: string;
+    // Gateway providers (e.g. Bedrock AgentCore) are configured with a gateway URL
+    // and an auth mode rather than a single API key.
+    isGateway?: boolean;
 }
 
 export interface AdminWebSearchConfig {
@@ -33,6 +40,14 @@ export interface AdminWebSearchConfig {
     maskedKey?: string;
     lastUpdated?: string;
     api_key?: string; // Full API key stored temporarily for save operation (not from backend)
+    // Bedrock AgentCore gateway configuration
+    bedrockAgentCoreGatewayUrl?: string;
+    bedrockAgentCoreAuthMode?: AgentCoreAuthMode;
+    bedrockAgentCoreRegion?: string;
+    bedrockAgentCoreTokenUrl?: string;
+    bedrockAgentCoreClientId?: string;
+    bedrockAgentCoreScope?: string;
+    bedrockAgentCoreToolName?: string;
 }
 
 // Configuration for admin web search integrations
@@ -68,6 +83,15 @@ export const WEB_SEARCH_PROVIDERS: Record<WebSearchProvider, WebSearchProviderCo
         apiKeyUrl: 'https://serpapi.com/manage-api-key',
         apiKeyPlaceholder: '',
         freeQuota: '100 searches/month free',
+    },
+    bedrock_agentcore: {
+        id: 'bedrock_agentcore',
+        name: 'Amazon Bedrock AgentCore',
+        description: 'AWS-managed web search via an AgentCore Gateway. No third-party API key required; the gateway can be auto-provisioned on deploy and authorized with each user\'s sign-in.',
+        apiKeyUrl: 'https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-target-connector-web-search-tool.html',
+        apiKeyPlaceholder: '',
+        freeQuota: 'Billed to your AWS account (us-east-1)',
+        isGateway: true,
     },
 };
   
