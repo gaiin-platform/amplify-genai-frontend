@@ -1004,6 +1004,8 @@ export const ChatInput = ({
             if (assistantSelectorRef.current && !assistantSelectorRef.current.contains(e.target as Node)) setShowAssistantSelect(false);
 
             if (contextManagerRef.current && !contextManagerRef.current.contains(e.target as Node)) setShowContextManager(false);
+
+            if (workflowSelectorRef.current && !workflowSelectorRef.current.contains(e.target as Node)) setShowWorkflowSelector(false);
         };
 
         window.addEventListener('click', handleOutsideClick);
@@ -1638,6 +1640,21 @@ export const ChatInput = ({
                         </div>
                     )}
 
+                    {/* Workflow Viewer - sits above the pill row, kept mounted to preserve cache */}
+                    {featureFlags.assistantWorkflows && (
+                        <div ref={workflowSelectorRef}
+                             className="w-full"
+                             style={{ display: showWorkflowSelector ? undefined : 'none', transform: 'translateY(24px)' }}>
+                            <ChatWorkflowViewer
+                                selectedWorkflowId={selectedWorkflow?.templateId ?? null}
+                                onSelect={(workflow) => {
+                                    setSelectedWorkflow(workflow);
+                                }}
+                                onClose={() => setShowWorkflowSelector(false)}
+                            />
+                        </div>
+                    )}
+
                     <div className="relative mx-2 flex w-full flex-grow sm:mx-4 bg-neutral-100 dark:bg-[#3d3e4c] rounded-md" style={{transform: 'translateY(24px)'}}>
 
                         {/* Only show AssistantsInUse when AttachmentDisplay is NOT shown */}
@@ -1737,21 +1754,6 @@ export const ChatInput = ({
                             </div>
                         )}
 
-                        {/* Workflow Viewer - inline inside input box, kept mounted to preserve cache */}
-                        {featureFlags.assistantWorkflows && (
-                            <div ref={workflowSelectorRef}
-                                 className="w-full mb-2"
-                                 style={{ display: showWorkflowSelector ? undefined : 'none' }}>
-                                <ChatWorkflowViewer
-                                    selectedWorkflowId={selectedWorkflow?.templateId ?? null}
-                                    onSelect={(workflow) => {
-                                        setSelectedWorkflow(workflow);
-                                        if (workflow) setShowWorkflowSelector(false);
-                                    }}
-                                    onClose={() => setShowWorkflowSelector(false)}
-                                />
-                            </div>
-                        )}
 
                         {/* Render ActionsList above the input area */}
                         {featureFlags.actionSets && addedActions.length > 0 && (
@@ -2163,10 +2165,10 @@ export const ChatInput = ({
                         {/* Web Search Toggle - Per-Message Control (only show if web search is enabled in FeaturePlugin) */}
                         { featureFlags.webSearch && plugins?.some(p => p.id === PluginID.WEB_SEARCH) &&
                         <button
-                            className={`chat-input-button rounded-md p-1.5 transition-all duration-200 ${
+                            className={`chat-input-button rounded-full p-1.5 transition-all duration-200 ${
                                 isWebSearchEnabledForConversation
-                                    ? 'bg-green-500 hover:bg-green-600 text-white shadow-md scale-105'
-                                    : 'text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200'
+                                    ? 'bg-blue-600 dark:bg-blue-500 text-white shadow-md'
+                                    : 'text-neutral-600 hover:rounded-full hover:bg-neutral-300  dark:hover:bg-gray-500 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-400 dark:hover:text-gray-100'
                             }`}
                             id="toggleWebSearch"
                             onClick={(e) => {
@@ -2282,8 +2284,9 @@ export const ChatInput = ({
                                     const thinkingEnforced = !!selectedAssistant?.definition?.data?.enforceThinkingLevel;
                                     const enforcedLevel = selectedAssistant?.definition?.data?.thinkingLevel ?? 'low';
                                     return (
-                                        <div className={`ml-auto ${thinkingEnforced ? 'opacity-50 pointer-events-none' : ''}`}
+                                        <div className={`ml-auto ${thinkingEnforced ? 'opacity-50 cursor-not-allowed' : ''}`}
                                              title={thinkingEnforced ? `Thinking level locked to "${enforcedLevel}" by this assistant` : undefined}>
+                                            <div className={thinkingEnforced ? 'pointer-events-none' : ''}>
                                             <ToggleOptionButtons
                                                 options={REASONING_LEVELS.map((lvl: string) => ({
                                                     id: lvl,
@@ -2305,6 +2308,7 @@ export const ChatInput = ({
                                                     });
                                                 }}
                                             />
+                                            </div>
                                         </div>
                                     );
                                 })()}

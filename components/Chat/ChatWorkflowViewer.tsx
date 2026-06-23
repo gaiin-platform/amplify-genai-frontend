@@ -10,8 +10,6 @@ import { AssistantWorkflow } from '@/components/AssistantWorkflows/AssistantWork
 import {
     IconX,
     IconLoader2,
-    IconCirclePlus,
-    IconCheck,
     IconChevronRight,
     IconGitBranch,
 } from '@tabler/icons-react';
@@ -55,11 +53,13 @@ const ChatWorkflowViewer: React.FC<Props> = ({ selectedWorkflowId, onSelect, onC
         fetchTemplates();
     }, []);
 
-    // handleLoadTemplate — mirrors AssistantWorkflowBuilder.handleLoadTemplate()
+    // handleLoadTemplate — clicking a workflow immediately selects it into the chat input.
+    // Clicking the same workflow again deselects it.
     const handleLoadTemplate = async (templateId: string) => {
         if (selectedTemplateId === templateId) {
             setSelectedTemplateId(null);
             setSelectedTemplate(null);
+            onSelect(null);
             return;
         }
 
@@ -67,8 +67,10 @@ const ChatWorkflowViewer: React.FC<Props> = ({ selectedWorkflowId, onSelect, onC
         setSelectedTemplateId(templateId);
 
         if (cacheRef.current[templateId]?.template?.steps?.length) {
-            setSelectedTemplate(cacheRef.current[templateId]);
+            const cached = cacheRef.current[templateId];
+            setSelectedTemplate(cached);
             setLoadingSelectedWorkflow(false);
+            onSelect(cached);
             return;
         }
 
@@ -77,8 +79,12 @@ const ChatWorkflowViewer: React.FC<Props> = ({ selectedWorkflowId, onSelect, onC
             cacheRef.current[templateId] = listItem;
             setSelectedTemplate(listItem);
             setLoadingSelectedWorkflow(false);
+            onSelect(listItem);
             return;
         }
+
+        // Attach immediately with whatever we have (name/id) so the pill shows right away
+        if (listItem) onSelect(listItem);
 
         try {
             const response = await getAstWorkflowTemplate(templateId);
@@ -89,6 +95,7 @@ const ChatWorkflowViewer: React.FC<Props> = ({ selectedWorkflowId, onSelect, onC
                     prev.map(t => t.templateId === templateId ? full : t)
                 );
                 setSelectedTemplate(full);
+                onSelect(full);
             } else {
                 setSelectedTemplateId(null);
                 setSelectedTemplate(null);
@@ -137,7 +144,7 @@ const ChatWorkflowViewer: React.FC<Props> = ({ selectedWorkflowId, onSelect, onC
                                         ? 'bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-700'
                                         : 'hover:bg-gray-200 dark:hover:bg-gray-700 border border-transparent'
                                 }`}
-                                onClick={() => handleLoadTemplate(template.templateId)}
+                                onClick={(e) => { e.stopPropagation(); handleLoadTemplate(template.templateId); }}
                             >
                                 <div className="flex items-center gap-2">
                                     <span className="font-medium text-sm text-gray-900 dark:text-gray-100">
@@ -164,33 +171,9 @@ const ChatWorkflowViewer: React.FC<Props> = ({ selectedWorkflowId, onSelect, onC
     const renderPreviewContent = () => (
         <div className="w-2/3 overflow-auto">
             <div className="p-6">
-                {/* Header row — fixed title + Add/Remove button */}
+                {/* Header row */}
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">Workflow Template Preview</h3>
-                    <div className="flex gap-2">
-                        {selectedWorkflowId === selectedTemplate?.templateId ? (
-                            <button
-                                className="flex items-center bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 shadow-sm"
-                                onClick={() => onSelect(null)}
-                            >
-                                <IconCheck size={16} stroke={1.5} className="mr-1 text-green-500" />
-                                Remove Workflow
-                            </button>
-                        ) : (
-                            <button
-                                className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 shadow-sm"
-                                onClick={() => {
-                                    if (selectedTemplate) {
-                                        const full = cacheRef.current[selectedTemplate.templateId] ?? selectedTemplate;
-                                        onSelect(full);
-                                    }
-                                }}
-                            >
-                                <IconCirclePlus size={16} stroke={1.5} className="mr-1" />
-                                Add Workflow
-                            </button>
-                        )}
-                    </div>
                 </div>
 
                 {/* Loading state */}

@@ -170,7 +170,7 @@ export function useSendService() {
                         message.label = label;
                     }
 
-                    console.log("Model in use: ", selectedConversation.model.name);
+                   
                     let updatedConversation: Conversation;
                     if (deleteCount) {
                         const updatedMessages = [...(selectedConversation.messages ?? [])];
@@ -421,6 +421,7 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                         }
                     }
                     // ─────────────────────────────────────────────────────────
+                     console.log("Model in use: ", resolvedModel.name);
 
                     let chatBody: ChatBody = {
                         model: resolvedModel,

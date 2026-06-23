@@ -1307,8 +1307,8 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         />
                                         {/* Enforce Thinking Level — only when the chosen model supports reasoning */}
                                         {enforceModel && enforcedModelId && availableModels[enforcedModelId]?.supportsReasoning && (
-                                            <div className="mt-2">
-                                                <div className="mb-1 flex flex-row gap-3 text-[1rem]">
+                                            <div className="mt-2 flex flex-row">
+                                                <div className="my-1 flex flex-row gap-3 text-[1rem]">
                                                     <Checkbox
                                                         id="ast_enforceThinkingLevel"
                                                         label="Enforce Thinking Level"
@@ -1316,7 +1316,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                                         onChange={(isChecked: boolean) => setEnforceThinkingLevel(isChecked)}
                                                     />
                                                 </div>
-                                                <div className={`ml-6 transition-opacity duration-150 ${enforceThinkingLevel ? '' : 'opacity-40 pointer-events-none'}`}>
+                                                <div className={`max-w-[268px] ml-6 transition-opacity duration-150 ${enforceThinkingLevel ? '' : 'opacity-40 pointer-events-none'}`}>
                                                     <ToggleOptionButtons
                                                         options={REASONING_LEVELS.map((lvl: string) => ({
                                                             id: lvl,
