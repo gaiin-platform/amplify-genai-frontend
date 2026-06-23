@@ -54,7 +54,7 @@ export const ToggleOptionButtons: React.FC<ToggleButtonGroupProps> = ({ options,
         className={`flex flex-row gap-2 py-1 px-2 text-[12px] rounded-full transition-all duration-300 focus:outline-none whitespace-nowrap ${
           isActive
             ? `bg-white dark:bg-[#1f1f29]  font-bold transform scale-105 ${activeColor || 'text-neutral-900 dark:text-neutral-100'}`
-            : 'bg-transparent text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-[#31313f]'
+            : 'bg-transparent text-neutral-700 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-[#31313f]'
         }`}
         onClick={(e) => {
           e.preventDefault();

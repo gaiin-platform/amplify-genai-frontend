@@ -1124,6 +1124,7 @@ export const LayeredAssistantBuilder: FC<LayeredAssistantBuilderProps> = ({ onCl
                     {/* Tree */}
                     <div
                         className="flex-1 overflow-y-auto p-2 space-y-0.5 min-h-0"
+                        tabIndex={0}
                         onDragOver={(e) => { e.preventDefault(); }}
                         onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleMoveNode(); clearDragState(); }}
                     >

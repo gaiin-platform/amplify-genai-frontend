@@ -1,7 +1,7 @@
 import { FC, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Amplify_Group, Amplify_Groups, AmplifyGroupSelect, EmailSupport, PromptCostAlert, titleLabel, UserAction } from "../AdminUI";
-import { AdminConfigTypes} from "@/types/admin";
+import { AdminConfigTypes, FeatureFlagConfig } from "@/types/admin";
 import { IconPlus, IconTrash, IconX, IconCloudFilled, IconMessage, IconCheck, IconEdit, IconFileImport } from "@tabler/icons-react";
 import Checkbox from "@/components/ReusableComponents/CheckBox";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
@@ -51,6 +51,10 @@ interface Props {
     defaultTimezone: string;
     setDefaultTimezone: (tz: string) => void;
 
+    smartMessagesEnabled: boolean;
+    setSmartMessagesEnabled: (v: boolean) => void;
+    features: FeatureFlagConfig;
+
     allEmails: Array<string> | null;
 
     admin_text: string;
@@ -64,7 +68,10 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                               defaultConversationStorage, setDefaultConversationStorage,
                                               emailSupport, setEmailSupport, aiEmailDomain, setAiEmailDomain,
                                               defaultTimezone, setDefaultTimezone,
+                                              smartMessagesEnabled, setSmartMessagesEnabled, features,
                                               admin_text, updateUnsavedConfigs, onModalStateChange}) => {
+
+    const smartMessagesFlagOn = features.smartMessages?.enabled !== false;
 
     const { data: session } = useSession();
     const userEmail = getUserIdentifier(session?.user);
@@ -149,6 +156,11 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     const handleUpdateDefaultTimezone = (tz: string) => {
         setDefaultTimezone(tz);
         updateUnsavedConfigs(AdminConfigTypes.DEFAULT_TIMEZONE);
+    }
+
+    const handleUpdateSmartMessages = (enabled: boolean) => {
+        setSmartMessagesEnabled(enabled);
+        updateUnsavedConfigs(AdminConfigTypes.DEFAULT_SMART_MESSAGES);
     }
 
     const handleUpdateAmpGroups = (updatedGroups: Amplify_Groups) => {
@@ -375,6 +387,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 </div>
                 <div className="mx-12 pb-4">
                     <select
+                        aria-label="Default Timezone"
                         className="w-full p-2 rounded border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
                         value={defaultTimezone}
                         onChange={(e) => handleUpdateDefaultTimezone(e.target.value)}
@@ -605,6 +618,45 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
             </div>
         
 
+            
+            <div className="admin-style-settings-card flex flex-row items-start gap-14">
+                <div className="admin-style-settings-card-header">
+                    <h3 className="admin-style-settings-card-title">Smart Focused Messages — Default Setting</h3>
+                    <p className="admin-style-settings-card-description">
+                        {smartMessagesFlagOn
+                            ? 'Default on/off for users without a saved preference'
+                            : <span className="text-amber-500 dark:text-amber-400 text-xs font-semibold">⚠ Enable the <strong>smartMessages</strong> feature flag first to configure this</span>
+                        }
+                    </p>
+                </div>
+                <div className={`flex-shrink-0 flex items-center rounded-md border border-neutral-600 bg-neutral-200 dark:bg-[#39394a] p-1 gap-1 ${
+                    !smartMessagesFlagOn ? 'opacity-40 pointer-events-none select-none' : ''
+                }`}>
+                    <button
+                        onClick={() => handleUpdateSmartMessages(true)}
+                        className={`px-3 py-1 rounded text-xs font-semibold transition-all duration-200 ${
+                            smartMessagesEnabled
+                                ? 'bg-white dark:bg-[#1f1f29] text-green-500 dark:text-green-400 font-bold scale-105'
+                                : 'bg-transparent text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-[#31313f]'
+                        }`}
+                    >
+                        ON
+                    </button>
+                    <button
+                        onClick={() => handleUpdateSmartMessages(false)}
+                        className={`px-3 py-1 rounded text-xs font-semibold transition-all duration-200 ${
+                            !smartMessagesEnabled
+                                ? 'bg-white dark:bg-[#1f1f29] text-red-400 dark:text-red-400 font-bold scale-105'
+                                : 'bg-transparent text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-[#31313f]'
+                        }`}
+                    >
+                        OFF
+                    </button>
+                </div>
+            </div>
+
+            
+
             <div className="admin-style-settings-card">
                 <div className="admin-style-settings-card-header">
                     <h3 className="admin-style-settings-card-title">Prompt Cost Alert</h3>
@@ -649,6 +701,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                     <input type="number" disabled={!promptCostAlert.isActive}
                             className="text-center w-[100px] dark:bg-[#40414F] bg-gray-200"
                             id="costThresholdInput"
+                            aria-label="Cost Threshold"
                             min={0} step={.01} value={promptCostAlert.cost as number?? 0 }
                             onChange={(e) => {
                                 const value = parseFloat(e.target.value);
@@ -823,7 +876,9 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
 
                                             <div className={`flex items-center ${addingMembersTo === groupName ? "flex-col":'flex-row'}`}>
                                             <div
-                                                className={`flex items-center ${addingMembersTo === groupName ? "flex-wrap": "overflow-x-auto"}`} >
+                                                className={`flex items-center ${addingMembersTo === groupName ? "flex-wrap": "overflow-x-auto"}`}
+                                                tabIndex={addingMembersTo === groupName ? undefined : 0}
+                                            >
                                                 {group.members?.map((user, idx) => (
                                                 <div key={idx} className="flex items-center gap-1 mr-1"
                                                     onMouseEnter={() => {
@@ -880,6 +935,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                             ) : (
                                                 (group.includeFromOtherGroups !== undefined ?
                                                 <button
+                                                aria-label="Add Members"
                                                 className="ml-auto flex items-center px-2 text-blue-500 hover:text-blue-600 flex-shrink-0"
                                                 onClick={() => setAddingMembersTo(groupName)}
                                                 >

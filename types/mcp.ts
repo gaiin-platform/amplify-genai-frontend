@@ -4,11 +4,15 @@
  * Types for managing MCP server connections and tool execution.
  */
 
+import { validateUrlForSSRF } from '@/utils/app/urlValidation';
+
 // MCP transport types
 export type MCPTransport = 'http' | 'sse';
 
 // MCP server connection status
 export type MCPServerStatus = 'connected' | 'disconnected' | 'connecting' | 'error';
+
+export type MCPTrustMode = 'trusted' | 'untrusted';
 
 // JSON Schema type for tool input schemas
 export interface JSONSchema {
@@ -51,6 +55,8 @@ export interface MCPServerConfig {
   headers?: Record<string, string>;
   oauthConnected?: boolean;
   oauthDiscoverable?: boolean;
+  trustMode?: MCPTrustMode;
+  trustReason?: string | null;
 }
 
 // OAuth2 configuration for an MCP server
@@ -173,12 +179,12 @@ export const MCP_SERVER_PRESETS: MCPServerPreset[] = [
 
 // Helper to validate MCP server URL
 export function validateMCPServerUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
-    return false;
-  }
+  return validateUrlForSSRF(url).valid;
+}
+
+// Helper to validate MCP server URL with reason for UI messages
+export function validateMCPServerUrlWithReason(url: string): { valid: boolean; error?: string } {
+  return validateUrlForSSRF(url);
 }
 
 // Helper to format MCP tool name (mcp_{serverId}_{toolName})

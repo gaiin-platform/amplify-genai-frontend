@@ -9,7 +9,9 @@ import {
     MCPServerConfig,
     MCPServerFormData,
     MCPConnectionResult,
+    MCPTrustMode,
     MCPTool,
+    validateMCPServerUrlWithReason,
 } from '@/types/mcp';
 import { doRequestOp } from './doRequestOp';
 
@@ -71,6 +73,11 @@ export async function getMCPServer(serverId: string): Promise<MCPServerConfig | 
 export async function addMCPServer(
     config: MCPServerFormData
 ): Promise<{ success: boolean; server?: MCPServerConfig; error?: string }> {
+    const urlCheck = validateMCPServerUrlWithReason(config.url);
+    if (!urlCheck.valid) {
+        return { success: false, error: urlCheck.error || 'Invalid MCP server URL' };
+    }
+
     try {
         const result = await doRequestOp({
             method: 'POST',
@@ -95,8 +102,15 @@ export async function addMCPServer(
  */
 export async function updateMCPServer(
     serverId: string,
-    updates: Partial<MCPServerFormData & { enabled: boolean }>
+    updates: Partial<MCPServerFormData & { enabled: boolean; trustMode: MCPTrustMode; trustReason: string | null }>
 ): Promise<{ success: boolean; server?: MCPServerConfig; error?: string }> {
+    if (updates.url) {
+        const urlCheck = validateMCPServerUrlWithReason(updates.url);
+        if (!urlCheck.valid) {
+            return { success: false, error: urlCheck.error || 'Invalid MCP server URL' };
+        }
+    }
+
     try {
         const result = await doRequestOp({
             method: 'POST',
@@ -148,6 +162,13 @@ export async function deleteMCPServer(
 export async function testMCPConnection(
     serverOrId: string | MCPServerFormData
 ): Promise<MCPConnectionResult> {
+    if (typeof serverOrId !== 'string' && serverOrId.url) {
+        const urlCheck = validateMCPServerUrlWithReason(serverOrId.url);
+        if (!urlCheck.valid) {
+            return { success: false, error: urlCheck.error || 'Invalid MCP server URL' };
+        }
+    }
+
     try {
         const data = typeof serverOrId === 'string'
             ? { serverId: serverOrId }

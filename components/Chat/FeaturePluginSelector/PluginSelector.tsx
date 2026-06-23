@@ -35,7 +35,7 @@ export const PluginSelector: FC<Props> = ({
               if (plugin.id === PluginID.RAG_EVAL && (!featureFlags.ragEnabled || !featureFlags.ragEvaluation)) return false;
               if (plugin.id === PluginID.CODE_INTERPRETER && !featureFlags.codeInterpreterEnabled) return false;
               if (plugin.id === PluginID.ARTIFACTS && (!featureFlags.artifacts || !settingRef.current?.featureOptions.includeArtifacts)) return false;
-              if (plugin.id === PluginID.SMART_MESSAGES && !settingRef.current?.featureOptions.includeFocusedMessages) return false;
+              // if (plugin.id === PluginID.SMART_MESSAGES && (!featureFlags.smartMessages || !settingRef.current?.featureOptions.includeFocusedMessages)) return false;
               if (plugin.id === PluginID.MEMORY && (!featureFlags.memory || !settingRef.current?.featureOptions.includeMemory)) return false;
               if (plugin.id === PluginID.MCP && !featureFlags.mcp) return false;
               if (plugin.id === PluginID.WEB_SEARCH && (!featureFlags.webSearch || !settingRef.current?.featureOptions.includeWebSearch)) return false;
@@ -68,10 +68,10 @@ export const PluginSelector: FC<Props> = ({
           settingRef.current = getSettings(featureFlags);
           setValidPlugins(filterPlugInList());
         }
-    
+
         window.addEventListener('updateFeatureSettings', handleEvent);
         return () => window.removeEventListener('updateFeatureSettings', handleEvent);
-    }, []);
+    }, [featureFlags]);
 
   const savePluginSelection = (activePlugins: Plugin[]) => {
     const activePluginIds = activePlugins.map((p: Plugin) => p.id);

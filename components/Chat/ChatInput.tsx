@@ -145,21 +145,25 @@ export const ChatInput = ({
     let settingRef = useRef<Settings | null>(null);
     // prevent recalling the getSettings function
     if (settingRef.current === null) settingRef.current = getSettings(featureFlags);
+    const [settingsVersion, setSettingsVersion] = useState(0);
     const [filteredModels, setFilteredModels] = useState<Model[]>([]);
 
     useEffect(() => {
         const handleEvent = (event: any) => {
-            settingRef.current = getSettings(featureFlags);
+            const newSettings = getSettings(featureFlags);
+            settingRef.current = newSettings;
             if (Object.keys(availableModels).length > 0) {
                 setFilteredModels(filterModels(availableModels, settingRef.current.hiddenModelIds));
             }
+            // trigger re-render so JSX that reads settingRef.current (e.g. includePluginSelector) updates
+            setSettingsVersion(v => v + 1);
         };
 
         window.addEventListener('updateFeatureSettings', handleEvent);
         return () => {
             window.removeEventListener('updateFeatureSettings', handleEvent);
         };
-    }, []);
+    }, [featureFlags, availableModels]);
 
     useEffect(() => {
         settingRef.current = getSettings(featureFlags);
@@ -1279,10 +1283,12 @@ export const ChatInput = ({
         }
     }, [plugins, selectedConversation, handleUpdateConversation]);
 
+    const showPluginSelector = featureFlags.pluginsOnInput && settingRef.current.featureOptions.includePluginSelector;
+
     return (
         <>
-            { featureFlags.pluginsOnInput &&
-                settingRef.current.featureOptions.includePluginSelector &&
+            <span style={{display:'none'}}>{settingsVersion}</span>
+            { showPluginSelector &&
                 <div className='relative z-20' style={{height: 0}}>
                     <FeaturePlugin
                         plugins={plugins}

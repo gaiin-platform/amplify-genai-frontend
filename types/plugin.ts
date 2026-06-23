@@ -17,7 +17,7 @@ export enum PluginID {
   CODE_INTERPRETER = 'code-interpreter',
   RAG = 'rag',
   ARTIFACTS = 'artifacts',
-  SMART_MESSAGES = 'smart-focused-messages',
+  // SMART_MESSAGES = 'smart-focused-messages',
   RAG_EVAL = 'rag-eval',
   MEMORY = 'memory',
   WEB_SEARCH = 'web-search',
@@ -53,12 +53,12 @@ export const Plugins: Record<PluginID, Plugin> = {
     title: "Allow Artifact Creation.",
     iconComponent: IconLibrary
   },
-  [PluginID.SMART_MESSAGES]: {
-    id: PluginID.SMART_MESSAGES,
-    name: "Smart Focused Messages",
-    title: "Filters and sends only the most relevant messages from the conversation based on the current user prompt.",
-    iconComponent: IconMessageBolt
-  },
+  // [PluginID.SMART_MESSAGES]: {
+  //   id: PluginID.SMART_MESSAGES,
+  //   name: "Smart Focused Messages",
+  //   title: "Filters and sends only the most relevant messages from the conversation based on the current user prompt.",
+  //   iconComponent: IconMessageBolt
+  // },
   [PluginID.MEMORY]: {
     id: PluginID.MEMORY,
     name: "Memory",
