@@ -131,7 +131,7 @@ export const ChatInput = ({
     const {
         state: {selectedConversation, conversations, folders, selectedAssistant, messageIsStreaming, artifactIsStreaming,
             prompts, layeredAssistants, groups, featureFlags, currentRequestId, chatEndpoint, statsService, availableModels,
-            extractedFacts, memoryExtractionEnabled, ragOn, defaultAccount, webSearchUserMessage},
+            extractedFacts, memoryExtractionEnabled, ragOn, defaultAccount, webSearchUserMessage, defaultModelId},
         getDefaultModel, handleUpdateConversation,
         dispatch: homeDispatch
     } = useContext(HomeContext);
@@ -509,6 +509,27 @@ export const ChatInput = ({
             //I do not get the impression that promptTemplates are currently used nonetheless the bases are covered in case they ever come into play (as taken into account in handleStartConversationWithPrompt)
             selectedConversation.promptTemplate = assistantPrompt ?? null;
 
+            // If the assistant enforces a model, immediately update the conversation model
+            // so the top model selector reflects it without waiting for the useEffect.
+            // If there is NO enforced model, clear the conversation model so it falls back
+            // to the user's default — preventing a stale enforced model from a previous
+            // assistant from persisting.
+            const enforcedModelId = assistant?.definition?.data?.model;
+            if (enforcedModelId && availableModels[enforcedModelId]) {
+                handleUpdateConversation(selectedConversation, {
+                    key: 'model',
+                    value: availableModels[enforcedModelId],
+                });
+            } else {
+                // Reset to default model so no previous enforced model lingers
+                const defaultModel = defaultModelId ? availableModels[defaultModelId] : undefined;
+                if (defaultModel) {
+                    handleUpdateConversation(selectedConversation, {
+                        key: 'model',
+                        value: defaultModel,
+                    });
+                }
+            }
         }
 
     }

@@ -358,12 +358,17 @@ export function useSendService() {
                     // If the user has enabled auto-route (toggle in ModelSelect),
                     // classify the task complexity before sending and override the
                     // conversation model with cheapest / default / advanced accordingly.
+                    // Auto-route is suppressed when the active assistant enforces a
+                    // specific model — the assistant's choice always takes priority.
                     let resolvedModel = updatedConversation.model;
                     const autoRouteEnabled = (() => {
                         try { return localStorage.getItem('autoRouteModel') === 'true'; } catch { return false; }
                     })();
 
-                    if (autoRouteEnabled && chatEndpoint) {
+                    const enforcedAssistantModelId = message.data?.assistant?.definition?.data?.model as string | undefined;
+                    const autoRouteSuppressed = !!(enforcedAssistantModelId);
+
+                    if (autoRouteEnabled && !autoRouteSuppressed && chatEndpoint) {
                         try {
                             // If files/datasources are attached → always use advanced model
                             // (no classification call — avoids competing with file processing)

@@ -1303,6 +1303,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             outlineColor={enforceModel && !enforcedModelId ? 'red-500' : ''}
                                             isDisabled={!enforceModel || disableEdit}
                                             disableMessage=""
+                                            disableAutoRoute={true}
                                             handleModelChange={(modelId: string) => setEnforcedModelId(modelId)}
                                         />
                                         {/* Enforce Thinking Level — only when the chosen model supports reasoning */}

@@ -23,6 +23,7 @@ interface Props {
   defaultModelId?: string;
   outlineColor?: string;
   showPricingBreakdown?: boolean;
+  disableAutoRoute?: boolean;
 }
 
 export const ModelSelect: React.FC<Props> = ({
@@ -33,7 +34,8 @@ export const ModelSelect: React.FC<Props> = ({
   applyModelFilter = true,
   disableMessage = 'Model has been predetermined and cannot be changed',
   models: presetModels, defaultModelId: backupDefaultModelId,
-  outlineColor, showPricingBreakdown = true
+  outlineColor, showPricingBreakdown = true,
+  disableAutoRoute = false,
 }) => {
   const { t } = useTranslation('chat');
 
@@ -73,8 +75,20 @@ export const ModelSelect: React.FC<Props> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
   const [autoRoute, setAutoRoute] = useState<boolean>(() => {
+    if (disableAutoRoute) return false;
     try { return localStorage.getItem('autoRouteModel') === 'true'; } catch { return false; }
   });
+
+  // Re-sync autoRoute whenever disableAutoRoute prop changes — e.g. switching between
+  // an assistant with enforce model (disableAutoRoute=true) and one without (false).
+  useEffect(() => {
+    if (disableAutoRoute) {
+      setAutoRoute(false);
+    } else {
+      try { setAutoRoute(localStorage.getItem('autoRouteModel') === 'true'); } catch {}
+    }
+  }, [disableAutoRoute]);
+
   const [dropdownFlipUp, setDropdownFlipUp] = useState<boolean>(false);
 
   const selectRef = useRef<HTMLDivElement>(null);
