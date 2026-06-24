@@ -1,4 +1,4 @@
-// Display a Workflow 
+// Display a Workflow
 
 import { AstWorkflow, Step } from "@/types/assistantWorkflows";
 import { useState, useEffect, useContext, useRef } from "react";
@@ -22,7 +22,7 @@ interface WorkflowProps {
     obfuscate?: boolean;
     showHeader?: boolean;
 }
-  
+
 export const AssistantWorkflow: React.FC<WorkflowProps> = ({
     id,
     workflowTemplate,
@@ -34,7 +34,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
     showHeader = true
   }) => {
     const { state: {featureFlags} } = useContext(HomeContext);
-    
+
     const [disabledActionSegments, setDisabledActionSegments] = useState<string[]>([]);
     const getInitialExpandedSegments = (template: AstWorkflow): Record<string, boolean> => {
       const segments = template.template?.steps.map(s => s.actionSegment || 'default') ?? [];
@@ -52,7 +52,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
         groups[segment].push(step);
         return groups;
       }, {} as Record<string, Step[]>) || {};
-    } 
+    }
     const [groupedSteps, setGroupedSteps] = useState<Record<string, Step[]>>(groupSteps(internalTemplate)?? {});
 
 
@@ -71,7 +71,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
             setExpandedSegments(getInitialExpandedSegments(workflowTemplate));
         }
     }, [workflowTemplate?.templateId]);
-  
+
 
 
     const updateInternalWithDisabledSegments = (disabledSegments: string[]) => {
@@ -82,7 +82,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
         // If this segment is disabled, skip this step
         if (disabledSegments.includes(segment)) return null;
         if (segment === 'default') return originalStep; // will never have changes to preserve
-        
+
         // Check if this step exists in the current internalTemplate
         // so we can preserve any modifications to args
         const currentStepIndex = findStepInTemplate(internalTemplate, originalStep);
@@ -94,15 +94,15 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
         // internal and groupedStep both preservce any arg modifications
         if (segment in groupedSteps) {
           // Find matching step in the grouped steps for this segment
-          const matchingStep = groupedSteps[segment].find(s => 
-            s.tool === originalStep.tool && 
+          const matchingStep = groupedSteps[segment].find(s =>
+            s.tool === originalStep.tool &&
             s.description === originalStep.description &&
             s.instructions === originalStep.instructions
           );
-          
+
           if (matchingStep) return matchingStep;
         }
-    
+
         return originalStep;
       }).filter(step => step !== null) as Step[];
 
@@ -118,12 +118,12 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
             setDisabledActionSegments(calcDisabledSegments);
             updateInternalWithDisabledSegments(calcDisabledSegments);
         }
-    }, [ enableCustomization ]);  
+    }, [ enableCustomization ]);
 
 
     // Toggle segment enabled/disabled state
     const toggleSegmentEnabled = (segment: string, enabled: boolean) => {
-      const disabledSegments = enabled ? disabledActionSegments.filter(s => s !== segment) 
+      const disabledSegments = enabled ? disabledActionSegments.filter(s => s !== segment)
                                        : [...disabledActionSegments, segment];
       setDisabledActionSegments(disabledSegments);
       updateInternalWithDisabledSegments(disabledSegments);
@@ -149,15 +149,15 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
     if (!workflowTemplate || !workflowTemplate.template) {
       return <div className="text-sm text-neutral-500 dark:text-neutral-400 italic">No workflow template available</div>;
     }
-    
+
     const findStepInTemplate = (template: AstWorkflow, step: Step) => {
-      return template.template?.steps.findIndex(s => 
-        s.tool === step.tool && 
+      return template.template?.steps.findIndex(s =>
+        s.tool === step.tool &&
         s.stepName === step.stepName &&
         s.description === step.description &&
         s.actionSegment === step.actionSegment
       );
-    
+
     }
 
     const handleArgChange = (step: Step, argKey: string, value: string) => {
@@ -166,7 +166,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
       const stepIndex = findStepInTemplate(updatedTemplate, step);
 
       // Only update if we found the step
-      if (stepIndex !== undefined  && stepIndex !== -1 && 
+      if (stepIndex !== undefined  && stepIndex !== -1 &&
           updatedTemplate.template?.steps[stepIndex]?.args) {
         updatedTemplate.template.steps[stepIndex].args[argKey] = value;
 
@@ -180,7 +180,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
       editableArgs.sort((a, b) => b.length - a.length);
 
       if (Object.keys(step.args).length === 0 || editableArgs.length === 0) return null;
-      
+
       const originalTemplate = originalBaseWorkflowTemplate ?? workflowTemplate
       const originalStepIndex = findStepInTemplate(originalTemplate, step);
       if (originalStepIndex === undefined || originalStepIndex === -1) return null;
@@ -205,7 +205,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
       });
       return (
         <div className={`${shift} my-3 pb-4 border-y border-neutral-300 dark:border-neutral-600 pt-3 ${!enableCustomization ? 'opacity-70' : ''}`}>
-        <div 
+        <div
           className="font-medium mb-2 text-emerald-600 dark:text-emerald-400 flex items-center gap-1"
           title="These argument instructions can be customized when adding this workflow to an assistant"
         >
@@ -213,7 +213,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
           {enableCustomization ? "Customizable " : ""}
           Argument Instructions
         </div>
-        
+
         <InputsMap
           id={`${id}-${index}-args`}
           inputs={inputs}
@@ -254,26 +254,26 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
         >
           <span className="font-bold">Workflow Segments:</span> Each segment groups related steps that will be executed together. Click the toggle icon to expand or collapse segment details.
         </div>
-        
+
         <div className="space-y-3 mr-4">
           {Object.entries(groupedSteps).map(([segment, steps], index) => {
             const isDisabled = disabledActionSegments.includes(segment);
             const isExpanded = expandedSegments[segment] || false;
             const segmentTitle = segment !== 'default' ? formatSegmentName(segment) : 'Default Actions';
             const segmentColor = getSegmentColor(segment, true); // Use gray for default segments
-            
+
             return (
-              <div 
-                key={segment} 
+              <div
+                key={segment}
                 className={`border rounded-lg border-neutral-300 dark:border-neutral-700 overflow-hidden ${isDisabled ? 'opacity-50' : ''}`}
                 title={`Workflow segment: ${segmentTitle}. ${isDisabled ? 'This segment is disabled and will not execute.' : 'This segment is enabled and will execute normally.'}`}
-              > 
+              >
                 {/* Segment Header */}
                 <div className={`flex items-center justify-between p-3 bg-neutral-50 dark:bg-[#2A2B32] border-b border-neutral-300 dark:border-neutral-700 ${isDisabled ? 'opacity-70' : ''}`}>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => toggleSegmentExpanded(segment)}
-                      className="flex-shrink-0 p-1 hover:bg-neutral-200 dark:hover:bg-neutral-600 rounded"
+                      className="flex-shrink-0 p-1 hover:bg-neutral-200 dark:hover:bg-neutral-600 rounded text-gray-900 dark:text-gray-100"
                       title={isExpanded ? "Click to collapse and hide step details" : "Click to expand and show detailed step information"}
                     >
                       {isExpanded ? (
@@ -282,7 +282,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                         <IconChevronRight size={18} />
                       )}
                     </button>
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                    <span className="font-semibold text-gray-900 dark:text-gray-100">
                       {segmentTitle}
                     </span>
                   </div>
@@ -304,13 +304,13 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                     // Detailed view - full step information
                     <div className="space-y-3">
                       {steps.map((step, stepIndex) => (
-                        <div 
-                          key={stepIndex} 
-                          className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border-l-4" 
+                        <div
+                          key={stepIndex}
+                          className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border-l-4"
                           style={{ borderLeftColor: segmentColor }}
                           title="Color coding shows which steps belong to the same functional group"
                         >
-                          <div 
+                          <div
                             className="font-medium text-neutral-800 dark:text-neutral-200 mb-2"
                             title="Description of what this step does in the workflow"
                           >
@@ -321,7 +321,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                               <span className="font-medium text-gray-600 dark:text-gray-400">Tool:</span>{' '}
                               <span className="text-gray-800 dark:text-gray-200">{step.tool}</span>
                             </div>
-                            
+
                             {step.args && Object.keys(step.args).length > 0 && (
                               <div title="Instructions that guide how this step will be executed">
                                 <div className="font-medium text-gray-600 dark:text-gray-400 mb-1">Arguments:</div>
@@ -333,7 +333,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                                 {renderEditableArgs(step, stepIndex)}
                               </div>
                             )}
-                            
+
                             {step.values && Object.keys(step.values).length > 0 && (
                               <div title="Fixed parameter values that won't change during workflow execution">
                                 <div className="font-medium text-gray-600 dark:text-gray-400 mb-1">Values:</div>
@@ -346,14 +346,20 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                             )}
 
                             {step.instructions && (
-                              <ExpansionComponent
-                                title="Instructions"
-                                content={
-                                  <div className="text-gray-700 dark:text-gray-300">
-                                    <span className="font-medium">Instructions:</span> {step.instructions}
-                                  </div>
-                                }
-                              />
+                              <div className="mt-1">
+                                <ExpansionComponent
+                                  title="Instructions"
+                                  isOpened={true}
+                                  openWidget={<IconChevronDown size={16} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />}
+                                  closedWidget={<IconChevronRight size={16} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />}
+                                  content={
+                                    <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                                      <span className="font-medium text-gray-800 dark:text-gray-200">Instructions: </span>
+                                      {step.instructions}
+                                    </div>
+                                  }
+                                />
+                              </div>
                             )}
                           </div>
                         </div>
@@ -361,7 +367,7 @@ export const AssistantWorkflow: React.FC<WorkflowProps> = ({
                     </div>
                   ) : (
                     // Collapsed view - simple step list
-                    <div 
+                    <div
                       className="text-sm text-neutral-700 dark:text-neutral-300"
                       title="Click the expand button above to see detailed step information including tools, arguments, and values"
                     >

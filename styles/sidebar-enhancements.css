@@ -2289,7 +2289,31 @@
   .dark .enhanced-assistant-badge:hover {
     box-shadow: 0 4px 12px rgba(139, 92, 246, 0.5);
   }
-  
+
+  /* Enhanced Workflow Badge for ChatInput */
+  .enhanced-workflow-badge {
+    background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+    color: white;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
+    transition: all 0.2s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .enhanced-workflow-badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.4);
+    background: linear-gradient(135deg, #047857 0%, #0f766e 100%);
+  }
+
+  .dark .enhanced-workflow-badge {
+    box-shadow: 0 2px 8px rgba(5, 150, 105, 0.4);
+  }
+
+  .dark .enhanced-workflow-badge:hover {
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.5);
+  }
+
   /* Sync Status Indicator */
   @keyframes sync-glow {
     0%, 100% {

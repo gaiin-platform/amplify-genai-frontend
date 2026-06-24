@@ -7,12 +7,39 @@ const URL_PATH = "/state/conversation";
 const NO_SUCH_KEY_ERROR = 'NoSuchKey';
 const SERVICE_NAME = "conversation";
 
+// Conversations with raw JSON larger than this threshold are uploaded via presigned
+// S3 PUT URL to bypass the API Gateway 10 MB request body hard limit.
+// We measure the RAW json size (before LZW compression) because:
+//   - compressConversation() returns a number[] which serializes small
+//   - requestOp.ts then LZW compresses it again — making size unpredictable
+//   - Raw JSON size is a reliable indicator: LZW compresses random text ~2x,
+//     so a 4 MB raw conversation could still produce a large enough payload
+const LARGE_UPLOAD_THRESHOLD_BYTES = 4 * 1024 * 1024; // 4 MB raw JSON
+
 export const uploadConversation = async (conversation: Conversation, folders: FolderInterface[], abortSignal = null) => {
     // always ensure isLocal is false just in case
     conversation.isLocal = false;
     const compressedConversation = compressConversation(conversation);
     const folder = conversation.folderId ? folders.find((f: FolderInterface) => conversation.folderId === f.id) : null;
 
+    // Measure the RAW conversation JSON size BEFORE compression
+    // This is the most reliable way to detect large conversations
+    const rawJson = JSON.stringify(conversation);
+    const rawBytes = new TextEncoder().encode(rawJson).length;
+
+    console.log(`[uploadConversation] Raw size: ${(rawBytes / 1024 / 1024).toFixed(2)} MB, threshold: ${(LARGE_UPLOAD_THRESHOLD_BYTES / 1024 / 1024).toFixed(0)} MB`);
+
+    if (rawBytes >= LARGE_UPLOAD_THRESHOLD_BYTES) {
+        console.log(`[uploadConversation] Large conversation detected — using presigned S3 URL`);
+        // --- Large conversation: upload directly to S3 via presigned PUT URL ---
+        return await uploadConversationViaPresignedUrl(
+            conversation.id,
+            compressedConversation,
+            folder
+        );
+    }
+
+    // --- Normal (small) conversation: go through API Gateway as before ---
     const op = {
         method: 'PUT',
         path: URL_PATH,
@@ -27,6 +54,55 @@ export const uploadConversation = async (conversation: Conversation, folders: Fo
 
     const result = await doRequestOp(op);
     return result.success;
+};
+
+/**
+ * Uploads a large conversation directly to S3 using a presigned PUT URL,
+ * bypassing API Gateway's 10 MB request body limit.
+ *
+ * Flow:
+ *  1. Ask our backend for a short-lived presigned S3 PUT URL  (tiny request, no payload)
+ *  2. PUT the full conversation JSON straight to S3           (no API Gateway involved)
+ */
+const uploadConversationViaPresignedUrl = async (
+    conversationId: string,
+    compressedConversation: any,
+    folder: any
+): Promise<boolean> => {
+    try {
+        // Step 1 – get a presigned PUT URL from the backend
+        const urlOp = {
+            method: 'GET',
+            path: URL_PATH,
+            op: "/get-upload-url",
+            queryParams: { conversationId },
+            service: SERVICE_NAME
+        };
+
+        const urlResult = await doRequestOp(urlOp);
+        if (!urlResult.success || !urlResult.presignedUrl) {
+            console.error("Failed to get presigned upload URL:", urlResult.message);
+            return false;
+        }
+
+        // Step 2 – PUT the conversation body directly to S3
+        const body = JSON.stringify({ conversation: compressedConversation, folder: folder });
+        const s3Response = await fetch(urlResult.presignedUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body,
+        });
+
+        if (!s3Response.ok) {
+            console.error("S3 presigned PUT failed:", s3Response.status, s3Response.statusText);
+            return false;
+        }
+
+        return true;
+    } catch (error) {
+        console.error("Error uploading large conversation via presigned URL:", error);
+        return false;
+    }
 };
 
 export const fetchRemoteConversation = async (conversationId: string, conversations?: Conversation[], dispatch?: any) => {
