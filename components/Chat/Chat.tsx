@@ -432,18 +432,12 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                        );
                     if (model) handleUpdateSelectedConversation({...selectedConversation, model: model});
                 }
-            } else {
-                // No enforced model — always fall back to the default model first so that
-                // switching away from an enforce-model assistant resets the display instead
-                // of reading back the stale enforced model still stored on the conversation.
-                const fallbackId = defaultModelId || getDefaultModelIdFromLocalStorage() || selectedConversation?.model?.id;
-                if (fallbackId && fallbackId !== selectedModelId) setSelectedModelId(fallbackId);
-                // Also clear the stale enforced model from the conversation object itself.
-                if (fallbackId && selectedConversation && selectedConversation.model?.id !== fallbackId) {
-                    const fallbackModel = Object.values(availableModels).find((m: Model) => m.id === fallbackId);
-                    if (fallbackModel) handleUpdateSelectedConversation({...selectedConversation, model: fallbackModel});
-                }
             }
+            // No enforced model: intentionally leave the user's chosen model alone.
+            // Resetting to the default when switching AWAY from an enforce-model assistant
+            // is handled in ChatInput's assistant-selection handler. Doing it here re-fired
+            // on every selectedConversation change (which a manual model pick triggers) and
+            // clobbered the user's selection back to the default.
 
             if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) {
                 if (selectedConversation?.model?.id !== selectedModelId) setSelectedModelId(selectedConversation?.model?.id);
