@@ -681,16 +681,28 @@ export function useSendService() {
 
                         if (!response || !response.ok) {
                             cleanupHomeState();
-                            toast.error(response.statusText);
+
+                            // The real error message (e.g. rate-limit details) lives in the response
+                            // body, not in statusText (which is often empty over HTTP/2). Read the
+                            // body and surface it via a toast so it's always visible — native alert()
+                            // can be suppressed by the browser and was getting missed in prod.
+                            let errorMessage = "";
                             try {
                                 // Clone the response to read the body (streams can only be read once)
                                 const clonedResponse = response.clone();
-                                // Read the body as text
-                                const bodyText = await clonedResponse.text();
-                                if (bodyText) alert(bodyText);
+                                errorMessage = (await clonedResponse.text())?.trim();
                             } catch (readError) {
                                 console.error("Error reading response body:", readError);
                             }
+
+                            // Fallbacks so the user ALWAYS sees a meaningful message
+                            if (!errorMessage) {
+                                errorMessage = response?.status === 429
+                                    ? "You've reached your usage rate limit. Please try again later or contact your administrator."
+                                    : (response?.statusText || "Your request could not be completed. Please try again.");
+                            }
+
+                            toast.error(errorMessage, { duration: 8000 });
                             return;
                         }
                         const data = response.body;
