@@ -7,14 +7,16 @@ const URL_PATH = "/state/conversation";
 const NO_SUCH_KEY_ERROR = 'NoSuchKey';
 const SERVICE_NAME = "conversation";
 
-// Conversations with raw JSON larger than this threshold are uploaded via presigned
-// S3 PUT URL to bypass the API Gateway 10 MB request body hard limit.
-// We measure the RAW json size (before LZW compression) because:
-//   - compressConversation() returns a number[] which serializes small
-//   - requestOp.ts then LZW compresses it again — making size unpredictable
-//   - Raw JSON size is a reliable indicator: LZW compresses random text ~2x,
-//     so a 4 MB raw conversation could still produce a large enough payload
-const LARGE_UPLOAD_THRESHOLD_BYTES = 4 * 1024 * 1024; // 4 MB raw JSON
+// Conversations whose compressed payload exceeds this threshold are uploaded via
+// presigned S3 PUT URL to bypass the API Gateway 10 MB request body hard limit.
+//
+// Measured AFTER compressConversation() on the serialized number[] because:
+//   - That is the actual data bulk going into requestOp.ts
+//   - requestOp.ts runs a second lzwCompress on the JSON-stringified payload;
+//     LZW on a digit/comma string can expand up to ~1.8x when its output codes
+//     are re-serialized as JSON, so: wire payload ≈ 1.8 × compressed JSON size
+//   - 5 MB × 1.8 = 9 MB — safely under the 10 MB API Gateway ceiling
+const LARGE_UPLOAD_THRESHOLD_BYTES = 5 * 1024 * 1024; // 5 MB compressed JSON
 
 export const uploadConversation = async (conversation: Conversation, folders: FolderInterface[], abortSignal = null) => {
     // always ensure isLocal is false just in case
@@ -22,14 +24,13 @@ export const uploadConversation = async (conversation: Conversation, folders: Fo
     const compressedConversation = compressConversation(conversation);
     const folder = conversation.folderId ? folders.find((f: FolderInterface) => conversation.folderId === f.id) : null;
 
-    // Measure the RAW conversation JSON size BEFORE compression
-    // This is the most reliable way to detect large conversations
-    const rawJson = JSON.stringify(conversation);
-    const rawBytes = new TextEncoder().encode(rawJson).length;
+    // Measure the compressed payload size — this is what actually determines
+    // whether the normal API Gateway path will succeed or fail
+    const compressedBytes = JSON.stringify(compressedConversation).length;
 
-    console.log(`[uploadConversation] Raw size: ${(rawBytes / 1024 / 1024).toFixed(2)} MB, threshold: ${(LARGE_UPLOAD_THRESHOLD_BYTES / 1024 / 1024).toFixed(0)} MB`);
+    console.log(`[uploadConversation] Compressed size: ${(compressedBytes / 1024 / 1024).toFixed(2)} MB, threshold: ${(LARGE_UPLOAD_THRESHOLD_BYTES / 1024 / 1024).toFixed(0)} MB`);
 
-    if (rawBytes >= LARGE_UPLOAD_THRESHOLD_BYTES) {
+    if (compressedBytes >= LARGE_UPLOAD_THRESHOLD_BYTES) {
         console.log(`[uploadConversation] Large conversation detected — using presigned S3 URL`);
         // --- Large conversation: upload directly to S3 via presigned PUT URL ---
         return await uploadConversationViaPresignedUrl(
