@@ -389,6 +389,23 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     configData.api_key = webSearchConfig.api_key;
                 }
 
+                // Include Bedrock AgentCore gateway fields when present (non-secret config)
+                const agentCoreFields = [
+                    'bedrockAgentCoreGatewayUrl',
+                    'bedrockAgentCoreAuthMode',
+                    'bedrockAgentCoreRegion',
+                    'bedrockAgentCoreTokenUrl',
+                    'bedrockAgentCoreClientId',
+                    'bedrockAgentCoreScope',
+                    'bedrockAgentCoreToolName',
+                ] as const;
+                agentCoreFields.forEach((field) => {
+                    const value = (webSearchConfig as any)[field];
+                    if (typeof value === 'string' && value.trim()) {
+                        configData[field] = value.trim();
+                    }
+                });
+
                 // Include webSearchUserMessage if it exists and is non-empty after trimming
                 if (webSearchConfig.webSearchUserMessage !== undefined &&
                     webSearchConfig.webSearchUserMessage.trim()) {

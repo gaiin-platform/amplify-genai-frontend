@@ -82,7 +82,7 @@ const ApiIntegrationsPanel: React.FC<ApiIntegrationsPanelProps> = ({
 
   const showInternal = featureFlags.integrations && !hideApisPanel?.includes('internal');
   const showTools = featureFlags.agentTools && !hideApisPanel?.includes('tools');
-  const showCustom = featureFlags.pythonFunctionApis && !hideApisPanel?.includes('custom');
+  const showCustom = false; //DISABLE CUSTOM APIs FOR NOW //featureFlags.pythonFunctionApis && !hideApisPanel?.includes('custom');
 
   if (!showInternal && !showTools && !showCustom) return null;
 

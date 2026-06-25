@@ -344,7 +344,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
 
         useEffect(() => {
             setSelectedConversationState(selectedConversation);
-            if (selectedConversation && selectedConversation.model && selectedConversation.model.id !== selectedModelId) {
+            // Only sync the conversation model to selectedModelId when the active assistant
+            // does NOT enforce a model — otherwise the assistant's enforced model takes priority.
+            const enforcedAstModel = availableAstModelId(selectedAssistant?.definition?.data?.model);
+            if (!enforcedAstModel && selectedConversation && selectedConversation.model && selectedConversation.model.id !== selectedModelId) {
                 setSelectedModelId(selectedConversation.model.id);
             }
             
@@ -420,21 +423,29 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         useEffect(() =>{
             let astModel = availableAstModelId(selectedAssistant?.definition?.data?.model);
 
-            if (astModel && selectedModelId !== astModel) setSelectedModelId(astModel);
-            if (astModel && selectedConversation && selectedConversation.model?.id !== astModel) {
-                const model:Model | undefined = Object.values(availableModels).find(
-                                                          (model: Model) => model.id === astModel,
-                                                   );
-                if (model) handleUpdateSelectedConversation({...selectedConversation, model: model});
+            if (astModel) {
+                // Assistant enforces a model — apply it
+                if (selectedModelId !== astModel) setSelectedModelId(astModel);
+                if (selectedConversation && selectedConversation.model?.id !== astModel) {
+                    const model:Model | undefined = Object.values(availableModels).find(
+                                                              (model: Model) => model.id === astModel,
+                                                       );
+                    if (model) handleUpdateSelectedConversation({...selectedConversation, model: model});
+                }
             }
-            
+            // No enforced model: intentionally leave the user's chosen model alone.
+            // Resetting to the default when switching AWAY from an enforce-model assistant
+            // is handled in ChatInput's assistant-selection handler. Doing it here re-fired
+            // on every selectedConversation change (which a manual model pick triggers) and
+            // clobbered the user's selection back to the default.
+
             if (selectedAssistant?.definition.name === "Standard Conversation" && selectedConversation?.model?.id) {
                 if (selectedConversation?.model?.id !== selectedModelId) setSelectedModelId(selectedConversation?.model?.id);
             }
             const groupType = selectedConversation?.groupType;
             if (groupType && !selectedAssistant?.definition?.data?.groupTypeData?.[groupType]) {
                 delete selectedConversation.groupType;
-            } 
+            }
 
         }, [selectedAssistant, selectedConversation]);
 
@@ -1305,7 +1316,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 
                                                 <div className="relative flex flex-row w-full items-center"> 
                                                     <div className="flex-grow">
-                                                        <ModelSelect modelId={selectedModelId} isDisabled={availableAstModelId(selectedAssistant?.definition?.data?.model)}/>
+                                                        <ModelSelect modelId={availableAstModelId(selectedAssistant?.definition?.data?.model) ?? selectedModelId} isDisabled={availableAstModelId(selectedAssistant?.definition?.data?.model)} disableAutoRoute={!!availableAstModelId(selectedAssistant?.definition?.data?.model)}/>
                                                     </div>
                                                     <div className='mt-[-5px] absolute top-0 right-7 flex justify-end items-center'>
                                                         {featureFlags.storeCloudConversations && <CloudStorage iconSize={20} /> }
@@ -1474,9 +1485,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         handleToggleSettings();
                                                     }}
                                                 >
-                                                    {selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
-                                                                        ? Object.values(availableModels).find(m => m.id === selectedAssistant.definition?.data?.model)?.name 
-                                                                        : selectedConversation?.model?.name || ''}
+                                                    {(() => {
+                                                        const enforcedModel = selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model);
+                                                        if (enforcedModel) {
+                                                            return Object.values(availableModels).find(m => m.id === selectedAssistant.definition?.data?.model)?.name;
+                                                        }
+                                                        try { if (localStorage.getItem('autoRouteModel') === 'true') return <span className="font-normal text-sm">✦ Auto-route</span>; } catch {}
+                                                        return selectedConversation?.model?.name || '';
+                                                    })()}
                                                     {' | '}
                                                                         
                                                 </button>
@@ -1557,9 +1573,14 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                         handleToggleSettings();
                                                     }}
                                                 >
-                                                    {selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model)
-                                                                        ? Object.values(availableModels).find(m => m.id === selectedAssistant.definition?.data?.model)?.name
-                                                                        : selectedConversation?.model?.name || ''}
+                                                    {(() => {
+                                                        const enforcedModel = selectedAssistant && availableAstModelId(selectedAssistant?.definition?.data?.model);
+                                                        if (enforcedModel) {
+                                                            return Object.values(availableModels).find(m => m.id === selectedAssistant.definition?.data?.model)?.name;
+                                                        }
+                                                        try { if (localStorage.getItem('autoRouteModel') === 'true') return <span className="font-normal text-sm">✦ Auto-route</span>; } catch {}
+                                                        return selectedConversation?.model?.name || '';
+                                                    })()}
                                                     <IconChevronRight
                                                         size={16}
                                                         className={`ml-2 transition-transform duration-300 ${isPillExpanded ? 'rotate-90' : ''} text-gray-500`}

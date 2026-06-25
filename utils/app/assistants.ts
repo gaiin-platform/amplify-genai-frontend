@@ -141,12 +141,23 @@ export const syncAssistants = async (assistants: AssistantDefinition[], prompts:
 
 
 
-export const handleUpdateAssistantPrompt = async (assistantPrompt: Prompt, prompts: Prompt[], dispatch: any) => {
-    const filteredPrompts: Prompt[] = prompts.filter((curPrompt: Prompt) => curPrompt?.data?.assistant?.definition.assistantId !== 
-                                                                         assistantPrompt.data?.assistant?.definition.assistantId)
+export const handleUpdateAssistantPrompt = async (assistantPrompt: Prompt, prompts: Prompt[], dispatch: any, selectedAssistant?: any) => {
+    const updatedAssistantId = assistantPrompt.data?.assistant?.definition.assistantId;
+    const filteredPrompts: Prompt[] = prompts.filter((curPrompt: Prompt) => curPrompt?.data?.assistant?.definition.assistantId !==
+                                                                         updatedAssistantId)
     const updatedPrompts = [...filteredPrompts, assistantPrompt]
     dispatch({ field: 'prompts', value: updatedPrompts });
     savePrompts(updatedPrompts);
+
+    // If the assistant currently selected in the chat is the one we just updated, refresh
+    // selectedAssistant with the new definition so the chat picks up edits such as a changed
+    // enforced model. Without this, selectedAssistant keeps the stale definition and the model
+    // selector never reflects the update until the assistant is re-selected.
+    if (selectedAssistant && updatedAssistantId &&
+        selectedAssistant.definition?.assistantId === updatedAssistantId &&
+        assistantPrompt.data?.assistant) {
+        dispatch({ field: 'selectedAssistant', value: assistantPrompt.data.assistant });
+    }
 }
 
 export const filterAstsByFeatureFlags = (prompts: Prompt[], featureFlags: { [key: string]: boolean }) => {

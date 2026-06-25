@@ -14,9 +14,11 @@ import {
     IconWorldSearch,
     IconGripHorizontal,
     IconSparkles,
-    IconLayoutList
+    IconLayoutList,
+    IconPuzzle
 } from '@tabler/icons-react';
 import SaveActionsModal from './SaveActionsModal';
+import ChatWorkflowViewer from './ChatWorkflowViewer';
 import {
     KeyboardEvent,
     MutableRefObject,
@@ -76,6 +78,7 @@ import OperationSelector from "@/components/Agent/OperationSelector";
 import ActionsList from "@/components/Chat/ActionsList";
 import { resolveRagEnabled } from '@/types/features';
 import { OpBindings } from '@/types/op';
+import { AstWorkflow } from '@/types/assistantWorkflows';
 import { getActionSet, saveActionSet } from '@/services/actionSetsService';
 import {
     LargeTextBlock,
@@ -128,7 +131,7 @@ export const ChatInput = ({
     const {
         state: {selectedConversation, conversations, folders, selectedAssistant, messageIsStreaming, artifactIsStreaming,
             prompts, layeredAssistants, groups, featureFlags, currentRequestId, chatEndpoint, statsService, availableModels,
-            extractedFacts, memoryExtractionEnabled, ragOn, defaultAccount, webSearchUserMessage},
+            extractedFacts, memoryExtractionEnabled, ragOn, defaultAccount, webSearchUserMessage, defaultModelId},
         getDefaultModel, handleUpdateConversation,
         dispatch: homeDispatch
     } = useContext(HomeContext);
@@ -285,6 +288,28 @@ export const ChatInput = ({
 
     // Action set modal states
     const [showSaveActionsModal, setShowSaveActionsModal] = useState(false);
+
+    // Workflow selector state
+    const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
+    const [selectedWorkflow, setSelectedWorkflow] = useState<AstWorkflow | null>(null);
+    const workflowSelectorRef = useRef<HTMLDivElement | null>(null);
+
+    // Block modal state — shown when user tries an incompatible action/workflow combo
+    const [blockModal, setBlockModal] = useState<{ message: string } | null>(null);
+
+    // ── Assistant capability flags ────────────────────────────────────────────
+    // True when the selected assistant was saved with a workflow attached
+    const assistantHasWorkflow = !!(
+        selectedAssistant?.definition?.data?.workflowTemplateId ||
+        selectedAssistant?.definition?.data?.baseWorkflowTemplateId
+    );
+    // True when the selected assistant was saved with actions/operations
+    const assistantHasActions = !!(
+        (selectedAssistant?.definition?.data?.operations?.length ?? 0) > 0 ||
+        (selectedAssistant?.definition?.data?.builtInOperations?.length ?? 0) > 0
+    );
+    // True when the selected assistant is a real (non-default) assistant
+    const hasRealAssistant = !!(selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id);
 
     // Pending duplicate action awaiting user confirmation
     const [pendingDuplicateAction, setPendingDuplicateAction] = useState<{
@@ -484,6 +509,27 @@ export const ChatInput = ({
             //I do not get the impression that promptTemplates are currently used nonetheless the bases are covered in case they ever come into play (as taken into account in handleStartConversationWithPrompt)
             selectedConversation.promptTemplate = assistantPrompt ?? null;
 
+            // If the assistant enforces a model, immediately update the conversation model
+            // so the top model selector reflects it without waiting for the useEffect.
+            // If there is NO enforced model, clear the conversation model so it falls back
+            // to the user's default — preventing a stale enforced model from a previous
+            // assistant from persisting.
+            const enforcedModelId = assistant?.definition?.data?.model;
+            if (enforcedModelId && availableModels[enforcedModelId]) {
+                handleUpdateConversation(selectedConversation, {
+                    key: 'model',
+                    value: availableModels[enforcedModelId],
+                });
+            } else {
+                // Reset to default model so no previous enforced model lingers
+                const defaultModel = defaultModelId ? availableModels[defaultModelId] : undefined;
+                if (defaultModel) {
+                    handleUpdateConversation(selectedConversation, {
+                        key: 'model',
+                        value: defaultModel,
+                    });
+                }
+            }
         }
 
     }
@@ -623,7 +669,9 @@ export const ChatInput = ({
             enableWebSearch: isWebSearchEnabledForConversation,
             // Include selected skills
             skills: selectedSkillIds,
-            skillSelectionMode: skillSelectionMode
+            skillSelectionMode: skillSelectionMode,
+            // Include selected workflow template ID if any
+            ...(selectedWorkflow ? { workflowTemplateId: selectedWorkflow.templateId } : {})
         };
 
         if (largeTextBlocks.length > 0) {
@@ -674,7 +722,25 @@ export const ChatInput = ({
             label: messageLabel,
             type: type,
             data: messageData,
-            configuredTools: addedActions.length > 0 ? [...addedActions] : undefined
+            configuredTools: (() => {
+                // When assistant has built-in actions/builtIns, merge them with any chat-input actions
+                const assistantOps: any[] = selectedAssistant?.definition?.data?.operations ?? [];
+                const assistantBuiltIns: any[] = selectedAssistant?.definition?.data?.builtInOperations ?? [];
+                if (assistantOps.length > 0 || assistantBuiltIns.length > 0) {
+                    // Wrap both ops and builtIns into the same shape as addedActions
+                    const astActions = assistantOps.map((op: any) => ({
+                        name: op.name ?? op,
+                        operation: op,
+                    }));
+                    const astBuiltIns = assistantBuiltIns.map((op: any) => ({
+                        name: op.name ?? op,
+                        operation: op,
+                    }));
+                    const merged = [...astActions, ...astBuiltIns, ...addedActions];
+                    return merged.length > 0 ? merged : undefined;
+                }
+                return addedActions.length > 0 ? [...addedActions] : undefined;
+            })()
         });
 
         msg = setAssistantInMessage(msg, selectedAssistant || DEFAULT_ASSISTANT);
@@ -959,6 +1025,8 @@ export const ChatInput = ({
             if (assistantSelectorRef.current && !assistantSelectorRef.current.contains(e.target as Node)) setShowAssistantSelect(false);
 
             if (contextManagerRef.current && !contextManagerRef.current.contains(e.target as Node)) setShowContextManager(false);
+
+            if (workflowSelectorRef.current && !workflowSelectorRef.current.contains(e.target as Node)) setShowWorkflowSelector(false);
         };
 
         window.addEventListener('click', handleOutsideClick);
@@ -1052,6 +1120,7 @@ export const ChatInput = ({
         setShowMessageSelectDialog(false);
         setShowQiDialog(false);
         setShowContextManager(false);
+        setShowWorkflowSelector(false);
     }
 
     const handleUpdateRemovedDocuments = (updatedRemovedDocumentIds: string[]) => {
@@ -1217,6 +1286,30 @@ export const ChatInput = ({
     useEffect(() => { // if selected assistant change is not the default assistant, remove code interpreter
         if (selectedAssistant !== DEFAULT_ASSISTANT) setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.CODE_INTERPRETER));
     }, [selectedAssistant]);
+
+    // When a new assistant is selected, clear any incompatible chat-input attachments
+    useEffect(() => {
+        const hasWf = !!(
+            selectedAssistant?.definition?.data?.workflowTemplateId ||
+            selectedAssistant?.definition?.data?.baseWorkflowTemplateId
+        );
+        const hasAct = !!(
+            (selectedAssistant?.definition?.data?.operations?.length ?? 0) > 0 ||
+            (selectedAssistant?.definition?.data?.builtInOperations?.length ?? 0) > 0
+        );
+        // Assistant has a built-in workflow → clear any chat-input workflow selection
+        // (assistant + chat-input actions is still allowed, so don't clear addedActions)
+        if (hasWf) {
+            setSelectedWorkflow(null);
+            setShowWorkflowSelector(false);
+        }
+        // Assistant has built-in actions → clear any chat-input workflow selection
+        // (assistant + chat-input actions merges fine; workflow conflicts with built-in actions)
+        if (hasAct) {
+            setSelectedWorkflow(null);
+            setShowWorkflowSelector(false);
+        }
+    }, [selectedAssistant?.id]);
 
     // don't remove Memory plugin when extraction is disabled
     useEffect(() => {
@@ -1540,6 +1633,7 @@ export const ChatInput = ({
                             </div>
                         )}
 
+
                     {//TODO: feature flag this
                     }
                     {featureFlags.memory &&
@@ -1567,10 +1661,25 @@ export const ChatInput = ({
                         </div>
                     )}
 
+                    {/* Workflow Viewer - sits above the pill row, kept mounted to preserve cache */}
+                    {featureFlags.assistantWorkflows && (
+                        <div ref={workflowSelectorRef}
+                             className="w-full"
+                             style={{ display: showWorkflowSelector ? undefined : 'none', transform: 'translateY(24px)' }}>
+                            <ChatWorkflowViewer
+                                selectedWorkflowId={selectedWorkflow?.templateId ?? null}
+                                onSelect={(workflow) => {
+                                    setSelectedWorkflow(workflow);
+                                }}
+                                onClose={() => setShowWorkflowSelector(false)}
+                            />
+                        </div>
+                    )}
+
                     <div className="relative mx-2 flex w-full flex-grow sm:mx-4 bg-neutral-100 dark:bg-[#3d3e4c] rounded-md" style={{transform: 'translateY(24px)'}}>
 
                         {/* Only show AssistantsInUse when AttachmentDisplay is NOT shown */}
-                        {!((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
+                        {!((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id) || !!selectedWorkflow) && (
                             <AssistantsInUse assistants={[selectedAssistant || DEFAULT_ASSISTANT]} assistantsChanged={(asts)=>{
                                 if(asts.length === 0){
                                     //setAssistant(DEFAULT_ASSISTANT);
@@ -1592,8 +1701,8 @@ export const ChatInput = ({
                             setSelectedProject(project);
                             setShowProjectList(false);
                         }}/>} */}
-                     {/* Unified Attachment Display - Files, Large Text, and Assistant */}
-                     {((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id)) && (
+                     {/* Unified Attachment Display - Files, Large Text, Assistant, and Workflow */}
+                     {((documents && documents.length > 0) || (largeTextBlocks.length > 0 && (showLargeTextPreview || isEditing)) || (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id) || !!selectedWorkflow) && (
                         <div style={{transform: 'translateY(-4px)'}}>
                             <AttachmentDisplay
                                 documents={documents}
@@ -1618,6 +1727,8 @@ export const ChatInput = ({
                                         });
                                     }
                                 }}
+                                selectedWorkflow={selectedWorkflow}
+                                onRemoveWorkflow={() => setSelectedWorkflow(null)}
                             />
                         </div>
                      )}
@@ -1663,6 +1774,7 @@ export const ChatInput = ({
                                 />
                             </div>
                         )}
+
 
                         {/* Render ActionsList above the input area */}
                         {featureFlags.actionSets && addedActions.length > 0 && (
@@ -1978,14 +2090,23 @@ export const ChatInput = ({
                             </button>
                         </div>
 
-                        { featureFlags.actionSets && 
+                        { featureFlags.actionSets &&
                         <>
-                        {/* Add Action button toggles the operations popup */}
+                        {/* Add Action button — blocked only when a workflow is already attached in chat */}
                         <button
-                            className="chat-input-button rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+                            className={`chat-input-button rounded-sm p-1 transition-colors ${
+                                !!selectedWorkflow
+                                    ? 'opacity-30 cursor-not-allowed text-neutral-400 dark:text-neutral-500'
+                                    : 'text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200'
+                            }`}
                             id="addAction"
                             onClick={(e) => {
                                 e.stopPropagation();
+                                // Block only when a workflow is already attached — actions and workflows cannot be combined
+                                if (selectedWorkflow) {
+                                    setBlockModal({ message: 'A workflow is already attached. Remove the workflow before adding actions — actions and workflows cannot be used together.' });
+                                    return;
+                                }
                                 // If popup is being closed, reset editing state
                                 if (showOpsPopup) {
                                     setEditingAction(null);
@@ -1995,12 +2116,63 @@ export const ChatInput = ({
                             }}
                             onKeyDown={(e) => {
                             }}
-                            title="Add Action"
+                            title={
+                                selectedWorkflow
+                                    ? 'Remove the workflow before adding actions'
+                                    : 'Add Action'
+                            }
                         >
                             <IconSettingsAutomation size={20}/>
                         </button>
-                        
+
                         </>}
+
+                        {/* Workflow selector button */}
+                        { featureFlags.assistantWorkflows &&
+                        <button
+                            className={`chat-input-button rounded-sm p-1 transition-colors ${
+                                assistantHasWorkflow || assistantHasActions || addedActions.length > 0
+                                    ? 'opacity-30 cursor-not-allowed text-neutral-400 dark:text-neutral-500'
+                                    : selectedWorkflow || showWorkflowSelector
+                                    ? 'text-green-600 dark:text-green-400'
+                                    : 'text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200'
+                            }`}
+                            id="selectWorkflow"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                // Block: assistant already has a workflow built-in
+                                if (assistantHasWorkflow) {
+                                    setBlockModal({ message: 'This assistant already has a workflow. You cannot attach an additional workflow from the chat input.' });
+                                    return;
+                                }
+                                // Block: assistant has actions — workflows not allowed alongside actions
+                                if (assistantHasActions) {
+                                    setBlockModal({ message: 'This assistant has built-in actions. Workflows cannot be added to an assistant that already has actions.' });
+                                    return;
+                                }
+                                // Block: chat-input actions already added
+                                if (addedActions.length > 0) {
+                                    setBlockModal({ message: 'Actions are already attached. Remove the actions before adding a workflow, or use one or the other.' });
+                                    return;
+                                }
+                                handleCloseAllPopups();
+                                setShowWorkflowSelector(!showWorkflowSelector);
+                            }}
+                            title={
+                                assistantHasWorkflow
+                                    ? 'Workflow cannot be added — this assistant already has a workflow'
+                                    : assistantHasActions
+                                    ? 'Workflow cannot be added — this assistant has built-in actions'
+                                    : addedActions.length > 0
+                                    ? 'Remove the actions before adding a workflow'
+                                    : selectedWorkflow
+                                    ? `Workflow: ${selectedWorkflow.name}`
+                                    : 'Select Workflow'
+                            }
+                        >
+                            <IconPuzzle size={20} />
+                        </button>
+                        }
 
                         { featureFlags.artifacts &&
                          <ArtifactsSaved
@@ -2014,10 +2186,10 @@ export const ChatInput = ({
                         {/* Web Search Toggle - Per-Message Control (only show if web search is enabled in FeaturePlugin) */}
                         { featureFlags.webSearch && plugins?.some(p => p.id === PluginID.WEB_SEARCH) &&
                         <button
-                            className={`chat-input-button rounded-md p-1.5 transition-all duration-200 ${
+                            className={`chat-input-button rounded-full p-1.5 transition-all duration-200 ${
                                 isWebSearchEnabledForConversation
-                                    ? 'bg-green-500 hover:bg-green-600 text-white shadow-md scale-105'
-                                    : 'text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200'
+                                    ? 'bg-blue-600 dark:bg-blue-500 text-white shadow-md'
+                                    : 'text-neutral-600 hover:rounded-full hover:bg-neutral-300  dark:hover:bg-gray-500 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-400 dark:hover:text-gray-100'
                             }`}
                             id="toggleWebSearch"
                             onClick={(e) => {
@@ -2129,31 +2301,38 @@ export const ChatInput = ({
                                     </button>
                                 }
 
-                                {selectedConversation?.model?.supportsReasoning &&
-                                    <div className='ml-auto'>
-                                        <ToggleOptionButtons
-                                            options={REASONING_LEVELS.map((lvl: string) => ({
-                                                id: lvl,
-                                                name: capitalize(lvl),
-                                                title: lvl === 'off'
-                                                    ? "Reasoning is disabled. The model will respond without extended thinking, providing faster but potentially less thorough responses."
-                                                    : `The model will use ${{low: "average amount of", medium: "additional", high: "more"}[lvl]} output tokens when crafting a response. \n${
-                                                        {low: "Optimized for quick responses to simple questions, prioritizing speed",
-                                                            medium: "Balanced approach for everyday questions, offering good accuracy without unnecessary processing time",
-                                                            high: "Provides in-depth analysis for complex problems where thoroughness and precision matter most"}[lvl]}`,
-                                                icon: lvl === 'off' ? undefined : ({low: IconBulb, medium: IconScale, high: IconBrain}[lvl])
-
-                                            }))}
-                                            selected={selectedConversation?.data?.reasoningLevel ?? 'low'}
-                                            onToggle={(reasonLevel: string) => {
-                                                handleUpdateConversation(selectedConversation, {
-                                                    key: 'data',
-                                                    value: {...selectedConversation.data, reasoningLevel: reasonLevel as ReasoningLevels},
-                                                })
-                                            }}
-                                        />
-                                    </div>
-                                }
+                                {selectedConversation?.model?.supportsReasoning && (() => {
+                                    const thinkingEnforced = !!selectedAssistant?.definition?.data?.enforceThinkingLevel;
+                                    const enforcedLevel = selectedAssistant?.definition?.data?.thinkingLevel ?? 'low';
+                                    return (
+                                        <div className={`ml-auto ${thinkingEnforced ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                             title={thinkingEnforced ? `Thinking level locked to "${enforcedLevel}" by this assistant` : undefined}>
+                                            <div className={thinkingEnforced ? 'pointer-events-none' : ''}>
+                                            <ToggleOptionButtons
+                                                options={REASONING_LEVELS.map((lvl: string) => ({
+                                                    id: lvl,
+                                                    name: capitalize(lvl),
+                                                    title: lvl === 'off'
+                                                        ? "Reasoning is disabled. The model will respond without extended thinking, providing faster but potentially less thorough responses."
+                                                        : `The model will use ${{low: "average amount of", medium: "additional", high: "more"}[lvl]} output tokens when crafting a response. \n${
+                                                            {low: "Optimized for quick responses to simple questions, prioritizing speed",
+                                                                medium: "Balanced approach for everyday questions, offering good accuracy without unnecessary processing time",
+                                                                high: "Provides in-depth analysis for complex problems where thoroughness and precision matter most"}[lvl]}`,
+                                                    icon: lvl === 'off' ? undefined : ({low: IconBulb, medium: IconScale, high: IconBrain}[lvl])
+                                                }))}
+                                                selected={thinkingEnforced ? enforcedLevel : (selectedConversation?.data?.reasoningLevel ?? 'low')}
+                                                onToggle={(reasonLevel: string) => {
+                                                    if (thinkingEnforced) return;
+                                                    handleUpdateConversation(selectedConversation, {
+                                                        key: 'data',
+                                                        value: {...selectedConversation.data, reasoningLevel: reasonLevel as ReasoningLevels},
+                                                    });
+                                                }}
+                                            />
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
 
                             </>
 
@@ -2196,6 +2375,16 @@ export const ChatInput = ({
                         setShowSaveActionsModal(false);
                     }}
                     onCancel={() => setShowSaveActionsModal(false)}
+                />
+            )}
+
+            {/* Block modal — shown when an incompatible action/workflow combination is attempted */}
+            {blockModal && (
+                <ConfirmModal
+                    title="Not Allowed"
+                    message={blockModal.message}
+                    confirmLabel="OK"
+                    onConfirm={() => setBlockModal(null)}
                 />
             )}
         </>

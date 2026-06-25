@@ -124,7 +124,7 @@ export const AssistantSelectModal: FC<Props> = ({
                                     onClick={() => onAssistantChange(a)}
                                     className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors
                                         ${isSelected(a.id)
-                                            ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium'
+                                            ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-700 font-medium'
                                             : 'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700/50'
                                         }`}
                                 >

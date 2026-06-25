@@ -267,8 +267,8 @@ export const getDocumentStatusConfig = (status: string) => {
                 animate: true
             };
         case 'completed':
-            return { 
-                color: 'text-green-500 bg-gray-300', 
+            return {
+                color: 'text-green-700 bg-gray-300',
                 text: name,
                 showIndicatorWhenNotHovered: false
             };

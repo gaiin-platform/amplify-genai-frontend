@@ -387,6 +387,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 </div>
                 <div className="mx-12 pb-4">
                     <select
+                        aria-label="Default Timezone"
                         className="w-full p-2 rounded border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
                         value={defaultTimezone}
                         onChange={(e) => handleUpdateDefaultTimezone(e.target.value)}
@@ -700,6 +701,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                     <input type="number" disabled={!promptCostAlert.isActive}
                             className="text-center w-[100px] dark:bg-[#40414F] bg-gray-200"
                             id="costThresholdInput"
+                            aria-label="Cost Threshold"
                             min={0} step={.01} value={promptCostAlert.cost as number?? 0 }
                             onChange={(e) => {
                                 const value = parseFloat(e.target.value);
@@ -874,7 +876,9 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
 
                                             <div className={`flex items-center ${addingMembersTo === groupName ? "flex-col":'flex-row'}`}>
                                             <div
-                                                className={`flex items-center ${addingMembersTo === groupName ? "flex-wrap": "overflow-x-auto"}`} >
+                                                className={`flex items-center ${addingMembersTo === groupName ? "flex-wrap": "overflow-x-auto"}`}
+                                                tabIndex={addingMembersTo === groupName ? undefined : 0}
+                                            >
                                                 {group.members?.map((user, idx) => (
                                                 <div key={idx} className="flex items-center gap-1 mr-1"
                                                     onMouseEnter={() => {
@@ -931,6 +935,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                             ) : (
                                                 (group.includeFromOtherGroups !== undefined ?
                                                 <button
+                                                aria-label="Add Members"
                                                 className="ml-auto flex items-center px-2 text-blue-500 hover:text-blue-600 flex-shrink-0"
                                                 onClick={() => setAddingMembersTo(groupName)}
                                                 >

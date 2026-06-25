@@ -8,7 +8,7 @@ import {DataSourceSelector} from "@/components/DataSources/DataSourceSelector";
 import {createAssistantPrompt, getAssistant, isAssistant} from "@/utils/app/assistants";
 import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
 import {createAssistant, addAssistantPath, lookupAssistant, rescanWebsites} from "@/services/assistantService";
-import {IconFiles, IconArrowRight, IconMailFast, IconCaretRight, IconCaretDown, IconRefresh, IconAlertTriangle} from "@tabler/icons-react";
+import {IconFiles, IconArrowRight, IconMailFast, IconCaretRight, IconCaretDown, IconRefresh, IconAlertTriangle, IconBulb, IconScale, IconBrain} from "@tabler/icons-react";
 import { LoadingDialog } from '@/components/Loader/LoadingDialog';
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import FlagsMap from "@/components/ReusableComponents/FlagsMap";
@@ -47,6 +47,10 @@ import { determineWebsiteScanCron, manageScheduledTasks, updateScheduledTasks, d
 import { validateUrl } from '@/utils/app/data';
 import { SkillsSection } from '@/components/Skills';
 import { SkillReference, SkillSelectionMode } from '@/types/skill';
+import { ModelSelect } from '@/components/Chat/ModelSelect';
+import { checkAvailableModelId, filterModels } from '@/utils/app/models';
+import { REASONING_LEVELS, ReasoningLevels } from '@/types/model';
+import { ToggleOptionButtons } from '@/components/ReusableComponents/ToggleOptionButtons';
 
 
 interface Props {
@@ -165,7 +169,9 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     const {t} = useTranslation('promptbar');
     const { data: session } = useSession();
     const userEmail = session?.user?.email ?? ''; // Kept as email to avoid breaking changes, updates in the backend handle username translation
-    const { state: { prompts, featureFlags, amplifyUsers, aiEmailDomain, chatEndpoint } , setLoadingMessage} = useContext(HomeContext);
+    const { state: { prompts, featureFlags, amplifyUsers, aiEmailDomain, chatEndpoint, availableModels } , setLoadingMessage} = useContext(HomeContext);
+
+    const allModels = filterModels(availableModels, getSettings(featureFlags).hiddenModelIds);
 
     const isGroupAst = loc.includes("admin");
 
@@ -363,6 +369,12 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
     }, [featureFlags.assistantPathPublishing]);
 
     // workflow template
+    // Enforce model + thinking level state
+    const [enforceModel, setEnforceModel] = useState<boolean>(!!definition.data?.model);
+    const [enforcedModelId, setEnforcedModelId] = useState<string | undefined>(definition.data?.model);
+    const [enforceThinkingLevel, setEnforceThinkingLevel] = useState<boolean>(!!definition.data?.enforceThinkingLevel);
+    const [enforcedThinkingLevel, setEnforcedThinkingLevel] = useState<ReasoningLevels>(definition.data?.thinkingLevel ?? 'low');
+
     const [baseWorkflowTemplateId, setBaseWorkflowTemplateId] =  useState<string | undefined>(definition.data?.baseWorkflowTemplateId);
     const [astWorkflowTemplateId, setAstWorkflowTemplateId] =  useState<string | undefined>(definition.data?.workflowTemplateId);
     const [currentWorkflowTemplate, setCurrentWorkflowTemplate] =  useState<AstWorkflow | null>(null);
@@ -846,7 +858,11 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                 builtInOperations: builtInAgentTools,
                 // Skills
                 skills: selectedSkills.length > 0 ? selectedSkills : undefined,
-                skillSelectionMode: selectedSkills.length > 0 ? skillSelectionMode : undefined
+                skillSelectionMode: selectedSkills.length > 0 ? skillSelectionMode : undefined,
+                // Enforce model + thinking level
+                model: enforceModel ? enforcedModelId : undefined,
+                enforceThinkingLevel: enforceModel && enforceThinkingLevel,
+                thinkingLevel: enforceModel && enforceThinkingLevel ? enforcedThinkingLevel : undefined,
             };
 
             if (apiOptions.IncludeApiInstr && apiInfo.some(api => !validateApiInfo(api))) {
@@ -1163,6 +1179,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                             </div>
                             <div className="flex flex-row gap-2 ">
                                 <select
+                                    aria-label="Auto-Populate From Existing Assistant"
                                     className={"my-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow"}
                                     id="autoPopulateSelect"
                                     value={selectTemplateId}
@@ -1262,8 +1279,65 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                     disabled={disableEdit}
                                 />
                             </div>
+
+                            {/* ── Enforce Model ── */}
+                            <div className="mt-4 border-t border-neutral-200 dark:border-neutral-600 pt-4">
+                                    <div className="mb-1 flex flex-row gap-3 text-[1rem]">
+                                        <Checkbox
+                                            id="ast_enforceModel"
+                                            label="Enforce Model"
+                                            checked={enforceModel}
+                                            onChange={(isChecked: boolean) => {
+                                                setEnforceModel(isChecked);
+                                                if (!isChecked) {
+                                                    setEnforceThinkingLevel(false);
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                    <div className={`ml-6 flex flex-col gap-2 transition-opacity duration-150 ${enforceModel ? '' : 'opacity-40 pointer-events-none'}`}>
+                                        <ModelSelect
+                                            models={allModels}
+                                            isTitled={false}
+                                            modelId={checkAvailableModelId(enforcedModelId, availableModels) ?? undefined}
+                                            outlineColor={enforceModel && !enforcedModelId ? 'red-500' : ''}
+                                            isDisabled={!enforceModel || disableEdit}
+                                            disableMessage=""
+                                            disableAutoRoute={true}
+                                            handleModelChange={(modelId: string) => setEnforcedModelId(modelId)}
+                                        />
+                                        {/* Enforce Thinking Level — only when the chosen model supports reasoning */}
+                                        {enforceModel && enforcedModelId && availableModels[enforcedModelId]?.supportsReasoning && (
+                                            <div className="mt-2 flex flex-row">
+                                                <div className="my-1 flex flex-row gap-3 text-[1rem]">
+                                                    <Checkbox
+                                                        id="ast_enforceThinkingLevel"
+                                                        label="Enforce Thinking Level"
+                                                        checked={enforceThinkingLevel}
+                                                        onChange={(isChecked: boolean) => setEnforceThinkingLevel(isChecked)}
+                                                    />
+                                                </div>
+                                                <div className={`max-w-[268px] ml-6 transition-opacity duration-150 ${enforceThinkingLevel ? '' : 'opacity-40 pointer-events-none'}`}>
+                                                    <ToggleOptionButtons
+                                                        options={REASONING_LEVELS.map((lvl: string) => ({
+                                                            id: lvl,
+                                                            name: lvl.charAt(0).toUpperCase() + lvl.slice(1),
+                                                            title: lvl === 'off'
+                                                                ? 'Reasoning is disabled. The model will respond without extended thinking, providing faster but potentially less thorough responses.'
+                                                                : `The model will use ${{low: 'average amount of', medium: 'additional', high: 'more'}[lvl]} output tokens when crafting a response. \n${{low: 'Optimized for quick responses to simple questions, prioritizing speed', medium: 'Balanced approach for everyday questions, offering good accuracy without unnecessary processing time', high: 'Provides in-depth analysis for complex problems where thoroughness and precision matter most'}[lvl]}`,
+                                                            icon: lvl === 'off' ? undefined : ({low: IconBulb, medium: IconScale, high: IconBrain} as any)[lvl]
+                                                        }))}
+                                                        selected={enforcedThinkingLevel}
+                                                        onToggle={(lvl: string) => setEnforcedThinkingLevel(lvl as ReasoningLevels)}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                            </div>
+
                            {!disableEdit && <>
-                           
+
                             <div className="mt-6 h-0 text-center flex items-center justify-center gap-2 w-full">
                                 <IconAlertTriangle size={16} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
                                 <p className="text-xs text-blue-700 dark:text-blue-500">
@@ -1639,6 +1713,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                         Assistant Type
                                     </div>
                                     <select
+                                      aria-label="Assistant Type"
                                       title={baseWorkflowTemplateId ? "This assistant is using a workflow template. You cannot change the assistant type." : ""}
                                       disabled={baseWorkflowTemplateId !== undefined || disableEdit}
                                       className={`mt-2 w-full rounded-lg border border-neutral-500 px-4 py-2 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 dark:bg-[#40414F] dark:text-neutral-100 ${baseWorkflowTemplateId ? "opacity-40" : ""}`}
@@ -1761,7 +1836,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                                             </div>
 
                                     {/* Workflow Template Selector */}
-                                    {featureFlags.assistantWorkflows && 
+                                    {featureFlags.assistantWorkflows &&
                                     <AssistantWorkflowSelector
                                         selectedTemplateId={baseWorkflowTemplateId}
                                         onTemplateChange={(workflowTemplateId) => {
