@@ -119,7 +119,14 @@ export function useSendService() {
                     const updatedConversation = await handleAgentRunResult(agentResult, selectedConversation, getDefaultModel(DefaultModels.CHEAPEST), defaultAccount, homeDispatch, statsService, chatEndpoint || '');
                     handleUpdateSelectedConversation(updatedConversation);
                 } else {
-                    console.error("Agent run failed");
+                    console.error("Agent run failed or timed out");
+                    // Show a visible error toast so the user knows what happened.
+                    // This covers both the WAF-blocked scenario and any case where
+                    // the agent never responded within MAX_POLL_DURATION_MS.
+                    toast.error(
+                        "The assistant did not respond in time. Please try again.",
+                        { duration: 8000 }
+                    );
                     const updatedMessages = selectedConversation?.messages;
                     if (updatedMessages) {
                         const lastMsgIndex = updatedMessages.length - 1;
@@ -776,9 +783,13 @@ User message: "${userMessageContent.slice(0, 500)}"`;
 
                             // Fallbacks so the user ALWAYS sees a meaningful message
                             if (!errorMessage) {
-                                errorMessage = response?.status === 429
-                                    ? "You've reached your usage rate limit. Please try again later or contact your administrator."
-                                    : (response?.statusText || "Your request could not be completed. Please try again.");
+                                if (response?.status === 429) {
+                                    errorMessage = "You've reached your usage rate limit. Please try again later or contact your administrator.";
+                                } else if (response?.status === 503) {
+                                    errorMessage = "The assistant is temporarily unavailable. Please try again.";
+                                } else {
+                                    errorMessage = response?.statusText || "Your request could not be completed. Please try again.";
+                                }
                             }
 
                             toast.error(errorMessage, { duration: 8000 });
