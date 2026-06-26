@@ -256,6 +256,7 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, am
                                     <div
                                         className={`flex items-center ${addingExceptionTo === featureName ? "flex-wrap w-full": "overflow-x-auto"}`}
                                         style={{ maxWidth: '100%' }}
+                                        tabIndex={addingExceptionTo === featureName ? undefined : 0}
                                     >
                                         {featureData.userExceptions?.map((user, idx) => (
                                         <div key={idx} className="flex items-center gap-1 mr-1"
@@ -316,6 +317,7 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, am
                                         </div>
                                     ) : (
                                         <button
+                                        aria-label="Add Exceptions"
                                         className="ml-auto flex items-center px-2 text-blue-500 hover:text-blue-600 flex-shrink-0"
                                         onClick={() => {
                                             setAddingExceptionTo(featureName);

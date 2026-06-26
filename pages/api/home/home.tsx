@@ -1581,7 +1581,7 @@ const Home = ({
                     <meta name="description" content="ChatGPT but better." />
                     <meta
                         name="viewport"
-                        content="height=device-height ,width=device-width, initial-scale=1, user-scalable=no"
+                        content="height=device-height, width=device-width, initial-scale=1"
                     />
                     <link rel="icon" href="/favicon.ico" />
                 </Head>
@@ -1608,7 +1608,7 @@ const Home = ({
                                 </TabSidebar>
                             )}
 
-                            <div className="flex flex-1">
+                            <div id="main-content" tabIndex={-1} className="flex flex-1">
                                 {page === 'chat' && (
                                     <Chat stopConversationRef={stopConversationRef} />
                                 )}

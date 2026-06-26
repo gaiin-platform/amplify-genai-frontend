@@ -651,7 +651,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                         <label className='ml-auto mt-2 text-sm flex flex-row gap-3 text-black dark:text-neutral-100'>
                             <div className={`mt-1.5 ${selectedLayeredAssistant.isPublished ? "bg-green-400 dark:bg-green-300" : "bg-gray-400 dark:bg-gray-500"}`}
                                 style={{ width: '8px', height: '8px', borderRadius: '50%', flexShrink: 0 }}></div>
-                            <div className='overflow-x-auto flex grow whitespace-nowrap'>
+                            <div className='overflow-x-auto flex grow whitespace-nowrap' tabIndex={0}>
                                 {selectedLayeredAssistant.assistantId
                                     ? `Layered Assistant Id: ${selectedLayeredAssistant.assistantId}`
                                     : 'No Layered Assistant Id — save to generate one'}
@@ -704,7 +704,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                         >
                                             <div className={`mt-1.5 ${selectedAssistant?.data?.isPublished ? "bg-green-400 dark:bg-green-300" : "bg-gray-400 dark:bg-gray-500"}`}
                                                 style={{ width: '8px', height: '8px', borderRadius: '50%' }}></div>
-                                            <div className='overflow-x-auto flex grow whitespace-nowrap'>
+                                            <div className='overflow-x-auto flex grow whitespace-nowrap' tabIndex={0}>
                                                 Assistant Id: {selectedAssistant.data.assistant.definition.assistantId}
                                             </div>
                                         </label>
@@ -1309,11 +1309,7 @@ interface AssistantModalProps {
 
 // To add more configuarations to the assistant, add components here and ensure the change is set in additionalGroupData
 export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId, astData = {}, groupTypes = [], additionalGroupData, setAdditionalGroupData, groupConvAnalysisSupport }) => {
-    const {
-        state: { availableModels }
-    } = useContext(HomeContext);
     const [isPublished, setIsPublished] = useState<boolean>(astData.isPublished ?? false);
-    const [enforceModel, setEnforceModel] = useState<boolean>(!!astData.model);
     const [trackConversations, setTrackConversations] = useState<boolean>(astData.trackConversations ?? false);
     const [showTrackingRequiredMessage, setShowTrackingRequiredMessage] = useState<boolean>(false);
     const [astSupportConvAnalysis, setAstSupportConvAnalysis] = useState<boolean>(astData.supportConvAnalysis ?? false);
@@ -1335,11 +1331,6 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
     const updateCategories = (categories: string[]) => {
         setAnalysisCategories(categories);
         setAdditionalGroupData({ ...additionalGroupData, analysisCategories: categories });
-    }
-
-    const checkAvailableModel = () => {
-        const isValid = checkAvailableModelId(astData.model, availableModels);
-        return isValid;
     }
 
     const onSupportConvAnalysisChange = (isChecked: boolean) => {
@@ -1371,35 +1362,6 @@ export const AssistantModalConfigs: FC<AssistantModalProps> = ({ groupId, astId,
                 }}
             />
         </div>
-        <div className='mb-1 flex flex-row gap-3 text-[1rem]'>
-            <Checkbox
-                id="enforceModel"
-                label="Enforce Model"
-                checked={enforceModel}
-                onChange={(isChecked: boolean) => {
-                    if (!isChecked) {
-                        setAdditionalGroupData({ ...additionalGroupData, model: undefined });
-                    } else if (astData.model) setAdditionalGroupData({ ...additionalGroupData, model: astData.model });
-
-                    setEnforceModel(isChecked);
-                }}
-            />
-        </div>
-        <div className={`ml-6 flex flex-col ${enforceModel ? "" : 'opacity-40'} `}>
-            All conversations will be set to this model and unable to be changed by the user.
-            <ModelSelect
-                applyModelFilter={false}
-                isTitled={false}
-                modelId={checkAvailableModel()}
-                outlineColor={enforceModel && !additionalGroupData.model ? 'red-500' : ''}
-                isDisabled={!enforceModel}
-                disableMessage=''
-                handleModelChange={(model: string) => {
-                    setAdditionalGroupData({ ...additionalGroupData, model: model });
-                }}
-            />
-        </div>
-
         {groupConvAnalysisSupport && <>
             <div className='mt-4 flex flex-row gap-3 text-[1.05rem]'>
                 <Checkbox

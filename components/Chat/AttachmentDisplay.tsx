@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { IconCircleX, IconFileText, IconEdit, IconCheck, IconWorld, IconSitemap, IconRobot, IconGitBranch, IconX } from '@tabler/icons-react';
+import { IconCircleX, IconFileText, IconEdit, IconCheck, IconWorld, IconSitemap, IconRobot, IconGitBranch, IconX, IconPuzzle } from '@tabler/icons-react';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
 import styled, { keyframes } from "styled-components";
@@ -8,6 +8,7 @@ import { FiCommand } from "react-icons/fi";
 import { LargeTextBlock, extractNumberFromBracketedText } from '@/utils/app/largeText';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { Assistant, DEFAULT_ASSISTANT } from '@/types/assistant';
+import { AstWorkflow } from '@/types/assistantWorkflows';
 import { DISPLAY_CONFIG, UI_CONFIG } from '@/constants/largeText';
 import { animate } from '../Loader/LoadingIcon';
 
@@ -28,6 +29,10 @@ interface AttachmentDisplayProps {
   // Assistant
   selectedAssistant?: Assistant;
   onRemoveAssistant?: () => void;
+
+  // Workflow
+  selectedWorkflow?: AstWorkflow | null;
+  onRemoveWorkflow?: () => void;
 }
 
 
@@ -49,7 +54,9 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
   currentlyEditingId,
   showLargeTextPreview = true,
   selectedAssistant,
-  onRemoveAssistant
+  onRemoveAssistant,
+  selectedWorkflow,
+  onRemoveWorkflow,
 }) => {
   const [hoveredItem, setHoveredItem] = useState<string>('');
 
@@ -115,17 +122,18 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
   const hasFiles = documents.length > 0;
   const hasTextBlocks = largeTextBlocks.length > 0 && showLargeTextPreview;
   const hasAssistant = selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id;
-  
-  if (!hasFiles && !hasTextBlocks && !hasAssistant) {
+  const hasWorkflow = !!selectedWorkflow;
+
+  if (!hasFiles && !hasTextBlocks && !hasAssistant && !hasWorkflow) {
     return null;
   }
 
   // Create a unified list of all attachments
   const allAttachments: Array<{
     id: string;
-    type: 'file' | 'text' | 'assistant';
+    type: 'file' | 'text' | 'assistant' | 'workflow';
     index: number;
-    data: AttachedDocument | LargeTextBlock | Assistant;
+    data: AttachedDocument | LargeTextBlock | Assistant | AstWorkflow;
   }> = [];
 
   // Add assistant (if present, add it first)
@@ -135,6 +143,16 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
       type: 'assistant',
       index: 0,
       data: selectedAssistant
+    });
+  }
+
+  // Add workflow (if present, add after assistant)
+  if (hasWorkflow && selectedWorkflow) {
+    allAttachments.push({
+      id: 'workflow',
+      type: 'workflow',
+      index: 0,
+      data: selectedWorkflow
     });
   }
 
@@ -237,6 +255,35 @@ export const AttachmentDisplay: React.FC<AttachmentDisplayProps> = ({
                   e.preventDefault();
                   e.stopPropagation();
                   onRemoveAssistant && onRemoveAssistant();
+                }}
+              >
+                <IconX size="16"/>
+              </button>
+            </div>
+          );
+        } else if (attachment.type === 'workflow') {
+          const workflow = attachment.data as AstWorkflow;
+          return (
+            <div
+              key={attachment.id}
+              className="relative enhanced-workflow-badge flex flex-row items-center justify-between rounded-full px-3 py-1.5"
+              style={{ maxWidth: UI_CONFIG.ASSISTANT_MAX_WIDTH + 'px' }}
+              onMouseEnter={() => setHoveredItem(attachment.id)}
+              onMouseLeave={() => setHoveredItem('')}
+            >
+              <div className="flex flex-row items-center gap-1.5">
+                <IconPuzzle size={16} className="text-white/90" />
+                <div className="truncate font-medium text-sm text-white leading-normal pr-2 mr-2"
+                     style={{ maxWidth: '250px' }}>
+                  {workflow.name.length > 30 ? workflow.name.slice(0, 30) + '...' : workflow.name}
+                </div>
+              </div>
+              <button
+                className="absolute right-2 text-white/70 hover:text-white transition-all"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onRemoveWorkflow && onRemoveWorkflow();
                 }}
               >
                 <IconX size="16"/>

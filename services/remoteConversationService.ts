@@ -7,12 +7,40 @@ const URL_PATH = "/state/conversation";
 const NO_SUCH_KEY_ERROR = 'NoSuchKey';
 const SERVICE_NAME = "conversation";
 
+// Conversations whose compressed payload exceeds this threshold are uploaded via
+// presigned S3 PUT URL to bypass the API Gateway 10 MB request body hard limit.
+//
+// Measured AFTER compressConversation() on the serialized number[] because:
+//   - That is the actual data bulk going into requestOp.ts
+//   - requestOp.ts runs a second lzwCompress on the JSON-stringified payload;
+//     LZW on a digit/comma string can expand up to ~1.8x when its output codes
+//     are re-serialized as JSON, so: wire payload ≈ 1.8 × compressed JSON size
+//   - 5 MB × 1.8 = 9 MB — safely under the 10 MB API Gateway ceiling
+const LARGE_UPLOAD_THRESHOLD_BYTES = 5 * 1024 * 1024; // 5 MB compressed JSON
+
 export const uploadConversation = async (conversation: Conversation, folders: FolderInterface[], abortSignal = null) => {
     // always ensure isLocal is false just in case
     conversation.isLocal = false;
     const compressedConversation = compressConversation(conversation);
     const folder = conversation.folderId ? folders.find((f: FolderInterface) => conversation.folderId === f.id) : null;
 
+    // Measure the compressed payload size — this is what actually determines
+    // whether the normal API Gateway path will succeed or fail
+    const compressedBytes = JSON.stringify(compressedConversation).length;
+
+    console.log(`[uploadConversation] Compressed size: ${(compressedBytes / 1024 / 1024).toFixed(2)} MB, threshold: ${(LARGE_UPLOAD_THRESHOLD_BYTES / 1024 / 1024).toFixed(0)} MB`);
+
+    if (compressedBytes >= LARGE_UPLOAD_THRESHOLD_BYTES) {
+        console.log(`[uploadConversation] Large conversation detected — using presigned S3 URL`);
+        // --- Large conversation: upload directly to S3 via presigned PUT URL ---
+        return await uploadConversationViaPresignedUrl(
+            conversation.id,
+            compressedConversation,
+            folder
+        );
+    }
+
+    // --- Normal (small) conversation: go through API Gateway as before ---
     const op = {
         method: 'PUT',
         path: URL_PATH,
@@ -27,6 +55,55 @@ export const uploadConversation = async (conversation: Conversation, folders: Fo
 
     const result = await doRequestOp(op);
     return result.success;
+};
+
+/**
+ * Uploads a large conversation directly to S3 using a presigned PUT URL,
+ * bypassing API Gateway's 10 MB request body limit.
+ *
+ * Flow:
+ *  1. Ask our backend for a short-lived presigned S3 PUT URL  (tiny request, no payload)
+ *  2. PUT the full conversation JSON straight to S3           (no API Gateway involved)
+ */
+const uploadConversationViaPresignedUrl = async (
+    conversationId: string,
+    compressedConversation: any,
+    folder: any
+): Promise<boolean> => {
+    try {
+        // Step 1 – get a presigned PUT URL from the backend
+        const urlOp = {
+            method: 'GET',
+            path: URL_PATH,
+            op: "/get-upload-url",
+            queryParams: { conversationId },
+            service: SERVICE_NAME
+        };
+
+        const urlResult = await doRequestOp(urlOp);
+        if (!urlResult.success || !urlResult.presignedUrl) {
+            console.error("Failed to get presigned upload URL:", urlResult.message);
+            return false;
+        }
+
+        // Step 2 – PUT the conversation body directly to S3
+        const body = JSON.stringify({ conversation: compressedConversation, folder: folder });
+        const s3Response = await fetch(urlResult.presignedUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body,
+        });
+
+        if (!s3Response.ok) {
+            console.error("S3 presigned PUT failed:", s3Response.status, s3Response.statusText);
+            return false;
+        }
+
+        return true;
+    } catch (error) {
+        console.error("Error uploading large conversation via presigned URL:", error);
+        return false;
+    }
 };
 
 export const fetchRemoteConversation = async (conversationId: string, conversations?: Conversation[], dispatch?: any) => {

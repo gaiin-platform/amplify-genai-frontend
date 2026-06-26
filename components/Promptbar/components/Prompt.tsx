@@ -337,7 +337,7 @@ export const PromptComponent = ({ prompt }: Props) => {
                     onCancel={() => setShowModal(false)}
                     onSave={() => setShowModal(false)}
                     onUpdateAssistant={async (assistantPrompt) => {
-                        handleUpdateAssistantPrompt(assistantPrompt, promptsRef.current, homeDispatch)
+                        handleUpdateAssistantPrompt(assistantPrompt, promptsRef.current, homeDispatch, selectedAssistant)
                         statsService.editPromptCompletedEvent(assistantPrompt);
                     }}
                     loadingMessage="Updating assistant..."

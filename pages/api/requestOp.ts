@@ -3,6 +3,7 @@ import {getServerSession} from "next-auth/next";
 import {authOptions} from "@/pages/api/auth/[...nextauth]";
 import { transformPayload } from "@/utils/app/data";
 import { lzwCompress } from "@/utils/app/lzwCompression";
+import { validateUrlForSSRF } from "@/utils/app/urlValidation";
 
 export const config = {
     api: {
@@ -20,6 +21,33 @@ interface reqPayload {
 
 // Paths that should not be compressed
 const NO_COMPRESSION_PATHS = ['/billing', '/se', "/amp", '/vu-agent', "/user-data", "/data-disclosure", "/integrations", "/notebook"];
+
+const MCP_URL_OPS = new Set(['/mcp/servers/test', '/mcp/servers', '/mcp/server/update']);
+
+const validateMCPPayloadUrl = (path: string, op: string, payload: any): string | null => {
+    if (path !== '/integrations' || !MCP_URL_OPS.has(op)) {
+        return null;
+    }
+
+    if (!payload || typeof payload !== 'object') {
+        return null;
+    }
+
+    const candidate = typeof payload.url === 'string'
+        ? payload.url
+        : (payload.data && typeof payload.data.url === 'string' ? payload.data.url : null);
+
+    if (!candidate) {
+        return null;
+    }
+
+    const result = validateUrlForSSRF(candidate);
+    if (!result.valid) {
+        return result.error || 'Invalid MCP server URL';
+    }
+
+    return null;
+};
 
 
 const requestOp =
@@ -39,7 +67,14 @@ const requestOp =
         const method = reqData.method || null;
         let payload = reqData.data ? transformPayload.decode(reqData.data) : null;
 
-        const apiUrl = constructUrl(reqData);
+        const reqPath: string = reqData.path || '';
+        const reqOp: string = reqData.op || '';
+        const ssrfError = validateMCPPayloadUrl(reqPath, reqOp, payload);
+        if (ssrfError) {
+            console.warn(`Blocked unsafe MCP URL for path=${reqPath} op=${reqOp}: ${ssrfError}`);
+            return res.status(400).json({ error: ssrfError });
+        }
+
         // @ts-ignore
         const { accessToken } = session;
 
@@ -83,8 +118,9 @@ const requestOp =
             reqPayload.body = JSON.stringify(bodyData);
         }
 
-        try {
+        const apiUrl = constructUrl(reqData);
 
+        try {
             const response = await fetch(apiUrl, reqPayload);
 
             if (!response.ok) throw new Error(`Request to ${apiUrl} failed with status: ${response.status}`);
@@ -103,19 +139,42 @@ const requestOp =
 export default requestOp;
 
 
-const constructUrl = (data: any) => {
-    let apiUrl = data.url;
-    if (!apiUrl) {
-        apiUrl = process.env.API_BASE_URL || "";
+const sanitizePathSegment = (segment: string): string => {
+    // Iteratively decode URL-encoded characters to handle multi-layer encoding
+    // (e.g., %252e%252e → %2e%2e → ..)
+    let decoded = segment;
+    let prev = '';
+    const MAX_DECODE_ITERATIONS = 5;
+    for (let i = 0; i < MAX_DECODE_ITERATIONS && decoded !== prev; i++) {
+        prev = decoded;
+        try {
+            decoded = decodeURIComponent(decoded);
+        } catch {
+            break;
+        }
     }
+    // Normalize backslashes to forward slashes (WHATWG URL spec treats \ as / in paths,
+    // so attackers can use %5c or literal \ to bypass forward-slash-only splitting)
+    const normalized = decoded.replace(/\\/g, '/');
+    // Remove path traversal sequences after full decoding and normalization
+    // Filter any "." or ".." path components to prevent directory traversal
+    const sanitized = normalized
+        .split('/')
+        .filter(part => part !== '..' && part !== '.')
+        .join('/');
+    return sanitized;
+};
 
-    const path: string = data.path || "";
-    const op: string = data.op || "";
+const constructUrl = (data: any) => {
+    let apiUrl = process.env.API_BASE_URL || "";
+
+    const path: string = sanitizePathSegment(data.path || "");
+    const op: string = sanitizePathSegment(data.op || "");
 
     apiUrl += path + op;
 
     const queryParams: { [key: string]: string } | undefined = data.queryParams;
-  
+
     if (queryParams && Object.keys(queryParams).length > 0) {
       const queryString = Object.keys(queryParams)
         .map(key => `${encodeURIComponent(key)}=${encodeURIComponent( transformPayload.decode(queryParams[key]) )}`)

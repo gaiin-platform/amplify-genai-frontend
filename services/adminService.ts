@@ -250,16 +250,14 @@ const translateDataToResponseBody = (data: any) => {
 
 const endpointRequest = async (url: string, key: string, data: any) => {
     try {
-        const response = await fetch('/api/admin/testEndpoint', {
+        const result = await doRequestOp({
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ url, key, body: data }),
+            data: { url, key, body: data },
+            path: URL_PATH,
+            op: "/test_endpoint",
+            service: SERVICE_NAME
         });
-
-        const result = await response.json();
-        return result.success;
+        return result?.success ?? false;
     } catch (e) {
         console.error('Error testing endpoint: ', e);
         return false;
@@ -311,7 +309,7 @@ export const testEndpoint = async (url: string, key: string, model: string) => {
 
 
 export const testEmbeddingEndpoint = async (url: string, key: string) => {
-    return endpointRequest(url, key, { input: "This is a smaple input" });
+    return endpointRequest(url, key, { input: "This is a sample input" });
 };
 
 
