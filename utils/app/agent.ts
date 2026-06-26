@@ -10,10 +10,10 @@ import cloneDeep from "lodash/cloneDeep";
 import { lzwCompress, lzwUncompress } from "./lzwCompression";
 
  
-// Maximum time to poll for agent updates before giving up (2 minutes).
+// Maximum time to poll for agent updates before giving up (5 minutes).
 // This prevents an infinite spinner when the agent never writes state
 // (e.g. the request was blocked by WAF before the agent could start).
-const MAX_POLL_DURATION_MS = 120_000;
+const MAX_POLL_DURATION_MS = 300_000; // 5 minutes
 
 export const listenForAgentUpdates = async function(sessionId: string, onAgentStateUpdate: (state: any) => boolean) {
   let errorsRemaining = 15;
