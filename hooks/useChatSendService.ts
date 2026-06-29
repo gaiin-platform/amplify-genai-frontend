@@ -1432,18 +1432,6 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                             };
                         }
 
-                        // If the backend automatically renewed an expired AgentCore session during this
-                        // request, it signals that via state.codeInterpreter.sessionRenewed === true.
-                        // The response has already arrived successfully — no retry needed. Show a brief
-                        // informational toast so the user knows their files are still available but any
-                        // cached computed values from the old session may need to be re-derived.
-                        if (currentState?.codeInterpreter?.sessionRenewed === true) {
-                            toast("Session was restored — your files are available, but some earlier computed values may need to be re-derived.", {
-                                duration: 6000,
-                                icon: 'ℹ️',
-                            });
-                        }
-
                         // Populate codeInterpreterMessageData on the final assistant message so
                         // the backend can see previous file outputs in subsequent turns.
                         // The backend schema requires files nested under a "values" object:

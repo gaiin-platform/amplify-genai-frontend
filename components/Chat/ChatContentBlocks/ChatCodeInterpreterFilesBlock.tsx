@@ -24,12 +24,21 @@ const ChatCodeInterpreterFileBlock: React.FC<Props> = ({ message, messageIsStrea
 
     const error = message.data?.state?.codeInterpreter?.error;
     const files = message.data?.state?.codeInterpreter?.content ?? [];
+    const sessionRenewed = message.data?.state?.codeInterpreter?.sessionRenewed === true;
 
-    if (messageIsStreaming || (files.length === 0 && !error)) {
-        return <></>;
+    if (messageIsStreaming || (files.length === 0 && !error && !sessionRenewed)) {
+        return <></>
     }
 
     return <div className="mt-3">
+                {sessionRenewed &&
+                <div className="flex items-start gap-2 rounded-md border border-blue-400/40 bg-blue-500/10 px-3 py-2 mb-2 text-sm text-blue-300">
+                    <span className="mt-0.5 shrink-0">ℹ️</span>
+                    <span>
+                        Your code interpreter session expired and was automatically restarted. Your uploaded files are still available,
+                        but previous Python state has been cleared. You may need to re-run earlier steps before continuing.
+                    </span>
+                </div>}
                 {files.length > 0 &&
                 <ExpansionComponent title="Generated Files"
                     content={files.map((file: FileInfo, index: number) => (
