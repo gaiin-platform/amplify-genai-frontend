@@ -56,14 +56,49 @@ const notebookCall = async <T = unknown>(
     return data;
 };
 
-// Binary response variant — open-notebook returns the bytes base64-encoded
-// from the lambda; we rehydrate into a Response so callers can use blob().
+// Audio URL variant — the lambda calls Open Notebook's /audio-url endpoint
+// which returns a short-lived S3 presigned URL (or a fallback streaming path
+// for non-S3 backends).  We return a synthetic Response whose X-Audio-Url
+// header contains the presigned URL so callers can use it directly as an
+// <audio> src without routing large binaries through Lambda/API-Gateway
+// (which is capped at ~6 MB / 10 MB and would break for large audio files).
+//
+// When the notebook service is running locally (NEXT_PUBLIC_LOCAL_SERVICES
+// includes "notebook"), there is no lambda emulator handling /proxy/raw.
+// Instead we rewrite /audio to /audio-url and route the call through the
+// regular JSON proxy (notebookCallResult → /proxy) which works with the
+// local service config automatically.
 const notebookCallRaw = async (
     method: HttpMethod,
     path: string,
     body?: unknown,
     queryParams?: QueryParams,
 ): Promise<Response | null> => {
+    // Detect local dev: if "notebook" is listed in NEXT_PUBLIC_LOCAL_SERVICES
+    // the regular /proxy path already works — no need for /proxy/raw.
+    const localServices = (process.env.NEXT_PUBLIC_LOCAL_SERVICES || '')
+        .split(',')
+        .map((s) => s.trim().split(':')[0]);
+    const isLocal = localServices.includes(SERVICE_NAME);
+
+    if (isLocal) {
+        // Rewrite legacy /audio path to /audio-url so we get a JSON response.
+        const audioUrlPath = path.endsWith('/audio') && !path.endsWith('/audio-url')
+            ? path + '-url'
+            : path;
+        const result = await notebookCallResult<{ url: string; type: string }>(
+            method,
+            audioUrlPath,
+            body,
+            queryParams as QueryParams | undefined,
+        );
+        if (!result.success || !result.data?.url) return null;
+        return new Response(null, {
+            status: 200,
+            headers: { 'X-Audio-Url': result.data.url },
+        });
+    }
+
     const op = {
         method: 'POST',
         path: URL_PATH,
@@ -78,14 +113,14 @@ const notebookCallRaw = async (
     };
     const result = await doRequestOp(op);
     if (!result?.success || !result.data) return null;
-    const { content_type, data_b64 } = result.data as {
-        content_type: string;
-        data_b64: string;
-    };
-    const binary = Uint8Array.from(window.atob(data_b64), (c) => c.charCodeAt(0));
-    return new Response(binary, {
+    const { url } = result.data as { url: string; type: string };
+    if (!url) return null;
+    // Return a lightweight synthetic Response that exposes the presigned URL.
+    // The caller (fetchEpisodeAudioObjectUrl) reads it via the X-Audio-Url header;
+    // the Response body is empty — we never stream audio bytes through Lambda.
+    return new Response(null, {
         status: 200,
-        headers: { 'Content-Type': content_type },
+        headers: { 'X-Audio-Url': url },
     });
 };
 
@@ -1070,9 +1105,13 @@ export interface EpisodeAudioResult {
 }
 
 // Podcast audio is consumed by an HTML5 <audio> element, which can't attach
-// Authorization headers itself. Fetch the full binary with the JWT once and
-// return an object URL that the <audio> tag can use as src. Callers must
-// revoke the URL on unmount (URL.revokeObjectURL) to avoid leaking blobs.
+// Authorization headers itself.  The lambda resolves an S3 presigned URL for
+// the audio file (via Open Notebook's /audio-url endpoint) and returns it in
+// an X-Audio-Url header on the synthetic Response.  We hand that URL directly
+// to the <audio> tag so the browser streams the MP3 straight from S3 — no
+// large binary ever passes through Lambda or API Gateway (which has a ~10 MB cap).
+// Callers no longer need to revoke an object URL; the presigned URL expires
+// on its own after ~1 hour (server-side TTL).
 export const fetchEpisodeAudioObjectUrl = async (
     episodeId: string,
 ): Promise<EpisodeAudioResult> => {
@@ -1087,11 +1126,10 @@ export const fetchEpisodeAudioObjectUrl = async (
         );
         return { objectUrl: null, status: response.status };
     }
-    try {
-        const blob = await response.blob();
-        return { objectUrl: URL.createObjectURL(blob), status: response.status };
-    } catch (e) {
-        console.error('Failed to read episode audio blob:', e);
+    const audioUrl = response.headers.get('X-Audio-Url');
+    if (!audioUrl) {
+        console.error('Episode audio response missing X-Audio-Url header', episodeId);
         return { objectUrl: null, status: response.status };
     }
+    return { objectUrl: audioUrl, status: response.status };
 };
