@@ -1,12 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import ExpansionComponent from '../Chat/ExpansionComponent';
 import { ScheduleDateRange } from '../../types/scheduledTasks';
+import { IconX } from '@tabler/icons-react';
 
 interface CronScheduleBuilderProps {
   value: string;
   onChange: (cronExpression: string) => void;
   dateRange?: ScheduleDateRange;
   onRangeChange?: (range: ScheduleDateRange) => void;
+  // Exclusion rule props
+  exclusionsEnabled?: boolean;
+  excludedDaysOfWeek?: string[];
+  excludedWeeksOfMonth?: number[];
+  excludedMonths?: string[];
+  excludedDates?: string[];
+  onExclusionsChange?: (exclusions: {
+    exclusionsEnabled: boolean;
+    excludedDaysOfWeek: string[];
+    excludedWeeksOfMonth: number[];
+    excludedMonths: string[];
+    excludedDates: string[];
+  }) => void;
 }
 
 interface ScheduleOption {
@@ -21,6 +35,7 @@ const PRESET_SCHEDULES: ScheduleOption[] = [
   // { label: 'Hourly', value: '0 * * * *', description: 'Runs at the start of every hour', configurable: true },
   { label: 'Daily', value: '0 0 * * *', description: 'Runs daily at a specific time', configurable: true },
   { label: 'Weekly', value: '0 0 * * 0', description: 'Runs once a week on a specific day and time', configurable: true },
+  { label: 'Biweekly', value: 'biweekly', description: 'Runs every other week on a specific day and time', configurable: true },
   { label: 'Monthly', value: '0 0 1 * *', description: 'Runs once a month on a specific day and time', configurable: true },
   // { label: 'Yearly', value: '0 0 1 1 *', description: 'Runs once a year on a specific date and time', configurable: true },
   { label: 'Custom', value: 'custom', description: 'Define a custom schedule', configurable: false },
@@ -67,8 +82,59 @@ const MONTHS = [
   { value: '12', label: 'December' },
 ];
 
-export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value, onChange, dateRange, onRangeChange }) => {
+// Days of week for exclusion (lowercase names used in backend)
+const EXCLUSION_DAYS_OF_WEEK = [
+  { value: 'sunday',    label: 'Sun' },
+  { value: 'monday',    label: 'Mon' },
+  { value: 'tuesday',   label: 'Tue' },
+  { value: 'wednesday', label: 'Wed' },
+  { value: 'thursday',  label: 'Thu' },
+  { value: 'friday',    label: 'Fri' },
+  { value: 'saturday',  label: 'Sat' },
+];
+
+// Weeks of month for exclusion (1=1st, 2=2nd, 3=3rd, 4=4th, 5=Last)
+const WEEKS_OF_MONTH = [
+  { value: 1, label: '1st' },
+  { value: 2, label: '2nd' },
+  { value: 3, label: '3rd' },
+  { value: 4, label: '4th' },
+  { value: 5, label: 'Last' },
+];
+
+// Month names for exclusion (lowercase names used in backend)
+const EXCLUSION_MONTHS = [
+  { value: 'january',   label: 'Jan' },
+  { value: 'february',  label: 'Feb' },
+  { value: 'march',     label: 'Mar' },
+  { value: 'april',     label: 'Apr' },
+  { value: 'may',       label: 'May' },
+  { value: 'june',      label: 'Jun' },
+  { value: 'july',      label: 'Jul' },
+  { value: 'august',    label: 'Aug' },
+  { value: 'september', label: 'Sep' },
+  { value: 'october',   label: 'Oct' },
+  { value: 'november',  label: 'Nov' },
+  { value: 'december',  label: 'Dec' },
+];
+
+export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({
+  value, onChange, dateRange, onRangeChange,
+  exclusionsEnabled: initExclusionsEnabled,
+  excludedDaysOfWeek: initExcludedDaysOfWeek,
+  excludedWeeksOfMonth: initExcludedWeeksOfMonth,
+  excludedMonths: initExcludedMonths,
+  excludedDates: initExcludedDates,
+  onExclusionsChange,
+}) => {
   const [scheduleType, setScheduleType] = useState<string>('');
+  const [biweeklyConfig, setBiweeklyConfig] = useState({
+    dayOfWeek: '1', // Monday
+    hour: '9',
+    minute: '0',
+    startDate: '',
+  });
+  const [intervalMinutes, setIntervalMinutes] = useState<number>(15);
   const [presetConfig, setPresetConfig] = useState({
     minute: '0',
     hour: '9', // Default to 9 AM for most presets
@@ -86,11 +152,68 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
   // For displaying upcoming execution times
   const [nextRunTimes, setNextRunTimes] = useState<string[]>([]);
   const [showPreview, setShowPreview] = useState(false);
-  
+
+  // Format date for input element — defined early so it can be used in useState initialisers and useEffects below
+  const formatDateForInput = (date: Date | string | null): string => {
+    if (!date) return '';
+    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+    const d = new Date(date);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
   // Date range state
-  const [startDate, setStartDate] = useState<string>(dateRange?.startDate || '');
-  const [endDate, setEndDate] = useState<string>(dateRange?.endDate || '');
+  const [startDate, setStartDate] = useState<string>(dateRange?.startDate ? formatDateForInput(dateRange.startDate) : '');
+  const [endDate, setEndDate] = useState<string>(dateRange?.endDate ? formatDateForInput(dateRange.endDate) : '');
   const [showDateRange, setShowDateRange] = useState<boolean>(!!(startDate || endDate));
+
+  // Exclusion rule state
+  const [excludedDaysOfWeek, setExcludedDaysOfWeek] = useState<string[]>(initExcludedDaysOfWeek ?? []);
+  const [excludedWeeksOfMonth, setExcludedWeeksOfMonth] = useState<number[]>(initExcludedWeeksOfMonth ?? []);
+  const [excludedMonths, setExcludedMonths] = useState<string[]>(initExcludedMonths ?? []);
+  const [excludedDates, setExcludedDates] = useState<string[]>(initExcludedDates ?? []);
+  const [excludedDateInput, setExcludedDateInput] = useState<string>('');
+  // showExclusions: restored from saved flag, falling back for older tasks that
+  // didn't store the flag (check if any chip arrays are non-empty)
+  const [showExclusions, setShowExclusions] = useState<boolean>(
+    !!(initExclusionsEnabled ||
+       initExcludedDaysOfWeek?.length || initExcludedWeeksOfMonth?.length ||
+       initExcludedMonths?.length || initExcludedDates?.length)
+  );
+
+  // Re-sync exclusion state when parent loads a different task (props change after mount)
+  useEffect(() => {
+    console.log("[CronScheduleBuilder] re-syncing exclusion state from props:", {
+      initExclusionsEnabled,
+      initExcludedDaysOfWeek,
+      initExcludedWeeksOfMonth,
+      initExcludedMonths,
+      initExcludedDates,
+    });
+    setExcludedDaysOfWeek(initExcludedDaysOfWeek ?? []);
+    setExcludedWeeksOfMonth(initExcludedWeeksOfMonth ?? []);
+    setExcludedMonths(initExcludedMonths ?? []);
+    setExcludedDates(initExcludedDates ?? []);
+    // Restore checkbox from saved flag, falling back to whether any chips are set
+    setShowExclusions(!!(initExclusionsEnabled ||
+      initExcludedDaysOfWeek?.length || initExcludedWeeksOfMonth?.length ||
+      initExcludedMonths?.length || initExcludedDates?.length
+    ));
+  }, [initExclusionsEnabled, initExcludedDaysOfWeek, initExcludedWeeksOfMonth, initExcludedMonths, initExcludedDates]);
+
+  // Re-sync date range state when parent loads a different task (props change after mount)
+  useEffect(() => {
+    if (dateRange) {
+      const newStart = dateRange.startDate ? formatDateForInput(dateRange.startDate) : '';
+      const newEnd   = dateRange.endDate   ? formatDateForInput(dateRange.endDate)   : '';
+      setStartDate(newStart);
+      setEndDate(newEnd);
+      setShowDateRange(!!(newStart || newEnd));
+    } else {
+      setStartDate('');
+      setEndDate('');
+      setShowDateRange(false);
+    }
+  }, [dateRange]);
 
   // Initialize the component with existing values
   useEffect(() => {
@@ -107,8 +230,23 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
       const weeklyPattern = /^([0-9]+) ([0-9]+) \* \* ([0-6])$/;
       const monthlyPattern = /^([0-9]+) ([0-9]+) ([0-9]+) \* \*$/;
       const yearlyPattern = /^([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+) \*$/;
+      const biweeklyPattern = /^BIWEEKLY:([a-z]+):(\d+):(\d+):(.*)$/;
 
-      if (hourlyPattern.test(value)) {
+      const biweeklyMatch = value.match(biweeklyPattern);
+      if (biweeklyMatch) {
+        setScheduleType('biweekly');
+        // Map day name back to index for the selector
+        const dayNameToIdx: Record<string, string> = {
+          sunday:'0', monday:'1', tuesday:'2', wednesday:'3',
+          thursday:'4', friday:'5', saturday:'6'
+        };
+        setBiweeklyConfig({
+          dayOfWeek: dayNameToIdx[biweeklyMatch[1]] ?? '1',
+          hour: biweeklyMatch[2],
+          minute: biweeklyMatch[3],
+          startDate: biweeklyMatch[4],
+        });
+      } else if (hourlyPattern.test(value)) {
         setScheduleType('0 * * * *');
         setPresetConfig({...presetConfig, minute: parts[0]});
       } else if (dailyPattern.test(value)) {
@@ -162,36 +300,80 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
     }
   }, []);
 
-  // Format date for input element
-  const formatDateForInput = (date: Date | string | null): string => {
-    if (!date) return '';
-
-    // If date is already a string in YYYY-MM-DD format, return it
-    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return date;
-    }
-
-    // Convert to Date object and format using local date values to avoid UTC shift
-    const d = new Date(date);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  };
-
   // Get today's date in YYYY-MM-DD format for min attribute (use local date, not UTC)
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   
 
-  const handleRangeChange = (start : string | null, end: string | null) => {
+  const handleRangeChange = (start: string | null, end: string | null, rangeEnabled = showDateRange) => {
     if (onRangeChange) {
-      // console.log("onRangeChange", startDate, endDate, showDateRange);
       const range: ScheduleDateRange = {
-        startDate: showDateRange ? start : null,
-        endDate: showDateRange ? end : null
+        startDate: rangeEnabled ? start : null,
+        endDate: rangeEnabled ? end : null
       };
-      // console.log("range", range);
       onRangeChange(range);
     }
   }
+
+  // Fire the parent callback whenever any exclusion state changes.
+  // Always send the full arrays (including empty) and the enabled flag so the
+  // parent and backend always receive a definitive value — never undefined.
+  const fireExclusionsChange = (
+    enabled: boolean,
+    days: string[],
+    weeks: number[],
+    months: string[],
+    dates: string[]
+  ) => {
+    if (onExclusionsChange) {
+      onExclusionsChange({
+        exclusionsEnabled: enabled,
+        excludedDaysOfWeek: days,
+        excludedWeeksOfMonth: weeks,
+        excludedMonths: months,
+        excludedDates: dates,
+      });
+    }
+  };
+
+  const toggleExcludedDay = (day: string) => {
+    const updated = excludedDaysOfWeek.includes(day)
+      ? excludedDaysOfWeek.filter(d => d !== day)
+      : [...excludedDaysOfWeek, day];
+    setExcludedDaysOfWeek(updated);
+    fireExclusionsChange(showExclusions, updated, excludedWeeksOfMonth, excludedMonths, excludedDates);
+  };
+
+  const toggleExcludedWeek = (week: number) => {
+    const updated = excludedWeeksOfMonth.includes(week)
+      ? excludedWeeksOfMonth.filter(w => w !== week)
+      : [...excludedWeeksOfMonth, week];
+    setExcludedWeeksOfMonth(updated);
+    fireExclusionsChange(showExclusions, excludedDaysOfWeek, updated, excludedMonths, excludedDates);
+  };
+
+  const toggleExcludedMonth = (month: string) => {
+    const updated = excludedMonths.includes(month)
+      ? excludedMonths.filter(m => m !== month)
+      : [...excludedMonths, month];
+    setExcludedMonths(updated);
+    fireExclusionsChange(showExclusions, excludedDaysOfWeek, excludedWeeksOfMonth, updated, excludedDates);
+  };
+
+  const addExcludedDate = () => {
+    if (!excludedDateInput) return;
+    if (excludedDates.includes(excludedDateInput)) return;
+    const updated = [...excludedDates, excludedDateInput];
+    setExcludedDates(updated);
+    setExcludedDateInput('');
+    fireExclusionsChange(showExclusions, excludedDaysOfWeek, excludedWeeksOfMonth, excludedMonths, updated);
+  };
+
+  const removeExcludedDate = (date: string) => {
+    const updated = excludedDates.filter(d => d !== date);
+    setExcludedDates(updated);
+    fireExclusionsChange(showExclusions, excludedDaysOfWeek, excludedWeeksOfMonth, excludedMonths, updated);
+  };
   // When schedule type or preset config changes, update the cron expression
   useEffect(() => {
     if (!scheduleType || scheduleType === 'custom') return;
@@ -211,6 +393,13 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
       case '0 0 * * 0': // Weekly
         cronExpression = `${presetConfig.minute} ${presetConfig.hour} * * ${presetConfig.dayOfWeek}`;
         break;
+      case 'biweekly': {
+        // Encode as BIWEEKLY:{dayName}:{hour}:{minute}:{startDate}
+        const dayNames = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+        const dayName = dayNames[parseInt(biweeklyConfig.dayOfWeek)] ?? 'monday';
+        cronExpression = `BIWEEKLY:${dayName}:${biweeklyConfig.hour}:${biweeklyConfig.minute}:${biweeklyConfig.startDate}`;
+        break;
+      }
       case '0 0 1 * *': // Monthly
         cronExpression = `${presetConfig.minute} ${presetConfig.hour} ${presetConfig.dayOfMonth} * *`;
         break;
@@ -223,7 +412,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
     
     onChange(cronExpression);
     calculateNextRunTimes(cronExpression);
-  }, [scheduleType, presetConfig, startDate, endDate, showDateRange]);
+  }, [scheduleType, presetConfig, biweeklyConfig, intervalMinutes, startDate, endDate, showDateRange]);
 
   // When custom schedule changes, generate the cron expression
   useEffect(() => {
@@ -776,6 +965,66 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
     </div>
   );
 
+  const renderBiweeklyConfig = () => (
+    <div className="mt-2 bg-gray-50 dark:bg-neutral-800 p-3 rounded-lg">
+      <div className="mb-3">
+        <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Day of Week</label>
+        <select
+          value={biweeklyConfig.dayOfWeek}
+          onChange={(e) => setBiweeklyConfig({ ...biweeklyConfig, dayOfWeek: e.target.value })}
+          className={selectClassName}
+        >
+          {DAYS_OF_WEEK.map((day) => (
+            <option key={day.value} value={day.value}>{day.label}</option>
+          ))}
+        </select>
+      </div>
+      <div className="grid grid-cols-2 gap-4 mb-3">
+        <div>
+          <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Hour</label>
+          <select
+            value={biweeklyConfig.hour}
+            onChange={(e) => setBiweeklyConfig({ ...biweeklyConfig, hour: e.target.value })}
+            className={selectClassName}
+          >
+            {HOURS.map((hour) => (
+              <option key={hour.value} value={hour.value}>{hour.label}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Minute</label>
+          <select
+            value={biweeklyConfig.minute}
+            onChange={(e) => setBiweeklyConfig({ ...biweeklyConfig, minute: e.target.value })}
+            className={selectClassName}
+          >
+            {MINUTES.map((minute) => (
+              <option key={minute.value} value={minute.value}>{minute.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
+          Starting from <span className="text-red-500">*</span>
+          <span className="text-xs font-normal text-neutral-500 dark:text-neutral-400 ml-1">(anchor date — determines which weeks run)</span>
+        </label>
+        <input
+          type="date"
+          value={biweeklyConfig.startDate}
+          onChange={(e) => setBiweeklyConfig({ ...biweeklyConfig, startDate: e.target.value })}
+          className="w-full shadow custom-shadow p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+        />
+        {biweeklyConfig.startDate && (
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+            Every other {DAYS_OF_WEEK.find(d => d.value === biweeklyConfig.dayOfWeek)?.label} starting {biweeklyConfig.startDate}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+
   const renderPresetConfig = () => {
     switch(scheduleType) {
       case '0 * * * *': // Hourly
@@ -784,12 +1033,136 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
         return renderDailyConfig();
       case '0 0 * * 0': // Weekly
         return renderWeeklyConfig();
+      case 'biweekly':
+        return renderBiweeklyConfig();
       case '0 0 1 * *': // Monthly
         return renderMonthlyConfig();
       case '0 0 1 1 *': // Yearly
         return renderYearlyConfig();
       default:
         return null;
+    }
+  };
+
+  // ---- Chip helper ----
+  const chipClass = (active: boolean) =>
+    `cursor-pointer px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors select-none ${
+      active
+        ? 'bg-blue-600 border-blue-600 text-white dark:bg-blue-500 dark:border-blue-500'
+        : 'bg-white border-neutral-300 text-neutral-700 hover:border-blue-400 dark:bg-neutral-700 dark:border-neutral-600 dark:text-neutral-200 dark:hover:border-blue-400'
+    }`;
+
+  // Specific-date picker + chips (available in all modes)
+  const renderExcludedDatesPanel = () => (
+    <div className="mt-3">
+      <label className="block text-xs font-medium mb-1 dark:text-neutral-300">Skip specific dates</label>
+      <div className="flex gap-2">
+        <input
+          type="date"
+          value={excludedDateInput}
+          onChange={e => setExcludedDateInput(e.target.value)}
+          className="flex-1 shadow custom-shadow p-1.5 border rounded-lg text-sm dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
+        />
+        <button
+          type="button"
+          onClick={addExcludedDate}
+          disabled={!excludedDateInput}
+          className="px-3 py-1 rounded-lg border text-sm bg-white dark:bg-neutral-700 border-neutral-300 dark:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-600 disabled:opacity-40"
+        >
+          Add
+        </button>
+      </div>
+      {excludedDates.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {excludedDates.map(d => (
+            <span key={d}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 border border-orange-300 text-orange-800 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300">
+              {d}
+              <button type="button" onClick={() => removeExcludedDate(d)} className="hover:text-red-500">
+                <IconX size={11} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  // Daily exclusion panel — day-of-week chips + date picker
+  const renderDailyExclusions = () => (
+    <div className="mt-3 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 bg-white dark:bg-neutral-800/60">
+      <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-2">
+        Skip on these days
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {EXCLUSION_DAYS_OF_WEEK.map(d => (
+          <button key={d.value} type="button"
+            onClick={() => toggleExcludedDay(d.value)}
+            className={chipClass(excludedDaysOfWeek.includes(d.value))}>
+            {d.label}
+          </button>
+        ))}
+      </div>
+      {renderExcludedDatesPanel()}
+    </div>
+  );
+
+  // Weekly exclusion panel — week-of-month chips + date picker
+  const renderWeeklyExclusions = () => (
+    <div className="mt-3 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 bg-white dark:bg-neutral-800/60">
+      <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-2">
+        Skip these weeks of the month
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {WEEKS_OF_MONTH.map(w => (
+          <button key={w.value} type="button"
+            onClick={() => toggleExcludedWeek(w.value)}
+            className={chipClass(excludedWeeksOfMonth.includes(w.value))}>
+            {w.label}
+          </button>
+        ))}
+      </div>
+      {renderExcludedDatesPanel()}
+    </div>
+  );
+
+  // Monthly exclusion panel — month chips
+  const renderMonthlyExclusions = () => (
+    <div className="mt-3 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 bg-white dark:bg-neutral-800/60">
+      <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-2">
+        Skip these months
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {EXCLUSION_MONTHS.map(m => (
+          <button key={m.value} type="button"
+            onClick={() => toggleExcludedMonth(m.value)}
+            className={chipClass(excludedMonths.includes(m.value))}>
+            {m.label}
+          </button>
+        ))}
+      </div>
+      {renderExcludedDatesPanel()}
+    </div>
+  );
+
+  // Generic exclusion panel for custom/hourly/yearly (dates only)
+  const renderGenericExclusions = () => (
+    <div className="mt-3 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 bg-white dark:bg-neutral-800/60">
+      <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-2">
+        Skip specific dates
+      </div>
+      {renderExcludedDatesPanel()}
+    </div>
+  );
+
+  const renderExclusionSection = () => {
+    if (!scheduleType || !showExclusions) return null;
+    switch (scheduleType) {
+      case '0 0 * * *': return renderDailyExclusions();
+      case '0 0 * * 0': return renderWeeklyExclusions();
+      case 'biweekly':  return renderWeeklyExclusions(); // same chips as weekly
+      case '0 0 1 * *': return renderMonthlyExclusions();
+      default:          return renderGenericExclusions();
     }
   };
 
@@ -906,10 +1279,14 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
           id="enableDateRange"
           checked={showDateRange}
           onChange={(e) => {
-            setShowDateRange(e.target.checked);
-            handleRangeChange(null, null);
-            // If unchecked, recalculate next run times without date range info
-            if (!e.target.checked) {
+            const checked = e.target.checked;
+            setShowDateRange(checked);
+            if (!checked) {
+              // Unchecking — clear the dates and notify parent
+              setStartDate('');
+              setEndDate('');
+              handleRangeChange(null, null, false);
+              // Recalculate next run times without date range
               const cronExpression = scheduleType === 'custom'
                 ? `${customSchedule.minute} ${customSchedule.hour} ${customSchedule.dayOfMonth} ${customSchedule.month} ${customSchedule.dayOfWeek}`
                 : value;
@@ -936,7 +1313,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
               onChange={(e) => {
                 const newStartDate = e.target.value;
                 setStartDate(newStartDate);
-                handleRangeChange(newStartDate, endDate);
+                handleRangeChange(newStartDate, endDate, true);
               }}
               className="w-full shadow custom-shadow p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
             />
@@ -952,7 +1329,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
               onChange={(e) => {
                 const newEndDate = e.target.value;
                 setEndDate(newEndDate);
-                handleRangeChange(startDate, newEndDate);
+                handleRangeChange(startDate, newEndDate, true);
               }}
               className="w-full shadow custom-shadow p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
             />
@@ -991,9 +1368,45 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({ value,
           {/* Show the appropriate config UI based on schedule type */}
           {scheduleType && scheduleType !== 'custom' && scheduleType !== '* * * * *' && renderPresetConfig()}
           {scheduleType === 'custom' && renderCustomScheduleInputs()}
-          
+          {scheduleType === 'biweekly' && !biweeklyConfig.startDate && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 ml-1">⚠ A starting date is required for biweekly schedules.</p>
+          )}
+
           {/* Add date range selector */}
           {renderDateRangeSelector()}
+
+          {/* Exclusion rules toggle + panel */}
+          {scheduleType && (
+            <div className="mt-4 bg-gray-50 dark:bg-neutral-800 p-3 rounded-lg">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="enableExclusions"
+                  checked={showExclusions}
+                  onChange={e => {
+                    const checked = e.target.checked;
+                    setShowExclusions(checked);
+                    if (!checked) {
+                      // Clear all exclusions when panel is hidden
+                      setExcludedDaysOfWeek([]);
+                      setExcludedWeeksOfMonth([]);
+                      setExcludedMonths([]);
+                      setExcludedDates([]);
+                      fireExclusionsChange(false, [], [], [], []);
+                    } else {
+                      // Checkbox ticked — save enabled=true even before any chip is selected
+                      fireExclusionsChange(true, excludedDaysOfWeek, excludedWeeksOfMonth, excludedMonths, excludedDates);
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
+                />
+                <label htmlFor="enableExclusions" className="ml-2 block text-sm font-medium dark:text-neutral-200">
+                  Set exclusion rules (skip certain runs)
+                </label>
+              </div>
+              {renderExclusionSection()}
+            </div>
+          )}
         </>}
       />
 
