@@ -203,7 +203,9 @@ export const WebSearchIntegration: FC<Props> = ({ config, setConfig, updateUnsav
                     <h3 className="admin-style-settings-card-title">Web Search</h3>
                 </div>
                 <p className="admin-style-settings-card-description">
-                    Configure web search API keys for all users. When enabled, users can use web search in their conversations.
+                    {config?.provider === 'bedrock_agentcore'
+                        ? 'Configure AWS Bedrock AgentCore gateway for web search. When enabled, users can use web search in their conversations using their own sign-in credentials.'
+                        : 'Configure web search API keys for all users. When enabled, users can use web search in their conversations.'}
                 </p>
             </div>
 
@@ -212,28 +214,43 @@ export const WebSearchIntegration: FC<Props> = ({ config, setConfig, updateUnsav
                 <div className="flex items-start gap-3">
                     <IconInfoCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-blue-700 dark:text-blue-300">
-                        <p className="font-medium">Admin-managed web search</p>
-                        <p className="mt-1">
-                            When you configure a web search API key here, all users in your organization
-                            can use web search without needing their own API keys. Usage costs will be
-                            billed to the organization account.
-                        </p>
+                        {config?.provider === 'bedrock_agentcore' ? (
+                            <>
+                                <p className="font-medium">AWS Bedrock AgentCore gateway</p>
+                                <p className="mt-1">
+                                    Web search is routed through an AWS-managed AgentCore gateway. Each user
+                                    is authorized using their own sign-in credentials — no third-party API key
+                                    required. Usage costs are billed to your AWS account.
+                                </p>
+                            </>
+                        ) : (
+                            <>
+                                <p className="font-medium">Admin-managed web search</p>
+                                <p className="mt-1">
+                                    When you configure a web search API key here, all users in your organization
+                                    can use web search without needing their own API keys. Usage costs will be
+                                    billed to the organization account.
+                                </p>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
 
-            {/* Allow Users to Add Their Own Keys Checkbox */}
-            <div className="mx-4 mb-4">
-                <Checkbox
-                    id="allowUserWebSearchKeys"
-                    label="Allow users to add their own web search API keys"
-                    checked={allowUserKeys}
-                    onChange={handleAllowUserKeysChange}
-                />
-                <p className="ml-6 text-sm text-neutral-600 dark:text-neutral-400 mt-1">
-                    When enabled, users can configure their own API keys in addition to using the admin-provided key.
-                </p>
-            </div>
+            {/* Allow Users to Add Their Own Keys Checkbox - not applicable for AgentCore */}
+            {config?.provider !== 'bedrock_agentcore' && (
+                <div className="mx-4 mb-4">
+                    <Checkbox
+                        id="allowUserWebSearchKeys"
+                        label="Allow users to add their own web search API keys"
+                        checked={allowUserKeys}
+                        onChange={handleAllowUserKeysChange}
+                    />
+                    <p className="ml-6 text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                        When enabled, users can configure their own API keys in addition to using the admin-provided key.
+                    </p>
+                </div>
+            )}
 
             {/* User Message Textarea */}
             <div className="mx-4 mb-4">

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { Modal } from '@/components/ReusableComponents/Modal';
-import { IconPlus, IconTrash, IconLoader2, IconInfoCircle, IconNotes, IconBulb, IconExclamationCircle, IconSettingsAutomation, IconAlarm, IconChevronDown, IconChevronUp, IconPlayerPlay, IconRefresh } from '@tabler/icons-react';
+import { IconPlus, IconTrash, IconLoader2, IconInfoCircle, IconNotes, IconBulb, IconExclamationCircle, IconSettingsAutomation, IconAlarm, IconChevronDown, IconChevronUp, IconChevronRight, IconPlayerPlay, IconRefresh, IconX, IconDeviceFloppy, IconAdjustments } from '@tabler/icons-react';
 import cloneDeep from 'lodash/cloneDeep';
 import toast from 'react-hot-toast';
 import { ScheduleDateRange, ScheduledTask, ScheduledTaskType, TASK_TYPE_MAP, TaskExecutionRecord } from '@/types/scheduledTasks';
@@ -15,14 +15,19 @@ import { camelCaseToTitle } from '@/utils/app/data';
 import { isAssistant } from '@/utils/app/assistants';
 import { Prompt } from '@/types/prompt';
 import { ActionSetList } from './ActionSets';
+import { saveActionSet, ActionItem } from '@/services/actionSetsService';
 import AgentLogBlock from '../Chat/ChatContentBlocks/AgentLogBlock';
 import { userFriendlyDate } from '@/utils/app/date';
 import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import { getOpsForUser } from '@/services/opsService';
 import { getAgentTools } from '@/services/agentService';
 import ApiIntegrationsPanel from '../AssistantApi/ApiIntegrationsPanel';
+import CompositeActionsPanel from './CompositeActionsPanel';
+import { ApiItemSelector } from '../AssistantApi/ApiSelector';
 import { AgentTool } from '@/types/agentTools';
-import { OpDef } from '@/types/op';
+import { OpDef, OpBindingMode } from '@/types/op';
+import { ApiParameterBindingEditor } from '../AssistantApi/ApiParameterBindingEditor';
+import { CompositeFunction } from '@/utils/app/compositeFunctions';
 import { listAstWorkflowTemplates } from '@/services/assistantWorkflowService';
 import { AstWorkflow } from '@/types/assistantWorkflows';
 
@@ -31,7 +36,7 @@ const emptyTask = (): ScheduledTask => {
     taskId: '',
     taskName: '',
     description: '',
-    cronExpression: '',
+    cronExpression: '0 9 * * *', // Default: daily at 9 AM — matches CronScheduleBuilder's visual default
     active: true,
     taskInstructions: '',
     taskType: 'assistant',
@@ -72,6 +77,18 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   const [showActionSetList, setShowActionSetList] = useState(false);
   const [showApiToolList, setShowApiToolList] = useState(false);
   const [showWorkflowList, setShowWorkflowList] = useState(false);
+
+  // State for unified Actions task type
+  const [actionSubMode, setActionSubMode] = useState<'actionSet' | 'apiTool' | 'createActionSet'>('apiTool');
+  const [newActionSetName, setNewActionSetName] = useState('');
+  const [newActionSetActions, setNewActionSetActions] = useState<ActionItem[]>([]);
+  const [isSavingActionSet, setIsSavingActionSet] = useState(false);
+  const [rawOpsOpen, setRawOpsOpen] = useState(false);
+  const [rawAgentOpen, setRawAgentOpen] = useState(true);
+  const [rawIntegrationOpen, setRawIntegrationOpen] = useState(true);
+  const [editingActionName, setEditingActionName] = useState<string | null>(null);
+  const [actionParamModes, setActionParamModes] = useState<Record<string, Record<string, OpBindingMode>>>({});
+  const [actionParamValues, setActionParamValues] = useState<Record<string, Record<string, string>>>({});
   const [availableApis, setAvailableApis] = useState<any[] | null>(null);
   const [availableAgentTools, setAvailableAgentTools] = useState<Record<string, any> | null>(null);
   const [availableWorkflows, setAvailableWorkflows] = useState<AstWorkflow[] | null>(null);
@@ -251,6 +268,10 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
       setSelectedLogId(null);
       setSelectedLogDetails(null);
       setIsViewingLogs(false);
+      if (task.taskType === 'apiTool') setActionSubMode('apiTool');
+      else if (task.taskType === 'actionSet') setActionSubMode('actionSet');
+      setNewActionSetActions([]);
+      setNewActionSetName('');
     } else {
       alert("Failed to load task");
     }
@@ -544,8 +565,120 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   };
 
   const handleActionSetSelect = (actionSet: any) => {
-    setSelectedTask({...selectedTask, objectInfo: {objectId: actionSet.id || '', objectName: actionSet.name || 'Unnamed Set'}});
+    setSelectedTask({...selectedTask, taskType: 'actionSet', objectInfo: {objectId: actionSet.id || '', objectName: actionSet.name || 'Unnamed Set'}});
     setShowActionSetList(false);
+  };
+
+  const handleAddRawActionToNewSet = (api: OpDef) => {
+    const actionItem: ActionItem = {
+      name: api.name,
+      operation: {
+        tool_name: api.name,
+        name: api.name,
+        description: api.description,
+        id: api.name,
+        type: api.type || '',
+        parameters: api.parameters,
+        tags: api.tags ?? [],
+        bindings: api.bindings,
+        method: (api as any).method
+      }
+    };
+    setNewActionSetActions(prev =>
+      prev.find(a => a.name === api.name) ? prev : [...prev, actionItem]
+    );
+  };
+
+  const handleAddCompositeToNewSet = (fn: CompositeFunction) => {
+    if (!availableApis) return;
+    const opNames = new Set(fn.operations);
+    const ops = (availableApis as OpDef[]).filter(api => opNames.has(api.name));
+    if (ops.length === 0) return;
+    setNewActionSetActions(prev => {
+      const existingNames = new Set(prev.map(a => a.name));
+      const toAdd = ops
+        .filter(api => !existingNames.has(api.name))
+        .map(api => ({
+          name: api.name,
+          operation: {
+            tool_name: api.name,
+            name: api.name,
+            description: api.description,
+            id: api.name,
+            type: api.type || '',
+            parameters: api.parameters,
+            tags: api.tags ?? [],
+            bindings: api.bindings,
+            method: api.method
+          }
+        }));
+      return [...prev, ...toAdd];
+    });
+  };
+
+  const handleRemoveActionFromNewSet = (name: string) => {
+    setNewActionSetActions(prev => prev.filter(a => a.name !== name));
+  };
+
+  const handleUpdateOpBindingsInNewSet = (actionName: string, bindings: any) => {
+    setNewActionSetActions(prev => prev.map(a =>
+      a.name === actionName ? { ...a, operation: { ...a.operation, bindings } } : a
+    ));
+  };
+
+  const handleActionParamModeChange = (actionName: string, param: string, mode: OpBindingMode) => {
+    const newModes = { ...actionParamModes, [actionName]: { ...(actionParamModes[actionName] || {}), [param]: mode } };
+    setActionParamModes(newModes);
+    const vals = actionParamValues[actionName] || {};
+    const bindings: any = {};
+    const action = newActionSetActions.find(a => a.name === actionName);
+    if (action?.operation?.parameters?.properties) {
+      Object.keys(action.operation.parameters.properties).forEach(p => {
+        const m = (newModes[actionName] || {})[p] || 'ai';
+        const v = vals[p] || '';
+        if (v || m === 'manual') bindings[p] = { value: v, mode: m };
+      });
+    }
+    handleUpdateOpBindingsInNewSet(actionName, bindings);
+  };
+
+  const handleActionParamValueChange = (actionName: string, param: string, value: string) => {
+    const newVals = { ...actionParamValues, [actionName]: { ...(actionParamValues[actionName] || {}), [param]: value } };
+    setActionParamValues(newVals);
+    const modes = actionParamModes[actionName] || {};
+    const bindings: any = {};
+    const action = newActionSetActions.find(a => a.name === actionName);
+    if (action?.operation?.parameters?.properties) {
+      Object.keys(action.operation.parameters.properties).forEach(p => {
+        const m = modes[p] || 'ai';
+        const v = (newVals[actionName] || {})[p] || '';
+        if (v || m === 'manual') bindings[p] = { value: v, mode: m };
+      });
+    }
+    handleUpdateOpBindingsInNewSet(actionName, bindings);
+  };
+
+  const handleSaveNewActionSet = async () => {
+    if (newActionSetActions.length === 0) return;
+    if (!newActionSetName.trim()) {
+      toast.error('Please enter a name for the action set');
+      return;
+    }
+    setIsSavingActionSet(true);
+    try {
+      const name = newActionSetName.trim();
+      const savedSet = await saveActionSet({ name, tags: [], actions: newActionSetActions });
+      setSelectedTask({...selectedTask, taskType: 'actionSet', objectInfo: {objectId: savedSet.id || '', objectName: savedSet.name}});
+      setNewActionSetName('');
+      setNewActionSetActions([]);
+      setActionSubMode('actionSet');
+      toast.success(`Action set "${savedSet.name}" created and selected`);
+    } catch (err) {
+      console.error('Error saving action set:', err);
+      toast.error('Failed to save action set');
+    } finally {
+      setIsSavingActionSet(false);
+    }
   };
 
   const handleApiToolSelect = (name: string, opSpecs: any) => {
@@ -606,97 +739,213 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           </div>
         )
       case 'actionSet':
-        if (!featureFlags.actionSets) return <></>;
+      case 'apiTool':
+        if (!featureFlags.actionSets && !featureFlags.integrations) return <></>;
         return (
-          <div className="flex flex-col mb-4 relative">
-            <div 
-              onClick={() => !isEnforced && setShowActionSetList(!showActionSetList)}
-              className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow flex justify-between items-center
-              ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}
-              ${isEnforced ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-            >
-              <span>{selectedTask.objectInfo?.objectName || 'Select Action Set'}</span>
-              <IconChevronDown 
-                size={18} 
-                className={`transition-transform ${showActionSetList && !isEnforced ? 'rotate-180' : ''}`}
-              />
+          <div className={`flex flex-col mb-4 space-y-3 ${isEnforced ? 'opacity-50 pointer-events-none' : ''}`}>
+
+            {/* ── Selected tool display (matches assistant/workflow style) ── */}
+            {selectedTask.objectInfo?.objectId && (
+              <div className="mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow flex justify-between items-center border-neutral-500 dark:border-neutral-800 dark:border-opacity-50">
+                <span>{selectedTask.objectInfo.objectName}</span>
+              </div>
+            )}
+
+            {/* ── Three sub-option cards (API Action | Action Set | Create Action Set) ── */}
+            <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${[featureFlags.integrations, featureFlags.actionSets, featureFlags.actionSets].filter(Boolean).length}, minmax(0, 1fr))` }}>
+              {featureFlags.integrations && (
+                <button
+                  onClick={() => { setActionSubMode('apiTool'); setSelectedTask({...selectedTask, objectInfo: {objectId: '', objectName: ''}, taskType: 'apiTool'}); setShowApiToolList(false); }}
+                  className={`flex flex-col items-start gap-1 px-3 py-2.5 rounded-lg border transition-colors text-left ${
+                    actionSubMode === 'apiTool'
+                      ? 'bg-blue-50 border-blue-500 dark:bg-blue-900/20 dark:border-blue-400'
+                      : 'border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-700/50'
+                  }`}>
+                  <span className={`text-sm font-medium ${actionSubMode === 'apiTool' ? 'text-blue-700 dark:text-blue-300' : 'text-neutral-800 dark:text-neutral-200'}`}>API Action</span>
+                  <span className="text-xs text-neutral-500 dark:text-neutral-400 leading-tight">Run a single API or agent tool once per schedule</span>
+                </button>
+              )}
+              {featureFlags.actionSets && (
+                <button
+                  onClick={() => { setActionSubMode('actionSet'); setSelectedTask({...selectedTask, objectInfo: {objectId: '', objectName: ''}, taskType: 'actionSet'}); setShowActionSetList(false); }}
+                  className={`flex flex-col items-start gap-1 px-3 py-2.5 rounded-lg border transition-colors text-left ${
+                    actionSubMode === 'actionSet'
+                      ? 'bg-blue-50 border-blue-500 dark:bg-blue-900/20 dark:border-blue-400'
+                      : 'border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-700/50'
+                  }`}>
+                  <span className={`text-sm font-medium ${actionSubMode === 'actionSet' ? 'text-blue-700 dark:text-blue-300' : 'text-neutral-800 dark:text-neutral-200'}`}>Action Set</span>
+                  <span className="text-xs text-neutral-500 dark:text-neutral-400 leading-tight">Use a pre-saved collection of actions</span>
+                </button>
+              )}
+              {featureFlags.actionSets && (
+                <button
+                  onClick={() => { setActionSubMode('createActionSet'); setNewActionSetActions([]); setNewActionSetName(''); setSelectedTask({...selectedTask, objectInfo: {objectId: '', objectName: ''}, taskType: 'actionSet'}); }}
+                  className={`flex flex-col items-start gap-1 px-3 py-2.5 rounded-lg border transition-colors text-left ${
+                    actionSubMode === 'createActionSet'
+                      ? 'bg-blue-50 border-blue-500 dark:bg-blue-900/20 dark:border-blue-400'
+                      : 'border-neutral-300 dark:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-700/50'
+                  }`}>
+                  <span className={`text-sm font-medium ${actionSubMode === 'createActionSet' ? 'text-blue-700 dark:text-blue-300' : 'text-neutral-800 dark:text-neutral-200'}`}>+ Create Action Set</span>
+                  <span className="text-xs text-neutral-500 dark:text-neutral-400 leading-tight">Build and save a new set of actions</span>
+                </button>
+              )}
             </div>
-            
-            {featureFlags.actionSets && showActionSetList && !isEnforced && (
-              <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-[#343541] border border-neutral-300 dark:border-neutral-700 rounded-lg shadow-lg">
-                <div className="p-3" style={{ maxHeight: '350px', overflowY: 'auto' }}>
-                  <ActionSetList onLoad={handleActionSetSelect} />
+
+            {/* ── Action Set: show existing sets inline ── */}
+            {actionSubMode === 'actionSet' && featureFlags.actionSets && (
+              <div className="flex flex-col gap-2">
+                <div className="border rounded-lg dark:border-neutral-600 overflow-y-auto p-3" style={{ maxHeight: '300px' }}>
+                  <ActionSetList onLoad={handleActionSetSelect} selectedId={selectedTask.objectInfo?.objectId} />
                 </div>
               </div>
             )}
-          </div>
-        );
-      case "apiTool":
 
-        return (
-        <div className="flex flex-col mb-4 relative">
-          <div 
-            onClick={() => !isEnforced && setShowApiToolList(!showApiToolList)}
-            className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow flex justify-between items-center
-            ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50 ' : 'border-red-500 dark:border-red-800'}
-            ${isEnforced ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-          >
-            <span>{selectedTask.objectInfo?.objectName || 'Select API Tool'}</span>
-            <IconChevronDown 
-              size={18} 
-              className={`transition-transform ${showApiToolList && !isEnforced ? 'rotate-180' : ''}`}
-            />
-          </div>
-          
-          {featureFlags.integrations && showApiToolList && !isEnforced && (
-            <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-[#343541] border border-neutral-300 dark:border-neutral-700 rounded-lg shadow-lg">
-              <div className="p-3" >
-                <div className='border-b flex flex-col border-neutral-500'>
-                  <ApiIntegrationsPanel
-                      // API-related props
-                      availableApis={availableApis}
-                      onClickApiItem={(api: OpDef) => {
-                        const op = {
-                              "tool_name": api.name,
-                              "name": api.name,
-                              "description": api.description,
-                              "id": api.name,
-                              "type": api.type || '',
-                              "parameters": api.parameters,
-                              "tags": api.tags ?? [],
-                              "bindings": api.bindings,
-                              "method": api.method
-                            }
-                        handleApiToolSelect(api.name, op);
-                      }}
-                      // Agent tools props
-                      availableAgentTools={availableAgentTools}
-                      onClickAgentTool={ (tool: AgentTool) => {
-                        const op = {
-                          "tool_name": tool.tool_name,
-                          "name": tool.tool_name,
-                          "description": tool.description,
-                          "id": tool.tool_name,
-                          "type": "builtIn",
-                          "parameters": tool.parameters,
-                          "tags": tool.tags ?? [],
-                          "bindings": tool.bindings
-                        }
-                        handleApiToolSelect(tool.tool_name, op);
-                      }}
-                      // Configuration
-                      allowConfiguration={true}
-                      // python function 
-                      allowCreatePythonFunction={false}
-                      hideApisPanel={['external']}
-                      height="300px"
-                  />
+            {/* ── API Action: pick a single action inline ── */}
+            {actionSubMode === 'apiTool' && (
+              <div className="flex flex-col gap-2">
+                <div className="border rounded-lg dark:border-neutral-600 overflow-y-auto p-3" style={{ maxHeight: '300px' }}>
+                  <div className="flex flex-col gap-2">
+                    {availableAgentTools && Object.keys(availableAgentTools).length > 0 && (
+                      <div>
+                        <button className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors select-none mb-1" onClick={() => setRawAgentOpen(v => !v)}>
+                          {rawAgentOpen ? <IconChevronDown size={12} stroke={2} /> : <IconChevronRight size={12} stroke={2} />}Agent Tools
+                        </button>
+                        {rawAgentOpen && (
+                          <ApiItemSelector
+                            availableApis={Object.entries(availableAgentTools).map(([key, tool]: [string, any]) => ({ id: tool.tool_name || key, name: tool.tool_name || key, tool_name: tool.tool_name || key, description: tool.description || '', parameters: tool.parameters || {}, tags: [...(tool.tags || []), 'Agent Tool', 'native'], type: 'builtIn' }))}
+                            selectedApis={selectedTask.objectInfo?.objectId ? [{ id: selectedTask.objectInfo.objectId, name: selectedTask.objectInfo.objectName } as any] : []}
+                            setSelectedApis={() => {}}
+                            onClickApiItem={(api: OpDef) => handleApiToolSelect(api.name, { tool_name: api.name, name: api.name, description: api.description, id: api.name, type: 'builtIn', parameters: api.parameters, tags: api.tags ?? [], bindings: api.bindings })}
+                            disableSelection={true} showDetails={false} allowConfiguration={true}
+                          />
+                        )}
+                      </div>
+                    )}
+                    {featureFlags.integrations && availableApis && (
+                      <div>
+                        <button className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors select-none mb-1" onClick={() => setRawIntegrationOpen(v => !v)}>
+                          {rawIntegrationOpen ? <IconChevronDown size={12} stroke={2} /> : <IconChevronRight size={12} stroke={2} />}Integration APIs
+                        </button>
+                        {rawIntegrationOpen && (
+                          <ApiItemSelector
+                            availableApis={availableApis}
+                            selectedApis={selectedTask.objectInfo?.objectId ? [{ id: selectedTask.objectInfo.objectId, name: selectedTask.objectInfo.objectName } as any] : []}
+                            setSelectedApis={() => {}}
+                            apiFilter={(apis) => apis.filter((api) => api.type !== 'custom')}
+                            onClickApiItem={(api: OpDef) => handleApiToolSelect(api.name, { tool_name: api.name, name: api.name, description: api.description, id: api.name, type: api.type || '', parameters: api.parameters, tags: api.tags ?? [], bindings: api.bindings, method: api.method })}
+                            disableSelection={true} showDetails={false} allowConfiguration={true}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-      );
+            )}
+
+            {/* ── Create Action Set: composites + raw actions ── */}
+            {actionSubMode === 'createActionSet' && (
+              <div className="space-y-3">
+                <div className="border rounded-lg dark:border-neutral-600 overflow-y-auto p-3" style={{ maxHeight: '320px' }}>
+                  <div className="flex flex-col gap-2 pl-1 pr-1">
+                    <CompositeActionsPanel selectedId={null} allOperations={availableApis} onSelect={handleAddCompositeToNewSet} />
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-2 mt-1">
+                      <button className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors select-none mb-2" onClick={() => setRawOpsOpen(v => !v)}>
+                        {rawOpsOpen ? <IconChevronDown size={13} stroke={2} /> : <IconChevronRight size={13} stroke={2} />}
+                        Browse raw actions
+                      </button>
+                      {rawOpsOpen && (
+                        <div className="flex flex-col gap-2 pl-2">
+                          {availableAgentTools && Object.keys(availableAgentTools).length > 0 && (
+                            <div>
+                              <button className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors select-none mb-1" onClick={() => setRawAgentOpen(v => !v)}>
+                                {rawAgentOpen ? <IconChevronDown size={12} stroke={2} /> : <IconChevronRight size={12} stroke={2} />}Agent Tools
+                              </button>
+                              {rawAgentOpen && (
+                                <ApiItemSelector
+                                  availableApis={Object.entries(availableAgentTools).map(([key, tool]: [string, any]) => ({ id: tool.tool_name || key, name: tool.tool_name || key, tool_name: tool.tool_name || key, description: tool.description || '', parameters: tool.parameters || {}, tags: [...(tool.tags || []), 'Agent Tool', 'native'], type: 'builtIn' }))}
+                                  selectedApis={newActionSetActions.map(a => a.operation as any)} setSelectedApis={() => {}} onClickApiItem={(api: OpDef) => handleAddRawActionToNewSet(api)} disableSelection={true} showDetails={false} allowConfiguration={true}
+                                />
+                              )}
+                            </div>
+                          )}
+                          {featureFlags.integrations && availableApis && (
+                            <div>
+                              <button className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors select-none mb-1" onClick={() => setRawIntegrationOpen(v => !v)}>
+                                {rawIntegrationOpen ? <IconChevronDown size={12} stroke={2} /> : <IconChevronRight size={12} stroke={2} />}Integration APIs
+                              </button>
+                              {rawIntegrationOpen && (
+                                <ApiItemSelector
+                                  availableApis={availableApis} selectedApis={newActionSetActions.map(a => a.operation as any)} setSelectedApis={() => {}}
+                                  apiFilter={(apis) => apis.filter((api) => api.type !== 'custom')}
+                                  onClickApiItem={(api: OpDef) => handleAddRawActionToNewSet(api)} disableSelection={true} showDetails={false} allowConfiguration={true}
+                                />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {newActionSetActions.length > 0 && (
+                  <div className="space-y-2 border-t pt-2 dark:border-neutral-600">
+                    {/* Pills row */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {newActionSetActions.map(action => {
+                        const hasParams = action.operation?.parameters?.properties && Object.keys(action.operation.parameters.properties).length > 0;
+                        const isEditing = editingActionName === action.name;
+                        return (
+                          <span key={action.name} className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs border transition-colors ${
+                            isEditing
+                              ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 border-blue-400 dark:border-blue-500'
+                              : 'bg-neutral-100 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-200 border-neutral-300 dark:border-neutral-600'
+                          }`}>
+                            {action.name}
+                            {hasParams && (
+                              <button
+                                onClick={() => setEditingActionName(isEditing ? null : action.name)}
+                                className={`transition-colors ml-0.5 ${ isEditing ? 'text-blue-500' : 'text-neutral-400 hover:text-blue-500'}`}
+                                title="Configure parameters"
+                              >
+                                <IconAdjustments size={11} />
+                              </button>
+                            )}
+                            <button onClick={() => { handleRemoveActionFromNewSet(action.name); if (editingActionName === action.name) setEditingActionName(null); }} className="hover:text-red-500 transition-colors ml-0.5"><IconX size={11} /></button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                    {/* Inline config editor for the selected pill */}
+                    {editingActionName && newActionSetActions.find(a => a.name === editingActionName) && (() => {
+                      const action = newActionSetActions.find(a => a.name === editingActionName)!;
+                      return (
+                        <div className="border rounded-lg dark:border-neutral-600 p-3 bg-neutral-50 dark:bg-neutral-800">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">Configure: {action.name}</span>
+                            <button onClick={() => setEditingActionName(null)} className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"><IconX size={14} /></button>
+                          </div>
+                          <ApiParameterBindingEditor
+                            paramSource={action.operation?.parameters}
+                            paramModes={actionParamModes[action.name] || {}}
+                            paramValues={actionParamValues[action.name] || {}}
+                            onParamModeChange={(param, mode) => handleActionParamModeChange(action.name, param, mode)}
+                            onParamValueChange={(param, value) => handleActionParamValueChange(action.name, param, value)}
+                          />
+                        </div>
+                      );
+                    })()}
+                    <input type="text" placeholder="Action set name (required)" value={newActionSetName} onChange={e => setNewActionSetName(e.target.value)} className={`w-full p-2 text-sm border rounded-lg dark:bg-[#40414F] dark:text-white ${newActionSetName.trim() ? 'border-neutral-300 dark:border-neutral-600' : 'border-red-400 dark:border-red-600'}`} />
+                    <button onClick={handleSaveNewActionSet} disabled={isSavingActionSet} className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60 transition-colors">
+                      {isSavingActionSet ? <><IconLoader2 size={14} className="animate-spin" />Saving...</> : <><IconDeviceFloppy size={14} />Save Action Set &amp; Use</>}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+          </div>
+        );
       case "workflow":
         if (!featureFlags.assistantWorkflows) return <></>;
         return (
@@ -914,20 +1163,30 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               Task Type
             </label> 
             <select
-              disabled={isDisabled() }
-              value={selectedTask.taskType ?? ''}
+              disabled={isDisabled()}
+              value={
+                selectedTask.taskType === 'actionSet' || selectedTask.taskType === 'apiTool'
+                  ? 'actions'
+                  : (selectedTask.taskType ?? '')
+              }
               onChange={(e) => {
-                const updatedSelectedTask = {...selectedTask, 
-                                             objectInfo: {objectId: '', objectName: ''},
-                                             taskType: e.target.value as ScheduledTaskType}
-                setSelectedTask(updatedSelectedTask);
+                const val = e.target.value;
+                setNewActionSetActions([]);
+                setNewActionSetName('');
+                if (val === 'actions') {
+                  setActionSubMode('apiTool');
+                  setSelectedTask({...selectedTask, objectInfo: {objectId: '', objectName: ''}, taskType: 'apiTool'});
+                  setShowActionSetList(false);
+                  setShowApiToolList(false);
+                  return;
+                }
+                setSelectedTask({...selectedTask, objectInfo: {objectId: '', objectName: ''}, taskType: val as ScheduledTaskType});
               }}
               className="w-full shadow custom-shadow p-2 border rounded-lg dark:bg-[#40414F] dark:border-neutral-600 dark:text-white"
             >
               <option value="">Select Task Type</option>
               <option value="assistant">Assistant</option>
-              {featureFlags.actionSets && <option value="actionSet">Action Set</option>}
-              {featureFlags.integrations &&  <option value="apiTool">API Action</option>}
+              {(featureFlags.actionSets || featureFlags.integrations) && <option value="actions">Action</option>}
               {featureFlags.assistantWorkflows && <option value="workflow">Workflow</option>}
             </select>
           </div>
