@@ -85,10 +85,11 @@ const FAILED_STATUSES: EpisodeStatus[] = ['failed', 'error'];
 // <audio> element pauses playback, which the user hit when clicking Details
 // while a podcast was playing.
 //
-// <audio> can't attach Authorization headers, so we fetch the binary with the
-// JWT once, hand the <audio> tag an object URL, and revoke it on unmount.
-// Range/seek is lost for long episodes — acceptable tradeoff to keep the API
-// auth model uniform with the rest of the notebook calls.
+// Audio is served via a short-lived S3 presigned URL resolved by the lambda
+// (Open Notebook's /audio-url endpoint).  The <audio> tag uses the presigned
+// URL as its src and streams directly from S3 — no large binary ever passes
+// through Lambda or API Gateway (which has a ~10 MB response cap).
+// Range/seek works normally because the browser talks directly to S3.
 const audioErrorMessage = (status: number | null): string => {
     if (status === null) return 'Network error fetching audio.';
     if (status === 404)
@@ -105,17 +106,12 @@ const EpisodeAudio = memo(({ episodeId }: { episodeId: string }) => {
 
     useEffect(() => {
         let cancelled = false;
-        let objectUrl: string | null = null;
         setSrc(null);
         setErrorStatus(undefined);
         (async () => {
             const result = await fetchEpisodeAudioObjectUrl(episodeId);
-            if (cancelled) {
-                if (result.objectUrl) URL.revokeObjectURL(result.objectUrl);
-                return;
-            }
+            if (cancelled) return;
             if (result.objectUrl) {
-                objectUrl = result.objectUrl;
                 setSrc(result.objectUrl);
             } else {
                 setErrorStatus(result.status);
@@ -123,7 +119,7 @@ const EpisodeAudio = memo(({ episodeId }: { episodeId: string }) => {
         })();
         return () => {
             cancelled = true;
-            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            // Presigned URLs are not blob: URLs — no revocation needed.
         };
     }, [episodeId, attempt]);
 
