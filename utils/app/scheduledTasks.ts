@@ -56,13 +56,25 @@ export const determineWebsiteScanCron = (dataSources: AttachedDocument[]): strin
   const dailyWebsites = websiteSchedules.filter(w => w.frequency === 1);
   const weeklyWebsites = websiteSchedules.filter(w => w.frequency >= 6 && w.frequency <= 8);
   const monthlyWebsites = websiteSchedules.filter(w => w.frequency >= 28 && w.frequency <= 32);
-  const otherWebsites = websiteSchedules.filter(w => 
-    w.frequency > 1 && w.frequency < 6 || (w.frequency > 8 && w.frequency < 28) || w.frequency > 32
+  const quarterlyWebsites = websiteSchedules.filter(w => w.frequency >= 85 && w.frequency <= 95);
+  const otherWebsites = websiteSchedules.filter(w =>
+    (w.frequency > 1 && w.frequency < 6) || (w.frequency > 8 && w.frequency < 28) || (w.frequency > 32 && w.frequency < 85) || w.frequency > 95
   );
   
   // If we have daily websites, we need daily checks
   if (dailyWebsites.length > 0) return "0 2 * * *"; // Daily at 2 AM
   
+  // Handle quarterly websites — schedule on the configured day every 3 months
+  if (quarterlyWebsites.length > 0 && monthlyWebsites.length === 0 && weeklyWebsites.length === 0 && otherWebsites.length === 0) {
+    const daysOfMonth = quarterlyWebsites.map(w => Math.min(28, w.dayOfMonth + 1));
+    const uniqueDays = Array.from(new Set(daysOfMonth)).sort((a, b) => a - b);
+    if (uniqueDays.length === 1) {
+      return `0 2 ${uniqueDays[0]} */3 *`;
+    } else {
+      return `0 2 ${uniqueDays.join(',')} */3 *`;
+    }
+  }
+
   // Handle monthly websites with smart day-of-month scheduling
   if (monthlyWebsites.length > 0 && weeklyWebsites.length === 0 && otherWebsites.length === 0) {
     const daysOfMonth = monthlyWebsites.map(w => Math.min(28, w.dayOfMonth + 1)); // Add 1 day buffer, cap at 28
@@ -198,6 +210,14 @@ export const cronToDriveRescanSchedule = (cronExpression: string): DriveRescanSc
       time,
       dayOfWeek: parseInt(dayOfWeek)
     };
+  } else if (dayOfMonth !== '*' && month === '*/3' && dayOfWeek === '*') {
+    // Quarterly: "30 9 1 */3 *"
+    return {
+      enabled: true,
+      frequency: 'quarterly',
+      time,
+      dayOfMonth: parseInt(dayOfMonth)
+    };
   } else if (dayOfMonth !== '*' && dayOfWeek === '*') {
     // Monthly: "30 9 15 * *"
     return {
@@ -236,10 +256,16 @@ export const determineDriveScanCron = (driveRescanSchedule: DriveRescanSchedule)
       const dayOfWeek = driveRescanSchedule.dayOfWeek || 1; // Default to Monday
       return `${minute} ${hour} * * ${dayOfWeek}`;
     
-    case 'monthly':
+    case 'quarterly': {
+      const quarterlyDay = driveRescanSchedule.dayOfMonth || 1; // Default to 1st
+      return `${minute} ${hour} ${quarterlyDay} */3 *`;
+    }
+
+    case 'monthly': {
       const dayOfMonth = driveRescanSchedule.dayOfMonth || 1; // Default to 1st
       return `${minute} ${hour} ${dayOfMonth} * *`;
-    
+    }
+
     default:
       return null;
   }
@@ -406,7 +432,7 @@ const getTaskName = (scheduledUse: AssistantScheduledTaskUses, assistantName: st
 }
 
 export const updateScheduledTasks = async (currentTaskId: string, cronExpression: string, scheduledUse: AssistantScheduledTaskUses, assistantInfo: { name: string, assistantId: string }) => {
-      
+
       try {
         const existingTaskResult = await getScheduledTask(currentTaskId);
         if (existingTaskResult.success && existingTaskResult.data?.task) {

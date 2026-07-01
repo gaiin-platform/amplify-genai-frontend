@@ -641,7 +641,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
             // Handle scheduled tasks
             const existingScheduledTasks = definition.data?.scheduledTaskIds;
-            if (featureFlags.scheduledTasks && !isGroupAst) {
+            if (featureFlags.scheduledTasks) {
                 try {
                     // Handle website scheduled tasks
                     const websiteCron = determineWebsiteScanCron(dataSources);
