@@ -602,7 +602,7 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                     } else {
                         if (pluginIds?.includes(PluginID.CODE_INTERPRETER)) {
                             chatBody.codeInterpreterRecordId = updatedConversation.codeInterpreterRecordId;
-                            options = { ...(options || {}), skipRag: true, useAgentCoreCodeInterpreter: true };
+                            options = { ...(options || {}), skipRag: true, codeInterpreterOnly: true };
                             statsService.codeInterpreterInUseEvent();
                         }
                     }
