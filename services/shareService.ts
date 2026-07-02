@@ -9,7 +9,7 @@ export const shareItems = async (user: string, sharedWith: string[], note: strin
     const op = {
         method: 'POST',
         path: URL_PATH,
-        data: { user, note, sharedWith, sharedData },
+        data: { note, sharedWith, sharedData },
         op: "/share",
         service: SERVICE_NAME
     };
