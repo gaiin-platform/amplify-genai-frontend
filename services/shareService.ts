@@ -9,12 +9,12 @@ export const shareItems = async (user: string, sharedWith: string[], note: strin
     const op = {
         method: 'POST',
         path: URL_PATH,
-        data: { note, sharedWith, sharedData },
+        data: { user, note, sharedWith, sharedData },
         op: "/share",
         service: SERVICE_NAME
     };
 
-    return await doRequestOp(op);
+    return await doRequestOp(op, abortSignal);
 };
 
 export const getSharedItems = async () => {

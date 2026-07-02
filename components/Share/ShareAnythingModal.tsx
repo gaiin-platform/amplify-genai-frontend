@@ -138,11 +138,14 @@ export const ShareAnythingModal: FC<SharingModalProps> = (
                     onShare([...selectedPromptsState, ...selectedConversationsState, ...selectedFoldersState]);
                 } else {
                     setIsSharing(false);
-                    alert("Sharing failed, please try again.");
+                    const errorMessage = result.message || "Sharing failed, please try again.";
+                    console.error("Sharing error:", errorMessage);
+                    alert(errorMessage);
                 }
             } catch (e) {
                 setIsSharing(false);
-                alert("Sharing failed, please try again.");
+                console.error("Sharing exception:", e);
+                alert(`Sharing failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
             }
         }
 
