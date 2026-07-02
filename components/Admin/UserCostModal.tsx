@@ -294,6 +294,79 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     );
   });
 
+  // ====== RATE LIMIT HELPERS ======
+  // Rate limit status: how much of the limit is being used
+  type LimitStatus = 'none' | 'ok' | 'warning' | 'exceeded';
+  const getLimitStatus = (cost: number, limit: number | null | undefined): LimitStatus => {
+    if (!limit || limit <= 0) return 'none';
+    const pct = cost / limit;
+    if (pct >= 1) return 'exceeded';
+    if (pct >= 0.8) return 'warning';
+    return 'ok';
+  };
+
+  const isGroupOverLimit = (group: BillingGroup) =>
+    getLimitStatus(group.costs.daily, group.groupInfo.rateLimit?.daily) === 'exceeded' ||
+    getLimitStatus(group.costs.monthly, group.groupInfo.rateLimit?.monthly) === 'exceeded';
+
+  // Worst status across daily/monthly for at-a-glance badge
+  const statusSeverity: Record<LimitStatus, number> = { none: 0, ok: 1, warning: 2, exceeded: 3 };
+  const getGroupOverallStatus = (group: BillingGroup): LimitStatus => {
+    const daily = getLimitStatus(group.costs.daily, group.groupInfo.rateLimit?.daily);
+    const monthly = getLimitStatus(group.costs.monthly, group.groupInfo.rateLimit?.monthly);
+    return statusSeverity[daily] >= statusSeverity[monthly] ? daily : monthly;
+  };
+
+  // Color-coded styles for each status
+  const limitStatusStyles: Record<LimitStatus, { text: string; badge: string; bar: string; text_color: string }> = {
+    none: { text: 'No Limit', badge: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300', bar: 'bg-gray-300 dark:bg-gray-600', text_color: 'text-gray-400 dark:text-gray-500' },
+    ok: { text: 'Within Limit', badge: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300', bar: 'bg-green-500 dark:bg-green-400', text_color: 'text-green-600 dark:text-green-400' },
+    warning: { text: 'Near Limit', badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300', bar: 'bg-amber-500 dark:bg-amber-400', text_color: 'text-amber-600 dark:text-amber-400' },
+    exceeded: { text: 'Exceeded', badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300', bar: 'bg-red-500 dark:bg-red-400', text_color: 'text-red-600 dark:text-red-400' },
+  };
+
+  // Status badge component
+  const renderLimitBadge = (status: LimitStatus) => {
+    const { text, badge } = limitStatusStyles[status];
+    return (
+      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${badge}`}>
+        {status === 'exceeded' && <IconAlertTriangle size={12} />}
+        {text}
+      </span>
+    );
+  };
+
+  // Progress bar showing percentage of limit used
+  const renderRateLimitBar = (label: string, cost: number, limit: number | null | undefined) => {
+    const status = getLimitStatus(cost, limit);
+    const hasLimit = !!limit && limit > 0;
+    const pct = hasLimit ? Math.round((cost / (limit as number)) * 100) : 0;
+    const barWidth = hasLimit ? Math.min(100, pct) : 0;
+    const { bar, text_color } = limitStatusStyles[status];
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-gray-600 dark:text-gray-300 font-medium">{label} Limit</span>
+          <span className={`text-lg font-bold ${text_color}`}>
+            {hasLimit ? `${pct}%` : 'No limit'}
+          </span>
+        </div>
+        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+          <div className={`h-full rounded-full ${bar} transition-all`} style={{ width: `${hasLimit ? barWidth : 0}%` }}></div>
+        </div>
+        <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+          <span className="font-medium">{formatCurrency(cost)}</span>
+          <span className="font-medium">{hasLimit ? `of ${formatCurrency(limit as number)}` : '—'}</span>
+        </div>
+        {status === 'exceeded' && (
+          <div className="text-xs text-red-600 dark:text-red-400 font-semibold mt-1 flex items-center gap-1">
+            <IconAlertTriangle size={12} /> Over limit by {formatCurrency(cost - (limit as number))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const formatAccountInfo = (accountInfo: string) => {
     // Split by # to separate account name and API key info
     const parts = accountInfo.split('#');
