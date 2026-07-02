@@ -204,6 +204,36 @@ export interface UserCostHistory {
     };
 }
 
+export interface RateLimitedUser {
+    userEmail: string;
+    monthKey: string;
+    hitCount: number;
+    lastHitAt: string | null;
+    limitPeriod: string;
+    limitRate: number;
+    limitType: string;
+    currentSpent: number;
+}
+
+export const getRateLimitedUsers = async (month?: string): Promise<{ success: true; data: { users: RateLimitedUser[]; count: number; month: string } } | { success: false; message: string }> => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/rate-limited-users",
+        data: { month: month || null },
+        service: SERVICE_NAME
+    };
+
+    try {
+        const result = await doRequestOp(op);
+        if (result && result.users !== undefined) return { success: true, data: result };
+    } catch (error) {
+        console.error('Error in getRateLimitedUsers:', error);
+    }
+
+    return { success: false, message: 'Failed to fetch rate limited users' };
+}
+
 export const getUserCostHistory = async (email: string, monthsBack: number = 12) => {
     const op = {
         method: 'POST',

@@ -214,7 +214,26 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
         return () => window.removeEventListener('settingsSave', handleSave);
     }, [accounts, defaultAccount, addedAccounts, hasEdits]);
 
-    return <div className='accounts-settings-container'> 
+    // Compute rate limit warning for the user: find any account where spend >= 80% of limit
+    const rateLimitWarning = (() => {
+        if (!mtdCostData) return null;
+        for (const account of accounts) {
+            const limit = account.rateLimit;
+            if (!limit || !limit.rate || limit.period?.toLowerCase() === 'unlimited') continue;
+            const cost = getAccountMtdCost(account.id);
+            if (!cost) continue;
+            let spent = 0;
+            if (limit.period === 'Daily') spent = cost.dailyCost;
+            else if (limit.period === 'Monthly') spent = cost.dailyCost + cost.monthlyCost;
+            else if (limit.period === 'Total') spent = cost.totalCost;
+            const pct = (spent / limit.rate) * 100;
+            if (pct >= 100) return { account, spent, pct, exceeded: true };
+            if (pct >= 80)  return { account, spent, pct, exceeded: false };
+        }
+        return null;
+    })();
+
+    return <div className='accounts-settings-container'>
             <div className="accounts-info-banner">
                 <div className="accounts-info-content">
                     <h3 className="accounts-info-title flex flex-row items-center gap-3">Account Management 
@@ -232,6 +251,30 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                     </div>
                 </div>
             </div>
+
+            {/* Rate limit warning banner for the user */}
+            {rateLimitWarning && (
+                <div className={`mx-4 mb-4 flex items-start gap-3 rounded-md border px-4 py-3 ${
+                    rateLimitWarning.exceeded
+                        ? 'border-red-400 bg-red-50 dark:bg-red-900/20 dark:border-red-600'
+                        : 'border-orange-400 bg-orange-50 dark:bg-orange-900/20 dark:border-orange-600'
+                }`}>
+                    <span className="text-lg leading-tight">
+                        {rateLimitWarning.exceeded ? '🚫' : '⚠️'}
+                    </span>
+                    <div>
+                        <p className={`text-sm font-semibold ${rateLimitWarning.exceeded ? 'text-red-800 dark:text-red-300' : 'text-orange-800 dark:text-orange-300'}`}>
+                            {rateLimitWarning.exceeded
+                                ? `Rate limit reached on account "${rateLimitWarning.account.name}"`
+                                : `Approaching rate limit on account "${rateLimitWarning.account.name}"`}
+                        </p>
+                        <p className={`text-sm mt-0.5 ${rateLimitWarning.exceeded ? 'text-red-700 dark:text-red-400' : 'text-orange-700 dark:text-orange-400'}`}>
+                            You have spent <strong>${rateLimitWarning.spent.toFixed(2)}</strong> of your <strong>${rateLimitWarning.account.rateLimit.rate?.toFixed(2)}</strong> {rateLimitWarning.account.rateLimit.period?.toLowerCase()} limit ({rateLimitWarning.pct.toFixed(0)}% used).
+                            {rateLimitWarning.exceeded ? ' Your requests are currently being blocked.' : ' You are close to your limit.'}
+                        </p>
+                    </div>
+                </div>
+            )}
 
             <div className="settings-card">
                 <div className="settings-card-header flex flex-row items-center gap-4">
