@@ -1510,7 +1510,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                             </h3>
 
                             {/* Rate Limit Badge */}
-                            {group.groupInfo.rateLimit && group.groupInfo.rateLimit.length > 0 && (
+                            {group.groupInfo.rateLimit && Array.isArray(group.groupInfo.rateLimit) && group.groupInfo.rateLimit.length > 0 && (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700">
                                 💰 {group.groupInfo.rateLimit.map((limit: any) => `$${limit.rate}/${limit.period}`).join(', ')}
                               </span>
@@ -1682,7 +1682,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                             const displayName = getUserDisplayName(user.email);
                             const initials = displayName.split(/[\s.@]/).filter(p => p).slice(0, 2).map(p => p[0]).join('').toUpperCase();
                             let proportion = 0;
-                            if (group.groupInfo.rateLimit && group.groupInfo.rateLimit.length > 0) {
+                            if (group.groupInfo.rateLimit && Array.isArray(group.groupInfo.rateLimit) && group.groupInfo.rateLimit.length > 0) {
                               const rateLimit = group.groupInfo.rateLimit[0].rate;
                               proportion = (user.totalCost / rateLimit) * 100;
                             } else {
