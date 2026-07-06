@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     IconArrowBarRight,
     IconArrowLeft,
@@ -35,10 +35,80 @@ const SECTIONS: SectionItem[] = [
 
 const GROUP_ORDER: SectionGroup[] = ['COLLECT', 'PROCESS', 'CREATE'];
 
+export type CreateTarget = 'source' | 'notebook' | 'podcast';
+
+const CREATE_ITEMS: { id: CreateTarget; label: string; icon: React.ReactNode }[] = [
+    { id: 'source', label: 'Source', icon: <IconFileText size={16} /> },
+    { id: 'notebook', label: 'Notebook', icon: <LucideBook size={16} /> },
+    { id: 'podcast', label: 'Podcast', icon: <IconMicrophone size={16} /> },
+];
+
+const CreateMenu: React.FC<{ collapsed: boolean; onSelect: (t: CreateTarget) => void }> = ({
+    collapsed,
+    onSelect,
+}) => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        const onDown = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+        };
+        document.addEventListener('mousedown', onDown);
+        return () => document.removeEventListener('mousedown', onDown);
+    }, [open]);
+
+    const select = (t: CreateTarget) => {
+        setOpen(false);
+        onSelect(t);
+    };
+
+    return (
+        <div ref={ref} className={collapsed ? 'relative mt-1' : 'relative'}>
+            {collapsed ? (
+                <button
+                    onClick={() => setOpen((v) => !v)}
+                    title="New"
+                    className="flex h-8 w-8 items-center justify-center rounded-md bg-purple-500 text-white shadow-sm transition-colors hover:bg-purple-600"
+                >
+                    <IconPlus size={16} />
+                </button>
+            ) : (
+                <button
+                    onClick={() => setOpen((v) => !v)}
+                    className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-purple-500 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-600"
+                >
+                    <IconPlus size={16} />
+                    New
+                </button>
+            )}
+            {open && (
+                <div
+                    className={`absolute z-30 w-44 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-neutral-700 dark:bg-[#2b2c36] ${
+                        collapsed ? 'left-full top-0 ml-2' : 'left-0 top-full mt-1'
+                    }`}
+                >
+                    {CREATE_ITEMS.map((item) => (
+                        <button
+                            key={item.id}
+                            onClick={() => select(item.id)}
+                            className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/5"
+                        >
+                            <span className="text-gray-500 dark:text-gray-400">{item.icon}</span>
+                            {item.label}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 interface NotebookSidebarProps {
     section: NotebookSection;
     onSection: (s: NotebookSection) => void;
-    onCreate: () => void;
+    onCreate: (target: CreateTarget) => void;
     onBack: () => void;
     collapsed: boolean;
     onToggleCollapse: () => void;
@@ -71,13 +141,7 @@ export const NotebookSidebar: React.FC<NotebookSidebarProps> = ({
                 >
                     <IconArrowLeft size={18} />
                 </button>
-                <button
-                    onClick={onCreate}
-                    title="New notebook"
-                    className="mt-1 flex h-8 w-8 items-center justify-center rounded-md bg-purple-500 text-white shadow-sm transition-colors hover:bg-purple-600"
-                >
-                    <IconPlus size={16} />
-                </button>
+                <CreateMenu collapsed onSelect={onCreate} />
                 <div className="mt-2 flex flex-col gap-1">
                     {SECTIONS.map((item) => {
                         const active = item.id === section;
@@ -122,6 +186,10 @@ export const NotebookSidebar: React.FC<NotebookSidebarProps> = ({
                     Notebook
                 </span>
                 <CloseSidebarButton onClick={onToggleCollapse} side="left" isHovered={isHovered} />
+            </div>
+
+            <div className="px-6 pt-3">
+                <CreateMenu collapsed={false} onSelect={onCreate} />
             </div>
 
             <div className="flex-1 overflow-y-auto px-2 pb-3 pt-1">

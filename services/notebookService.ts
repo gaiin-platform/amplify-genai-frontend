@@ -988,10 +988,15 @@ export interface EpisodeProfile {
     name: string;
     description: string;
     speaker_config: string;
-    outline_provider: string;
-    outline_model: string;
-    transcript_provider: string;
-    transcript_model: string;
+    // New-style model references (model record IDs). Legacy provider/model
+    // pairs below are still returned for profiles created before the switch.
+    outline_llm?: string | null;
+    transcript_llm?: string | null;
+    language?: string | null;
+    outline_provider?: string | null;
+    outline_model?: string | null;
+    transcript_provider?: string | null;
+    transcript_model?: string | null;
     default_briefing: string;
     num_segments: number;
 }
@@ -1001,14 +1006,19 @@ export interface SpeakerVoice {
     voice_id: string;
     backstory: string;
     personality: string;
+    // Optional per-speaker TTS model override (model record ID).
+    voice_model?: string | null;
 }
 
 export interface SpeakerProfile {
     id: string;
     name: string;
     description: string;
-    tts_provider: string;
-    tts_model: string;
+    // New-style TTS model reference (model record ID); tts_provider/tts_model
+    // are the legacy equivalent.
+    voice_model?: string | null;
+    tts_provider?: string | null;
+    tts_model?: string | null;
     speakers: SpeakerVoice[];
 }
 
@@ -1090,6 +1100,46 @@ export const listEpisodeProfiles = async (): Promise<EpisodeProfile[]> => {
 
 export const listSpeakerProfiles = async (): Promise<SpeakerProfile[]> => {
     const result = await notebookCall<SpeakerProfile[]>('GET', '/speaker-profiles');
+    return Array.isArray(result) ? result : [];
+};
+
+export interface EpisodeProfileCreateData {
+    name: string;
+    description?: string;
+    speaker_config: string;
+    outline_llm?: string | null;
+    transcript_llm?: string | null;
+    language?: string | null;
+    default_briefing: string;
+    num_segments: number;
+}
+
+export const createEpisodeProfile = async (
+    data: EpisodeProfileCreateData,
+): Promise<EpisodeProfile | null> => {
+    return notebookCall<EpisodeProfile>('POST', '/episode-profiles', data);
+};
+
+export interface SpeakerProfileCreateData {
+    name: string;
+    description?: string;
+    voice_model?: string | null;
+    speakers: SpeakerVoice[];
+}
+
+export const createSpeakerProfile = async (
+    data: SpeakerProfileCreateData,
+): Promise<SpeakerProfile | null> => {
+    return notebookCall<SpeakerProfile>('POST', '/speaker-profiles', data);
+};
+
+export interface NotebookLanguage {
+    code: string;
+    name: string;
+}
+
+export const listLanguages = async (): Promise<NotebookLanguage[]> => {
+    const result = await notebookCall<NotebookLanguage[]>('GET', '/languages');
     return Array.isArray(result) ? result : [];
 };
 

@@ -18,6 +18,7 @@ import {
     sendChatMessage,
 } from '@/services/notebookService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
+import { ChatModelSelect } from './ChatModelSelect';
 
 interface Props {
     notebookId: string;
@@ -158,6 +159,8 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
     const [pendingDelete, setPendingDelete] = useState<ChatSession | null>(null);
     const [deleting, setDeleting] = useState<boolean>(false);
     const [showSessionPicker, setShowSessionPicker] = useState<boolean>(false);
+    // Model used to answer; '' = deployment default (no override sent).
+    const [modelOverride, setModelOverride] = useState<string>('');
     // IME composition guard — don't submit on the Enter that confirms a
     // composition (matches the main chat input).
     const [isTyping, setIsTyping] = useState<boolean>(false);
@@ -319,7 +322,13 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
         // Context is built from the selections server-side, so there's no
         // separate buildChatContext round-trip on the send path.
         const sendMessage = async () => {
-            const result = await sendChatMessage(notebookId, sessionId!, text, contextSelections);
+            const result = await sendChatMessage(
+                notebookId,
+                sessionId!,
+                text,
+                contextSelections,
+                modelOverride || undefined,
+            );
             if (!result) {
                 throw new Error('Failed to send message.');
             }
@@ -417,6 +426,13 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
                 <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                     {includedCount.n}/{noteCount} notes
                 </span>
+                <div className="ml-auto">
+                    <ChatModelSelect
+                        value={modelOverride}
+                        onChange={setModelOverride}
+                        disabled={isSending}
+                    />
+                </div>
             </div>
 
             <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">

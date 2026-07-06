@@ -20,6 +20,7 @@ import {
     listSources,
     searchKnowledgeBase,
 } from '@/services/notebookService';
+import { ChatModelSelect } from './ChatModelSelect';
 
 type Tab = 'ask' | 'search';
 type RefType = 'source' | 'note' | 'source_insight';
@@ -121,6 +122,8 @@ export const AskSearchPage = () => {
 
     // Ask state
     const [question, setQuestion] = useState<string>('');
+    // Model used for all three ask roles; '' = default chat model.
+    const [askModel, setAskModel] = useState<string>('');
     const [asking, setAsking] = useState<boolean>(false);
     const [askStatus, setAskStatus] = useState<string | null>(null);
     const [answer, setAnswer] = useState<string | null>(null);
@@ -155,7 +158,11 @@ export const AskSearchPage = () => {
 
     const hasEmbedding = !!defaults?.default_embedding_model;
     const hasChatModel = !!defaults?.default_chat_model;
-    const canAsk = !asking && question.trim().length > 0 && hasChatModel && hasEmbedding;
+    const canAsk =
+        !asking &&
+        question.trim().length > 0 &&
+        (hasChatModel || !!askModel) &&
+        hasEmbedding;
     const canSearch =
         !searching &&
         searchQuery.trim().length > 0 &&
@@ -214,7 +221,8 @@ export const AskSearchPage = () => {
     };
 
     const handleAsk = async () => {
-        if (!canAsk || !defaults?.default_chat_model) return;
+        const model = askModel || defaults?.default_chat_model;
+        if (!canAsk || !model) return;
         setAsking(true);
         setAskStatus(null);
         setAnswer(null);
@@ -223,9 +231,9 @@ export const AskSearchPage = () => {
 
         const params: AskRequest = {
             question: question.trim(),
-            strategy_model: defaults.default_chat_model,
-            answer_model: defaults.default_chat_model,
-            final_answer_model: defaults.default_chat_model,
+            strategy_model: model,
+            answer_model: model,
+            final_answer_model: model,
         };
 
         // The ask graph runs several sequential model calls server-side;
@@ -333,12 +341,19 @@ export const AskSearchPage = () => {
 
                     <div className="space-y-4 p-5">
                         <div className="flex flex-col gap-1.5">
-                            <label
-                                htmlFor="ask-question"
-                                className="text-sm font-medium text-gray-700 dark:text-gray-200"
-                            >
-                                Question
-                            </label>
+                            <div className="flex items-center justify-between gap-2">
+                                <label
+                                    htmlFor="ask-question"
+                                    className="text-sm font-medium text-gray-700 dark:text-gray-200"
+                                >
+                                    Question
+                                </label>
+                                <ChatModelSelect
+                                    value={askModel}
+                                    onChange={setAskModel}
+                                    disabled={asking}
+                                />
+                            </div>
                             <textarea
                                 id="ask-question"
                                 ref={askTextareaRef}
@@ -373,12 +388,12 @@ export const AskSearchPage = () => {
                                 </span>
                             </div>
                         )}
-                        {!defaultsLoading && hasEmbedding && !hasChatModel && (
+                        {!defaultsLoading && hasEmbedding && !hasChatModel && !askModel && (
                             <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300">
                                 <IconAlertCircle size={16} className="mt-0.5 flex-none" />
                                 <span>
-                                    Ask requires a default chat model. Configure one on the
-                                    Models page first.
+                                    No default chat model is configured. Pick a model above, or
+                                    set a default on the Models page.
                                 </span>
                             </div>
                         )}

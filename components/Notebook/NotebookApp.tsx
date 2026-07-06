@@ -13,9 +13,11 @@ import {
     NotebookSummary,
 } from '@/services/notebookService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
+import { AddSourceDialog } from './AddSourceDialog';
 import { CreateNotebookDialog } from './CreateNotebookDialog';
+import { GeneratePodcastDialog } from './GeneratePodcastDialog';
 import { NotebookDetail } from './NotebookDetail';
-import { NotebookSidebar, NotebookSection } from './NotebookSidebar';
+import { NotebookSidebar, NotebookSection, CreateTarget } from './NotebookSidebar';
 import { SourcesPage } from './SourcesPage';
 import { AskSearchPage } from './AskSearchPage';
 import { PodcastsPage } from './PodcastsPage';
@@ -71,6 +73,12 @@ export const NotebookApp = () => {
     const [error, setError] = useState<string | null>(null);
     const [selected, setSelected] = useState<NotebookSummary | null>(null);
     const [showCreate, setShowCreate] = useState<boolean>(false);
+    const [showAddSource, setShowAddSource] = useState<boolean>(false);
+    const [showPodcast, setShowPodcast] = useState<boolean>(false);
+    // Bumped after a global create so the target section's page remounts and
+    // re-fetches (the pages only load their data on mount).
+    const [sourcesRefreshKey, setSourcesRefreshKey] = useState<number>(0);
+    const [podcastsRefreshKey, setPodcastsRefreshKey] = useState<number>(0);
     const [pendingDelete, setPendingDelete] = useState<NotebookSummary | null>(null);
     const [deleting, setDeleting] = useState<boolean>(false);
     const [section, setSection] = useState<NotebookSection>('notebooks');
@@ -114,10 +122,35 @@ export const NotebookApp = () => {
         fetchNotebooks();
     }, []);
 
+    const handleCreate = (target: CreateTarget) => {
+        if (target === 'notebook') {
+            setShowCreate(true);
+        } else if (target === 'source') {
+            setShowAddSource(true);
+        } else if (target === 'podcast') {
+            setShowPodcast(true);
+        }
+    };
+
     const handleCreated = (created: NotebookSummary) => {
-        // Add it to the list and stay on the notebooks page — the user opens it
+        // Add it to the list and land on the notebooks list — the user opens it
         // by clicking its card (setSelected). Don't auto-navigate into it.
         setNotebooks((prev) => [created, ...prev]);
+        setSection('notebooks');
+        setSelected(null);
+    };
+
+    // Global creates land the user on the section where the result shows up.
+    const handleGlobalSourceCreated = () => {
+        setSection('sources');
+        setSelected(null);
+        setSourcesRefreshKey((k) => k + 1);
+    };
+
+    const handlePodcastSubmitted = () => {
+        setSection('podcasts');
+        setSelected(null);
+        setPodcastsRefreshKey((k) => k + 1);
     };
 
     const confirmDelete = async () => {
@@ -159,7 +192,7 @@ export const NotebookApp = () => {
             <NotebookSidebar
                 section={section}
                 onSection={handleSectionChange}
-                onCreate={() => setShowCreate(true)}
+                onCreate={handleCreate}
                 onBack={goBackToChat}
                 collapsed={sidebarCollapsed}
                 onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
@@ -221,11 +254,11 @@ export const NotebookApp = () => {
 
             <div className="flex-1 overflow-auto px-6 py-6 bg-neutral-50 dark:bg-[#343541]">
                 {section === 'sources' ? (
-                    <SourcesPage />
+                    <SourcesPage key={sourcesRefreshKey} />
                 ) : section === 'ask' ? (
                     <AskSearchPage />
                 ) : section === 'podcasts' ? (
-                    <PodcastsPage />
+                    <PodcastsPage key={podcastsRefreshKey} />
                 ) : !isNotebooksSection ? (
                     <ComingSoonPanel section={section} />
                 ) : selected ? (
@@ -351,6 +384,20 @@ export const NotebookApp = () => {
                 <CreateNotebookDialog
                     onClose={() => setShowCreate(false)}
                     onCreated={handleCreated}
+                />
+            )}
+
+            {showAddSource && (
+                <AddSourceDialog
+                    onClose={() => setShowAddSource(false)}
+                    onCreated={handleGlobalSourceCreated}
+                />
+            )}
+
+            {showPodcast && (
+                <GeneratePodcastDialog
+                    onClose={() => setShowPodcast(false)}
+                    onSubmitted={handlePodcastSubmitted}
                 />
             )}
 

@@ -18,12 +18,17 @@ import {
     fetchEpisodeAudioObjectUrl,
     listEpisodeProfiles,
     listEpisodes,
+    listModels,
     listSpeakerProfiles,
+    NotebookModel,
     PodcastEpisode,
     PodcastGenerationResponse,
     retryEpisode as retryEpisodeApi,
     SpeakerProfile,
 } from '@/services/notebookService';
+import { CreateEpisodeProfileDialog } from './CreateEpisodeProfileDialog';
+import { formatModelName } from './modelDisplay';
+import { CreateSpeakerProfileDialog } from './CreateSpeakerProfileDialog';
 import { GeneratePodcastDialog } from './GeneratePodcastDialog';
 
 type Tab = 'episodes' | 'templates';
@@ -642,26 +647,51 @@ const EpisodesTab = ({
 const TemplatesTab = () => {
     const [episodeProfiles, setEpisodeProfiles] = useState<EpisodeProfile[]>([]);
     const [speakerProfiles, setSpeakerProfiles] = useState<SpeakerProfile[]>([]);
+    const [models, setModels] = useState<NotebookModel[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [expandedSpeaker, setExpandedSpeaker] = useState<Set<string>>(new Set());
+    const [showCreateEpisode, setShowCreateEpisode] = useState<boolean>(false);
+    const [showCreateSpeaker, setShowCreateSpeaker] = useState<boolean>(false);
 
     const load = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            const [ep, sp] = await Promise.all([
+            const [ep, sp, mdl] = await Promise.all([
                 listEpisodeProfiles(),
                 listSpeakerProfiles(),
+                listModels(),
             ]);
             setEpisodeProfiles(ep);
             setSpeakerProfiles(sp);
+            setModels(mdl);
         } catch (e: any) {
             setError(e?.message || 'Failed to load templates');
         } finally {
             setLoading(false);
         }
     }, []);
+
+    // Profiles reference models two ways: new-style as a model record ID
+    // (outline_llm / voice_model), legacy as provider + model name strings.
+    const resolveModel = useCallback(
+        (
+            ref?: string | null,
+            legacyProvider?: string | null,
+            legacyModel?: string | null,
+        ): string => {
+            if (ref) {
+                const m = models.find((mm) => mm.id === ref);
+                return m ? `${m.provider} / ${formatModelName(m.name)}` : ref;
+            }
+            if (legacyProvider || legacyModel) {
+                return `${legacyProvider ?? '?'} / ${legacyModel ?? '?'}`;
+            }
+            return '—';
+        },
+        [models],
+    );
 
     useEffect(() => {
         load();
@@ -690,8 +720,7 @@ const TemplatesTab = () => {
             <div>
                 <h2 className="text-base font-semibold">Templates</h2>
                 <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                    Episode and speaker profiles available on this deployment. Configured
-                    server-side.
+                    Episode and speaker profiles used when generating podcasts.
                 </p>
             </div>
 
@@ -712,10 +741,20 @@ const TemplatesTab = () => {
             {!loading && !error && (
                 <>
                     <section className="space-y-2">
-                        <h3 className="text-sm font-semibold">Episode profiles</h3>
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold">Episode profiles</h3>
+                            <button
+                                onClick={() => setShowCreateEpisode(true)}
+                                className="flex h-7 items-center gap-1 rounded-lg bg-purple-500 px-2.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-purple-600"
+                            >
+                                <IconPlus size={13} />
+                                New
+                            </button>
+                        </div>
                         {episodeProfiles.length === 0 ? (
                             <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500 dark:border-neutral-700 dark:bg-neutral-800/40 dark:text-gray-400">
-                                No episode profiles configured.
+                                No episode profiles yet. Create one to define how episodes are
+                                generated.
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -743,7 +782,11 @@ const TemplatesTab = () => {
                                                     Outline
                                                 </dt>
                                                 <dd>
-                                                    {p.outline_provider} / {p.outline_model}
+                                                    {resolveModel(
+                                                        p.outline_llm,
+                                                        p.outline_provider,
+                                                        p.outline_model,
+                                                    )}
                                                 </dd>
                                             </div>
                                             <div>
@@ -751,7 +794,11 @@ const TemplatesTab = () => {
                                                     Transcript
                                                 </dt>
                                                 <dd>
-                                                    {p.transcript_provider} / {p.transcript_model}
+                                                    {resolveModel(
+                                                        p.transcript_llm,
+                                                        p.transcript_provider,
+                                                        p.transcript_model,
+                                                    )}
                                                 </dd>
                                             </div>
                                             <div className="col-span-2">
@@ -768,10 +815,20 @@ const TemplatesTab = () => {
                     </section>
 
                     <section className="space-y-2">
-                        <h3 className="text-sm font-semibold">Speaker profiles</h3>
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold">Speaker profiles</h3>
+                            <button
+                                onClick={() => setShowCreateSpeaker(true)}
+                                className="flex h-7 items-center gap-1 rounded-lg bg-purple-500 px-2.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-purple-600"
+                            >
+                                <IconPlus size={13} />
+                                New
+                            </button>
+                        </div>
                         {speakerProfiles.length === 0 ? (
                             <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500 dark:border-neutral-700 dark:bg-neutral-800/40 dark:text-gray-400">
-                                No speaker profiles configured.
+                                No speaker profiles yet. Create one to define the voices used in
+                                your podcasts.
                             </div>
                         ) : (
                             <div className="space-y-2">
@@ -796,8 +853,12 @@ const TemplatesTab = () => {
                                                         </span>
                                                     </div>
                                                     <div className="mt-0.5 text-[12px] text-gray-500 dark:text-gray-400">
-                                                        {sp.tts_provider} / {sp.tts_model} ·{' '}
-                                                        {sp.speakers.length} voice
+                                                        {resolveModel(
+                                                            sp.voice_model,
+                                                            sp.tts_provider,
+                                                            sp.tts_model,
+                                                        )}{' '}
+                                                        · {sp.speakers.length} voice
                                                         {sp.speakers.length === 1 ? '' : 's'}
                                                     </div>
                                                 </div>
@@ -846,6 +907,21 @@ const TemplatesTab = () => {
                         )}
                     </section>
                 </>
+            )}
+
+            {showCreateEpisode && (
+                <CreateEpisodeProfileDialog
+                    speakerProfiles={speakerProfiles}
+                    onClose={() => setShowCreateEpisode(false)}
+                    onCreated={() => load()}
+                />
+            )}
+
+            {showCreateSpeaker && (
+                <CreateSpeakerProfileDialog
+                    onClose={() => setShowCreateSpeaker(false)}
+                    onCreated={() => load()}
+                />
             )}
         </div>
     );
