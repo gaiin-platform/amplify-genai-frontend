@@ -1504,10 +1504,18 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                       <div className="flex items-center space-x-3 flex-1">
                         <IconBuilding className="h-6 w-6 text-purple-600 dark:text-purple-400 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                               {groupName}
                             </h3>
+
+                            {/* Rate Limit Badge */}
+                            {group.groupInfo.rateLimit && group.groupInfo.rateLimit.length > 0 && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700">
+                                💰 {group.groupInfo.rateLimit.map((limit: any) => `$${limit.rate}/${limit.period}`).join(', ')}
+                              </span>
+                            )}
+
                             {(() => {
                               const worstStatus = getGroupWorstRateLimitStatus(group);
                               if (worstStatus.status !== 'unlimited') {
@@ -1518,7 +1526,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                                   </span>
                                 );
                               }
-                              return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">∞ No limit</span>;
+                              return null;
                             })()}
                           </div>
                           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -1535,47 +1543,49 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                     </div>
                   </div>
 
-                  {/* Group Stats - Clean Card Layout */}
+                  {/* Group Stats - Compact Layout */}
                   <div className="px-6 py-4">
-                    <div className="grid grid-cols-4 gap-3 mb-6">
-                      {/* Direct Members */}
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      {/* Direct Members Count */}
                       <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-900/30 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
                         <p className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-1">Direct</p>
                         <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{group.groupInfo.directMemberCount}</p>
                         <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">members</p>
                       </div>
-                      
-                      {/* Indirect Members */}
+
+                      {/* Indirect Members Count */}
                       <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-900/30 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
                         <p className="text-xs font-medium text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-1">Indirect</p>
                         <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">{group.groupInfo.indirectMemberCount}</p>
                         <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">members</p>
                       </div>
-                      
-                      {/* Total Members */}
-                      <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-900/30 rounded-lg p-3 border border-green-200 dark:border-green-800">
-                        <p className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide mb-1">Total</p>
-                        <p className="text-2xl font-bold text-green-700 dark:text-green-300">{group.groupInfo.totalMemberCount}</p>
-                        <p className="text-xs text-green-600 dark:text-green-400 mt-1">members</p>
-                      </div>
-                      
+                    </div>
+
+                    {/* Direct and Indirect Cost Pills */}
+                    <div className="flex gap-2 mb-6">
+                      <span className="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-xs font-medium text-gray-700 dark:text-gray-300">
+                        💰 {formatCurrency(group.members.direct.reduce((sum, user) => sum + user.totalCost, 0))} Direct
+                      </span>
+                      <span className="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-xs font-medium text-gray-700 dark:text-gray-300">
+                        💰 {formatCurrency(group.members.indirect.reduce((sum, user) => sum + user.totalCost, 0))} Indirect
+                      </span>
+                    </div>
+
+                    {/* Avg Per Member and Total Combined */}
+                    <div className="grid grid-cols-2 gap-3 mb-6">
                       {/* Avg Per Member */}
                       <div className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-900/30 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
                         <p className="text-xs font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wide mb-1">Avg/Member</p>
-                        <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{formatCurrency(group.costs.avgPerMember)}</p>
-                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">&nbsp;</p>
+                        <p className="text-xl font-bold text-amber-700 dark:text-amber-300">{formatCurrency(group.costs.avgPerMember)}</p>
                       </div>
-                    </div>
 
-                    {/* Daily/Monthly Cost Pills */}
-                    <div className="flex gap-3 mb-6">
-                      <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                        <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">Daily:</span>
-                        <span className="text-sm font-bold text-blue-700 dark:text-blue-300">{formatCurrency(group.costs.daily)}</span>
-                      </div>
-                      <div className="flex items-center gap-2 px-3 py-2 bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-lg">
-                        <span className="text-xs font-semibold text-teal-600 dark:text-teal-400">Monthly:</span>
-                        <span className="text-sm font-bold text-teal-700 dark:text-teal-300">{formatCurrency(group.costs.monthly)}</span>
+                      {/* Total Combined */}
+                      <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-900/30 rounded-lg p-3 border border-green-200 dark:border-green-800">
+                        <p className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide mb-1">Total Combined</p>
+                        <p className="text-xl font-bold text-green-700 dark:text-green-300">{formatCurrency(
+                          group.members.direct.reduce((sum, user) => sum + user.totalCost, 0) +
+                          group.members.indirect.reduce((sum, user) => sum + user.totalCost, 0)
+                        )}</p>
                       </div>
                     </div>
 
@@ -1662,69 +1672,6 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                       </div>
                     )}
 
-                    {/* Cost Distribution Bar - Improved */}
-                    <div className="mb-6">
-                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Cost Distribution</p>
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="flex-1 flex gap-0.5 bg-gray-100 dark:bg-gray-700 rounded-full h-4 overflow-hidden border border-gray-200 dark:border-gray-600">
-                          {(() => {
-                            const directCost = group.members.direct.reduce((sum, user) => sum + user.totalCost, 0);
-                            const indirectCost = group.members.indirect.reduce((sum, user) => sum + user.totalCost, 0);
-                            const directPct = (directCost / group.costs.total) * 100;
-                            const indirectPct = (indirectCost / group.costs.total) * 100;
-                            
-                            return (
-                              <>
-                                {directPct > 0 && (
-                                  <div 
-                                    className="h-full bg-blue-500 dark:bg-blue-400 flex items-center justify-center text-xs font-bold text-white transition-all"
-                                    style={{ width: `${directPct}%` }}
-                                    title={`Direct: ${directPct.toFixed(1)}%`}
-                                  >
-                                    {directPct > 15 && `${Math.round(directPct)}%`}
-                                  </div>
-                                )}
-                                {indirectPct > 0 && (
-                                  <div 
-                                    className="h-full bg-blue-300 dark:bg-blue-500 flex items-center justify-center text-xs font-bold text-white transition-all"
-                                    style={{ width: `${indirectPct}%` }}
-                                    title={`Indirect: ${indirectPct.toFixed(1)}%`}
-                                  >
-                                    {indirectPct > 15 && `${Math.round(indirectPct)}%`}
-                                  </div>
-                                )}
-                              </>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                      
-                      {/* Distribution Legend and Cost Pills */}
-                      <div className="flex items-center justify-between flex-wrap gap-3">
-                        <div className="flex gap-4 text-sm">
-                          <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 rounded-full bg-blue-500 dark:bg-blue-400"></div>
-                            <span className="text-gray-600 dark:text-gray-400">
-                              Direct: {Math.round((group.members.direct.reduce((sum, user) => sum + user.totalCost, 0) / group.costs.total) * 100)}%
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 rounded-full bg-blue-300 dark:bg-blue-500"></div>
-                            <span className="text-gray-600 dark:text-gray-400">
-                              Indirect: {Math.round((group.members.indirect.reduce((sum, user) => sum + user.totalCost, 0) / group.costs.total) * 100)}%
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-xs font-medium text-gray-700 dark:text-gray-300">
-                            💰 {formatCurrency(group.members.direct.reduce((sum, user) => sum + user.totalCost, 0))} Direct
-                          </span>
-                          <span className="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-xs font-medium text-gray-700 dark:text-gray-300">
-                            💰 {formatCurrency(group.members.indirect.reduce((sum, user) => sum + user.totalCost, 0))} Indirect
-                          </span>
-                        </div>
-                      </div>
-                    </div>
 
                     {/* Top Spenders - Enhanced */}
                     {group.members.topSpenders && group.members.topSpenders.length > 0 && (
@@ -1734,7 +1681,13 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                           {group.members.topSpenders.slice(0, 5).map((user, index) => {
                             const displayName = getUserDisplayName(user.email);
                             const initials = displayName.split(/[\s.@]/).filter(p => p).slice(0, 2).map(p => p[0]).join('').toUpperCase();
-                            const proportion = (user.totalCost / group.costs.total) * 100;
+                            let proportion = 0;
+                            if (group.groupInfo.rateLimit && group.groupInfo.rateLimit.length > 0) {
+                              const rateLimit = group.groupInfo.rateLimit[0].rate;
+                              proportion = (user.totalCost / rateLimit) * 100;
+                            } else {
+                              proportion = (user.totalCost / group.costs.total) * 100;
+                            }
                             const avatarColors = ['bg-blue-500', 'bg-purple-500', 'bg-pink-500', 'bg-green-500', 'bg-orange-500'];
                             const avatarColor = avatarColors[index % avatarColors.length];
                             
