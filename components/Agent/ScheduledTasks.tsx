@@ -1,6 +1,6 @@
 // Manage scheduled tasks for agents
 
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import { IconPlus, IconTrash, IconLoader2, IconInfoCircle, IconNotes, IconBulb, IconExclamationCircle, IconSettingsAutomation, IconAlarm, IconChevronDown, IconChevronUp, IconChevronRight, IconPlayerPlay, IconRefresh, IconX, IconDeviceFloppy, IconAdjustments } from '@tabler/icons-react';
 import cloneDeep from 'lodash/cloneDeep';
@@ -77,6 +77,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   const [showActionSetList, setShowActionSetList] = useState(false);
   const [showApiToolList, setShowApiToolList] = useState(false);
   const [showWorkflowList, setShowWorkflowList] = useState(false);
+  const [showActionSelector, setShowActionSelector] = useState(false);
 
   // State for unified Actions task type
   const [actionSubMode, setActionSubMode] = useState<'actionSet' | 'apiTool' | 'createActionSet'>('apiTool');
@@ -94,6 +95,8 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   const [availableWorkflows, setAvailableWorkflows] = useState<AstWorkflow[] | null>(null);
 
   const [isTestingTask, setIsTestingTask] = useState(false);
+  // Ref used to cancel an in-flight polling loop when the user switches tasks
+  const pollingCancelledRef = useRef(false);
 
   // State for all tasks for the sidebar
   const [allTasks, setAllTasks] = useState<ScheduledTaskPreview[]>([]);
@@ -190,7 +193,12 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
       
       if (selectedTask.taskId) {
         // Update existing task
-        // console.log("updating task", selectedTask);
+        console.log("[ScheduledTasks] saving task — exclusion fields:", {
+          excludedDaysOfWeek: selectedTask.excludedDaysOfWeek,
+          excludedWeeksOfMonth: selectedTask.excludedWeeksOfMonth,
+          excludedMonths: selectedTask.excludedMonths,
+          excludedDates: selectedTask.excludedDates,
+        });
         const taskResult = await updateScheduledTask(
                            selectedTask.taskId, selectedTask)
 
@@ -239,15 +247,27 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   
   const handleNewTask = () => {
     setSelectedTask(emptyTask());
+    setShowActionSelector(false);
   };
 
   const handleLoadTask = async (taskId: string) => {
     setIsLoadingTask(true);
     const taskResult = await getScheduledTask(taskId);
     if (taskResult.success && taskResult.data?.task) {
-      // console.log("taskResult", taskResult.data.task);
       const task = taskResult.data.task;
+      console.log("[ScheduledTasks] loaded task — exclusion fields:", {
+        exclusionsEnabled: task.exclusionsEnabled,
+        excludedDaysOfWeek: task.excludedDaysOfWeek,
+        excludedWeeksOfMonth: task.excludedWeeksOfMonth,
+        excludedMonths: task.excludedMonths,
+        excludedDates: task.excludedDates,
+      });
+      // Cancel any in-flight polling loop from a previous task
+      pollingCancelledRef.current = true;
+      setIsTestingTask(false);
+      setShowActionSelector(false);
       setSelectedTask(task);
+      setTaskLogs([]);
       setSelectedLogId(null);
       setSelectedLogDetails(null);
       setIsViewingLogs(false);
@@ -265,6 +285,8 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   const handleRunTask = async (taskId: string) => {
     setIsViewingLogs(true);
     setIsTestingTask(true);
+    // Reset cancellation flag for this new polling session
+    pollingCancelledRef.current = false;
     const startTime = new Date().toISOString();
 
     try {
@@ -288,10 +310,16 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         };
         
         const pollForLogs = async () => {
+          // Stop immediately if the user has switched to a different task
+          if (pollingCancelledRef.current) return;
+
           attempts++;
-          
+
           try {
             const fetchedLogs = await fetchTaskLogs(taskId, false);
+
+            // Check again after the async fetch — user may have switched tasks during it
+            if (pollingCancelledRef.current) return;
             
             // Get all execution logs (both old 'execution-' and new 'scheduled-task-' formats)
             const executionLogs = fetchedLogs
@@ -542,6 +570,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   const handleActionSetSelect = (actionSet: any) => {
     setSelectedTask({...selectedTask, taskType: 'actionSet', objectInfo: {objectId: actionSet.id || '', objectName: actionSet.name || 'Unnamed Set'}});
     setShowActionSetList(false);
+    setShowActionSelector(false);
   };
 
   const handleAddRawActionToNewSet = (api: OpDef) => {
@@ -647,6 +676,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
       setNewActionSetName('');
       setNewActionSetActions([]);
       setActionSubMode('actionSet');
+      setShowActionSelector(false);
       toast.success(`Action set "${savedSet.name}" created and selected`);
     } catch (err) {
       console.error('Error saving action set:', err);
@@ -659,6 +689,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   const handleApiToolSelect = (name: string, opSpecs: any) => {
     setSelectedTask({...selectedTask, objectInfo: {objectId: name, objectName: name, data: {op: opSpecs}}});
     setShowApiToolList(false);
+    setShowActionSelector(false);
   }
 
   const handleWorkflowSelect = (templateId: string) => {
@@ -719,18 +750,26 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         return (
           <div className={`flex flex-col mb-4 space-y-3 ${isEnforced ? 'opacity-50 pointer-events-none' : ''}`}>
 
-            {/* ── Selected tool display (matches assistant/workflow style) ── */}
-            {selectedTask.objectInfo?.objectId && (
-              <div className="mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow flex justify-between items-center border-neutral-500 dark:border-neutral-800 dark:border-opacity-50">
-                <span>{selectedTask.objectInfo.objectName}</span>
-              </div>
-            )}
+            {/* ── Selected tool display — click to open/close the selector ── */}
+            <div
+              onClick={() => !isEnforced && setShowActionSelector(v => !v)}
+              className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow flex justify-between items-center
+              ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50' : 'border-red-500 dark:border-red-800'}
+              ${isEnforced ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              <span>{selectedTask.objectInfo?.objectName || 'Select Action'}</span>
+              <IconChevronDown
+                size={18}
+                className={`transition-transform ${(showActionSelector || !selectedTask.objectInfo?.objectId) ? 'rotate-180' : ''}`}
+              />
+            </div>
 
+            {(showActionSelector || !selectedTask.objectInfo?.objectId) && !isDisabled() && <>
             {/* ── Three sub-option cards (API Action | Action Set | Create Action Set) ── */}
             <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${[featureFlags.integrations, featureFlags.actionSets, featureFlags.actionSets].filter(Boolean).length}, minmax(0, 1fr))` }}>
               {featureFlags.integrations && (
                 <button
-                  onClick={() => { setActionSubMode('apiTool'); setSelectedTask({...selectedTask, objectInfo: {objectId: '', objectName: ''}, taskType: 'apiTool'}); setShowApiToolList(false); }}
+                  onClick={() => { setActionSubMode('apiTool'); setShowApiToolList(false); }}
                   className={`flex flex-col items-start gap-1 px-3 py-2.5 rounded-lg border transition-colors text-left ${
                     actionSubMode === 'apiTool'
                       ? 'bg-blue-50 border-blue-500 dark:bg-blue-900/20 dark:border-blue-400'
@@ -742,7 +781,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               )}
               {featureFlags.actionSets && (
                 <button
-                  onClick={() => { setActionSubMode('actionSet'); setSelectedTask({...selectedTask, objectInfo: {objectId: '', objectName: ''}, taskType: 'actionSet'}); setShowActionSetList(false); }}
+                  onClick={() => { setActionSubMode('actionSet'); setShowActionSetList(false); }}
                   className={`flex flex-col items-start gap-1 px-3 py-2.5 rounded-lg border transition-colors text-left ${
                     actionSubMode === 'actionSet'
                       ? 'bg-blue-50 border-blue-500 dark:bg-blue-900/20 dark:border-blue-400'
@@ -754,7 +793,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               )}
               {featureFlags.actionSets && (
                 <button
-                  onClick={() => { setActionSubMode('createActionSet'); setNewActionSetActions([]); setNewActionSetName(''); setSelectedTask({...selectedTask, objectInfo: {objectId: '', objectName: ''}, taskType: 'actionSet'}); }}
+                  onClick={() => { setActionSubMode('createActionSet'); setNewActionSetActions([]); setNewActionSetName(''); }}
                   className={`flex flex-col items-start gap-1 px-3 py-2.5 rounded-lg border transition-colors text-left ${
                     actionSubMode === 'createActionSet'
                       ? 'bg-blue-50 border-blue-500 dark:bg-blue-900/20 dark:border-blue-400'
@@ -918,6 +957,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                 )}
               </div>
             )}
+            </>}
 
           </div>
         );
@@ -1098,11 +1138,25 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
             <label className="block text-sm font-medium mb-1 dark:text-neutral-200">
               Task Schedule
             </label>
-            <CronScheduleBuilder 
-              value={selectedTask.cronExpression} 
-              onChange={(cronExpression) => setSelectedTask({...selectedTask, cronExpression})}
+            <CronScheduleBuilder
+              key={selectedTask.taskId || 'new'}
+              value={selectedTask.cronExpression}
+              onChange={(cronExpression) => setSelectedTask(prevTask => ({...prevTask, cronExpression}))}
               dateRange={selectedTask.dateRange}
               onRangeChange={(range: ScheduleDateRange) => setSelectedTask(prevTask => ({...prevTask, dateRange: range ? { ...range } : undefined})) }
+              exclusionsEnabled={selectedTask.exclusionsEnabled}
+              excludedDaysOfWeek={selectedTask.excludedDaysOfWeek}
+              excludedWeeksOfMonth={selectedTask.excludedWeeksOfMonth}
+              excludedMonths={selectedTask.excludedMonths}
+              excludedDates={selectedTask.excludedDates}
+              onExclusionsChange={(exclusions) => setSelectedTask(prevTask => ({
+                ...prevTask,
+                exclusionsEnabled: exclusions.exclusionsEnabled,
+                excludedDaysOfWeek: exclusions.excludedDaysOfWeek,
+                excludedWeeksOfMonth: exclusions.excludedWeeksOfMonth,
+                excludedMonths: exclusions.excludedMonths,
+                excludedDates: exclusions.excludedDates,
+              }))}
             />
           </div>}
           
@@ -1135,6 +1189,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                 setNewActionSetActions([]);
                 setNewActionSetName('');
                 if (val === 'actions') {
+                  setShowActionSelector(true);
                   setActionSubMode('apiTool');
                   setSelectedTask({...selectedTask, objectInfo: {objectId: '', objectName: ''}, taskType: 'apiTool'});
                   setShowActionSetList(false);
@@ -1257,7 +1312,11 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
       if (result.success && result.data?.details) {
         setSelectedLogDetails(result.data.details);
       } else {
-        alert("Error fetching log details: " + (result.data?.message || "Unknown error"));
+        // Execution record not found — likely a stale log from a different task.
+        // Silently clear the selection rather than showing a disruptive popup.
+        console.warn("Log details not found:", result.data?.message || "Unknown error");
+        setSelectedLogId(null);
+        setSelectedLogDetails(null);
       }
     } catch (error) {
       console.error("Error fetching log details:", error);
@@ -1358,9 +1417,9 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
           </div>
         ) : (
           <div className="border border-gray-300 dark:border-gray-600 rounded mb-4">
-            <div className="overflow-hidden">
+            <div className="overflow-y-auto" style={{ maxHeight: isLogsExpanded ? '600px' : '250px' }}>
               <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-600">
-                <thead className="bg-gray-100 dark:bg-gray-800">
+                <thead className="bg-gray-100 dark:bg-gray-800 sticky top-0 z-10">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-1/3">
                       Execution Time
@@ -1368,37 +1427,29 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-1/3">
                       Status
                     </th>
-                    {/* <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-1/3">
-                      ID
-                    </th> */}
-              
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-1/3">
+                      Source
+                    </th>
                   </tr>
                 </thead>
-              </table>
-            </div>
-            <div className="overflow-y-auto" style={{ maxHeight: isLogsExpanded ? '600px' : '250px' }}>
-              <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-600">
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
                   {taskLogs.map((log) => (
-                    <tr 
-                      key={log.executionId} 
+                    <tr
+                      key={log.executionId}
                       className={`hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer ${selectedLogId === log.executionId ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
                       onClick={() => setSelectedLogId(log.executionId)}
                     >
                       <td className="px-4 py-3 text-sm w-1/3">
                         {userFriendlyDate(log.executedAt)}
                       </td>
-                      <td className="px-4 py-3 text-sm w-1/3 ">
-                        <div>
+                      <td className="px-4 py-3 text-sm w-1/3">
                         {getStatusBadge(log.status)}
-                        </div>
                       </td>
-                       <td className="px-4 py-3 text-sm w-1/3 font-mono text-xs">
-                        {log.source ?? 'Unknown'}
+                      <td className="px-4 py-3 text-sm w-1/3">
+                        {log.source === 'manual-task-run' ? 'Manual Task Run'
+                          : log.source === 'scheduled-task' ? 'Scheduled Task'
+                          : log.source ?? 'Unknown'}
                       </td>
-                      {/* <td className="px-4 py-3 text-sm w-1/3 font-mono text-xs">
-                        {log.executionId}
-                      </td> */}
                     </tr>
                   ))}
                 </tbody>
