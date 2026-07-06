@@ -37,10 +37,30 @@ const GROUP_ORDER: SectionGroup[] = ['COLLECT', 'PROCESS', 'CREATE'];
 
 export type CreateTarget = 'source' | 'notebook' | 'podcast';
 
-const CREATE_ITEMS: { id: CreateTarget; label: string; icon: React.ReactNode }[] = [
-    { id: 'source', label: 'Source', icon: <IconFileText size={16} /> },
-    { id: 'notebook', label: 'Notebook', icon: <LucideBook size={16} /> },
-    { id: 'podcast', label: 'Podcast', icon: <IconMicrophone size={16} /> },
+const CREATE_ITEMS: {
+    id: CreateTarget;
+    label: string;
+    icon: React.ReactNode;
+    chipClass: string;
+}[] = [
+    {
+        id: 'source',
+        label: 'Source',
+        icon: <IconFileText size={15} />,
+        chipClass: 'bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400',
+    },
+    {
+        id: 'notebook',
+        label: 'Notebook',
+        icon: <LucideBook size={15} />,
+        chipClass: 'bg-purple-100 text-purple-600 dark:bg-purple-500/15 dark:text-purple-400',
+    },
+    {
+        id: 'podcast',
+        label: 'Podcast',
+        icon: <IconMicrophone size={15} />,
+        chipClass: 'bg-pink-100 text-pink-600 dark:bg-pink-500/15 dark:text-pink-400',
+    },
 ];
 
 const CreateMenu: React.FC<{ collapsed: boolean; onSelect: (t: CreateTarget) => void }> = ({
@@ -70,14 +90,14 @@ const CreateMenu: React.FC<{ collapsed: boolean; onSelect: (t: CreateTarget) => 
                 <button
                     onClick={() => setOpen((v) => !v)}
                     title="New"
-                    className="flex h-8 w-8 items-center justify-center rounded-md bg-purple-500 text-white shadow-sm transition-colors hover:bg-purple-600"
+                    className="group flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-md ring-2 ring-purple-400/0 transition-all duration-200 hover:shadow-lg hover:shadow-purple-500/30 hover:ring-purple-400/40 hover:scale-105 active:scale-95"
                 >
-                    <IconPlus size={16} />
+                    <IconPlus size={17} />
                 </button>
             ) : (
                 <button
                     onClick={() => setOpen((v) => !v)}
-                    className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-purple-500 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-600"
+                    className="group flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 px-3 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:shadow-lg hover:shadow-purple-500/30 hover:scale-[1.02] active:scale-95"
                 >
                     <IconPlus size={16} />
                     New
@@ -85,18 +105,21 @@ const CreateMenu: React.FC<{ collapsed: boolean; onSelect: (t: CreateTarget) => 
             )}
             {open && (
                 <div
-                    className={`absolute z-30 w-44 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-neutral-700 dark:bg-[#2b2c36] ${
-                        collapsed ? 'left-full top-0 ml-2' : 'left-0 top-full mt-1'
+                    className={`absolute z-30 w-48 origin-top-left animate-fadeInScale rounded-xl border border-gray-200 bg-white p-1.5 shadow-xl shadow-black/5 dark:border-neutral-700 dark:bg-[#2b2c36] ${
+                        collapsed ? 'left-full top-0 ml-2' : 'left-0 top-full mt-1.5'
                     }`}
+                    style={{ animationDuration: '0.15s' }}
                 >
                     {CREATE_ITEMS.map((item) => (
                         <button
                             key={item.id}
                             onClick={() => select(item.id)}
-                            className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/5"
+                            className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-gray-700 transition-colors hover:bg-purple-50 hover:text-gray-900 dark:text-gray-200 dark:hover:bg-white/5 dark:hover:text-white"
                         >
-                            <span className="text-gray-500 dark:text-gray-400">{item.icon}</span>
-                            {item.label}
+                            <span className={`flex h-7 w-7 items-center justify-center rounded-md ${item.chipClass}`}>
+                                {item.icon}
+                            </span>
+                            <span className="font-medium">{item.label}</span>
                         </button>
                     ))}
                 </div>

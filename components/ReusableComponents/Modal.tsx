@@ -98,8 +98,10 @@ interface Props {
   }, []);
 
 
+    // !m-0 guards against parent space-y/gap utilities: sibling margins still
+    // offset a fixed element from top:0, leaving an undimmed strip above the overlay
     return (
-     <div className={`modal-overlay fixed inset-0 flex items-center justify-center z-50 ${fullScreen ? 'bg-[#111115] bg-opacity-70' : ' bg-black bg-opacity-50'}`}>
+     <div className={`modal-overlay fixed inset-0 !m-0 flex items-center justify-center z-50 ${fullScreen ? 'bg-[#111115] bg-opacity-70' : ' bg-black bg-opacity-50'}`}>
             <div className="fixed inset-0 z-10 overflow-hidden" >
                 <div className="flex items-center justify-center min-h-screen px-2 py-4 text-center sm:px-4 sm:py-0" >
                     <div

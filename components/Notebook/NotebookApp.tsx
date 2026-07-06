@@ -242,7 +242,7 @@ export const NotebookApp = () => {
                             </div>
                             <button
                                 onClick={() => setShowCreate(true)}
-                                className="flex h-8 items-center gap-1.5 rounded-lg bg-purple-500 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-600"
+                                className="group flex h-8 items-center gap-1.5 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 px-3 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:scale-[1.02] hover:shadow-lg hover:shadow-purple-500/30 active:scale-95"
                             >
                                 <IconPlus size={16} />
                                 New Notebook
