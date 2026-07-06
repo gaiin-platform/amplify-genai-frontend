@@ -1,15 +1,17 @@
 // Server-side helpers shared by the Open Notebook API routes
 // (pages/api/notebook/* and pages/api/notebookUpload.ts).
 //
-// Requests go directly to the Open Notebook ALB (OPEN_NOTEBOOK_URL) with the
-// user's Cognito access token attached server-side. Open Notebook's
-// JWTAuthMiddleware validates the token and routes the request to that user's
-// isolated database, so these routes add no authorization of their own — they
-// exist only because the browser session token lives server-side in next-auth.
+// Requests go directly to the Open Notebook ALB with the user's Cognito
+// access token attached server-side. Open Notebook's JWTAuthMiddleware
+// validates the token and routes the request to that user's isolated
+// database, so these routes add no authorization of their own — they exist
+// only because the browser session token lives server-side in next-auth.
 
 export const getOpenNotebookBase = (): string | null => {
-    const url = process.env.OPEN_NOTEBOOK_URL;
-    return url ? url.replace(/\/+$/, '') : null;
+    const apiBaseUrl = process.env.API_BASE_URL;
+    if (!apiBaseUrl) return null;
+    const url = apiBaseUrl.replace('dev-api', 'open-notebook');
+    return url.replace(/\/+$/, '');
 };
 
 // Builds the full upstream URL for an Open Notebook API path.

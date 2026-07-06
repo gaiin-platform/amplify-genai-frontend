@@ -36,7 +36,7 @@ const notebookProxy = async (req: NextApiRequest, res: NextApiResponse) => {
 
     const base = getOpenNotebookBase();
     if (!base) {
-        return res.status(500).json({ error: 'OPEN_NOTEBOOK_URL not configured' });
+        return res.status(500).json({ error: 'API_BASE_URL not configured' });
     }
 
     const { method: rawMethod, path, query_params: queryParams, body } = req.body ?? {};
