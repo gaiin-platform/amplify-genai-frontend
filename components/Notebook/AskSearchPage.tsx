@@ -228,10 +228,10 @@ export const AskSearchPage = () => {
             final_answer_model: defaults.default_chat_model,
         };
 
-        // The ask graph runs several sequential model calls server-side; when
-        // that outlives the notebook_proxy Lambda timeout, askKnowledgeBaseSimple
-        // rejects with a timeout-aware message instead of returning null, so the
-        // catch below surfaces the real cause rather than a config red herring.
+        // The ask graph runs several sequential model calls server-side;
+        // askKnowledgeBaseSimple streams its progress events and rejects with
+        // the backend's real error message instead of returning null, so the
+        // catch below surfaces the actual cause rather than a config red herring.
         const runAsk = async () => {
             const result = await askKnowledgeBaseSimple(params);
             await finalizeAnswer(result.answer);
