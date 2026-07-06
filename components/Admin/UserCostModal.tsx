@@ -2,8 +2,9 @@ import { FC, useEffect, useState, useCallback, useContext } from "react";
 import { Modal } from "../ReusableComponents/Modal";
 import { ActiveTabs, Tabs } from "../ReusableComponents/ActiveTabs";
 import { getAllUserMtdCosts, getBillingGroupsCosts, getAllUserMtdCostsRecursive, AutoLoadProgress, getUserCostHistory, UserCostHistory, MonthlyHistoryData } from "@/services/mtdCostService";
+import { normalizeRateLimits, formatRateLimits } from "@/types/rateLimit";
 import { LoadingIcon } from "../Loader/LoadingIcon";
-import { IconRefresh, IconDownload, IconUsers, IconBuilding, IconLink, IconAlertTriangle, IconInfoCircle, IconKey, IconUserCog, IconBolt } from "@tabler/icons-react";
+import { IconRefresh, IconDownload, IconUsers, IconBuilding, IconLink, IconAlertTriangle, IconInfoCircle, IconKey, IconUserCog, IconBolt, IconShieldX, IconGauge } from "@tabler/icons-react";
 import { InfoBox } from "../ReusableComponents/InfoBox";
 import React from "react";
 import Search from "../Search/Search";
@@ -86,7 +87,7 @@ interface Props {
 
 
 export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
-  const { state: {amplifyUsers}, dispatch: homeDispatch } = useContext(HomeContext);
+  const { state: {amplifyUsers, adminRateLimits}, dispatch: homeDispatch } = useContext(HomeContext);
   const [activeTab, setActiveTab] = useState(0);
   
   // All Users tab state
@@ -127,6 +128,12 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
   const [groupsLoading, setGroupsLoading] = useState(false);
   const [groupsError, setGroupsError] = useState<string | null>(null);
   const [expandedGroupMembers, setExpandedGroupMembers] = useState<string | null>(null);
+  const [groupsSortBy, setGroupsSortBy] = useState<'cost' | 'name' | 'rateLimit'>('cost');
+  const [showAtRiskFirst, setShowAtRiskFirst] = useState(false);
+
+  // Rate Limits tab state
+  const [rateLimitSearch, setRateLimitSearch] = useState<string>('');
+  const [expandedRateLimitUser, setExpandedRateLimitUser] = useState<string | null>(null);
 
   // Auto-load All Users MTD costs with progressive rendering
   const autoLoadAllUsers = useCallback(async () => {
@@ -284,6 +291,27 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
       .sort((a, b) => b.totalCost - a.totalCost);
   }, [userCosts, userSearchTerm]);
 
+  // Rate limit helpers
+  const getRateLimitStatus = (cost: number, limit: number | undefined): { status: 'green' | 'yellow' | 'orange' | 'red' | 'unlimited'; percentage: number; label: string; color: string; bgColor: string; textColor: string } => {
+    if (!limit || limit === 0) {
+      return { status: 'unlimited', percentage: 0, label: 'No limit set', color: 'text-gray-500', bgColor: 'bg-gray-100 dark:bg-gray-800', textColor: 'text-gray-600 dark:text-gray-400' };
+    }
+    const pct = (cost / limit) * 100;
+    if (pct > 100) return { status: 'red', percentage: pct, label: 'Limit exceeded', color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-100 dark:bg-red-900/30', textColor: 'text-red-600 dark:text-red-400' };
+    if (pct >= 96) return { status: 'red', percentage: pct, label: 'At limit', color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-100 dark:bg-red-900/30', textColor: 'text-red-600 dark:text-red-400' };
+    if (pct >= 81) return { status: 'orange', percentage: pct, label: 'Close to limit', color: 'text-orange-600 dark:text-orange-400', bgColor: 'bg-orange-100 dark:bg-orange-900/30', textColor: 'text-orange-600 dark:text-orange-400' };
+    if (pct >= 61) return { status: 'yellow', percentage: pct, label: 'Approaching limit', color: 'text-amber-600 dark:text-amber-400', bgColor: 'bg-amber-100 dark:bg-amber-900/30', textColor: 'text-amber-600 dark:text-amber-400' };
+    return { status: 'green', percentage: pct, label: 'Well within limit', color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-100 dark:bg-green-900/30', textColor: 'text-green-600 dark:text-green-400' };
+  };
+
+  const getGroupWorstRateLimitStatus = (group: BillingGroup) => {
+    const dailyStatus = getRateLimitStatus(group.costs.daily, group.groupInfo.rateLimit?.daily);
+    const monthlyStatus = getRateLimitStatus(group.costs.monthly, group.groupInfo.rateLimit?.monthly);
+    
+    const statusPriority: Record<string, number> = { red: 4, orange: 3, yellow: 2, green: 1, unlimited: 0 };
+    return statusPriority[dailyStatus.status] >= statusPriority[monthlyStatus.status] ? dailyStatus : monthlyStatus;
+  };
+
   // Filter billing groups based on search term
   const filteredBillingGroups = Object.entries(billingGroups).filter(([groupName, group]) => {
     if (!groupSearchTerm.trim()) return true;
@@ -292,6 +320,23 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
       groupName.toLowerCase().includes(searchLower) ||
       group.groupInfo.createdBy.toLowerCase().includes(searchLower)
     );
+  }).sort(([nameA, groupA], [nameB, groupB]) => {
+    if (showAtRiskFirst) {
+      const statusA = getGroupWorstRateLimitStatus(groupA);
+      const statusB = getGroupWorstRateLimitStatus(groupB);
+      const statusPriority: Record<string, number> = { red: 5, orange: 4, yellow: 3, green: 2, unlimited: 1 };
+      const statusDiff = statusPriority[statusA.status] - statusPriority[statusB.status];
+      if (statusDiff !== 0) return -statusDiff;
+    }
+    
+    if (groupsSortBy === 'name') {
+      return nameA.localeCompare(nameB);
+    } else if (groupsSortBy === 'rateLimit') {
+      const statusA = getGroupWorstRateLimitStatus(groupA);
+      const statusB = getGroupWorstRateLimitStatus(groupB);
+      return statusB.percentage - statusA.percentage;
+    }
+    return groupB.costs.total - groupA.costs.total;
   });
 
   const formatAccountInfo = (accountInfo: string) => {
@@ -370,8 +415,10 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
   const handleRefresh = () => {
     if (activeTab === 0) {
       autoLoadAllUsers();
-    } else {
+    } else if (activeTab === 1) {
       fetchBillingGroupsCosts();
+    } else {
+      autoLoadAllUsers();
     }
   };
 
@@ -522,6 +569,14 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
   };
 
   const duplicateMembers = findDuplicateMembers();
+
+  // Get groups at risk (80%+ of rate limit)
+  const atRiskGroups = Object.entries(billingGroups).filter(([_, group]) => {
+    const dailyStatus = getRateLimitStatus(group.costs.daily, group.groupInfo.rateLimit?.daily);
+    const monthlyStatus = getRateLimitStatus(group.costs.monthly, group.groupInfo.rateLimit?.monthly);
+    return (dailyStatus.percentage >= 80 && dailyStatus.status !== 'unlimited') || 
+           (monthlyStatus.percentage >= 80 && monthlyStatus.status !== 'unlimited');
+  });
 
   // Helper function to check if a user is in multiple groups
   const isUserInMultipleGroups = (email: string) => {
@@ -1307,8 +1362,34 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
 
     
 
+      {/* At-Risk Groups Alert Banner */}
+      {atRiskGroups.length > 0 && (
+        <div className="mb-6 mx-2 p-4 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 border border-orange-300 dark:border-orange-700 rounded-lg">
+          <div className="flex items-start gap-3">
+            <IconAlertTriangle size={20} className="text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-orange-900 dark:text-orange-200">
+                ⚠️ {atRiskGroups.length} {atRiskGroups.length === 1 ? 'group is' : 'groups are'} approaching their rate limits
+              </p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {atRiskGroups.map(([groupName, group]) => {
+                  const dailyStatus = getRateLimitStatus(group.costs.daily, group.groupInfo.rateLimit?.daily);
+                  const monthlyStatus = getRateLimitStatus(group.costs.monthly, group.groupInfo.rateLimit?.monthly);
+                  const status = dailyStatus.percentage >= monthlyStatus.percentage ? dailyStatus : monthlyStatus;
+                  return (
+                    <span key={groupName} className={`text-xs font-medium px-2 py-1 rounded ${status.bgColor}`}>
+                      {groupName}: {status.percentage.toFixed(1)}%
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Controls */}
-      <div className="my-6 flex items-center justify-between px-2">
+      <div className="mb-6 flex items-center justify-between px-2">
         <div className="flex items-center space-x-4">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">
             Billing Groups Overview
@@ -1331,8 +1412,34 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
           )}
         </div>
         
-        
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-3">
+          {/* Sort Options */}
+          {Object.keys(billingGroups).length > 1 && (
+            <div className="flex items-center space-x-2">
+              <select
+                value={groupsSortBy}
+                onChange={(e) => setGroupsSortBy(e.target.value as 'cost' | 'name' | 'rateLimit')}
+                className="text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+              >
+                <option value="cost">Sort: Cost ↓</option>
+                <option value="name">Sort: Name A-Z</option>
+                <option value="rateLimit">Sort: Rate Limit Usage ↓</option>
+              </select>
+              
+              <button
+                onClick={() => setShowAtRiskFirst(!showAtRiskFirst)}
+                className={`text-sm px-3 py-2 rounded-md transition-colors ${
+                  showAtRiskFirst
+                    ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-700'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600'
+                }`}
+                title="Show at-risk groups first"
+              >
+                {showAtRiskFirst ? '⚠️ At-Risk First' : 'Show All'}
+              </button>
+            </div>
+          )}
+          
           <button
             onClick={downloadGroupsCSV}
             disabled={userLoading || Object.keys(billingGroups).length === 0}
@@ -1393,109 +1500,236 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
                 <div key={groupName} className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700">
                   {/* Group Header */}
                   <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <IconBuilding className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            {groupName}
-                          </h3>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Created by: {group.groupInfo.createdBy}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center space-x-3 flex-1">
+                        <IconBuilding className="h-6 w-6 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                              {groupName}
+                            </h3>
+
+                            {/* Rate Limit Badge */}
+                            {group.groupInfo.rateLimit && group.groupInfo.rateLimit.length > 0 && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700">
+                                💰 {group.groupInfo.rateLimit.map((limit: any) => `$${limit.rate}/${limit.period}`).join(', ')}
+                              </span>
+                            )}
+
+                            {(() => {
+                              const worstStatus = getGroupWorstRateLimitStatus(group);
+                              if (worstStatus.status !== 'unlimited') {
+                                const statusEmoji = worstStatus.status === 'red' ? '🔴' : worstStatus.status === 'orange' ? '🟠' : worstStatus.status === 'yellow' ? '🟡' : '🟢';
+                                return (
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 ${worstStatus.bgColor}`}>
+                                    {statusEmoji} {worstStatus.label}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            Created by: {getUserDisplayName(group.groupInfo.createdBy)}
                           </p>
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right ml-4 flex-shrink-0">
                         <p className="text-2xl font-bold text-gray-900 dark:text-white">
                           {formatCurrency(group.costs.total)}
                         </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Total cost</p>
                       </div>
                     </div>
                   </div>
 
-                  {/* Group Stats */}
+                  {/* Group Stats - Compact Layout */}
                   <div className="px-6 py-4">
-                    <div className="grid grid-cols-3 gap-4 mb-4">
-                      <div className="text-center">
-                        <p className="text-2xl font-semibold text-blue-600 dark:text-blue-400">
-                          {group.groupInfo.directMemberCount}
-                        </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Direct</p>
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      {/* Direct Members Count */}
+                      <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-900/30 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
+                        <p className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-1">Direct</p>
+                        <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{group.groupInfo.directMemberCount}</p>
+                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">members</p>
                       </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-semibold text-purple-600 dark:text-purple-400">
-                          {group.groupInfo.indirectMemberCount}
-                        </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Indirect</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-semibold text-green-600 dark:text-green-400">
-                          {group.groupInfo.totalMemberCount}
-                        </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Total</p>
+
+                      {/* Indirect Members Count */}
+                      <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-900/30 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
+                        <p className="text-xs font-medium text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-1">Indirect</p>
+                        <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">{group.groupInfo.indirectMemberCount}</p>
+                        <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">members</p>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
-                      <div>
-                        <p className="text-gray-500 dark:text-gray-400">Daily:</p>
-                        <p className="font-semibold text-gray-900 dark:text-white">{formatCurrency(group.costs.daily)}</p>
+                    {/* Direct and Indirect Cost Pills */}
+                    <div className="flex gap-2 mb-6">
+                      <span className="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-xs font-medium text-gray-700 dark:text-gray-300">
+                        💰 {formatCurrency(group.members.direct.reduce((sum, user) => sum + user.totalCost, 0))} Direct
+                      </span>
+                      <span className="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-xs font-medium text-gray-700 dark:text-gray-300">
+                        💰 {formatCurrency(group.members.indirect.reduce((sum, user) => sum + user.totalCost, 0))} Indirect
+                      </span>
+                    </div>
+
+                    {/* Avg Per Member and Total Combined */}
+                    <div className="grid grid-cols-2 gap-3 mb-6">
+                      {/* Avg Per Member */}
+                      <div className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-900/30 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
+                        <p className="text-xs font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wide mb-1">Avg/Member</p>
+                        <p className="text-xl font-bold text-amber-700 dark:text-amber-300">{formatCurrency(group.costs.avgPerMember)}</p>
                       </div>
-                      <div>
-                        <p className="text-gray-500 dark:text-gray-400">Monthly:</p>
-                        <p className="font-semibold text-gray-900 dark:text-white">{formatCurrency(group.costs.monthly)}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500 dark:text-gray-400">Avg/Member:</p>
-                        <p className="font-semibold text-gray-900 dark:text-white">{formatCurrency(group.costs.avgPerMember)}</p>
+
+                      {/* Total Combined */}
+                      <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-900/30 rounded-lg p-3 border border-green-200 dark:border-green-800">
+                        <p className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide mb-1">Total Combined</p>
+                        <p className="text-xl font-bold text-green-700 dark:text-green-300">{formatCurrency(
+                          group.members.direct.reduce((sum, user) => sum + user.totalCost, 0) +
+                          group.members.indirect.reduce((sum, user) => sum + user.totalCost, 0)
+                        )}</p>
                       </div>
                     </div>
 
-                    {/* Cost Distribution Bar */}
-                    <div className="mb-4">
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Cost Distribution:</p>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-                        <div 
-                          className="h-full bg-blue-500 dark:bg-blue-400 float-left"
-                          style={{ 
-                            width: `${(group.members.direct.reduce((sum, user) => sum + user.totalCost, 0) / group.costs.total * 100)}%` 
-                          }}
-                          title="Direct members"
-                        ></div>
-                        <div 
-                          className="h-full bg-purple-500 dark:bg-purple-400 float-left"
-                          style={{ 
-                            width: `${(group.members.indirect.reduce((sum, user) => sum + user.totalCost, 0) / group.costs.total * 100)}%` 
-                          }}
-                          title="Indirect members"
-                        ></div>
-                      </div>
-                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        <span>Direct ({Math.round(group.members.direct.reduce((sum, user) => sum + user.totalCost, 0) / group.costs.total * 100)}%)</span>
-                        <span>Indirect ({Math.round(group.members.indirect.reduce((sum, user) => sum + user.totalCost, 0) / group.costs.total * 100)}%)</span>
-                      </div>
-                    </div>
-
-                    {/* Top Spenders */}
-                    {group.members.topSpenders && group.members.topSpenders.length > 0 && (
-                      <div className="mb-4">
-                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">👥 Top Spenders:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {group.members.topSpenders.slice(0, 3).map((user, index) => (
-                            <div key={`${user.email}-${index}`} className="flex items-center text-xs bg-gray-50 dark:bg-gray-700 rounded-md p-2 min-w-[180px]">
-                              <span className="text-gray-900 dark:text-white mr-2">
-                                {index + 1}.
+                    {/* Rate Limit Progress Bars */}
+                    {group.groupInfo.rateLimit && (group.groupInfo.rateLimit.daily || group.groupInfo.rateLimit.monthly) && (
+                      <div className="mb-4 space-y-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 flex items-center gap-2">
+                          <IconGauge size={16} /> Rate Limit Utilization
+                        </p>
+                        
+                        {/* Daily Rate Limit */}
+                        {group.groupInfo.rateLimit.daily && (
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Daily Limit</span>
+                              <span className="text-xs font-semibold text-gray-900 dark:text-white">
+                                {group.costs.daily} / {formatCurrency(group.groupInfo.rateLimit.daily)}
                               </span>
-                              <div className="flex-1 min-w-0">
-                                <div className="text-gray-900 dark:text-white break-all">
-                                  {getUserDisplayName(user.email)}
-                                </div>
-                                <div className="text-gray-500 dark:text-gray-400 text-xs">
-                                  {user.membershipType} • {formatCurrency(user.totalCost)}
-                                </div>
-                              </div>
                             </div>
-                          ))}
+                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                              <div 
+                                className={`h-full rounded-full transition-all ${
+                                  group.costs.daily >= group.groupInfo.rateLimit.daily 
+                                    ? 'bg-red-500 dark:bg-red-400' 
+                                    : group.costs.daily >= (group.groupInfo.rateLimit.daily * 0.8)
+                                    ? 'bg-amber-500 dark:bg-amber-400'
+                                    : 'bg-green-500 dark:bg-green-400'
+                                }`}
+                                style={{ width: `${Math.min((group.costs.daily / group.groupInfo.rateLimit.daily) * 100, 100)}%` }}
+                              ></div>
+                            </div>
+                            <div className="flex items-center justify-between mt-1">
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                {Math.round((group.costs.daily / group.groupInfo.rateLimit.daily) * 100)}%
+                              </span>
+                              {group.costs.daily >= group.groupInfo.rateLimit.daily && (
+                                <span className="text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
+                                  <IconAlertTriangle size={12} /> Over limit by {formatCurrency(group.costs.daily - group.groupInfo.rateLimit.daily)}
+                                </span>
+                              )}
+                              {group.costs.daily >= (group.groupInfo.rateLimit.daily * 0.8) && group.costs.daily < group.groupInfo.rateLimit.daily && (
+                                <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold">Near limit</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Monthly Rate Limit */}
+                        {group.groupInfo.rateLimit.monthly && (
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Monthly Limit</span>
+                              <span className="text-xs font-semibold text-gray-900 dark:text-white">
+                                {formatCurrency(group.costs.monthly)} / {formatCurrency(group.groupInfo.rateLimit.monthly)}
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                              <div 
+                                className={`h-full rounded-full transition-all ${
+                                  group.costs.monthly >= group.groupInfo.rateLimit.monthly 
+                                    ? 'bg-red-500 dark:bg-red-400' 
+                                    : group.costs.monthly >= (group.groupInfo.rateLimit.monthly * 0.8)
+                                    ? 'bg-amber-500 dark:bg-amber-400'
+                                    : 'bg-green-500 dark:bg-green-400'
+                                }`}
+                                style={{ width: `${Math.min((group.costs.monthly / group.groupInfo.rateLimit.monthly) * 100, 100)}%` }}
+                              ></div>
+                            </div>
+                            <div className="flex items-center justify-between mt-1">
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                {Math.round((group.costs.monthly / group.groupInfo.rateLimit.monthly) * 100)}%
+                              </span>
+                              {group.costs.monthly >= group.groupInfo.rateLimit.monthly && (
+                                <span className="text-xs text-red-600 dark:text-red-400 font-semibold flex items-center gap-1">
+                                  <IconAlertTriangle size={12} /> Over limit by {formatCurrency(group.costs.monthly - group.groupInfo.rateLimit.monthly)}
+                                </span>
+                              )}
+                              {group.costs.monthly >= (group.groupInfo.rateLimit.monthly * 0.8) && group.costs.monthly < group.groupInfo.rateLimit.monthly && (
+                                <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold">Near limit</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+
+                    {/* Top Spenders - Enhanced */}
+                    {group.members.topSpenders && group.members.topSpenders.length > 0 && (
+                      <div className="mb-6">
+                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">👥 Top Spenders</p>
+                        <div className="space-y-2">
+                          {group.members.topSpenders.slice(0, 5).map((user, index) => {
+                            const displayName = getUserDisplayName(user.email);
+                            const initials = displayName.split(/[\s.@]/).filter(p => p).slice(0, 2).map(p => p[0]).join('').toUpperCase();
+                            let proportion = 0;
+                            if (group.groupInfo.rateLimit && group.groupInfo.rateLimit.length > 0) {
+                              const rateLimit = group.groupInfo.rateLimit[0].rate;
+                              proportion = (user.totalCost / rateLimit) * 100;
+                            } else {
+                              proportion = (user.totalCost / group.costs.total) * 100;
+                            }
+                            const avatarColors = ['bg-blue-500', 'bg-purple-500', 'bg-pink-500', 'bg-green-500', 'bg-orange-500'];
+                            const avatarColor = avatarColors[index % avatarColors.length];
+                            
+                            return (
+                              <div key={`${user.email}-${index}`} className="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                {/* Avatar */}
+                                <div className={`${avatarColor} w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0`}>
+                                  <span className="text-white text-xs font-bold">{initials || user.email[0]}</span>
+                                </div>
+                                
+                                {/* Name and Type */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                    {displayName}
+                                  </div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    {user.membershipType === 'direct' ? '👤 Direct' : '🔗 Indirect'}
+                                  </div>
+                                </div>
+                                
+                                {/* Cost */}
+                                <div className="text-right flex-shrink-0">
+                                  <span className="text-sm font-bold text-gray-900 dark:text-white">
+                                    {formatCurrency(user.totalCost)}
+                                  </span>
+                                </div>
+                                
+                                {/* Proportion Indicator */}
+                                <div className="w-20 h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden flex-shrink-0">
+                                  <div 
+                                    className="h-full bg-gradient-to-r from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700"
+                                    style={{ width: `${proportion}%` }}
+                                  ></div>
+                                </div>
+                                
+                                {/* Percentage */}
+                                <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 w-10 text-right">
+                                  {proportion.toFixed(1)}%
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -1556,6 +1790,614 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     </div>
   );
 
+  const renderRateLimitsTab = () => {
+    const activeLimits = normalizeRateLimits(adminRateLimits as any).filter(
+      l => l.rate !== null && l.period !== 'Unlimited'
+    );
+    // Limits we can actually compute from bulk user data (hourly data not available in list endpoint)
+    const computableLimits = activeLimits.filter(l => l.period !== 'Hourly');
+    const hourlyLimits = activeLimits.filter(l => l.period === 'Hourly');
+
+    type UserLimitRow = {
+      email: string;
+      dailyCost: number;
+      monthlyCost: number;
+      totalCost: number;
+      worstPct: number;
+      worstPeriod: string;
+      worstLimit: number;
+      worstSpent: number;
+      limitSource: 'Admin' | 'Group' | 'Both';
+      groupName?: string;
+      groupNames: string[];
+      hasAdminLimit: boolean;
+      // all limit breakdowns for tooltip/detail
+      limitBreakdown: { period: string; spent: number; limit: number; pct: number; source: string }[];
+    };
+
+    const userRows: UserLimitRow[] = [];
+
+    userCosts.forEach(user => {
+      let worstPct = 0;
+      let worstPeriod = '';
+      let worstLimit = 0;
+      let worstSpent = 0;
+      let worstLimitSource: 'Admin' | 'Group' = 'Admin';
+      let groupName: string | undefined;
+      const groupNames: string[] = [];
+      const limitBreakdown: UserLimitRow['limitBreakdown'] = [];
+      // Only non-Hourly limits are computable from bulk list data
+      const hasAdminLimit = activeLimits.some(l => l.period !== 'Hourly');
+
+      activeLimits.forEach(limit => {
+        // dailyCost  = today's spend only
+        // monthlyCost = prior days this month (excluding today)
+        // totalCost  = dailyCost + monthlyCost = full MTD spend
+        // hourlyCost is NOT available in the admin list endpoint → skip Hourly
+        if (limit.period === 'Hourly') return; // no per-hour data in bulk list
+        let spent = 0;
+        if (limit.period === 'Daily')   spent = user.dailyCost;               // today only
+        else if (limit.period === 'Monthly') spent = user.totalCost;          // full MTD (daily + monthly)
+        else if (limit.period === 'Total')   spent = user.totalCost;          // full MTD
+        const pct = limit.rate ? (spent / limit.rate) * 100 : 0;
+        limitBreakdown.push({ period: limit.period, spent, limit: limit.rate ?? 0, pct, source: 'Admin' });
+        if (pct > worstPct) {
+          worstPct = pct; worstPeriod = limit.period;
+          worstLimit = limit.rate ?? 0; worstSpent = spent; worstLimitSource = 'Admin';
+        }
+      });
+
+      Object.entries(billingGroups).forEach(([gName, group]) => {
+        const isInGroup = group.members.all.some(m => m.email === user.email);
+        if (!isInGroup) return;
+        const gDaily = group.groupInfo.rateLimit?.daily;
+        const gMonthly = group.groupInfo.rateLimit?.monthly;
+        if (!gDaily && !gMonthly) return;
+        // Track all groups this user belongs to that have limits
+        if (!groupNames.includes(gName)) groupNames.push(gName);
+        if (gDaily) {
+          const spent = user.dailyCost; // today only
+          const pct = (spent / gDaily) * 100;
+          limitBreakdown.push({ period: 'Daily', spent, limit: gDaily, pct, source: gName });
+          if (pct > worstPct) {
+            worstPct = pct; worstPeriod = 'Daily'; worstLimit = gDaily;
+            worstSpent = spent; worstLimitSource = 'Group'; groupName = gName;
+          }
+        }
+        if (gMonthly) {
+          const spent = user.totalCost; // full MTD (dailyCost + monthlyCost)
+          const pct = (spent / gMonthly) * 100;
+          limitBreakdown.push({ period: 'Monthly', spent, limit: gMonthly, pct, source: gName });
+          if (pct > worstPct) {
+            worstPct = pct; worstPeriod = 'Monthly'; worstLimit = gMonthly;
+            worstSpent = spent; worstLimitSource = 'Group'; groupName = gName;
+          }
+        }
+      });
+
+      // Derive accurate source: Admin only, Group only, or Both
+      const hasGroupLimit = groupNames.length > 0;
+      const limitSource: 'Admin' | 'Group' | 'Both' =
+        hasAdminLimit && hasGroupLimit ? 'Both' :
+        hasGroupLimit ? 'Group' : 'Admin';
+
+      const hasAnyLimit = hasAdminLimit || hasGroupLimit;
+      if (hasAnyLimit) {
+        userRows.push({
+          email: user.email, dailyCost: user.dailyCost,
+          monthlyCost: user.monthlyCost, totalCost: user.totalCost,
+          worstPct, worstPeriod, worstLimit, worstSpent,
+          limitSource, groupName, groupNames, hasAdminLimit, limitBreakdown,
+        });
+      }
+    });
+
+    userRows.sort((a, b) => b.worstPct - a.worstPct);
+
+    const filteredRows = userRows.filter(r =>
+      !rateLimitSearch || r.email.toLowerCase().includes(rateLimitSearch.toLowerCase())
+    );
+
+    const exceededCount  = userRows.filter(r => r.worstPct >= 100).length;
+    const warningCount   = userRows.filter(r => r.worstPct >= 80 && r.worstPct < 100).length;
+    const healthyCount   = userRows.filter(r => r.worstPct < 80).length;
+    const topUser        = userRows[0];
+
+    const noLimitsConfigured = computableLimits.length === 0 &&
+      !Object.values(billingGroups).some(g => g.groupInfo.rateLimit?.daily || g.groupInfo.rateLimit?.monthly);
+
+    // Status pill for a row
+    const statusPill = (pct: number) => {
+      if (pct >= 100) return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" /> Exceeded
+        </span>
+      );
+      if (pct >= 80) return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
+          <span className="w-1.5 h-1.5 rounded-full bg-orange-500 inline-block" /> Warning
+        </span>
+      );
+      if (pct >= 50) return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300">
+          <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 inline-block" /> Moderate
+        </span>
+      );
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> Healthy
+        </span>
+      );
+    };
+
+    // Progress bar with segmented track
+    const pctBar = (pct: number) => {
+      const capped = Math.min(pct, 100);
+      const color = pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-orange-400' : pct >= 50 ? 'bg-yellow-400' : 'bg-emerald-400';
+      const textColor = pct >= 100 ? 'text-red-600 dark:text-red-400 font-bold' :
+                        pct >= 80  ? 'text-orange-500 dark:text-orange-400 font-semibold' :
+                                     'text-gray-500 dark:text-gray-400';
+      return (
+        <div className="flex items-center gap-3 w-full">
+          <div className="relative flex-1 h-2.5 bg-gray-100 dark:bg-gray-600 rounded-full overflow-hidden min-w-[100px]">
+            {/* threshold markers */}
+            <div className="absolute top-0 h-full w-px bg-yellow-300 dark:bg-yellow-500 opacity-60" style={{ left: '50%' }} />
+            <div className="absolute top-0 h-full w-px bg-orange-400 dark:bg-orange-500 opacity-80" style={{ left: '80%' }} />
+            <div className={`${color} h-full rounded-full transition-all duration-300`} style={{ width: `${capped}%` }} />
+          </div>
+          <span className={`text-xs w-[42px] text-right flex-shrink-0 ${textColor}`}>{pct.toFixed(1)}%</span>
+        </div>
+      );
+    };
+
+    const sourceBadge = (source: string, group?: string, groupNames?: string[]) => {
+      if (source === 'Admin') return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
+          <IconUserCog size={11} /> Admin
+        </span>
+      );
+      if (source === 'Both') {
+        const groupLabel = groupNames && groupNames.length > 0
+          ? groupNames.length === 1
+            ? groupNames[0].length > 12 ? groupNames[0].slice(0, 12) + '…' : groupNames[0]
+            : `${groupNames.length} groups`
+          : 'Group';
+        const fullTitle = groupNames ? `Admin + ${groupNames.join(', ')}` : 'Admin + Group';
+        return (
+          <div className="flex flex-col gap-0.5" title={fullTitle}>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
+              <IconUserCog size={11} /> Admin
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 border border-violet-200 dark:border-violet-700">
+              <IconBuilding size={11} /> {groupLabel}
+            </span>
+          </div>
+        );
+      }
+      const groupLabel = groupNames && groupNames.length > 1
+        ? `${groupNames.length} groups`
+        : group ? (group.length > 16 ? group.slice(0, 16) + '…' : group) : 'Group';
+      const fullTitle = groupNames && groupNames.length > 1 ? groupNames.join(', ') : group;
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 border border-violet-200 dark:border-violet-700" title={fullTitle}>
+          <IconBuilding size={11} /> {groupLabel}
+        </span>
+      );
+    };
+
+    return (
+      <div className="flex flex-col h-full gap-3 px-1">
+
+        {/* ── Summary strip ── */}
+        <div className="grid grid-cols-4 gap-3">
+
+          {/* Over limit */}
+          <div className={`rounded-xl p-4 border-2 flex items-center gap-4 ${
+            exceededCount > 0
+              ? 'bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700'
+              : 'bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700'
+          }`}>
+            <div className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ${
+              exceededCount > 0 ? 'bg-red-100 dark:bg-red-800/40' : 'bg-red-50 dark:bg-red-900/20'
+            }`}>
+              <IconShieldX size={22} className="text-red-400 dark:text-red-500" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Over Limit</p>
+              <p className={`text-3xl font-extrabold leading-none mt-0.5 ${exceededCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-red-300 dark:text-red-700'}`}>
+                {exceededCount}
+              </p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">≥ 100% of limit</p>
+            </div>
+          </div>
+
+          {/* Near limit */}
+          <div className={`rounded-xl p-4 border-2 flex items-center gap-4 ${
+            warningCount > 0
+              ? 'bg-orange-50 border-orange-300 dark:bg-orange-900/20 dark:border-orange-700'
+              : 'bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700'
+          }`}>
+            <div className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ${
+              warningCount > 0 ? 'bg-orange-100 dark:bg-orange-800/40' : 'bg-orange-50 dark:bg-orange-900/20'
+            }`}>
+              <IconAlertTriangle size={22} className="text-orange-400 dark:text-orange-500" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Near Limit</p>
+              <p className={`text-3xl font-extrabold leading-none mt-0.5 ${warningCount > 0 ? 'text-orange-500 dark:text-orange-400' : 'text-orange-300 dark:text-orange-700'}`}>
+                {warningCount}
+              </p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">80 – 99% of limit</p>
+            </div>
+          </div>
+
+          {/* Configured limits */}
+          <div className="rounded-xl p-4 border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-start gap-4">
+            <div className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-50 dark:bg-blue-900/30">
+              <IconGauge size={22} className="text-blue-500 dark:text-blue-400" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Configured Limits</p>
+              {activeLimits.length === 0 ? (
+                <p className="text-sm text-gray-400">None set</p>
+              ) : (
+                <div className="flex flex-col gap-0.5">
+                  {computableLimits.map((l, i) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                        l.period === 'Daily'   ? 'bg-blue-400' :
+                        l.period === 'Monthly' ? 'bg-teal-400' : 'bg-gray-400'
+                      }`} />
+                      <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                        {formatCurrency(l.rate ?? 0)}
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">/ {l.period}</span>
+                    </div>
+                  ))}
+                  {hourlyLimits.map((l, i) => (
+                    <div key={`h-${i}`} className="flex items-center gap-1.5" title="Hourly utilization cannot be computed from bulk data">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0 bg-purple-300" />
+                      <span className="text-sm font-semibold text-gray-400 dark:text-gray-500">
+                        {formatCurrency(l.rate ?? 0)}
+                      </span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500">/ Hourly</span>
+                      <span className="text-xs text-gray-400 italic">(N/A)</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Top user */}
+          <div className="rounded-xl p-4 border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-start gap-4">
+            <div className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-50 dark:bg-amber-900/30">
+              <IconUsers size={22} className="text-amber-500 dark:text-amber-400" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Highest Utilization</p>
+              {topUser ? (
+                <>
+                  <p className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate" title={topUser.email}>
+                    {getUserDisplayName(topUser.email) !== topUser.email
+                      ? getUserDisplayName(topUser.email)
+                      : topUser.email.split('@')[0]}
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 truncate" title={topUser.email}>{topUser.email}</p>
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    {statusPill(topUser.worstPct)}
+                    <span className={`text-xs font-semibold ${topUser.worstPct >= 100 ? 'text-red-500' : 'text-orange-400'}`}>
+                      {topUser.worstPct.toFixed(1)}%
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-gray-400">No data yet</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── No limits notice ── */}
+        {noLimitsConfigured && (
+          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl flex items-start gap-3">
+            <IconInfoCircle size={20} className="text-blue-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">No rate limits configured</p>
+              <p className="text-xs text-blue-600 dark:text-blue-300 mt-0.5">
+                Set admin-wide or billing group rate limits in the <strong>Admin → Configurations</strong> panel. Utilization data will appear here automatically once limits are set.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Hourly-only notice ── */}
+        {!noLimitsConfigured && hourlyLimits.length > 0 && computableLimits.length === 0 && (
+          <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl flex items-start gap-3">
+            <IconInfoCircle size={16} className="text-yellow-500 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-yellow-700 dark:text-yellow-300">
+              Only <strong>Hourly</strong> limits are configured. Per-hour spend data is not available in the admin user list — utilization cannot be computed. Add a Daily or Monthly limit to see utilization here.
+            </p>
+          </div>
+        )}
+
+        {/* ── Loading state ── */}
+        {userLoading && autoLoadState.status === 'loading' && (
+          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 px-1">
+            <LoadingIcon style={{ width: '14px', height: '14px' }} />
+            <span>Loading user cost data — {autoLoadState.loadedCount} users so far…</span>
+          </div>
+        )}
+
+        {/* ── Main table ── */}
+        {!noLimitsConfigured && (
+          <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+
+            {/* Search + legend row */}
+            <div className="flex items-center gap-3 mb-2">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                </span>
+                <input
+                  type="text"
+                  placeholder="Search by email…"
+                  value={rateLimitSearch}
+                  onChange={e => setRateLimitSearch(e.target.value)}
+                  className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg pl-8 pr-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+                />
+              </div>
+              {/* mini legend */}
+              <div className="hidden md:flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"/>healthy</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block"/>moderate</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 inline-block"/>warning</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block"/>exceeded</span>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden flex-1 flex flex-col">
+              {/* table header */}
+              <div className="px-5 py-2.5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-750">
+                <div className="flex items-center gap-2">
+                  <IconGauge size={16} className="text-gray-400" />
+                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                    User Rate Limit Utilization
+                  </span>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">
+                    · {filteredRows.length} of {userRows.length} users shown
+                    {userRows.length > 0 && ` · sorted by highest utilization`}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                  {exceededCount > 0 && <span className="text-red-500 font-medium">{exceededCount} exceeded</span>}
+                  {warningCount  > 0 && <span className="text-orange-500 font-medium">{warningCount} near limit</span>}
+                  {healthyCount  > 0 && <span className="text-emerald-500 font-medium">{healthyCount} healthy</span>}
+                </div>
+              </div>
+
+              {filteredRows.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
+                  <div className="w-16 h-16 rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center mb-4">
+                    <IconShieldX size={32} className="text-green-400" />
+                  </div>
+                  <p className="text-base font-semibold text-gray-600 dark:text-gray-300">No user data available yet</p>
+                  <p className="text-sm mt-1">User cost data is still loading or no users have been found</p>
+                </div>
+              ) : (
+                <div className="flex-1 overflow-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-750 border-b border-gray-200 dark:border-gray-700">
+                      <tr>
+                        <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[220px]">User</th>
+                        <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                        <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[200px]">Utilization</th>
+                        <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Worst Period</th>
+                        <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Spent</th>
+                        <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Limit</th>
+                        <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Source</th>
+                        <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Daily Spend</th>
+                        <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">MTD Spend</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                      {filteredRows.map((row, i) => {
+                        const isExpanded = expandedRateLimitUser === row.email;
+                        const fullUser = userCosts.find(u => u.email === row.email);
+                        const apiKeyAccounts = fullUser?.accounts?.filter(a => a.accountInfo.includes('#') && a.accountInfo.split('#')[1] !== 'NA') ?? [];
+                        const regularAccounts = fullUser?.accounts?.filter(a => !a.accountInfo.includes('#') || a.accountInfo.split('#')[1] === 'NA') ?? [];
+
+                        const rowBg = row.worstPct >= 100
+                          ? 'bg-red-50/60 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20'
+                          : row.worstPct >= 80
+                          ? 'bg-orange-50/60 dark:bg-orange-900/10 hover:bg-orange-50 dark:hover:bg-orange-900/20'
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-700/50';
+                        const leftBorder = row.worstPct >= 100 ? 'border-l-4 border-l-red-400'
+                          : row.worstPct >= 80 ? 'border-l-4 border-l-orange-400'
+                          : 'border-l-4 border-l-transparent';
+
+                        return (
+                          <React.Fragment key={`${row.email}-${i}`}>
+                            <tr
+                              className={`${rowBg} ${leftBorder} transition-colors cursor-pointer`}
+                              onClick={() => setExpandedRateLimitUser(isExpanded ? null : row.email)}
+                            >
+                              {/* Expand chevron + User */}
+                              <td className="px-5 py-3">
+                                <div className="flex items-start gap-2">
+                                  <span className="text-gray-400 mt-0.5 text-xs flex-shrink-0">{isExpanded ? '▼' : '▶'}</span>
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="font-medium text-gray-900 dark:text-white text-sm truncate max-w-[190px]" title={row.email}>
+                                      {getUserDisplayName(row.email) !== row.email
+                                        ? getUserDisplayName(row.email)
+                                        : row.email.split('@')[0]}
+                                    </span>
+                                    <span className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-[190px]" title={row.email}>
+                                      {row.email}
+                                    </span>
+                                    {/* mini account/api summary */}
+                                    {fullUser && (
+                                      <span className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                                        {regularAccounts.length > 0 && `${regularAccounts.length} acct${regularAccounts.length > 1 ? 's' : ''}`}
+                                        {regularAccounts.length > 0 && apiKeyAccounts.length > 0 && ' · '}
+                                        {apiKeyAccounts.length > 0 && <span className="text-blue-400">{apiKeyAccounts.length} API key{apiKeyAccounts.length > 1 ? 's' : ''}</span>}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              {/* Status pill */}
+                              <td className="px-5 py-3">{statusPill(row.worstPct)}</td>
+                              {/* Utilization bar */}
+                              <td className="px-5 py-3">{pctBar(row.worstPct)}</td>
+                              {/* Worst period */}
+                              <td className="px-5 py-3">
+                                <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                                  row.worstPeriod === 'Hourly'  ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' :
+                                  row.worstPeriod === 'Daily'   ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
+                                  row.worstPeriod === 'Monthly' ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300' :
+                                                                  'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                                }`}>{row.worstPeriod}</span>
+                              </td>
+                              {/* Spent */}
+                              <td className="px-5 py-3 font-medium text-gray-800 dark:text-gray-200">{formatCurrency(row.worstSpent)}</td>
+                              {/* Limit */}
+                              <td className="px-5 py-3 text-gray-600 dark:text-gray-400">{formatCurrency(row.worstLimit)}</td>
+                              {/* Source */}
+                              <td className="px-5 py-3">{sourceBadge(row.limitSource, row.groupName, row.groupNames)}</td>
+                              {/* Daily */}
+                              <td className="px-5 py-3 text-gray-600 dark:text-gray-400 text-xs font-mono">{formatCurrency(row.dailyCost)}</td>
+                              {/* MTD */}
+                              <td className="px-5 py-3 text-xs font-mono font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(row.dailyCost + row.monthlyCost)}</td>
+                            </tr>
+
+                            {/* ── Expanded detail row ── */}
+                            {isExpanded && fullUser && (
+                              <tr className="bg-gray-50 dark:bg-gray-900/50">
+                                <td colSpan={9} className="px-8 py-4">
+                                  <div className="space-y-4">
+
+                                    {/* All Limit Breakdowns */}
+                                    {row.limitBreakdown.length > 0 && (
+                                      <div>
+                                        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                          <IconGauge size={13} /> Limit Breakdown
+                                        </h4>
+                                        <div className="flex flex-wrap gap-3">
+                                          {row.limitBreakdown.map((b, bi) => (
+                                            <div key={bi} className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 min-w-[180px]">
+                                              <div className="flex-1">
+                                                <div className="flex items-center justify-between mb-1">
+                                                  <span className={`text-xs font-semibold ${
+                                                    b.period === 'Hourly'  ? 'text-purple-600 dark:text-purple-400' :
+                                                    b.period === 'Daily'   ? 'text-blue-600 dark:text-blue-400' :
+                                                    b.period === 'Monthly' ? 'text-teal-600 dark:text-teal-400' :
+                                                                             'text-gray-600 dark:text-gray-400'
+                                                  }`}>{b.period}</span>
+                                                  <span className="text-xs text-gray-500 dark:text-gray-400">{b.source}</span>
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                  <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-600 rounded-full overflow-hidden">
+                                                    <div
+                                                      className={`h-full rounded-full ${b.pct >= 100 ? 'bg-red-500' : b.pct >= 80 ? 'bg-orange-400' : b.pct >= 50 ? 'bg-yellow-400' : 'bg-emerald-400'}`}
+                                                      style={{ width: `${Math.min(b.pct, 100)}%` }}
+                                                    />
+                                                  </div>
+                                                  <span className={`text-xs font-bold w-10 text-right ${b.pct >= 100 ? 'text-red-500' : b.pct >= 80 ? 'text-orange-500' : 'text-gray-500'}`}>
+                                                    {b.pct.toFixed(1)}%
+                                                  </span>
+                                                </div>
+                                                <div className="flex items-center justify-between mt-1">
+                                                  <span className="text-xs text-gray-500">{formatCurrency(b.spent)} spent</span>
+                                                  <span className="text-xs text-gray-400">of {formatCurrency(b.limit)}</span>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Accounts */}
+                                    {regularAccounts.length > 0 && (
+                                      <div>
+                                        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                          <IconBuilding size={13} /> Accounts ({regularAccounts.length})
+                                        </h4>
+                                        <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                                          <table className="min-w-full text-xs">
+                                            <thead className="bg-gray-100 dark:bg-gray-800">
+                                              <tr>
+                                                <th className="text-left py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Account</th>
+                                                <th className="text-right py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Today</th>
+                                                <th className="text-right py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Monthly</th>
+                                                <th className="text-right py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Total</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-900">
+                                              {regularAccounts.sort((a, b) => b.totalCost - a.totalCost).map((acct, ai) => (
+                                                <tr key={ai} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                                  <td className="py-2 px-3 font-mono text-gray-700 dark:text-gray-300">{formatAccountInfo(acct.accountInfo)}</td>
+                                                  <td className="py-2 px-3 text-right text-gray-600 dark:text-gray-400">{formatCurrency(acct.dailyCost)}</td>
+                                                  <td className="py-2 px-3 text-right text-gray-600 dark:text-gray-400">{formatCurrency(acct.monthlyCost)}</td>
+                                                  <td className="py-2 px-3 text-right font-semibold text-gray-800 dark:text-gray-200">{formatCurrency(acct.totalCost)}</td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* API Keys */}
+                                    {apiKeyAccounts.length > 0 && (
+                                      <div>
+                                        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                          <IconKey size={13} /> API Key Usage ({apiKeyAccounts.length})
+                                        </h4>
+                                        <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                                          <table className="min-w-full text-xs">
+                                            <thead className="bg-gray-100 dark:bg-gray-800">
+                                              <tr>
+                                                <th className="text-left py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Account / Key</th>
+                                                <th className="text-right py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Today</th>
+                                                <th className="text-right py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Monthly</th>
+                                                <th className="text-right py-2 px-3 font-semibold text-gray-600 dark:text-gray-300">Total</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-900">
+                                              {apiKeyAccounts.sort((a, b) => b.totalCost - a.totalCost).map((acct, ai) => (
+                                                <tr key={ai} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                                  <td className="py-2 px-3 font-mono text-gray-700 dark:text-gray-300">{formatAccountInfo(acct.accountInfo)}</td>
+                                                  <td className="py-2 px-3 text-right text-gray-600 dark:text-gray-400">{formatCurrency(acct.dailyCost)}</td>
+                                                  <td className="py-2 px-3 text-right text-gray-600 dark:text-gray-400">{formatCurrency(acct.monthlyCost)}</td>
+                                                  <td className="py-2 px-3 text-right font-semibold text-gray-800 dark:text-gray-200">{formatCurrency(acct.totalCost)}</td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (!open) return null;
 
   const tabs: Tabs[] = [
@@ -1566,6 +2408,10 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     {
       label: 'Billing Groups',
       content: renderBillingGroupsTab()
+    },
+    {
+      label: 'Rate Limits',
+      content: renderRateLimitsTab()
     }
   ];
 

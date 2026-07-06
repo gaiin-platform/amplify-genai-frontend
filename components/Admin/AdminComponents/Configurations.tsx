@@ -2,7 +2,7 @@ import { FC, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Amplify_Group, Amplify_Groups, AmplifyGroupSelect, EmailSupport, PromptCostAlert, titleLabel, UserAction } from "../AdminUI";
 import { AdminConfigTypes, FeatureFlagConfig } from "@/types/admin";
-import { IconPlus, IconTrash, IconX, IconCloudFilled, IconMessage, IconCheck, IconEdit, IconFileImport } from "@tabler/icons-react";
+import { IconPlus, IconTrash, IconX, IconCloudFilled, IconMessage, IconCheck, IconEdit, IconFileImport, IconUsers } from "@tabler/icons-react";
 import Checkbox from "@/components/ReusableComponents/CheckBox";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import { RateLimiter } from "@/components/Settings/AccountComponents/RateLimit";
@@ -13,6 +13,7 @@ import ActionButton from "@/components/ReusableComponents/ActionButton";
 import { useSession } from "next-auth/react";
 import InputsMap from "@/components/ReusableComponents/InputMap";
 import { AddEmailWithAutoComplete } from "@/components/Emails/AddEmailsAutoComplete";
+import { EmailsAutoComplete } from "@/components/Emails/EmailsAutoComplete";
 import { ConversationStorage } from "@/types/conversationStorage";
 import { capitalize, getUserIdentifier } from "@/utils/app/data";
 import { CsvUpload } from "@/components/ReusableComponents/CsvUpload";
@@ -20,6 +21,26 @@ import { CsvPreviewModal } from "@/components/ReusableComponents/CsvPreviewModal
 import { useCsvUpload } from "@/hooks/useCsvUpload";
 import { AdminCsvUploadConfig, AdminCsvPreviewConfig } from "@/config/csvUploadConfigs";
 import toast from "react-hot-toast";
+
+// ── UUID helpers ─────────────────────────────────────────────────────────────
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isRawUUID = (s: string) => UUID_RE.test(s?.trim() ?? '');
+
+const getInitials = (emailOrName: string): string => {
+    const s = (emailOrName ?? '').trim();
+    if (s.includes('@')) return s.split('@')[0].slice(0, 2).toUpperCase();
+    const parts = s.split(/[\s._-]+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return s.slice(0, 2).toUpperCase();
+};
+
+const avatarColorClass = (s: string): string => {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = s.charCodeAt(i) + ((h << 5) - h);
+    const palette = ['bg-blue-500','bg-emerald-500','bg-violet-500','bg-rose-500',
+                     'bg-amber-500','bg-cyan-500','bg-indigo-500','bg-pink-500'];
+    return palette[Math.abs(h) % palette.length];
+};
 
 interface Props {
     admins: string[];
@@ -79,9 +100,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     const [isDeleting, setIsDeleting] = useState<boolean>(false);
     const [deleteUsersList, setDeleteUsersList] = useState<string[]>([]);
     const [hoveredUser, setHoveredUser] = useState<string | null>(null);
-    const [addingMembersTo, setAddingMembersTo] = useState<string | null>(null);
-    const [hoveredAmpGroup, setHoveredAmpGroup] = useState<string>('');  
-    const [hoveredAmpMember, setHoveredAmpMember] = useState<{ ampGroup: string; username: string } | null>(null);
+    const [hoveredAmpGroup, setHoveredAmpGroup] = useState<string>('');
     const [isAddingAmpGroups, setIsAddingAmpGroups] = useState<Amplify_Group | null>(null);
     const [ampGroupSearchTerm, setAmpGroupSearchTerm] = useState<string>(''); 
     const [showAmpGroupSearch, setShowAmpGroupsSearch] = useState<boolean>(true);
@@ -94,7 +113,23 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     const [editingGroupLimitIdx, setEditingGroupLimitIdx] = useState<{idx: number, period: PeriodType, rate: string} | null>(null);
     const [hoveredRateLimit, setHoveredRateLimit] = useState<string | null>(null);
     const [showAddAdminInput, setShowAddAdminInput] = useState<boolean>(false);
-    
+
+    // Manage Members modal state
+    const [manageMembersGroup, setManageMembersGroup] = useState<string | null>(null);
+    const [memberModalInput, setMemberModalInput] = useState<string>('');
+
+    // Resolve a stored username/UUID to a displayable email; fallback to "Unknown User"
+    const resolveDisplay = (usernameOrUuid: string): string => {
+        if (!usernameOrUuid) return 'Unknown User';
+        const mapped = amplifyUsers[usernameOrUuid];
+        if (mapped && !isRawUUID(mapped)) return mapped;
+        // maybe it was stored as an email directly
+        if (usernameOrUuid.includes('@')) return usernameOrUuid;
+        // UUID with no mapping
+        if (isRawUUID(usernameOrUuid)) return 'Unknown User';
+        return usernameOrUuid;
+    };
+
     // Admin CSV Upload functionality using the new generic hook
     const adminCsvUpload = useCsvUpload({
         uploadConfig: AdminCsvUploadConfig,
@@ -872,81 +907,50 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                                 {groupName}
                                             </td>
 
-                                            <td className="flex-grow border border-neutral-500 pl-1 pr-2 max-w-[300px]">
-
-                                            <div className={`flex items-center ${addingMembersTo === groupName ? "flex-col":'flex-row'}`}>
-                                            <div
-                                                className={`flex items-center ${addingMembersTo === groupName ? "flex-wrap": "overflow-x-auto"}`}
-                                                tabIndex={addingMembersTo === groupName ? undefined : 0}
-                                            >
-                                                {group.members?.map((user, idx) => (
-                                                <div key={idx} className="flex items-center gap-1 mr-1"
-                                                    onMouseEnter={() => {
-                                                        if (group.includeFromOtherGroups !== undefined)
-                                                            setHoveredAmpMember( {ampGroup: groupName,     
-                                                                                    username: user})
-                                                    }}
-                                                    onMouseLeave={() => setHoveredAmpMember(null)}>
-                                                    
-                                                    <span className="flex flex-row gap-1 py-2 mr-4"> {idx > 0 && <label className="opacity-60">|</label>}
-                                                        { hoveredAmpMember?.ampGroup === groupName && hoveredAmpMember?.username === user ?
-                                                        <button
-                                                        className={`text-red-500 hover:text-red-800 `}
-                                                        onClick={() => {
-                                                            const updatedMembers = group.members?.filter(
-                                                            (u) => u !== user
+                                            {/* Members cell — collapsed pill view */}
+                                            <td className="border border-neutral-500 px-3 py-2">
+                                                {group.includeFromOtherGroups !== undefined ? (
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        {/* Show first 2 resolved emails as pills, then "+N more" */}
+                                                        {(() => {
+                                                            const members = group.members ?? [];
+                                                            const resolved = members.map(u => resolveDisplay(u)).filter(d => d !== 'Unknown User');
+                                                            const unknown = members.length - resolved.length;
+                                                            const visible = resolved.slice(0, 2);
+                                                            const extra = resolved.length - visible.length + unknown;
+                                                            return (
+                                                                <>
+                                                                    {visible.map((email, i) => (
+                                                                        <span key={i} className="inline-flex items-center gap-1 pl-0.5 pr-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 max-w-[180px]">
+                                                                            <span className={`w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-white text-[9px] font-bold ${avatarColorClass(email)}`}>
+                                                                                {getInitials(email)}
+                                                                            </span>
+                                                                            <span className="text-xs text-blue-800 dark:text-blue-200 truncate" title={email}>{email}</span>
+                                                                        </span>
+                                                                    ))}
+                                                                    {extra > 0 && (
+                                                                        <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">+{extra} more</span>
+                                                                    )}
+                                                                    {members.length === 0 && (
+                                                                        <span className="text-xs text-gray-400 italic">No members</span>
+                                                                    )}
+                                                                    <button
+                                                                        aria-label="Manage Members"
+                                                                        title="Manage Members"
+                                                                        className="ml-auto flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-700 transition-colors"
+                                                                        onClick={() => { setManageMembersGroup(groupName); setMemberModalInput(''); }}
+                                                                    >
+                                                                        <IconUsers size={13} />
+                                                                        Manage
+                                                                    </button>
+                                                                </>
                                                             );
-                                                            const updatedGroup = {...group, members: updatedMembers}
-                                                            handleUpdateAmpGroups({...ampGroups, [groupName] : updatedGroup});
-                                                        }} >
-                                                        <IconTrash size={16} />
-                                                        </button> : <div className="w-[16px]"></div>}
-                                                        {amplifyUsers[user] || user} 
-                                                    </span>
-                                                </div>
-                                                ))}
-                                            </div>
-
-                                            {addingMembersTo === groupName && 
-                                                group.includeFromOtherGroups !== undefined ? (
-                                                <div className="flex flex-row pr-3 ml-2 mt-2" style={{ width: '100%' }}>
-                                                <ActionButton
-                                                    title="Close"
-                                                    handleClick={() => setAddingMembersTo(null)}
-                                                >
-                                                    <IconX size={20}/>   
-                                                </ActionButton>
-                                                
-                                                <div className=""> <AddEmailWithAutoComplete
-                                                    id={`${String(AdminConfigTypes.AMPLIFY_GROUPS)}_EDIT`}
-                                                    emails={(group.members ?? []).map(username => amplifyUsers[username] || username)}
-                                                    allEmails={allEmails ?? []}
-                                                    handleUpdateEmails={(updatedEmails: Array<string>) => {
-                                                        // Convert emails back to usernames for storage
-                                                        const usernames = updatedEmails.map(email => {
-                                                            const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
-                                                            return username || email;
-                                                        });
-                                                        const updatedGroup = {...group, members: usernames}
-                                                        handleUpdateAmpGroups({...ampGroups, [groupName] : updatedGroup});
-                                                    }}
-                                                /> </div>
-                                                </div>
-                                            ) : (
-                                                (group.includeFromOtherGroups !== undefined ?
-                                                <button
-                                                aria-label="Add Members"
-                                                className="ml-auto flex items-center px-2 text-blue-500 hover:text-blue-600 flex-shrink-0"
-                                                onClick={() => setAddingMembersTo(groupName)}
-                                                >
-                                                <IconPlus size={18} />
-                                                {!(group.members && group.members.length > 0) && (
-                                                    <span>Add Members</span>
+                                                        })()}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-center text-xs text-gray-400 italic">N/A</div>
                                                 )}
-                                                </button> : null)
-                                            )}
-                                            </div>
-                                        </td>
+                                            </td>
 
                                             <td className="border border-neutral-500 max-w-[300px]">
                                                 {group.includeFromOtherGroups !== undefined ?
@@ -1160,7 +1164,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                             </td>
 
                                             <td className="text-center border border-neutral-500 px-4 py-2 break-words max-w-[300px]">
-                                                {amplifyUsers[group.createdBy] || group.createdBy}
+                                                {resolveDisplay(group.createdBy)}
                                             </td>
 
                                             <td className="">
@@ -1195,6 +1199,138 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                         }
                 </div>
             </div>
+
+            {/* ── Manage Members Modal ── */}
+            {manageMembersGroup !== null && createPortal(
+                (() => {
+                    const group = ampGroups[manageMembersGroup];
+                    if (!group) return null;
+                    const members = group.members ?? [];
+
+                    const removeMember = (username: string) => {
+                        const updated = { ...group, members: members.filter(u => u !== username) };
+                        handleUpdateAmpGroups({ ...ampGroups, [manageMembersGroup]: updated });
+                    };
+
+                    const addMemberByEmail = (email: string) => {
+                        const username = Object.keys(amplifyUsers).find(k => amplifyUsers[k] === email);
+                        const entry = username || email;
+                        if (!members.includes(entry)) {
+                            const updated = { ...group, members: [...members, entry] };
+                            handleUpdateAmpGroups({ ...ampGroups, [manageMembersGroup]: updated });
+                        }
+                        setMemberModalInput('');
+                    };
+
+                    return (
+                        <div className="fixed inset-0 z-[999] flex items-center justify-center">
+                            {/* Backdrop */}
+                            <div
+                                className="absolute inset-0 bg-black/50"
+                                onClick={() => setManageMembersGroup(null)}
+                            />
+                            {/* Panel */}
+                            <div className="relative z-10 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-md mx-4 flex flex-col max-h-[80vh]">
+
+                                {/* Header */}
+                                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+                                    <div className="flex items-center gap-2">
+                                        <IconUsers size={18} className="text-blue-500" />
+                                        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                            Manage Members
+                                        </h2>
+                                        <span className="ml-1 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-xs text-gray-500 dark:text-gray-400 font-medium">
+                                            {manageMembersGroup}
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={() => setManageMembersGroup(null)}
+                                        className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                    >
+                                        <IconX size={16} />
+                                    </button>
+                                </div>
+
+                                {/* Member list */}
+                                <div className="flex-1 overflow-y-auto px-5 py-3">
+                                    {members.length === 0 ? (
+                                        <p className="text-sm text-gray-400 italic text-center py-6">No members yet</p>
+                                    ) : (
+                                        <ul className="space-y-1.5">
+                                            {members.map((username, idx) => {
+                                                const display = resolveDisplay(username);
+                                                if (display === 'Unknown User' && isRawUUID(username)) return null;
+                                                const initials = getInitials(display);
+                                                const color = avatarColorClass(display);
+                                                return (
+                                                    <li key={idx} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/60 group">
+                                                        <span className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-semibold ${color}`}>
+                                                            {initials}
+                                                        </span>
+                                                        <span className="flex-1 text-sm text-gray-800 dark:text-gray-200 truncate" title={display}>
+                                                            {display}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => removeMember(username)}
+                                                            className="flex-shrink-0 p-1 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 opacity-0 group-hover:opacity-100 transition-all"
+                                                            title={`Remove ${display}`}
+                                                        >
+                                                            <IconTrash size={14} />
+                                                        </button>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    )}
+                                </div>
+
+                                {/* Add member input */}
+                                <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700">
+                                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Add member</p>
+                                    <div className="relative flex gap-2 items-start">
+                                        <div className="flex-1 relative">
+                                            <EmailsAutoComplete
+                                                input={memberModalInput}
+                                                setInput={setMemberModalInput}
+                                                allEmails={(allEmails ?? []).filter(e => {
+                                                    const username = Object.keys(amplifyUsers).find(k => amplifyUsers[k] === e);
+                                                    return !members.includes(username || e) && !members.includes(e);
+                                                })}
+                                                alreadyAddedEmails={members.map(u => resolveDisplay(u)).filter(d => d !== 'Unknown User')}
+                                                addMultipleUsers={false}
+                                                onSuggestionSelected={(suggestion) => addMemberByEmail(suggestion)}
+                                                onEnterPressed={() => {
+                                                    if (memberModalInput.trim()) addMemberByEmail(memberModalInput.trim());
+                                                }}
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => { if (memberModalInput.trim()) addMemberByEmail(memberModalInput.trim()); }}
+                                            disabled={!memberModalInput.trim()}
+                                            className="flex-shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            <IconPlus size={14} />
+                                            Add
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Footer */}
+                                <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+                                    <button
+                                        onClick={() => setManageMembersGroup(null)}
+                                        className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+                                    >
+                                        Done
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })(),
+                document.body
+            )}
 
             {/* CSV Upload Modal */}
             {adminCsvUpload.showUpload && createPortal(

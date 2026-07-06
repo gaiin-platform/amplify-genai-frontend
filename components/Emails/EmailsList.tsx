@@ -1,11 +1,36 @@
 import React, { useState, FC, useCallback, useRef, useEffect, useContext } from 'react';
-import { IconCircleX, IconInfoCircle, IconPlus } from '@tabler/icons-react';
+import { IconInfoCircle, IconPlus, IconX } from '@tabler/icons-react';
 import { EmailsAutoComplete } from './EmailsAutoComplete';
 import { fetchAllSystemIds } from '@/services/apiKeysService';
 import HomeContext from '@/pages/api/home/home.context';
 import { Group } from '@/types/groups';
 import { useSession } from 'next-auth/react';
-import { getUserIdentifier, stringToColor } from '@/utils/app/data';
+import { getUserIdentifier } from '@/utils/app/data';
+
+// UUID pattern — never display raw UUIDs
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isRawUUID = (s: string) => UUID_PATTERN.test(s.trim());
+
+const getInitials = (nameOrEmail: string): string => {
+    const s = nameOrEmail.trim();
+    if (s.includes('@')) {
+        const local = s.split('@')[0];
+        return local.slice(0, 2).toUpperCase();
+    }
+    const parts = s.split(/[\s._-]+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return s.slice(0, 2).toUpperCase();
+};
+
+const avatarColor = (s: string): string => {
+    let hash = 0;
+    for (let i = 0; i < s.length; i++) hash = s.charCodeAt(i) + ((hash << 5) - hash);
+    const colors = [
+        'bg-blue-500', 'bg-emerald-500', 'bg-violet-500', 'bg-rose-500',
+        'bg-amber-500', 'bg-cyan-500', 'bg-indigo-500', 'bg-pink-500',
+    ];
+    return colors[Math.abs(hash) % colors.length];
+};
 
 
 interface Props {
@@ -177,29 +202,40 @@ export const EmailsList: FC<Props> = ({
                 alreadyAddedEmails={emails}
                 containsSystemUsers={!!allEmails?.some((s:string) => s.startsWith('@'))}
                 />    
-            <div className="flex w-full flex-wrap pb-2 mt-2">
-                {emails.map((email, index) => (
-                    <div 
-                        key={index}
-                        className="flex items-center justify-between bg-white dark:bg-neutral-200 rounded-md px-2 py-0 mr-2 mb-2 shadow-lg"
-                        style={{ backgroundColor: stringToColor(amplifyUsers[email] || email) }}
-                    >
-                        <button
-                            className="text-gray-800 transition-all"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setEmails(emails.filter(x => x !== email));
-                            }}
-                            title="Remove Email"
+            <div className="flex w-full flex-wrap gap-1.5 pb-2 mt-2">
+                {emails.map((email, index) => {
+                    // Resolve display label: map username key → email, never show raw UUIDs
+                    const rawLabel = amplifyUsers[email] || email;
+                    const displayLabel = isRawUUID(rawLabel) ? email : rawLabel;
+                    // If both the key and resolved value are UUIDs/unmappable, skip the pill
+                    if (isRawUUID(displayLabel)) return null;
+                    const initials = getInitials(displayLabel);
+                    const color = avatarColor(displayLabel);
+                    return (
+                        <span
+                            key={index}
+                            className="inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 max-w-[280px]"
                         >
-                            <IconCircleX size={17} />
-                        </button>
-                        <div className="ml-1">
-                            <p className="text-gray-800 font-medium text-sm">{amplifyUsers[email] || email}</p>
-                        </div>
-                    </div>
-                ))}
+                            <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[10px] font-semibold ${color}`}>
+                                {initials}
+                            </span>
+                            <span className="truncate text-xs font-medium text-blue-800 dark:text-blue-200" title={displayLabel}>
+                                {displayLabel}
+                            </span>
+                            <button
+                                className="flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-blue-400 hover:text-white hover:bg-blue-500 dark:hover:bg-blue-600 transition-colors"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setEmails(emails.filter(x => x !== email));
+                                }}
+                                title={`Remove ${displayLabel}`}
+                            >
+                                <IconX size={10} />
+                            </button>
+                        </span>
+                    );
+                })}
             </div>
         </div>
     );
