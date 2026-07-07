@@ -2,12 +2,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     IconArchive,
     IconArchiveOff,
+    IconChevronDown,
     IconChevronLeft,
     IconFileText,
+    IconLibraryPlus,
+    IconListCheck,
     IconNote,
     IconPlus,
+    IconRobot,
     IconSparkles,
     IconTrash,
+    IconUser,
 } from '@tabler/icons-react';
 import {
     ContextSelections,
@@ -26,6 +31,10 @@ import {
 } from '@/services/notebookService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import { AddSourceDialog } from './AddSourceDialog';
+import { AddExistingSourceDialog } from './AddExistingSourceDialog';
+import { ContextToggle } from './ContextToggle';
+import { DropdownButton } from './DropdownButton';
+import { InlineEditText } from './InlineEditText';
 import { NoteEditorDialog } from './NoteEditorDialog';
 import { ChatPanel } from './ChatPanel';
 import { SourceInsightsDialog } from './SourceInsightsDialog';
@@ -37,11 +46,23 @@ interface Props {
     // edits, and archive toggles made here.
     onUpdated?: (notebook: NotebookSummary) => void;
     onDeleted?: (id: string) => void;
+    // Set when the user arrived here by clicking a source on the global
+    // Sources page — scrolls to and briefly highlights that source in the
+    // Sources panel once it's loaded, then calls onFocusConsumed.
+    focusSourceId?: string | null;
+    onFocusConsumed?: () => void;
 }
 
 const COLUMNS_KEY = 'amplify.notebook.collapsedColumns';
 
-export const NotebookDetail = ({ notebookId, initialData, onUpdated, onDeleted }: Props) => {
+export const NotebookDetail = ({
+    notebookId,
+    initialData,
+    onUpdated,
+    onDeleted,
+    focusSourceId,
+    onFocusConsumed,
+}: Props) => {
     const [notebook, setNotebook] = useState<NotebookSummary | null>(initialData ?? null);
     const [loading, setLoading] = useState<boolean>(!initialData);
     const [error, setError] = useState<string | null>(null);
@@ -73,6 +94,10 @@ export const NotebookDetail = ({ notebookId, initialData, onUpdated, onDeleted }
         sources: {},
         notes: {},
     });
+    // Guards the focus-on-arrival effect below so it only ever runs once per
+    // incoming focusSourceId, even though it re-renders while it waits for
+    // the Sources panel to expand/load.
+    const focusAppliedRef = useRef<string | null>(null);
 
     useEffect(() => {
         // Clear data tied to the previous notebookId so the panels don't
@@ -81,6 +106,36 @@ export const NotebookDetail = ({ notebookId, initialData, onUpdated, onDeleted }
         setNotes([]);
         setContextSelections({ sources: {}, notes: {} });
     }, [notebookId]);
+
+    // Arrived here via a source click on the global Sources page — make sure
+    // the Sources panel isn't collapsed so the target is actually visible.
+    useEffect(() => {
+        if (!focusSourceId || !collapsed.sources) return;
+        setCollapsed((prev) => {
+            const next = { ...prev, sources: false };
+            localStorage.setItem(COLUMNS_KEY, JSON.stringify(next));
+            return next;
+        });
+    }, [focusSourceId, collapsed.sources]);
+
+    // Once the Sources panel is expanded and that source has loaded into the
+    // list, scroll to it and flash-highlight it (same treatment ChatPanel
+    // uses for citation jumps), then tell the parent we're done with it.
+    useEffect(() => {
+        if (!focusSourceId || collapsed.sources) return;
+        if (focusAppliedRef.current === focusSourceId) return;
+        if (sources.length === 0) return;
+
+        const shortId = focusSourceId.split(':')[1] ?? focusSourceId;
+        const el = document.getElementById(`ref-source-${shortId}`);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('notebook-ref-flash');
+            window.setTimeout(() => el.classList.remove('notebook-ref-flash'), 1500);
+        }
+        focusAppliedRef.current = focusSourceId;
+        onFocusConsumed?.();
+    }, [focusSourceId, collapsed.sources, sources, onFocusConsumed]);
 
     useEffect(() => {
         let cancelled = false;
@@ -146,6 +201,37 @@ export const NotebookDetail = ({ notebookId, initialData, onUpdated, onDeleted }
         }));
     };
 
+    // Bulk context actions, offered in each panel's header once it has at
+    // least one item. "insights" leaves sources without insights excluded
+    // rather than forcing them to full — mirrors upstream's
+    // bulkModeForSource, which treats that as not forcing a mode.
+    const bulkSetSourceMode = (action: 'insights' | 'full' | 'exclude') => {
+        setContextSelections((prev) => {
+            const next = { ...prev.sources };
+            for (const s of sources) {
+                next[s.id] =
+                    action === 'exclude'
+                        ? 'off'
+                        : action === 'full'
+                          ? 'full'
+                          : s.insights_count > 0
+                            ? 'insights'
+                            : 'off';
+            }
+            return { ...prev, sources: next };
+        });
+    };
+
+    const bulkSetNoteMode = (action: 'include' | 'exclude') => {
+        setContextSelections((prev) => {
+            const next = { ...prev.notes };
+            for (const n of notes) {
+                next[n.id] = action === 'exclude' ? 'off' : 'full';
+            }
+            return { ...prev, notes: next };
+        });
+    };
+
     // Lets dialogs in other panels (e.g. "Save as note" in the source insights
     // dialog) surface a freshly-created note in the Notes panel immediately,
     // instead of waiting for the next full notebook refetch.
@@ -191,6 +277,7 @@ export const NotebookDetail = ({ notebookId, initialData, onUpdated, onDeleted }
                             onSourcesChange={setSources}
                             contextSelections={contextSelections.sources}
                             onModeChange={setSourceMode}
+                            onBulkModeChange={bulkSetSourceMode}
                             onNoteSaved={handleNoteSaved}
                             onCollapse={() => toggleCollapsed('sources')}
                         />
@@ -211,6 +298,7 @@ export const NotebookDetail = ({ notebookId, initialData, onUpdated, onDeleted }
                             onNotesChange={setNotes}
                             contextSelections={contextSelections.notes}
                             onModeChange={setNoteMode}
+                            onBulkModeChange={bulkSetNoteMode}
                             onCollapse={() => toggleCollapsed('notes')}
                         />
                     </div>
@@ -273,92 +361,6 @@ const formatRelative = (iso?: string): string => {
 };
 
 // Click-to-edit text. Saves on blur or Enter (single-line), cancels on Escape.
-const InlineEditText = ({
-    value,
-    placeholder,
-    multiline = false,
-    className = '',
-    onSave,
-}: {
-    value: string;
-    placeholder: string;
-    multiline?: boolean;
-    className?: string;
-    onSave: (next: string) => void;
-}) => {
-    const [editing, setEditing] = useState<boolean>(false);
-    const [draft, setDraft] = useState<string>(value);
-    const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
-
-    useEffect(() => {
-        if (editing) inputRef.current?.focus();
-    }, [editing]);
-
-    const start = () => {
-        setDraft(value);
-        setEditing(true);
-    };
-
-    const commit = () => {
-        setEditing(false);
-        if (draft !== value) onSave(draft);
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Escape') {
-            e.preventDefault();
-            setDraft(value);
-            setEditing(false);
-        } else if (e.key === 'Enter' && !multiline) {
-            e.preventDefault();
-            commit();
-        }
-    };
-
-    if (!editing) {
-        return (
-            <div
-                onClick={start}
-                title="Click to edit"
-                className={`cursor-text rounded px-1 -mx-1 hover:bg-gray-100 dark:hover:bg-neutral-700/60 ${
-                    value ? '' : 'italic text-gray-400 dark:text-gray-500'
-                } ${className}`}
-            >
-                {value || placeholder}
-            </div>
-        );
-    }
-
-    const shared = {
-        value: draft,
-        onChange: (
-            e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-        ) => setDraft(e.target.value),
-        onBlur: commit,
-        onKeyDown: handleKeyDown,
-        placeholder,
-        className: `w-full rounded border border-purple-300 bg-white px-1 -mx-1 outline-none focus:ring-1 focus:ring-purple-400 dark:border-purple-500/60 dark:bg-[#40414f] ${className}`,
-    };
-
-    return multiline ? (
-        <textarea
-            {...shared}
-            ref={(el) => {
-                inputRef.current = el;
-            }}
-            rows={2}
-        />
-    ) : (
-        <input
-            {...shared}
-            ref={(el) => {
-                inputRef.current = el;
-            }}
-            type="text"
-        />
-    );
-};
-
 const NotebookHeader = ({
     notebook,
     onChanged,
@@ -545,6 +547,7 @@ const SourcesPanel = ({
     onSourcesChange,
     contextSelections,
     onModeChange,
+    onBulkModeChange,
     onNoteSaved,
     onCollapse,
 }: {
@@ -553,12 +556,14 @@ const SourcesPanel = ({
     onSourcesChange: (next: SourceListItem[] | ((prev: SourceListItem[]) => SourceListItem[])) => void;
     contextSelections: Record<string, SourceContextMode>;
     onModeChange: (id: string, mode: SourceContextMode) => void;
+    onBulkModeChange: (action: 'insights' | 'full' | 'exclude') => void;
     onNoteSaved: (note: Note) => void;
     onCollapse?: () => void;
 }) => {
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [showAdd, setShowAdd] = useState<boolean>(false);
+    const [showAddExisting, setShowAddExisting] = useState<boolean>(false);
     const [pendingDelete, setPendingDelete] = useState<SourceListItem | null>(null);
     const [deleting, setDeleting] = useState<boolean>(false);
     const [insightsFor, setInsightsFor] = useState<SourceListItem | null>(null);
@@ -631,14 +636,56 @@ const SourcesPanel = ({
     };
 
     const actions = (
-        <button
-            onClick={() => setShowAdd(true)}
-            title="Add source"
-            className="flex h-8 items-center gap-1.5 rounded-md bg-purple-500 px-3 text-sm font-medium text-white shadow-sm hover:bg-purple-600 transition-colors"
-        >
-            <IconPlus size={14} />
-            Add Source
-        </button>
+        <>
+            {sources.length > 0 && (
+                <DropdownButton
+                    title="Bulk context actions"
+                    trigger={
+                        <>
+                            <IconListCheck size={16} />
+                            <IconChevronDown size={14} />
+                        </>
+                    }
+                    items={[
+                        {
+                            label: 'Include all (insights only)',
+                            onClick: () => onBulkModeChange('insights'),
+                        },
+                        {
+                            label: 'Include all (full content)',
+                            onClick: () => onBulkModeChange('full'),
+                        },
+                        {
+                            label: 'Exclude all from context',
+                            onClick: () => onBulkModeChange('exclude'),
+                        },
+                    ]}
+                />
+            )}
+            <DropdownButton
+                variant="solid"
+                title="Add source"
+                trigger={
+                    <>
+                        <IconPlus size={14} />
+                        Add Source
+                        <IconChevronDown size={14} />
+                    </>
+                }
+                items={[
+                    {
+                        label: 'Add Source',
+                        icon: <IconPlus size={14} />,
+                        onClick: () => setShowAdd(true),
+                    },
+                    {
+                        label: 'Add Existing Sources',
+                        icon: <IconLibraryPlus size={14} />,
+                        onClick: () => setShowAddExisting(true),
+                    },
+                ]}
+            />
+        </>
     );
 
     return (
@@ -690,27 +737,13 @@ const SourcesPanel = ({
                                         <StatusBadge source={s} />
                                         {s.insights_count > 0 && <span>{s.insights_count} insights</span>}
                                     </div>
-                                    <div className="mt-1.5 inline-flex overflow-hidden rounded-md border border-gray-200 text-[10px] dark:border-neutral-600">
-                                        <ModeButton
-                                            label="off"
-                                            active={mode === 'off'}
-                                            onClick={() => onModeChange(s.id, 'off')}
-                                        />
-                                        <ModeButton
-                                            label="insights"
-                                            active={mode === 'insights'}
-                                            disabled={!hasInsights}
-                                            title={hasInsights ? '' : 'No insights yet'}
-                                            onClick={() => onModeChange(s.id, 'insights')}
-                                        />
-                                        <ModeButton
-                                            label="full"
-                                            active={mode === 'full'}
-                                            onClick={() => onModeChange(s.id, 'full')}
-                                        />
-                                    </div>
                                 </div>
                                 <div className="flex items-start gap-0.5">
+                                    <ContextToggle
+                                        mode={mode}
+                                        hasInsights={hasInsights}
+                                        onChange={(m) => onModeChange(s.id, m)}
+                                    />
                                     <button
                                         onClick={() => setInsightsFor(s)}
                                         title={hasInsights ? 'View insights' : 'Generate insights'}
@@ -741,6 +774,15 @@ const SourcesPanel = ({
                     notebookId={notebookId}
                     onClose={() => setShowAdd(false)}
                     onCreated={handleCreated}
+                />
+            )}
+
+            {showAddExisting && (
+                <AddExistingSourceDialog
+                    notebookId={notebookId}
+                    currentSourceIds={new Set(sources.map((s) => s.id))}
+                    onClose={() => setShowAddExisting(false)}
+                    onAdded={() => fetchSources(false)}
                 />
             )}
 
@@ -779,6 +821,7 @@ const NotesPanel = ({
     onNotesChange,
     contextSelections,
     onModeChange,
+    onBulkModeChange,
     onCollapse,
 }: {
     notebookId: string;
@@ -786,6 +829,7 @@ const NotesPanel = ({
     onNotesChange: (next: Note[] | ((prev: Note[]) => Note[])) => void;
     contextSelections: Record<string, NoteContextMode>;
     onModeChange: (id: string, mode: NoteContextMode) => void;
+    onBulkModeChange: (action: 'include' | 'exclude') => void;
     onCollapse?: () => void;
 }) => {
     const [loading, setLoading] = useState<boolean>(true);
@@ -835,14 +879,37 @@ const NotesPanel = ({
     };
 
     const actions = (
-        <button
-            onClick={() => setEditing(null)}
-            title="Write note"
-            className="flex h-8 items-center gap-1.5 rounded-md bg-purple-500 px-3 text-sm font-medium text-white shadow-sm hover:bg-purple-600 transition-colors"
-        >
-            <IconPlus size={14} />
-            Write Note
-        </button>
+        <>
+            {notes.length > 0 && (
+                <DropdownButton
+                    title="Bulk context actions"
+                    trigger={
+                        <>
+                            <IconListCheck size={16} />
+                            <IconChevronDown size={14} />
+                        </>
+                    }
+                    items={[
+                        {
+                            label: 'Include all in context',
+                            onClick: () => onBulkModeChange('include'),
+                        },
+                        {
+                            label: 'Exclude all from context',
+                            onClick: () => onBulkModeChange('exclude'),
+                        },
+                    ]}
+                />
+            )}
+            <button
+                onClick={() => setEditing(null)}
+                title="Write note"
+                className="flex h-8 items-center gap-1.5 rounded-md bg-purple-500 px-3 text-sm font-medium text-white shadow-sm hover:bg-purple-600 transition-colors"
+            >
+                <IconPlus size={14} />
+                Write Note
+            </button>
+        </>
     );
 
     return (
@@ -882,46 +949,45 @@ const NotesPanel = ({
                                     onClick={() => setEditing(n)}
                                 >
                                     <div className="flex items-center gap-1.5">
-                                        <span className="truncate text-sm font-medium" title={n.title || ''}>
-                                            {n.title || '(untitled)'}
-                                        </span>
-                                        {n.note_type === 'ai' && (
-                                            <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
-                                                AI
+                                        {n.title && (
+                                            <span className="truncate text-sm font-medium" title={n.title}>
+                                                {n.title}
                                             </span>
                                         )}
+                                        <span
+                                            className={`inline-flex flex-none items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] ${
+                                                n.note_type === 'ai'
+                                                    ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300'
+                                                    : 'bg-gray-100 text-gray-600 dark:bg-neutral-700 dark:text-gray-300'
+                                            }`}
+                                        >
+                                            {n.note_type === 'ai' ? (
+                                                <IconRobot size={10} />
+                                            ) : (
+                                                <IconUser size={10} />
+                                            )}
+                                            {n.note_type === 'ai' ? 'AI Generated' : 'Human'}
+                                        </span>
                                     </div>
                                     {n.updated && (
                                         <div className="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500">
                                             updated {new Date(n.updated.replace(' ', 'T')).toLocaleString()}
                                         </div>
                                     )}
-                                    <div
-                                        className="mt-1.5 inline-flex overflow-hidden rounded-md border border-gray-200 text-[10px] dark:border-neutral-600"
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
-                                        <ModeButton
-                                            label="off"
-                                            active={mode === 'off'}
-                                            onClick={() => onModeChange(n.id, 'off')}
-                                        />
-                                        <ModeButton
-                                            label="full"
-                                            active={mode === 'full'}
-                                            onClick={() => onModeChange(n.id, 'full')}
-                                        />
-                                    </div>
                                 </div>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setPendingDelete(n);
-                                    }}
-                                    title="Delete note"
-                                    className="invisible rounded-md p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 group-hover:visible dark:text-gray-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                                <div
+                                    className="flex items-start gap-0.5"
+                                    onClick={(e) => e.stopPropagation()}
                                 >
-                                    <IconTrash size={14} />
-                                </button>
+                                    <ContextToggle mode={mode} onChange={(m) => onModeChange(n.id, m)} />
+                                    <button
+                                        onClick={() => setPendingDelete(n)}
+                                        title="Delete note"
+                                        className="invisible rounded-md p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 group-hover:visible dark:text-gray-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                                    >
+                                        <IconTrash size={14} />
+                                    </button>
+                                </div>
                             </li>
                         );
                     })}
@@ -954,33 +1020,6 @@ const NotesPanel = ({
         </PanelShell>
     );
 };
-
-const ModeButton = ({
-    label,
-    active,
-    disabled,
-    title,
-    onClick,
-}: {
-    label: string;
-    active: boolean;
-    disabled?: boolean;
-    title?: string;
-    onClick: () => void;
-}) => (
-    <button
-        onClick={onClick}
-        disabled={disabled}
-        title={title}
-        className={`px-2 py-0.5 transition-colors ${
-            active
-                ? 'bg-purple-500 text-white'
-                : 'bg-white text-gray-500 hover:bg-gray-50 dark:bg-[#2b2c36] dark:text-gray-400 dark:hover:bg-neutral-700'
-        } ${disabled ? 'cursor-not-allowed opacity-40' : ''}`}
-    >
-        {label}
-    </button>
-);
 
 const StatusBadge = ({ source }: { source: SourceListItem }) => {
     if (source.embedded) return null;

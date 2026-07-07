@@ -15,8 +15,10 @@ import { LucideBook } from './LucideIcons';
 import HomeContext from '@/pages/api/home/home.context';
 import {
     deleteNotebook,
+    getSource,
     listNotebooks,
     NotebookSummary,
+    SourceListItem,
     updateNotebook,
 } from '@/services/notebookService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
@@ -24,6 +26,7 @@ import { AddSourceDialog } from './AddSourceDialog';
 import { CreateNotebookDialog } from './CreateNotebookDialog';
 import { GeneratePodcastDialog } from './GeneratePodcastDialog';
 import { NotebookDetail } from './NotebookDetail';
+import { SourceDetailView } from './SourceDetailView';
 import { NotebookSidebar, NotebookSection, CreateTarget } from './NotebookSidebar';
 import { SourcesPage } from './SourcesPage';
 import { AskSearchPage } from './AskSearchPage';
@@ -217,6 +220,9 @@ export const NotebookApp = () => {
     // re-fetches (the pages only load their data on mount).
     const [sourcesRefreshKey, setSourcesRefreshKey] = useState<number>(0);
     const [podcastsRefreshKey, setPodcastsRefreshKey] = useState<number>(0);
+    // Source opened from the Sources page — renders the full-page source
+    // viewer (content + insights + source-scoped chat) in place of the list.
+    const [viewingSource, setViewingSource] = useState<SourceListItem | null>(null);
     const [pendingDelete, setPendingDelete] = useState<NotebookSummary | null>(null);
     const [deleting, setDeleting] = useState<boolean>(false);
     const [section, setSection] = useState<NotebookSection>('notebooks');
@@ -266,13 +272,27 @@ export const NotebookApp = () => {
 
     const handleSectionChange = (next: NotebookSection) => {
         setSection(next);
-        // Always clear any open notebook so a sidebar click lands on the section's
-        // home view. In particular, clicking "Notebooks" while a notebook detail is
-        // open returns to the list (home), not the currently-open notebook.
+        // Always clear any open notebook/source so a sidebar click lands on the
+        // section's home view. In particular, clicking "Notebooks" while a
+        // notebook detail is open returns to the list (home), not the
+        // currently-open notebook.
         setSelected(null);
+        setViewingSource(null);
         // Returning to the notebooks list re-fetches for the same reason as
         // goBackToList — counts may be stale after work in another section.
         if (next === 'notebooks') fetchNotebooks();
+    };
+
+    // Clicking a source on the Sources page opens the full-page source viewer
+    // (content + insights + a chat scoped to that source), whether or not the
+    // source is linked to a notebook — matching open-notebook's sources/[id]
+    // page. The list items lack full_text/notebooks, so fetch the full record
+    // first; only that fetch failing counts as "couldn't open".
+    const handleOpenSourceFromGlobalList = async (source: SourceListItem): Promise<boolean> => {
+        const full = await getSource(source.id);
+        if (!full) return false;
+        setViewingSource(full);
+        return true;
     };
 
     const fetchNotebooks = async () => {
@@ -314,6 +334,7 @@ export const NotebookApp = () => {
     const handleGlobalSourceCreated = () => {
         setSection('sources');
         setSelected(null);
+        setViewingSource(null);
         setSourcesRefreshKey((k) => k + 1);
     };
 
@@ -339,11 +360,14 @@ export const NotebookApp = () => {
     };
 
     const isNotebooksSection = section === 'notebooks';
+    const viewingSourceDetail = section === 'sources' && !!viewingSource;
     const headerTitle = isNotebooksSection
         ? selected
             ? selected.name || '(untitled)'
             : 'Notebooks'
-        : SECTION_TITLES[section];
+        : viewingSourceDetail
+          ? viewingSource!.title || 'Untitled source'
+          : SECTION_TITLES[section];
     const showBackToList = isNotebooksSection && !!selected;
     const showListControls = isNotebooksSection && !selected;
 
@@ -401,10 +425,12 @@ export const NotebookApp = () => {
             />
             <div className="flex flex-col flex-1 min-w-0">
             <div className="flex items-center gap-3 border-b border-gray-200 dark:border-neutral-700 bg-gradient-to-b from-gray-50 to-white dark:from-gray-800 dark:to-[#343541] pl-4 pr-20 py-3">
-                {showBackToList && (
+                {(showBackToList || viewingSourceDetail) && (
                     <button
-                        onClick={goBackToList}
-                        title="Back to notebooks"
+                        onClick={
+                            viewingSourceDetail ? () => setViewingSource(null) : goBackToList
+                        }
+                        title={viewingSourceDetail ? 'Back to sources' : 'Back to notebooks'}
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-white transition-colors"
                     >
                         <IconArrowLeft size={20} />
@@ -419,7 +445,7 @@ export const NotebookApp = () => {
                             {selected.description}
                         </span>
                     )}
-                    {!isNotebooksSection && SECTION_DESCRIPTIONS[section] && (
+                    {!isNotebooksSection && !viewingSourceDetail && SECTION_DESCRIPTIONS[section] && (
                         <span className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 max-w-xl">
                             {SECTION_DESCRIPTIONS[section]}
                         </span>
@@ -482,7 +508,14 @@ export const NotebookApp = () => {
 
             <div className="flex-1 overflow-auto px-6 py-6 bg-neutral-50 dark:bg-[#343541]">
                 {section === 'sources' ? (
-                    <SourcesPage key={sourcesRefreshKey} />
+                    viewingSource ? (
+                        <SourceDetailView source={viewingSource} notebooks={notebooks} />
+                    ) : (
+                        <SourcesPage
+                            key={sourcesRefreshKey}
+                            onOpenSource={handleOpenSourceFromGlobalList}
+                        />
+                    )
                 ) : section === 'ask' ? (
                     <AskSearchPage />
                 ) : section === 'podcasts' ? (

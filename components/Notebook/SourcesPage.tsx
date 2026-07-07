@@ -4,6 +4,7 @@ import {
     IconArrowsSort,
     IconFileText,
     IconLink,
+    IconLoader2,
     IconTrash,
     IconUpload,
 } from '@tabler/icons-react';
@@ -47,7 +48,15 @@ const KindIcon = ({ kind }: { kind: 'link' | 'file' | 'text' }) => {
     return <IconAlignLeft size={14} />;
 };
 
-export const SourcesPage = () => {
+interface Props {
+    // Resolves once opening has been attempted. `true` means the caller
+    // handled it by navigating to the source viewer (this page unmounts).
+    // `false` means it genuinely couldn't be opened (e.g. the source failed
+    // to load), so we stay and show an error instead.
+    onOpenSource?: (source: SourceListItem) => Promise<boolean>;
+}
+
+export const SourcesPage = ({ onOpenSource }: Props) => {
     const [sources, setSources] = useState<SourceListItem[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [loadingMore, setLoadingMore] = useState<boolean>(false);
@@ -56,6 +65,7 @@ export const SourcesPage = () => {
     const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
     const [pendingDelete, setPendingDelete] = useState<SourceListItem | null>(null);
     const [deleting, setDeleting] = useState<boolean>(false);
+    const [openingId, setOpeningId] = useState<string | null>(null);
 
     const offsetRef = useRef<number>(0);
     const hasMoreRef = useRef<boolean>(true);
@@ -136,6 +146,23 @@ export const SourcesPage = () => {
         setPendingDelete(null);
     };
 
+    const handleRowClick = async (s: SourceListItem) => {
+        if (!onOpenSource || openingId) return;
+        setError(null);
+        setOpeningId(s.id);
+        try {
+            const opened = await onOpenSource(s);
+            if (!opened) {
+                setError(`Couldn't open "${s.title || 'this source'}". Please try again.`);
+            }
+        } finally {
+            // Reset regardless of outcome: on navigation-away this is a no-op
+            // (the page unmounts); on failure it clears the row's
+            // spinner/disabled state.
+            setOpeningId(null);
+        }
+    };
+
     const sortHeader = (field: SortBy, label: string) => (
         <button
             onClick={() => toggleSort(field)}
@@ -211,10 +238,15 @@ export const SourcesPage = () => {
 
                         {sources.map((s) => {
                             const kind = sourceKind(s);
+                            const isOpening = openingId === s.id;
                             return (
                                 <tr
                                     key={s.id}
-                                    className="border-b border-gray-100 transition-colors hover:bg-purple-50/40 dark:border-neutral-700/60 dark:hover:bg-white/5"
+                                    onClick={() => handleRowClick(s)}
+                                    title={onOpenSource ? 'Open source viewer with chat' : undefined}
+                                    className={`border-b border-gray-100 transition-colors dark:border-neutral-700/60 ${
+                                        onOpenSource ? 'cursor-pointer hover:bg-purple-50/40 dark:hover:bg-white/5' : ''
+                                    } ${isOpening ? 'opacity-60' : ''}`}
                                 >
                                     <td className="px-4 py-3">
                                         <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-2.5 py-0.5 text-[11px] font-medium text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
@@ -223,20 +255,28 @@ export const SourcesPage = () => {
                                         </span>
                                     </td>
                                     <td className="px-4 py-3">
-                                        <div className="flex flex-col overflow-hidden">
-                                            <span className="truncate font-medium text-gray-800 dark:text-gray-100">
-                                                {s.title || 'Untitled'}
-                                            </span>
-                                            {s.asset?.url && (
-                                                <a
-                                                    href={s.asset.url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className="truncate text-xs text-gray-500 hover:text-purple-500 dark:text-gray-400 dark:hover:text-purple-400"
-                                                >
-                                                    {s.asset.url}
-                                                </a>
+                                        <div className="flex items-center gap-2 overflow-hidden">
+                                            <div className="flex min-w-0 flex-col overflow-hidden">
+                                                <span className="truncate font-medium text-gray-800 dark:text-gray-100">
+                                                    {s.title || 'Untitled'}
+                                                </span>
+                                                {s.asset?.url && (
+                                                    <a
+                                                        href={s.asset.url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="truncate text-xs text-gray-500 hover:text-purple-500 dark:text-gray-400 dark:hover:text-purple-400"
+                                                    >
+                                                        {s.asset.url}
+                                                    </a>
+                                                )}
+                                            </div>
+                                            {isOpening && (
+                                                <IconLoader2
+                                                    size={14}
+                                                    className="flex-none animate-spin text-purple-500"
+                                                />
                                             )}
                                         </div>
                                     </td>
@@ -262,7 +302,10 @@ export const SourcesPage = () => {
                                     </td>
                                     <td className="px-4 py-3 text-right">
                                         <button
-                                            onClick={() => setPendingDelete(s)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setPendingDelete(s);
+                                            }}
                                             title="Delete source"
                                             className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-gray-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
                                         >

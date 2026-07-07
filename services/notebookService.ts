@@ -163,6 +163,11 @@ export interface SourceListItem {
     command_id?: string | null;
     status?: string | null;
     processing_info?: Record<string, unknown> | null;
+    // Only populated by the single-source GET (/sources/{id}); the list
+    // endpoint (GET /sources) doesn't include notebook associations or the
+    // full extracted text.
+    notebooks?: string[];
+    full_text?: string | null;
 }
 
 export interface CreateSourceLinkRequest {
@@ -288,6 +293,26 @@ export const createSourceFromFile = async ({
 export const deleteSource = async (sourceId: string): Promise<boolean> => {
     const result = await notebookCall('DELETE', `/sources/${encodeURIComponent(sourceId)}`);
     return result !== null;
+};
+
+// Links an existing source (possibly already used in other notebooks) into
+// this notebook, without duplicating or re-processing it — the inverse of
+// deleteSource, which removes the source everywhere. Idempotent server-side.
+export const addSourceToNotebook = async (
+    notebookId: string,
+    sourceId: string,
+): Promise<boolean> => {
+    const result = await notebookCall(
+        'POST',
+        `/notebooks/${encodeURIComponent(notebookId)}/sources/${encodeURIComponent(sourceId)}`,
+    );
+    return result !== null;
+};
+
+// Unlike listSources, this includes the `notebooks` array — used to figure
+// out which notebook to jump into from the global Sources page.
+export const getSource = async (sourceId: string): Promise<SourceListItem | null> => {
+    return notebookCall<SourceListItem>('GET', `/sources/${encodeURIComponent(sourceId)}`);
 };
 
 // -----------------------------------------------------------------------------
@@ -614,6 +639,103 @@ export const sendChatMessage = async (
             model_override: modelOverride,
         },
     );
+};
+
+// -----------------------------------------------------------------------------
+// Source Chat — sessions scoped to a single source, independent of notebooks
+// -----------------------------------------------------------------------------
+
+export interface SourceChatSession {
+    id: string;
+    title: string;
+    source_id: string;
+    model_override?: string | null;
+    created: string;
+    updated: string;
+    message_count?: number | null;
+}
+
+export interface SourceChatSessionWithMessages extends SourceChatSession {
+    messages: ChatMessage[];
+}
+
+export const listSourceChatSessions = async (
+    sourceId: string,
+): Promise<SourceChatSession[]> => {
+    const result = await notebookCall<SourceChatSession[]>(
+        'GET',
+        `/sources/${encodeURIComponent(sourceId)}/chat/sessions`,
+    );
+    return Array.isArray(result) ? result : [];
+};
+
+export const createSourceChatSession = async (
+    sourceId: string,
+    title?: string,
+    modelOverride?: string,
+): Promise<SourceChatSession | null> => {
+    // The backend expects the bare record id (no "source:" prefix) in the body.
+    const cleanId = sourceId.startsWith('source:') ? sourceId.slice(7) : sourceId;
+    return notebookCall<SourceChatSession>(
+        'POST',
+        `/sources/${encodeURIComponent(sourceId)}/chat/sessions`,
+        { source_id: cleanId, title, model_override: modelOverride },
+    );
+};
+
+export const getSourceChatSession = async (
+    sourceId: string,
+    sessionId: string,
+): Promise<SourceChatSessionWithMessages | null> => {
+    return notebookCall<SourceChatSessionWithMessages>(
+        'GET',
+        `/sources/${encodeURIComponent(sourceId)}/chat/sessions/${encodeURIComponent(sessionId)}`,
+    );
+};
+
+export const deleteSourceChatSession = async (
+    sourceId: string,
+    sessionId: string,
+): Promise<boolean> => {
+    const result = await notebookCall(
+        'DELETE',
+        `/sources/${encodeURIComponent(sourceId)}/chat/sessions/${encodeURIComponent(sessionId)}`,
+    );
+    return result !== null;
+};
+
+// The messages endpoint is SSE-only upstream, so it bypasses the JSON proxy and
+// goes through a dedicated route (pages/api/notebook/sourceChat.ts) that buffers
+// the stream. On success, callers refetch the session for the persisted
+// message list — the route only reports whether the turn succeeded.
+export const sendSourceChatMessage = async (
+    sourceId: string,
+    sessionId: string,
+    message: string,
+    modelOverride?: string,
+): Promise<{ success: boolean; message?: string }> => {
+    try {
+        const response = await fetch('/api/notebook/sourceChat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                source_id: sourceId,
+                session_id: sessionId,
+                message,
+                model_override: modelOverride ?? null,
+            }),
+        });
+        if (!response.ok) {
+            return {
+                success: false,
+                message: `Source chat error: ${response.status} ${response.statusText}`,
+            };
+        }
+        const result = await response.json();
+        return { success: !!result?.success, message: result?.message };
+    } catch (e: any) {
+        return { success: false, message: e?.message || 'Network error sending message' };
+    }
 };
 
 // -----------------------------------------------------------------------------

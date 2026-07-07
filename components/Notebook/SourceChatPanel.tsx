@@ -7,137 +7,25 @@ import {
     IconSend,
     IconTrash,
 } from '@tabler/icons-react';
+import remarkGfm from 'remark-gfm';
 import {
     ChatMessage,
-    ChatSession,
-    ContextSelections,
-    Note,
+    SourceChatSession,
     SourceListItem,
-    buildChatContext,
-    createChatSession,
-    deleteChatSession,
-    getChatSession,
-    listChatSessions,
-    sendChatMessage,
+    createSourceChatSession,
+    deleteSourceChatSession,
+    getSourceChatSession,
+    listSourceChatSessions,
+    sendSourceChatMessage,
 } from '@/services/notebookService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import { Modal } from '@/components/ReusableComponents/Modal';
+import { MemoizedReactMarkdown } from '@/components/Markdown/MemoizedReactMarkdown';
 import { ChatModelSelect } from './ChatModelSelect';
-import { ContextIndicator } from './ContextIndicator';
 
 interface Props {
-    notebookId: string;
-    contextSelections: ContextSelections;
-    sources: SourceListItem[];
-    notes: Note[];
+    source: SourceListItem;
 }
-
-// The LLM emits citations as raw SurrealDB record IDs (e.g. `[source:abc]`,
-// `source:abc` bare, `[[source:abc]]`, or `[source:a, note:b]` comma-grouped).
-// Ported from open-notebook's convertReferencesToCompactMarkdown so we cover the
-// same edge cases. Output is a segment list (mix of plain text + numbered
-// citation buttons) plus an ordered citation list for the footer.
-type RefType = 'source' | 'note' | 'source_insight';
-interface ParsedRef {
-    type: RefType;
-    id: string;
-    startIndex: number;
-    endIndex: number;
-}
-type Segment =
-    | { kind: 'text'; text: string }
-    | { kind: 'citation'; n: number; type: RefType; id: string };
-interface Citation {
-    n: number;
-    type: RefType;
-    id: string;
-    label: string;
-    targetDomId: string;
-}
-interface RenderedMessage {
-    segments: Segment[];
-    citations: Citation[];
-}
-
-const REF_RE = /(source_insight|note|source):([A-Za-z0-9_]+)/g;
-
-const parseRefs = (text: string): ParsedRef[] => {
-    const refs: ParsedRef[] = [];
-    REF_RE.lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = REF_RE.exec(text)) !== null) {
-        refs.push({
-            type: m[1] as RefType,
-            id: m[2],
-            startIndex: m.index,
-            endIndex: REF_RE.lastIndex,
-        });
-    }
-    return refs;
-};
-
-const renderCitations = (
-    raw: string,
-    sources: SourceListItem[],
-    notes: Note[],
-): RenderedMessage => {
-    const refs = parseRefs(raw);
-    if (refs.length === 0) {
-        return { segments: [{ kind: 'text', text: raw }], citations: [] };
-    }
-
-    const order = new Map<string, number>();
-    let next = 1;
-    for (const r of refs) {
-        const key = `${r.type}:${r.id}`;
-        if (!order.has(key)) order.set(key, next++);
-    }
-
-    const segments: Segment[] = [];
-    let pos = 0;
-    for (const r of refs) {
-        const before = raw.substring(Math.max(0, r.startIndex - 2), r.startIndex);
-        const after = raw.substring(r.endIndex, Math.min(raw.length, r.endIndex + 2));
-        let from = r.startIndex;
-        let to = r.endIndex;
-        if (before === '[[' && after.startsWith(']]')) {
-            from = r.startIndex - 2;
-            to = r.endIndex + 2;
-        } else if (before.endsWith('[') && after.startsWith(']')) {
-            from = r.startIndex - 1;
-            to = r.endIndex + 1;
-        }
-        if (from > pos) segments.push({ kind: 'text', text: raw.substring(pos, from) });
-        const n = order.get(`${r.type}:${r.id}`)!;
-        segments.push({ kind: 'citation', n, type: r.type, id: r.id });
-        pos = to;
-    }
-    if (pos < raw.length) segments.push({ kind: 'text', text: raw.substring(pos) });
-
-    const citations: Citation[] = Array.from(order.entries()).map(([key, n]) => {
-        const [type, id] = key.split(':') as [RefType, string];
-        const fullId = `${type}:${id}`;
-        let label = '(unknown)';
-        if (type === 'source') {
-            label = sources.find((s) => s.id === fullId)?.title || '(untitled source)';
-        } else if (type === 'note') {
-            label = notes.find((nn) => nn.id === fullId)?.title || '(untitled note)';
-        } else {
-            label = 'AI insight';
-        }
-        return { n, type, id, label, targetDomId: `ref-${type}-${id}` };
-    });
-
-    return { segments, citations };
-};
-
-const focusReference = (domId: string) => {
-    const el = document.getElementById(domId);
-    if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el.classList.add('notebook-ref-flash');
-    window.setTimeout(() => el.classList.remove('notebook-ref-flash'), 1500);
-};
 
 // Mirrors components/Chat/ChatInput.tsx: on mobile, Enter inserts a newline
 // (send is via the button) rather than submitting.
@@ -150,8 +38,11 @@ const isMobile = () => {
 
 const COMPOSER_MAX_HEIGHT = 160;
 
-export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Props) => {
-    const [sessions, setSessions] = useState<ChatSession[]>([]);
+// Chat scoped to a single source — the backend's source-chat graph always uses
+// the full source text as context, so unlike the notebook ChatPanel there are
+// no context selections to manage here.
+export const SourceChatPanel = ({ source }: Props) => {
+    const [sessions, setSessions] = useState<SourceChatSession[]>([]);
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [draft, setDraft] = useState<string>('');
@@ -159,7 +50,7 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
     const [loadingSessions, setLoadingSessions] = useState<boolean>(true);
     const [loadingMessages, setLoadingMessages] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
-    const [pendingDelete, setPendingDelete] = useState<ChatSession | null>(null);
+    const [pendingDelete, setPendingDelete] = useState<SourceChatSession | null>(null);
     const [deleting, setDeleting] = useState<boolean>(false);
     const [showSessions, setShowSessions] = useState<boolean>(false);
     // Model used to answer; '' = deployment default (no override sent).
@@ -179,49 +70,15 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
         [sessions, currentSessionId],
     );
 
-    const contextStats = useMemo(() => {
-        let sourcesInsights = 0;
-        let sourcesFull = 0;
-        let notesCount = 0;
-        for (const s of sources) {
-            const mode = contextSelections.sources[s.id];
-            if (mode === 'insights') sourcesInsights++;
-            else if (mode === 'full') sourcesFull++;
-        }
-        for (const n of notes) {
-            if (contextSelections.notes[n.id] === 'full') notesCount++;
-        }
-        return { sourcesInsights, sourcesFull, notesCount };
-    }, [sources, notes, contextSelections]);
-
-    // Token/char counts for the indicator bar — refreshed whenever the
-    // selection changes, independent of sending a message (sendChatMessage's
-    // own fast path doesn't build context client-side, so this is the only
-    // place these counts come from).
-    const [tokenCount, setTokenCount] = useState<number | undefined>(undefined);
-    const [charCount, setCharCount] = useState<number | undefined>(undefined);
-
-    useEffect(() => {
-        let cancelled = false;
-        buildChatContext(notebookId, contextSelections).then((result) => {
-            if (cancelled || !result) return;
-            setTokenCount(result.token_count);
-            setCharCount(result.char_count);
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [notebookId, contextSelections]);
-
     useEffect(() => {
         let cancelled = false;
         const load = async () => {
             setLoadingSessions(true);
-            const data = await listChatSessions(notebookId);
+            const data = await listSourceChatSessions(source.id);
             if (cancelled) return;
             setSessions(data);
-            if (data.length > 0 && !currentSessionId) {
-                setCurrentSessionId(data[0].id);
+            if (data.length > 0) {
+                setCurrentSessionId((curr) => curr ?? data[0].id);
             }
             setLoadingSessions(false);
         };
@@ -229,7 +86,7 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
         return () => {
             cancelled = true;
         };
-    }, [notebookId]);
+    }, [source.id]);
 
     useEffect(() => {
         let cancelled = false;
@@ -245,7 +102,7 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
         const load = async () => {
             setLoadingMessages(true);
             setError(null);
-            const session = await getChatSession(currentSessionId);
+            const session = await getSourceChatSession(source.id, currentSessionId);
             if (cancelled) return;
             if (session) setMessages(session.messages || []);
             setLoadingMessages(false);
@@ -254,7 +111,7 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
         return () => {
             cancelled = true;
         };
-    }, [currentSessionId]);
+    }, [source.id, currentSessionId]);
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -264,8 +121,7 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
 
     // Auto-grow the composer as the draft changes so a Shift+Enter newline is
     // actually visible (a fixed-height textarea hides newlines as they scroll
-    // off). Mirrors the main chat input's height handling. The CSS min-height
-    // keeps the resting size at ~2 lines even though we set height inline.
+    // off). Mirrors the main chat input's height handling.
     useEffect(() => {
         const ta = textareaRef.current;
         if (!ta) return;
@@ -276,8 +132,7 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
 
     const handleNewSession = () => {
         // Defer backend creation until the first message is sent, so the session
-        // is named from its content (see handleSend) instead of a placeholder
-        // like "Chat Session 12345". Until then this is a local draft session.
+        // is named from its content (see handleSend) instead of a placeholder.
         setCurrentSessionId(null);
         setMessages([]);
         setError(null);
@@ -287,7 +142,7 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
     const confirmDelete = async () => {
         if (!pendingDelete) return;
         setDeleting(true);
-        const ok = await deleteChatSession(pendingDelete.id);
+        const ok = await deleteSourceChatSession(source.id, pendingDelete.id);
         setDeleting(false);
         if (!ok) {
             setError(`Couldn't delete session.`);
@@ -309,13 +164,13 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
         let sessionId = currentSessionId;
         if (!sessionId) {
             // Name the session from the first message, trimmed to a clean word
-            // boundary, so the sidebar shows something relevant.
+            // boundary, so the sessions list shows something relevant.
             const trimmed = text.replace(/\s+/g, ' ').trim();
             const title =
                 trimmed.length > 48
                     ? `${trimmed.slice(0, 48).replace(/\s+\S*$/, '')}…`
                     : trimmed;
-            const created = await createChatSession(notebookId, title);
+            const created = await createSourceChatSession(source.id, title);
             if (!created) {
                 setError('Failed to create session.');
                 return;
@@ -336,24 +191,25 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
         setMessages((prev) => [...prev, userMsg]);
         setIsSending(true);
 
-        // Context is built from the selections server-side, so there's no
-        // separate buildChatContext round-trip on the send path.
-        const sendMessage = async () => {
-            const result = await sendChatMessage(
-                notebookId,
-                sessionId!,
+        try {
+            const result = await sendSourceChatMessage(
+                source.id,
+                sessionId,
                 text,
-                contextSelections,
                 modelOverride || undefined,
             );
-            if (!result) {
-                throw new Error('Failed to send message.');
+            if (!result.success) {
+                throw new Error(result.message || 'Failed to send message.');
             }
-            setMessages(result.messages);
-        };
-
-        try {
-            await sendMessage();
+            // The send route doesn't return the reply — refetch the session for
+            // the persisted message list.
+            const session = await getSourceChatSession(source.id, sessionId);
+            if (session) {
+                setMessages(session.messages || []);
+                // The optimistic message is now persisted; safe to fetch on
+                // future revisits of this session.
+                locallyCreatedRef.current.delete(sessionId);
+            }
         } catch (e: any) {
             setError(e?.message || 'Failed to send message.');
             setMessages((prev) => prev.filter((m) => !m.id.startsWith('temp-')));
@@ -405,14 +261,14 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
                     <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-xs text-gray-500 dark:text-gray-400">
                         <IconRobot size={40} className="opacity-40" />
                         <div>
-                            Ask a question about your sources.
+                            Ask a question about this source.
                             <br />
                             <span className="opacity-70">Press Enter to send · Shift+Enter for newline</span>
                         </div>
                     </div>
                 )}
                 {messages.map((m) => (
-                    <MessageBubble key={m.id} message={m} sources={sources} notes={notes} />
+                    <MessageBubble key={m.id} message={m} />
                 ))}
                 {isSending && (
                     <div className="flex items-start gap-2">
@@ -436,14 +292,6 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
                 </div>
             )}
 
-            <ContextIndicator
-                sourcesInsights={contextStats.sourcesInsights}
-                sourcesFull={contextStats.sourcesFull}
-                notesCount={contextStats.notesCount}
-                tokenCount={tokenCount}
-                charCount={charCount}
-            />
-
             <div className="border-t border-gray-200 p-4 dark:border-neutral-700 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] text-gray-500 dark:text-gray-400">Model</span>
@@ -461,7 +309,7 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
                         onKeyDown={handleKeyDown}
                         onCompositionStart={() => setIsTyping(true)}
                         onCompositionEnd={() => setIsTyping(false)}
-                        placeholder="Ask anything…"
+                        placeholder="Ask about this source…"
                         rows={2}
                         disabled={isSending}
                         className="flex-1 resize-none rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100 min-h-[3.5rem]"
@@ -575,19 +423,8 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
     );
 };
 
-const MessageBubble = ({
-    message,
-    sources,
-    notes,
-}: {
-    message: ChatMessage;
-    sources: SourceListItem[];
-    notes: Note[];
-}) => {
+const MessageBubble = ({ message }: { message: ChatMessage }) => {
     const isHuman = message.type === 'human';
-    const rendered: RenderedMessage = isHuman
-        ? { segments: [{ kind: 'text', text: message.content }], citations: [] }
-        : renderCitations(message.content, sources, notes);
     return (
         <div className={`flex items-start gap-2 ${isHuman ? 'justify-end' : 'justify-start'}`}>
             {!isHuman && (
@@ -596,50 +433,25 @@ const MessageBubble = ({
                 </div>
             )}
             <div
-                className={`max-w-[85%] rounded-lg px-4 py-2 text-sm whitespace-pre-wrap ${
+                className={`max-w-[85%] rounded-lg px-4 py-2 text-sm ${
                     isHuman
-                        ? 'bg-purple-500 text-white'
+                        ? 'bg-purple-500 text-white whitespace-pre-wrap'
                         : 'bg-gray-100 text-gray-800 dark:bg-neutral-700 dark:text-neutral-100'
                 }`}
             >
-                {rendered.segments.map((seg, i) =>
-                    seg.kind === 'text' ? (
-                        <span key={i}>{seg.text}</span>
-                    ) : (
-                        <button
-                            key={i}
-                            onClick={() => focusReference(`ref-${seg.type}-${seg.id}`)}
-                            className="mx-0.5 inline-flex items-baseline rounded bg-purple-100 px-1 font-mono text-[11px] font-medium text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:hover:bg-purple-900/60"
-                            title={`Jump to ${seg.type}`}
-                        >
-                            {seg.n}
-                        </button>
-                    ),
-                )}
-                {rendered.citations.length > 0 && (
-                    <div className="mt-2 border-t border-gray-300 pt-1.5 text-[11px] text-gray-600 dark:border-neutral-600 dark:text-gray-300">
-                        <div className="font-medium mb-0.5">Sources</div>
-                        <ol className="m-0 list-none p-0 space-y-0.5">
-                            {rendered.citations.map((c) => (
-                                <li key={c.n}>
-                                    <button
-                                        onClick={() => focusReference(c.targetDomId)}
-                                        className="text-left hover:underline"
-                                        title={`Jump to ${c.type}`}
-                                    >
-                                        <span className="font-mono">[{c.n}]</span> {c.label}
-                                        {c.type !== 'source' && (
-                                            <span className="ml-1 opacity-60">({c.type})</span>
-                                        )}
-                                    </button>
-                                </li>
-                            ))}
-                        </ol>
-                    </div>
+                {isHuman ? (
+                    message.content
+                ) : (
+                    <MemoizedReactMarkdown
+                        className="prose prose-sm dark:prose-invert max-w-none break-words"
+                        remarkPlugins={[remarkGfm]}
+                    >
+                        {message.content}
+                    </MemoizedReactMarkdown>
                 )}
             </div>
         </div>
     );
 };
 
-export default ChatPanel;
+export default SourceChatPanel;
