@@ -6794,7 +6794,20 @@
 }
 
 .modal-content {
-  animation: slideUpFadeIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: slideUpFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  background-clip: padding-box;
+}
+
+/* Tailwind's shadow-xl only casts shadow downward/sideways, so the modal's
+   top border sits with nothing to soften it against the dark overlay,
+   showing up as a stark light "line" along the top edge. Layer in a
+   symmetric ambient shadow (0 offset, blurred on all sides) so the top
+   border blends the same way the bottom/sides already do. The compound
+   selector (.modal-content.shadow-xl) keeps this override reliable
+   regardless of Tailwind's utility stylesheet load order. */
+.modal-content.shadow-xl {
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.25), 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
 @keyframes fadeIn {

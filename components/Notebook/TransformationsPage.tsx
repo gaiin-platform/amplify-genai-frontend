@@ -28,6 +28,7 @@ import {
     updateDefaultPrompt,
 } from '@/services/notebookService';
 import { TransformationEditorDialog } from './TransformationEditorDialog';
+import { dedupeModels, formatModelName } from './modelDisplay';
 
 type Tab = 'transformations' | 'playground';
 
@@ -367,7 +368,7 @@ const Playground = ({ transformations, initialId, defaults, languageModels }: Pl
                             <option value="">Select a model…</option>
                             {languageModels.map((m) => (
                                 <option key={m.id} value={m.id}>
-                                    {m.name} ({m.provider})
+                                    {formatModelName(m.name)}
                                 </option>
                             ))}
                         </select>
@@ -470,7 +471,11 @@ export const TransformationsPage = () => {
             ]);
             if (cancelled) return;
             setDefaults(d);
-            setLanguageModels(models);
+            setLanguageModels(
+                dedupeModels(models).sort((a, b) =>
+                    formatModelName(a.name).localeCompare(formatModelName(b.name)),
+                ),
+            );
         })();
         return () => {
             cancelled = true;

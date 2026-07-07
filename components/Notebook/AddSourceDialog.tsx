@@ -1,16 +1,20 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import {
+    NotebookSummary,
     createSourceFromFile,
     createSourceFromText,
     createSourceFromUrl,
+    listNotebooks,
     SourceListItem,
 } from '@/services/notebookService';
 
 type SourceType = 'url' | 'text' | 'file';
 
 interface Props {
-    notebookId: string;
+    // When omitted (e.g. opened from the global Create menu), the dialog shows
+    // a notebook picker so the user chooses where the source lands.
+    notebookId?: string;
     onClose: () => void;
     onCreated: (source: SourceListItem) => void;
 }
@@ -25,11 +29,33 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
     const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+    const [notebooks, setNotebooks] = useState<NotebookSummary[]>([]);
+    const [notebooksLoading, setNotebooksLoading] = useState(false);
+    const [selectedNotebookId, setSelectedNotebookId] = useState('');
+
+    useEffect(() => {
+        if (notebookId) return;
+        let cancelled = false;
+        setNotebooksLoading(true);
+        (async () => {
+            const nbs = await listNotebooks({ order_by: 'updated desc' });
+            if (cancelled) return;
+            setNotebooks(nbs);
+            if (nbs.length > 0) setSelectedNotebookId(nbs[0].id);
+            setNotebooksLoading(false);
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [notebookId]);
+
+    const targetNotebookId = notebookId ?? selectedNotebookId;
+
     const trimmedUrl = url.trim();
     const trimmedContent = content.trim();
     const trimmedTitle = title.trim();
 
-    const canSubmit = !submitting && (
+    const canSubmit = !submitting && !!targetNotebookId && (
         (tab === 'url' && trimmedUrl.length > 0) ||
         (tab === 'text' && trimmedContent.length > 0) ||
         (tab === 'file' && file !== null)
@@ -58,19 +84,19 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
         let result: SourceListItem | null = null;
         if (tab === 'url') {
             result = await createSourceFromUrl({
-                notebookId,
+                notebookId: targetNotebookId,
                 url: trimmedUrl,
                 title: trimmedTitle || undefined,
             });
         } else if (tab === 'text') {
             result = await createSourceFromText({
-                notebookId,
+                notebookId: targetNotebookId,
                 content: trimmedContent,
                 title: trimmedTitle || deriveTextTitle(trimmedContent),
             });
         } else if (tab === 'file' && file) {
             result = await createSourceFromFile({
-                notebookId,
+                notebookId: targetNotebookId,
                 file,
                 title: trimmedTitle || deriveFileTitle(file),
             });
@@ -100,9 +126,34 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
             submitLabel={submitting ? 'Adding…' : 'Add'}
             disableSubmit={!canSubmit}
             width={() => 520}
-            height={() => 460}
+            height={() => (notebookId ? 460 : 530)}
             content={
                 <div className="flex flex-col gap-3 p-2 text-neutral-800 dark:text-neutral-100">
+                    {!notebookId && (
+                        <div className="flex flex-col gap-1">
+                            <label htmlFor="source-notebook" className="text-sm font-medium">
+                                Notebook <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                                id="source-notebook"
+                                value={selectedNotebookId}
+                                onChange={(e) => setSelectedNotebookId(e.target.value)}
+                                disabled={notebooksLoading || notebooks.length === 0}
+                                className="rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                            >
+                                {notebooksLoading && <option value="">Loading notebooks…</option>}
+                                {!notebooksLoading && notebooks.length === 0 && (
+                                    <option value="">No notebooks — create one first</option>
+                                )}
+                                {notebooks.map((nb) => (
+                                    <option key={nb.id} value={nb.id}>
+                                        {nb.name || '(untitled)'}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
                     <div className="flex border-b border-neutral-200 dark:border-neutral-700">
                         <button type="button" className={tabClass(tab === 'url')} onClick={() => setTab('url')}>
                             URL

@@ -110,6 +110,23 @@ export const createNotebook = async (
     return notebookCall<NotebookSummary>('POST', '/notebooks', data);
 };
 
+export interface UpdateNotebookRequest {
+    name?: string;
+    description?: string;
+    archived?: boolean;
+}
+
+export const updateNotebook = async (
+    id: string,
+    data: UpdateNotebookRequest,
+): Promise<NotebookSummary | null> => {
+    return notebookCall<NotebookSummary>(
+        'PUT',
+        `/notebooks/${encodeURIComponent(id)}`,
+        data,
+    );
+};
+
 export const deleteNotebook = async (id: string): Promise<boolean> => {
     // delete_exclusive_sources=true so sources belonging only to this notebook are
     // deleted (matching the confirm dialog's promise), while sources shared with
@@ -166,11 +183,19 @@ export interface CreateSourceFileRequest {
     title?: string;
 }
 
+export type SourceSortField =
+    | 'type'
+    | 'title'
+    | 'created'
+    | 'updated'
+    | 'insights_count'
+    | 'embedded';
+
 interface ListSourcesParams {
     notebookId?: string;
     limit?: number;
     offset?: number;
-    sortBy?: 'created' | 'updated';
+    sortBy?: SourceSortField;
     sortOrder?: 'asc' | 'desc';
 }
 
@@ -866,6 +891,75 @@ export const updateSettings = async (
 };
 
 // -----------------------------------------------------------------------------
+// Embeddings rebuild
+// -----------------------------------------------------------------------------
+
+export type RebuildMode = 'existing' | 'all';
+
+export interface RebuildEmbeddingsRequest {
+    mode: RebuildMode;
+    include_sources?: boolean;
+    include_notes?: boolean;
+    include_insights?: boolean;
+}
+
+export interface RebuildEmbeddingsResponse {
+    command_id: string;
+    message: string;
+    estimated_items: number;
+}
+
+// The backend has shipped both naming schemes for progress/stats fields;
+// mirror the upstream client and accept either.
+export interface RebuildProgress {
+    total_items?: number;
+    processed_items?: number;
+    failed_items?: number;
+    total?: number;
+    processed?: number;
+    percentage?: number;
+}
+
+export interface RebuildStats {
+    sources_processed?: number;
+    notes_processed?: number;
+    insights_processed?: number;
+    sources?: number;
+    notes?: number;
+    insights?: number;
+    failed?: number;
+    failed_items?: number;
+    processing_time?: number;
+}
+
+export type RebuildStatus = 'queued' | 'running' | 'completed' | 'failed';
+
+export interface RebuildStatusResponse {
+    command_id: string;
+    status: RebuildStatus;
+    progress?: RebuildProgress;
+    stats?: RebuildStats;
+    started_at?: string;
+    completed_at?: string;
+    error_message?: string;
+}
+
+export const rebuildEmbeddings = async (
+    request: RebuildEmbeddingsRequest,
+): Promise<RebuildEmbeddingsResponse | null> => {
+    return notebookCall<RebuildEmbeddingsResponse>('POST', '/embeddings/rebuild', request);
+};
+
+export const getRebuildStatus = async (
+    commandId: string,
+): Promise<RebuildStatusResponse | null> => {
+    return notebookCall<RebuildStatusResponse>(
+        'GET',
+        `/embeddings/rebuild/${encodeURIComponent(commandId)}/status`,
+    );
+};
+
+// -----------------------------------------------------------------------------
 // Transformations
 // -----------------------------------------------------------------------------
 
@@ -988,10 +1082,15 @@ export interface EpisodeProfile {
     name: string;
     description: string;
     speaker_config: string;
-    outline_provider: string;
-    outline_model: string;
-    transcript_provider: string;
-    transcript_model: string;
+    // New-style model references (model record IDs). Legacy provider/model
+    // pairs below are still returned for profiles created before the switch.
+    outline_llm?: string | null;
+    transcript_llm?: string | null;
+    language?: string | null;
+    outline_provider?: string | null;
+    outline_model?: string | null;
+    transcript_provider?: string | null;
+    transcript_model?: string | null;
     default_briefing: string;
     num_segments: number;
 }
@@ -1001,14 +1100,19 @@ export interface SpeakerVoice {
     voice_id: string;
     backstory: string;
     personality: string;
+    // Optional per-speaker TTS model override (model record ID).
+    voice_model?: string | null;
 }
 
 export interface SpeakerProfile {
     id: string;
     name: string;
     description: string;
-    tts_provider: string;
-    tts_model: string;
+    // New-style TTS model reference (model record ID); tts_provider/tts_model
+    // are the legacy equivalent.
+    voice_model?: string | null;
+    tts_provider?: string | null;
+    tts_model?: string | null;
     speakers: SpeakerVoice[];
 }
 
@@ -1090,6 +1194,80 @@ export const listEpisodeProfiles = async (): Promise<EpisodeProfile[]> => {
 
 export const listSpeakerProfiles = async (): Promise<SpeakerProfile[]> => {
     const result = await notebookCall<SpeakerProfile[]>('GET', '/speaker-profiles');
+    return Array.isArray(result) ? result : [];
+};
+
+export interface EpisodeProfileCreateData {
+    name: string;
+    description?: string;
+    speaker_config: string;
+    outline_llm?: string | null;
+    transcript_llm?: string | null;
+    language?: string | null;
+    default_briefing: string;
+    num_segments: number;
+}
+
+export const createEpisodeProfile = async (
+    data: EpisodeProfileCreateData,
+): Promise<EpisodeProfile | null> => {
+    return notebookCall<EpisodeProfile>('POST', '/episode-profiles', data);
+};
+
+export interface SpeakerProfileCreateData {
+    name: string;
+    description?: string;
+    voice_model?: string | null;
+    speakers: SpeakerVoice[];
+}
+
+export const createSpeakerProfile = async (
+    data: SpeakerProfileCreateData,
+): Promise<SpeakerProfile | null> => {
+    return notebookCall<SpeakerProfile>('POST', '/speaker-profiles', data);
+};
+
+export const deleteEpisodeProfile = async (id: string): Promise<boolean> => {
+    const result = await notebookCall(
+        'DELETE',
+        `/episode-profiles/${encodeURIComponent(id)}`,
+    );
+    return result !== null;
+};
+
+export const duplicateEpisodeProfile = async (
+    id: string,
+): Promise<EpisodeProfile | null> => {
+    return notebookCall<EpisodeProfile>(
+        'POST',
+        `/episode-profiles/${encodeURIComponent(id)}/duplicate`,
+    );
+};
+
+export const deleteSpeakerProfile = async (id: string): Promise<boolean> => {
+    const result = await notebookCall(
+        'DELETE',
+        `/speaker-profiles/${encodeURIComponent(id)}`,
+    );
+    return result !== null;
+};
+
+export const duplicateSpeakerProfile = async (
+    id: string,
+): Promise<SpeakerProfile | null> => {
+    return notebookCall<SpeakerProfile>(
+        'POST',
+        `/speaker-profiles/${encodeURIComponent(id)}/duplicate`,
+    );
+};
+
+export interface NotebookLanguage {
+    code: string;
+    name: string;
+}
+
+export const listLanguages = async (): Promise<NotebookLanguage[]> => {
+    const result = await notebookCall<NotebookLanguage[]>('GET', '/languages');
     return Array.isArray(result) ? result : [];
 };
 
