@@ -6,6 +6,9 @@ import {
     IconMicrophone,
     IconNotebook,
     IconPlus,
+    IconSettings,
+    IconTool,
+    IconWand,
 } from '@tabler/icons-react';
 import { CloseSidebarButton } from '@/components/Sidebar/components/OpenCloseButton';
 import { LucideBook, LucideSearch } from './LucideIcons';
@@ -14,9 +17,12 @@ export type NotebookSection =
     | 'notebooks'
     | 'sources'
     | 'ask'
-    | 'podcasts';
+    | 'podcasts'
+    | 'transformations'
+    | 'settings'
+    | 'advanced';
 
-type SectionGroup = 'COLLECT' | 'PROCESS' | 'CREATE';
+type SectionGroup = 'COLLECT' | 'PROCESS' | 'CREATE' | 'MANAGE';
 
 interface SectionItem {
     id: NotebookSection;
@@ -31,9 +37,12 @@ const SECTIONS: SectionItem[] = [
     { id: 'notebooks', label: 'Notebooks', icon: <LucideBook size={22} />, group: 'PROCESS' },
     { id: 'ask', label: 'Ask and Search', icon: <LucideSearch size={22} />, group: 'PROCESS' },
     { id: 'podcasts', label: 'Podcasts', icon: <IconMicrophone size={22} />, group: 'CREATE' },
+    { id: 'transformations', label: 'Transformations', icon: <IconWand size={22} />, group: 'MANAGE' },
+    { id: 'settings', label: 'Settings', icon: <IconSettings size={22} />, group: 'MANAGE' },
+    { id: 'advanced', label: 'Advanced', icon: <IconTool size={22} />, group: 'MANAGE' },
 ];
 
-const GROUP_ORDER: SectionGroup[] = ['COLLECT', 'PROCESS', 'CREATE'];
+const GROUP_ORDER: SectionGroup[] = ['COLLECT', 'PROCESS', 'CREATE', 'MANAGE'];
 
 export type CreateTarget = 'source' | 'notebook' | 'podcast';
 
@@ -47,19 +56,19 @@ const CREATE_ITEMS: {
         id: 'source',
         label: 'Source',
         icon: <IconFileText size={15} />,
-        chipClass: 'bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400',
+        chipClass: 'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300',
     },
     {
         id: 'notebook',
         label: 'Notebook',
         icon: <LucideBook size={15} />,
-        chipClass: 'bg-purple-100 text-purple-600 dark:bg-purple-500/15 dark:text-purple-400',
+        chipClass: 'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300',
     },
     {
         id: 'podcast',
         label: 'Podcast',
         icon: <IconMicrophone size={15} />,
-        chipClass: 'bg-pink-100 text-pink-600 dark:bg-pink-500/15 dark:text-pink-400',
+        chipClass: 'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300',
     },
 ];
 

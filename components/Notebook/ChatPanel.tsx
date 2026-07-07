@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+    IconClock,
+    IconMessage,
     IconPlus,
     IconSend,
     IconTrash,
-    IconChevronDown,
 } from '@tabler/icons-react';
 import {
     ChatMessage,
@@ -18,6 +19,7 @@ import {
     sendChatMessage,
 } from '@/services/notebookService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
+import { Modal } from '@/components/ReusableComponents/Modal';
 import { ChatModelSelect } from './ChatModelSelect';
 
 interface Props {
@@ -158,7 +160,7 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
     const [error, setError] = useState<string | null>(null);
     const [pendingDelete, setPendingDelete] = useState<ChatSession | null>(null);
     const [deleting, setDeleting] = useState<boolean>(false);
-    const [showSessionPicker, setShowSessionPicker] = useState<boolean>(false);
+    const [showSessions, setShowSessions] = useState<boolean>(false);
     // Model used to answer; '' = deployment default (no override sent).
     const [modelOverride, setModelOverride] = useState<string>('');
     // IME composition guard — don't submit on the Enter that confirms a
@@ -166,7 +168,6 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
     const [isTyping, setIsTyping] = useState<boolean>(false);
 
     const scrollRef = useRef<HTMLDivElement | null>(null);
-    const pickerRef = useRef<HTMLDivElement | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     // Sessions we created locally in this tab — skip the fetch-on-mount
     // for them so the optimistic user message isn't wiped.
@@ -246,17 +247,6 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
         ta.style.overflowY = ta.scrollHeight > COMPOSER_MAX_HEIGHT ? 'auto' : 'hidden';
     }, [draft]);
 
-    useEffect(() => {
-        if (!showSessionPicker) return;
-        const onClick = (e: MouseEvent) => {
-            if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-                setShowSessionPicker(false);
-            }
-        };
-        document.addEventListener('mousedown', onClick);
-        return () => document.removeEventListener('mousedown', onClick);
-    }, [showSessionPicker]);
-
     const handleNewSession = () => {
         // Defer backend creation until the first message is sent, so the session
         // is named from its content (see handleSend) instead of a placeholder
@@ -264,7 +254,7 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
         setCurrentSessionId(null);
         setMessages([]);
         setError(null);
-        setShowSessionPicker(false);
+        setShowSessions(false);
     };
 
     const confirmDelete = async () => {
@@ -356,69 +346,30 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
     };
 
     return (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36] flex flex-col h-[640px]">
-            <div className="flex items-center gap-2 border-b border-gray-200 px-4 py-3 dark:border-neutral-700">
-                <div className="text-sm font-semibold">Chat</div>
-
-                <div ref={pickerRef} className="relative ml-auto">
-                    <button
-                        onClick={() => setShowSessionPicker((v) => !v)}
-                        className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700"
-                        title="Switch session"
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36] flex flex-col h-[640px] lg:h-full lg:min-h-0">
+            <div className="flex items-center gap-2 border-b border-gray-200 px-6 py-4 dark:border-neutral-700">
+                <div className="text-lg font-semibold">Chat</div>
+                {currentSession && (
+                    <span
+                        className="max-w-[160px] truncate text-xs text-gray-400 dark:text-gray-500"
+                        title={currentSession.title}
                     >
-                        <span className="max-w-[140px] truncate">
-                            {currentSession?.title || (loadingSessions ? 'Loading…' : 'New session')}
-                        </span>
-                        <IconChevronDown size={12} />
-                    </button>
-                    {showSessionPicker && (
-                        <div className="absolute right-0 top-full z-20 mt-1 w-64 max-h-72 overflow-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-neutral-700 dark:bg-[#202123]">
-                            <button
-                                onClick={handleNewSession}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20"
-                            >
-                                <IconPlus size={12} />
-                                New session
-                            </button>
-                            {sessions.length > 0 && (
-                                <div className="my-1 border-t border-gray-100 dark:border-neutral-700/60" />
-                            )}
-                            {sessions.map((s) => (
-                                <div
-                                    key={s.id}
-                                    className={`group flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-neutral-700/60 ${
-                                        s.id === currentSessionId ? 'bg-gray-50 dark:bg-neutral-700/40' : ''
-                                    }`}
-                                >
-                                    <button
-                                        onClick={() => {
-                                            setCurrentSessionId(s.id);
-                                            setShowSessionPicker(false);
-                                        }}
-                                        className="flex-1 truncate text-left"
-                                        title={s.title}
-                                    >
-                                        {s.title}
-                                    </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setPendingDelete(s);
-                                            setShowSessionPicker(false);
-                                        }}
-                                        title="Delete session"
-                                        className="invisible rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 group-hover:visible dark:text-gray-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                                    >
-                                        <IconTrash size={12} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                        {currentSession.title}
+                    </span>
+                )}
+
+                <button
+                    onClick={() => setShowSessions(true)}
+                    disabled={loadingSessions}
+                    title="Chat sessions"
+                    className="ml-auto flex h-8 items-center gap-1.5 rounded-md bg-purple-500 px-3 text-xs font-medium text-white shadow-sm hover:bg-purple-600 transition-colors disabled:opacity-50"
+                >
+                    <IconClock size={14} />
+                    Sessions
+                </button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 bg-gray-50/60 px-4 py-2 text-[11px] text-gray-500 dark:border-neutral-700/60 dark:bg-neutral-800/40 dark:text-gray-400">
+            <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 bg-gray-50/60 px-6 py-2 text-[11px] text-gray-500 dark:border-neutral-700/60 dark:bg-neutral-800/40 dark:text-gray-400">
                 <span>Context:</span>
                 <span className="rounded-full bg-purple-100 px-2 py-0.5 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
                     {includedCount.s}/{sourceCount} sources
@@ -426,16 +377,9 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
                 <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                     {includedCount.n}/{noteCount} notes
                 </span>
-                <div className="ml-auto">
-                    <ChatModelSelect
-                        value={modelOverride}
-                        onChange={setModelOverride}
-                        disabled={isSending}
-                    />
-                </div>
             </div>
 
-            <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
                 {loadingMessages && messages.length === 0 && (
                     <div className="text-xs text-gray-500 dark:text-gray-400">Loading messages…</div>
                 )}
@@ -465,12 +409,20 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
             </div>
 
             {error && (
-                <div className="border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-600 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+                <div className="border-t border-red-200 bg-red-50 px-6 py-2 text-xs text-red-600 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
                     {error}
                 </div>
             )}
 
-            <div className="border-t border-gray-200 p-3 dark:border-neutral-700">
+            <div className="border-t border-gray-200 p-4 dark:border-neutral-700 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-gray-500 dark:text-gray-400">Model</span>
+                    <ChatModelSelect
+                        value={modelOverride}
+                        onChange={setModelOverride}
+                        disabled={isSending}
+                    />
+                </div>
                 <div className="flex items-end gap-2">
                     <textarea
                         ref={textareaRef}
@@ -488,12 +440,92 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
                         onClick={handleSend}
                         disabled={!draft.trim() || isSending}
                         title="Send"
-                        className="flex h-9 w-9 items-center justify-center rounded-md bg-purple-500 text-white shadow-sm transition-colors hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="flex h-10 w-10 items-center justify-center rounded-md bg-purple-500 text-white shadow-sm transition-colors hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                         <IconSend size={16} />
                     </button>
                 </div>
             </div>
+
+            {showSessions && (
+                <Modal
+                    title="Chat Sessions"
+                    onCancel={() => setShowSessions(false)}
+                    showSubmit={false}
+                    cancelLabel="Close"
+                    width={() => 420}
+                    height={() => Math.min(520, window.innerHeight * 0.85)}
+                    content={
+                        <div className="flex flex-col gap-3 p-2 text-neutral-800 dark:text-neutral-100">
+                            <button
+                                onClick={handleNewSession}
+                                className="flex items-center justify-center gap-1 rounded-md bg-purple-500 px-2 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-purple-600 transition-colors"
+                            >
+                                <IconPlus size={12} />
+                                New Session
+                            </button>
+
+                            {sessions.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-10 text-center">
+                                    <IconMessage
+                                        size={36}
+                                        className="mb-3 text-gray-300 dark:text-neutral-600"
+                                    />
+                                    <div className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                                        No sessions yet
+                                    </div>
+                                    <p className="mt-1 max-w-[220px] text-xs text-gray-500 dark:text-gray-400">
+                                        Send your first message to start a session.
+                                    </p>
+                                </div>
+                            ) : (
+                                <ul className="space-y-1 overflow-y-auto pr-1">
+                                    {sessions.map((s) => (
+                                        <li
+                                            key={s.id}
+                                            className={`group flex items-center gap-2 rounded-lg border p-2.5 transition-colors ${
+                                                s.id === currentSessionId
+                                                    ? 'border-purple-300 bg-purple-50/60 dark:border-purple-500/60 dark:bg-purple-900/10'
+                                                    : 'border-gray-200 bg-white hover:border-purple-300 dark:border-neutral-700 dark:bg-[#343541] dark:hover:border-purple-500/60'
+                                            }`}
+                                        >
+                                            <button
+                                                onClick={() => {
+                                                    setCurrentSessionId(s.id);
+                                                    setShowSessions(false);
+                                                }}
+                                                className="min-w-0 flex-1 text-left"
+                                                title={s.title}
+                                            >
+                                                <span className="block truncate text-sm font-medium">
+                                                    {s.title}
+                                                </span>
+                                                <span className="block text-[11px] text-gray-400 dark:text-gray-500">
+                                                    {typeof s.message_count === 'number'
+                                                        ? `${s.message_count} message${
+                                                              s.message_count === 1 ? '' : 's'
+                                                          }`
+                                                        : ''}
+                                                </span>
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setPendingDelete(s);
+                                                    setShowSessions(false);
+                                                }}
+                                                title="Delete session"
+                                                className="invisible rounded-md p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 group-hover:visible dark:text-gray-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                                            >
+                                                <IconTrash size={14} />
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    }
+                />
+            )}
 
             {pendingDelete && (
                 <ConfirmModal
@@ -529,7 +561,7 @@ const MessageBubble = ({
     return (
         <div className={`flex ${isHuman ? 'justify-end' : 'justify-start'}`}>
             <div
-                className={`max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
+                className={`max-w-[85%] rounded-lg px-4 py-2 text-sm whitespace-pre-wrap ${
                     isHuman
                         ? 'bg-purple-500 text-white'
                         : 'bg-gray-100 text-gray-800 dark:bg-neutral-700 dark:text-neutral-100'

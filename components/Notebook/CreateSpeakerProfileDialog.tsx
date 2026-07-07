@@ -8,7 +8,7 @@ import {
     createSpeakerProfile,
     listModels,
 } from '@/services/notebookService';
-import { formatModelName } from './modelDisplay';
+import { dedupeModels, formatModelName } from './modelDisplay';
 
 interface Props {
     onClose: () => void;
@@ -44,8 +44,9 @@ export const CreateSpeakerProfileDialog = ({ onClose, onCreated }: Props) => {
         (async () => {
             const models = await listModels('text_to_speech');
             if (cancelled) return;
-            setTtsModels(models);
-            if (models.length > 0) setVoiceModel(models[0].id);
+            const unique = dedupeModels(models);
+            setTtsModels(unique);
+            if (unique.length > 0) setVoiceModel(unique[0].id);
             setModelsLoading(false);
         })();
         return () => {
@@ -122,7 +123,7 @@ export const CreateSpeakerProfileDialog = ({ onClose, onCreated }: Props) => {
             {!modelsLoading && allowEmpty && <option value="">Use profile default</option>}
             {ttsModels.map((m) => (
                 <option key={m.id} value={m.id}>
-                    {formatModelName(m.name)} ({m.provider})
+                    {formatModelName(m.name)}
                 </option>
             ))}
         </select>

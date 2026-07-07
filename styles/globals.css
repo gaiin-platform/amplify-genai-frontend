@@ -659,3 +659,27 @@ pre:has(div.codeblock) {
 .dark .gallery-bg-orbs::after {
   background: radial-gradient(circle, rgb(20 184 166 / 0.1), rgb(6 182 212 / 0.1));
 }
+/* ===================================
+   Notebook area scrollbars
+   =================================== */
+/* The notebook UI uses a slim neutral scrollbar instead of the brand-primary
+   themed one used across the rest of amplify. Appended after the palette
+   overrides above so it wins the specificity ties. */
+.notebook-app ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.notebook-app ::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+}
+.notebook-app ::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}
+.dark .notebook-app ::-webkit-scrollbar-thumb,
+[data-chat-palette].dark .notebook-app ::-webkit-scrollbar-thumb {
+  background-color: #4b5563;
+}
+.dark .notebook-app ::-webkit-scrollbar-thumb:hover,
+[data-chat-palette].dark .notebook-app ::-webkit-scrollbar-thumb:hover {
+  background-color: #6b7280;
+}

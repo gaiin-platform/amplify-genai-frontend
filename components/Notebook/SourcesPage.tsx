@@ -4,7 +4,6 @@ import {
     IconArrowsSort,
     IconFileText,
     IconLink,
-    IconSearch,
     IconTrash,
     IconUpload,
 } from '@tabler/icons-react';
@@ -12,12 +11,13 @@ import {
     deleteSource,
     listSources,
     SourceListItem,
+    SourceSortField,
 } from '@/services/notebookService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 
 const PAGE_SIZE = 30;
 
-type SortBy = 'created' | 'updated';
+type SortBy = SourceSortField;
 type SortOrder = 'asc' | 'desc';
 
 const formatRelative = (iso?: string): string => {
@@ -54,7 +54,6 @@ export const SourcesPage = () => {
     const [error, setError] = useState<string | null>(null);
     const [sortBy, setSortBy] = useState<SortBy>('updated');
     const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-    const [search, setSearch] = useState<string>('');
     const [pendingDelete, setPendingDelete] = useState<SourceListItem | null>(null);
     const [deleting, setDeleting] = useState<boolean>(false);
 
@@ -137,113 +136,80 @@ export const SourcesPage = () => {
         setPendingDelete(null);
     };
 
-    const q = search.trim().toLowerCase();
-    const filtered = q
-        ? sources.filter((s) => {
-              const title = (s.title || '').toLowerCase();
-              const url = (s.asset?.url || '').toLowerCase();
-              return title.includes(q) || url.includes(q);
-          })
-        : sources;
+    const sortHeader = (field: SortBy, label: string) => (
+        <button
+            onClick={() => toggleSort(field)}
+            className={`inline-flex items-center gap-0.5 hover:text-gray-800 dark:hover:text-gray-200 ${
+                sortBy === field ? 'text-gray-800 dark:text-gray-200' : ''
+            }`}
+        >
+            {label}
+            {sortBy === field ? (
+                <span className="text-[10px]">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+            ) : (
+                <IconArrowsSort size={12} className="opacity-40" />
+            )}
+        </button>
+    );
 
     return (
         <div className="flex h-full flex-col">
-            <div className="mb-4 flex flex-shrink-0 items-center gap-2">
-                <div className="relative">
-                    <IconSearch
-                        size={14}
-                        className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
-                    />
-                    <input
-                        type="text"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search sources…"
-                        className="h-8 w-64 rounded-lg border border-gray-200 bg-white pl-8 pr-3 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 dark:border-neutral-700 dark:bg-[#2b2c36] dark:text-gray-100 dark:placeholder-gray-500"
-                    />
-                </div>
-                <div className="ml-auto text-xs text-gray-500 dark:text-gray-400">
-                    {sources.length} loaded
-                </div>
-            </div>
-
             <div
                 ref={scrollRef}
                 className="flex-1 overflow-auto rounded-xl border border-gray-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]"
             >
-                <table className="w-full min-w-[760px] table-fixed text-sm">
+                <table className="w-full min-w-[820px] table-fixed text-sm">
                     <colgroup>
                         <col className="w-[120px]" />
                         <col className="w-auto" />
-                        <col className="w-[140px]" />
-                        <col className="w-[100px]" />
+                        <col className="w-[110px]" />
+                        <col className="w-[110px]" />
+                        <col className="w-[80px]" />
                         <col className="w-[110px]" />
                         <col className="w-[80px]" />
                     </colgroup>
                     <thead className="sticky top-0 z-10 bg-gradient-to-b from-gray-50 to-white text-xs uppercase tracking-wide text-gray-500 dark:from-gray-800 dark:to-[#2b2c36] dark:text-gray-400">
                         <tr className="border-b border-gray-200 dark:border-neutral-700">
-                            <th className="px-4 py-3 text-left font-medium">Type</th>
-                            <th className="px-4 py-3 text-left font-medium">Title</th>
                             <th className="px-4 py-3 text-left font-medium">
-                                <div className="inline-flex items-center gap-1.5">
-                                    <button
-                                        onClick={() => toggleSort('created')}
-                                        className={`inline-flex items-center gap-0.5 hover:text-gray-800 dark:hover:text-gray-200 ${
-                                            sortBy === 'created' ? 'text-gray-800 dark:text-gray-200' : ''
-                                        }`}
-                                    >
-                                        Created
-                                        {sortBy === 'created' && (
-                                            <span className="text-[10px]">
-                                                {sortOrder === 'asc' ? '↑' : '↓'}
-                                            </span>
-                                        )}
-                                    </button>
-                                    <span className="text-gray-300 dark:text-gray-600">/</span>
-                                    <button
-                                        onClick={() => toggleSort('updated')}
-                                        className={`inline-flex items-center gap-0.5 hover:text-gray-800 dark:hover:text-gray-200 ${
-                                            sortBy === 'updated' ? 'text-gray-800 dark:text-gray-200' : ''
-                                        }`}
-                                    >
-                                        Updated
-                                        {sortBy === 'updated' && (
-                                            <span className="text-[10px]">
-                                                {sortOrder === 'asc' ? '↑' : '↓'}
-                                            </span>
-                                        )}
-                                    </button>
-                                    <IconArrowsSort size={12} className="opacity-40" />
-                                </div>
+                                {sortHeader('type', 'Type')}
                             </th>
-                            <th className="px-4 py-3 text-center font-medium">Insights</th>
-                            <th className="px-4 py-3 text-center font-medium">Embedded</th>
+                            <th className="px-4 py-3 text-left font-medium">
+                                {sortHeader('title', 'Title')}
+                            </th>
+                            <th className="px-4 py-3 text-left font-medium">
+                                {sortHeader('created', 'Created')}
+                            </th>
+                            <th className="px-4 py-3 text-left font-medium">
+                                {sortHeader('updated', 'Updated')}
+                            </th>
+                            <th className="px-4 py-3 text-center font-medium">
+                                {sortHeader('insights_count', 'Insights')}
+                            </th>
+                            <th className="px-4 py-3 text-center font-medium">
+                                {sortHeader('embedded', 'Embedded')}
+                            </th>
                             <th className="px-4 py-3 text-right font-medium">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {!loading && !error && filtered.length === 0 && (
+                        {!loading && !error && sources.length === 0 && (
                             <tr>
                                 <td
-                                    colSpan={6}
+                                    colSpan={7}
                                     className="h-40 text-center text-sm text-gray-500 dark:text-gray-400"
                                 >
-                                    {sources.length === 0 ? (
-                                        <div className="flex flex-col items-center justify-center gap-1">
-                                            <IconFileText size={20} className="opacity-60" />
-                                            <div className="font-medium">No sources yet</div>
-                                            <div className="text-xs opacity-80">
-                                                Add sources from inside a notebook to see them here.
-                                            </div>
+                                    <div className="flex flex-col items-center justify-center gap-1">
+                                        <IconFileText size={20} className="opacity-60" />
+                                        <div className="font-medium">No sources yet</div>
+                                        <div className="text-xs opacity-80">
+                                            Add sources from inside a notebook to see them here.
                                         </div>
-                                    ) : (
-                                        <>No sources match &quot;{search}&quot;.</>
-                                    )}
+                                    </div>
                                 </td>
                             </tr>
                         )}
 
-                        {filtered.map((s) => {
+                        {sources.map((s) => {
                             const kind = sourceKind(s);
                             return (
                                 <tr
@@ -275,7 +241,10 @@ export const SourcesPage = () => {
                                         </div>
                                     </td>
                                     <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
-                                        {formatRelative(sortBy === 'updated' ? s.updated : s.created)}
+                                        {formatRelative(s.created)}
+                                    </td>
+                                    <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
+                                        {formatRelative(s.updated)}
                                     </td>
                                     <td className="px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-200">
                                         {s.insights_count || 0}
@@ -307,7 +276,7 @@ export const SourcesPage = () => {
                         {loadingMore && (
                             <tr>
                                 <td
-                                    colSpan={6}
+                                    colSpan={7}
                                     className="h-12 text-center text-xs text-gray-500 dark:text-gray-400"
                                 >
                                     Loading more…

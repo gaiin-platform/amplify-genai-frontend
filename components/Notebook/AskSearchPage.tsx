@@ -2,14 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     IconAlertCircle,
     IconChevronDown,
+    IconDeviceFloppy,
     IconLoader2,
     IconMessageCircleQuestion,
     IconSearch,
+    IconSettings,
     IconSparkles,
 } from '@tabler/icons-react';
 import {
     AskRequest,
     ModelDefaults,
+    NotebookModel,
     SearchResponse,
     SearchResult,
     SearchType,
@@ -17,10 +20,13 @@ import {
     askKnowledgeBaseSimple,
     getDefaults,
     getNote,
+    listModels,
     listSources,
     searchKnowledgeBase,
 } from '@/services/notebookService';
-import { ChatModelSelect } from './ChatModelSelect';
+import { dedupeModels, formatModelName } from './modelDisplay';
+import { AdvancedModelsDialog, AskModels } from './AdvancedModelsDialog';
+import { SaveToNotebooksDialog } from './SaveToNotebooksDialog';
 
 type Tab = 'ask' | 'search';
 type RefType = 'source' | 'note' | 'source_insight';
@@ -119,16 +125,24 @@ export const AskSearchPage = () => {
     // Shared state
     const [defaults, setDefaults] = useState<ModelDefaults | null>(null);
     const [defaultsLoading, setDefaultsLoading] = useState<boolean>(true);
+    const [languageModels, setLanguageModels] = useState<NotebookModel[]>([]);
 
     // Ask state
     const [question, setQuestion] = useState<string>('');
-    // Model used for all three ask roles; '' = default chat model.
-    const [askModel, setAskModel] = useState<string>('');
+    // Per-stage model overrides picked in the Advanced dialog; null = use the
+    // default chat model for all three stages.
+    const [customModels, setCustomModels] = useState<AskModels | null>(null);
+    const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
     const [asking, setAsking] = useState<boolean>(false);
     const [askStatus, setAskStatus] = useState<string | null>(null);
     const [answer, setAnswer] = useState<string | null>(null);
     const [answerCitations, setAnswerCitations] = useState<Citation[]>([]);
     const [askError, setAskError] = useState<string | null>(null);
+    const [showSaveDialog, setShowSaveDialog] = useState<boolean>(false);
+    // Remembers which question produced the current answer, so the saved note's
+    // title matches even if the user has already typed a new question.
+    const [answeredQuestion, setAnsweredQuestion] = useState<string>('');
+    const [savedNotice, setSavedNotice] = useState<boolean>(false);
 
     // Search state
     const [searchQuery, setSearchQuery] = useState<string>('');
@@ -146,9 +160,14 @@ export const AskSearchPage = () => {
         let cancelled = false;
         (async () => {
             setDefaultsLoading(true);
-            const d = await getDefaults();
+            const [d, models] = await Promise.all([getDefaults(), listModels('language')]);
             if (cancelled) return;
             setDefaults(d);
+            setLanguageModels(
+                dedupeModels(models.filter((m) => m.provider === 'bedrock')).sort((a, b) =>
+                    formatModelName(a.name).localeCompare(formatModelName(b.name)),
+                ),
+            );
             setDefaultsLoading(false);
         })();
         return () => {
@@ -158,10 +177,20 @@ export const AskSearchPage = () => {
 
     const hasEmbedding = !!defaults?.default_embedding_model;
     const hasChatModel = !!defaults?.default_chat_model;
+
+    const resolveModelName = useCallback(
+        (id?: string | null): string => {
+            if (!id) return 'Not set';
+            const m = languageModels.find((mm) => mm.id === id);
+            return m ? formatModelName(m.name) : id;
+        },
+        [languageModels],
+    );
+
     const canAsk =
         !asking &&
         question.trim().length > 0 &&
-        (hasChatModel || !!askModel) &&
+        (hasChatModel || !!customModels) &&
         hasEmbedding;
     const canSearch =
         !searching &&
@@ -221,19 +250,26 @@ export const AskSearchPage = () => {
     };
 
     const handleAsk = async () => {
-        const model = askModel || defaults?.default_chat_model;
-        if (!canAsk || !model) return;
+        const fallback = defaults?.default_chat_model;
+        const models: AskModels | null = customModels
+            ? customModels
+            : fallback
+            ? { strategy: fallback, answer: fallback, finalAnswer: fallback }
+            : null;
+        if (!canAsk || !models) return;
         setAsking(true);
         setAskStatus(null);
         setAnswer(null);
         setAnswerCitations([]);
         setAskError(null);
+        setSavedNotice(false);
+        setAnsweredQuestion(question.trim());
 
         const params: AskRequest = {
             question: question.trim(),
-            strategy_model: model,
-            answer_model: model,
-            final_answer_model: model,
+            strategy_model: models.strategy,
+            answer_model: models.answer,
+            final_answer_model: models.finalAnswer,
         };
 
         // The ask graph runs several sequential model calls server-side;
@@ -313,7 +349,7 @@ export const AskSearchPage = () => {
                         }`}
                     >
                         <IconMessageCircleQuestion size={16} />
-                        Ask
+                        Ask (beta)
                     </button>
                     <button
                         onClick={() => setTab('search')}
@@ -332,28 +368,23 @@ export const AskSearchPage = () => {
             {tab === 'ask' ? (
                 <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
                     <div className="border-b border-gray-200 px-5 py-4 dark:border-neutral-700">
-                        <h2 className="text-base font-semibold">Ask your knowledge base</h2>
+                        <h2 className="text-base font-semibold">
+                            Ask Your Knowledge Base (beta)
+                        </h2>
                         <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                            Ask a question and the assistant will search your sources and notes
-                            across notebooks before answering.
+                            The LLM will answer your query based on the documents in your
+                            knowledge base.
                         </p>
                     </div>
 
                     <div className="space-y-4 p-5">
                         <div className="flex flex-col gap-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                                <label
-                                    htmlFor="ask-question"
-                                    className="text-sm font-medium text-gray-700 dark:text-gray-200"
-                                >
-                                    Question
-                                </label>
-                                <ChatModelSelect
-                                    value={askModel}
-                                    onChange={setAskModel}
-                                    disabled={asking}
-                                />
-                            </div>
+                            <label
+                                htmlFor="ask-question"
+                                className="text-sm font-medium text-gray-700 dark:text-gray-200"
+                            >
+                                Question
+                            </label>
                             <textarea
                                 id="ask-question"
                                 ref={askTextareaRef}
@@ -371,11 +402,11 @@ export const AskSearchPage = () => {
                                 }}
                                 rows={3}
                                 disabled={asking}
-                                placeholder="What does my research say about…?"
+                                placeholder="Enter your question..."
                                 className="resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 disabled:opacity-60 dark:border-neutral-600 dark:bg-[#40414f] dark:text-gray-100 dark:placeholder-gray-500"
                             />
                             <p className="text-[11px] text-gray-400 dark:text-gray-500">
-                                Press ⌘/Ctrl + Enter to submit.
+                                Press Cmd/Ctrl+Enter to submit
                             </p>
                         </div>
 
@@ -388,13 +419,54 @@ export const AskSearchPage = () => {
                                 </span>
                             </div>
                         )}
-                        {!defaultsLoading && hasEmbedding && !hasChatModel && !askModel && (
+                        {!defaultsLoading && hasEmbedding && !hasChatModel && !customModels && (
                             <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300">
                                 <IconAlertCircle size={16} className="mt-0.5 flex-none" />
                                 <span>
-                                    No default chat model is configured. Pick a model above, or
-                                    set a default on the Models page.
+                                    No default chat model is configured. Pick models via
+                                    Advanced below, or set a default on the Models page.
                                 </span>
+                            </div>
+                        )}
+
+                        {!defaultsLoading && hasEmbedding && (
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        {customModels
+                                            ? 'Using Custom Models'
+                                            : 'Using Default Models'}
+                                    </span>
+                                    <button
+                                        onClick={() => setShowAdvanced(true)}
+                                        disabled={asking}
+                                        className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-neutral-700"
+                                    >
+                                        <IconSettings size={13} />
+                                        Advanced
+                                    </button>
+                                </div>
+                                <div className="flex flex-wrap gap-2 text-xs">
+                                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-600 dark:bg-neutral-700 dark:text-gray-300">
+                                        Strategy:{' '}
+                                        {resolveModelName(
+                                            customModels?.strategy || defaults?.default_chat_model,
+                                        )}
+                                    </span>
+                                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-600 dark:bg-neutral-700 dark:text-gray-300">
+                                        Answer:{' '}
+                                        {resolveModelName(
+                                            customModels?.answer || defaults?.default_chat_model,
+                                        )}
+                                    </span>
+                                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-600 dark:bg-neutral-700 dark:text-gray-300">
+                                        Final:{' '}
+                                        {resolveModelName(
+                                            customModels?.finalAnswer ||
+                                                defaults?.default_chat_model,
+                                        )}
+                                    </span>
+                                </div>
                             </div>
                         )}
 
@@ -425,8 +497,24 @@ export const AskSearchPage = () => {
 
                         {answerRendered && (
                             <div className="space-y-3 rounded-lg border border-purple-200 bg-purple-50/50 p-4 dark:border-purple-700/50 dark:bg-purple-900/10">
-                                <div className="text-[11px] font-semibold uppercase tracking-wide text-purple-700 dark:text-purple-300">
-                                    Answer
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="text-[11px] font-semibold uppercase tracking-wide text-purple-700 dark:text-purple-300">
+                                        Answer
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {savedNotice && (
+                                            <span className="text-[11px] text-emerald-600 dark:text-emerald-400">
+                                                Saved
+                                            </span>
+                                        )}
+                                        <button
+                                            onClick={() => setShowSaveDialog(true)}
+                                            className="flex h-7 items-center gap-1 rounded-md border border-purple-200 bg-white px-2 text-[12px] font-medium text-purple-700 hover:bg-purple-50 dark:border-purple-700/50 dark:bg-transparent dark:text-purple-300 dark:hover:bg-purple-900/20"
+                                        >
+                                            <IconDeviceFloppy size={14} />
+                                            Save to notebooks
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800 dark:text-gray-100">
                                     {answerRendered.segments.map((seg, i) =>
@@ -679,6 +767,30 @@ export const AskSearchPage = () => {
                         )}
                     </div>
                 </div>
+            )}
+
+            {showSaveDialog && answer && (
+                <SaveToNotebooksDialog
+                    question={answeredQuestion || 'Ask answer'}
+                    answer={answer}
+                    onClose={() => setShowSaveDialog(false)}
+                    onSaved={() => setSavedNotice(true)}
+                />
+            )}
+
+            {showAdvanced && (
+                <AdvancedModelsDialog
+                    models={languageModels}
+                    initial={
+                        customModels || {
+                            strategy: defaults?.default_chat_model || '',
+                            answer: defaults?.default_chat_model || '',
+                            finalAnswer: defaults?.default_chat_model || '',
+                        }
+                    }
+                    onSave={setCustomModels}
+                    onClose={() => setShowAdvanced(false)}
+                />
             )}
         </div>
     );

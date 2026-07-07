@@ -36,3 +36,20 @@ export const formatModelName = (name: string): string => {
 
     return label || name;
 };
+
+// The same model can end up registered more than once (e.g. provider sync plus
+// a manual add). Pickers should show each distinct provider/type/name once —
+// the first registration wins, so existing references stay valid.
+export const dedupeModels = <
+    T extends { name: string; provider?: string | null; type?: string | null },
+>(
+    models: T[],
+): T[] => {
+    const seen = new Set<string>();
+    return models.filter((m) => {
+        const key = `${m.provider ?? ''}|${m.type ?? ''}|${m.name}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+};

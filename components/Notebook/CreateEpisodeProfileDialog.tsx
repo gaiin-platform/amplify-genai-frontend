@@ -10,7 +10,7 @@ import {
     listLanguages,
     listModels,
 } from '@/services/notebookService';
-import { formatModelName } from './modelDisplay';
+import { dedupeModels, formatModelName } from './modelDisplay';
 
 interface Props {
     speakerProfiles: SpeakerProfile[];
@@ -44,7 +44,7 @@ export const CreateEpisodeProfileDialog = ({ speakerProfiles, onClose, onCreated
             if (cancelled) return;
             // Same restriction as the open-notebook UI: outline/transcript
             // generation only runs on Bedrock-hosted language models here.
-            const bedrock = models.filter((m) => m.provider === 'bedrock');
+            const bedrock = dedupeModels(models.filter((m) => m.provider === 'bedrock'));
             setLanguageModels(bedrock);
             setLanguages(langs);
             if (bedrock.length > 0) {
@@ -107,7 +107,7 @@ export const CreateEpisodeProfileDialog = ({ speakerProfiles, onClose, onCreated
             )}
             {languageModels.map((m) => (
                 <option key={m.id} value={m.id}>
-                    {formatModelName(m.name)} ({m.provider})
+                    {formatModelName(m.name)}
                 </option>
             ))}
         </select>
