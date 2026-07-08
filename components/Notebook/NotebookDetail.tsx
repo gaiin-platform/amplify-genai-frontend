@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+    IconArchive,
+    IconArchiveOff,
+    IconChevronLeft,
+    IconFileText,
+    IconNote,
     IconPlus,
-    IconRefresh,
     IconSparkles,
     IconTrash,
 } from '@tabler/icons-react';
@@ -13,10 +17,12 @@ import {
     SourceContextMode,
     SourceListItem,
     deleteNote,
+    deleteNotebook,
     deleteSource,
     getNotebook,
     listNotes,
     listSources,
+    updateNotebook,
 } from '@/services/notebookService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import { AddSourceDialog } from './AddSourceDialog';
@@ -27,12 +33,39 @@ import { SourceInsightsDialog } from './SourceInsightsDialog';
 interface Props {
     notebookId: string;
     initialData?: NotebookSummary;
+    // Lets the parent keep its list/header in sync with renames, description
+    // edits, and archive toggles made here.
+    onUpdated?: (notebook: NotebookSummary) => void;
+    onDeleted?: (id: string) => void;
 }
 
-export const NotebookDetail = ({ notebookId, initialData }: Props) => {
+const COLUMNS_KEY = 'amplify.notebook.collapsedColumns';
+
+export const NotebookDetail = ({ notebookId, initialData, onUpdated, onDeleted }: Props) => {
     const [notebook, setNotebook] = useState<NotebookSummary | null>(initialData ?? null);
     const [loading, setLoading] = useState<boolean>(!initialData);
     const [error, setError] = useState<string | null>(null);
+    const [collapsed, setCollapsed] = useState<{ sources: boolean; notes: boolean }>({
+        sources: false,
+        notes: false,
+    });
+
+    useEffect(() => {
+        try {
+            const saved = JSON.parse(localStorage.getItem(COLUMNS_KEY) || '{}');
+            setCollapsed({ sources: !!saved.sources, notes: !!saved.notes });
+        } catch {
+            // Ignore a corrupt value; defaults stay expanded.
+        }
+    }, []);
+
+    const toggleCollapsed = (key: 'sources' | 'notes') => {
+        setCollapsed((prev) => {
+            const next = { ...prev, [key]: !prev[key] };
+            localStorage.setItem(COLUMNS_KEY, JSON.stringify(next));
+            return next;
+        });
+    };
 
     const [sources, setSources] = useState<SourceListItem[]>([]);
     const [notes, setNotes] = useState<Note[]>([]);
@@ -133,39 +166,344 @@ export const NotebookDetail = ({ notebookId, initialData }: Props) => {
     }
 
     return (
-        <div className="flex flex-col gap-5">
-            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
-                <h2 className="text-xl font-semibold">{notebook.name || '(untitled)'}</h2>
-                {notebook.description && (
-                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                        {notebook.description}
-                    </p>
+        <div className="flex h-full min-h-0 flex-col gap-4">
+            <NotebookHeader
+                notebook={notebook}
+                onChanged={(updated) => {
+                    setNotebook((prev) => (prev ? { ...prev, ...updated } : updated));
+                    onUpdated?.(updated);
+                }}
+                onDeleted={() => onDeleted?.(notebook.id)}
+            />
+
+            <div className="flex min-h-0 flex-1 flex-col gap-6 max-lg:overflow-y-auto lg:flex-row">
+                {collapsed.sources ? (
+                    <CollapsedPanel
+                        label="Sources"
+                        icon={<IconFileText size={18} />}
+                        onExpand={() => toggleCollapsed('sources')}
+                    />
+                ) : (
+                    <div className="flex min-h-0 flex-col lg:min-w-0 lg:basis-1/3">
+                        <SourcesPanel
+                            notebookId={notebookId}
+                            sources={sources}
+                            onSourcesChange={setSources}
+                            contextSelections={contextSelections.sources}
+                            onModeChange={setSourceMode}
+                            onNoteSaved={handleNoteSaved}
+                            onCollapse={() => toggleCollapsed('sources')}
+                        />
+                    </div>
                 )}
+
+                {collapsed.notes ? (
+                    <CollapsedPanel
+                        label="Notes"
+                        icon={<IconNote size={18} />}
+                        onExpand={() => toggleCollapsed('notes')}
+                    />
+                ) : (
+                    <div className="flex min-h-0 flex-col lg:min-w-0 lg:basis-1/3">
+                        <NotesPanel
+                            notebookId={notebookId}
+                            notes={notes}
+                            onNotesChange={setNotes}
+                            contextSelections={contextSelections.notes}
+                            onModeChange={setNoteMode}
+                            onCollapse={() => toggleCollapsed('notes')}
+                        />
+                    </div>
+                )}
+
+                <div className="flex min-h-0 flex-col lg:min-w-0 lg:flex-1">
+                    <ChatPanel
+                        notebookId={notebookId}
+                        contextSelections={contextSelections}
+                        sources={sources}
+                        notes={notes}
+                    />
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Collapsed column strip — a thin full-height button (like the original app's
+// CollapsibleColumn) with a vertical label on desktop; a normal horizontal
+// button when the columns are stacked on small screens.
+const CollapsedPanel = ({
+    label,
+    icon,
+    onExpand,
+}: {
+    label: string;
+    icon: React.ReactNode;
+    onExpand: () => void;
+}) => (
+    <button
+        onClick={onExpand}
+        title={`Expand ${label}`}
+        className="group flex flex-none items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white p-2 text-gray-400 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-700 dark:border-neutral-700 dark:bg-[#2b2c36] dark:text-gray-500 dark:hover:bg-neutral-700/50 dark:hover:text-gray-200 lg:h-full lg:w-12 lg:flex-col lg:py-6"
+    >
+        {icon}
+        <span className="text-xs font-medium lg:hidden">{label}</span>
+        <span
+            className="hidden text-xs font-medium lg:block"
+            style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+        >
+            {label}
+        </span>
+    </button>
+);
+
+const formatRelative = (iso?: string): string => {
+    if (!iso) return '';
+    const d = new Date(iso.replace(' ', 'T'));
+    if (isNaN(d.getTime())) return '';
+    const diffMs = Date.now() - d.getTime();
+    const mins = Math.round(diffMs / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.round(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.round(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    return d.toLocaleDateString();
+};
+
+// Click-to-edit text. Saves on blur or Enter (single-line), cancels on Escape.
+const InlineEditText = ({
+    value,
+    placeholder,
+    multiline = false,
+    className = '',
+    onSave,
+}: {
+    value: string;
+    placeholder: string;
+    multiline?: boolean;
+    className?: string;
+    onSave: (next: string) => void;
+}) => {
+    const [editing, setEditing] = useState<boolean>(false);
+    const [draft, setDraft] = useState<string>(value);
+    const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+
+    useEffect(() => {
+        if (editing) inputRef.current?.focus();
+    }, [editing]);
+
+    const start = () => {
+        setDraft(value);
+        setEditing(true);
+    };
+
+    const commit = () => {
+        setEditing(false);
+        if (draft !== value) onSave(draft);
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            setDraft(value);
+            setEditing(false);
+        } else if (e.key === 'Enter' && !multiline) {
+            e.preventDefault();
+            commit();
+        }
+    };
+
+    if (!editing) {
+        return (
+            <div
+                onClick={start}
+                title="Click to edit"
+                className={`cursor-text rounded px-1 -mx-1 hover:bg-gray-100 dark:hover:bg-neutral-700/60 ${
+                    value ? '' : 'italic text-gray-400 dark:text-gray-500'
+                } ${className}`}
+            >
+                {value || placeholder}
+            </div>
+        );
+    }
+
+    const shared = {
+        value: draft,
+        onChange: (
+            e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+        ) => setDraft(e.target.value),
+        onBlur: commit,
+        onKeyDown: handleKeyDown,
+        placeholder,
+        className: `w-full rounded border border-purple-300 bg-white px-1 -mx-1 outline-none focus:ring-1 focus:ring-purple-400 dark:border-purple-500/60 dark:bg-[#40414f] ${className}`,
+    };
+
+    return multiline ? (
+        <textarea
+            {...shared}
+            ref={(el) => {
+                inputRef.current = el;
+            }}
+            rows={2}
+        />
+    ) : (
+        <input
+            {...shared}
+            ref={(el) => {
+                inputRef.current = el;
+            }}
+            type="text"
+        />
+    );
+};
+
+const NotebookHeader = ({
+    notebook,
+    onChanged,
+    onDeleted,
+}: {
+    notebook: NotebookSummary;
+    onChanged: (updated: NotebookSummary) => void;
+    onDeleted: () => void;
+}) => {
+    const [error, setError] = useState<string | null>(null);
+    const [archiving, setArchiving] = useState<boolean>(false);
+    const [confirmingDelete, setConfirmingDelete] = useState<boolean>(false);
+    const [deleting, setDeleting] = useState<boolean>(false);
+
+    const save = async (data: { name?: string; description?: string }) => {
+        setError(null);
+        const updated = await updateNotebook(notebook.id, data);
+        if (!updated) {
+            setError("Couldn't save changes.");
+            return;
+        }
+        onChanged(updated);
+    };
+
+    const handleRename = (name: string) => {
+        const trimmed = name.trim();
+        // An empty name is rejected rather than saved — the backend requires one.
+        if (!trimmed || trimmed === notebook.name) return;
+        save({ name: trimmed });
+    };
+
+    const handleDescription = (description: string) => {
+        const trimmed = description.trim();
+        if (trimmed === (notebook.description || '')) return;
+        save({ description: trimmed });
+    };
+
+    const handleArchiveToggle = async () => {
+        setArchiving(true);
+        setError(null);
+        const updated = await updateNotebook(notebook.id, {
+            archived: !notebook.archived,
+        });
+        setArchiving(false);
+        if (!updated) {
+            setError(`Couldn't ${notebook.archived ? 'unarchive' : 'archive'} this notebook.`);
+            return;
+        }
+        onChanged(updated);
+    };
+
+    const confirmDelete = async () => {
+        setDeleting(true);
+        const ok = await deleteNotebook(notebook.id);
+        setDeleting(false);
+        setConfirmingDelete(false);
+        if (!ok) {
+            setError("Couldn't delete this notebook.");
+            return;
+        }
+        onDeleted();
+    };
+
+    return (
+        <div className="flex-none rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                        <InlineEditText
+                            value={notebook.name || ''}
+                            placeholder="(untitled)"
+                            className="text-xl font-semibold"
+                            onSave={handleRename}
+                        />
+                        {notebook.archived && (
+                            <span className="flex-none rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-neutral-700 dark:text-gray-300">
+                                Archived
+                            </span>
+                        )}
+                    </div>
+                    <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                        <InlineEditText
+                            value={notebook.description || ''}
+                            placeholder="Add a description…"
+                            multiline
+                            onSave={handleDescription}
+                        />
+                    </div>
+                </div>
+
+                <div className="flex flex-none items-center gap-2">
+                    <button
+                        onClick={handleArchiveToggle}
+                        disabled={archiving}
+                        className="flex h-8 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-neutral-600 dark:bg-[#40414f] dark:text-gray-200 dark:hover:bg-neutral-700"
+                    >
+                        {notebook.archived ? (
+                            <>
+                                <IconArchiveOff size={14} />
+                                Unarchive
+                            </>
+                        ) : (
+                            <>
+                                <IconArchive size={14} />
+                                Archive
+                            </>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setConfirmingDelete(true)}
+                        className="flex h-8 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:bg-transparent dark:text-red-400 dark:hover:bg-red-900/20"
+                    >
+                        <IconTrash size={14} />
+                        Delete
+                    </button>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <SourcesPanel
-                    notebookId={notebookId}
-                    sources={sources}
-                    onSourcesChange={setSources}
-                    contextSelections={contextSelections.sources}
-                    onModeChange={setSourceMode}
-                    onNoteSaved={handleNoteSaved}
+            {(notebook.created || notebook.updated) && (
+                <div className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+                    {notebook.created && <>Created {formatRelative(notebook.created)}</>}
+                    {notebook.created && notebook.updated && ' • '}
+                    {notebook.updated && <>Updated {formatRelative(notebook.updated)}</>}
+                </div>
+            )}
+
+            {error && (
+                <div className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</div>
+            )}
+
+            {confirmingDelete && (
+                <ConfirmModal
+                    title="Delete notebook?"
+                    message={
+                        <span>
+                            Delete <b>{notebook.name || '(untitled)'}</b>? This will also remove
+                            its sources, notes, and chat sessions. This can&apos;t be undone.
+                        </span>
+                    }
+                    confirmLabel={deleting ? 'Deleting…' : 'Delete'}
+                    denyLabel="Cancel"
+                    onConfirm={confirmDelete}
+                    onDeny={() => setConfirmingDelete(false)}
                 />
-                <NotesPanel
-                    notebookId={notebookId}
-                    notes={notes}
-                    onNotesChange={setNotes}
-                    contextSelections={contextSelections.notes}
-                    onModeChange={setNoteMode}
-                />
-                <ChatPanel
-                    notebookId={notebookId}
-                    contextSelections={contextSelections}
-                    sources={sources}
-                    notes={notes}
-                />
-            </div>
+            )}
         </div>
     );
 };
@@ -173,18 +511,31 @@ export const NotebookDetail = ({ notebookId, initialData }: Props) => {
 const PanelShell = ({
     title,
     actions,
+    onCollapse,
     children,
 }: {
     title: string;
     actions?: React.ReactNode;
+    onCollapse?: () => void;
     children: React.ReactNode;
 }) => (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
-        <div className="flex items-center gap-2 border-b border-gray-200 px-4 py-3 dark:border-neutral-700">
-            <div className="text-sm font-semibold">{title}</div>
-            {actions && <div className="ml-auto flex items-center gap-1">{actions}</div>}
+    <div className="flex h-full min-h-0 flex-col rounded-xl border border-gray-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
+        <div className="flex flex-none items-center gap-2 border-b border-gray-200 px-6 py-4 dark:border-neutral-700">
+            <div className="text-lg font-semibold">{title}</div>
+            <div className="ml-auto flex items-center gap-1">
+                {actions}
+                {onCollapse && (
+                    <button
+                        onClick={onCollapse}
+                        title={`Collapse ${title}`}
+                        className="hidden h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-white lg:flex"
+                    >
+                        <IconChevronLeft size={16} />
+                    </button>
+                )}
+            </div>
         </div>
-        <div className="p-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-6">{children}</div>
     </div>
 );
 
@@ -195,6 +546,7 @@ const SourcesPanel = ({
     contextSelections,
     onModeChange,
     onNoteSaved,
+    onCollapse,
 }: {
     notebookId: string;
     sources: SourceListItem[];
@@ -202,6 +554,7 @@ const SourcesPanel = ({
     contextSelections: Record<string, SourceContextMode>;
     onModeChange: (id: string, mode: SourceContextMode) => void;
     onNoteSaved: (note: Note) => void;
+    onCollapse?: () => void;
 }) => {
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -278,27 +631,18 @@ const SourcesPanel = ({
     };
 
     const actions = (
-        <>
-            <button
-                onClick={() => fetchSources(true)}
-                title="Refresh"
-                className="flex h-7 w-7 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-white transition-colors"
-            >
-                <IconRefresh size={14} />
-            </button>
-            <button
-                onClick={() => setShowAdd(true)}
-                title="Add source"
-                className="flex items-center gap-1 rounded-md bg-purple-500 px-2 py-1 text-xs font-medium text-white shadow-sm hover:bg-purple-600 transition-colors"
-            >
-                <IconPlus size={12} />
-                Add
-            </button>
-        </>
+        <button
+            onClick={() => setShowAdd(true)}
+            title="Add source"
+            className="flex h-8 items-center gap-1.5 rounded-md bg-purple-500 px-3 text-sm font-medium text-white shadow-sm hover:bg-purple-600 transition-colors"
+        >
+            <IconPlus size={14} />
+            Add Source
+        </button>
     );
 
     return (
-        <PanelShell title="Sources" actions={actions}>
+        <PanelShell title="Sources" actions={actions} onCollapse={onCollapse}>
             {loading && (
                 <div className="text-xs text-gray-500 dark:text-gray-400">Loading sources…</div>
             )}
@@ -308,8 +652,14 @@ const SourcesPanel = ({
             )}
 
             {!loading && !error && sources.length === 0 && (
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                    No sources yet. Click <span className="font-medium">Add</span> to ingest a URL or text.
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                    <IconFileText size={40} className="mb-3 text-gray-300 dark:text-neutral-600" />
+                    <div className="text-lg font-semibold text-gray-700 dark:text-gray-200">
+                        No sources yet
+                    </div>
+                    <p className="mt-1 max-w-[220px] text-xs text-gray-500 dark:text-gray-400">
+                        Add your first source to start building your knowledge base.
+                    </p>
                 </div>
             )}
 
@@ -429,12 +779,14 @@ const NotesPanel = ({
     onNotesChange,
     contextSelections,
     onModeChange,
+    onCollapse,
 }: {
     notebookId: string;
     notes: Note[];
     onNotesChange: (next: Note[] | ((prev: Note[]) => Note[])) => void;
     contextSelections: Record<string, NoteContextMode>;
     onModeChange: (id: string, mode: NoteContextMode) => void;
+    onCollapse?: () => void;
 }) => {
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -485,16 +837,16 @@ const NotesPanel = ({
     const actions = (
         <button
             onClick={() => setEditing(null)}
-            title="New note"
-            className="flex items-center gap-1 rounded-md bg-purple-500 px-2 py-1 text-xs font-medium text-white shadow-sm hover:bg-purple-600 transition-colors"
+            title="Write note"
+            className="flex h-8 items-center gap-1.5 rounded-md bg-purple-500 px-3 text-sm font-medium text-white shadow-sm hover:bg-purple-600 transition-colors"
         >
-            <IconPlus size={12} />
-            New
+            <IconPlus size={14} />
+            Write Note
         </button>
     );
 
     return (
-        <PanelShell title="Notes" actions={actions}>
+        <PanelShell title="Notes" actions={actions} onCollapse={onCollapse}>
             {loading && (
                 <div className="text-xs text-gray-500 dark:text-gray-400">Loading notes…</div>
             )}
@@ -504,8 +856,14 @@ const NotesPanel = ({
             )}
 
             {!loading && !error && notes.length === 0 && (
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                    No notes yet. Click <span className="font-medium">New</span> to write one.
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                    <IconNote size={40} className="mb-3 text-gray-300 dark:text-neutral-600" />
+                    <div className="text-lg font-semibold text-gray-700 dark:text-gray-200">
+                        No notes yet
+                    </div>
+                    <p className="mt-1 max-w-[220px] text-xs text-gray-500 dark:text-gray-400">
+                        Create your first note to capture insights and observations.
+                    </p>
                 </div>
             )}
 

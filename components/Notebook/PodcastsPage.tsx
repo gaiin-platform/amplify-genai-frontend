@@ -2,31 +2,49 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import {
     IconAlertCircle,
     IconChevronDown,
+    IconCopy,
     IconInfoCircle,
     IconLoader2,
     IconMicrophone,
     IconPlus,
     IconRefresh,
+    IconTemplate,
     IconTrash,
+    IconX,
 } from '@tabler/icons-react';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import {
+    createEpisodeProfile,
+    createSpeakerProfile,
     deleteEpisode as deleteEpisodeApi,
+    deleteEpisodeProfile,
+    deleteSpeakerProfile,
+    duplicateEpisodeProfile,
+    duplicateSpeakerProfile,
     EpisodeProfile,
     EpisodeStatus,
     fetchEpisodeAudioObjectUrl,
     listEpisodeProfiles,
     listEpisodes,
+    listModels,
     listSpeakerProfiles,
+    NotebookModel,
     PodcastEpisode,
     PodcastGenerationResponse,
     retryEpisode as retryEpisodeApi,
     SpeakerProfile,
 } from '@/services/notebookService';
+import { CreateEpisodeProfileDialog } from './CreateEpisodeProfileDialog';
+import { formatModelName } from './modelDisplay';
+import { CreateSpeakerProfileDialog } from './CreateSpeakerProfileDialog';
+import {
+    DEFAULT_EPISODE_PROFILES,
+    DEFAULT_SPEAKER_PROFILES,
+} from './defaultPodcastProfiles';
 import { GeneratePodcastDialog } from './GeneratePodcastDialog';
 
-type Tab = 'episodes' | 'templates';
+type Tab = 'episodes' | 'profiles';
 type StatusGroup = 'running' | 'completed' | 'failed' | 'pending';
 
 const STATUS_META: Record<
@@ -197,15 +215,15 @@ const TabsHeader = ({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) => (
                 Episodes
             </button>
             <button
-                onClick={() => onTab('templates')}
+                onClick={() => onTab('profiles')}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                    tab === 'templates'
+                    tab === 'profiles'
                         ? 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-sm'
                         : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-neutral-700'
                 }`}
             >
-                <IconInfoCircle size={16} />
-                Templates
+                <IconTemplate size={16} />
+                Profiles
             </button>
         </div>
     </div>
@@ -578,6 +596,7 @@ const EpisodesTab = ({
             <div className="flex flex-wrap gap-2">
                 <SummaryBadge label="Total" value={counts.total} />
                 <SummaryBadge label="Generating" value={counts.running} />
+                <SummaryBadge label="Pending" value={counts.pending} />
                 <SummaryBadge label="Completed" value={counts.completed} />
                 <SummaryBadge label="Failed" value={counts.failed} />
             </div>
@@ -639,29 +658,64 @@ const EpisodesTab = ({
     );
 };
 
-const TemplatesTab = () => {
+const ProfilesTab = () => {
     const [episodeProfiles, setEpisodeProfiles] = useState<EpisodeProfile[]>([]);
     const [speakerProfiles, setSpeakerProfiles] = useState<SpeakerProfile[]>([]);
+    const [models, setModels] = useState<NotebookModel[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [expandedSpeaker, setExpandedSpeaker] = useState<Set<string>>(new Set());
+    const [showCreateEpisode, setShowCreateEpisode] = useState<boolean>(false);
+    const [showCreateSpeaker, setShowCreateSpeaker] = useState<boolean>(false);
+    const [pendingProfileDelete, setPendingProfileDelete] = useState<{
+        kind: 'episode' | 'speaker';
+        id: string;
+        name: string;
+    } | null>(null);
+    const [busyProfileId, setBusyProfileId] = useState<string | null>(null);
+    const [seeding, setSeeding] = useState<boolean>(false);
+    // Errors from per-profile actions (delete/duplicate) — shown as a dismissible
+    // banner instead of replacing the whole tab the way a load error does.
+    const [actionError, setActionError] = useState<string | null>(null);
 
     const load = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            const [ep, sp] = await Promise.all([
+            const [ep, sp, mdl] = await Promise.all([
                 listEpisodeProfiles(),
                 listSpeakerProfiles(),
+                listModels(),
             ]);
             setEpisodeProfiles(ep);
             setSpeakerProfiles(sp);
+            setModels(mdl);
         } catch (e: any) {
-            setError(e?.message || 'Failed to load templates');
+            setError(e?.message || 'Failed to load profiles');
         } finally {
             setLoading(false);
         }
     }, []);
+
+    // Profiles reference models two ways: new-style as a model record ID
+    // (outline_llm / voice_model), legacy as provider + model name strings.
+    const resolveModel = useCallback(
+        (
+            ref?: string | null,
+            legacyProvider?: string | null,
+            legacyModel?: string | null,
+        ): string => {
+            if (ref) {
+                const m = models.find((mm) => mm.id === ref);
+                return m ? formatModelName(m.name) : ref;
+            }
+            if (legacyProvider || legacyModel) {
+                return legacyModel ? formatModelName(legacyModel) : legacyProvider ?? '?';
+            }
+            return '—';
+        },
+        [models],
+    );
 
     useEffect(() => {
         load();
@@ -685,20 +739,128 @@ const TemplatesTab = () => {
         });
     };
 
+    // Upstream open-notebook ships three sample speaker/episode profile pairs
+    // via a database migration; per-user databases created through amplify miss
+    // them. Offer to create whichever ones aren't present yet.
+    const missingDefaults = useMemo(() => {
+        const spNames = new Set(speakerProfiles.map((p) => p.name));
+        const epNames = new Set(episodeProfiles.map((p) => p.name));
+        return {
+            speakers: DEFAULT_SPEAKER_PROFILES.filter((p) => !spNames.has(p.name)),
+            episodes: DEFAULT_EPISODE_PROFILES.filter((p) => !epNames.has(p.name)),
+        };
+    }, [speakerProfiles, episodeProfiles]);
+    const hasMissingDefaults =
+        missingDefaults.speakers.length > 0 || missingDefaults.episodes.length > 0;
+
+    const handleAddDefaults = async () => {
+        if (seeding) return;
+        setSeeding(true);
+        setActionError(null);
+        // The upstream seeds reference openai models; substitute this
+        // deployment's registered models so the profiles can actually generate.
+        const langModel =
+            models.find((m) => m.type === 'language' && m.provider === 'bedrock')?.id ??
+            null;
+        const ttsModel = models.find((m) => m.type === 'text_to_speech')?.id ?? null;
+
+        const failures: string[] = [];
+        for (const sp of missingDefaults.speakers) {
+            const created = await createSpeakerProfile({
+                name: sp.name,
+                description: sp.description,
+                voice_model: ttsModel,
+                speakers: sp.speakers,
+            });
+            if (!created) failures.push(sp.name);
+        }
+        for (const ep of missingDefaults.episodes) {
+            const created = await createEpisodeProfile({
+                name: ep.name,
+                description: ep.description,
+                speaker_config: ep.speaker_config,
+                outline_llm: langModel,
+                transcript_llm: langModel,
+                default_briefing: ep.default_briefing,
+                num_segments: ep.num_segments,
+            });
+            if (!created) failures.push(ep.name);
+        }
+        setSeeding(false);
+        if (failures.length > 0) {
+            setActionError(`Couldn't create: ${failures.join(', ')}.`);
+        }
+        await load();
+    };
+
+    const handleDuplicateProfile = async (kind: 'episode' | 'speaker', id: string) => {
+        setBusyProfileId(id);
+        setActionError(null);
+        const created =
+            kind === 'episode'
+                ? await duplicateEpisodeProfile(id)
+                : await duplicateSpeakerProfile(id);
+        setBusyProfileId(null);
+        if (!created) {
+            setActionError(`Couldn't duplicate the ${kind} profile.`);
+            return;
+        }
+        await load();
+    };
+
+    const confirmProfileDelete = async () => {
+        if (!pendingProfileDelete) return;
+        const { kind, id, name } = pendingProfileDelete;
+        setBusyProfileId(id);
+        setActionError(null);
+        const ok =
+            kind === 'episode'
+                ? await deleteEpisodeProfile(id)
+                : await deleteSpeakerProfile(id);
+        setBusyProfileId(null);
+        setPendingProfileDelete(null);
+        if (!ok) {
+            setActionError(
+                kind === 'speaker'
+                    ? `Couldn't delete "${name}". Speaker profiles still used by an episode profile can't be deleted.`
+                    : `Couldn't delete "${name}".`,
+            );
+            return;
+        }
+        await load();
+    };
+
     return (
         <div className="space-y-5">
-            <div>
-                <h2 className="text-base font-semibold">Templates</h2>
-                <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                    Episode and speaker profiles available on this deployment. Configured
-                    server-side.
-                </p>
+            <div className="flex items-start justify-between gap-3">
+                <div>
+                    <h2 className="text-base font-semibold">Profiles</h2>
+                    <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                        Build reusable episode and speaker configurations for fast podcast
+                        production.
+                    </p>
+                </div>
+                {!loading && !error && hasMissingDefaults && (
+                    <button
+                        onClick={handleAddDefaults}
+                        disabled={seeding}
+                        title="Create the starter profiles that ship with Open Notebook"
+                        className="flex h-8 flex-none items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-neutral-600 dark:bg-[#40414f] dark:text-gray-200 dark:hover:bg-neutral-700"
+                    >
+                        {seeding ? (
+                            <IconLoader2 size={14} className="animate-spin" />
+                        ) : (
+                            <IconPlus size={14} />
+                        )}
+                        Add default profiles
+                    </button>
+                )}
             </div>
 
             {loading && (
                 <div className="flex items-center gap-2 rounded-lg border border-dashed border-gray-200 p-6 text-sm text-gray-500 dark:border-neutral-700 dark:text-gray-400">
                     <IconLoader2 size={14} className="animate-spin" />
-                    Loading templates…
+                    Loading profiles…
                 </div>
             )}
 
@@ -709,13 +871,37 @@ const TemplatesTab = () => {
                 </div>
             )}
 
+            {actionError && (
+                <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                    <IconAlertCircle size={16} className="mt-0.5 flex-none" />
+                    <span className="flex-1">{actionError}</span>
+                    <button
+                        onClick={() => setActionError(null)}
+                        title="Dismiss"
+                        className="rounded p-0.5 hover:bg-red-100 dark:hover:bg-red-900/40"
+                    >
+                        <IconX size={14} />
+                    </button>
+                </div>
+            )}
+
             {!loading && !error && (
                 <>
                     <section className="space-y-2">
-                        <h3 className="text-sm font-semibold">Episode profiles</h3>
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold">Episode profiles</h3>
+                            <button
+                                onClick={() => setShowCreateEpisode(true)}
+                                className="flex h-7 items-center gap-1 rounded-lg bg-purple-500 px-2.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-purple-600"
+                            >
+                                <IconPlus size={13} />
+                                New
+                            </button>
+                        </div>
                         {episodeProfiles.length === 0 ? (
                             <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500 dark:border-neutral-700 dark:bg-neutral-800/40 dark:text-gray-400">
-                                No episode profiles configured.
+                                No episode profiles yet. Create one to define how episodes are
+                                generated.
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -733,9 +919,42 @@ const TemplatesTab = () => {
                                                     </div>
                                                 )}
                                             </div>
-                                            <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                                                {p.num_segments} segments
-                                            </span>
+                                            <div className="flex flex-none items-center gap-1">
+                                                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                                                    {p.num_segments} segments
+                                                </span>
+                                                <button
+                                                    onClick={() =>
+                                                        handleDuplicateProfile('episode', p.id)
+                                                    }
+                                                    disabled={busyProfileId === p.id}
+                                                    title="Duplicate profile"
+                                                    className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:text-gray-500 dark:hover:bg-neutral-700 dark:hover:text-gray-200"
+                                                >
+                                                    {busyProfileId === p.id ? (
+                                                        <IconLoader2
+                                                            size={14}
+                                                            className="animate-spin"
+                                                        />
+                                                    ) : (
+                                                        <IconCopy size={14} />
+                                                    )}
+                                                </button>
+                                                <button
+                                                    onClick={() =>
+                                                        setPendingProfileDelete({
+                                                            kind: 'episode',
+                                                            id: p.id,
+                                                            name: p.name,
+                                                        })
+                                                    }
+                                                    disabled={busyProfileId === p.id}
+                                                    title="Delete profile"
+                                                    className="rounded-md p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:text-gray-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                                                >
+                                                    <IconTrash size={14} />
+                                                </button>
+                                            </div>
                                         </div>
                                         <dl className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
                                             <div>
@@ -743,7 +962,11 @@ const TemplatesTab = () => {
                                                     Outline
                                                 </dt>
                                                 <dd>
-                                                    {p.outline_provider} / {p.outline_model}
+                                                    {resolveModel(
+                                                        p.outline_llm,
+                                                        p.outline_provider,
+                                                        p.outline_model,
+                                                    )}
                                                 </dd>
                                             </div>
                                             <div>
@@ -751,7 +974,11 @@ const TemplatesTab = () => {
                                                     Transcript
                                                 </dt>
                                                 <dd>
-                                                    {p.transcript_provider} / {p.transcript_model}
+                                                    {resolveModel(
+                                                        p.transcript_llm,
+                                                        p.transcript_provider,
+                                                        p.transcript_model,
+                                                    )}
                                                 </dd>
                                             </div>
                                             <div className="col-span-2">
@@ -768,10 +995,20 @@ const TemplatesTab = () => {
                     </section>
 
                     <section className="space-y-2">
-                        <h3 className="text-sm font-semibold">Speaker profiles</h3>
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold">Speaker profiles</h3>
+                            <button
+                                onClick={() => setShowCreateSpeaker(true)}
+                                className="flex h-7 items-center gap-1 rounded-lg bg-purple-500 px-2.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-purple-600"
+                            >
+                                <IconPlus size={13} />
+                                New
+                            </button>
+                        </div>
                         {speakerProfiles.length === 0 ? (
                             <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500 dark:border-neutral-700 dark:bg-neutral-800/40 dark:text-gray-400">
-                                No speaker profiles configured.
+                                No speaker profiles yet. Create one to define the voices used in
+                                your podcasts.
                             </div>
                         ) : (
                             <div className="space-y-2">
@@ -782,9 +1019,9 @@ const TemplatesTab = () => {
                                             key={sp.id}
                                             className="rounded-xl border border-gray-200 bg-white dark:border-neutral-700 dark:bg-[#2b2c36]"
                                         >
-                                            <button
+                                            <div
                                                 onClick={() => toggleSpeaker(sp.id)}
-                                                className="flex w-full items-center justify-between gap-3 p-3 text-left"
+                                                className="flex w-full cursor-pointer items-center justify-between gap-3 p-3 text-left"
                                             >
                                                 <div className="min-w-0">
                                                     <div className="flex items-center gap-2">
@@ -796,18 +1033,57 @@ const TemplatesTab = () => {
                                                         </span>
                                                     </div>
                                                     <div className="mt-0.5 text-[12px] text-gray-500 dark:text-gray-400">
-                                                        {sp.tts_provider} / {sp.tts_model} ·{' '}
-                                                        {sp.speakers.length} voice
+                                                        {resolveModel(
+                                                            sp.voice_model,
+                                                            sp.tts_provider,
+                                                            sp.tts_model,
+                                                        )}{' '}
+                                                        · {sp.speakers.length} voice
                                                         {sp.speakers.length === 1 ? '' : 's'}
                                                     </div>
                                                 </div>
-                                                <IconChevronDown
-                                                    size={16}
-                                                    className={`flex-none text-gray-400 transition-transform ${
-                                                        expanded ? 'rotate-180' : ''
-                                                    }`}
-                                                />
-                                            </button>
+                                                <div className="flex flex-none items-center gap-1">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDuplicateProfile('speaker', sp.id);
+                                                        }}
+                                                        disabled={busyProfileId === sp.id}
+                                                        title="Duplicate profile"
+                                                        className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:text-gray-500 dark:hover:bg-neutral-700 dark:hover:text-gray-200"
+                                                    >
+                                                        {busyProfileId === sp.id ? (
+                                                            <IconLoader2
+                                                                size={14}
+                                                                className="animate-spin"
+                                                            />
+                                                        ) : (
+                                                            <IconCopy size={14} />
+                                                        )}
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setPendingProfileDelete({
+                                                                kind: 'speaker',
+                                                                id: sp.id,
+                                                                name: sp.name,
+                                                            });
+                                                        }}
+                                                        disabled={busyProfileId === sp.id}
+                                                        title="Delete profile"
+                                                        className="rounded-md p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:text-gray-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                                                    >
+                                                        <IconTrash size={14} />
+                                                    </button>
+                                                    <IconChevronDown
+                                                        size={16}
+                                                        className={`flex-none text-gray-400 transition-transform ${
+                                                            expanded ? 'rotate-180' : ''
+                                                        }`}
+                                                    />
+                                                </div>
+                                            </div>
                                             {expanded && (
                                                 <div className="space-y-2 border-t border-gray-200 p-3 dark:border-neutral-700">
                                                     {sp.speakers.map((s, i) => (
@@ -846,6 +1122,38 @@ const TemplatesTab = () => {
                         )}
                     </section>
                 </>
+            )}
+
+            {showCreateEpisode && (
+                <CreateEpisodeProfileDialog
+                    speakerProfiles={speakerProfiles}
+                    onClose={() => setShowCreateEpisode(false)}
+                    onCreated={() => load()}
+                />
+            )}
+
+            {showCreateSpeaker && (
+                <CreateSpeakerProfileDialog
+                    onClose={() => setShowCreateSpeaker(false)}
+                    onCreated={() => load()}
+                />
+            )}
+
+            {pendingProfileDelete && (
+                <ConfirmModal
+                    title={`Delete ${pendingProfileDelete.kind} profile?`}
+                    message={
+                        <span>
+                            Delete <b>{pendingProfileDelete.name}</b>? Existing episodes keep
+                            their settings, but new episodes can no longer use this profile.
+                            This can&apos;t be undone.
+                        </span>
+                    }
+                    confirmLabel={busyProfileId ? 'Deleting…' : 'Delete'}
+                    denyLabel="Cancel"
+                    onConfirm={confirmProfileDelete}
+                    onDeny={() => setPendingProfileDelete(null)}
+                />
             )}
         </div>
     );
@@ -1018,7 +1326,7 @@ export const PodcastsPage = () => {
                     onView={setViewing}
                 />
             ) : (
-                <TemplatesTab />
+                <ProfilesTab />
             )}
 
             {showGenerate && (

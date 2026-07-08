@@ -77,6 +77,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   const [showActionSetList, setShowActionSetList] = useState(false);
   const [showApiToolList, setShowApiToolList] = useState(false);
   const [showWorkflowList, setShowWorkflowList] = useState(false);
+  const [showActionSelector, setShowActionSelector] = useState(false);
 
   // State for unified Actions task type
   const [actionSubMode, setActionSubMode] = useState<'actionSet' | 'apiTool' | 'createActionSet'>('apiTool');
@@ -246,6 +247,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   
   const handleNewTask = () => {
     setSelectedTask(emptyTask());
+    setShowActionSelector(false);
   };
 
   const handleLoadTask = async (taskId: string) => {
@@ -263,6 +265,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
       // Cancel any in-flight polling loop from a previous task
       pollingCancelledRef.current = true;
       setIsTestingTask(false);
+      setShowActionSelector(false);
       setSelectedTask(task);
       setTaskLogs([]);
       setSelectedLogId(null);
@@ -567,6 +570,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   const handleActionSetSelect = (actionSet: any) => {
     setSelectedTask({...selectedTask, taskType: 'actionSet', objectInfo: {objectId: actionSet.id || '', objectName: actionSet.name || 'Unnamed Set'}});
     setShowActionSetList(false);
+    setShowActionSelector(false);
   };
 
   const handleAddRawActionToNewSet = (api: OpDef) => {
@@ -672,6 +676,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
       setNewActionSetName('');
       setNewActionSetActions([]);
       setActionSubMode('actionSet');
+      setShowActionSelector(false);
       toast.success(`Action set "${savedSet.name}" created and selected`);
     } catch (err) {
       console.error('Error saving action set:', err);
@@ -684,6 +689,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
   const handleApiToolSelect = (name: string, opSpecs: any) => {
     setSelectedTask({...selectedTask, objectInfo: {objectId: name, objectName: name, data: {op: opSpecs}}});
     setShowApiToolList(false);
+    setShowActionSelector(false);
   }
 
   const handleWorkflowSelect = (templateId: string) => {
@@ -744,18 +750,26 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
         return (
           <div className={`flex flex-col mb-4 space-y-3 ${isEnforced ? 'opacity-50 pointer-events-none' : ''}`}>
 
-            {/* ── Selected tool display (matches assistant/workflow style) ── */}
-            {selectedTask.objectInfo?.objectId && (
-              <div className="mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow flex justify-between items-center border-neutral-500 dark:border-neutral-800 dark:border-opacity-50">
-                <span>{selectedTask.objectInfo.objectName}</span>
-              </div>
-            )}
+            {/* ── Selected tool display — click to open/close the selector ── */}
+            <div
+              onClick={() => !isEnforced && setShowActionSelector(v => !v)}
+              className={`mt-[-4px] w-full rounded-lg px-4 border py-2 text-neutral-900 shadow focus:outline-none bg-neutral-100 dark:bg-[#40414F] dark:text-neutral-100 custom-shadow flex justify-between items-center
+              ${selectedTask.objectInfo?.objectId ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50' : 'border-red-500 dark:border-red-800'}
+              ${isEnforced ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              <span>{selectedTask.objectInfo?.objectName || 'Select Action'}</span>
+              <IconChevronDown
+                size={18}
+                className={`transition-transform ${(showActionSelector || !selectedTask.objectInfo?.objectId) ? 'rotate-180' : ''}`}
+              />
+            </div>
 
+            {(showActionSelector || !selectedTask.objectInfo?.objectId) && !isDisabled() && <>
             {/* ── Three sub-option cards (API Action | Action Set | Create Action Set) ── */}
             <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${[featureFlags.integrations, featureFlags.actionSets, featureFlags.actionSets].filter(Boolean).length}, minmax(0, 1fr))` }}>
               {featureFlags.integrations && (
                 <button
-                  onClick={() => { setActionSubMode('apiTool'); setSelectedTask({...selectedTask, objectInfo: {objectId: '', objectName: ''}, taskType: 'apiTool'}); setShowApiToolList(false); }}
+                  onClick={() => { setActionSubMode('apiTool'); setShowApiToolList(false); }}
                   className={`flex flex-col items-start gap-1 px-3 py-2.5 rounded-lg border transition-colors text-left ${
                     actionSubMode === 'apiTool'
                       ? 'bg-blue-50 border-blue-500 dark:bg-blue-900/20 dark:border-blue-400'
@@ -767,7 +781,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               )}
               {featureFlags.actionSets && (
                 <button
-                  onClick={() => { setActionSubMode('actionSet'); setSelectedTask({...selectedTask, objectInfo: {objectId: '', objectName: ''}, taskType: 'actionSet'}); setShowActionSetList(false); }}
+                  onClick={() => { setActionSubMode('actionSet'); setShowActionSetList(false); }}
                   className={`flex flex-col items-start gap-1 px-3 py-2.5 rounded-lg border transition-colors text-left ${
                     actionSubMode === 'actionSet'
                       ? 'bg-blue-50 border-blue-500 dark:bg-blue-900/20 dark:border-blue-400'
@@ -779,7 +793,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
               )}
               {featureFlags.actionSets && (
                 <button
-                  onClick={() => { setActionSubMode('createActionSet'); setNewActionSetActions([]); setNewActionSetName(''); setSelectedTask({...selectedTask, objectInfo: {objectId: '', objectName: ''}, taskType: 'actionSet'}); }}
+                  onClick={() => { setActionSubMode('createActionSet'); setNewActionSetActions([]); setNewActionSetName(''); }}
                   className={`flex flex-col items-start gap-1 px-3 py-2.5 rounded-lg border transition-colors text-left ${
                     actionSubMode === 'createActionSet'
                       ? 'bg-blue-50 border-blue-500 dark:bg-blue-900/20 dark:border-blue-400'
@@ -943,6 +957,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                 )}
               </div>
             )}
+            </>}
 
           </div>
         );
@@ -1174,6 +1189,7 @@ export const ScheduledTasks: React.FC<ScheduledTasksProps> = ({
                 setNewActionSetActions([]);
                 setNewActionSetName('');
                 if (val === 'actions') {
+                  setShowActionSelector(true);
                   setActionSubMode('apiTool');
                   setSelectedTask({...selectedTask, objectInfo: {objectId: '', objectName: ''}, taskType: 'apiTool'});
                   setShowActionSetList(false);
