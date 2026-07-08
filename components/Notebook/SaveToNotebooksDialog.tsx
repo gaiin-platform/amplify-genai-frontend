@@ -71,7 +71,7 @@ export const SaveToNotebooksDialog = ({ question, answer, onClose, onSaved }: Pr
 
     return (
         <Modal
-            title="Save to notebooks"
+            title="Save to Notebooks"
             onCancel={onClose}
             onSubmit={handleSubmit}
             submitLabel={saving ? 'Saving…' : 'Save'}

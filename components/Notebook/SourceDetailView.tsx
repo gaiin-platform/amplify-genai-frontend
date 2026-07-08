@@ -1,36 +1,50 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-    IconAlertCircle,
-    IconAlignLeft,
-    IconChevronDown,
-    IconChevronRight,
-    IconCheck,
-    IconCopy,
-    IconExternalLink,
-    IconLink,
-    IconLoader2,
-    IconNotebook,
-    IconPlayerPlay,
-    IconRefresh,
-    IconTrash,
-    IconUpload,
-} from '@tabler/icons-react';
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import remarkGfm from 'remark-gfm';
+import {
+    LucideAlertCircle,
+    LucideAlignLeft,
+    LucideBookOpen,
+    LucideCheck,
+    LucideCheckCircle,
+    LucideCopy,
+    LucideDatabase,
+    LucideDownload,
+    LucideExternalLink,
+    LucideLightbulb,
+    LucideLink,
+    LucideLoader2,
+    LucideMoreVertical,
+    LucidePlus,
+    LucideSparkles,
+    LucideTrash2,
+    LucideUpload,
+    LucideYoutube,
+} from './LucideIcons';
 import {
     NotebookSummary,
     SourceInsight,
     SourceListItem,
     Transformation,
+    addSourceToNotebook,
     createSourceInsight,
     deleteInsight,
+    deleteSource,
+    downloadSourceFile,
+    embedSource,
+    getSource,
     listSourceInsights,
     listTransformations,
-    saveInsightAsNote,
+    removeSourceFromNotebook,
+    updateSource,
     waitForCommand,
 } from '@/services/notebookService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
+import { Modal } from '@/components/ReusableComponents/Modal';
 import { MemoizedReactMarkdown } from '@/components/Markdown/MemoizedReactMarkdown';
+import { InlineEditText } from './InlineEditText';
+import { DropdownButton, DropdownItem } from './DropdownButton';
 import { SourceChatPanel } from './SourceChatPanel';
+import { formatDistanceToNow } from './relativeTime';
 
 type Tab = 'content' | 'insights' | 'details';
 
@@ -38,8 +52,14 @@ interface Props {
     // Full source record from getSource (includes full_text and notebooks);
     // the list endpoint's items are missing both.
     source: SourceListItem;
-    // Used to show which notebooks this source belongs to by name.
+    // Used by the Manage Notebooks card in the Details tab.
     notebooks: NotebookSummary[];
+    // Fired after "Delete Source" succeeds — the parent should navigate back
+    // to the sources list and refresh it.
+    onDeleted?: () => void;
+    // Fired when the source record changes (rename, embed, notebook links) so
+    // the parent's copy (e.g. the page header title) stays in sync.
+    onSourceUpdated?: (source: SourceListItem) => void;
 }
 
 const sourceKind = (s: SourceListItem): 'link' | 'file' | 'text' => {
@@ -48,10 +68,16 @@ const sourceKind = (s: SourceListItem): 'link' | 'file' | 'text' => {
     return 'text';
 };
 
-const KindIcon = ({ kind }: { kind: 'link' | 'file' | 'text' }) => {
-    if (kind === 'link') return <IconLink size={14} />;
-    if (kind === 'file') return <IconUpload size={14} />;
-    return <IconAlignLeft size={14} />;
+const KIND_LABELS: Record<'link' | 'file' | 'text', string> = {
+    link: 'Link',
+    file: 'File',
+    text: 'Text',
+};
+
+const KindIcon = ({ kind, size = 20 }: { kind: 'link' | 'file' | 'text'; size?: number }) => {
+    if (kind === 'link') return <LucideLink size={size} />;
+    if (kind === 'file') return <LucideUpload size={size} />;
+    return <LucideAlignLeft size={size} />;
 };
 
 const safeExternalHref = (url: string | null | undefined): string | null => {
@@ -76,23 +102,68 @@ const getYouTubeVideoId = (url: string): string | null => {
     return null;
 };
 
-const formatTimestamp = (iso?: string): string => {
-    if (!iso) return '—';
-    const d = new Date(iso.replace(' ', 'T'));
-    return isNaN(d.getTime()) ? '—' : d.toLocaleString();
+// Card primitives mirroring the reference UI's shadcn card
+// (rounded-xl border py-6 shadow-sm, px-6 sections).
+const Card = ({ children, className = '' }: { children: ReactNode; className?: string }) => (
+    <div
+        className={`flex flex-col gap-6 rounded-xl border border-gray-200 bg-white py-6 shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36] ${className}`}
+    >
+        {children}
+    </div>
+);
+const CardHeader = ({ children }: { children: ReactNode }) => (
+    <div className="flex flex-col gap-1.5 px-6">{children}</div>
+);
+const CardTitle = ({ children, className = '' }: { children: ReactNode; className?: string }) => (
+    <div className={`font-semibold leading-none ${className}`}>{children}</div>
+);
+const CardDescription = ({ children, className = '' }: { children: ReactNode; className?: string }) => (
+    <div className={`text-sm text-gray-500 dark:text-gray-400 ${className}`}>{children}</div>
+);
+const CardContent = ({ children, className = '' }: { children: ReactNode; className?: string }) => (
+    <div className={`px-6 ${className}`}>{children}</div>
+);
+
+// Badge variants matching shadcn: rounded-md px-2 py-0.5 text-xs font-medium.
+const badgeClass = (variant: 'default' | 'secondary' | 'outline', extra = '') => {
+    const variants = {
+        default: 'border-transparent bg-purple-500 text-white',
+        secondary:
+            'border-transparent bg-gray-100 text-gray-800 dark:bg-neutral-700 dark:text-gray-200',
+        outline: 'border-gray-300 text-gray-800 dark:border-neutral-600 dark:text-gray-200',
+    };
+    return `inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${variants[variant]} ${extra}`;
 };
 
-// Full-page source viewer: content/insights/details on the left, a chat pane
-// scoped to this source on the right. Mirrors open-notebook's sources/[id]
-// page, and works whether or not the source is linked to a notebook.
-export const SourceDetailView = ({ source, notebooks }: Props) => {
+// Button styles matching shadcn sizes: sm = h-8 px-3, default = h-9 px-4.
+const outlineButtonClass =
+    'inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium shadow-sm transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700';
+const primaryButtonClass =
+    'inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-purple-500 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-600 disabled:pointer-events-none disabled:opacity-50';
+
+// Full-page source viewer mirroring open-notebook's sources/[id] page:
+// editable title header with the ⋯ actions menu, Content/Insights/Details
+// tabs on the left, and a chat pane scoped to this source on the right.
+export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated }: Props) => {
+    const [src, setSrc] = useState<SourceListItem>(source);
     const [tab, setTab] = useState<Tab>('content');
-    // Seeded from source.insights_count, but the single-source GET this page
-    // is populated from doesn't actually return that field (only the list
-    // endpoint's response model does) — so it's always 0 here. Fetch the
-    // real count immediately, independent of the Insights tab ever being
-    // opened, so the "(N)" badge is right from the first render.
+    const [actionError, setActionError] = useState<string | null>(null);
+
+    const [isEmbedding, setIsEmbedding] = useState<boolean>(false);
+    const [isDownloading, setIsDownloading] = useState<boolean>(false);
+    const [fileAvailable, setFileAvailable] = useState<boolean | null>(null);
+    const [confirmDeleteSource, setConfirmDeleteSource] = useState<boolean>(false);
+    const [deletingSource, setDeletingSource] = useState<boolean>(false);
+
+    // The single-source GET this page is populated from doesn't return
+    // insights_count (only the list endpoint does), so fetch the real count
+    // immediately — the "Insights (N)" tab label must be right from the first
+    // render, matching the reference which fetches insights on mount.
     const [insightsCount, setInsightsCount] = useState<number>(source.insights_count || 0);
+
+    useEffect(() => {
+        setSrc(source);
+    }, [source]);
 
     useEffect(() => {
         let cancelled = false;
@@ -104,28 +175,128 @@ export const SourceDetailView = ({ source, notebooks }: Props) => {
         };
     }, [source.id]);
 
-    const kind = sourceKind(source);
-    const externalHref = useMemo(() => safeExternalHref(source.asset?.url), [source.asset?.url]);
+    const kind = sourceKind(src);
+    const externalHref = useMemo(() => safeExternalHref(src.asset?.url), [src.asset?.url]);
     const youTubeVideoId = useMemo(
         () => (externalHref ? getYouTubeVideoId(externalHref) : null),
         [externalHref],
     );
 
-    const linkedNotebooks = useMemo(() => {
-        const ids = source.notebooks || [];
-        return ids.map((id) => ({
-            id,
-            name: notebooks.find((nb) => nb.id === id)?.name || '(unknown notebook)',
-        }));
-    }, [source.notebooks, notebooks]);
+    const applyUpdate = useCallback(
+        (next: SourceListItem) => {
+            setSrc(next);
+            onSourceUpdated?.(next);
+        },
+        [onSourceUpdated],
+    );
+
+    const handleRename = async (title: string) => {
+        if (title === (src.title || '')) return;
+        setActionError(null);
+        const updated = await updateSource(src.id, { title });
+        if (!updated) {
+            setActionError("Couldn't update the source title.");
+            return;
+        }
+        applyUpdate({ ...src, title: updated.title ?? title });
+    };
+
+    const handleEmbed = async () => {
+        if (isEmbedding || src.embedded) return;
+        setActionError(null);
+        setIsEmbedding(true);
+        const result = await embedSource(src.id);
+        setIsEmbedding(false);
+        if (!result) {
+            setActionError("Couldn't embed this source's content.");
+            return;
+        }
+        const refreshed = await getSource(src.id);
+        applyUpdate(refreshed ?? { ...src, embedded: true });
+    };
+
+    const handleDownload = async () => {
+        if (!src.asset?.file_path || isDownloading || fileAvailable === false) return;
+        setActionError(null);
+        setIsDownloading(true);
+        const result = await downloadSourceFile(src.id);
+        setIsDownloading(false);
+        if (!result.ok || !result.blob) {
+            if (result.status === 404) {
+                setFileAvailable(false);
+            } else {
+                setActionError("Couldn't download the file. Please try again.");
+            }
+            return;
+        }
+        setFileAvailable(true);
+        const fallbackName =
+            src.asset.file_path.split(/[/\\]/).pop() || `source-${src.id}`;
+        const blobUrl = window.URL.createObjectURL(result.blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = result.filename || fallbackName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+    };
+
+    const handleDeleteSource = async () => {
+        setDeletingSource(true);
+        const ok = await deleteSource(src.id);
+        setDeletingSource(false);
+        setConfirmDeleteSource(false);
+        if (!ok) {
+            setActionError("Couldn't delete this source.");
+            return;
+        }
+        onDeleted?.();
+    };
+
+    const menuItems: DropdownItem[] = [
+        ...(src.asset?.file_path
+            ? [
+                  {
+                      label:
+                          fileAvailable === false
+                              ? 'File unavailable'
+                              : isDownloading
+                                ? 'Preparing...'
+                                : 'Download File',
+                      icon: <LucideDownload size={16} />,
+                      onClick: handleDownload,
+                      disabled: isDownloading || fileAvailable === false,
+                  } as DropdownItem,
+              ]
+            : []),
+        {
+            label: isEmbedding
+                ? 'Embedding...'
+                : src.embedded
+                  ? 'Already Embedded'
+                  : 'Embed Content',
+            icon: <LucideDatabase size={16} />,
+            onClick: handleEmbed,
+            disabled: isEmbedding || !!src.embedded,
+            separatorAbove: !!src.asset?.file_path,
+        },
+        {
+            label: 'Delete Source',
+            icon: <LucideTrash2 size={16} />,
+            onClick: () => setConfirmDeleteSource(true),
+            danger: true,
+            separatorAbove: true,
+        },
+    ];
 
     const tabButton = (value: Tab, label: string) => (
         <button
             onClick={() => setTab(value)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            className={`inline-flex h-9 flex-1 items-center justify-center whitespace-nowrap rounded-lg border px-4 text-sm font-medium transition-all ${
                 tab === value
-                    ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
-                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-gray-200'
+                    ? 'border-gray-200 bg-white text-gray-900 shadow-sm dark:border-neutral-600 dark:bg-[#2b2c36] dark:text-gray-100'
+                    : 'border-transparent text-gray-500 dark:text-gray-400'
             }`}
         >
             {label}
@@ -133,131 +304,196 @@ export const SourceDetailView = ({ source, notebooks }: Props) => {
     );
 
     return (
-        <div className="grid h-full gap-6 lg:grid-cols-[2fr_1fr] lg:overflow-hidden">
-            <div className="flex min-h-0 flex-col rounded-xl border border-gray-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
-                <div className="border-b border-gray-200 px-6 py-4 dark:border-neutral-700">
-                    <div className="flex items-start gap-3">
+        // minmax(0,…) tracks: with the default minmax(auto,…), any content
+        // whose intrinsic min size exceeds the column's share (long code/URL
+        // lines on the Details tab) blows the column out past the viewport,
+        // so the page scrolls on both axes instead of the tab body scrolling
+        // internally.
+        <div className="grid h-full gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
+            <div className="flex min-h-0 min-w-0 flex-col">
+                {/* Header */}
+                <div className="px-2 pb-4">
+                    <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                            <h2 className="truncate text-lg font-semibold">
-                                {source.title || 'Untitled source'}
-                            </h2>
-                            {externalHref && (
-                                <a
-                                    href={externalHref}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="mt-0.5 block truncate text-xs text-gray-500 hover:text-purple-500 dark:text-gray-400 dark:hover:text-purple-400"
-                                >
-                                    {source.asset?.url}
-                                </a>
-                            )}
+                            <InlineEditText
+                                value={src.title || ''}
+                                placeholder="Give your source a descriptive title"
+                                className="text-2xl font-bold"
+                                onSave={handleRename}
+                            />
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                Source ID: {src.id}
+                            </p>
                         </div>
-                        <span className="inline-flex flex-none items-center gap-1.5 rounded-full bg-purple-100 px-2.5 py-0.5 text-[11px] font-medium text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                            <KindIcon kind={kind} />
-                            {kind}
-                        </span>
+                        <div className="flex flex-none items-center gap-2">
+                            <KindIcon kind={kind} size={20} />
+                            <span className={badgeClass('secondary', '!text-sm')}>
+                                {KIND_LABELS[kind]}
+                            </span>
+                            <DropdownButton
+                                trigger={<LucideMoreVertical size={16} />}
+                                title="Source actions"
+                                items={menuItems}
+                                triggerClassName="!h-9 !w-9 !px-0 justify-center"
+                            />
+                        </div>
                     </div>
-                    <div className="mt-3 flex items-center gap-1">
+                    {actionError && (
+                        <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                            {actionError}
+                        </div>
+                    )}
+                </div>
+
+                {/* Tabs */}
+                <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2">
+                    <div className="sticky top-0 z-10 grid w-full grid-cols-3 gap-1 rounded-xl border border-gray-200 bg-gray-100/90 p-1 shadow-sm backdrop-blur dark:border-neutral-700 dark:bg-neutral-800/90">
                         {tabButton('content', 'Content')}
-                        {tabButton('insights', insightsCount > 0 ? `Insights (${insightsCount})` : 'Insights')}
+                        {tabButton(
+                            'insights',
+                            insightsCount > 0 ? `Insights (${insightsCount})` : 'Insights',
+                        )}
                         {tabButton('details', 'Details')}
                     </div>
-                </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 py-4">
-                    {tab === 'content' && (
-                        <>
-                            {youTubeVideoId && (
-                                <div className="mb-6">
-                                    <div className="aspect-video overflow-hidden rounded-lg bg-black">
-                                        <iframe
-                                            src={`https://www.youtube.com/embed/${youTubeVideoId}`}
-                                            title="YouTube video"
-                                            className="h-full w-full"
-                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                            allowFullScreen
-                                        />
-                                    </div>
-                                </div>
-                            )}
-                            {source.full_text ? (
-                                <MemoizedReactMarkdown
-                                    className="prose prose-sm dark:prose-invert max-w-none break-words"
-                                    remarkPlugins={[remarkGfm]}
-                                >
-                                    {source.full_text}
-                                </MemoizedReactMarkdown>
-                            ) : (
-                                <div className="rounded-md border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-neutral-600 dark:text-gray-400">
-                                    No extracted content available for this source.
-                                </div>
-                            )}
-                        </>
-                    )}
+                    <div className="mt-6 pb-6">
+                        {tab === 'content' && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        {youTubeVideoId && <LucideYoutube size={20} />}
+                                        Content
+                                    </CardTitle>
+                                    {externalHref && !youTubeVideoId && (
+                                        <CardDescription className="flex items-center gap-2">
+                                            <LucideLink size={16} className="flex-none" />
+                                            <a
+                                                href={externalHref}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="truncate text-blue-600 hover:underline"
+                                            >
+                                                {src.asset?.url}
+                                            </a>
+                                        </CardDescription>
+                                    )}
+                                </CardHeader>
+                                <CardContent>
+                                    {youTubeVideoId && (
+                                        <div className="mb-6">
+                                            <div className="aspect-video overflow-hidden rounded-lg bg-black">
+                                                <iframe
+                                                    src={`https://www.youtube.com/embed/${youTubeVideoId}`}
+                                                    title="YouTube video"
+                                                    className="h-full w-full"
+                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                    allowFullScreen
+                                                />
+                                            </div>
+                                            {externalHref && (
+                                                <div className="mt-2">
+                                                    <a
+                                                        href={externalHref}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:underline dark:text-gray-400"
+                                                    >
+                                                        <LucideExternalLink size={12} />
+                                                        Open on YouTube
+                                                    </a>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                    {src.full_text ? (
+                                        <MemoizedReactMarkdown
+                                            className="prose prose-sm dark:prose-invert max-w-none break-words"
+                                            remarkPlugins={[remarkGfm]}
+                                        >
+                                            {src.full_text}
+                                        </MemoizedReactMarkdown>
+                                    ) : (
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                                            No content available
+                                        </p>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
 
-                    {tab === 'insights' && (
-                        <InsightsTab
-                            source={source}
-                            notebookId={source.notebooks?.[0]}
-                            onCountChange={setInsightsCount}
-                        />
-                    )}
+                        {tab === 'insights' && (
+                            <InsightsTab source={src} onCountChange={setInsightsCount} />
+                        )}
 
-                    {tab === 'details' && (
-                        <DetailsTab
-                            source={source}
-                            externalHref={externalHref}
-                            linkedNotebooks={linkedNotebooks}
-                        />
-                    )}
+                        {tab === 'details' && (
+                            <DetailsTab
+                                source={src}
+                                notebooks={notebooks}
+                                externalHref={externalHref}
+                                isEmbedding={isEmbedding}
+                                isDownloading={isDownloading}
+                                fileAvailable={fileAvailable}
+                                onEmbed={handleEmbed}
+                                onDownload={handleDownload}
+                                onSourceUpdated={applyUpdate}
+                            />
+                        )}
+                    </div>
                 </div>
             </div>
 
-            <div className="min-h-0">
-                <SourceChatPanel source={source} />
+            <div className="min-h-0 min-w-0">
+                <SourceChatPanel source={src} />
             </div>
+
+            {confirmDeleteSource && (
+                <ConfirmModal
+                    title="Delete Source"
+                    message={
+                        <span>
+                            Are you sure you want to delete{' '}
+                            <b>{src.title || 'Untitled Source'}</b>? This will remove it from
+                            every notebook it appears in.
+                        </span>
+                    }
+                    confirmLabel={deletingSource ? 'Deleting…' : 'Delete'}
+                    denyLabel="Cancel"
+                    onConfirm={handleDeleteSource}
+                    onDeny={() => setConfirmDeleteSource(false)}
+                />
+            )}
         </div>
     );
 };
 
-// Same behavior as SourceInsightsDialog, hosted as a tab: run a transformation
-// against the source, list/expand/delete insights, save one as a note.
+// Insights tab mirroring the reference: a "Generate New Insight" box with a
+// transformation picker, and a card list with View/Delete actions.
 const InsightsTab = ({
     source,
-    notebookId,
     onCountChange,
 }: {
     source: SourceListItem;
-    notebookId?: string;
     onCountChange: (count: number) => void;
 }) => {
     const [insights, setInsights] = useState<SourceInsight[]>([]);
     const [transformations, setTransformations] = useState<Transformation[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
-    const [refreshing, setRefreshing] = useState<boolean>(false);
-    const [error, setError] = useState<string | null>(null);
 
     const [selectedTransformationId, setSelectedTransformationId] = useState<string>('');
     const [generating, setGenerating] = useState<boolean>(false);
     const [generationError, setGenerationError] = useState<string | null>(null);
 
-    const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+    const [viewInsight, setViewInsight] = useState<SourceInsight | null>(null);
     const [pendingDelete, setPendingDelete] = useState<SourceInsight | null>(null);
     const [deleting, setDeleting] = useState<boolean>(false);
-    const [savingNoteId, setSavingNoteId] = useState<string | null>(null);
-    const [savedNoteId, setSavedNoteId] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
-    const refreshInsights = useCallback(
-        async (showSpinner: boolean) => {
-            if (showSpinner) setRefreshing(true);
-            const data = await listSourceInsights(source.id);
-            setInsights(data);
-            onCountChange(data.length);
-            if (showSpinner) setRefreshing(false);
-            return data;
-        },
-        [source.id, onCountChange],
-    );
+    const refreshInsights = useCallback(async () => {
+        const data = await listSourceInsights(source.id);
+        setInsights(data);
+        onCountChange(data.length);
+        return data;
+    }, [source.id, onCountChange]);
 
     useEffect(() => {
         let cancelled = false;
@@ -272,9 +508,6 @@ const InsightsTab = ({
             setInsights(insightsData);
             setTransformations(transformationsData);
             onCountChange(insightsData.length);
-            const defaultTransform =
-                transformationsData.find((t) => t.apply_default) ?? transformationsData[0];
-            if (defaultTransform) setSelectedTransformationId(defaultTransform.id);
             setLoading(false);
         })();
         return () => {
@@ -282,23 +515,18 @@ const InsightsTab = ({
         };
     }, [source.id, onCountChange]);
 
-    const selectedTransformation = useMemo(
-        () => transformations.find((t) => t.id === selectedTransformationId),
-        [transformations, selectedTransformationId],
-    );
-
     const handleGenerate = async () => {
         if (!selectedTransformationId || generating) return;
         setGenerating(true);
         setGenerationError(null);
 
-        const startCountAtSubmit = insights.length;
         const response = await createSourceInsight(source.id, selectedTransformationId);
         if (!response) {
             setGenerating(false);
             setGenerationError('Failed to start insight generation.');
             return;
         }
+        setSelectedTransformationId('');
 
         // The backend submits an async job; poll for completion. If no
         // command_id comes back (older deployments), fall back to a single
@@ -313,14 +541,8 @@ const InsightsTab = ({
             }
         }
 
-        const refreshed = await refreshInsights(false);
+        await refreshInsights();
         setGenerating(false);
-
-        if (refreshed.length <= startCountAtSubmit && !response.command_id) {
-            setGenerationError(
-                'Insight generation completed but no new insight appeared. Check backend logs.',
-            );
-        }
     };
 
     const confirmDelete = async () => {
@@ -339,196 +561,178 @@ const InsightsTab = ({
         setPendingDelete(null);
     };
 
-    const handleSaveAsNote = async (insight: SourceInsight) => {
-        if (!notebookId) return;
-        setSavingNoteId(insight.id);
-        const note = await saveInsightAsNote(insight.id, notebookId);
-        setSavingNoteId(null);
-        if (note) {
-            setSavedNoteId(insight.id);
-            window.setTimeout(() => {
-                setSavedNoteId((curr) => (curr === insight.id ? null : curr));
-            }, 2500);
-        } else {
-            setError('Failed to save insight as note.');
-        }
-    };
-
-    const toggleExpanded = (id: string) =>
-        setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
-
     return (
-        <div className="flex flex-col gap-4">
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-neutral-700 dark:bg-[#343541]">
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Run a transformation
-                </p>
-                <div className="flex flex-wrap items-center gap-2">
-                    <select
-                        value={selectedTransformationId}
-                        onChange={(e) => setSelectedTransformationId(e.target.value)}
-                        disabled={loading || transformations.length === 0 || generating}
-                        className="flex-1 min-w-[200px] rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100 disabled:opacity-60"
-                    >
-                        {transformations.length === 0 ? (
-                            <option value="">No transformations available</option>
-                        ) : (
-                            transformations.map((t) => (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                        <LucideLightbulb size={20} />
+                        Insights
+                    </span>
+                    <span className={badgeClass('secondary')}>{insights.length}</span>
+                </CardTitle>
+                <CardDescription>Insights generated from model analysis</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+                {/* Create New Insight */}
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-neutral-700 dark:bg-[#343541]">
+                    <label className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                        <LucideSparkles size={16} />
+                        Generate New Insight
+                    </label>
+                    <div className="flex gap-2">
+                        <select
+                            value={selectedTransformationId}
+                            onChange={(e) => setSelectedTransformationId(e.target.value)}
+                            disabled={generating || loading}
+                            className="h-9 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm shadow-sm disabled:opacity-50 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                        >
+                            <option value="">Select a transformation...</option>
+                            {transformations.map((t) => (
                                 <option key={t.id} value={t.id}>
                                     {t.title || t.name}
                                 </option>
-                            ))
-                        )}
-                    </select>
-                    <button
-                        onClick={handleGenerate}
-                        disabled={!selectedTransformationId || generating || loading}
-                        className="flex items-center gap-1.5 rounded-md bg-purple-500 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        {generating ? (
-                            <IconLoader2 size={14} className="animate-spin" />
-                        ) : (
-                            <IconPlayerPlay size={14} />
-                        )}
-                        {generating ? 'Generating…' : 'Generate'}
-                    </button>
+                            ))}
+                        </select>
+                        <button
+                            onClick={handleGenerate}
+                            disabled={!selectedTransformationId || generating || loading}
+                            className={primaryButtonClass}
+                        >
+                            {generating ? (
+                                <>
+                                    <LucideLoader2 size={12} className="animate-spin" />
+                                    Creating...
+                                </>
+                            ) : (
+                                <>
+                                    <LucidePlus size={16} />
+                                    New
+                                </>
+                            )}
+                        </button>
+                    </div>
+                    {generationError && (
+                        <div className="mt-2 flex items-start gap-1.5 text-xs text-red-600 dark:text-red-400">
+                            <LucideAlertCircle size={14} className="mt-0.5 flex-none" />
+                            <span>{generationError}</span>
+                        </div>
+                    )}
                 </div>
-                {selectedTransformation?.description && (
-                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        {selectedTransformation.description}
-                    </p>
+
+                {error && (
+                    <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
                 )}
-                {generationError && (
-                    <div className="mt-2 flex items-start gap-1.5 text-xs text-red-600 dark:text-red-400">
-                        <IconAlertCircle size={14} className="mt-0.5 shrink-0" />
-                        <span>{generationError}</span>
+
+                {/* Insights List */}
+                {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                        <LucideLoader2 size={24} className="animate-spin text-gray-400" />
+                    </div>
+                ) : insights.length === 0 ? (
+                    <div className="py-8 text-center text-gray-500 dark:text-gray-400">
+                        <LucideLightbulb size={48} className="mx-auto mb-3 opacity-50" />
+                        <p className="text-sm">No insights yet</p>
+                        <p className="mt-1 text-xs">
+                            Create your first insight using a transformation above
+                        </p>
+                    </div>
+                ) : (
+                    <div className="flex flex-col gap-3">
+                        {insights.map((insight) => (
+                            <div
+                                key={insight.id}
+                                className="rounded-lg border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-[#2b2c36]"
+                            >
+                                <div className="flex items-start justify-between">
+                                    <span className={badgeClass('outline', 'uppercase')}>
+                                        {insight.insight_type}
+                                    </span>
+                                </div>
+                                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                    {insight.content.slice(0, 180)}
+                                    {insight.content.length > 180 ? '…' : ''}
+                                </p>
+                                <div className="mt-3 flex justify-end gap-2">
+                                    <button
+                                        onClick={() => setViewInsight(insight)}
+                                        className={outlineButtonClass}
+                                    >
+                                        View Insight
+                                    </button>
+                                    <button
+                                        onClick={() => setPendingDelete(insight)}
+                                        className={`${outlineButtonClass} text-red-600 hover:text-red-600 dark:text-red-400`}
+                                    >
+                                        <LucideTrash2 size={16} />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 )}
-            </div>
+            </CardContent>
 
-            <div className="flex items-center justify-between">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Existing insights {insights.length > 0 && <span>({insights.length})</span>}
-                </p>
-                <button
-                    onClick={() => refreshInsights(true)}
-                    title="Refresh"
-                    disabled={refreshing || loading}
-                    className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-white disabled:opacity-50"
-                >
-                    <IconRefresh size={12} className={refreshing ? 'animate-spin' : ''} />
-                    Refresh
-                </button>
-            </div>
-
-            {loading && (
-                <div className="text-sm text-gray-500 dark:text-gray-400">Loading insights…</div>
-            )}
-
-            {!loading && error && (
-                <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
-            )}
-
-            {!loading && !error && insights.length === 0 && (
-                <div className="rounded-md border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-neutral-600 dark:text-gray-400">
-                    No insights yet. Pick a transformation above and click{' '}
-                    <span className="font-medium">Generate</span> to create one.
-                </div>
-            )}
-
-            {!loading && !error && insights.length > 0 && (
-                <ul className="divide-y divide-gray-100 dark:divide-neutral-700/60">
-                    {insights.map((insight) => {
-                        const isOpen = !!expanded[insight.id];
-                        const preview = insight.content.length > 220
-                            ? insight.content.slice(0, 220).trimEnd() + '…'
-                            : insight.content;
-                        return (
-                            <li key={insight.id} className="py-3">
-                                <div className="flex items-start gap-2">
-                                    <button
-                                        onClick={() => toggleExpanded(insight.id)}
-                                        className="mt-0.5 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-neutral-700 dark:hover:text-white"
-                                        title={isOpen ? 'Collapse' : 'Expand'}
-                                    >
-                                        {isOpen ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
-                                    </button>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
-                                                {insight.insight_type}
-                                            </span>
-                                            {insight.created && (
-                                                <span className="text-[11px] text-gray-400 dark:text-gray-500">
-                                                    {new Date(insight.created.replace(' ', 'T')).toLocaleString()}
-                                                </span>
-                                            )}
-                                        </div>
-                                        {isOpen ? (
-                                            <pre className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed">
-                                                {insight.content}
-                                            </pre>
-                                        ) : (
-                                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                                                {preview}
-                                            </p>
-                                        )}
-                                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                                            <button
-                                                onClick={() => handleSaveAsNote(insight)}
-                                                disabled={savingNoteId === insight.id || !notebookId}
-                                                title={notebookId ? undefined : 'Link this source to a notebook to save insights as notes'}
-                                                className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700 disabled:opacity-50"
-                                            >
-                                                {savingNoteId === insight.id ? (
-                                                    <IconLoader2 size={12} className="animate-spin" />
-                                                ) : (
-                                                    <IconNotebook size={12} />
-                                                )}
-                                                {savedNoteId === insight.id ? 'Saved!' : 'Save as note'}
-                                            </button>
-                                            <button
-                                                onClick={() => setPendingDelete(insight)}
-                                                className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-[11px] text-gray-600 hover:bg-red-50 hover:text-red-600 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                                            >
-                                                <IconTrash size={12} />
-                                                Delete
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </li>
-                        );
-                    })}
-                </ul>
+            {viewInsight && (
+                <Modal
+                    title="Source Insight"
+                    onCancel={() => setViewInsight(null)}
+                    showSubmit={false}
+                    cancelLabel="Close"
+                    width={() => Math.min(768, window.innerWidth * 0.9)}
+                    height={() => window.innerHeight * 0.85}
+                    content={
+                        <div className="flex flex-col gap-3 p-2 text-neutral-800 dark:text-neutral-100">
+                            <div>
+                                <span className={badgeClass('outline', 'uppercase')}>
+                                    {viewInsight.insight_type}
+                                </span>
+                            </div>
+                            <MemoizedReactMarkdown
+                                className="prose prose-sm dark:prose-invert max-w-none break-words"
+                                remarkPlugins={[remarkGfm]}
+                            >
+                                {viewInsight.content}
+                            </MemoizedReactMarkdown>
+                        </div>
+                    }
+                />
             )}
 
             {pendingDelete && (
                 <ConfirmModal
-                    title="Delete insight?"
-                    message={
-                        <span>
-                            Delete this <b>{pendingDelete.insight_type}</b> insight? This can&apos;t be undone.
-                        </span>
-                    }
+                    title="Delete Insight"
+                    message="Are you sure you want to delete this insight? This action cannot be undone."
                     confirmLabel={deleting ? 'Deleting…' : 'Delete'}
                     denyLabel="Cancel"
                     onConfirm={confirmDelete}
                     onDeny={() => setPendingDelete(null)}
                 />
             )}
-        </div>
+        </Card>
     );
 };
 
 const DetailsTab = ({
     source,
+    notebooks,
     externalHref,
-    linkedNotebooks,
+    isEmbedding,
+    isDownloading,
+    fileAvailable,
+    onEmbed,
+    onDownload,
+    onSourceUpdated,
 }: {
     source: SourceListItem;
+    notebooks: NotebookSummary[];
     externalHref: string | null;
-    linkedNotebooks: { id: string; name: string }[];
+    isEmbedding: boolean;
+    isDownloading: boolean;
+    fileAvailable: boolean | null;
+    onEmbed: () => void;
+    onDownload: () => void;
+    onSourceUpdated: (source: SourceListItem) => void;
 }) => {
     const [copied, setCopied] = useState<boolean>(false);
 
@@ -539,127 +743,329 @@ const DetailsTab = ({
         window.setTimeout(() => setCopied(false), 2000);
     };
 
+    const created = source.created ? new Date(source.created.replace(' ', 'T')) : null;
+    const updated = source.updated ? new Date(source.updated.replace(' ', 'T')) : null;
+
     return (
-        <div className="flex flex-col gap-5 text-sm">
-            {source.asset?.url && (
-                <div>
-                    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        URL
-                    </h3>
-                    <div className="flex items-center gap-2">
-                        <code className="min-w-0 flex-1 truncate rounded bg-gray-100 px-2 py-1 text-xs dark:bg-neutral-700">
-                            {source.asset.url}
-                        </code>
-                        <button
-                            onClick={handleCopyUrl}
-                            title="Copy URL"
-                            className="rounded-md border border-gray-200 p-1.5 text-gray-500 hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700"
-                        >
-                            {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
-                        </button>
-                        {externalHref && (
-                            <a
-                                href={externalHref}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title="Open in new tab"
-                                className="rounded-md border border-gray-200 p-1.5 text-gray-500 hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700"
-                            >
-                                <IconExternalLink size={14} />
-                            </a>
+        <>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Details</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-6">
+                    {/* Embedding Alert */}
+                    {!source.embedded && (
+                        <div className="rounded-lg border border-gray-200 p-4 dark:border-neutral-700">
+                            <div className="flex gap-3">
+                                <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
+                                <div className="min-w-0">
+                                    <div className="mb-1 font-medium">Content Not Embedded</div>
+                                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                                        This content hasn&apos;t been embedded for vector search.
+                                        Embedding enables advanced search capabilities and better
+                                        content discovery.
+                                        <div className="mt-3">
+                                            <button
+                                                onClick={onEmbed}
+                                                disabled={isEmbedding}
+                                                className={primaryButtonClass}
+                                            >
+                                                <LucideDatabase size={16} />
+                                                {isEmbedding ? 'Embedding...' : 'Embed Content'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Source Information */}
+                    <div className="flex flex-col gap-4">
+                        {source.asset?.url && (
+                            <div>
+                                <h3 className="mb-2 text-sm font-semibold">URL</h3>
+                                <div className="flex items-center gap-2">
+                                    <code className="min-w-0 flex-1 truncate rounded bg-gray-100 px-2 py-1 text-sm dark:bg-neutral-700">
+                                        {source.asset.url}
+                                    </code>
+                                    <button
+                                        onClick={handleCopyUrl}
+                                        title="Copy URL"
+                                        className={outlineButtonClass}
+                                    >
+                                        {copied ? (
+                                            <LucideCheckCircle size={16} />
+                                        ) : (
+                                            <LucideCopy size={16} />
+                                        )}
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (externalHref) {
+                                                window.open(
+                                                    externalHref,
+                                                    '_blank',
+                                                    'noopener,noreferrer',
+                                                );
+                                            }
+                                        }}
+                                        disabled={!externalHref}
+                                        title="Open in new tab"
+                                        className={outlineButtonClass}
+                                    >
+                                        <LucideExternalLink size={16} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {source.asset?.file_path && (
+                            <div className="flex flex-col gap-2">
+                                <h3 className="text-sm font-semibold">Uploaded File</h3>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <code className="min-w-0 max-w-full truncate rounded bg-gray-100 px-2 py-1 text-sm dark:bg-neutral-700">
+                                        {source.asset.file_path}
+                                    </code>
+                                    <button
+                                        onClick={onDownload}
+                                        disabled={isDownloading || fileAvailable === false}
+                                        className={outlineButtonClass}
+                                    >
+                                        <LucideDownload size={16} />
+                                        {fileAvailable === false
+                                            ? 'File unavailable'
+                                            : isDownloading
+                                              ? 'Preparing...'
+                                              : 'Download'}
+                                    </button>
+                                </div>
+                                {fileAvailable === false && (
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        This file is currently unavailable due to storage system
+                                        reasons.
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
+                        {source.topics && source.topics.length > 0 && (
+                            <div>
+                                <h3 className="mb-2 text-sm font-semibold">Topics</h3>
+                                <div className="flex flex-wrap gap-2">
+                                    {source.topics.map((topic, idx) => (
+                                        <span key={idx} className={badgeClass('outline')}>
+                                            {topic}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
                         )}
                     </div>
-                </div>
-            )}
 
-            {source.asset?.file_path && (
-                <div>
-                    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Uploaded file
-                    </h3>
-                    <code className="block truncate rounded bg-gray-100 px-2 py-1 text-xs dark:bg-neutral-700">
-                        {source.asset.file_path}
-                    </code>
-                </div>
-            )}
-
-            {source.topics && source.topics.length > 0 && (
-                <div>
-                    <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Topics
-                    </h3>
-                    <div className="flex flex-wrap gap-1.5">
-                        {source.topics.map((topic, idx) => (
-                            <span
-                                key={idx}
-                                className="rounded-full border border-gray-200 px-2 py-0.5 text-[11px] text-gray-600 dark:border-neutral-600 dark:text-gray-300"
-                            >
-                                {topic}
-                            </span>
-                        ))}
+                    {/* Metadata */}
+                    <div>
+                        <div className="mb-3 flex items-center justify-between">
+                            <h3 className="text-sm font-semibold">Metadata</h3>
+                            <div className="flex items-center gap-2">
+                                <LucideDatabase
+                                    size={14}
+                                    className="text-gray-500 dark:text-gray-400"
+                                />
+                                <span
+                                    className={badgeClass(
+                                        source.embedded ? 'default' : 'secondary',
+                                    )}
+                                >
+                                    {source.embedded ? 'Embedded' : 'Not Embedded'}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div>
+                                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                    Created
+                                </p>
+                                <p className="text-sm">{formatDistanceToNow(source.created)}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {created ? created.toLocaleString() : '—'}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                    Updated
+                                </p>
+                                <p className="text-sm">{formatDistanceToNow(source.updated)}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {updated ? updated.toLocaleString() : '—'}
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            )}
+                </CardContent>
+            </Card>
 
-            <div>
-                <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Notebooks
-                </h3>
-                {linkedNotebooks.length === 0 ? (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                        This source isn&apos;t linked to any notebook.
+            <ManageNotebooksCard
+                source={source}
+                notebooks={notebooks}
+                onSourceUpdated={onSourceUpdated}
+            />
+        </>
+    );
+};
+
+// Mirrors the reference's NotebookAssociations card: checkboxes for every
+// (non-archived) notebook, with Save/Cancel appearing once the selection
+// differs from the source's current links.
+const ManageNotebooksCard = ({
+    source,
+    notebooks,
+    onSourceUpdated,
+}: {
+    source: SourceListItem;
+    notebooks: NotebookSummary[];
+    onSourceUpdated: (source: SourceListItem) => void;
+}) => {
+    const currentIds = useMemo(() => source.notebooks || [], [source.notebooks]);
+    const [selectedIds, setSelectedIds] = useState<string[]>(currentIds);
+    const [saving, setSaving] = useState<boolean>(false);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        setSelectedIds(currentIds);
+    }, [currentIds]);
+
+    const hasChanges = useMemo(() => {
+        if (currentIds.length !== selectedIds.length) return true;
+        const selected = new Set(selectedIds);
+        return currentIds.some((id) => !selected.has(id));
+    }, [currentIds, selectedIds]);
+
+    const toggle = (notebookId: string) => {
+        setSelectedIds((prev) =>
+            prev.includes(notebookId)
+                ? prev.filter((id) => id !== notebookId)
+                : [...prev, notebookId],
+        );
+    };
+
+    const handleSave = async () => {
+        if (!hasChanges || saving) return;
+        setSaving(true);
+        setError(null);
+        const current = new Set(currentIds);
+        const selected = new Set(selectedIds);
+        const toAdd = selectedIds.filter((id) => !current.has(id));
+        const toRemove = currentIds.filter((id) => !selected.has(id));
+        const results = await Promise.all([
+            ...toAdd.map((id) => addSourceToNotebook(id, source.id)),
+            ...toRemove.map((id) => removeSourceFromNotebook(id, source.id)),
+        ]);
+        const refreshed = await getSource(source.id);
+        setSaving(false);
+        if (results.some((ok) => !ok)) {
+            setError("Couldn't update some notebook links.");
+        }
+        if (refreshed) {
+            onSourceUpdated(refreshed);
+        } else {
+            onSourceUpdated({ ...source, notebooks: selectedIds });
+        }
+    };
+
+    const visibleNotebooks = notebooks.filter((nb) => !nb.archived);
+
+    return (
+        <Card className="mt-6">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <LucideBookOpen size={20} />
+                    Manage Notebooks
+                </CardTitle>
+                <CardDescription>Manage which notebooks contain this source</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+                {visibleNotebooks.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                        No notebooks available
                     </p>
                 ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                        {linkedNotebooks.map((nb) => (
-                            <span
-                                key={nb.id}
-                                className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
-                            >
-                                <IconNotebook size={11} />
-                                {nb.name}
-                            </span>
-                        ))}
+                    <div className="h-[300px] overflow-y-auto rounded-md border border-gray-200 p-4 dark:border-neutral-700">
+                        <div className="flex flex-col gap-3">
+                            {visibleNotebooks.map((nb) => {
+                                const isSelected = selectedIds.includes(nb.id);
+                                const isLinked = currentIds.includes(nb.id);
+                                return (
+                                    <div
+                                        key={nb.id}
+                                        className={`flex items-start gap-3 rounded-lg border p-3 transition-colors ${
+                                            isSelected
+                                                ? 'border-gray-300 bg-gray-100 dark:border-neutral-500 dark:bg-neutral-700/60'
+                                                : 'border-gray-200 hover:bg-gray-50 dark:border-neutral-700 dark:hover:bg-neutral-700/30'
+                                        }`}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => toggle(nb.id)}
+                                            className="mt-0.5 h-4 w-4 accent-purple-500"
+                                        />
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="truncate text-sm font-medium">
+                                                    {nb.name || '(untitled)'}
+                                                </h4>
+                                                {isLinked && !hasChanges && (
+                                                    <LucideCheck
+                                                        size={16}
+                                                        className="flex-none text-green-600"
+                                                    />
+                                                )}
+                                            </div>
+                                            {nb.description && (
+                                                <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                                                    {nb.description}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 )}
-            </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                    <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Created
-                    </h3>
-                    <p className="text-xs text-gray-600 dark:text-gray-300">
-                        {formatTimestamp(source.created)}
-                    </p>
-                </div>
-                <div>
-                    <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Updated
-                    </h3>
-                    <p className="text-xs text-gray-600 dark:text-gray-300">
-                        {formatTimestamp(source.updated)}
-                    </p>
-                </div>
-            </div>
+                {error && (
+                    <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+                )}
 
-            <div>
-                <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Embedding
-                </h3>
-                <span
-                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                        source.embedded
-                            ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
-                            : 'bg-neutral-100 text-gray-500 dark:bg-neutral-700 dark:text-gray-400'
-                    }`}
-                >
-                    {source.embedded
-                        ? `Embedded (${source.embedded_chunks} chunks)`
-                        : 'Not embedded'}
-                </span>
-            </div>
-        </div>
+                {hasChanges && (
+                    <div className="flex items-center justify-end gap-2 border-t border-gray-200 pt-2 dark:border-neutral-700">
+                        <button
+                            onClick={() => setSelectedIds(currentIds)}
+                            disabled={saving}
+                            className={outlineButtonClass}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className={primaryButtonClass}
+                        >
+                            {saving ? (
+                                <>
+                                    <LucideLoader2 size={16} className="animate-spin" />
+                                    Saving...
+                                </>
+                            ) : (
+                                'Save Changes'
+                            )}
+                        </button>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
     );
 };
 

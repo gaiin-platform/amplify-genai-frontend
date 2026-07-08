@@ -127,16 +127,37 @@ export const updateNotebook = async (
     );
 };
 
-export const deleteNotebook = async (id: string): Promise<boolean> => {
-    // delete_exclusive_sources=true so sources belonging only to this notebook are
-    // deleted (matching the confirm dialog's promise), while sources shared with
-    // other notebooks are merely unlinked. Without this flag the backend defaults
-    // to False and leaves orphaned source records behind.
+// What deleting a notebook would remove — drives the delete dialog's
+// "keep or delete exclusive sources" choice, mirroring the reference UI.
+export interface NotebookDeletePreview {
+    notebook_id: string;
+    notebook_name: string;
+    note_count: number;
+    exclusive_source_count: number;
+    shared_source_count: number;
+}
+
+export const getNotebookDeletePreview = async (
+    id: string,
+): Promise<NotebookDeletePreview | null> => {
+    return notebookCall<NotebookDeletePreview>(
+        'GET',
+        `/notebooks/${encodeURIComponent(id)}/delete-preview`,
+    );
+};
+
+export const deleteNotebook = async (
+    id: string,
+    deleteExclusiveSources = false,
+): Promise<boolean> => {
+    // When true, sources belonging only to this notebook are deleted too;
+    // sources shared with other notebooks are always merely unlinked. The
+    // delete dialog surfaces this as an explicit keep/delete choice.
     const result = await notebookCall(
         'DELETE',
         `/notebooks/${encodeURIComponent(id)}`,
         null,
-        { delete_exclusive_sources: true },
+        { delete_exclusive_sources: deleteExclusiveSources },
     );
     return result !== null;
 };
@@ -309,10 +330,88 @@ export const addSourceToNotebook = async (
     return result !== null;
 };
 
+// Unlinks a source from one notebook only (deletes the `reference` edge) —
+// unlike deleteSource, the source, its embeddings, and its other notebook
+// memberships are untouched.
+export const removeSourceFromNotebook = async (
+    notebookId: string,
+    sourceId: string,
+): Promise<boolean> => {
+    const result = await notebookCall(
+        'DELETE',
+        `/notebooks/${encodeURIComponent(notebookId)}/sources/${encodeURIComponent(sourceId)}`,
+    );
+    return result !== null;
+};
+
+// Re-runs processing for a failed source, or re-scrapes a link source that
+// already completed. Same endpoint serves both cases server-side.
+export const retrySource = async (sourceId: string): Promise<SourceListItem | null> => {
+    return notebookCall<SourceListItem>('POST', `/sources/${encodeURIComponent(sourceId)}/retry`);
+};
+
 // Unlike listSources, this includes the `notebooks` array — used to figure
 // out which notebook to jump into from the global Sources page.
 export const getSource = async (sourceId: string): Promise<SourceListItem | null> => {
     return notebookCall<SourceListItem>('GET', `/sources/${encodeURIComponent(sourceId)}`);
+};
+
+export const updateSource = async (
+    sourceId: string,
+    data: { title?: string; topics?: string[] },
+): Promise<SourceListItem | null> => {
+    return notebookCall<SourceListItem>(
+        'PUT',
+        `/sources/${encodeURIComponent(sourceId)}`,
+        data,
+    );
+};
+
+export interface EmbedContentResponse {
+    success: boolean;
+    message: string;
+    chunks_created?: number;
+    command_id?: string;
+}
+
+// Chunks and embeds the source's full text for vector search — the "Embed
+// Content" action in the source detail view. Synchronous server-side.
+export const embedSource = async (
+    sourceId: string,
+): Promise<EmbedContentResponse | null> => {
+    return notebookCall<EmbedContentResponse>('POST', '/embed', {
+        item_id: sourceId,
+        item_type: 'source',
+        async_processing: false,
+    });
+};
+
+// Downloads the original uploaded file for a file-backed source. Binary
+// doesn't fit the JSON proxy, so this goes through /api/notebookDownload
+// (mirror of /api/notebookUpload) which attaches the JWT server-side. A 404
+// means the file is gone from storage ("File unavailable" in the UI).
+export const downloadSourceFile = async (
+    sourceId: string,
+): Promise<{ ok: boolean; status: number | null; blob?: Blob; filename?: string }> => {
+    try {
+        const response = await fetch(
+            `/api/notebookDownload?sourceId=${encodeURIComponent(sourceId)}`,
+        );
+        if (!response.ok) return { ok: false, status: response.status };
+        const blob = await response.blob();
+        const header = response.headers.get('content-disposition') || '';
+        const match = header.match(/filename\*?=([^;]+)/i);
+        let filename: string | undefined;
+        if (match) {
+            const value = match[1].trim();
+            filename = value.toLowerCase().startsWith("utf-8''")
+                ? decodeURIComponent(value.slice(7))
+                : value.replace(/^["']|["']$/g, '');
+        }
+        return { ok: true, status: response.status, blob, filename };
+    } catch {
+        return { ok: false, status: null };
+    }
 };
 
 // -----------------------------------------------------------------------------
@@ -566,6 +665,17 @@ export const getChatSession = async (
     );
 };
 
+export const updateChatSession = async (
+    sessionId: string,
+    data: { title?: string; model_override?: string | null },
+): Promise<ChatSession | null> => {
+    return notebookCall<ChatSession>(
+        'PUT',
+        `/chat/sessions/${encodeURIComponent(sessionId)}`,
+        data,
+    );
+};
+
 export const deleteChatSession = async (sessionId: string): Promise<boolean> => {
     const result = await notebookCall(
         'DELETE',
@@ -690,6 +800,18 @@ export const getSourceChatSession = async (
     return notebookCall<SourceChatSessionWithMessages>(
         'GET',
         `/sources/${encodeURIComponent(sourceId)}/chat/sessions/${encodeURIComponent(sessionId)}`,
+    );
+};
+
+export const updateSourceChatSession = async (
+    sourceId: string,
+    sessionId: string,
+    data: { title?: string; model_override?: string | null },
+): Promise<SourceChatSession | null> => {
+    return notebookCall<SourceChatSession>(
+        'PUT',
+        `/sources/${encodeURIComponent(sourceId)}/chat/sessions/${encodeURIComponent(sessionId)}`,
+        data,
     );
 };
 

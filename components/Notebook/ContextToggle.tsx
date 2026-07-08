@@ -1,4 +1,4 @@
-import { IconBulb, IconEyeOff, IconFileText } from '@tabler/icons-react';
+import { LucideEyeOff, LucideFileText, LucideLightbulb } from './LucideIcons';
 
 type Mode = 'off' | 'insights' | 'full';
 
@@ -13,19 +13,19 @@ interface Props<TMode extends Mode> {
 
 const MODE_CONFIG = {
     off: {
-        Icon: IconEyeOff,
+        Icon: LucideEyeOff,
         label: 'Not included',
         color: 'text-gray-400 dark:text-gray-500',
         hover: 'hover:bg-gray-100 dark:hover:bg-neutral-700',
     },
     insights: {
-        Icon: IconBulb,
+        Icon: LucideLightbulb,
         label: 'Insights only',
         color: 'text-amber-600 dark:text-amber-400',
         hover: 'hover:bg-amber-50 dark:hover:bg-amber-900/20',
     },
     full: {
-        Icon: IconFileText,
+        Icon: LucideFileText,
         label: 'Full content',
         color: 'text-purple-600 dark:text-purple-400',
         hover: 'hover:bg-purple-50 dark:hover:bg-purple-900/20',
@@ -54,9 +54,9 @@ export function ContextToggle<TMode extends Mode>({
         <button
             onClick={handleClick}
             title={`${label} — click to cycle`}
-            className={`flex h-7 w-7 flex-none items-center justify-center rounded-md transition-colors ${hover} ${className}`}
+            className={`flex h-8 w-8 flex-none items-center justify-center rounded-md transition-colors ${hover} ${className}`}
         >
-            <Icon size={15} className={color} />
+            <Icon size={16} className={color} />
         </button>
     );
 }
