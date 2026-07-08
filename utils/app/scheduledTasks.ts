@@ -376,7 +376,7 @@ export const manageScheduledTasks = async (params: ManageScheduledTasksParams): 
         description = `Automatically rescans ${scheduledUse} data sources for assistant ${assistantInfo.name}${scanInfo}. The system checks if individual sources are due for rescanning based on their lastScanned timestamp and scanFrequency setting.`;
       }
 
-      const instructions = `Execute the ${scheduledUse === 'websites' ? 'website' : 'drive file'} rescanning operation for assistant "${assistantInfo.name}" at assistantId ${assistantInfo.assistantId}.
+      const instructions = `EXECUTE IMMEDIATELY the ${scheduledUse === 'websites' ? 'website' : 'drive file'} rescanning operation for assistant "${assistantInfo.name}" at assistantId ${assistantInfo.assistantId}. Do not ask for confirmation, proceed directly with the operation.
 Provide a brief report on the execution result, including whether the operation succeeded and any message returned by the rescan function.`
       
       const newTask = {
