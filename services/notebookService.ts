@@ -191,22 +191,30 @@ export interface SourceListItem {
     full_text?: string | null;
 }
 
+// Sources may land in zero or more notebooks (the wizard's Notebooks step is
+// optional, matching the reference app), so these take a notebook id list.
 export interface CreateSourceLinkRequest {
-    notebookId: string;
+    notebooks: string[];
     url: string;
     title?: string;
+    transformations?: string[];
+    embed?: boolean;
 }
 
 export interface CreateSourceTextRequest {
-    notebookId: string;
+    notebooks: string[];
     content: string;
     title?: string;
+    transformations?: string[];
+    embed?: boolean;
 }
 
 export interface CreateSourceFileRequest {
-    notebookId: string;
+    notebooks: string[];
     file: File;
     title?: string;
+    transformations?: string[];
+    embed?: boolean;
 }
 
 export type SourceSortField =
@@ -245,31 +253,37 @@ export const listSources = async (
 };
 
 export const createSourceFromUrl = async ({
-    notebookId,
+    notebooks,
     url,
     title,
+    transformations,
+    embed,
 }: CreateSourceLinkRequest): Promise<SourceListItem | null> => {
     return notebookCall<SourceListItem>('POST', '/sources/json', {
         type: 'link',
         url,
         title,
-        notebooks: [notebookId],
-        embed: true,
+        notebooks,
+        transformations: transformations ?? [],
+        embed: embed ?? true,
         async_processing: true,
     });
 };
 
 export const createSourceFromText = async ({
-    notebookId,
+    notebooks,
     content,
     title,
+    transformations,
+    embed,
 }: CreateSourceTextRequest): Promise<SourceListItem | null> => {
     return notebookCall<SourceListItem>('POST', '/sources/json', {
         type: 'text',
         content,
         title,
-        notebooks: [notebookId],
-        embed: true,
+        notebooks,
+        transformations: transformations ?? [],
+        embed: embed ?? true,
         async_processing: true,
     });
 };
@@ -279,15 +293,18 @@ export const createSourceFromText = async ({
 // forwards the multipart body as-is to open-notebook's /api/sources.
 // Multipart doesn't fit the JSON proxy route, so this stays separate.
 export const createSourceFromFile = async ({
-    notebookId,
+    notebooks,
     file,
     title,
+    transformations,
+    embed,
 }: CreateSourceFileRequest): Promise<SourceListItem | null> => {
     const form = new FormData();
     form.append('type', 'upload');
-    form.append('notebooks', JSON.stringify([notebookId]));
+    form.append('notebooks', JSON.stringify(notebooks));
     if (title) form.append('title', title);
-    form.append('embed', 'true');
+    form.append('transformations', JSON.stringify(transformations ?? []));
+    form.append('embed', String(embed ?? true));
     form.append('async_processing', 'true');
     form.append('file', file, file.name);
 

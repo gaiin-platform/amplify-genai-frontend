@@ -23,6 +23,10 @@ interface Props {
     // visible while the menu is open so the trigger doesn't vanish out from
     // under an open menu when the pointer leaves the row.
     triggerClassName?: string;
+    // Which edge of the trigger the menu aligns to. Panels are
+    // overflow-hidden, so triggers near a panel's left edge need 'left' to
+    // keep the menu from being clipped.
+    align?: 'left' | 'right';
 }
 
 // Small button that opens a menu of items on click, closing on selection or
@@ -35,6 +39,7 @@ export const DropdownButton = ({
     title,
     variant = 'ghost',
     triggerClassName = '',
+    align = 'right',
 }: Props) => {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement | null>(null);
@@ -66,7 +71,9 @@ export const DropdownButton = ({
             </button>
 
             {open && (
-                <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-neutral-600 dark:bg-[#2b2c36]">
+                <div
+                    className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} top-full z-20 mt-1 w-56 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-neutral-600 dark:bg-[#2b2c36]`}
+                >
                     {items.map((item, i) => (
                         <div key={i}>
                             {item.separatorAbove && (

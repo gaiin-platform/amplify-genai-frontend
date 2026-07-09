@@ -704,6 +704,7 @@ const SourcesPanel = ({
         <>
             {sources.length > 0 && (
                 <DropdownButton
+                    align="left"
                     title="Bulk context actions"
                     trigger={
                         <>
@@ -1065,6 +1066,7 @@ const NotesPanel = ({
         <>
             {notes.length > 0 && (
                 <DropdownButton
+                    align="left"
                     title="Bulk context actions"
                     trigger={
                         <>
