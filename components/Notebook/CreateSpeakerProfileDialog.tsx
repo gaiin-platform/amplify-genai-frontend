@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { IconPlus, IconTrash } from '@tabler/icons-react';
+import { LucidePlus, LucideTrash2 } from './LucideIcons';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import {
     NotebookModel,
@@ -7,10 +7,13 @@ import {
     SpeakerVoice,
     createSpeakerProfile,
     listModels,
+    updateSpeakerProfile,
 } from '@/services/notebookService';
 import { dedupeModels, formatModelName } from './modelDisplay';
 
 interface Props {
+    // When set, the dialog edits this profile (PUT) instead of creating one.
+    initial?: SpeakerProfile;
     onClose: () => void;
     onCreated: (profile: SpeakerProfile) => void;
 }
@@ -28,11 +31,15 @@ const MAX_SPEAKERS = 4;
 const inputClass =
     'rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100';
 
-export const CreateSpeakerProfileDialog = ({ onClose, onCreated }: Props) => {
-    const [name, setName] = useState('');
-    const [description, setDescription] = useState('');
-    const [voiceModel, setVoiceModel] = useState('');
-    const [speakers, setSpeakers] = useState<SpeakerVoice[]>([{ ...EMPTY_SPEAKER }]);
+export const CreateSpeakerProfileDialog = ({ initial, onClose, onCreated }: Props) => {
+    const [name, setName] = useState(initial?.name ?? '');
+    const [description, setDescription] = useState(initial?.description ?? '');
+    const [voiceModel, setVoiceModel] = useState(initial?.voice_model ?? '');
+    const [speakers, setSpeakers] = useState<SpeakerVoice[]>(
+        initial && initial.speakers.length > 0
+            ? initial.speakers.map((s) => ({ ...s }))
+            : [{ ...EMPTY_SPEAKER }],
+    );
 
     const [ttsModels, setTtsModels] = useState<NotebookModel[]>([]);
     const [modelsLoading, setModelsLoading] = useState(true);
@@ -46,7 +53,9 @@ export const CreateSpeakerProfileDialog = ({ onClose, onCreated }: Props) => {
             if (cancelled) return;
             const unique = dedupeModels(models);
             setTtsModels(unique);
-            if (unique.length > 0) setVoiceModel(unique[0].id);
+            // Default to the first model, but never clobber the model already
+            // picked on the profile being edited.
+            if (unique.length > 0) setVoiceModel((curr) => curr || unique[0].id);
             setModelsLoading(false);
         })();
         return () => {
@@ -83,7 +92,7 @@ export const CreateSpeakerProfileDialog = ({ onClose, onCreated }: Props) => {
         setSubmitting(true);
         setError(null);
 
-        const result = await createSpeakerProfile({
+        const data = {
             name: name.trim(),
             description: description.trim(),
             voice_model: voiceModel,
@@ -94,11 +103,14 @@ export const CreateSpeakerProfileDialog = ({ onClose, onCreated }: Props) => {
                 personality: s.personality.trim(),
                 voice_model: s.voice_model || null,
             })),
-        });
+        };
+        const result = initial
+            ? await updateSpeakerProfile(initial.id, data)
+            : await createSpeakerProfile(data);
 
         setSubmitting(false);
         if (!result) {
-            setError('Failed to create speaker profile.');
+            setError(`Failed to ${initial ? 'update' : 'create'} speaker profile.`);
             return;
         }
         onCreated(result);
@@ -131,10 +143,18 @@ export const CreateSpeakerProfileDialog = ({ onClose, onCreated }: Props) => {
 
     return (
         <Modal
-            title="Create Speaker Profile"
+            title={initial ? 'Edit Speaker Profile' : 'Create Speaker Profile'}
             onCancel={onClose}
             onSubmit={handleSubmit}
-            submitLabel={submitting ? 'Creating…' : 'Create'}
+            submitLabel={
+                submitting
+                    ? initial
+                        ? 'Saving…'
+                        : 'Creating…'
+                    : initial
+                      ? 'Save Changes'
+                      : 'Create'
+            }
             disableSubmit={!canSubmit}
             width={() => Math.min(680, window.innerWidth * 0.95)}
             height={() => Math.min(660, window.innerHeight * 0.9)}
@@ -188,7 +208,7 @@ export const CreateSpeakerProfileDialog = ({ onClose, onCreated }: Props) => {
                             disabled={speakers.length >= MAX_SPEAKERS}
                             className="flex h-8 items-center gap-1.5 rounded-lg border border-gray-300 px-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-600 dark:text-gray-200 dark:hover:bg-white/5"
                         >
-                            <IconPlus size={14} />
+                            <LucidePlus size={16} />
                             Add speaker
                         </button>
                     </div>
@@ -207,7 +227,7 @@ export const CreateSpeakerProfileDialog = ({ onClose, onCreated }: Props) => {
                                     title="Remove speaker"
                                     className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-red-900/30 dark:hover:text-red-400"
                                 >
-                                    <IconTrash size={15} />
+                                    <LucideTrash2 size={16} />
                                 </button>
                             </div>
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

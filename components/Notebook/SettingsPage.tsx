@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-    IconAlertCircle,
-    IconChevronDown,
-    IconChevronRight,
-    IconLoader2,
-    IconRefresh,
-    IconSettings,
-} from '@tabler/icons-react';
+    LucideAlertCircle,
+    LucideChevronDown,
+    LucideLoader2,
+    LucideRefreshCw,
+} from './LucideIcons';
 import {
     AutoDeleteFiles,
     DocEngine,
@@ -17,18 +15,26 @@ import {
     updateSettings as updateSettingsApi,
 } from '@/services/notebookService';
 
+// Shared classes mirroring the reference shadcn sizes.
+const cardClass =
+    'flex flex-col gap-6 rounded-xl border border-gray-200 bg-white py-6 shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]';
+const selectClass =
+    'w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100';
+
 interface SelectFieldProps<T extends string> {
     label: string;
     value: T | '';
     onChange: (v: T) => void;
     options: { value: T; label: string }[];
-    placeholder?: string;
+    placeholder: string;
     helpId: string;
     helpText: string;
     expandedHelp: Set<string>;
     onToggleHelp: (id: string) => void;
 }
 
+// Label + select + "Help me choose" collapsible, mirroring one field group of
+// the reference SettingsForm.
 function SelectField<T extends string>({
     label,
     value,
@@ -42,14 +48,16 @@ function SelectField<T extends string>({
 }: SelectFieldProps<T>) {
     const open = expandedHelp.has(helpId);
     return (
-        <div className="space-y-2">
-            <label className="block text-sm font-medium">{label}</label>
+        <div className="space-y-3">
+            <label className="text-sm font-medium leading-none">{label}</label>
             <select
                 value={value}
                 onChange={(e) => onChange(e.target.value as T)}
-                className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                className={selectClass}
             >
-                {placeholder && <option value="">{placeholder}</option>}
+                <option value="" disabled>
+                    {placeholder}
+                </option>
                 {options.map((opt) => (
                     <option key={opt.value} value={opt.value}>
                         {opt.label}
@@ -59,35 +67,22 @@ function SelectField<T extends string>({
             <button
                 type="button"
                 onClick={() => onToggleHelp(helpId)}
-                className="flex items-center gap-1 text-[12px] text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                className="flex items-center gap-2 text-sm text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
             >
-                {open ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}
+                <LucideChevronDown
+                    size={16}
+                    className={`transition-transform ${open ? 'rotate-180' : ''}`}
+                />
                 Help me choose
             </button>
             {open && (
-                <p className="rounded bg-gray-50 p-2 text-[12px] text-gray-600 dark:bg-[#343541] dark:text-gray-300">
-                    {helpText}
-                </p>
+                <div className="space-y-2 text-sm text-gray-500 dark:text-gray-400">
+                    <p>{helpText}</p>
+                </div>
             )}
         </div>
     );
 }
-
-interface SectionCardProps {
-    title: string;
-    description: string;
-    children: React.ReactNode;
-}
-
-const SectionCard = ({ title, description, children }: SectionCardProps) => (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
-        <div className="border-b border-gray-200 px-4 py-3 dark:border-neutral-700">
-            <div className="text-sm font-semibold">{title}</div>
-            <div className="text-[12px] text-gray-500 dark:text-gray-400">{description}</div>
-        </div>
-        <div className="space-y-5 p-4">{children}</div>
-    </div>
-);
 
 export const SettingsPage = () => {
     const [settings, setSettings] = useState<NotebookSettings | null>(null);
@@ -95,25 +90,19 @@ export const SettingsPage = () => {
     const [loading, setLoading] = useState<boolean>(true);
     const [saving, setSaving] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
-    const [savedAt, setSavedAt] = useState<number | null>(null);
     const [expandedHelp, setExpandedHelp] = useState<Set<string>>(new Set());
-    // Free-text mirror of settings.youtube_preferred_languages. We keep this
-    // separate so the user can type "en, " mid-edit without the trailing comma
-    // being eaten by a round-trip through array.join().
-    const [ytLangsInput, setYtLangsInput] = useState<string>('');
 
     const load = useCallback(async () => {
         setLoading(true);
         setError(null);
         const data = await getSettings();
         if (!data) {
-            setError('Failed to load settings.');
+            setError('Failed to load settings');
             setLoading(false);
             return;
         }
         setSettings(data);
         setOriginal(data);
-        setYtLangsInput((data.youtube_preferred_languages || []).join(', '));
         setLoading(false);
     }, []);
 
@@ -132,37 +121,23 @@ export const SettingsPage = () => {
 
     const set = <K extends keyof NotebookSettings>(key: K, value: NotebookSettings[K]) => {
         setSettings((prev) => (prev ? { ...prev, [key]: value } : prev));
-        setSavedAt(null);
-    };
-
-    const handleYtLangsChange = (value: string) => {
-        setYtLangsInput(value);
-        const arr = value
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean);
-        set('youtube_preferred_languages', arr.length > 0 ? arr : null);
     };
 
     const dirty =
-        settings && original
-            ? JSON.stringify(settings) !== JSON.stringify(original)
-            : false;
+        settings && original ? JSON.stringify(settings) !== JSON.stringify(original) : false;
 
     const handleSave = async () => {
         if (!settings) return;
         setSaving(true);
         setError(null);
-        const patch: NotebookSettings = {
+        const result = await updateSettingsApi({
             default_content_processing_engine_doc:
                 settings.default_content_processing_engine_doc || undefined,
             default_content_processing_engine_url:
                 settings.default_content_processing_engine_url || undefined,
             default_embedding_option: settings.default_embedding_option || undefined,
             auto_delete_files: settings.auto_delete_files || undefined,
-            youtube_preferred_languages: settings.youtube_preferred_languages ?? undefined,
-        };
-        const result = await updateSettingsApi(patch);
+        });
         setSaving(false);
         if (!result) {
             setError('Failed to save settings.');
@@ -170,173 +145,160 @@ export const SettingsPage = () => {
         }
         setSettings(result);
         setOriginal(result);
-        setYtLangsInput((result.youtube_preferred_languages || []).join(', '));
-        setSavedAt(Date.now());
     };
 
     return (
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 text-neutral-800 dark:text-neutral-100">
-            <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2">
-                    <IconSettings size={20} className="text-purple-600 dark:text-purple-400" />
-                    <div>
-                        <h2 className="text-base font-semibold">Notebook preferences</h2>
-                        <p className="text-[12px] text-gray-500 dark:text-gray-400">
-                            Defaults for content processing, embeddings, and file management.
-                        </p>
-                    </div>
-                </div>
+        <div className="max-w-4xl text-neutral-800 dark:text-neutral-100">
+            <div className="mb-6 flex items-center gap-4">
+                <h1 className="text-2xl font-bold">Settings</h1>
                 <button
                     onClick={load}
                     title="Refresh"
-                    className="flex h-8 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 text-sm text-gray-700 shadow-sm hover:bg-gray-50 dark:border-neutral-700 dark:bg-[#2b2c36] dark:text-gray-200 dark:hover:bg-neutral-700"
+                    className="inline-flex h-8 items-center justify-center rounded-md border border-gray-300 bg-white px-3 shadow-sm transition-colors hover:bg-gray-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
                 >
-                    <IconRefresh size={14} />
-                    Refresh
+                    <LucideRefreshCw size={16} />
                 </button>
             </div>
 
-            {error && (
-                <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
-                    <IconAlertCircle size={16} className="mt-0.5 flex-none" />
-                    <span>{error}</span>
-                </div>
-            )}
-
             {loading ? (
-                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                    <IconLoader2 size={16} className="animate-spin" />
-                    Loading settings…
+                <div className="flex items-center justify-center py-12">
+                    <LucideLoader2 size={32} className="animate-spin text-gray-400" />
+                </div>
+            ) : error && !settings ? (
+                <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                    <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
+                    <div>
+                        <div className="font-medium">Failed to load settings</div>
+                    </div>
                 </div>
             ) : settings ? (
-                <>
-                    <SectionCard
-                        title="Content processing"
-                        description="Choose how documents and URLs are converted to text before indexing."
-                    >
-                        <SelectField<DocEngine>
-                            label="Document processing engine"
-                            value={(settings.default_content_processing_engine_doc as DocEngine) || ''}
-                            onChange={(v) => set('default_content_processing_engine_doc', v)}
-                            options={[
-                                { value: 'auto', label: 'Auto (recommended)' },
-                                { value: 'docling', label: 'Docling' },
-                                { value: 'simple', label: 'Simple' },
-                            ]}
-                            placeholder="Select an engine"
-                            helpId="doc"
-                            helpText="Docling handles complex PDFs (tables, multi-column) better but is slower. Simple is fast but extracts plain text only. Auto picks based on content type."
-                            expandedHelp={expandedHelp}
-                            onToggleHelp={toggleHelp}
-                        />
-
-                        <SelectField<UrlEngine>
-                            label="URL processing engine"
-                            value={(settings.default_content_processing_engine_url as UrlEngine) || ''}
-                            onChange={(v) => set('default_content_processing_engine_url', v)}
-                            options={[
-                                { value: 'auto', label: 'Auto (recommended)' },
-                                { value: 'firecrawl', label: 'Firecrawl' },
-                                { value: 'jina', label: 'Jina' },
-                                { value: 'simple', label: 'Simple' },
-                            ]}
-                            placeholder="Select an engine"
-                            helpId="url"
-                            helpText="Firecrawl and Jina are higher-fidelity (handle JS-rendered pages, paywalls, anti-scraping). Simple fetches raw HTML. Auto picks based on the URL."
-                            expandedHelp={expandedHelp}
-                            onToggleHelp={toggleHelp}
-                        />
-                    </SectionCard>
-
-                    <SectionCard
-                        title="Embeddings and search"
-                        description="Control when new sources are vectorized for semantic search."
-                    >
-                        <SelectField<EmbeddingOption>
-                            label="When to embed new sources"
-                            value={(settings.default_embedding_option as EmbeddingOption) || ''}
-                            onChange={(v) => set('default_embedding_option', v)}
-                            options={[
-                                { value: 'ask', label: 'Ask each time' },
-                                { value: 'always', label: 'Always embed' },
-                                { value: 'never', label: 'Never embed' },
-                            ]}
-                            placeholder="Select an option"
-                            helpId="embedding"
-                            helpText="Embedding makes a source searchable via vector / semantic search. It costs an embedding-model call. Pick Always if you want every source searchable; Never if you only need keyword search."
-                            expandedHelp={expandedHelp}
-                            onToggleHelp={toggleHelp}
-                        />
-                    </SectionCard>
-
-                    <SectionCard
-                        title="YouTube"
-                        description="Preferred transcript languages when ingesting YouTube URLs."
-                    >
-                        <div className="space-y-2">
-                            <label className="block text-sm font-medium">
-                                Preferred transcript languages
-                            </label>
-                            <input
-                                type="text"
-                                value={ytLangsInput}
-                                onChange={(e) => handleYtLangsChange(e.target.value)}
-                                placeholder="en, es, fr"
-                                className="w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
-                            />
-                            <p className="text-[12px] text-gray-500 dark:text-gray-400">
-                                Comma-separated ISO codes. The first available language wins. Leave
-                                blank to let YouTube pick.
+                <div className="space-y-6">
+                    <div className={cardClass}>
+                        <div className="flex flex-col gap-1.5 px-6">
+                            <h2 className="text-lg font-semibold leading-none">
+                                Content Processing
+                            </h2>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Configure how documents and URLs are processed
                             </p>
                         </div>
-                    </SectionCard>
+                        <div className="space-y-6 px-6">
+                            <SelectField<DocEngine>
+                                label="Document Processing Engine"
+                                value={
+                                    (settings.default_content_processing_engine_doc as DocEngine) ||
+                                    ''
+                                }
+                                onChange={(v) => set('default_content_processing_engine_doc', v)}
+                                options={[
+                                    { value: 'auto', label: 'Auto (Recommended)' },
+                                    { value: 'docling', label: 'Docling' },
+                                    { value: 'simple', label: 'Simple' },
+                                ]}
+                                placeholder="Select document processing engine"
+                                helpId="doc"
+                                helpText="· Docling is a little slower but more accurate, specially if the documents contain tables and images. · Simple will extract any content from the document without formatting it. · Auto (recommended) will try to process through docling and default to simple."
+                                expandedHelp={expandedHelp}
+                                onToggleHelp={toggleHelp}
+                            />
 
-                    <SectionCard
-                        title="File management"
-                        description="Decide what happens to uploaded files after processing."
-                    >
-                        <SelectField<AutoDeleteFiles>
-                            label="Auto-delete uploaded files after processing"
-                            value={(settings.auto_delete_files as AutoDeleteFiles) || ''}
-                            onChange={(v) => set('auto_delete_files', v)}
-                            options={[
-                                { value: 'yes', label: 'Yes' },
-                                { value: 'no', label: 'No' },
-                            ]}
-                            placeholder="Select an option"
-                            helpId="files"
-                            helpText="Once a file is processed and its text is stored, the original upload is no longer needed for search or chat. Auto-deleting reclaims disk space; keeping the file lets you re-process it later without re-uploading."
-                            expandedHelp={expandedHelp}
-                            onToggleHelp={toggleHelp}
-                        />
-                    </SectionCard>
+                            <SelectField<UrlEngine>
+                                label="URL Processing Engine"
+                                value={
+                                    (settings.default_content_processing_engine_url as UrlEngine) ||
+                                    ''
+                                }
+                                onChange={(v) => set('default_content_processing_engine_url', v)}
+                                options={[
+                                    { value: 'auto', label: 'Auto (Recommended)' },
+                                    { value: 'firecrawl', label: 'Firecrawl' },
+                                    { value: 'jina', label: 'Jina' },
+                                    { value: 'simple', label: 'Simple' },
+                                ]}
+                                placeholder="Select URL processing engine"
+                                helpId="url"
+                                helpText="· Firecrawl is a paid service (with a free tier), and very powerful. · Jina is a good option as well and also has a free tier. · Simple will use basic HTTP extraction and will miss content on javascript-based websites. · Auto (recommended) will try to use firecrawl then Jina, finally fallback to simple."
+                                expandedHelp={expandedHelp}
+                                onToggleHelp={toggleHelp}
+                            />
+                        </div>
+                    </div>
 
-                    <div className="flex items-center justify-end gap-2">
-                        {savedAt && !dirty && !error && (
-                            <span className="text-[12px] text-emerald-600 dark:text-emerald-400">
-                                Settings saved.
-                            </span>
-                        )}
+                    <div className={cardClass}>
+                        <div className="flex flex-col gap-1.5 px-6">
+                            <h2 className="text-lg font-semibold leading-none">
+                                Embedding and Search
+                            </h2>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Configure search and embedding options
+                            </p>
+                        </div>
+                        <div className="space-y-6 px-6">
+                            <SelectField<EmbeddingOption>
+                                label="Default Embedding Option"
+                                value={
+                                    (settings.default_embedding_option as EmbeddingOption) || ''
+                                }
+                                onChange={(v) => set('default_embedding_option', v)}
+                                options={[
+                                    { value: 'ask', label: 'Ask' },
+                                    { value: 'always', label: 'Always' },
+                                    { value: 'never', label: 'Never' },
+                                ]}
+                                placeholder="Select embedding option"
+                                helpId="embedding"
+                                helpText="Embedding the content will make it easier to find by you and by your AI agents. If you are running a local embedding model (Ollama, for example), you shouldn't worry about cost and just embed everything."
+                                expandedHelp={expandedHelp}
+                                onToggleHelp={toggleHelp}
+                            />
+                        </div>
+                    </div>
+
+                    <div className={cardClass}>
+                        <div className="flex flex-col gap-1.5 px-6">
+                            <h2 className="text-lg font-semibold leading-none">
+                                File Management
+                            </h2>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Configure file handling and storage options
+                            </p>
+                        </div>
+                        <div className="space-y-6 px-6">
+                            <SelectField<AutoDeleteFiles>
+                                label="Auto Delete Files"
+                                value={(settings.auto_delete_files as AutoDeleteFiles) || ''}
+                                onChange={(v) => set('auto_delete_files', v)}
+                                options={[
+                                    { value: 'yes', label: 'Yes' },
+                                    { value: 'no', label: 'No' },
+                                ]}
+                                placeholder="Select auto delete option"
+                                helpId="files"
+                                helpText="Once your files are uploaded and processed, they are not required anymore. Most users should allow Open Notebook to delete uploaded files from the upload folder automatically."
+                                expandedHelp={expandedHelp}
+                                onToggleHelp={toggleHelp}
+                            />
+                        </div>
+                    </div>
+
+                    {error && (
+                        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                            <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
+                            <span>{error}</span>
+                        </div>
+                    )}
+
+                    <div className="flex justify-end">
                         <button
                             onClick={handleSave}
-                            disabled={saving || !dirty}
-                            className={`flex h-9 items-center gap-1.5 rounded-md px-4 text-sm font-medium transition-colors ${
-                                saving || !dirty
-                                    ? 'cursor-not-allowed bg-gray-200 text-gray-500 dark:bg-neutral-700 dark:text-neutral-400'
-                                    : 'bg-purple-500 text-white hover:bg-purple-600'
-                            }`}
+                            disabled={!dirty || saving}
+                            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-purple-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-600 disabled:pointer-events-none disabled:opacity-50"
                         >
-                            {saving ? (
-                                <>
-                                    <IconLoader2 size={16} className="animate-spin" />
-                                    Saving…
-                                </>
-                            ) : (
-                                'Save changes'
-                            )}
+                            {saving && <LucideLoader2 size={16} className="animate-spin" />}
+                            {saving ? 'Saving...' : 'Save'}
                         </button>
                     </div>
-                </>
+                </div>
             ) : null}
         </div>
     );

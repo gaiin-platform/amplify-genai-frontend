@@ -366,9 +366,19 @@ export const NotebookApp = () => {
           : SECTION_TITLES[section];
     const showBackToList = isNotebooksSection && !!selected && !viewingSourceDetail;
     // Views that render their own in-content page header (like the reference
-    // pages do) hide the app bar: the notebooks list and Ask and Search.
+    // pages do) hide the app bar. The sources list is now the only section
+    // still using it as its header (plus detail views for their back button).
     const isNotebooksList = isNotebooksSection && !selected && !viewingSourceDetail;
-    const hideAppBar = isNotebooksList || (section === 'ask' && !viewingSourceDetail);
+    const sectionsWithOwnHeader: NotebookSection[] = [
+        'ask',
+        'podcasts',
+        'transformations',
+        'settings',
+        'advanced',
+    ];
+    const hideAppBar =
+        isNotebooksList ||
+        (sectionsWithOwnHeader.includes(section) && !viewingSourceDetail);
 
     const isSearching = searchQuery.trim().length > 0;
     // Reference filters by name only.

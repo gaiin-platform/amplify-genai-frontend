@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { IconAlertCircle } from '@tabler/icons-react';
+import { LucideAlertCircle } from './LucideIcons';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import {
     EpisodeProfile,
@@ -9,11 +9,14 @@ import {
     createEpisodeProfile,
     listLanguages,
     listModels,
+    updateEpisodeProfile,
 } from '@/services/notebookService';
 import { dedupeModels, formatModelName } from './modelDisplay';
 
 interface Props {
     speakerProfiles: SpeakerProfile[];
+    // When set, the dialog edits this profile (PUT) instead of creating one.
+    initial?: EpisodeProfile;
     onClose: () => void;
     onCreated: (profile: EpisodeProfile) => void;
 }
@@ -21,15 +24,22 @@ interface Props {
 const inputClass =
     'rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100';
 
-export const CreateEpisodeProfileDialog = ({ speakerProfiles, onClose, onCreated }: Props) => {
-    const [name, setName] = useState('');
-    const [description, setDescription] = useState('');
-    const [speakerConfig, setSpeakerConfig] = useState(speakerProfiles[0]?.name ?? '');
-    const [outlineModel, setOutlineModel] = useState('');
-    const [transcriptModel, setTranscriptModel] = useState('');
-    const [language, setLanguage] = useState('');
-    const [briefing, setBriefing] = useState('');
-    const [numSegments, setNumSegments] = useState(5);
+export const CreateEpisodeProfileDialog = ({
+    speakerProfiles,
+    initial,
+    onClose,
+    onCreated,
+}: Props) => {
+    const [name, setName] = useState(initial?.name ?? '');
+    const [description, setDescription] = useState(initial?.description ?? '');
+    const [speakerConfig, setSpeakerConfig] = useState(
+        initial?.speaker_config ?? speakerProfiles[0]?.name ?? '',
+    );
+    const [outlineModel, setOutlineModel] = useState(initial?.outline_llm ?? '');
+    const [transcriptModel, setTranscriptModel] = useState(initial?.transcript_llm ?? '');
+    const [language, setLanguage] = useState(initial?.language ?? '');
+    const [briefing, setBriefing] = useState(initial?.default_briefing ?? '');
+    const [numSegments, setNumSegments] = useState(initial?.num_segments ?? 5);
 
     const [languageModels, setLanguageModels] = useState<NotebookModel[]>([]);
     const [languages, setLanguages] = useState<NotebookLanguage[]>([]);
@@ -47,9 +57,11 @@ export const CreateEpisodeProfileDialog = ({ speakerProfiles, onClose, onCreated
             const bedrock = dedupeModels(models.filter((m) => m.provider === 'bedrock'));
             setLanguageModels(bedrock);
             setLanguages(langs);
+            // Default both stages to the first model — but never clobber the
+            // models already picked on the profile being edited.
             if (bedrock.length > 0) {
-                setOutlineModel(bedrock[0].id);
-                setTranscriptModel(bedrock[0].id);
+                setOutlineModel((curr) => curr || bedrock[0].id);
+                setTranscriptModel((curr) => curr || bedrock[0].id);
             }
             setLoading(false);
         })();
@@ -74,7 +86,7 @@ export const CreateEpisodeProfileDialog = ({ speakerProfiles, onClose, onCreated
         setSubmitting(true);
         setError(null);
 
-        const result = await createEpisodeProfile({
+        const data = {
             name: name.trim(),
             description: description.trim(),
             speaker_config: speakerConfig,
@@ -83,11 +95,14 @@ export const CreateEpisodeProfileDialog = ({ speakerProfiles, onClose, onCreated
             language: language || null,
             default_briefing: briefing.trim(),
             num_segments: numSegments,
-        });
+        };
+        const result = initial
+            ? await updateEpisodeProfile(initial.id, data)
+            : await createEpisodeProfile(data);
 
         setSubmitting(false);
         if (!result) {
-            setError('Failed to create episode profile.');
+            setError(`Failed to ${initial ? 'update' : 'create'} episode profile.`);
             return;
         }
         onCreated(result);
@@ -115,10 +130,18 @@ export const CreateEpisodeProfileDialog = ({ speakerProfiles, onClose, onCreated
 
     return (
         <Modal
-            title="Create Episode Profile"
+            title={initial ? 'Edit Episode Profile' : 'Create Episode Profile'}
             onCancel={onClose}
             onSubmit={handleSubmit}
-            submitLabel={submitting ? 'Creating…' : 'Create'}
+            submitLabel={
+                submitting
+                    ? initial
+                        ? 'Saving…'
+                        : 'Creating…'
+                    : initial
+                      ? 'Save Changes'
+                      : 'Create'
+            }
             disableSubmit={!canSubmit}
             width={() => Math.min(680, window.innerWidth * 0.95)}
             height={() => Math.min(640, window.innerHeight * 0.9)}
@@ -126,7 +149,7 @@ export const CreateEpisodeProfileDialog = ({ speakerProfiles, onClose, onCreated
                 <div className="flex flex-col gap-4 p-2 text-neutral-800 dark:text-neutral-100">
                     {speakerProfiles.length === 0 && (
                         <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300">
-                            <IconAlertCircle size={16} className="mt-0.5 flex-none" />
+                            <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
                             <span>
                                 No speaker profiles available. Create a speaker profile first —
                                 episode profiles need one to define the voices.

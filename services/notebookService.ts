@@ -1471,6 +1471,28 @@ export const createSpeakerProfile = async (
     return notebookCall<SpeakerProfile>('POST', '/speaker-profiles', data);
 };
 
+export const updateEpisodeProfile = async (
+    id: string,
+    data: Partial<EpisodeProfileCreateData>,
+): Promise<EpisodeProfile | null> => {
+    return notebookCall<EpisodeProfile>(
+        'PUT',
+        `/episode-profiles/${encodeURIComponent(id)}`,
+        data,
+    );
+};
+
+export const updateSpeakerProfile = async (
+    id: string,
+    data: Partial<SpeakerProfileCreateData>,
+): Promise<SpeakerProfile | null> => {
+    return notebookCall<SpeakerProfile>(
+        'PUT',
+        `/speaker-profiles/${encodeURIComponent(id)}`,
+        data,
+    );
+};
+
 export const deleteEpisodeProfile = async (id: string): Promise<boolean> => {
     const result = await notebookCall(
         'DELETE',

@@ -164,6 +164,23 @@ export const LucideCheckCircle: React.FC<IconProps> = (p) => (
     </Svg>
 );
 
+// lucide's CheckCircle2 alias (circle-check).
+export const LucideCheckCircle2: React.FC<IconProps> = (p) => (
+    <Svg {...p}>
+        <circle cx="12" cy="12" r="10" />
+        <path d="m9 12 2 2 4-4" />
+    </Svg>
+);
+
+// lucide's XCircle alias (circle-x).
+export const LucideXCircle: React.FC<IconProps> = (p) => (
+    <Svg {...p}>
+        <circle cx="12" cy="12" r="10" />
+        <path d="m15 9-6 6" />
+        <path d="m9 9 6 6" />
+    </Svg>
+);
+
 export const LucideYoutube: React.FC<IconProps> = (p) => (
     <Svg {...p}>
         <path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17" />
@@ -420,6 +437,84 @@ export const LucideAlertTriangle: React.FC<IconProps> = (p) => (
         <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
         <path d="M12 9v4" />
         <path d="M12 17h.01" />
+    </Svg>
+);
+
+// lucide's Wand2 alias (wand-sparkles).
+export const LucideWand2: React.FC<IconProps> = (p) => (
+    <Svg {...p}>
+        <path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72" />
+        <path d="m14 7 3 3" />
+        <path d="M5 6v4" />
+        <path d="M19 14v4" />
+        <path d="M10 2v2" />
+        <path d="M7 8H3" />
+        <path d="M21 16h-4" />
+        <path d="M11 3H9" />
+    </Svg>
+);
+
+export const LucidePlay: React.FC<IconProps> = (p) => (
+    <Svg {...p}>
+        <polygon points="6 3 20 12 6 21 6 3" />
+    </Svg>
+);
+
+// lucide's Edit alias (square-pen).
+export const LucideEdit: React.FC<IconProps> = (p) => (
+    <Svg {...p}>
+        <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+        <path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z" />
+    </Svg>
+);
+
+export const LucideLayoutTemplate: React.FC<IconProps> = (p) => (
+    <Svg {...p}>
+        <rect width="18" height="7" x="3" y="3" rx="1" />
+        <rect width="9" height="7" x="3" y="14" rx="1" />
+        <rect width="5" height="7" x="16" y="14" rx="1" />
+    </Svg>
+);
+
+export const LucideInfo: React.FC<IconProps> = (p) => (
+    <Svg {...p}>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 16v-4" />
+        <path d="M12 8h.01" />
+    </Svg>
+);
+
+export const LucideVolume2: React.FC<IconProps> = (p) => (
+    <Svg {...p}>
+        <path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z" />
+        <path d="M16 9a5 5 0 0 1 0 6" />
+        <path d="M19.364 18.364a9 9 0 0 0 0-12.728" />
+    </Svg>
+);
+
+export const LucideUsers: React.FC<IconProps> = (p) => (
+    <Svg {...p}>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <path d="M16 3.128a4 4 0 0 1 0 7.744" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <circle cx="9" cy="7" r="4" />
+    </Svg>
+);
+
+// lucide's Edit3 alias (pen-line) — used for the profile Edit buttons.
+export const LucideEdit3: React.FC<IconProps> = (p) => (
+    <Svg {...p}>
+        <path d="M12 20h9" />
+        <path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z" />
+    </Svg>
+);
+
+export const LucideRefreshCcw: React.FC<IconProps> = (p) => (
+    <Svg {...p}>
+        <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+        <path d="M3 3v5h5" />
+        <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+        <path d="M16 16h5v5" />
     </Svg>
 );
 
