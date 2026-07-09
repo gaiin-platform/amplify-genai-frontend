@@ -1,150 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import remarkGfm from 'remark-gfm';
 import {
     LucideBot,
     LucideCheck,
     LucideClock,
     LucideCopy,
     LucideLoader2,
-    LucideSave,
     LucideSend,
     LucideUser,
 } from './LucideIcons';
 import {
     ChatMessage,
-    ChatSession,
-    ContextSelections,
-    Note,
+    SourceChatSession,
     SourceListItem,
-    buildChatContext,
-    createChatSession,
-    createNote,
-    deleteChatSession,
-    getChatSession,
-    listChatSessions,
-    sendChatMessage,
-    updateChatSession,
+    createSourceChatSession,
+    deleteSourceChatSession,
+    getSourceChatSession,
+    listSourceChatSessions,
+    sendSourceChatMessage,
+    updateSourceChatSession,
 } from '@/services/notebookService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
+import { MemoizedReactMarkdown } from '@/components/Markdown/MemoizedReactMarkdown';
 import { ChatModelSelect } from './ChatModelSelect';
-import { ContextIndicator } from './ContextIndicator';
 import { SessionManagerModal } from './SessionManagerModal';
 
 interface Props {
-    notebookId: string;
-    contextSelections: ContextSelections;
-    sources: SourceListItem[];
-    notes: Note[];
-    // Lets "Save to note" on AI replies surface the new note in the Notes
-    // panel immediately.
-    onNoteSaved?: (note: Note) => void;
+    source: SourceListItem;
 }
-
-// The LLM emits citations as raw SurrealDB record IDs (e.g. `[source:abc]`,
-// `source:abc` bare, `[[source:abc]]`, or `[source:a, note:b]` comma-grouped).
-// Ported from open-notebook's convertReferencesToCompactMarkdown so we cover the
-// same edge cases. Output is a segment list (mix of plain text + numbered
-// citation buttons) plus an ordered citation list for the footer.
-type RefType = 'source' | 'note' | 'source_insight';
-interface ParsedRef {
-    type: RefType;
-    id: string;
-    startIndex: number;
-    endIndex: number;
-}
-type Segment =
-    | { kind: 'text'; text: string }
-    | { kind: 'citation'; n: number; type: RefType; id: string };
-interface Citation {
-    n: number;
-    type: RefType;
-    id: string;
-    label: string;
-    targetDomId: string;
-}
-interface RenderedMessage {
-    segments: Segment[];
-    citations: Citation[];
-}
-
-const REF_RE = /(source_insight|note|source):([A-Za-z0-9_]+)/g;
-
-const parseRefs = (text: string): ParsedRef[] => {
-    const refs: ParsedRef[] = [];
-    REF_RE.lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = REF_RE.exec(text)) !== null) {
-        refs.push({
-            type: m[1] as RefType,
-            id: m[2],
-            startIndex: m.index,
-            endIndex: REF_RE.lastIndex,
-        });
-    }
-    return refs;
-};
-
-const renderCitations = (
-    raw: string,
-    sources: SourceListItem[],
-    notes: Note[],
-): RenderedMessage => {
-    const refs = parseRefs(raw);
-    if (refs.length === 0) {
-        return { segments: [{ kind: 'text', text: raw }], citations: [] };
-    }
-
-    const order = new Map<string, number>();
-    let next = 1;
-    for (const r of refs) {
-        const key = `${r.type}:${r.id}`;
-        if (!order.has(key)) order.set(key, next++);
-    }
-
-    const segments: Segment[] = [];
-    let pos = 0;
-    for (const r of refs) {
-        const before = raw.substring(Math.max(0, r.startIndex - 2), r.startIndex);
-        const after = raw.substring(r.endIndex, Math.min(raw.length, r.endIndex + 2));
-        let from = r.startIndex;
-        let to = r.endIndex;
-        if (before === '[[' && after.startsWith(']]')) {
-            from = r.startIndex - 2;
-            to = r.endIndex + 2;
-        } else if (before.endsWith('[') && after.startsWith(']')) {
-            from = r.startIndex - 1;
-            to = r.endIndex + 1;
-        }
-        if (from > pos) segments.push({ kind: 'text', text: raw.substring(pos, from) });
-        const n = order.get(`${r.type}:${r.id}`)!;
-        segments.push({ kind: 'citation', n, type: r.type, id: r.id });
-        pos = to;
-    }
-    if (pos < raw.length) segments.push({ kind: 'text', text: raw.substring(pos) });
-
-    const citations: Citation[] = Array.from(order.entries()).map(([key, n]) => {
-        const [type, id] = key.split(':') as [RefType, string];
-        const fullId = `${type}:${id}`;
-        let label = '(unknown)';
-        if (type === 'source') {
-            label = sources.find((s) => s.id === fullId)?.title || '(untitled source)';
-        } else if (type === 'note') {
-            label = notes.find((nn) => nn.id === fullId)?.title || '(untitled note)';
-        } else {
-            label = 'AI insight';
-        }
-        return { n, type, id, label, targetDomId: `ref-${type}-${id}` };
-    });
-
-    return { segments, citations };
-};
-
-const focusReference = (domId: string) => {
-    const el = document.getElementById(domId);
-    if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el.classList.add('notebook-ref-flash');
-    window.setTimeout(() => el.classList.remove('notebook-ref-flash'), 1500);
-};
 
 // Mirrors components/Chat/ChatInput.tsx: on mobile, Enter inserts a newline
 // (send is via the button) rather than submitting.
@@ -158,14 +41,11 @@ const isMobile = () => {
 // Matches the reference composer's max-h-[100px].
 const COMPOSER_MAX_HEIGHT = 100;
 
-export const ChatPanel = ({
-    notebookId,
-    contextSelections,
-    sources,
-    notes,
-    onNoteSaved,
-}: Props) => {
-    const [sessions, setSessions] = useState<ChatSession[]>([]);
+// Chat scoped to a single source — the backend's source-chat graph always uses
+// the full source text as context, so unlike the notebook ChatPanel there are
+// no context selections to manage here.
+export const SourceChatPanel = ({ source }: Props) => {
+    const [sessions, setSessions] = useState<SourceChatSession[]>([]);
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [draft, setDraft] = useState<string>('');
@@ -173,7 +53,7 @@ export const ChatPanel = ({
     const [loadingSessions, setLoadingSessions] = useState<boolean>(true);
     const [loadingMessages, setLoadingMessages] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
-    const [pendingDelete, setPendingDelete] = useState<ChatSession | null>(null);
+    const [pendingDelete, setPendingDelete] = useState<SourceChatSession | null>(null);
     const [deleting, setDeleting] = useState<boolean>(false);
     const [showSessions, setShowSessions] = useState<boolean>(false);
     // Model used to answer; '' = deployment default (no override sent).
@@ -188,49 +68,15 @@ export const ChatPanel = ({
     // for them so the optimistic user message isn't wiped.
     const locallyCreatedRef = useRef<Set<string>>(new Set());
 
-    const contextStats = useMemo(() => {
-        let sourcesInsights = 0;
-        let sourcesFull = 0;
-        let notesCount = 0;
-        for (const s of sources) {
-            const mode = contextSelections.sources[s.id];
-            if (mode === 'insights') sourcesInsights++;
-            else if (mode === 'full') sourcesFull++;
-        }
-        for (const n of notes) {
-            if (contextSelections.notes[n.id] === 'full') notesCount++;
-        }
-        return { sourcesInsights, sourcesFull, notesCount };
-    }, [sources, notes, contextSelections]);
-
-    // Token/char counts for the indicator bar — refreshed whenever the
-    // selection changes, independent of sending a message (sendChatMessage's
-    // own fast path doesn't build context client-side, so this is the only
-    // place these counts come from).
-    const [tokenCount, setTokenCount] = useState<number | undefined>(undefined);
-    const [charCount, setCharCount] = useState<number | undefined>(undefined);
-
-    useEffect(() => {
-        let cancelled = false;
-        buildChatContext(notebookId, contextSelections).then((result) => {
-            if (cancelled || !result) return;
-            setTokenCount(result.token_count);
-            setCharCount(result.char_count);
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [notebookId, contextSelections]);
-
     useEffect(() => {
         let cancelled = false;
         const load = async () => {
             setLoadingSessions(true);
-            const data = await listChatSessions(notebookId);
+            const data = await listSourceChatSessions(source.id);
             if (cancelled) return;
             setSessions(data);
-            if (data.length > 0 && !currentSessionId) {
-                setCurrentSessionId(data[0].id);
+            if (data.length > 0) {
+                setCurrentSessionId((curr) => curr ?? data[0].id);
             }
             setLoadingSessions(false);
         };
@@ -238,7 +84,7 @@ export const ChatPanel = ({
         return () => {
             cancelled = true;
         };
-    }, [notebookId]);
+    }, [source.id]);
 
     useEffect(() => {
         let cancelled = false;
@@ -254,7 +100,7 @@ export const ChatPanel = ({
         const load = async () => {
             setLoadingMessages(true);
             setError(null);
-            const session = await getChatSession(currentSessionId);
+            const session = await getSourceChatSession(source.id, currentSessionId);
             if (cancelled) return;
             if (session) setMessages(session.messages || []);
             setLoadingMessages(false);
@@ -263,7 +109,7 @@ export const ChatPanel = ({
         return () => {
             cancelled = true;
         };
-    }, [currentSessionId]);
+    }, [source.id, currentSessionId]);
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -283,7 +129,7 @@ export const ChatPanel = ({
     }, [draft]);
 
     const handleCreateSession = async (title: string) => {
-        const created = await createChatSession(notebookId, title);
+        const created = await createSourceChatSession(source.id, title);
         if (!created) {
             setError('Failed to create session.');
             return;
@@ -296,7 +142,7 @@ export const ChatPanel = ({
     };
 
     const handleRenameSession = async (sessionId: string, title: string) => {
-        const updated = await updateChatSession(sessionId, { title });
+        const updated = await updateSourceChatSession(source.id, sessionId, { title });
         if (!updated) {
             setError('Failed to rename session.');
             return;
@@ -309,7 +155,7 @@ export const ChatPanel = ({
     const confirmDelete = async () => {
         if (!pendingDelete) return;
         setDeleting(true);
-        const ok = await deleteChatSession(pendingDelete.id);
+        const ok = await deleteSourceChatSession(source.id, pendingDelete.id);
         setDeleting(false);
         if (!ok) {
             setError(`Couldn't delete session.`);
@@ -337,7 +183,7 @@ export const ChatPanel = ({
                 trimmed.length > 48
                     ? `${trimmed.slice(0, 48).replace(/\s+\S*$/, '')}…`
                     : trimmed;
-            const created = await createChatSession(notebookId, title);
+            const created = await createSourceChatSession(source.id, title);
             if (!created) {
                 setError('Failed to create session.');
                 return;
@@ -358,20 +204,25 @@ export const ChatPanel = ({
         setMessages((prev) => [...prev, userMsg]);
         setIsSending(true);
 
-        // Context is built from the selections server-side, so there's no
-        // separate buildChatContext round-trip on the send path.
         try {
-            const result = await sendChatMessage(
-                notebookId,
+            const result = await sendSourceChatMessage(
+                source.id,
                 sessionId,
                 text,
-                contextSelections,
                 modelOverride || undefined,
             );
-            if (!result) {
-                throw new Error('Failed to send message.');
+            if (!result.success) {
+                throw new Error(result.message || 'Failed to send message.');
             }
-            setMessages(result.messages);
+            // The send route doesn't return the reply — refetch the session for
+            // the persisted message list.
+            const session = await getSourceChatSession(source.id, sessionId);
+            if (session) {
+                setMessages(session.messages || []);
+                // The optimistic message is now persisted; safe to fetch on
+                // future revisits of this session.
+                locallyCreatedRef.current.delete(sessionId);
+            }
         } catch (e: any) {
             setError(e?.message || 'Failed to send message.');
             setMessages((prev) => prev.filter((m) => !m.id.startsWith('temp-')));
@@ -396,7 +247,7 @@ export const ChatPanel = ({
             <div className="flex flex-none items-center justify-between px-6 pb-3">
                 <div className="flex items-center gap-2 font-semibold leading-none">
                     <LucideBot size={20} />
-                    Chat with Notebook
+                    Chat with Sources
                 </div>
                 <button
                     onClick={() => setShowSessions(true)}
@@ -418,21 +269,14 @@ export const ChatPanel = ({
                     {!loadingMessages && messages.length === 0 && !isSending && (
                         <div className="py-8 text-center text-gray-500 dark:text-gray-400">
                             <LucideBot size={48} className="mx-auto mb-4 opacity-50" />
-                            <p className="text-sm">Start a conversation about this notebook</p>
+                            <p className="text-sm">Start a conversation about this source</p>
                             <p className="mt-2 text-xs">
                                 Ask questions to understand the content better
                             </p>
                         </div>
                     )}
                     {messages.map((m) => (
-                        <MessageBubble
-                            key={m.id}
-                            message={m}
-                            sources={sources}
-                            notes={notes}
-                            notebookId={notebookId}
-                            onNoteSaved={onNoteSaved}
-                        />
+                        <MessageBubble key={m.id} message={m} />
                     ))}
                     {isSending && (
                         <div className="flex justify-start gap-3">
@@ -460,14 +304,6 @@ export const ChatPanel = ({
                     {error}
                 </div>
             )}
-
-            <ContextIndicator
-                sourcesInsights={contextStats.sourcesInsights}
-                sourcesFull={contextStats.sourcesFull}
-                notesCount={contextStats.notesCount}
-                tokenCount={tokenCount}
-                charCount={charCount}
-            />
 
             {/* Input Area */}
             <div className="flex flex-none flex-col gap-3 border-t border-gray-200 p-4 dark:border-neutral-700">
@@ -540,27 +376,10 @@ export const ChatPanel = ({
     );
 };
 
-const MessageBubble = ({
-    message,
-    sources,
-    notes,
-    notebookId,
-    onNoteSaved,
-}: {
-    message: ChatMessage;
-    sources: SourceListItem[];
-    notes: Note[];
-    notebookId: string;
-    onNoteSaved?: (note: Note) => void;
-}) => {
+
+const MessageBubble = ({ message }: { message: ChatMessage }) => {
     const isHuman = message.type === 'human';
     const [copied, setCopied] = useState<boolean>(false);
-    const [saving, setSaving] = useState<boolean>(false);
-    const [saved, setSaved] = useState<boolean>(false);
-
-    const rendered: RenderedMessage = isHuman
-        ? { segments: [{ kind: 'text', text: message.content }], citations: [] }
-        : renderCitations(message.content, sources, notes);
 
     const handleCopy = async () => {
         try {
@@ -569,24 +388,6 @@ const MessageBubble = ({
             window.setTimeout(() => setCopied(false), 2000);
         } catch {
             // Clipboard unavailable (e.g. insecure context) — nothing to show.
-        }
-    };
-
-    // "Save to note" mirroring the reference MessageActions: creates an AI
-    // note in this notebook from the reply's content.
-    const handleSaveToNote = async () => {
-        if (saving) return;
-        setSaving(true);
-        const note = await createNote({
-            notebookId,
-            content: message.content,
-            note_type: 'ai',
-        });
-        setSaving(false);
-        if (note) {
-            setSaved(true);
-            onNoteSaved?.(note);
-            window.setTimeout(() => setSaved(false), 2000);
         }
     };
 
@@ -601,64 +402,25 @@ const MessageBubble = ({
             )}
             <div className="flex max-w-[80%] flex-col gap-2">
                 <div
-                    className={`whitespace-pre-wrap rounded-lg px-4 py-2 text-sm ${
+                    className={`rounded-lg px-4 py-2 ${
                         isHuman
-                            ? 'bg-purple-500 text-white'
+                            ? 'whitespace-pre-wrap bg-purple-500 text-sm text-white'
                             : 'bg-gray-100 text-gray-800 dark:bg-neutral-700 dark:text-neutral-100'
                     }`}
                 >
-                    {rendered.segments.map((seg, i) =>
-                        seg.kind === 'text' ? (
-                            <span key={i}>{seg.text}</span>
-                        ) : (
-                            <button
-                                key={i}
-                                onClick={() => focusReference(`ref-${seg.type}-${seg.id}`)}
-                                className="mx-0.5 inline-flex items-baseline rounded bg-purple-100 px-1 font-mono text-[11px] font-medium text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:hover:bg-purple-900/60"
-                                title={`Jump to ${seg.type}`}
-                            >
-                                {seg.n}
-                            </button>
-                        ),
-                    )}
-                    {rendered.citations.length > 0 && (
-                        <div className="mt-2 border-t border-gray-300 pt-1.5 text-[11px] text-gray-600 dark:border-neutral-600 dark:text-gray-300">
-                            <div className="mb-0.5 font-medium">Sources</div>
-                            <ol className="m-0 list-none space-y-0.5 p-0">
-                                {rendered.citations.map((c) => (
-                                    <li key={c.n}>
-                                        <button
-                                            onClick={() => focusReference(c.targetDomId)}
-                                            className="text-left hover:underline"
-                                            title={`Jump to ${c.type}`}
-                                        >
-                                            <span className="font-mono">[{c.n}]</span> {c.label}
-                                            {c.type !== 'source' && (
-                                                <span className="ml-1 opacity-60">({c.type})</span>
-                                            )}
-                                        </button>
-                                    </li>
-                                ))}
-                            </ol>
-                        </div>
+                    {isHuman ? (
+                        message.content
+                    ) : (
+                        <MemoizedReactMarkdown
+                            className="prose prose-sm dark:prose-invert max-w-none break-words"
+                            remarkPlugins={[remarkGfm]}
+                        >
+                            {message.content}
+                        </MemoizedReactMarkdown>
                     )}
                 </div>
                 {!isHuman && (
                     <div className="flex gap-1">
-                        <button
-                            onClick={handleSaveToNote}
-                            disabled={saving}
-                            title="Save to note"
-                            className="inline-flex h-7 items-center rounded-md px-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 disabled:pointer-events-none disabled:opacity-50 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-gray-200"
-                        >
-                            {saving ? (
-                                <LucideLoader2 size={14} className="animate-spin" />
-                            ) : saved ? (
-                                <LucideCheck size={14} className="text-green-500" />
-                            ) : (
-                                <LucideSave size={14} />
-                            )}
-                        </button>
                         <button
                             onClick={handleCopy}
                             title="Copy to clipboard"
@@ -684,4 +446,4 @@ const MessageBubble = ({
     );
 };
 
-export default ChatPanel;
+export default SourceChatPanel;

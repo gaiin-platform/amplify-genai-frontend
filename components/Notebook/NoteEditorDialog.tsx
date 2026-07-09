@@ -6,6 +6,8 @@ import {
     updateNote,
     Note,
 } from '@/services/notebookService';
+import { InlineEditText } from './InlineEditText';
+import { MarkdownEditor } from './MarkdownEditor';
 
 interface Props {
     notebookId: string;
@@ -76,38 +78,34 @@ export const NoteEditorDialog = ({ notebookId, note, onClose, onSaved }: Props) 
             onSubmit={handleSubmit}
             submitLabel={submitting ? 'Saving…' : isEdit ? 'Save' : 'Create'}
             disableSubmit={!canSubmit}
-            width={() => 560}
-            height={() => 480}
+            width={() => Math.min(820, window.innerWidth * 0.9)}
+            height={() => Math.min(680, window.innerHeight * 0.9)}
             content={
                 <div className="flex flex-col gap-4 p-2 text-neutral-800 dark:text-neutral-100">
-                    <div className="flex flex-col gap-1">
-                        <label htmlFor="note-title" className="text-sm font-medium">
-                            Title (optional)
-                        </label>
-                        <input
-                            id="note-title"
-                            type="text"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            placeholder="Untitled"
-                            className="rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
-                        />
-                    </div>
+                    <InlineEditText
+                        value={title}
+                        placeholder="Untitled Note"
+                        className="text-xl font-semibold"
+                        onSave={setTitle}
+                    />
 
                     <div className="flex flex-col gap-1 flex-1">
                         <label htmlFor="note-content" className="text-sm font-medium">
                             Content <span className="text-red-500">*</span>
                         </label>
-                        <textarea
-                            id="note-content"
-                            autoFocus
-                            value={content}
-                            onChange={(e) => setContent(e.target.value)}
-                            placeholder={loadingFull ? 'Loading…' : 'Write your note…'}
-                            rows={12}
-                            disabled={loadingFull}
-                            className="resize-none rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100 disabled:opacity-60"
-                        />
+                        {loadingFull ? (
+                            <div className="flex h-[380px] items-center justify-center rounded border border-neutral-300 text-sm text-gray-500 dark:border-neutral-600 dark:text-gray-400">
+                                Loading…
+                            </div>
+                        ) : (
+                            <MarkdownEditor
+                                textareaId="note-content"
+                                value={content}
+                                onChange={setContent}
+                                placeholder="Write your note…"
+                                height={380}
+                            />
+                        )}
                     </div>
 
                     {error && (

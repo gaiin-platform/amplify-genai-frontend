@@ -127,16 +127,37 @@ export const updateNotebook = async (
     );
 };
 
-export const deleteNotebook = async (id: string): Promise<boolean> => {
-    // delete_exclusive_sources=true so sources belonging only to this notebook are
-    // deleted (matching the confirm dialog's promise), while sources shared with
-    // other notebooks are merely unlinked. Without this flag the backend defaults
-    // to False and leaves orphaned source records behind.
+// What deleting a notebook would remove — drives the delete dialog's
+// "keep or delete exclusive sources" choice, mirroring the reference UI.
+export interface NotebookDeletePreview {
+    notebook_id: string;
+    notebook_name: string;
+    note_count: number;
+    exclusive_source_count: number;
+    shared_source_count: number;
+}
+
+export const getNotebookDeletePreview = async (
+    id: string,
+): Promise<NotebookDeletePreview | null> => {
+    return notebookCall<NotebookDeletePreview>(
+        'GET',
+        `/notebooks/${encodeURIComponent(id)}/delete-preview`,
+    );
+};
+
+export const deleteNotebook = async (
+    id: string,
+    deleteExclusiveSources = false,
+): Promise<boolean> => {
+    // When true, sources belonging only to this notebook are deleted too;
+    // sources shared with other notebooks are always merely unlinked. The
+    // delete dialog surfaces this as an explicit keep/delete choice.
     const result = await notebookCall(
         'DELETE',
         `/notebooks/${encodeURIComponent(id)}`,
         null,
-        { delete_exclusive_sources: true },
+        { delete_exclusive_sources: deleteExclusiveSources },
     );
     return result !== null;
 };
@@ -163,6 +184,11 @@ export interface SourceListItem {
     command_id?: string | null;
     status?: string | null;
     processing_info?: Record<string, unknown> | null;
+    // Only populated by the single-source GET (/sources/{id}); the list
+    // endpoint (GET /sources) doesn't include notebook associations or the
+    // full extracted text.
+    notebooks?: string[];
+    full_text?: string | null;
 }
 
 export interface CreateSourceLinkRequest {
@@ -288,6 +314,104 @@ export const createSourceFromFile = async ({
 export const deleteSource = async (sourceId: string): Promise<boolean> => {
     const result = await notebookCall('DELETE', `/sources/${encodeURIComponent(sourceId)}`);
     return result !== null;
+};
+
+// Links an existing source (possibly already used in other notebooks) into
+// this notebook, without duplicating or re-processing it — the inverse of
+// deleteSource, which removes the source everywhere. Idempotent server-side.
+export const addSourceToNotebook = async (
+    notebookId: string,
+    sourceId: string,
+): Promise<boolean> => {
+    const result = await notebookCall(
+        'POST',
+        `/notebooks/${encodeURIComponent(notebookId)}/sources/${encodeURIComponent(sourceId)}`,
+    );
+    return result !== null;
+};
+
+// Unlinks a source from one notebook only (deletes the `reference` edge) —
+// unlike deleteSource, the source, its embeddings, and its other notebook
+// memberships are untouched.
+export const removeSourceFromNotebook = async (
+    notebookId: string,
+    sourceId: string,
+): Promise<boolean> => {
+    const result = await notebookCall(
+        'DELETE',
+        `/notebooks/${encodeURIComponent(notebookId)}/sources/${encodeURIComponent(sourceId)}`,
+    );
+    return result !== null;
+};
+
+// Re-runs processing for a failed source, or re-scrapes a link source that
+// already completed. Same endpoint serves both cases server-side.
+export const retrySource = async (sourceId: string): Promise<SourceListItem | null> => {
+    return notebookCall<SourceListItem>('POST', `/sources/${encodeURIComponent(sourceId)}/retry`);
+};
+
+// Unlike listSources, this includes the `notebooks` array — used to figure
+// out which notebook to jump into from the global Sources page.
+export const getSource = async (sourceId: string): Promise<SourceListItem | null> => {
+    return notebookCall<SourceListItem>('GET', `/sources/${encodeURIComponent(sourceId)}`);
+};
+
+export const updateSource = async (
+    sourceId: string,
+    data: { title?: string; topics?: string[] },
+): Promise<SourceListItem | null> => {
+    return notebookCall<SourceListItem>(
+        'PUT',
+        `/sources/${encodeURIComponent(sourceId)}`,
+        data,
+    );
+};
+
+export interface EmbedContentResponse {
+    success: boolean;
+    message: string;
+    chunks_created?: number;
+    command_id?: string;
+}
+
+// Chunks and embeds the source's full text for vector search — the "Embed
+// Content" action in the source detail view. Synchronous server-side.
+export const embedSource = async (
+    sourceId: string,
+): Promise<EmbedContentResponse | null> => {
+    return notebookCall<EmbedContentResponse>('POST', '/embed', {
+        item_id: sourceId,
+        item_type: 'source',
+        async_processing: false,
+    });
+};
+
+// Downloads the original uploaded file for a file-backed source. Binary
+// doesn't fit the JSON proxy, so this goes through /api/notebookDownload
+// (mirror of /api/notebookUpload) which attaches the JWT server-side. A 404
+// means the file is gone from storage ("File unavailable" in the UI).
+export const downloadSourceFile = async (
+    sourceId: string,
+): Promise<{ ok: boolean; status: number | null; blob?: Blob; filename?: string }> => {
+    try {
+        const response = await fetch(
+            `/api/notebookDownload?sourceId=${encodeURIComponent(sourceId)}`,
+        );
+        if (!response.ok) return { ok: false, status: response.status };
+        const blob = await response.blob();
+        const header = response.headers.get('content-disposition') || '';
+        const match = header.match(/filename\*?=([^;]+)/i);
+        let filename: string | undefined;
+        if (match) {
+            const value = match[1].trim();
+            filename = value.toLowerCase().startsWith("utf-8''")
+                ? decodeURIComponent(value.slice(7))
+                : value.replace(/^["']|["']$/g, '');
+        }
+        return { ok: true, status: response.status, blob, filename };
+    } catch {
+        return { ok: false, status: null };
+    }
 };
 
 // -----------------------------------------------------------------------------
@@ -541,6 +665,17 @@ export const getChatSession = async (
     );
 };
 
+export const updateChatSession = async (
+    sessionId: string,
+    data: { title?: string; model_override?: string | null },
+): Promise<ChatSession | null> => {
+    return notebookCall<ChatSession>(
+        'PUT',
+        `/chat/sessions/${encodeURIComponent(sessionId)}`,
+        data,
+    );
+};
+
 export const deleteChatSession = async (sessionId: string): Promise<boolean> => {
     const result = await notebookCall(
         'DELETE',
@@ -614,6 +749,115 @@ export const sendChatMessage = async (
             model_override: modelOverride,
         },
     );
+};
+
+// -----------------------------------------------------------------------------
+// Source Chat — sessions scoped to a single source, independent of notebooks
+// -----------------------------------------------------------------------------
+
+export interface SourceChatSession {
+    id: string;
+    title: string;
+    source_id: string;
+    model_override?: string | null;
+    created: string;
+    updated: string;
+    message_count?: number | null;
+}
+
+export interface SourceChatSessionWithMessages extends SourceChatSession {
+    messages: ChatMessage[];
+}
+
+export const listSourceChatSessions = async (
+    sourceId: string,
+): Promise<SourceChatSession[]> => {
+    const result = await notebookCall<SourceChatSession[]>(
+        'GET',
+        `/sources/${encodeURIComponent(sourceId)}/chat/sessions`,
+    );
+    return Array.isArray(result) ? result : [];
+};
+
+export const createSourceChatSession = async (
+    sourceId: string,
+    title?: string,
+    modelOverride?: string,
+): Promise<SourceChatSession | null> => {
+    // The backend expects the bare record id (no "source:" prefix) in the body.
+    const cleanId = sourceId.startsWith('source:') ? sourceId.slice(7) : sourceId;
+    return notebookCall<SourceChatSession>(
+        'POST',
+        `/sources/${encodeURIComponent(sourceId)}/chat/sessions`,
+        { source_id: cleanId, title, model_override: modelOverride },
+    );
+};
+
+export const getSourceChatSession = async (
+    sourceId: string,
+    sessionId: string,
+): Promise<SourceChatSessionWithMessages | null> => {
+    return notebookCall<SourceChatSessionWithMessages>(
+        'GET',
+        `/sources/${encodeURIComponent(sourceId)}/chat/sessions/${encodeURIComponent(sessionId)}`,
+    );
+};
+
+export const updateSourceChatSession = async (
+    sourceId: string,
+    sessionId: string,
+    data: { title?: string; model_override?: string | null },
+): Promise<SourceChatSession | null> => {
+    return notebookCall<SourceChatSession>(
+        'PUT',
+        `/sources/${encodeURIComponent(sourceId)}/chat/sessions/${encodeURIComponent(sessionId)}`,
+        data,
+    );
+};
+
+export const deleteSourceChatSession = async (
+    sourceId: string,
+    sessionId: string,
+): Promise<boolean> => {
+    const result = await notebookCall(
+        'DELETE',
+        `/sources/${encodeURIComponent(sourceId)}/chat/sessions/${encodeURIComponent(sessionId)}`,
+    );
+    return result !== null;
+};
+
+// The messages endpoint is SSE-only upstream, so it bypasses the JSON proxy and
+// goes through a dedicated route (pages/api/notebook/sourceChat.ts) that buffers
+// the stream. On success, callers refetch the session for the persisted
+// message list — the route only reports whether the turn succeeded.
+export const sendSourceChatMessage = async (
+    sourceId: string,
+    sessionId: string,
+    message: string,
+    modelOverride?: string,
+): Promise<{ success: boolean; message?: string }> => {
+    try {
+        const response = await fetch('/api/notebook/sourceChat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                source_id: sourceId,
+                session_id: sessionId,
+                message,
+                model_override: modelOverride ?? null,
+            }),
+        });
+        if (!response.ok) {
+            return {
+                success: false,
+                message: `Source chat error: ${response.status} ${response.statusText}`,
+            };
+        }
+        const result = await response.json();
+        return { success: !!result?.success, message: result?.message };
+    } catch (e: any) {
+        return { success: false, message: e?.message || 'Network error sending message' };
+    }
 };
 
 // -----------------------------------------------------------------------------
@@ -1225,6 +1469,28 @@ export const createSpeakerProfile = async (
     data: SpeakerProfileCreateData,
 ): Promise<SpeakerProfile | null> => {
     return notebookCall<SpeakerProfile>('POST', '/speaker-profiles', data);
+};
+
+export const updateEpisodeProfile = async (
+    id: string,
+    data: Partial<EpisodeProfileCreateData>,
+): Promise<EpisodeProfile | null> => {
+    return notebookCall<EpisodeProfile>(
+        'PUT',
+        `/episode-profiles/${encodeURIComponent(id)}`,
+        data,
+    );
+};
+
+export const updateSpeakerProfile = async (
+    id: string,
+    data: Partial<SpeakerProfileCreateData>,
+): Promise<SpeakerProfile | null> => {
+    return notebookCall<SpeakerProfile>(
+        'PUT',
+        `/speaker-profiles/${encodeURIComponent(id)}`,
+        data,
+    );
 };
 
 export const deleteEpisodeProfile = async (id: string): Promise<boolean> => {
