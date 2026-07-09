@@ -1222,9 +1222,7 @@ const TemplatesTab = ({
         setActionError(null);
         // The upstream seeds reference openai models; substitute this
         // deployment's registered models so the profiles can actually generate.
-        const langModel =
-            models.find((m) => m.type === 'language' && m.provider === 'bedrock')?.id ??
-            null;
+        const langModel = models.find((m) => m.type === 'language')?.id ?? null;
         const ttsModel = models.find((m) => m.type === 'text_to_speech')?.id ?? null;
 
         const failures: string[] = [];

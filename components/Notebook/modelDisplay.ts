@@ -53,3 +53,16 @@ export const dedupeModels = <
         return true;
     });
 };
+
+// Canonical list preparation for every model picker: dedupe, then sort by the
+// human label. All registered models of the requested type are shown, whatever
+// their provider — pickers previously disagreed (some bedrock-only, some not),
+// so the same deployment showed different model lists page to page.
+export const prepareModelOptions = <
+    T extends { name: string; provider?: string | null; type?: string | null },
+>(
+    models: T[],
+): T[] =>
+    dedupeModels(models).sort((a, b) =>
+        formatModelName(a.name).localeCompare(formatModelName(b.name)),
+    );

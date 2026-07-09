@@ -267,13 +267,6 @@ export const NotebookApp = () => {
     };
 
     const goBackToChat = () => dispatch({ field: 'page', value: 'chat' });
-    const goBackToList = () => {
-        setSelected(null);
-        // Refresh so each card's source/note count (and ordering) reflects any
-        // sources/notes added or removed while the detail was open. Background
-        // refresh: the loader only shows when the list is empty, so no flicker.
-        fetchNotebooks();
-    };
 
     const handleSectionChange = (next: NotebookSection) => {
         setSection(next);
@@ -283,8 +276,8 @@ export const NotebookApp = () => {
         // currently-open notebook.
         setSelected(null);
         setViewingSource(null);
-        // Returning to the notebooks list re-fetches for the same reason as
-        // goBackToList — counts may be stale after work in another section.
+        // Returning to the notebooks list re-fetches so each card's
+        // source/note counts (and ordering) reflect work done elsewhere.
         if (next === 'notebooks') fetchNotebooks();
     };
 
@@ -357,28 +350,12 @@ export const NotebookApp = () => {
     // True when the open source was reached from inside a notebook — the Back
     // button then returns to that notebook rather than the global sources list.
     const sourceFromNotebook = viewingSourceDetail && isNotebooksSection && !!selected;
-    const headerTitle = viewingSourceDetail
-        ? viewingSource!.title || 'Untitled source'
-        : isNotebooksSection
-          ? selected
-              ? selected.name || '(untitled)'
-              : 'Notebooks'
-          : SECTION_TITLES[section];
-    const showBackToList = isNotebooksSection && !!selected && !viewingSourceDetail;
     // Views that render their own in-content page header (like the reference
-    // pages do) hide the app bar. The sources list is now the only section
-    // still using it as its header (plus detail views for their back button).
-    const isNotebooksList = isNotebooksSection && !selected && !viewingSourceDetail;
-    const sectionsWithOwnHeader: NotebookSection[] = [
-        'ask',
-        'podcasts',
-        'transformations',
-        'settings',
-        'advanced',
-    ];
-    const hideAppBar =
-        isNotebooksList ||
-        (sectionsWithOwnHeader.includes(section) && !viewingSourceDetail);
+    // pages do) hide the app bar. The global sources list is the only view
+    // still using it as its header — both detail views (notebook, source)
+    // carry their own title, matching the reference's notebooks/[id] and
+    // sources/[id] pages, so showing it there duplicated the name.
+    const showAppBar = section === 'sources' && !viewingSourceDetail;
 
     const isSearching = searchQuery.trim().length > 0;
     // Reference filters by name only.
@@ -434,35 +411,13 @@ export const NotebookApp = () => {
                 onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
             />
             <div className="flex flex-col flex-1 min-w-0">
-            {!hideAppBar && (
+            {showAppBar && (
             <div className="flex items-center gap-3 border-b border-gray-200 dark:border-neutral-700 bg-gradient-to-b from-gray-50 to-white dark:from-gray-800 dark:to-[#343541] pl-4 pr-20 py-3">
-                {(showBackToList || viewingSourceDetail) && (
-                    <button
-                        onClick={
-                            viewingSourceDetail ? () => setViewingSource(null) : goBackToList
-                        }
-                        title={
-                            viewingSourceDetail
-                                ? sourceFromNotebook
-                                    ? 'Back to notebook'
-                                    : 'Back to sources'
-                                : 'Back to notebooks'
-                        }
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-white transition-colors"
-                    >
-                        <IconArrowLeft size={20} />
-                    </button>
-                )}
                 <div className="flex flex-col min-w-0">
                     <h1 className="text-base font-semibold leading-tight truncate">
-                        {headerTitle}
+                        {SECTION_TITLES[section]}
                     </h1>
-                    {isNotebooksSection && !viewingSourceDetail && selected?.description && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 max-w-xl">
-                            {selected.description}
-                        </span>
-                    )}
-                    {!isNotebooksSection && !viewingSourceDetail && SECTION_DESCRIPTIONS[section] && (
+                    {SECTION_DESCRIPTIONS[section] && (
                         <span className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 max-w-xl">
                             {SECTION_DESCRIPTIONS[section]}
                         </span>
@@ -475,17 +430,31 @@ export const NotebookApp = () => {
                 {viewingSource ? (
                     // A source can be opened from the global Sources page or from
                     // inside a notebook — either way it takes over the content
-                    // area, and the header Back button clears it (returning to
-                    // whichever context it was opened from).
-                    <SourceDetailView
-                        source={viewingSource}
-                        notebooks={notebooks}
-                        onDeleted={() => {
-                            setViewingSource(null);
-                            setSourcesRefreshKey((k) => k + 1);
-                        }}
-                        onSourceUpdated={setViewingSource}
-                    />
+                    // area, and the in-content Back button clears it (returning
+                    // to whichever context it was opened from), mirroring the
+                    // reference's sources/[id] page.
+                    <div className="flex h-full min-h-0 flex-col">
+                        <div className="flex-none pb-4">
+                            <button
+                                onClick={() => setViewingSource(null)}
+                                className="flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-neutral-700 dark:hover:text-white transition-colors"
+                            >
+                                <IconArrowLeft size={16} />
+                                {sourceFromNotebook ? 'Back to Notebook' : 'Back to Sources'}
+                            </button>
+                        </div>
+                        <div className="min-h-0 flex-1">
+                            <SourceDetailView
+                                source={viewingSource}
+                                notebooks={notebooks}
+                                onDeleted={() => {
+                                    setViewingSource(null);
+                                    setSourcesRefreshKey((k) => k + 1);
+                                }}
+                                onSourceUpdated={setViewingSource}
+                            />
+                        </div>
+                    </div>
                 ) : section === 'sources' ? (
                     <SourcesPage
                         key={sourcesRefreshKey}

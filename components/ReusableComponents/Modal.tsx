@@ -23,6 +23,9 @@ interface Props {
   submitLabel?: string;
   disableSubmit?: boolean;
   additionalButtonOptions?: OptionButtons[];
+  // Replaces the default footer buttons with caller-provided content, keeping
+  // the footer bar itself (border, spacing) intact.
+  customFooter?: ReactElement;
   resizeOnVarChange?: any;
   transform?: string;
   fullScreen?: boolean;
@@ -30,9 +33,9 @@ interface Props {
   disableClickOutside?: boolean;
 }
 
-  export const Modal: FC<Props> = ({title, content, width , height, onCancel=()=>{}, onSubmit=()=>{}, 
+  export const Modal: FC<Props> = ({title, content, width , height, onCancel=()=>{}, onSubmit=()=>{},
                                     showClose=true, showCancel=true, showSubmit=true, cancelLabel= "Cancel", submitLabel="Submit",
-                                    additionalButtonOptions=[], disableSubmit=false, resizeOnVarChange, transform="", fullScreen=false, 
+                                    additionalButtonOptions=[], customFooter, disableSubmit=false, resizeOnVarChange, transform="", fullScreen=false,
                                     disableContentAnimation=false, disableClickOutside=false}) => {
 
  const modalRef = useRef<HTMLDivElement>(null);
@@ -143,7 +146,7 @@ interface Props {
 
                         {
                          <div className="flex flex-row gap-3 justify-end pt-4 pb-2 mt-auto border-t border-gray-200 dark:border-neutral-600">
-                          {[...additionalButtonOptions, 
+                          {customFooter ?? [...additionalButtonOptions,
                             ...(showCancel ? [{label: cancelLabel, handleClick: () => onCancel()}] : []),
                             ...(showSubmit ? [{isDisabled: disableSubmit, label: submitLabel, handleClick: () => onSubmit()}] : [])
                           ]
