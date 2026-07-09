@@ -288,11 +288,16 @@ export const createSourceFromText = async ({
     });
 };
 
-// Multipart file upload routes through the Next.js API proxy at
-// /api/notebookUpload — the proxy attaches the Cognito JWT server-side and
-// forwards the multipart body as-is to open-notebook's /api/sources.
-// Multipart doesn't fit the JSON proxy route, so this stays separate.
-export const createSourceFromFile = async ({
+interface PresignedUpload {
+    upload_url: string;
+    file_path: string;
+}
+
+// Multipart fallback through the Next.js proxy at /api/notebookUpload, which
+// attaches the Cognito JWT server-side. Only used when the backend can't mint
+// presigned URLs (non-S3 storage, e.g. local dev): on the deployed site the
+// ALB's WAF 403s raw binary multipart bodies, so presigned PUT is preferred.
+const createSourceFromFileMultipart = async ({
     notebooks,
     file,
     title,
@@ -326,6 +331,55 @@ export const createSourceFromFile = async ({
         console.error('createSourceFromFile threw:', e);
         return null;
     }
+};
+
+export const createSourceFromFile = async (
+    request: CreateSourceFileRequest,
+): Promise<SourceListItem | null> => {
+    const { notebooks, file, title, transformations, embed } = request;
+
+    // Preferred path: presigned S3 PUT. The file bytes go browser → S3
+    // directly, never through the Amplify ALB, whose WAF false-positives on
+    // raw PDF bytes in multipart bodies.
+    const contentType = file.type || 'application/octet-stream';
+    const presigned = await notebookCall<PresignedUpload>('POST', '/sources/upload-url', {
+        filename: file.name,
+        content_type: contentType,
+    });
+
+    if (presigned?.upload_url && presigned.file_path) {
+        try {
+            const put = await fetch(presigned.upload_url, {
+                method: 'PUT',
+                // Must match the content type signed into the URL.
+                headers: { 'Content-Type': contentType },
+                body: file,
+            });
+            if (put.ok) {
+                return notebookCall<SourceListItem>('POST', '/sources/json', {
+                    type: 'upload',
+                    file_path: presigned.file_path,
+                    title,
+                    notebooks,
+                    transformations: transformations ?? [],
+                    embed: embed ?? true,
+                    async_processing: true,
+                });
+            }
+            console.error(
+                `createSourceFromFile: presigned PUT failed (${put.status}); falling back to multipart`,
+            );
+        } catch (e) {
+            console.error(
+                'createSourceFromFile: presigned PUT threw; falling back to multipart',
+                e,
+            );
+        }
+    }
+
+    // Backend can't presign (non-S3 storage) or the direct PUT failed
+    // (e.g. missing bucket CORS) — use the legacy multipart proxy.
+    return createSourceFromFileMultipart(request);
 };
 
 export const deleteSource = async (sourceId: string): Promise<boolean> => {
