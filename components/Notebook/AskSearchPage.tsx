@@ -24,7 +24,7 @@ import {
     listSources,
     searchKnowledgeBase,
 } from '@/services/notebookService';
-import { dedupeModels, formatModelName } from './modelDisplay';
+import { formatModelName, prepareModelOptions } from './modelDisplay';
 import { AdvancedModelsDialog, AskModels } from './AdvancedModelsDialog';
 import { SaveToNotebooksDialog } from './SaveToNotebooksDialog';
 
@@ -176,11 +176,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
             const [d, models] = await Promise.all([getDefaults(), listModels('language')]);
             if (cancelled) return;
             setDefaults(d);
-            setLanguageModels(
-                dedupeModels(models.filter((m) => m.provider === 'bedrock')).sort((a, b) =>
-                    formatModelName(a.name).localeCompare(formatModelName(b.name)),
-                ),
-            );
+            setLanguageModels(prepareModelOptions(models));
             setDefaultsLoading(false);
         })();
         return () => {

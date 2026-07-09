@@ -11,7 +11,7 @@ import {
     listModels,
     updateEpisodeProfile,
 } from '@/services/notebookService';
-import { dedupeModels, formatModelName } from './modelDisplay';
+import { formatModelName, prepareModelOptions } from './modelDisplay';
 
 interface Props {
     speakerProfiles: SpeakerProfile[];
@@ -52,16 +52,14 @@ export const CreateEpisodeProfileDialog = ({
         (async () => {
             const [models, langs] = await Promise.all([listModels('language'), listLanguages()]);
             if (cancelled) return;
-            // Same restriction as the open-notebook UI: outline/transcript
-            // generation only runs on Bedrock-hosted language models here.
-            const bedrock = dedupeModels(models.filter((m) => m.provider === 'bedrock'));
-            setLanguageModels(bedrock);
+            const options = prepareModelOptions(models);
+            setLanguageModels(options);
             setLanguages(langs);
             // Default both stages to the first model — but never clobber the
             // models already picked on the profile being edited.
-            if (bedrock.length > 0) {
-                setOutlineModel((curr) => curr || bedrock[0].id);
-                setTranscriptModel((curr) => curr || bedrock[0].id);
+            if (options.length > 0) {
+                setOutlineModel((curr) => curr || options[0].id);
+                setTranscriptModel((curr) => curr || options[0].id);
             }
             setLoading(false);
         })();

@@ -9,7 +9,7 @@ import {
     listModels,
     updateSpeakerProfile,
 } from '@/services/notebookService';
-import { dedupeModels, formatModelName } from './modelDisplay';
+import { formatModelName, prepareModelOptions } from './modelDisplay';
 
 interface Props {
     // When set, the dialog edits this profile (PUT) instead of creating one.
@@ -51,7 +51,7 @@ export const CreateSpeakerProfileDialog = ({ initial, onClose, onCreated }: Prop
         (async () => {
             const models = await listModels('text_to_speech');
             if (cancelled) return;
-            const unique = dedupeModels(models);
+            const unique = prepareModelOptions(models);
             setTtsModels(unique);
             // Default to the first model, but never clobber the model already
             // picked on the profile being edited.

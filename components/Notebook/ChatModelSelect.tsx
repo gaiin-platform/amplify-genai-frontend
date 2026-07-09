@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { IconSparkles } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { NotebookModel, getDefaults, listModels } from '@/services/notebookService';
-import { dedupeModels, formatModelName } from './modelDisplay';
+import { formatModelName, prepareModelOptions } from './modelDisplay';
 
 interface Props {
     // Selected model record ID; '' means "use the deployment default".
@@ -35,7 +35,7 @@ const IconModelSliders = ({ size = 14 }: { size?: number }) => (
 );
 
 // Compact model picker for chat/ask. Mirrors upstream's chat ModelSelector:
-// language models restricted to the bedrock provider, sorted by name, with a
+// every registered language model, sorted by name, with a
 // "Default" entry that resolves to the configured default chat model. Clicking
 // the trigger opens a dialog (matching upstream's Settings2 button + Dialog)
 // instead of a native <select>, so the description text has room to show.
@@ -55,11 +55,7 @@ export const ChatModelSelect = ({ value, onChange, disabled }: Props) => {
         (async () => {
             const [all, defaults] = await Promise.all([listModels('language'), getDefaults()]);
             if (cancelled) return;
-            setModels(
-                dedupeModels(all.filter((m) => m.provider === 'bedrock')).sort((a, b) =>
-                    formatModelName(a.name).localeCompare(formatModelName(b.name)),
-                ),
-            );
+            setModels(prepareModelOptions(all));
             setDefaultId(defaults?.default_chat_model ?? null);
             setLoading(false);
         })();
