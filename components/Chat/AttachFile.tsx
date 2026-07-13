@@ -156,7 +156,7 @@ export const handleFile = async (file: any,
 
         if (uploadDocuments) {
             try {
-                const { key, response, statusUrl, metadataUrl, contentUrl, abortController } = await addFile(document, file,
+                const { key, response, statusUrl, metadataUrl, contentUrl, abortController, name, type } = await addFile(document, file,
                     (progress: number) => {
                         if (onUploadProgress && progress < 95) {
                             onUploadProgress(document, progress);
@@ -165,8 +165,12 @@ export const handleFile = async (file: any,
                             onUploadProgress(document, 95);
                         }
                     }, ragEnabled, tags);
-                console.log('[UPLOAD DEBUG] addFile returned - key:', key, 'metadataUrl:', metadataUrl, 'statusUrl:', statusUrl);
+                console.log('[UPLOAD DEBUG] addFile returned - key:', key, 'name:', name, 'type:', type, 'metadataUrl:', metadataUrl, 'statusUrl:', statusUrl);
                 docKey = key;
+
+                if (name) document.name = name;
+                if (type) document.type = type;
+
                 if (onSetAbortController) onSetAbortController(document, () => {
                     abortController?.abort()
                     // Only set cleanup timeout if not already aborted

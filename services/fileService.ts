@@ -150,7 +150,9 @@ export const addFile = async (metadata: AttachedDocument, file: File, onProgress
     const uploadUrl = result.url;
     const contentUrl = result.contentUrl || null;
     const statusUrl = result.statusUrl || null;
-    const metadataUrl = result.metadataUrl || null
+    const metadataUrl = result.metadataUrl || null;
+    const name = result.name || metadata.name;
+    const type = result.type || metadata.type;
 
     // console.log("contentUrl", contentUrl);
     // console.log("statusUrl", statusUrl);
@@ -160,13 +162,15 @@ export const addFile = async (metadata: AttachedDocument, file: File, onProgress
         if (onProgress) {
             onProgress(progress);
         }
-    }, metadata.type);
+    }, type);
 
     return {
         key: key,
         contentUrl: contentUrl,
         metadataUrl: metadataUrl,
         statusUrl: statusUrl,
+        name: name,
+        type: type,
         response: uploadResponse,
         abortController: abortController
     };
