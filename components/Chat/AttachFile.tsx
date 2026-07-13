@@ -189,6 +189,8 @@ export const handleFile = async (file: any,
 
                 console.log('[UPLOAD DEBUG] Waiting for S3 upload response...');
                 await response;
+
+                onAttach(document);
                 console.log('[UPLOAD DEBUG] S3 upload complete. Polling metadataUrl:', metadataUrl);
                 const readyStatus = await checkContentReady(metadataUrl, 120, abortController);
 
