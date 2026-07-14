@@ -160,7 +160,7 @@ export const addFile = async (metadata: AttachedDocument, file: File, onProgress
         if (onProgress) {
             onProgress(progress);
         }
-    }, type);
+    }, metadata.type);
 
     return {
         key: key,
