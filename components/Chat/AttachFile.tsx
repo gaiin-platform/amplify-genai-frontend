@@ -215,7 +215,13 @@ export const handleFile = async (file: any,
                 console.error('[UPLOAD DEBUG] Error in upload flow:', e);
                 // @ts-ignore
                 if (e.message !== 'Abort') {
-                    alert("Upload file aborted");
+                    const errorMsg = `${e.message || 'Unknown error'}`;
+                    console.error('[UPLOAD DEBUG] Full error details:', {
+                        message: e.message,
+                        stack: e.stack,
+                        toString: e.toString()
+                    });
+                    alert(`Upload failed: ${errorMsg}`);
                     if (docKey) safeCleanUp(docKey);
                 }
             }
