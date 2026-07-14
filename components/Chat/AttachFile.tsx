@@ -167,6 +167,7 @@ export const handleFile = async (file: any,
                     }, ragEnabled, tags);
                 console.log('[UPLOAD DEBUG] addFile returned - key:', key, 'metadataUrl:', metadataUrl, 'statusUrl:', statusUrl);
                 docKey = key;
+
                 if (onSetAbortController) onSetAbortController(document, () => {
                     abortController?.abort()
                     // Only set cleanup timeout if not already aborted
@@ -212,9 +213,15 @@ export const handleFile = async (file: any,
             }
             catch (e) {
                 console.error('[UPLOAD DEBUG] Error in upload flow:', e);
-                // @ts-ignore
-                if (e.message !== 'Abort') {
-                    alert("Upload file aborted");
+                const error = e as any;
+                if (error.message !== 'Abort') {
+                    const errorMsg = `${error.message || 'Unknown error'}`;
+                    console.error('[UPLOAD DEBUG] Full error details:', {
+                        message: error.message,
+                        stack: error.stack,
+                        toString: error.toString()
+                    });
+                    alert(`Upload failed: ${errorMsg}`);
                     if (docKey) safeCleanUp(docKey);
                 }
             }
