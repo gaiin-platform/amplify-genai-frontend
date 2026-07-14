@@ -213,13 +213,13 @@ export const handleFile = async (file: any,
             }
             catch (e) {
                 console.error('[UPLOAD DEBUG] Error in upload flow:', e);
-                // @ts-ignore
-                if (e.message !== 'Abort') {
-                    const errorMsg = `${e.message || 'Unknown error'}`;
+                const error = e as any;
+                if (error.message !== 'Abort') {
+                    const errorMsg = `${error.message || 'Unknown error'}`;
                     console.error('[UPLOAD DEBUG] Full error details:', {
-                        message: e.message,
-                        stack: e.stack,
-                        toString: e.toString()
+                        message: error.message,
+                        stack: error.stack,
+                        toString: error.toString()
                     });
                     alert(`Upload failed: ${errorMsg}`);
                     if (docKey) safeCleanUp(docKey);

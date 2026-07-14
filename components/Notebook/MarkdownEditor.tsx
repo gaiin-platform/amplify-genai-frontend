@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 import dynamic from 'next/dynamic';
-import { codeEdit, codeLive, codePreview } from '@uiw/react-md-editor/commands';
+import { codeEdit, codeLive, codePreview } from '@uiw/react-md-editor';
 import HomeContext from '@/pages/api/home/home.context';
 
 // The default entry point's code-block preview pulls in rehype-prism-plus,
