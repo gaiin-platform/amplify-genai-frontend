@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 
 import '@/styles/globals.css';
 import { ThemeService } from '@/utils/whiteLabel/themeService';
+import { SessionActivityTracker } from '@/app/components/SessionActivityTracker';
 
 const inter = Inter({subsets: ['latin']});
 
@@ -36,6 +37,7 @@ function App({ Component, pageProps }: AppProps) {
             refetchOnWindowFocus={true}
             refetchWhenOffline={false}
         >
+            <SessionActivityTracker />
             <div className={inter.className}>
                 <a
                     href="#main-content"

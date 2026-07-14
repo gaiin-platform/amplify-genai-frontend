@@ -6,7 +6,7 @@ import { decodeJwt } from "jose";
 export const authOptions = {
     // Configure one or more authentication providers
     session: {
-        maxAge: 59 * 60
+        maxAge: 3 * 60 * 60 // 3 hours - client-side inactivity tracker handles 1-hour timeout
     },
     providers: [
         CognitoProvider({
@@ -28,7 +28,7 @@ export const authOptions = {
             return true;
         },
         async jwt({ token, profile, account }) {
-            const SESSION_MAX_AGE_MS = 59 * 60 * 1000;
+            const SESSION_MAX_AGE_MS = 3 * 60 * 60 * 1000; // 3 hours - client-side inactivity tracker handles 1-hour timeout
             const attr = process.env.IMMUTABLE_ID_ATTRIBUTE;
             if (profile && attr && profile[attr]) {
                 token.immutableId = profile[attr];
