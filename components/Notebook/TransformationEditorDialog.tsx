@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { IconAlertCircle, IconLoader2 } from '@tabler/icons-react';
+import { LucideAlertCircle, LucideLoader2 } from './LucideIcons';
 import { Modal } from '@/components/ReusableComponents/Modal';
+import { MarkdownEditor } from './MarkdownEditor';
 import {
     Transformation,
     createTransformation,
@@ -14,6 +15,11 @@ interface Props {
     onSaved: (t: Transformation) => void;
 }
 
+const inputClass =
+    'w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm placeholder-gray-400 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100 dark:placeholder-gray-500';
+
+// Mirrors the reference TransformationEditorDialog: name row, title +
+// suggest-by-default row, description, then a markdown editor for the prompt.
 export const TransformationEditorDialog = ({ transformation, onClose, onSaved }: Props) => {
     const isEdit = !!transformation;
     const [name, setName] = useState<string>(transformation?.name ?? '');
@@ -50,10 +56,7 @@ export const TransformationEditorDialog = ({ transformation, onClose, onSaved }:
     const trimmedName = name.trim();
     const trimmedPrompt = prompt.trim();
     const canSubmit =
-        !submitting &&
-        !loadingFull &&
-        trimmedName.length > 0 &&
-        trimmedPrompt.length > 0;
+        !submitting && !loadingFull && trimmedName.length > 0 && trimmedPrompt.length > 0;
 
     const handleSubmit = async () => {
         if (!canSubmit) return;
@@ -83,92 +86,104 @@ export const TransformationEditorDialog = ({ transformation, onClose, onSaved }:
 
     return (
         <Modal
-            title={isEdit ? 'Edit Transformation' : 'New Transformation'}
+            title={isEdit ? 'Edit Transformation' : 'Create New'}
             onCancel={onClose}
             onSubmit={handleSubmit}
-            submitLabel={submitting ? 'Saving…' : isEdit ? 'Save' : 'Create'}
+            submitLabel={
+                submitting
+                    ? isEdit
+                        ? 'Saving...'
+                        : 'Creating...'
+                    : isEdit
+                      ? 'Edit Transformation'
+                      : 'Create New'
+            }
             disableSubmit={!canSubmit}
-            width={() => 720}
-            height={() => 640}
+            width={() => Math.min(896, window.innerWidth * 0.95)}
+            height={() => window.innerHeight * 0.9}
             content={
                 <div className="flex flex-col gap-4 p-2 text-neutral-800 dark:text-neutral-100">
                     {loadingFull ? (
-                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                            <IconLoader2 size={16} className="animate-spin" />
-                            Loading transformation…
+                        <div className="flex items-center justify-center py-10 text-sm text-gray-500 dark:text-gray-400">
+                            Loading...
                         </div>
                     ) : (
                         <>
-                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                <div className="flex flex-col gap-1">
-                                    <label className="text-sm font-medium">
-                                        Name <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={name}
-                                        onChange={(e) => setName(e.target.value)}
-                                        placeholder="e.g. Summarize key points"
-                                        className="rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
-                                    />
-                                </div>
+                            <div className="flex flex-col gap-1">
+                                <label className="text-sm font-medium">Name</label>
+                                <input
+                                    type="text"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    placeholder="Unique identifier, e.g. key_topics"
+                                    autoComplete="off"
+                                    className={inputClass}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div className="flex flex-col gap-1">
                                     <label className="text-sm font-medium">Title</label>
                                     <input
                                         type="text"
                                         value={title}
                                         onChange={(e) => setTitle(e.target.value)}
-                                        placeholder="Display title (defaults to name)"
-                                        className="rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                                        placeholder="Displayed title, defaults to name"
+                                        autoComplete="off"
+                                        className={inputClass}
                                     />
+                                </div>
+                                <div className="flex items-center gap-2 md:pt-8">
+                                    <input
+                                        id="apply-default"
+                                        type="checkbox"
+                                        checked={applyDefault}
+                                        onChange={(e) => setApplyDefault(e.target.checked)}
+                                        className="h-4 w-4 accent-purple-500"
+                                    />
+                                    <label htmlFor="apply-default" className="text-sm">
+                                        Suggest by default on new sources
+                                    </label>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
-                                <input
-                                    id="apply-default"
-                                    type="checkbox"
-                                    checked={applyDefault}
-                                    onChange={(e) => setApplyDefault(e.target.checked)}
-                                    className="text-purple-600"
-                                />
-                                <label htmlFor="apply-default" className="text-sm">
-                                    Suggest as default when adding new sources
-                                </label>
-                            </div>
-
                             <div className="flex flex-col gap-1">
-                                <label className="text-sm font-medium">Description</label>
+                                <label className="text-sm font-medium">Add description</label>
                                 <textarea
                                     rows={2}
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
-                                    placeholder="Short description shown in the list"
-                                    className="resize-none rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                                    placeholder="Describe what this transformation does."
+                                    autoComplete="off"
+                                    className={`resize-none ${inputClass}`}
                                 />
                             </div>
 
-                            <div className="flex flex-1 flex-col gap-1">
-                                <label className="text-sm font-medium">
-                                    System prompt <span className="text-red-500">*</span>
-                                </label>
-                                <textarea
+                            <div className="flex flex-col gap-1">
+                                <label className="text-sm font-medium">System Prompt</label>
+                                <MarkdownEditor
                                     value={prompt}
-                                    onChange={(e) => setPrompt(e.target.value)}
-                                    placeholder={
-                                        'Instruct the model on what to extract or generate from the source text.'
-                                    }
-                                    className="min-h-[220px] flex-1 resize-y rounded border border-neutral-300 bg-white px-3 py-2 font-mono text-[12.5px] leading-5 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                                    onChange={setPrompt}
+                                    height={340}
+                                    placeholder="Write the prompt that will power this transformation..."
                                 />
-                                <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                                    Combined with the default prompt at runtime. The source text is appended automatically.
+                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                    Prompts should be written with the source content in mind.
+                                    You can ask the model to summarise, extract insights, or
+                                    produce structured outputs such as tables.
                                 </p>
                             </div>
 
                             {error && (
                                 <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
-                                    <IconAlertCircle size={16} className="mt-0.5 flex-none" />
+                                    <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
                                     <span>{error}</span>
+                                </div>
+                            )}
+                            {submitting && (
+                                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                    <LucideLoader2 size={14} className="animate-spin" />
+                                    Saving…
                                 </div>
                             )}
                         </>

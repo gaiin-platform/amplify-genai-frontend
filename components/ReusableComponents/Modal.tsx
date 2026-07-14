@@ -23,6 +23,9 @@ interface Props {
   submitLabel?: string;
   disableSubmit?: boolean;
   additionalButtonOptions?: OptionButtons[];
+  // Replaces the default footer buttons with caller-provided content, keeping
+  // the footer bar itself (border, spacing) intact.
+  customFooter?: ReactElement;
   resizeOnVarChange?: any;
   transform?: string;
   fullScreen?: boolean;
@@ -30,9 +33,9 @@ interface Props {
   disableClickOutside?: boolean;
 }
 
-  export const Modal: FC<Props> = ({title, content, width , height, onCancel=()=>{}, onSubmit=()=>{}, 
+  export const Modal: FC<Props> = ({title, content, width , height, onCancel=()=>{}, onSubmit=()=>{},
                                     showClose=true, showCancel=true, showSubmit=true, cancelLabel= "Cancel", submitLabel="Submit",
-                                    additionalButtonOptions=[], disableSubmit=false, resizeOnVarChange, transform="", fullScreen=false, 
+                                    additionalButtonOptions=[], customFooter, disableSubmit=false, resizeOnVarChange, transform="", fullScreen=false,
                                     disableContentAnimation=false, disableClickOutside=false}) => {
 
  const modalRef = useRef<HTMLDivElement>(null);
@@ -98,8 +101,10 @@ interface Props {
   }, []);
 
 
+    // !m-0 guards against parent space-y/gap utilities: sibling margins still
+    // offset a fixed element from top:0, leaving an undimmed strip above the overlay
     return (
-     <div className={`modal-overlay fixed inset-0 flex items-center justify-center z-50 ${fullScreen ? 'bg-[#111115] bg-opacity-70' : ' bg-black bg-opacity-50'}`}>
+     <div className={`modal-overlay fixed inset-0 !m-0 flex items-center justify-center z-50 ${fullScreen ? 'bg-[#111115] bg-opacity-70' : ' bg-black bg-opacity-50'}`}>
             <div className="fixed inset-0 z-10 overflow-hidden" >
                 <div className="flex items-center justify-center min-h-screen px-2 py-4 text-center sm:px-4 sm:py-0" >
                     <div
@@ -141,7 +146,7 @@ interface Props {
 
                         {
                          <div className="flex flex-row gap-3 justify-end pt-4 pb-2 mt-auto border-t border-gray-200 dark:border-neutral-600">
-                          {[...additionalButtonOptions, 
+                          {customFooter ?? [...additionalButtonOptions,
                             ...(showCancel ? [{label: cancelLabel, handleClick: () => onCancel()}] : []),
                             ...(showSubmit ? [{isDisabled: disableSubmit, label: submitLabel, handleClick: () => onSubmit()}] : [])
                           ]

@@ -1,49 +1,61 @@
-import { doRequestOp } from './doRequestOp';
-
-const URL_PATH = '/notebook';
-const SERVICE_NAME = 'notebook';
-
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 type QueryParams = Record<string, string | number | boolean | undefined>;
 
 interface NotebookCallResult<T> {
     success: boolean;
     data: T | null;
-    // The proxy/doRequestOp error message when success is false (e.g. a backend
-    // 504 surfaces here). notebookCall() discards this; callers that need to tell
-    // a timeout apart from other failures use notebookCallResult() directly.
+    // Error message when success is false. notebookCall() discards this; callers
+    // that need the cause use notebookCallResult() directly.
     message?: string;
+    // Upstream HTTP status from Open Notebook (null on network failure). Lets
+    // callers tell a 404 (resource not ready) apart from a 401 (token lapsed).
+    status?: number | null;
 }
 
+// All notebook calls go through the Next.js proxy route, which attaches the
+// Cognito access token server-side and forwards directly to the Open Notebook
+// ALB. Open Notebook's JWTAuthMiddleware validates the token and scopes the
+// request to the user's own database.
 const notebookCallResult = async <T = unknown>(
     method: HttpMethod,
     path: string,
     body?: unknown,
     queryParams?: QueryParams,
-    // enablePolling routes the call through doRequestOp's poll-status fallback so
-    // it can outlive API Gateway's 29s cap (the backend proxy uses support_polling
-    // for the same paths). Only slow ops like /search/ask/simple need it.
-    opts?: { enablePolling?: boolean },
 ): Promise<NotebookCallResult<T>> => {
-    const op = {
-        method: 'POST',
-        path: URL_PATH,
-        op: '/proxy',
-        data: {
-            method,
-            path,
-            query_params: queryParams ?? {},
-            body: body ?? null,
-        },
-        service: SERVICE_NAME,
-        ...(opts?.enablePolling ? { enablePolling: true } : {}),
-    };
-    const result = await doRequestOp(op);
-    return {
-        success: !!result?.success,
-        data: result?.success ? ((result.data as T) ?? null) : null,
-        message: result?.message,
-    };
+    try {
+        const response = await fetch('/api/notebook/proxy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                method,
+                path,
+                query_params: queryParams ?? {},
+                body: body ?? null,
+            }),
+        });
+        if (!response.ok) {
+            return {
+                success: false,
+                data: null,
+                message: `Notebook proxy error: ${response.status} ${response.statusText}`,
+                status: null,
+            };
+        }
+        const result = await response.json();
+        return {
+            success: !!result?.success,
+            data: result?.success ? ((result.data as T) ?? null) : null,
+            message: result?.message,
+            status: typeof result?.status === 'number' ? result.status : null,
+        };
+    } catch (e: any) {
+        return {
+            success: false,
+            data: null,
+            message: e?.message || `Network error calling ${method} ${path}`,
+            status: null,
+        };
+    }
 };
 
 const notebookCall = async <T = unknown>(
@@ -54,74 +66,6 @@ const notebookCall = async <T = unknown>(
 ): Promise<T | null> => {
     const { data } = await notebookCallResult<T>(method, path, body, queryParams);
     return data;
-};
-
-// Audio URL variant — the lambda calls Open Notebook's /audio-url endpoint
-// which returns a short-lived S3 presigned URL (or a fallback streaming path
-// for non-S3 backends).  We return a synthetic Response whose X-Audio-Url
-// header contains the presigned URL so callers can use it directly as an
-// <audio> src without routing large binaries through Lambda/API-Gateway
-// (which is capped at ~6 MB / 10 MB and would break for large audio files).
-//
-// When the notebook service is running locally (NEXT_PUBLIC_LOCAL_SERVICES
-// includes "notebook"), there is no lambda emulator handling /proxy/raw.
-// Instead we rewrite /audio to /audio-url and route the call through the
-// regular JSON proxy (notebookCallResult → /proxy) which works with the
-// local service config automatically.
-const notebookCallRaw = async (
-    method: HttpMethod,
-    path: string,
-    body?: unknown,
-    queryParams?: QueryParams,
-): Promise<Response | null> => {
-    // Detect local dev: if "notebook" is listed in NEXT_PUBLIC_LOCAL_SERVICES
-    // the regular /proxy path already works — no need for /proxy/raw.
-    const localServices = (process.env.NEXT_PUBLIC_LOCAL_SERVICES || '')
-        .split(',')
-        .map((s) => s.trim().split(':')[0]);
-    const isLocal = localServices.includes(SERVICE_NAME);
-
-    if (isLocal) {
-        // Rewrite legacy /audio path to /audio-url so we get a JSON response.
-        const audioUrlPath = path.endsWith('/audio') && !path.endsWith('/audio-url')
-            ? path + '-url'
-            : path;
-        const result = await notebookCallResult<{ url: string; type: string }>(
-            method,
-            audioUrlPath,
-            body,
-            queryParams as QueryParams | undefined,
-        );
-        if (!result.success || !result.data?.url) return null;
-        return new Response(null, {
-            status: 200,
-            headers: { 'X-Audio-Url': result.data.url },
-        });
-    }
-
-    const op = {
-        method: 'POST',
-        path: URL_PATH,
-        op: '/proxy/raw',
-        data: {
-            method,
-            path,
-            query_params: queryParams ?? {},
-            body: body ?? null,
-        },
-        service: SERVICE_NAME,
-    };
-    const result = await doRequestOp(op);
-    if (!result?.success || !result.data) return null;
-    const { url } = result.data as { url: string; type: string };
-    if (!url) return null;
-    // Return a lightweight synthetic Response that exposes the presigned URL.
-    // The caller (fetchEpisodeAudioObjectUrl) reads it via the X-Audio-Url header;
-    // the Response body is empty — we never stream audio bytes through Lambda.
-    return new Response(null, {
-        status: 200,
-        headers: { 'X-Audio-Url': url },
-    });
 };
 
 // -----------------------------------------------------------------------------
@@ -166,16 +110,54 @@ export const createNotebook = async (
     return notebookCall<NotebookSummary>('POST', '/notebooks', data);
 };
 
-export const deleteNotebook = async (id: string): Promise<boolean> => {
-    // delete_exclusive_sources=true so sources belonging only to this notebook are
-    // deleted (matching the confirm dialog's promise), while sources shared with
-    // other notebooks are merely unlinked. Without this flag the backend defaults
-    // to False and leaves orphaned source records behind.
+export interface UpdateNotebookRequest {
+    name?: string;
+    description?: string;
+    archived?: boolean;
+}
+
+export const updateNotebook = async (
+    id: string,
+    data: UpdateNotebookRequest,
+): Promise<NotebookSummary | null> => {
+    return notebookCall<NotebookSummary>(
+        'PUT',
+        `/notebooks/${encodeURIComponent(id)}`,
+        data,
+    );
+};
+
+// What deleting a notebook would remove — drives the delete dialog's
+// "keep or delete exclusive sources" choice, mirroring the reference UI.
+export interface NotebookDeletePreview {
+    notebook_id: string;
+    notebook_name: string;
+    note_count: number;
+    exclusive_source_count: number;
+    shared_source_count: number;
+}
+
+export const getNotebookDeletePreview = async (
+    id: string,
+): Promise<NotebookDeletePreview | null> => {
+    return notebookCall<NotebookDeletePreview>(
+        'GET',
+        `/notebooks/${encodeURIComponent(id)}/delete-preview`,
+    );
+};
+
+export const deleteNotebook = async (
+    id: string,
+    deleteExclusiveSources = false,
+): Promise<boolean> => {
+    // When true, sources belonging only to this notebook are deleted too;
+    // sources shared with other notebooks are always merely unlinked. The
+    // delete dialog surfaces this as an explicit keep/delete choice.
     const result = await notebookCall(
         'DELETE',
         `/notebooks/${encodeURIComponent(id)}`,
         null,
-        { delete_exclusive_sources: true },
+        { delete_exclusive_sources: deleteExclusiveSources },
     );
     return result !== null;
 };
@@ -202,31 +184,52 @@ export interface SourceListItem {
     command_id?: string | null;
     status?: string | null;
     processing_info?: Record<string, unknown> | null;
+    // Only populated by the single-source GET (/sources/{id}); the list
+    // endpoint (GET /sources) doesn't include notebook associations or the
+    // full extracted text.
+    notebooks?: string[];
+    full_text?: string | null;
 }
 
+// Sources may land in zero or more notebooks (the wizard's Notebooks step is
+// optional, matching the reference app), so these take a notebook id list.
 export interface CreateSourceLinkRequest {
-    notebookId: string;
+    notebooks: string[];
     url: string;
     title?: string;
+    transformations?: string[];
+    embed?: boolean;
 }
 
 export interface CreateSourceTextRequest {
-    notebookId: string;
+    notebooks: string[];
     content: string;
     title?: string;
+    transformations?: string[];
+    embed?: boolean;
 }
 
 export interface CreateSourceFileRequest {
-    notebookId: string;
+    notebooks: string[];
     file: File;
     title?: string;
+    transformations?: string[];
+    embed?: boolean;
 }
+
+export type SourceSortField =
+    | 'type'
+    | 'title'
+    | 'created'
+    | 'updated'
+    | 'insights_count'
+    | 'embedded';
 
 interface ListSourcesParams {
     notebookId?: string;
     limit?: number;
     offset?: number;
-    sortBy?: 'created' | 'updated';
+    sortBy?: SourceSortField;
     sortOrder?: 'asc' | 'desc';
 }
 
@@ -250,50 +253,63 @@ export const listSources = async (
 };
 
 export const createSourceFromUrl = async ({
-    notebookId,
+    notebooks,
     url,
     title,
+    transformations,
+    embed,
 }: CreateSourceLinkRequest): Promise<SourceListItem | null> => {
     return notebookCall<SourceListItem>('POST', '/sources/json', {
         type: 'link',
         url,
         title,
-        notebooks: [notebookId],
-        embed: true,
+        notebooks,
+        transformations: transformations ?? [],
+        embed: embed ?? true,
         async_processing: true,
     });
 };
 
 export const createSourceFromText = async ({
-    notebookId,
+    notebooks,
     content,
     title,
+    transformations,
+    embed,
 }: CreateSourceTextRequest): Promise<SourceListItem | null> => {
     return notebookCall<SourceListItem>('POST', '/sources/json', {
         type: 'text',
         content,
         title,
-        notebooks: [notebookId],
-        embed: true,
+        notebooks,
+        transformations: transformations ?? [],
+        embed: embed ?? true,
         async_processing: true,
     });
 };
 
-// Multipart file upload routes through the Next.js API proxy at
-// /api/notebookUpload — the proxy attaches the Cognito JWT server-side and
-// forwards to open-notebook's /api/sources (directly or via the lambda
-// upload endpoint). Multipart bodies don't fit cleanly into doRequestOp's
-// JSON pipeline, so this stays separate.
-export const createSourceFromFile = async ({
-    notebookId,
+interface PresignedUpload {
+    upload_url: string;
+    file_path: string;
+}
+
+// Multipart fallback through the Next.js proxy at /api/notebookUpload, which
+// attaches the Cognito JWT server-side. Only used when the backend can't mint
+// presigned URLs (non-S3 storage, e.g. local dev): on the deployed site the
+// ALB's WAF 403s raw binary multipart bodies, so presigned PUT is preferred.
+const createSourceFromFileMultipart = async ({
+    notebooks,
     file,
     title,
+    transformations,
+    embed,
 }: CreateSourceFileRequest): Promise<SourceListItem | null> => {
     const form = new FormData();
     form.append('type', 'upload');
-    form.append('notebooks', JSON.stringify([notebookId]));
+    form.append('notebooks', JSON.stringify(notebooks));
     if (title) form.append('title', title);
-    form.append('embed', 'true');
+    form.append('transformations', JSON.stringify(transformations ?? []));
+    form.append('embed', String(embed ?? true));
     form.append('async_processing', 'true');
     form.append('file', file, file.name);
 
@@ -317,9 +333,156 @@ export const createSourceFromFile = async ({
     }
 };
 
+export const createSourceFromFile = async (
+    request: CreateSourceFileRequest,
+): Promise<SourceListItem | null> => {
+    const { notebooks, file, title, transformations, embed } = request;
+
+    // Preferred path: presigned S3 PUT. The file bytes go browser → S3
+    // directly, never through the Amplify ALB, whose WAF false-positives on
+    // raw PDF bytes in multipart bodies.
+    const contentType = file.type || 'application/octet-stream';
+    const presigned = await notebookCall<PresignedUpload>('POST', '/sources/upload-url', {
+        filename: file.name,
+        content_type: contentType,
+    });
+
+    if (presigned?.upload_url && presigned.file_path) {
+        try {
+            const put = await fetch(presigned.upload_url, {
+                method: 'PUT',
+                // Must match the content type signed into the URL.
+                headers: { 'Content-Type': contentType },
+                body: file,
+            });
+            if (put.ok) {
+                return notebookCall<SourceListItem>('POST', '/sources/json', {
+                    type: 'upload',
+                    file_path: presigned.file_path,
+                    title,
+                    notebooks,
+                    transformations: transformations ?? [],
+                    embed: embed ?? true,
+                    async_processing: true,
+                });
+            }
+            console.error(
+                `createSourceFromFile: presigned PUT failed (${put.status}); falling back to multipart`,
+            );
+        } catch (e) {
+            console.error(
+                'createSourceFromFile: presigned PUT threw; falling back to multipart',
+                e,
+            );
+        }
+    }
+
+    // Backend can't presign (non-S3 storage) or the direct PUT failed
+    // (e.g. missing bucket CORS) — use the legacy multipart proxy.
+    return createSourceFromFileMultipart(request);
+};
+
 export const deleteSource = async (sourceId: string): Promise<boolean> => {
     const result = await notebookCall('DELETE', `/sources/${encodeURIComponent(sourceId)}`);
     return result !== null;
+};
+
+// Links an existing source (possibly already used in other notebooks) into
+// this notebook, without duplicating or re-processing it — the inverse of
+// deleteSource, which removes the source everywhere. Idempotent server-side.
+export const addSourceToNotebook = async (
+    notebookId: string,
+    sourceId: string,
+): Promise<boolean> => {
+    const result = await notebookCall(
+        'POST',
+        `/notebooks/${encodeURIComponent(notebookId)}/sources/${encodeURIComponent(sourceId)}`,
+    );
+    return result !== null;
+};
+
+// Unlinks a source from one notebook only (deletes the `reference` edge) —
+// unlike deleteSource, the source, its embeddings, and its other notebook
+// memberships are untouched.
+export const removeSourceFromNotebook = async (
+    notebookId: string,
+    sourceId: string,
+): Promise<boolean> => {
+    const result = await notebookCall(
+        'DELETE',
+        `/notebooks/${encodeURIComponent(notebookId)}/sources/${encodeURIComponent(sourceId)}`,
+    );
+    return result !== null;
+};
+
+// Re-runs processing for a failed source, or re-scrapes a link source that
+// already completed. Same endpoint serves both cases server-side.
+export const retrySource = async (sourceId: string): Promise<SourceListItem | null> => {
+    return notebookCall<SourceListItem>('POST', `/sources/${encodeURIComponent(sourceId)}/retry`);
+};
+
+// Unlike listSources, this includes the `notebooks` array — used to figure
+// out which notebook to jump into from the global Sources page.
+export const getSource = async (sourceId: string): Promise<SourceListItem | null> => {
+    return notebookCall<SourceListItem>('GET', `/sources/${encodeURIComponent(sourceId)}`);
+};
+
+export const updateSource = async (
+    sourceId: string,
+    data: { title?: string; topics?: string[] },
+): Promise<SourceListItem | null> => {
+    return notebookCall<SourceListItem>(
+        'PUT',
+        `/sources/${encodeURIComponent(sourceId)}`,
+        data,
+    );
+};
+
+export interface EmbedContentResponse {
+    success: boolean;
+    message: string;
+    chunks_created?: number;
+    command_id?: string;
+}
+
+// Chunks and embeds the source's full text for vector search — the "Embed
+// Content" action in the source detail view. Synchronous server-side.
+export const embedSource = async (
+    sourceId: string,
+): Promise<EmbedContentResponse | null> => {
+    return notebookCall<EmbedContentResponse>('POST', '/embed', {
+        item_id: sourceId,
+        item_type: 'source',
+        async_processing: false,
+    });
+};
+
+// Downloads the original uploaded file for a file-backed source. Binary
+// doesn't fit the JSON proxy, so this goes through /api/notebookDownload
+// (mirror of /api/notebookUpload) which attaches the JWT server-side. A 404
+// means the file is gone from storage ("File unavailable" in the UI).
+export const downloadSourceFile = async (
+    sourceId: string,
+): Promise<{ ok: boolean; status: number | null; blob?: Blob; filename?: string }> => {
+    try {
+        const response = await fetch(
+            `/api/notebookDownload?sourceId=${encodeURIComponent(sourceId)}`,
+        );
+        if (!response.ok) return { ok: false, status: response.status };
+        const blob = await response.blob();
+        const header = response.headers.get('content-disposition') || '';
+        const match = header.match(/filename\*?=([^;]+)/i);
+        let filename: string | undefined;
+        if (match) {
+            const value = match[1].trim();
+            filename = value.toLowerCase().startsWith("utf-8''")
+                ? decodeURIComponent(value.slice(7))
+                : value.replace(/^["']|["']$/g, '');
+        }
+        return { ok: true, status: response.status, blob, filename };
+    } catch {
+        return { ok: false, status: null };
+    }
 };
 
 // -----------------------------------------------------------------------------
@@ -573,6 +736,17 @@ export const getChatSession = async (
     );
 };
 
+export const updateChatSession = async (
+    sessionId: string,
+    data: { title?: string; model_override?: string | null },
+): Promise<ChatSession | null> => {
+    return notebookCall<ChatSession>(
+        'PUT',
+        `/chat/sessions/${encodeURIComponent(sessionId)}`,
+        data,
+    );
+};
+
 export const deleteChatSession = async (sessionId: string): Promise<boolean> => {
     const result = await notebookCall(
         'DELETE',
@@ -649,6 +823,115 @@ export const sendChatMessage = async (
 };
 
 // -----------------------------------------------------------------------------
+// Source Chat — sessions scoped to a single source, independent of notebooks
+// -----------------------------------------------------------------------------
+
+export interface SourceChatSession {
+    id: string;
+    title: string;
+    source_id: string;
+    model_override?: string | null;
+    created: string;
+    updated: string;
+    message_count?: number | null;
+}
+
+export interface SourceChatSessionWithMessages extends SourceChatSession {
+    messages: ChatMessage[];
+}
+
+export const listSourceChatSessions = async (
+    sourceId: string,
+): Promise<SourceChatSession[]> => {
+    const result = await notebookCall<SourceChatSession[]>(
+        'GET',
+        `/sources/${encodeURIComponent(sourceId)}/chat/sessions`,
+    );
+    return Array.isArray(result) ? result : [];
+};
+
+export const createSourceChatSession = async (
+    sourceId: string,
+    title?: string,
+    modelOverride?: string,
+): Promise<SourceChatSession | null> => {
+    // The backend expects the bare record id (no "source:" prefix) in the body.
+    const cleanId = sourceId.startsWith('source:') ? sourceId.slice(7) : sourceId;
+    return notebookCall<SourceChatSession>(
+        'POST',
+        `/sources/${encodeURIComponent(sourceId)}/chat/sessions`,
+        { source_id: cleanId, title, model_override: modelOverride },
+    );
+};
+
+export const getSourceChatSession = async (
+    sourceId: string,
+    sessionId: string,
+): Promise<SourceChatSessionWithMessages | null> => {
+    return notebookCall<SourceChatSessionWithMessages>(
+        'GET',
+        `/sources/${encodeURIComponent(sourceId)}/chat/sessions/${encodeURIComponent(sessionId)}`,
+    );
+};
+
+export const updateSourceChatSession = async (
+    sourceId: string,
+    sessionId: string,
+    data: { title?: string; model_override?: string | null },
+): Promise<SourceChatSession | null> => {
+    return notebookCall<SourceChatSession>(
+        'PUT',
+        `/sources/${encodeURIComponent(sourceId)}/chat/sessions/${encodeURIComponent(sessionId)}`,
+        data,
+    );
+};
+
+export const deleteSourceChatSession = async (
+    sourceId: string,
+    sessionId: string,
+): Promise<boolean> => {
+    const result = await notebookCall(
+        'DELETE',
+        `/sources/${encodeURIComponent(sourceId)}/chat/sessions/${encodeURIComponent(sessionId)}`,
+    );
+    return result !== null;
+};
+
+// The messages endpoint is SSE-only upstream, so it bypasses the JSON proxy and
+// goes through a dedicated route (pages/api/notebook/sourceChat.ts) that buffers
+// the stream. On success, callers refetch the session for the persisted
+// message list — the route only reports whether the turn succeeded.
+export const sendSourceChatMessage = async (
+    sourceId: string,
+    sessionId: string,
+    message: string,
+    modelOverride?: string,
+): Promise<{ success: boolean; message?: string }> => {
+    try {
+        const response = await fetch('/api/notebook/sourceChat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                source_id: sourceId,
+                session_id: sessionId,
+                message,
+                model_override: modelOverride ?? null,
+            }),
+        });
+        if (!response.ok) {
+            return {
+                success: false,
+                message: `Source chat error: ${response.status} ${response.statusText}`,
+            };
+        }
+        const result = await response.json();
+        return { success: !!result?.success, message: result?.message };
+    } catch (e: any) {
+        return { success: false, message: e?.message || 'Network error sending message' };
+    }
+};
+
+// -----------------------------------------------------------------------------
 // Search
 // -----------------------------------------------------------------------------
 
@@ -710,26 +993,80 @@ export const searchKnowledgeBase = async (
     });
 };
 
-// The ask graph runs several sequential model calls server-side and routinely
-// exceeds API Gateway's 29s cap. enablePolling lets it complete asynchronously:
-// the backend proxy (support_polling) keeps running past the gateway 504 and
-// writes the result to the poll-status table, which doRequestOp retrieves by
-// polling. On failure we throw the proxy's real message (rather than returning
-// null) so the UI reports the actual cause instead of falsely blaming model
-// configuration — callers already verify a default chat + embedding model exist
-// before allowing the ask.
+// The ask graph runs several sequential model calls server-side and can take
+// minutes. The /api/notebook/ask route streams Open Notebook's SSE progress
+// events (strategy → per-source answers → final answer) through to us, which
+// keeps every hop's idle timeout at bay without any polling machinery. We
+// accumulate events and resolve with the final answer; on failure we throw the
+// real cause so the UI reports it instead of falsely blaming model
+// configuration — callers already verify a default chat + embedding model
+// exist before allowing the ask.
 export const askKnowledgeBaseSimple = async (
     params: AskRequest,
 ): Promise<AskResponse> => {
-    const { success, data, message } = await notebookCallResult<AskResponse>(
-        'POST',
-        '/search/ask/simple',
-        params,
-        undefined,
-        { enablePolling: true },
-    );
-    if (success && data) return data;
-    throw new Error(message || 'Failed to generate an answer. Please try again.');
+    const response = await fetch('/api/notebook/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+    });
+
+    if (!response.ok) {
+        const errBody = await response.json().catch(() => null);
+        throw new Error(
+            errBody?.error || `Ask failed: ${response.status} ${response.statusText}`,
+        );
+    }
+    if (!response.body) {
+        throw new Error('Ask failed: empty response stream.');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalAnswer: string | null = null;
+
+    const handleEvent = (payload: string) => {
+        let event: any;
+        try {
+            event = JSON.parse(payload);
+        } catch {
+            return;
+        }
+        if (event?.type === 'error') {
+            throw new Error(event.message || 'Failed to generate an answer.');
+        }
+        if (event?.type === 'final_answer' && typeof event.content === 'string') {
+            finalAnswer = event.content;
+        }
+        if (event?.type === 'complete' && typeof event.final_answer === 'string') {
+            finalAnswer = event.final_answer;
+        }
+    };
+
+    // SSE frames are separated by a blank line; each data line is "data: {json}".
+    const drainBuffer = (flush: boolean) => {
+        const frames = buffer.split('\n\n');
+        buffer = flush ? '' : frames.pop() ?? '';
+        for (const frame of frames) {
+            for (const line of frame.split('\n')) {
+                if (line.startsWith('data: ')) handleEvent(line.slice(6));
+            }
+        }
+    };
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        drainBuffer(false);
+    }
+    buffer += decoder.decode();
+    drainBuffer(true);
+
+    if (finalAnswer !== null) {
+        return { answer: finalAnswer, question: params.question };
+    }
+    throw new Error('Failed to generate an answer. Please try again.');
 };
 
 // -----------------------------------------------------------------------------
@@ -869,6 +1206,75 @@ export const updateSettings = async (
 };
 
 // -----------------------------------------------------------------------------
+// Embeddings rebuild
+// -----------------------------------------------------------------------------
+
+export type RebuildMode = 'existing' | 'all';
+
+export interface RebuildEmbeddingsRequest {
+    mode: RebuildMode;
+    include_sources?: boolean;
+    include_notes?: boolean;
+    include_insights?: boolean;
+}
+
+export interface RebuildEmbeddingsResponse {
+    command_id: string;
+    message: string;
+    estimated_items: number;
+}
+
+// The backend has shipped both naming schemes for progress/stats fields;
+// mirror the upstream client and accept either.
+export interface RebuildProgress {
+    total_items?: number;
+    processed_items?: number;
+    failed_items?: number;
+    total?: number;
+    processed?: number;
+    percentage?: number;
+}
+
+export interface RebuildStats {
+    sources_processed?: number;
+    notes_processed?: number;
+    insights_processed?: number;
+    sources?: number;
+    notes?: number;
+    insights?: number;
+    failed?: number;
+    failed_items?: number;
+    processing_time?: number;
+}
+
+export type RebuildStatus = 'queued' | 'running' | 'completed' | 'failed';
+
+export interface RebuildStatusResponse {
+    command_id: string;
+    status: RebuildStatus;
+    progress?: RebuildProgress;
+    stats?: RebuildStats;
+    started_at?: string;
+    completed_at?: string;
+    error_message?: string;
+}
+
+export const rebuildEmbeddings = async (
+    request: RebuildEmbeddingsRequest,
+): Promise<RebuildEmbeddingsResponse | null> => {
+    return notebookCall<RebuildEmbeddingsResponse>('POST', '/embeddings/rebuild', request);
+};
+
+export const getRebuildStatus = async (
+    commandId: string,
+): Promise<RebuildStatusResponse | null> => {
+    return notebookCall<RebuildStatusResponse>(
+        'GET',
+        `/embeddings/rebuild/${encodeURIComponent(commandId)}/status`,
+    );
+};
+
+// -----------------------------------------------------------------------------
 // Transformations
 // -----------------------------------------------------------------------------
 
@@ -991,10 +1397,15 @@ export interface EpisodeProfile {
     name: string;
     description: string;
     speaker_config: string;
-    outline_provider: string;
-    outline_model: string;
-    transcript_provider: string;
-    transcript_model: string;
+    // New-style model references (model record IDs). Legacy provider/model
+    // pairs below are still returned for profiles created before the switch.
+    outline_llm?: string | null;
+    transcript_llm?: string | null;
+    language?: string | null;
+    outline_provider?: string | null;
+    outline_model?: string | null;
+    transcript_provider?: string | null;
+    transcript_model?: string | null;
     default_briefing: string;
     num_segments: number;
 }
@@ -1004,14 +1415,19 @@ export interface SpeakerVoice {
     voice_id: string;
     backstory: string;
     personality: string;
+    // Optional per-speaker TTS model override (model record ID).
+    voice_model?: string | null;
 }
 
 export interface SpeakerProfile {
     id: string;
     name: string;
     description: string;
-    tts_provider: string;
-    tts_model: string;
+    // New-style TTS model reference (model record ID); tts_provider/tts_model
+    // are the legacy equivalent.
+    voice_model?: string | null;
+    tts_provider?: string | null;
+    tts_model?: string | null;
     speakers: SpeakerVoice[];
 }
 
@@ -1096,6 +1512,102 @@ export const listSpeakerProfiles = async (): Promise<SpeakerProfile[]> => {
     return Array.isArray(result) ? result : [];
 };
 
+export interface EpisodeProfileCreateData {
+    name: string;
+    description?: string;
+    speaker_config: string;
+    outline_llm?: string | null;
+    transcript_llm?: string | null;
+    language?: string | null;
+    default_briefing: string;
+    num_segments: number;
+}
+
+export const createEpisodeProfile = async (
+    data: EpisodeProfileCreateData,
+): Promise<EpisodeProfile | null> => {
+    return notebookCall<EpisodeProfile>('POST', '/episode-profiles', data);
+};
+
+export interface SpeakerProfileCreateData {
+    name: string;
+    description?: string;
+    voice_model?: string | null;
+    speakers: SpeakerVoice[];
+}
+
+export const createSpeakerProfile = async (
+    data: SpeakerProfileCreateData,
+): Promise<SpeakerProfile | null> => {
+    return notebookCall<SpeakerProfile>('POST', '/speaker-profiles', data);
+};
+
+export const updateEpisodeProfile = async (
+    id: string,
+    data: Partial<EpisodeProfileCreateData>,
+): Promise<EpisodeProfile | null> => {
+    return notebookCall<EpisodeProfile>(
+        'PUT',
+        `/episode-profiles/${encodeURIComponent(id)}`,
+        data,
+    );
+};
+
+export const updateSpeakerProfile = async (
+    id: string,
+    data: Partial<SpeakerProfileCreateData>,
+): Promise<SpeakerProfile | null> => {
+    return notebookCall<SpeakerProfile>(
+        'PUT',
+        `/speaker-profiles/${encodeURIComponent(id)}`,
+        data,
+    );
+};
+
+export const deleteEpisodeProfile = async (id: string): Promise<boolean> => {
+    const result = await notebookCall(
+        'DELETE',
+        `/episode-profiles/${encodeURIComponent(id)}`,
+    );
+    return result !== null;
+};
+
+export const duplicateEpisodeProfile = async (
+    id: string,
+): Promise<EpisodeProfile | null> => {
+    return notebookCall<EpisodeProfile>(
+        'POST',
+        `/episode-profiles/${encodeURIComponent(id)}/duplicate`,
+    );
+};
+
+export const deleteSpeakerProfile = async (id: string): Promise<boolean> => {
+    const result = await notebookCall(
+        'DELETE',
+        `/speaker-profiles/${encodeURIComponent(id)}`,
+    );
+    return result !== null;
+};
+
+export const duplicateSpeakerProfile = async (
+    id: string,
+): Promise<SpeakerProfile | null> => {
+    return notebookCall<SpeakerProfile>(
+        'POST',
+        `/speaker-profiles/${encodeURIComponent(id)}/duplicate`,
+    );
+};
+
+export interface NotebookLanguage {
+    code: string;
+    name: string;
+}
+
+export const listLanguages = async (): Promise<NotebookLanguage[]> => {
+    const result = await notebookCall<NotebookLanguage[]>('GET', '/languages');
+    return Array.isArray(result) ? result : [];
+};
+
 export interface EpisodeAudioResult {
     objectUrl: string | null;
     // null = network/transport failure (no response). Otherwise the upstream
@@ -1105,31 +1617,28 @@ export interface EpisodeAudioResult {
 }
 
 // Podcast audio is consumed by an HTML5 <audio> element, which can't attach
-// Authorization headers itself.  The lambda resolves an S3 presigned URL for
-// the audio file (via Open Notebook's /audio-url endpoint) and returns it in
-// an X-Audio-Url header on the synthetic Response.  We hand that URL directly
-// to the <audio> tag so the browser streams the MP3 straight from S3 — no
-// large binary ever passes through Lambda or API Gateway (which has a ~10 MB cap).
-// Callers no longer need to revoke an object URL; the presigned URL expires
-// on its own after ~1 hour (server-side TTL).
+// Authorization headers itself. Open Notebook's /audio-url endpoint resolves a
+// short-lived S3 presigned URL (or a fallback streaming path for non-S3
+// backends); we hand that URL directly to the <audio> tag so the browser
+// streams the MP3 straight from S3 — no large binary ever passes through our
+// servers. Callers don't need to revoke an object URL; the presigned URL
+// expires on its own after ~1 hour (server-side TTL).
 export const fetchEpisodeAudioObjectUrl = async (
     episodeId: string,
 ): Promise<EpisodeAudioResult> => {
-    const response = await notebookCallRaw(
-        'GET',
-        `/podcasts/episodes/${encodeURIComponent(episodeId)}/audio`,
-    );
-    if (!response) return { objectUrl: null, status: null };
-    if (!response.ok) {
+    const { success, data, status } = await notebookCallResult<{
+        url: string;
+        type: string;
+    }>('GET', `/podcasts/episodes/${encodeURIComponent(episodeId)}/audio-url`);
+    if (!success) {
         console.warn(
-            `Episode audio fetch failed for ${episodeId}: HTTP ${response.status}`,
+            `Episode audio fetch failed for ${episodeId}: HTTP ${status ?? 'network error'}`,
         );
-        return { objectUrl: null, status: response.status };
+        return { objectUrl: null, status: status ?? null };
     }
-    const audioUrl = response.headers.get('X-Audio-Url');
-    if (!audioUrl) {
-        console.error('Episode audio response missing X-Audio-Url header', episodeId);
-        return { objectUrl: null, status: response.status };
+    if (!data?.url) {
+        console.error('Episode audio response missing url', episodeId);
+        return { objectUrl: null, status: status ?? null };
     }
-    return { objectUrl: audioUrl, status: response.status };
+    return { objectUrl: data.url, status: status ?? 200 };
 };

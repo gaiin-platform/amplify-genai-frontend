@@ -1,39 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    IconAlignLeft,
-    IconArrowsSort,
-    IconFileText,
-    IconLink,
-    IconSearch,
-    IconTrash,
-    IconUpload,
-} from '@tabler/icons-react';
+    LucideAlignLeft,
+    LucideArrowDown,
+    LucideArrowUp,
+    LucideArrowUpDown,
+    LucideFileText,
+    LucideLink,
+    LucideLoader2,
+    LucideTrash2,
+    LucideUpload,
+} from './LucideIcons';
 import {
     deleteSource,
     listSources,
     SourceListItem,
+    SourceSortField,
 } from '@/services/notebookService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
+import { formatDistanceToNow } from './relativeTime';
 
 const PAGE_SIZE = 30;
 
-type SortBy = 'created' | 'updated';
+type SortBy = SourceSortField;
 type SortOrder = 'asc' | 'desc';
-
-const formatRelative = (iso?: string): string => {
-    if (!iso) return '';
-    const d = new Date(iso.replace(' ', 'T'));
-    if (isNaN(d.getTime())) return '';
-    const diffMs = Date.now() - d.getTime();
-    const mins = Math.round(diffMs / 60000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.round(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.round(hours / 24);
-    if (days < 30) return `${days}d ago`;
-    return d.toLocaleDateString();
-};
 
 const sourceKind = (s: SourceListItem): 'link' | 'file' | 'text' => {
     if (s.asset?.url) return 'link';
@@ -41,22 +30,38 @@ const sourceKind = (s: SourceListItem): 'link' | 'file' | 'text' => {
     return 'text';
 };
 
-const KindIcon = ({ kind }: { kind: 'link' | 'file' | 'text' }) => {
-    if (kind === 'link') return <IconLink size={14} />;
-    if (kind === 'file') return <IconUpload size={14} />;
-    return <IconAlignLeft size={14} />;
+// Same labels as the reference UI's sources.type.* strings.
+const KIND_LABELS: Record<'link' | 'file' | 'text', string> = {
+    link: 'Link',
+    file: 'File',
+    text: 'Text',
 };
 
-export const SourcesPage = () => {
+const KindIcon = ({ kind }: { kind: 'link' | 'file' | 'text' }) => {
+    if (kind === 'link') return <LucideLink size={16} />;
+    if (kind === 'file') return <LucideUpload size={16} />;
+    return <LucideAlignLeft size={16} />;
+};
+
+interface Props {
+    // Resolves once opening has been attempted. `true` means the caller
+    // handled it by navigating to the source viewer (this page unmounts).
+    // `false` means it genuinely couldn't be opened (e.g. the source failed
+    // to load), so we stay and show an error instead.
+    onOpenSource?: (source: SourceListItem) => Promise<boolean>;
+}
+
+export const SourcesPage = ({ onOpenSource }: Props) => {
     const [sources, setSources] = useState<SourceListItem[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [loadingMore, setLoadingMore] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [sortBy, setSortBy] = useState<SortBy>('updated');
     const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-    const [search, setSearch] = useState<string>('');
+    const [selectedIndex, setSelectedIndex] = useState<number>(0);
     const [pendingDelete, setPendingDelete] = useState<SourceListItem | null>(null);
     const [deleting, setDeleting] = useState<boolean>(false);
+    const [openingId, setOpeningId] = useState<string | null>(null);
 
     const offsetRef = useRef<number>(0);
     const hasMoreRef = useRef<boolean>(true);
@@ -98,6 +103,7 @@ export const SourcesPage = () => {
     );
 
     useEffect(() => {
+        setSelectedIndex(0);
         fetchPage(true);
     }, [fetchPage]);
 
@@ -114,7 +120,97 @@ export const SourcesPage = () => {
         return () => el.removeEventListener('scroll', onScroll);
     }, [fetchPage]);
 
+    const scrollToSelectedRow = (index: number) => {
+        const container = scrollRef.current;
+        if (!container) return;
+        const rows = container.querySelectorAll('tbody tr');
+        const row = rows[index] as HTMLElement | undefined;
+        if (!row) return;
+        const containerRect = container.getBoundingClientRect();
+        const rowRect = row.getBoundingClientRect();
+        if (rowRect.top < containerRect.top) {
+            row.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else if (rowRect.bottom > containerRect.bottom) {
+            row.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+    };
+
+    const handleRowClick = useCallback(
+        async (s: SourceListItem) => {
+            if (!onOpenSource || openingId) return;
+            setError(null);
+            setOpeningId(s.id);
+            try {
+                const opened = await onOpenSource(s);
+                if (!opened) {
+                    setError(`Couldn't open "${s.title || 'this source'}". Please try again.`);
+                }
+            } finally {
+                // Reset regardless of outcome: on navigation-away this is a no-op
+                // (the page unmounts); on failure it clears the row's
+                // spinner/disabled state.
+                setOpeningId(null);
+            }
+        },
+        [onOpenSource, openingId],
+    );
+
+    // Keyboard navigation matching the reference sources page: arrows move the
+    // selection, Enter opens, Home/End jump.
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (sources.length === 0 || pendingDelete) return;
+            const target = e.target as HTMLElement | null;
+            if (
+                target &&
+                (target.tagName === 'INPUT' ||
+                    target.tagName === 'TEXTAREA' ||
+                    target.isContentEditable)
+            ) {
+                return;
+            }
+
+            switch (e.key) {
+                case 'ArrowDown':
+                    e.preventDefault();
+                    setSelectedIndex((prev) => {
+                        const next = Math.min(prev + 1, sources.length - 1);
+                        setTimeout(() => scrollToSelectedRow(next), 0);
+                        return next;
+                    });
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    setSelectedIndex((prev) => {
+                        const next = Math.max(prev - 1, 0);
+                        setTimeout(() => scrollToSelectedRow(next), 0);
+                        return next;
+                    });
+                    break;
+                case 'Enter':
+                    e.preventDefault();
+                    if (sources[selectedIndex]) handleRowClick(sources[selectedIndex]);
+                    break;
+                case 'Home':
+                    e.preventDefault();
+                    setSelectedIndex(0);
+                    setTimeout(() => scrollToSelectedRow(0), 0);
+                    break;
+                case 'End': {
+                    e.preventDefault();
+                    const last = sources.length - 1;
+                    setSelectedIndex(last);
+                    setTimeout(() => scrollToSelectedRow(last), 0);
+                    break;
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [sources, selectedIndex, pendingDelete, handleRowClick]);
+
     const toggleSort = (field: SortBy) => {
+        setSelectedIndex(0);
         if (field === sortBy) {
             setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
         } else {
@@ -137,167 +233,180 @@ export const SourcesPage = () => {
         setPendingDelete(null);
     };
 
-    const q = search.trim().toLowerCase();
-    const filtered = q
-        ? sources.filter((s) => {
-              const title = (s.title || '').toLowerCase();
-              const url = (s.asset?.url || '').toLowerCase();
-              return title.includes(q) || url.includes(q);
-          })
-        : sources;
+    const sortHeader = (field: SortBy, label: string, align: 'left' | 'center' = 'left') => {
+        const active = sortBy === field;
+        const SortIcon = active
+            ? sortOrder === 'asc'
+                ? LucideArrowUp
+                : LucideArrowDown
+            : LucideArrowUpDown;
+        return (
+            <button
+                onClick={() => toggleSort(field)}
+                className={`inline-flex h-8 items-center rounded-md px-2 text-sm font-medium transition-colors hover:bg-gray-100 dark:hover:bg-neutral-700 ${
+                    align === 'center' ? 'mx-auto' : ''
+                }`}
+            >
+                {label}
+                <SortIcon
+                    size={12}
+                    className={`ml-2 ${active ? 'opacity-100' : 'opacity-30'}`}
+                />
+            </button>
+        );
+    };
+
+    if (loading && sources.length === 0) {
+        return (
+            <div className="flex h-full items-center justify-center">
+                <LucideLoader2 size={24} className="animate-spin text-gray-400" />
+            </div>
+        );
+    }
+
+    if (error && sources.length === 0) {
+        return (
+            <div className="flex h-full items-center justify-center">
+                <p className="text-red-500">{error}</p>
+            </div>
+        );
+    }
+
+    if (!loading && sources.length === 0) {
+        return (
+            <div className="py-12 text-center">
+                <LucideFileText
+                    size={48}
+                    className="mx-auto mb-4 text-gray-400/60 dark:text-gray-500/60"
+                />
+                <h3 className="mb-2 text-lg font-medium text-gray-900 dark:text-gray-100">
+                    No sources yet
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400">
+                    View all your sources here.
+                </p>
+            </div>
+        );
+    }
 
     return (
         <div className="flex h-full flex-col">
-            <div className="mb-4 flex flex-shrink-0 items-center gap-2">
-                <div className="relative">
-                    <IconSearch
-                        size={14}
-                        className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
-                    />
-                    <input
-                        type="text"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search sources…"
-                        className="h-8 w-64 rounded-lg border border-gray-200 bg-white pl-8 pr-3 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 dark:border-neutral-700 dark:bg-[#2b2c36] dark:text-gray-100 dark:placeholder-gray-500"
-                    />
-                </div>
-                <div className="ml-auto text-xs text-gray-500 dark:text-gray-400">
-                    {sources.length} loaded
-                </div>
-            </div>
-
             <div
                 ref={scrollRef}
-                className="flex-1 overflow-auto rounded-xl border border-gray-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]"
+                className="flex-1 overflow-auto rounded-md border border-gray-200 bg-white dark:border-neutral-700 dark:bg-[#2b2c36]"
             >
-                <table className="w-full min-w-[760px] table-fixed text-sm">
+                <table className="w-full min-w-[920px] table-fixed outline-none" tabIndex={0}>
                     <colgroup>
                         <col className="w-[120px]" />
                         <col className="w-auto" />
                         <col className="w-[140px]" />
+                        <col className="w-[140px]" />
                         <col className="w-[100px]" />
-                        <col className="w-[110px]" />
-                        <col className="w-[80px]" />
+                        <col className="w-[100px]" />
+                        <col className="w-[100px]" />
                     </colgroup>
-                    <thead className="sticky top-0 z-10 bg-gradient-to-b from-gray-50 to-white text-xs uppercase tracking-wide text-gray-500 dark:from-gray-800 dark:to-[#2b2c36] dark:text-gray-400">
-                        <tr className="border-b border-gray-200 dark:border-neutral-700">
-                            <th className="px-4 py-3 text-left font-medium">Type</th>
-                            <th className="px-4 py-3 text-left font-medium">Title</th>
-                            <th className="px-4 py-3 text-left font-medium">
-                                <div className="inline-flex items-center gap-1.5">
-                                    <button
-                                        onClick={() => toggleSort('created')}
-                                        className={`inline-flex items-center gap-0.5 hover:text-gray-800 dark:hover:text-gray-200 ${
-                                            sortBy === 'created' ? 'text-gray-800 dark:text-gray-200' : ''
-                                        }`}
-                                    >
-                                        Created
-                                        {sortBy === 'created' && (
-                                            <span className="text-[10px]">
-                                                {sortOrder === 'asc' ? '↑' : '↓'}
-                                            </span>
-                                        )}
-                                    </button>
-                                    <span className="text-gray-300 dark:text-gray-600">/</span>
-                                    <button
-                                        onClick={() => toggleSort('updated')}
-                                        className={`inline-flex items-center gap-0.5 hover:text-gray-800 dark:hover:text-gray-200 ${
-                                            sortBy === 'updated' ? 'text-gray-800 dark:text-gray-200' : ''
-                                        }`}
-                                    >
-                                        Updated
-                                        {sortBy === 'updated' && (
-                                            <span className="text-[10px]">
-                                                {sortOrder === 'asc' ? '↑' : '↓'}
-                                            </span>
-                                        )}
-                                    </button>
-                                    <IconArrowsSort size={12} className="opacity-40" />
-                                </div>
+                    <thead className="sticky top-0 z-10 bg-white dark:bg-[#2b2c36]">
+                        <tr className="border-b border-gray-200 bg-gray-50/50 dark:border-neutral-700 dark:bg-neutral-800/50">
+                            <th className="h-12 px-4 text-left align-middle font-medium text-gray-500 dark:text-gray-400">
+                                {sortHeader('type', 'Type')}
                             </th>
-                            <th className="px-4 py-3 text-center font-medium">Insights</th>
-                            <th className="px-4 py-3 text-center font-medium">Embedded</th>
-                            <th className="px-4 py-3 text-right font-medium">Actions</th>
+                            <th className="h-12 px-4 text-left align-middle font-medium text-gray-500 dark:text-gray-400">
+                                {sortHeader('title', 'Title')}
+                            </th>
+                            <th className="hidden h-12 px-4 text-left align-middle font-medium text-gray-500 dark:text-gray-400 sm:table-cell">
+                                {sortHeader('created', 'Created')}
+                            </th>
+                            <th className="hidden h-12 px-4 text-left align-middle font-medium text-gray-500 dark:text-gray-400 sm:table-cell">
+                                {sortHeader('updated', 'Updated')}
+                            </th>
+                            <th className="hidden h-12 px-4 text-center align-middle font-medium text-gray-500 dark:text-gray-400 md:table-cell">
+                                {sortHeader('insights_count', 'Insights', 'center')}
+                            </th>
+                            <th className="hidden h-12 px-4 text-center align-middle font-medium text-gray-500 dark:text-gray-400 lg:table-cell">
+                                {sortHeader('embedded', 'Embedded', 'center')}
+                            </th>
+                            <th className="h-12 px-4 text-right align-middle text-sm font-medium text-gray-500 dark:text-gray-400">
+                                Actions
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
-                        {!loading && !error && filtered.length === 0 && (
-                            <tr>
-                                <td
-                                    colSpan={6}
-                                    className="h-40 text-center text-sm text-gray-500 dark:text-gray-400"
-                                >
-                                    {sources.length === 0 ? (
-                                        <div className="flex flex-col items-center justify-center gap-1">
-                                            <IconFileText size={20} className="opacity-60" />
-                                            <div className="font-medium">No sources yet</div>
-                                            <div className="text-xs opacity-80">
-                                                Add sources from inside a notebook to see them here.
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <>No sources match &quot;{search}&quot;.</>
-                                    )}
-                                </td>
-                            </tr>
-                        )}
-
-                        {filtered.map((s) => {
+                        {sources.map((s, index) => {
                             const kind = sourceKind(s);
+                            const isOpening = openingId === s.id;
                             return (
                                 <tr
                                     key={s.id}
-                                    className="border-b border-gray-100 transition-colors hover:bg-purple-50/40 dark:border-neutral-700/60 dark:hover:bg-white/5"
+                                    onClick={() => handleRowClick(s)}
+                                    onMouseEnter={() => setSelectedIndex(index)}
+                                    className={`border-b border-gray-200 transition-colors dark:border-neutral-700 ${
+                                        onOpenSource ? 'cursor-pointer' : ''
+                                    } ${
+                                        selectedIndex === index
+                                            ? 'bg-gray-100 dark:bg-neutral-700/60'
+                                            : 'hover:bg-gray-50 dark:hover:bg-neutral-700/30'
+                                    } ${isOpening ? 'opacity-60' : ''}`}
                                 >
-                                    <td className="px-4 py-3">
-                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-2.5 py-0.5 text-[11px] font-medium text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                                    <td className="h-12 px-4">
+                                        <div className="flex items-center gap-2">
                                             <KindIcon kind={kind} />
-                                            {kind}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex flex-col overflow-hidden">
-                                            <span className="truncate font-medium text-gray-800 dark:text-gray-100">
-                                                {s.title || 'Untitled'}
+                                            <span className="inline-flex items-center rounded-md border border-transparent bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-neutral-700 dark:text-gray-200">
+                                                {KIND_LABELS[kind]}
                                             </span>
-                                            {s.asset?.url && (
-                                                <a
-                                                    href={s.asset.url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className="truncate text-xs text-gray-500 hover:text-purple-500 dark:text-gray-400 dark:hover:text-purple-400"
-                                                >
-                                                    {s.asset.url}
-                                                </a>
+                                        </div>
+                                    </td>
+                                    <td className="h-12 px-4">
+                                        <div className="flex items-center gap-2 overflow-hidden">
+                                            <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+                                                <span className="truncate font-medium">
+                                                    {s.title || 'Untitled Source'}
+                                                </span>
+                                                {s.asset?.url && (
+                                                    <span className="truncate text-xs text-gray-500 dark:text-gray-400">
+                                                        {s.asset.url}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {isOpening && (
+                                                <LucideLoader2
+                                                    size={16}
+                                                    className="flex-none animate-spin text-gray-400"
+                                                />
                                             )}
                                         </div>
                                     </td>
-                                    <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
-                                        {formatRelative(sortBy === 'updated' ? s.updated : s.created)}
+                                    <td className="hidden h-12 px-4 text-sm text-gray-500 dark:text-gray-400 sm:table-cell">
+                                        {formatDistanceToNow(s.created)}
                                     </td>
-                                    <td className="px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-200">
-                                        {s.insights_count || 0}
+                                    <td className="hidden h-12 px-4 text-sm text-gray-500 dark:text-gray-400 sm:table-cell">
+                                        {formatDistanceToNow(s.updated)}
                                     </td>
-                                    <td className="px-4 py-3 text-center">
+                                    <td className="hidden h-12 px-4 text-center md:table-cell">
+                                        <span className="text-sm font-medium">
+                                            {s.insights_count || 0}
+                                        </span>
+                                    </td>
+                                    <td className="hidden h-12 px-4 text-center lg:table-cell">
                                         <span
-                                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                                            className={`inline-flex items-center rounded-md border border-transparent px-2 py-0.5 text-xs font-medium ${
                                                 s.embedded
-                                                    ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
-                                                    : 'bg-neutral-100 text-gray-500 dark:bg-neutral-700 dark:text-gray-400'
+                                                    ? 'bg-purple-500 text-white'
+                                                    : 'bg-gray-100 text-gray-800 dark:bg-neutral-700 dark:text-gray-200'
                                             }`}
                                         >
                                             {s.embedded ? 'Yes' : 'No'}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-3 text-right">
+                                    <td className="h-12 px-4 text-right">
                                         <button
-                                            onClick={() => setPendingDelete(s)}
-                                            title="Delete source"
-                                            className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-gray-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setPendingDelete(s);
+                                            }}
+                                            title="Delete Source"
+                                            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-red-600 transition-colors hover:bg-gray-100 dark:text-red-400 dark:hover:bg-neutral-700"
                                         >
-                                            <IconTrash size={15} />
+                                            <LucideTrash2 size={16} />
                                         </button>
                                     </td>
                                 </tr>
@@ -306,43 +415,36 @@ export const SourcesPage = () => {
 
                         {loadingMore && (
                             <tr>
-                                <td
-                                    colSpan={6}
-                                    className="h-12 text-center text-xs text-gray-500 dark:text-gray-400"
-                                >
-                                    Loading more…
+                                <td colSpan={7} className="h-16 text-center">
+                                    <div className="flex items-center justify-center">
+                                        <LucideLoader2
+                                            size={16}
+                                            className="animate-spin text-gray-400"
+                                        />
+                                        <span className="ml-2 text-gray-500 dark:text-gray-400">
+                                            Loading more...
+                                        </span>
+                                    </div>
                                 </td>
                             </tr>
                         )}
                     </tbody>
                 </table>
 
-                {loading && sources.length === 0 && (
-                    <div className="space-y-2 p-4">
-                        {[0, 1, 2, 3].map((i) => (
-                            <div
-                                key={i}
-                                className="h-10 animate-pulse rounded bg-gray-100 dark:bg-neutral-700/40"
-                            />
-                        ))}
-                    </div>
-                )}
-
-                {error && (
+                {error && sources.length > 0 && (
                     <div className="m-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
-                        <div className="font-medium">Couldn&apos;t load sources</div>
-                        <div className="mt-1 text-xs opacity-80">{error}</div>
+                        {error}
                     </div>
                 )}
             </div>
 
             {pendingDelete && (
                 <ConfirmModal
-                    title="Delete source?"
+                    title="Delete Source"
                     message={
                         <span>
-                            Delete <b>{pendingDelete.title || 'Untitled'}</b>? This will
-                            remove it from every notebook it appears in. This can&apos;t be undone.
+                            Are you sure you want to delete &quot;
+                            <b>{pendingDelete.title || 'Untitled Source'}</b>&quot;?
                         </span>
                     }
                     confirmLabel={deleting ? 'Deleting…' : 'Delete'}

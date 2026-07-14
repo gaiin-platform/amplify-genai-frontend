@@ -37,6 +37,7 @@ const PRESET_SCHEDULES: ScheduleOption[] = [
   { label: 'Weekly', value: '0 0 * * 0', description: 'Runs once a week on a specific day and time', configurable: true },
   { label: 'Biweekly', value: 'biweekly', description: 'Runs every other week on a specific day and time', configurable: true },
   { label: 'Monthly', value: '0 0 1 * *', description: 'Runs once a month on a specific day and time', configurable: true },
+  { label: 'Quarterly', value: '0 0 1 */3 *', description: 'Runs once every three months on a specific day and time', configurable: true },
   // { label: 'Yearly', value: '0 0 1 1 *', description: 'Runs once a year on a specific date and time', configurable: true },
   { label: 'Custom', value: 'custom', description: 'Define a custom schedule', configurable: false },
 ];
@@ -229,6 +230,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({
       const dailyPattern = /^([0-9]+) ([0-9]+) \* \* \*$/;
       const weeklyPattern = /^([0-9]+) ([0-9]+) \* \* ([0-6])$/;
       const monthlyPattern = /^([0-9]+) ([0-9]+) ([0-9]+) \* \*$/;
+      const quarterlyPattern = /^([0-9]+) ([0-9]+) ([0-9]+) \*\/3 \*$/;
       const yearlyPattern = /^([0-9]+) ([0-9]+) ([0-9]+) ([0-9]+) \*$/;
       const biweeklyPattern = /^BIWEEKLY:([a-z]+):(\d+):(\d+):(.*)$/;
 
@@ -255,6 +257,9 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({
       } else if (weeklyPattern.test(value)) {
         setScheduleType('0 0 * * 0');
         setPresetConfig({...presetConfig, minute: parts[0], hour: parts[1], dayOfWeek: parts[4]});
+      } else if (quarterlyPattern.test(value)) {
+        setScheduleType('0 0 1 */3 *');
+        setPresetConfig({...presetConfig, minute: parts[0], hour: parts[1], dayOfMonth: parts[2]});
       } else if (monthlyPattern.test(value)) {
         setScheduleType('0 0 1 * *');
         setPresetConfig({...presetConfig, minute: parts[0], hour: parts[1], dayOfMonth: parts[2]});
@@ -403,6 +408,9 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({
       case '0 0 1 * *': // Monthly
         cronExpression = `${presetConfig.minute} ${presetConfig.hour} ${presetConfig.dayOfMonth} * *`;
         break;
+      case '0 0 1 */3 *': // Quarterly
+        cronExpression = `${presetConfig.minute} ${presetConfig.hour} ${presetConfig.dayOfMonth} */3 *`;
+        break;
       case '0 0 1 1 *': // Yearly
         cronExpression = `${presetConfig.minute} ${presetConfig.hour} ${presetConfig.dayOfMonth} ${presetConfig.month} *`;
         break;
@@ -471,6 +479,9 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({
         const day = DAYS_OF_WEEK.find(d => d.value === dayOfWeek)?.label || 'specified day';
         const timeStr = formatTime(parseInt(hour), parseInt(minute));
         schedulePattern = `Weekly on ${day} at ${timeStr}`;
+      } else if (dayOfMonth !== '*' && month === '*/3') {
+        const timeStr = formatTime(parseInt(hour), parseInt(minute));
+        schedulePattern = `Quarterly on day ${dayOfMonth} at ${timeStr}`;
       } else if (dayOfMonth !== '*' && month === '*') {
         const timeStr = formatTime(parseInt(hour), parseInt(minute));
         schedulePattern = `Monthly on day ${dayOfMonth} at ${timeStr}`;
@@ -556,10 +567,31 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({
         nextRunDate = new Date(now);
         nextRunDate.setDate(nextRunDate.getDate() + daysUntil);
         nextRunDate.setHours(parseInt(hour), parseInt(minute), 0, 0);
+      } else if (dayOfMonth !== '*' && month === '*/3') {
+        // Quarterly on specific day every 3 months
+        const currentMonth = now.getMonth(); // 0-indexed
+        // Find the next quarter-start month (0, 3, 6, 9)
+        const quarterMonths = [0, 3, 6, 9];
+        let nextQuarterMonth = quarterMonths.find(m => m >= currentMonth) ?? 0;
+        let nextQuarterYear = now.getFullYear();
+        if (nextQuarterMonth < currentMonth) {
+          nextQuarterYear++;
+        }
+        nextRunDate = new Date(nextQuarterYear, nextQuarterMonth, parseInt(dayOfMonth), parseInt(hour), parseInt(minute), 0, 0);
+        // If date is invalid for that month (e.g. day 31 in a short month), cap to last valid day
+        if (nextRunDate.getMonth() !== nextQuarterMonth % 12) {
+          nextRunDate = new Date(nextQuarterYear, nextQuarterMonth + 1, 0, parseInt(hour), parseInt(minute), 0, 0);
+        }
+        // If that run is already past, advance to the next quarter
+        if (nextRunDate <= now) {
+          const nextIdx = (quarterMonths.indexOf(nextQuarterMonth) + 1) % 4;
+          if (nextIdx === 0) nextQuarterYear++;
+          nextRunDate = new Date(nextQuarterYear, quarterMonths[nextIdx], parseInt(dayOfMonth), parseInt(hour), parseInt(minute), 0, 0);
+        }
       } else if (dayOfMonth !== '*' && month === '*') {
         // Monthly on specific day at specific time
         nextRunDate = new Date(now.getFullYear(), now.getMonth(), parseInt(dayOfMonth), parseInt(hour), parseInt(minute), 0, 0);
-        
+
         // Check if the day is valid for this month (e.g., Feb 30 -> Feb 28/29)
         if (nextRunDate.getDate() !== parseInt(dayOfMonth)) {
           // Handle invalid date - this means we asked for a day that doesn't exist in this month
@@ -865,6 +897,52 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({
     </div>
   );
 
+  const renderQuarterlyConfig = () => (
+    <div className="mt-2 bg-gray-50 dark:bg-neutral-800 p-3 rounded-lg">
+      <div className="mb-3">
+        <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Day of Month</label>
+        <select
+          value={presetConfig.dayOfMonth}
+          onChange={(e) => setPresetConfig({ ...presetConfig, dayOfMonth: e.target.value })}
+          className={selectClassName}
+        >
+          {DAYS_OF_MONTH.map((day) => (
+            <option key={day.value} value={day.value}>{day.label}</option>
+          ))}
+        </select>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Hour</label>
+          <select
+            value={presetConfig.hour}
+            onChange={(e) => setPresetConfig({ ...presetConfig, hour: e.target.value })}
+            className={selectClassName}
+          >
+            {HOURS.map((hour) => (
+              <option key={hour.value} value={hour.value}>{hour.label}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1 dark:text-neutral-200">Minute</label>
+          <select
+            value={presetConfig.minute}
+            onChange={(e) => setPresetConfig({ ...presetConfig, minute: e.target.value })}
+            className={selectClassName}
+          >
+            {MINUTES.map((minute) => (
+              <option key={minute.value} value={minute.value}>{minute.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+        Runs on Jan, Apr, Jul, Oct (every 3 months)
+      </p>
+    </div>
+  );
+
   const renderMonthlyConfig = () => (
     <div className="mt-2 bg-gray-50 dark:bg-neutral-800 p-3 rounded-lg">
       <div className="mb-3">
@@ -1037,6 +1115,8 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({
         return renderBiweeklyConfig();
       case '0 0 1 * *': // Monthly
         return renderMonthlyConfig();
+      case '0 0 1 */3 *': // Quarterly
+        return renderQuarterlyConfig();
       case '0 0 1 1 *': // Yearly
         return renderYearlyConfig();
       default:
@@ -1126,6 +1206,25 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({
     </div>
   );
 
+  // Quarterly exclusion panel — month chips (only the 4 quarter-start months matter)
+  const renderQuarterlyExclusions = () => (
+    <div className="mt-3 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 bg-white dark:bg-neutral-800/60">
+      <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-2">
+        Skip these quarters
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {EXCLUSION_MONTHS.filter(m => ['jan','apr','jul','oct'].includes(m.value)).map(m => (
+          <button key={m.value} type="button"
+            onClick={() => toggleExcludedMonth(m.value)}
+            className={chipClass(excludedMonths.includes(m.value))}>
+            {m.label}
+          </button>
+        ))}
+      </div>
+      {renderExcludedDatesPanel()}
+    </div>
+  );
+
   // Monthly exclusion panel — month chips
   const renderMonthlyExclusions = () => (
     <div className="mt-3 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 bg-white dark:bg-neutral-800/60">
@@ -1162,6 +1261,7 @@ export const CronScheduleBuilder: React.FC<CronScheduleBuilderProps> = ({
       case '0 0 * * 0': return renderWeeklyExclusions();
       case 'biweekly':  return renderWeeklyExclusions(); // same chips as weekly
       case '0 0 1 * *': return renderMonthlyExclusions();
+      case '0 0 1 */3 *': return renderQuarterlyExclusions();
       default:          return renderGenericExclusions();
     }
   };

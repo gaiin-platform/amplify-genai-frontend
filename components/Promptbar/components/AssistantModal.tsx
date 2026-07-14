@@ -641,14 +641,15 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
 
             // Handle scheduled tasks
             const existingScheduledTasks = definition.data?.scheduledTaskIds;
-            if (featureFlags.scheduledTasks && !isGroupAst) {
+            const assistantIdForScheduling = definition.assistantId || newAssistant.assistantId;
+            if (featureFlags.scheduledTasks && assistantIdForScheduling) {
                 try {
                     // Handle website scheduled tasks
                     const websiteCron = determineWebsiteScanCron(dataSources);
                     const needsWebsiteTask = websiteCron !== null && websiteUrls.length > 0;
                     const assistantInfo = {
                         name: newAssistant.name,
-                        assistantId: definition.assistantId ?? ''
+                        assistantId: assistantIdForScheduling
                     };
 
                     setLoadingMessage("Managing scheduled tasks for website data sources...");
@@ -696,7 +697,7 @@ export const AssistantModal: FC<Props> = ({assistant, onCancel, onSave, onUpdate
                     console.error('Error managing scheduled tasks:', error);
                     // Don't fail the assistant creation for scheduled task errors
                 }
-                
+
                 setLoadingMessage(loadingMessage); // Reset loading message
             }
 

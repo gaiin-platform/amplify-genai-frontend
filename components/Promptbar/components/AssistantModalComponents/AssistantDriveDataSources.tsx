@@ -57,7 +57,7 @@ const LoadingIcon = styled(FiCommand)`
 
 export interface DriveRescanSchedule {
   enabled: boolean;
-  frequency: 'none' | 'daily' | 'weekly' | 'monthly';
+  frequency: 'none' | 'daily' | 'weekly' | 'monthly' | 'quarterly';
   time?: string; // HH:MM format
   dayOfWeek?: number; // 0-6 for weekly
   dayOfMonth?: number; // 1-31 for monthly
@@ -176,6 +176,8 @@ export const AssistantDriveDataSources: FC<Props> = ({
         return `Weekly on ${days[rescanSchedule.dayOfWeek || 1]} at ${timeStr}`;
       case 'monthly':
         return `Monthly on day ${rescanSchedule.dayOfMonth || 1} at ${timeStr}`;
+      case 'quarterly':
+        return `Quarterly on day ${rescanSchedule.dayOfMonth || 1} at ${timeStr}`;
       default:
         return 'One-time pull only';
     }
@@ -223,6 +225,7 @@ export const AssistantDriveDataSources: FC<Props> = ({
                 <option value="daily">Daily</option>
                 <option value="weekly">Weekly</option>
                 <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
               </select>
             </div>
 
@@ -265,7 +268,7 @@ export const AssistantDriveDataSources: FC<Props> = ({
               </div>
             )}
 
-            {rescanSchedule.frequency === 'monthly' && (
+            {(rescanSchedule.frequency === 'monthly' || rescanSchedule.frequency === 'quarterly') && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Day of Month

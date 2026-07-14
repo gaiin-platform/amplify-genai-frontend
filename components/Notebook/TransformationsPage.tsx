@@ -1,21 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import remarkGfm from 'remark-gfm';
 import {
-    IconAlertCircle,
-    IconChevronDown,
-    IconChevronRight,
-    IconEdit,
-    IconLoader2,
-    IconPlayerPlay,
-    IconPlus,
-    IconRefresh,
-    IconSettings,
-    IconSparkles,
-    IconTrash,
-    IconWand,
-} from '@tabler/icons-react';
+    LucideAlertCircle,
+    LucideChevronDown,
+    LucideChevronRight,
+    LucideEdit,
+    LucideLoader2,
+    LucidePlay,
+    LucidePlus,
+    LucideRefreshCw,
+    LucideSettings,
+    LucideTrash2,
+    LucideWand2,
+} from './LucideIcons';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
+import { MemoizedReactMarkdown } from '@/components/Markdown/MemoizedReactMarkdown';
 import {
-    DefaultPrompt,
     ModelDefaults,
     NotebookModel,
     Transformation,
@@ -28,66 +28,39 @@ import {
     updateDefaultPrompt,
 } from '@/services/notebookService';
 import { TransformationEditorDialog } from './TransformationEditorDialog';
+import { formatModelName, prepareModelOptions } from './modelDisplay';
 
 type Tab = 'transformations' | 'playground';
 
-const TabsHeader = ({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) => (
-    <div>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            Workspace
-        </p>
-        <div className="inline-flex w-full max-w-md rounded-lg border border-gray-200 bg-white p-1 shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
-            <button
-                onClick={() => onTab('transformations')}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                    tab === 'transformations'
-                        ? 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-neutral-700'
-                }`}
-            >
-                <IconWand size={16} />
-                Transformations
-            </button>
-            <button
-                onClick={() => onTab('playground')}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                    tab === 'playground'
-                        ? 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-neutral-700'
-                }`}
-            >
-                <IconPlayerPlay size={16} />
-                Playground
-            </button>
-        </div>
-    </div>
-);
+// Shared classes mirroring the reference shadcn sizes.
+const cardClass =
+    'flex flex-col gap-6 rounded-xl border border-gray-200 bg-white py-6 shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]';
+const primaryButtonClass =
+    'inline-flex h-9 items-center justify-center gap-2 rounded-md bg-purple-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-600 disabled:pointer-events-none disabled:opacity-50';
+const outlineSmButtonClass =
+    'inline-flex h-8 items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-sm font-medium shadow-sm transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700';
+const inputClass =
+    'w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm placeholder-gray-400 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100 dark:placeholder-gray-500';
 
 const DefaultPromptEditor = () => {
     const [open, setOpen] = useState<boolean>(false);
     const [loading, setLoading] = useState<boolean>(true);
     const [saving, setSaving] = useState<boolean>(false);
-    const [savedAt, setSavedAt] = useState<number | null>(null);
     const [prompt, setPrompt] = useState<string>('');
-    const [original, setOriginal] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
 
-    const load = useCallback(async () => {
-        setLoading(true);
-        const dp = await getDefaultPrompt();
-        if (dp) {
-            const text = dp.transformation_instructions || '';
-            setPrompt(text);
-            setOriginal(text);
-        }
-        setLoading(false);
-    }, []);
-
     useEffect(() => {
-        load();
-    }, [load]);
-
-    const dirty = prompt !== original;
+        let cancelled = false;
+        (async () => {
+            const dp = await getDefaultPrompt();
+            if (cancelled) return;
+            if (dp) setPrompt(dp.transformation_instructions || '');
+            setLoading(false);
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     const handleSave = async () => {
         setSaving(true);
@@ -96,176 +69,148 @@ const DefaultPromptEditor = () => {
         setSaving(false);
         if (!result) {
             setError('Failed to save default prompt.');
-            return;
         }
-        setOriginal(result.transformation_instructions || '');
-        setSavedAt(Date.now());
     };
 
     return (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
+        <div className={cardClass}>
             <button
                 onClick={() => setOpen((v) => !v)}
-                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                className="flex w-full items-center justify-between px-6 text-left"
             >
                 <div className="flex items-center gap-2">
-                    <IconSettings size={18} className="text-purple-600 dark:text-purple-400" />
+                    <LucideSettings size={20} />
                     <div>
-                        <div className="text-sm font-semibold">Default prompt</div>
-                        <div className="text-[12px] text-gray-500 dark:text-gray-400">
-                            Instructions prepended to every transformation run.
+                        <div className="text-lg font-semibold leading-none">
+                            Default Transformation Prompt
+                        </div>
+                        <div className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">
+                            This will be added to all your transformation prompts
                         </div>
                     </div>
                 </div>
                 {open ? (
-                    <IconChevronDown size={18} className="text-gray-400" />
+                    <LucideChevronDown size={20} className="text-gray-500" />
                 ) : (
-                    <IconChevronRight size={18} className="text-gray-400" />
+                    <LucideChevronRight size={20} className="text-gray-500" />
                 )}
             </button>
 
             {open && (
-                <div className="border-t border-gray-200 px-4 py-3 dark:border-neutral-700">
-                    {loading ? (
-                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                            <IconLoader2 size={16} className="animate-spin" />
-                            Loading default prompt…
+                <div className="space-y-4 px-6">
+                    <textarea
+                        value={prompt}
+                        onChange={(e) => setPrompt(e.target.value)}
+                        placeholder="Enter your default transformation instructions..."
+                        disabled={loading}
+                        className={`min-h-[200px] resize-y font-mono ${inputClass}`}
+                    />
+                    {error && (
+                        <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                            <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
+                            <span>{error}</span>
                         </div>
-                    ) : (
-                        <>
-                            <textarea
-                                value={prompt}
-                                onChange={(e) => setPrompt(e.target.value)}
-                                placeholder="e.g. Always respond in markdown. Use the structure provided."
-                                className="min-h-[200px] w-full resize-y rounded-md border border-neutral-300 bg-white px-3 py-2 font-mono text-[12.5px] leading-5 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
-                            />
-                            {error && (
-                                <div className="mt-2 flex items-start gap-2 rounded border border-red-200 bg-red-50 p-2 text-[12px] text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
-                                    <IconAlertCircle size={14} className="mt-0.5 flex-none" />
-                                    <span>{error}</span>
-                                </div>
-                            )}
-                            <div className="mt-3 flex items-center justify-end gap-2">
-                                {savedAt && !dirty && !error && (
-                                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400">
-                                        Saved.
-                                    </span>
-                                )}
-                                <button
-                                    onClick={handleSave}
-                                    disabled={saving || !dirty}
-                                    className={`flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors ${
-                                        saving || !dirty
-                                            ? 'cursor-not-allowed bg-gray-200 text-gray-500 dark:bg-neutral-700 dark:text-neutral-400'
-                                            : 'bg-purple-500 text-white hover:bg-purple-600'
-                                    }`}
-                                >
-                                    {saving ? (
-                                        <>
-                                            <IconLoader2 size={14} className="animate-spin" />
-                                            Saving…
-                                        </>
-                                    ) : (
-                                        'Save'
-                                    )}
-                                </button>
-                            </div>
-                        </>
                     )}
+                    <div className="flex justify-end">
+                        <button
+                            onClick={handleSave}
+                            disabled={loading || saving}
+                            className={primaryButtonClass}
+                        >
+                            {saving && <LucideLoader2 size={16} className="animate-spin" />}
+                            Save
+                        </button>
+                    </div>
                 </div>
             )}
         </div>
     );
 };
 
-interface CardProps {
+const TransformationCard = ({
+    transformation,
+    onEdit,
+    onPlayground,
+    onDelete,
+}: {
     transformation: Transformation;
     onEdit: () => void;
     onPlayground: () => void;
     onDelete: () => void;
-}
-
-const TransformationCard = ({ transformation, onEdit, onPlayground, onDelete }: CardProps) => {
-    const [open, setOpen] = useState<boolean>(false);
+}) => {
+    const [expanded, setExpanded] = useState<boolean>(false);
     return (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
-            <div className="flex items-start gap-3 px-4 py-3">
-                <button
-                    onClick={() => setOpen((v) => !v)}
-                    className="flex flex-1 items-start gap-2 text-left"
-                >
-                    {open ? (
-                        <IconChevronDown size={18} className="mt-0.5 text-gray-400" />
-                    ) : (
-                        <IconChevronRight size={18} className="mt-0.5 text-gray-400" />
-                    )}
-                    <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-semibold">{transformation.name}</span>
+        <div className={cardClass}>
+            <div className="px-6">
+                <div className="flex items-start justify-between gap-4">
+                    <button
+                        onClick={() => setExpanded((v) => !v)}
+                        className="flex-1 text-left"
+                    >
+                        <div className="flex items-center gap-3">
+                            {expanded ? (
+                                <LucideChevronDown size={20} className="flex-none" />
+                            ) : (
+                                <LucideChevronRight size={20} className="flex-none" />
+                            )}
+                            <div className="flex min-w-0 flex-col">
+                                <span className="font-semibold">{transformation.name}</span>
+                                {!expanded && transformation.description && (
+                                    <span className="truncate text-sm text-gray-500 dark:text-gray-400">
+                                        {transformation.description}
+                                    </span>
+                                )}
+                            </div>
                             {transformation.apply_default && (
-                                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                                <span className="inline-flex flex-none items-center rounded-md border border-transparent bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-neutral-700 dark:text-gray-200">
                                     Default
                                 </span>
                             )}
                         </div>
-                        {!open && transformation.description && (
-                            <div className="mt-0.5 line-clamp-1 text-[12px] text-gray-500 dark:text-gray-400">
-                                {transformation.description}
-                            </div>
-                        )}
-                    </div>
-                </button>
+                    </button>
 
-                <div className="flex items-center gap-1">
-                    <button
-                        onClick={onPlayground}
-                        title="Open in playground"
-                        className="flex h-8 items-center gap-1 rounded-md border border-gray-200 px-2 text-[12px] text-gray-700 hover:bg-gray-100 dark:border-neutral-600 dark:text-gray-200 dark:hover:bg-neutral-700"
-                    >
-                        <IconPlayerPlay size={14} />
-                        Playground
-                    </button>
-                    <button
-                        onClick={onEdit}
-                        title="Edit"
-                        className="flex h-8 items-center gap-1 rounded-md border border-gray-200 px-2 text-[12px] text-gray-700 hover:bg-gray-100 dark:border-neutral-600 dark:text-gray-200 dark:hover:bg-neutral-700"
-                    >
-                        <IconEdit size={14} />
-                        Edit
-                    </button>
-                    <button
-                        onClick={onDelete}
-                        title="Delete"
-                        className="flex h-8 w-8 items-center justify-center rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                    >
-                        <IconTrash size={14} />
-                    </button>
+                    <div className="flex flex-none items-center gap-2">
+                        <button onClick={onPlayground} className={outlineSmButtonClass}>
+                            <LucideWand2 size={16} className="mr-2" />
+                            Playground
+                        </button>
+                        <button onClick={onEdit} className={outlineSmButtonClass}>
+                            <LucideEdit size={16} className="mr-2" />
+                            Edit
+                        </button>
+                        <button
+                            onClick={onDelete}
+                            className="inline-flex h-8 items-center justify-center rounded-md px-3 text-red-600 transition-colors hover:bg-gray-100 hover:text-red-700 dark:text-red-400 dark:hover:bg-neutral-700"
+                        >
+                            <LucideTrash2 size={16} />
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            {open && (
-                <div className="space-y-3 border-t border-gray-200 px-4 py-3 dark:border-neutral-700">
-                    {transformation.title && (
-                        <div>
-                            <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                Title
-                            </div>
-                            <div className="text-[13px]">{transformation.title}</div>
-                        </div>
-                    )}
+            {expanded && (
+                <div className="space-y-4 px-6">
+                    <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Title</p>
+                        <p className="text-sm font-medium">
+                            {transformation.title || 'Untitled Source'}
+                        </p>
+                    </div>
+
                     {transformation.description && (
                         <div>
-                            <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
                                 Description
-                            </div>
-                            <div className="text-[13px] leading-5">{transformation.description}</div>
+                            </p>
+                            <p className="text-sm leading-6">{transformation.description}</p>
                         </div>
                     )}
+
                     <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                            System prompt
-                        </div>
-                        <pre className="mt-1 max-h-72 overflow-y-auto whitespace-pre-wrap rounded border border-gray-200 bg-gray-50 p-2 font-mono text-[12px] dark:border-neutral-700 dark:bg-[#343541]">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                            System Prompt
+                        </p>
+                        <pre className="mt-2 whitespace-pre-wrap rounded-md bg-gray-100 p-3 font-mono text-sm dark:bg-neutral-700/60">
                             {transformation.prompt}
                         </pre>
                     </div>
@@ -275,14 +220,17 @@ const TransformationCard = ({ transformation, onEdit, onPlayground, onDelete }: 
     );
 };
 
-interface PlaygroundProps {
+const Playground = ({
+    transformations,
+    initialId,
+    languageModels,
+    defaults,
+}: {
     transformations: Transformation[];
     initialId?: string;
-    defaults: ModelDefaults | null;
     languageModels: NotebookModel[];
-}
-
-const Playground = ({ transformations, initialId, defaults, languageModels }: PlaygroundProps) => {
+    defaults: ModelDefaults | null;
+}) => {
     const [selectedId, setSelectedId] = useState<string>(initialId || '');
     const [modelId, setModelId] = useState<string>('');
     const [inputText, setInputText] = useState<string>('');
@@ -294,6 +242,9 @@ const Playground = ({ transformations, initialId, defaults, languageModels }: Pl
         if (initialId) setSelectedId(initialId);
     }, [initialId]);
 
+    // Preselect this deployment's default transformation/chat model so Run is
+    // one click away (the reference leaves it unselected, but its model list
+    // is user-managed; ours is fixed server-side).
     useEffect(() => {
         if (modelId) return;
         if (defaults?.default_transformation_model) {
@@ -305,8 +256,7 @@ const Playground = ({ transformations, initialId, defaults, languageModels }: Pl
         }
     }, [defaults, languageModels, modelId]);
 
-    const canRun =
-        !running && !!selectedId && !!modelId && inputText.trim().length > 0;
+    const canRun = !running && !!selectedId && !!modelId && inputText.trim().length > 0;
 
     const handleRun = async () => {
         if (!canRun) return;
@@ -320,36 +270,36 @@ const Playground = ({ transformations, initialId, defaults, languageModels }: Pl
         });
         setRunning(false);
         if (!result) {
-            setError('Failed to run transformation. Verify the transformation and a language model are configured.');
+            setError(
+                'Failed to run transformation. Verify the transformation and a language model are configured.',
+            );
             return;
         }
         setOutput(result.output || '');
     };
 
     return (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
-            <div className="border-b border-gray-200 px-4 py-3 dark:border-neutral-700">
-                <div className="flex items-center gap-2">
-                    <IconPlayerPlay size={18} className="text-purple-600 dark:text-purple-400" />
-                    <div>
-                        <div className="text-sm font-semibold">Playground</div>
-                        <div className="text-[12px] text-gray-500 dark:text-gray-400">
-                            Test a transformation against arbitrary text before applying it to sources.
-                        </div>
-                    </div>
-                </div>
+        <div className={cardClass}>
+            <div className="flex flex-col gap-1.5 px-6">
+                <h2 className="text-lg font-semibold leading-none">Playground</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Transformations are prompts that will be used by the LLM to process a
+                    source and extract insights, summaries, etc.
+                </p>
             </div>
 
-            <div className="space-y-4 p-4">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div className="flex flex-col gap-1">
-                        <label className="text-sm font-medium">Transformation</label>
+            <div className="space-y-6 px-6">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                        <label className="text-sm font-medium leading-none">
+                            Transformation
+                        </label>
                         <select
                             value={selectedId}
                             onChange={(e) => setSelectedId(e.target.value)}
-                            className="rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                            className={`mt-2 ${inputClass}`}
                         >
-                            <option value="">Select a transformation…</option>
+                            <option value="">Select a transformation to start</option>
                             {transformations.map((t) => (
                                 <option key={t.id} value={t.id}>
                                     {t.name}
@@ -357,30 +307,31 @@ const Playground = ({ transformations, initialId, defaults, languageModels }: Pl
                             ))}
                         </select>
                     </div>
-                    <div className="flex flex-col gap-1">
-                        <label className="text-sm font-medium">Model</label>
+                    <div>
+                        <label className="text-sm font-medium leading-none">Model</label>
                         <select
                             value={modelId}
                             onChange={(e) => setModelId(e.target.value)}
-                            className="rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                            className={`mt-2 ${inputClass}`}
                         >
-                            <option value="">Select a model…</option>
+                            <option value="">Select a model</option>
                             {languageModels.map((m) => (
                                 <option key={m.id} value={m.id}>
-                                    {m.name} ({m.provider})
+                                    {formatModelName(m.name)}
                                 </option>
                             ))}
                         </select>
                     </div>
                 </div>
 
-                <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium">Input</label>
+                <div>
+                    <label className="text-sm font-medium leading-none">Input Text</label>
                     <textarea
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
-                        placeholder="Paste the source text to transform…"
-                        className="min-h-[180px] resize-y rounded border border-neutral-300 bg-white px-3 py-2 font-mono text-[12.5px] leading-5 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                        placeholder="Enter some text to transform..."
+                        rows={8}
+                        className={`mt-2 resize-y font-mono ${inputClass}`}
                     />
                 </div>
 
@@ -388,39 +339,42 @@ const Playground = ({ transformations, initialId, defaults, languageModels }: Pl
                     <button
                         onClick={handleRun}
                         disabled={!canRun}
-                        className={`flex h-9 items-center gap-1.5 rounded-md px-4 text-sm font-medium transition-colors ${
-                            !canRun
-                                ? 'cursor-not-allowed bg-gray-200 text-gray-500 dark:bg-neutral-700 dark:text-neutral-400'
-                                : 'bg-purple-500 text-white hover:bg-purple-600'
-                        }`}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-purple-500 px-6 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-600 disabled:pointer-events-none disabled:opacity-50"
                     >
                         {running ? (
                             <>
-                                <IconLoader2 size={16} className="animate-spin" />
-                                Running…
+                                <LucideLoader2 size={16} className="animate-spin" />
+                                Running...
                             </>
                         ) : (
                             <>
-                                <IconPlayerPlay size={16} />
-                                Run transformation
+                                <LucidePlay size={16} />
+                                Run Transformation
                             </>
                         )}
                     </button>
                 </div>
 
                 {error && (
-                    <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
-                        <IconAlertCircle size={16} className="mt-0.5 flex-none" />
+                    <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                        <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
                         <span>{error}</span>
                     </div>
                 )}
 
                 {output && (
-                    <div className="flex flex-col gap-1">
-                        <label className="text-sm font-medium">Output</label>
-                        <pre className="max-h-[400px] overflow-y-auto whitespace-pre-wrap rounded border border-gray-200 bg-gray-50 p-3 text-[13px] leading-5 dark:border-neutral-700 dark:bg-[#343541]">
-                            {output}
-                        </pre>
+                    <div className="space-y-2">
+                        <span className="text-sm font-medium leading-none">Output</span>
+                        <div className="rounded-xl border border-gray-200 shadow-sm dark:border-neutral-700">
+                            <div className="h-[400px] overflow-y-auto p-6">
+                                <MemoizedReactMarkdown
+                                    className="prose prose-sm dark:prose-invert max-w-none break-words"
+                                    remarkPlugins={[remarkGfm]}
+                                >
+                                    {output}
+                                </MemoizedReactMarkdown>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
@@ -464,23 +418,15 @@ export const TransformationsPage = () => {
     useEffect(() => {
         let cancelled = false;
         (async () => {
-            const [d, models] = await Promise.all([
-                getDefaults(),
-                listModels('language'),
-            ]);
+            const [d, models] = await Promise.all([getDefaults(), listModels('language')]);
             if (cancelled) return;
             setDefaults(d);
-            setLanguageModels(models);
+            setLanguageModels(prepareModelOptions(models));
         })();
         return () => {
             cancelled = true;
         };
     }, []);
-
-    const sorted = useMemo(
-        () => [...transformations].sort((a, b) => a.name.localeCompare(b.name)),
-        [transformations],
-    );
 
     const handleOpenInPlayground = (t: Transformation) => {
         setPlaygroundId(t.id);
@@ -513,119 +459,146 @@ export const TransformationsPage = () => {
         setPendingDelete(null);
     };
 
+    const tabButton = (value: Tab, icon: React.ReactNode, label: string) => (
+        <button
+            onClick={() => setTab(value)}
+            className={`inline-flex h-9 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg border px-4 text-sm font-medium transition-all ${
+                tab === value
+                    ? 'border-gray-200 bg-white text-gray-900 shadow-sm dark:border-neutral-600 dark:bg-[#2b2c36] dark:text-gray-100'
+                    : 'border-transparent text-gray-500 dark:text-gray-400'
+            }`}
+        >
+            {icon}
+            {label}
+        </button>
+    );
+
     return (
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 text-neutral-800 dark:text-neutral-100">
-            <div className="flex items-start justify-between gap-3">
-                <TabsHeader tab={tab} onTab={setTab} />
-                <div className="flex items-center gap-2">
+        <div className="w-full space-y-6 text-neutral-800 dark:text-neutral-100">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <h1 className="text-2xl font-bold">Transformations</h1>
                     <button
                         onClick={refresh}
                         title="Refresh"
-                        className="flex h-8 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 text-sm text-gray-700 shadow-sm hover:bg-gray-50 dark:border-neutral-700 dark:bg-[#2b2c36] dark:text-gray-200 dark:hover:bg-neutral-700"
+                        className={outlineSmButtonClass}
                     >
-                        <IconRefresh size={14} />
-                        Refresh
+                        <LucideRefreshCw size={16} />
                     </button>
-                    {tab === 'transformations' && (
-                        <button
-                            onClick={() => setCreating(true)}
-                            className="flex h-8 items-center gap-1.5 rounded-md bg-purple-500 px-3 text-sm font-medium text-white shadow-sm hover:bg-purple-600"
-                        >
-                            <IconPlus size={14} />
-                            New transformation
-                        </button>
+                </div>
+            </div>
+
+            <div className="max-w-5xl">
+                <p className="text-gray-500 dark:text-gray-400">
+                    Transformations are prompts that will be used by the LLM to process a
+                    source and extract insights, summaries, etc.
+                </p>
+            </div>
+
+            <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Choose a workspace
+                </p>
+                <div className="flex w-full max-w-xl gap-1 rounded-xl border border-gray-200 bg-gray-100/80 p-1 shadow-sm dark:border-neutral-700 dark:bg-neutral-800/80">
+                    {tabButton(
+                        'transformations',
+                        <LucideWand2 size={16} />,
+                        'Transformations',
                     )}
+                    {tabButton('playground', <LucidePlay size={16} />, 'Playground')}
                 </div>
             </div>
 
             {error && (
                 <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
-                    <IconAlertCircle size={16} className="mt-0.5 flex-none" />
+                    <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
                     <span>{error}</span>
                 </div>
             )}
 
             {tab === 'transformations' && (
-                <>
+                <div className="space-y-6">
                     <DefaultPromptEditor />
 
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-base font-semibold">All transformations</h2>
-                        <span className="text-[12px] text-gray-500 dark:text-gray-400">
-                            {sorted.length} total
-                        </span>
-                    </div>
-
                     {loading ? (
-                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                            <IconLoader2 size={16} className="animate-spin" />
-                            Loading transformations…
+                        <div className="flex items-center justify-center py-12">
+                            <LucideLoader2 size={32} className="animate-spin text-gray-400" />
                         </div>
-                    ) : sorted.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-white py-12 text-center dark:border-neutral-700 dark:bg-[#2b2c36]">
-                            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-sm">
-                                <IconSparkles size={22} />
-                            </div>
-                            <h3 className="text-base font-semibold">No transformations yet</h3>
-                            <p className="mt-1 max-w-sm text-sm text-gray-500 dark:text-gray-400">
-                                Define a system prompt to extract insights, summarize, or rewrite source content.
+                    ) : transformations.length === 0 ? (
+                        <div className="py-12 text-center">
+                            <LucideWand2
+                                size={48}
+                                className="mx-auto mb-4 text-gray-400/60 dark:text-gray-500/60"
+                            />
+                            <h3 className="mb-2 text-lg font-medium">
+                                No transformations yet
+                            </h3>
+                            <p className="mb-4 text-gray-500 dark:text-gray-400">
+                                Create a transformation to get started
                             </p>
                             <button
                                 onClick={() => setCreating(true)}
-                                className="mt-4 flex h-8 items-center gap-1.5 rounded-md bg-purple-500 px-3 text-sm font-medium text-white shadow-sm hover:bg-purple-600"
+                                className={primaryButtonClass}
                             >
-                                <IconPlus size={14} />
-                                Create the first one
+                                <LucidePlus size={16} />
+                                Create New
                             </button>
                         </div>
                     ) : (
-                        <div className="flex flex-col gap-3">
-                            {sorted.map((t) => (
-                                <TransformationCard
-                                    key={t.id}
-                                    transformation={t}
-                                    onEdit={() => setEditing(t)}
-                                    onPlayground={() => handleOpenInPlayground(t)}
-                                    onDelete={() => setPendingDelete(t)}
-                                />
-                            ))}
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-lg font-semibold">
+                                    Custom Transformations
+                                </h2>
+                                <button
+                                    onClick={() => setCreating(true)}
+                                    className={primaryButtonClass}
+                                >
+                                    <LucidePlus size={16} />
+                                    Create New
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                {transformations.map((t) => (
+                                    <TransformationCard
+                                        key={t.id}
+                                        transformation={t}
+                                        onEdit={() => setEditing(t)}
+                                        onPlayground={() => handleOpenInPlayground(t)}
+                                        onDelete={() => setPendingDelete(t)}
+                                    />
+                                ))}
+                            </div>
                         </div>
                     )}
-                </>
+                </div>
             )}
 
             {tab === 'playground' && (
                 <Playground
-                    transformations={sorted}
+                    transformations={transformations}
                     initialId={playgroundId}
                     defaults={defaults}
                     languageModels={languageModels}
                 />
             )}
 
-            {creating && (
-                <TransformationEditorDialog
-                    onClose={() => setCreating(false)}
-                    onSaved={handleSaved}
-                />
-            )}
-
-            {editing && (
+            {(creating || editing) && (
                 <TransformationEditorDialog
                     transformation={editing}
-                    onClose={() => setEditing(null)}
+                    onClose={() => {
+                        setCreating(false);
+                        setEditing(null);
+                    }}
                     onSaved={handleSaved}
                 />
             )}
 
             {pendingDelete && (
                 <ConfirmModal
-                    title="Delete transformation?"
-                    message={
-                        <span>
-                            Delete <b>{pendingDelete.name}</b>? This can&apos;t be undone.
-                        </span>
-                    }
+                    title="Delete Source"
+                    message="Are you sure you want to delete this transformation?"
                     confirmLabel={deleting ? 'Deleting…' : 'Delete'}
                     denyLabel="Cancel"
                     onConfirm={handleConfirmDelete}
