@@ -80,15 +80,23 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
   
 
   const isUrlExpired = (url: string): boolean => {
-    const regex = /Expires=(\d+)/;
-    const matches = regex.exec(url);
-
-    if (matches && matches[1]) {
-        const expiry = matches[1];
-        const expiryDate = new Date(parseInt(expiry) * 1000);
-        return expiryDate <= new Date();
+    // AWS SDK v4 presigned URLs use X-Amz-Date + X-Amz-Expires
+    const dateMatch = /X-Amz-Date=(\d{8}T\d{6}Z)/.exec(url);
+    const expiresMatch = /X-Amz-Expires=(\d+)/.exec(url);
+    if (dateMatch && expiresMatch) {
+        const raw = dateMatch[1]; // e.g. 20240508T123456Z
+        const iso = `${raw.slice(0,4)}-${raw.slice(4,6)}-${raw.slice(6,8)}T${raw.slice(9,11)}:${raw.slice(11,13)}:${raw.slice(13,15)}Z`;
+        const signedAt = new Date(iso);
+        const expiresInSeconds = parseInt(expiresMatch[1]);
+        return new Date() > new Date(signedAt.getTime() + expiresInSeconds * 1000);
     }
-    return true;
+    // Legacy AWS SDK v2: Expires= (unix timestamp)
+    const legacyMatch = /[?&]Expires=(\d+)/.exec(url);
+    if (legacyMatch) {
+        return new Date() >= new Date(parseInt(legacyMatch[1]) * 1000);
+    }
+    // Cannot determine expiry — assume valid
+    return false;
   };
 
   const getNewPresignedUrl = async (data: Data) => {
@@ -104,92 +112,117 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
     }
   };
 
+  // Fetch a fresh attachment-flavoured presigned URL and trigger a browser download.
+  // Always called with the high-res key and the human-readable filename so the backend
+  // adds ResponseContentDisposition: attachment — keeping the display URL (no attachment)
+  // separate from the download URL.
+  const triggerDownload = async (fileKey: string, name: string) => {
+    const url = await getNewPresignedUrl({ key: fileKey, fileName: name });
+    if (!url) {
+      console.error('Failed to get download URL for', fileKey);
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   useEffect(() => {
-  const renderFileContent = async () => {   
+  const renderFileContent = async () => {
     const { type, values } = file_info;
     let { presigned_url, file_key } = values;
-    
-    // Check for low-res image first
-    let isLowRes = false;
-    if (type === 'image/png' && values.presigned_url_low_res && values.file_key_low_res) { //think about download the whole file 
-      presigned_url = values.presigned_url_low_res;
-      file_key = values.file_key_low_res
-      isLowRes = true;
+
+    // For PNG images, use the low-res version for display if available.
+    // The high-res key (values.file_key) is always used for the download button.
+    const isLowRes = type === 'image/png' && !!(values.presigned_url_low_res && values.file_key_low_res);
+    if (isLowRes) {
+      presigned_url = values.presigned_url_low_res!;
+      file_key = values.file_key_low_res!;
     }
 
+    // Derive the human-readable filename from whichever key is used for display.
     const fileNameMatch = file_key.match(/-FN-([^\/]+)/);
     const fileName = fileNameMatch && fileNameMatch[1] ? fileNameMatch[1] : `Generated_${type.split('/')[1]}_file`;
-    
-    if (isUrlExpired(presigned_url)) {
 
-      //fetch new presigned url and set it 
-       const urlResponse = await getNewPresignedUrl({'key': file_key, "fileName": fileName});
-       if (urlResponse) {
-            presigned_url = urlResponse;
-            if (isLowRes) {
-                file_info.values.presigned_url_low_res = urlResponse;
-            } else{
-                file_info.values.presigned_url = urlResponse;
-            }
-       }
+    // Refresh the display URL if expired — fetch WITHOUT fileName so the URL has no
+    // ResponseContentDisposition header and <img> tags can render it directly.
+    if (isUrlExpired(presigned_url)) {
+      const urlResponse = await getNewPresignedUrl({ key: file_key });
+      if (urlResponse) {
+        presigned_url = urlResponse;
+        if (isLowRes) {
+          file_info.values.presigned_url_low_res = urlResponse;
+        } else {
+          file_info.values.presigned_url = urlResponse;
+        }
       }
+    }
+
+    // The high-res key used for every download button (always values.file_key).
+    const downloadKey = values.file_key;
+    // Human-readable name derived from the high-res key for the download filename.
+    const downloadFileNameMatch = downloadKey.match(/-FN-([^\/]+)/);
+    const downloadFileName = downloadFileNameMatch && downloadFileNameMatch[1]
+      ? downloadFileNameMatch[1]
+      : fileName;
 
     switch (type) {
-      case 'text/csv':
+      case 'text/csv': {
             const scrollableStyle: React.CSSProperties = {
-                overflowX: 'auto',   
-                width: '100%',       
-                maxHeight: '400px',  
-                display: 'block'     
+                overflowX: 'auto',
+                width: '100%',
+                maxHeight: '400px',
+                display: 'block'
             };
-            
             const cellStyle: React.CSSProperties = {
-                whiteSpace: 'nowrap', 
-                minWidth: '80px'     
+                whiteSpace: 'nowrap',
+                minWidth: '80px'
             };
-            
-            const renderCsvTable = () => {
-                return (
-                    <div style={scrollableStyle}>
-                        <table>
-                            <tbody>
-                            {csvPreview && csvPreview.map((row, rowIndex) => (
-                                <tr key={rowIndex}>
-                                {row.split(',').map((cell, cellIndex) => (
-                                    <td key={cellIndex} style={cellStyle}>{cell}</td>  
-                                ))}
-                                </tr>
+            const renderCsvTable = () => (
+                <div style={scrollableStyle}>
+                    <table>
+                        <tbody>
+                        {csvPreview && csvPreview.map((row, rowIndex) => (
+                            <tr key={rowIndex}>
+                            {row.split(',').map((cell, cellIndex) => (
+                                <td key={cellIndex} style={cellStyle}>{cell}</td>
                             ))}
-                            </tbody>
-                        </table>
-                    </div>
-                );
-            };
-            setFileContent (
+                            </tr>
+                        ))}
+                        </tbody>
+                    </table>
+                </div>
+            );
+            setFileContent(
             <div className='mb-6'>
                 <DownloadFileButton
-                  fileName={fileName}
-                  presigned_url={presigned_url}>
+                  fileName={downloadFileName}
+                  presigned_url={presigned_url}
+                  onClickOverride={() => triggerDownload(downloadKey, downloadFileName)}>
                   <IconDownload size={24}/>
                 </DownloadFileButton>
-                
-                { !csvPreview ? <div>Loading...</div> : csvPreview.length > 0 
-                            ? <div >{renderCsvTable()} {csvOverflow && <>{'Download to see full content'}</>} </div> 
+                { !csvPreview ? <div>Loading...</div> : csvPreview.length > 0
+                            ? <div>{renderCsvTable()} {csvOverflow && <>{'Download to see full content'}</>}</div>
                             : <div>Unfortunately, we are unable to display the file contents at this time...</div>}
             </div>
             );
             break;
-        case 'application/pdf':
-            const pdfUrl = await fetchPdfAndDisplay(presigned_url)
+      }
+      case 'application/pdf': {
+            const pdfUrl = await fetchPdfAndDisplay(presigned_url);
             setFileContent(
                 <div className='mb-6'>
                     <DownloadFileButton
-                    fileName={fileName}
-                    presigned_url={presigned_url}>
+                    fileName={downloadFileName}
+                    presigned_url={presigned_url}
+                    onClickOverride={() => triggerDownload(downloadKey, downloadFileName)}>
                       <IconDownload size={24}/>
                     </DownloadFileButton>
-                    {pdfError ? ( <div>Unfortunately, we are unable to display the PDF at this time...</div>) 
-                              : pdfUrl && pdfUrl !== "" ? 
+                    {pdfError ? (<div>Unfortunately, we are unable to display the PDF at this time...</div>)
+                              : pdfUrl && pdfUrl !== "" ?
                                         (<iframe
                                             className='mt-6'
                                             id="Generated_PDF"
@@ -197,54 +230,78 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
                                             height="450"
                                             src={pdfUrl}
                                             onError={() => setPdfError(true)}
-                                            style={{ border: 'none' }} /> )
+                                            style={{ border: 'none' }} />)
                                         : <div>Loading...</div>}
-                             
                 </div>);
                 break;
-        case 'binary/octet-stream': 
+      }
+      case 'binary/octet-stream':
             setFileContent(
             <div>
                 <DownloadFileButton
-                  fileName={fileName}
-                  presigned_url={presigned_url}>
+                  fileName={downloadFileName}
+                  presigned_url={presigned_url}
+                  onClickOverride={() => triggerDownload(downloadKey, downloadFileName)}>
                     <IconDownload size={24}/>
                 </DownloadFileButton>
                 Please download to view the file contents
             </div>
             );
             break;
-        case 'image/png':
-            let downloadPresignedUrl = presigned_url;
-            // We need to get the high quality version
-            if (isLowRes) {
-                if (isUrlExpired(file_info.values.presigned_url)) {
-                    const urlResponse = await getNewPresignedUrl({'key': file_info.values.file_key, "fileName": fileName});
-                    if (urlResponse) {
-                        file_info.values.presigned_url = urlResponse;
-                        downloadPresignedUrl = urlResponse;
-                    }  
-                }        
-            }
-
+      case 'image/png':
             setFileContent(
                 <div>
                 <DownloadFileButton
-                fileName={fileName}
-                presigned_url={presigned_url}>
+                fileName={downloadFileName}
+                presigned_url={presigned_url}
+                onClickOverride={() => triggerDownload(downloadKey, downloadFileName)}>
                   <IconDownload size={24}/>
                 </DownloadFileButton>
-                <img 
-                    src={presigned_url} 
-                    alt={fileName} 
-                    loading="lazy" 
-                    style={{ maxWidth: '100%', height: 'auto', display: 'block'}} 
+                <img
+                    src={presigned_url}
+                    alt={fileName}
+                    loading="lazy"
+                    style={{ maxWidth: '100%', height: 'auto', display: 'block'}}
                     onError={(e) => {
-                        // Display error text or handle the error as desired
                         e.currentTarget.alt = 'Unfortunately, we are unable to display the image at this time...';
-                        e.currentTarget.src = ''; // Remove the broken image src or replace with a placeholder image
+                        e.currentTarget.src = '';
                     }}
                 />
+            </div>
+            );
+            break;
+      case 'image/jpeg':
+            setFileContent(
+                <div>
+                <DownloadFileButton
+                fileName={downloadFileName}
+                presigned_url={presigned_url}
+                onClickOverride={() => triggerDownload(downloadKey, downloadFileName)}>
+                  <IconDownload size={24}/>
+                </DownloadFileButton>
+                <img
+                    src={presigned_url}
+                    alt={fileName}
+                    loading="lazy"
+                    style={{ maxWidth: '100%', height: 'auto', display: 'block'}}
+                    onError={(e) => {
+                        e.currentTarget.alt = 'Unfortunately, we are unable to display the image at this time...';
+                        e.currentTarget.src = '';
+                    }}
+                />
+            </div>
+            );
+            break;
+      case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+            setFileContent(
+            <div>
+                <DownloadFileButton
+                  fileName={downloadFileName}
+                  presigned_url={presigned_url}
+                  onClickOverride={() => triggerDownload(downloadKey, downloadFileName)}>
+                    <IconDownload size={24}/>
+                </DownloadFileButton>
+                Please download to view the file contents
             </div>
             );
             break;

@@ -23,8 +23,14 @@ interface Props {
 const ChatCodeInterpreterFileBlock: React.FC<Props> = ({ message, messageIsStreaming }) => {
 
     const error = message.data?.state?.codeInterpreter?.error;
-    const files = message.data?.state?.codeInterpreter?.content ?? [];
     const sessionRenewed = message.data?.state?.codeInterpreter?.sessionRenewed === true;
+
+    // Read files from two sources:
+    // 1. message.data.state.codeInterpreter.content — set during the current streaming session
+    // 2. message.codeInterpreterMessageData.content  — persisted after streaming, survives page reload
+    const streamingFiles: FileInfo[] = message.data?.state?.codeInterpreter?.content ?? [];
+    const persistedFiles: FileInfo[] = message.codeInterpreterMessageData?.content ?? [];
+    const files: FileInfo[] = streamingFiles.length > 0 ? streamingFiles : persistedFiles;
 
     if (messageIsStreaming || (files.length === 0 && !error && !sessionRenewed)) {
         return <></>
