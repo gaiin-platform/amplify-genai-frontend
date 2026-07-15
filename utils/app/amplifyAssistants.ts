@@ -103,7 +103,7 @@ export const amplifyAssistants = {
                 /assistant/create - POST: Create or update a Amplify assistant\n            
                 /assistant/list - GET: Retrieve a list of all Amplify assistants\n           
                 /assistant/share - POST: Share an Amplify assistant with other Amplify users\n            
-                /assistant/delete - POST: Delete an Amplify assistant\n\n            
+                /assistant/delete - POST: Delete an Amplify assistant\n\n
                 /assistant/files/download/codeinterpreter - POST: Get presigned urls to download the Code Interpreter-generated files\n
                 /assistant/agentcore/session/delete - DELETE: Delete an AgentCore code interpreter session, ending your existing conversation with code interpreter\n
                 /assistant/chat/codeinterpreter - POST: Establishes a conversation with Code Interpreter powered by Amazon Bedrock AgentCore (not AMPLIFY), returning a unique session id that contains your ongoing conversation. Subsequent API calls will only need new messages.\n\n
