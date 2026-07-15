@@ -30,6 +30,10 @@ interface SectionItem {
     label: string;
     icon: React.ReactNode;
     group: SectionGroup;
+    // Only shown to notebook admins — Transformations/Settings/Advanced edit
+    // shared, global backend records (not per-user data), so a non-admin
+    // editing them would change behavior for every user of the feature.
+    adminOnly?: boolean;
 }
 
 // Mirrors the reference AppSidebar's navigation groups. "Models" is
@@ -45,9 +49,10 @@ const SECTIONS: SectionItem[] = [
         label: 'Transformations',
         icon: <LucideShuffle size={16} />,
         group: 'Manage',
+        adminOnly: true,
     },
-    { id: 'settings', label: 'Settings', icon: <LucideSettings size={16} />, group: 'Manage' },
-    { id: 'advanced', label: 'Advanced', icon: <LucideWrench size={16} />, group: 'Manage' },
+    { id: 'settings', label: 'Settings', icon: <LucideSettings size={16} />, group: 'Manage', adminOnly: true },
+    { id: 'advanced', label: 'Advanced', icon: <LucideWrench size={16} />, group: 'Manage', adminOnly: true },
 ];
 
 const GROUP_ORDER: SectionGroup[] = ['Collect', 'Process', 'Create', 'Manage'];
@@ -126,6 +131,10 @@ interface NotebookSidebarProps {
     onBack: () => void;
     collapsed: boolean;
     onToggleCollapse: () => void;
+    // Transformations/Settings/Advanced edit shared, global backend records —
+    // not per-user data — so they're hidden unless the viewer is an admin
+    // (gated by the `adminInterface` feature flag upstream).
+    isAdmin: boolean;
 }
 
 // Sidebar mirroring the reference AppSidebar: h-16 logo header with collapse
@@ -141,7 +150,9 @@ export const NotebookSidebar: React.FC<NotebookSidebarProps> = ({
     onBack,
     collapsed,
     onToggleCollapse,
+    isAdmin,
 }) => {
+    const visibleSections = SECTIONS.filter((s) => !s.adminOnly || isAdmin);
     const navItem = (item: SectionItem) => {
         const active = item.id === section;
         return (
@@ -226,7 +237,7 @@ export const NotebookSidebar: React.FC<NotebookSidebarProps> = ({
                 </div>
 
                 {GROUP_ORDER.map((group, index) => {
-                    const items = SECTIONS.filter((s) => s.group === group);
+                    const items = visibleSections.filter((s) => s.group === group);
                     if (items.length === 0) return null;
                     return (
                         <div key={group}>
