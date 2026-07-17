@@ -1443,7 +1443,7 @@ const TemplatesTab = ({
     );
 };
 
-export const PodcastsPage = () => {
+export const PodcastsPage = ({ isAdmin = false }: { isAdmin?: boolean }) => {
     const [tab, setTab] = useState<Tab>('episodes');
     const [episodes, setEpisodes] = useState<PodcastEpisode[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
@@ -1669,21 +1669,23 @@ export const PodcastsPage = () => {
                 </div>
             )}
 
-            <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Choose a view
-                </p>
-                <div className="flex w-full max-w-md gap-1 rounded-xl border border-gray-200 bg-gray-100/80 p-1 shadow-sm dark:border-neutral-700 dark:bg-neutral-800/80">
-                    {tabButton('episodes', <LucideMic size={16} />, 'Episodes')}
-                    {tabButton(
-                        'templates',
-                        <LucideLayoutTemplate size={16} />,
-                        'Profiles',
-                    )}
+            {isAdmin && (
+                <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        Choose a view
+                    </p>
+                    <div className="flex w-full max-w-md gap-1 rounded-xl border border-gray-200 bg-gray-100/80 p-1 shadow-sm dark:border-neutral-700 dark:bg-neutral-800/80">
+                        {tabButton('episodes', <LucideMic size={16} />, 'Episodes')}
+                        {tabButton(
+                            'templates',
+                            <LucideLayoutTemplate size={16} />,
+                            'Profiles',
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
 
-            {tab === 'episodes' ? (
+            {tab === 'episodes' || !isAdmin ? (
                 <EpisodesTab
                     episodes={visibleEpisodes}
                     loading={loading}

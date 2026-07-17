@@ -469,7 +469,7 @@ export const NotebookApp = () => {
                 ) : section === 'ask' ? (
                     <AskSearchPage onOpenSource={handleOpenSourceFromGlobalList} />
                 ) : section === 'podcasts' ? (
-                    <PodcastsPage key={podcastsRefreshKey} />
+                    <PodcastsPage key={podcastsRefreshKey} isAdmin={isAdmin} />
                 ) : section === 'transformations' && isAdmin ? (
                     <TransformationsPage />
                 ) : section === 'settings' && isAdmin ? (
