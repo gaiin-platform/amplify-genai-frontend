@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import HomeContext from '@/pages/api/home/home.context';
 import { LucideAlertCircle, LucideChevronDown, LucideLoader2 } from './LucideIcons';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import {
@@ -18,7 +19,7 @@ import {
     listSources,
 } from '@/services/notebookService';
 import { formatModelName } from './modelDisplay';
-import { formatTokenLimit, getContextUsageStatus, getContextWindow } from './modelContext';
+import { formatTokenLimit, getContextUsageStatus, resolveContextWindow } from './modelContext';
 
 type SourceMode = 'off' | 'insights' | 'full';
 type NoteMode = 'off' | 'full';
@@ -57,6 +58,11 @@ const outlineBadgeClass =
 // multi-notebook content accordion on the left (per-source Summary/Full mode)
 // and episode settings + Generate/Cancel on the right.
 export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }: Props) => {
+    // Amplify's admin model table — the source of truth for context windows.
+    const {
+        state: { availableModels },
+    } = useContext(HomeContext);
+
     const [notebooks, setNotebooks] = useState<NotebookSummary[]>([]);
     const [profiles, setProfiles] = useState<EpisodeProfile[]>([]);
     const [languageModels, setLanguageModels] = useState<NotebookModel[]>([]);
@@ -297,14 +303,13 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
     // (outline_llm/transcript_llm); legacy ones carry the model name directly.
     const contextLimit = useMemo(() => {
         if (!selectedProfile) return null;
-        // Backend-provided context_window wins; the local pattern catalog is a
-        // fallback for older backends and legacy name-only profile fields.
+        // Windows come from Amplify's admin model table (availableModels),
+        // with the local pattern catalog as fallback — see resolveContextWindow.
         const resolve = (llmId?: string | null, legacyName?: string | null) => {
-            const record = languageModels.find((m) => m.id === llmId);
-            const name = record?.name ?? legacyName;
+            const name = languageModels.find((m) => m.id === llmId)?.name ?? legacyName;
             if (!name) return null;
-            const window = record?.context_window ?? getContextWindow(name);
-            return window !== null && window !== undefined ? { window, modelName: name } : null;
+            const window = resolveContextWindow(name, availableModels);
+            return window !== null ? { window, modelName: name } : null;
         };
         const candidates = [
             resolve(selectedProfile.outline_llm, selectedProfile.outline_model),
@@ -315,7 +320,7 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
             if (c && (!limit || c.window < limit.window)) limit = c;
         }
         return limit;
-    }, [selectedProfile, languageModels]);
+    }, [selectedProfile, languageModels, availableModels]);
 
     const contextUsage =
         contextLimit && tokenCount > 0

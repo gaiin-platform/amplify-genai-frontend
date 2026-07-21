@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import HomeContext from '@/pages/api/home/home.context';
 import {
     LucideBot,
     LucideCheck,
@@ -29,7 +30,7 @@ import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import { ChatModelSelect } from './ChatModelSelect';
 import { ContextIndicator } from './ContextIndicator';
 import { formatModelName } from './modelDisplay';
-import { getContextWindow } from './modelContext';
+import { resolveContextWindow } from './modelContext';
 import { SessionManagerModal } from './SessionManagerModal';
 
 interface Props {
@@ -184,6 +185,10 @@ export const ChatPanel = ({
     // Record of the model that will answer (override or default), reported by
     // ChatModelSelect — drives the context-limit readout in the indicator.
     const [activeModel, setActiveModel] = useState<NotebookModel | null>(null);
+    // Amplify's admin model table — the source of truth for context windows.
+    const {
+        state: { availableModels },
+    } = useContext(HomeContext);
     // IME composition guard — don't submit on the Enter that confirms a
     // composition (matches the main chat input).
     const [isTyping, setIsTyping] = useState<boolean>(false);
@@ -474,9 +479,7 @@ export const ChatPanel = ({
                 tokenCount={tokenCount}
                 charCount={charCount}
                 contextWindow={
-                    activeModel
-                        ? activeModel.context_window ?? getContextWindow(activeModel.name)
-                        : null
+                    activeModel ? resolveContextWindow(activeModel.name, availableModels) : null
                 }
                 modelLabel={activeModel ? formatModelName(activeModel.name) : null}
             />

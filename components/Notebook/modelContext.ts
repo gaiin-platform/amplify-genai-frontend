@@ -1,15 +1,17 @@
-// Fallback context-window catalog for registered model names, mirroring the
-// name-pattern approach of modelDisplay.ts: registered names are usually raw
-// Bedrock model IDs ("us.anthropic.claude-sonnet-4-6-20250514-v1:0") but can
-// also be plain names from openai-compatible providers ("gemma-3-27b-it").
+import { Models } from '@/types/model';
+
+// Context-window resolution for notebook model names.
 //
-// The authoritative source is the backend's ModelResponse.context_window
-// (open_notebook/ai/context_windows.py in the fork) — prefer that when
-// present. This local table covers older backends that don't send the field
-// and legacy profile entries that carry only a model name. It's deliberately
-// limited to families this deployment can register (Bedrock + OpenAI +
-// openai-compatible gemma); unknown models return null and the UI keeps its
-// plain "N tokens" display.
+// The authoritative source is Amplify's own admin model table — every model
+// record there carries inputContextWindow, and the map is already in
+// HomeContext as availableModels. Notebook model names don't always match
+// Amplify ids byte-for-byte (notebook registers "us.anthropic.claude-…" style
+// Bedrock IDs; Amplify ids may differ in region prefix / version suffix), so
+// both sides are normalized before matching.
+//
+// The pattern table below is only a fallback for notebook models absent from
+// Amplify's table (e.g. TTS-era leftovers or openai-compatible extras).
+// Unknown models return null and the UI keeps its plain "N tokens" display.
 //
 // First matching pattern wins — keep specific variants above their family
 // fallbacks (e.g. "nova-premier" before "nova-").
@@ -42,6 +44,36 @@ export const getContextWindow = (modelName: string): number | null => {
         if (pattern.test(modelName)) return window;
     }
     return null;
+};
+
+// Canonical key for cross-catalog model-id comparison:
+// "us.anthropic.claude-sonnet-4-6-20250514-v1:0" → "claude-sonnet-4-6".
+// Mirrors the stripping steps of modelDisplay.formatModelName.
+const normalizeModelKey = (id: string): string =>
+    id
+        .trim()
+        .toLowerCase()
+        .replace(/^(us|eu|apac|global)\./, '')
+        .replace(/^[a-z0-9]+\./, '')
+        .replace(/-v\d+(:\d+)?$/, '')
+        .replace(/-\d{8}$/, '');
+
+// Preferred entry point: look the model up in Amplify's admin model table
+// (HomeContext availableModels — inputContextWindow is maintained there per
+// deployment), falling back to the local pattern catalog above.
+export const resolveContextWindow = (
+    modelName: string,
+    availableModels?: Models,
+): number | null => {
+    if (availableModels) {
+        const key = normalizeModelKey(modelName);
+        for (const model of Object.values(availableModels)) {
+            if (normalizeModelKey(model.id) === key) {
+                return model.inputContextWindow > 0 ? model.inputContextWindow : null;
+            }
+        }
+    }
+    return getContextWindow(modelName);
 };
 
 export type ContextUsageStatus = 'ok' | 'warn' | 'over';
