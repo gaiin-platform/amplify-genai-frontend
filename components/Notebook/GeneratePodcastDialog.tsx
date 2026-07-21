@@ -1,20 +1,25 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import HomeContext from '@/pages/api/home/home.context';
 import { LucideAlertCircle, LucideChevronDown, LucideLoader2 } from './LucideIcons';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import {
     ContextSelections,
     EpisodeProfile,
     Note,
+    NotebookModel,
     NotebookSummary,
     PodcastGenerationResponse,
     SourceListItem,
     buildChatContext,
     generatePodcast,
     listEpisodeProfiles,
+    listModels,
     listNotebooks,
     listNotes,
     listSources,
 } from '@/services/notebookService';
+import { formatModelName } from './modelDisplay';
+import { formatTokenLimit, getContextUsageStatus, resolveContextWindow } from './modelContext';
 
 type SourceMode = 'off' | 'insights' | 'full';
 type NoteMode = 'off' | 'full';
@@ -27,6 +32,9 @@ interface NotebookSelection {
 interface Props {
     onClose: () => void;
     onSubmitted: (response: PodcastGenerationResponse) => void;
+    // Profile management lives in admin-gated sections — non-admins shouldn't
+    // be told to create profiles they can't reach.
+    isAdmin?: boolean;
 }
 
 // Helper function to format large numbers with K/M suffixes (reference).
@@ -49,9 +57,15 @@ const outlineBadgeClass =
 // Mirrors the reference GeneratePodcastDialog: a wide two-column layout with a
 // multi-notebook content accordion on the left (per-source Summary/Full mode)
 // and episode settings + Generate/Cancel on the right.
-export const GeneratePodcastDialog = ({ onClose, onSubmitted }: Props) => {
+export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }: Props) => {
+    // Amplify's admin model table — the source of truth for context windows.
+    const {
+        state: { availableModels },
+    } = useContext(HomeContext);
+
     const [notebooks, setNotebooks] = useState<NotebookSummary[]>([]);
     const [profiles, setProfiles] = useState<EpisodeProfile[]>([]);
+    const [languageModels, setLanguageModels] = useState<NotebookModel[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
 
     const [expandedNotebooks, setExpandedNotebooks] = useState<Set<string>>(new Set());
@@ -85,13 +99,15 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted }: Props) => {
         let cancelled = false;
         (async () => {
             setLoading(true);
-            const [nbs, eps] = await Promise.all([
+            const [nbs, eps, mdls] = await Promise.all([
                 listNotebooks({ order_by: 'updated desc' }),
                 listEpisodeProfiles(),
+                listModels('language'),
             ]);
             if (cancelled) return;
             setNotebooks(nbs.filter((nb) => !nb.archived));
             setProfiles(eps);
+            setLanguageModels(mdls);
             setLoading(false);
         })();
         return () => {
@@ -281,6 +297,36 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted }: Props) => {
         [episodeProfileId, profiles],
     );
 
+    // Context budget for the selected episode profile: the smaller context
+    // window between its outline and transcript models (both see the full
+    // selected content). New-style profiles reference model record IDs
+    // (outline_llm/transcript_llm); legacy ones carry the model name directly.
+    const contextLimit = useMemo(() => {
+        if (!selectedProfile) return null;
+        // Windows come from Amplify's admin model table (availableModels),
+        // with the local pattern catalog as fallback — see resolveContextWindow.
+        const resolve = (llmId?: string | null, legacyName?: string | null) => {
+            const name = languageModels.find((m) => m.id === llmId)?.name ?? legacyName;
+            if (!name) return null;
+            const window = resolveContextWindow(name, availableModels);
+            return window !== null ? { window, modelName: name } : null;
+        };
+        const candidates = [
+            resolve(selectedProfile.outline_llm, selectedProfile.outline_model),
+            resolve(selectedProfile.transcript_llm, selectedProfile.transcript_model),
+        ];
+        let limit: { window: number; modelName: string } | null = null;
+        for (const c of candidates) {
+            if (c && (!limit || c.window < limit.window)) limit = c;
+        }
+        return limit;
+    }, [selectedProfile, languageModels, availableModels]);
+
+    const contextUsage =
+        contextLimit && tokenCount > 0
+            ? getContextUsageStatus(tokenCount, contextLimit.window)
+            : null;
+
     const handleSubmit = async () => {
         if (submitting) return;
         if (!selectedProfile) {
@@ -361,10 +407,22 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted }: Props) => {
                                         {totalSelected} items selected
                                     </span>
                                     {(tokenCount > 0 || charCount > 0) && (
-                                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        <span
+                                            className={`text-xs ${
+                                                contextUsage === 'over'
+                                                    ? 'text-red-600 dark:text-red-400'
+                                                    : contextUsage === 'warn'
+                                                      ? 'text-amber-600 dark:text-amber-400'
+                                                      : 'text-gray-500 dark:text-gray-400'
+                                            }`}
+                                        >
                                             {tokenCount > 0 &&
-                                                `${formatNumber(tokenCount)} tokens`}
-                                            {tokenCount > 0 && charCount > 0 && ' / '}
+                                                `${formatNumber(tokenCount)}${
+                                                    contextLimit
+                                                        ? ` / ${formatTokenLimit(contextLimit.window)}`
+                                                        : ''
+                                                } tokens`}
+                                            {tokenCount > 0 && charCount > 0 && ' · '}
                                             {charCount > 0 && `${formatNumber(charCount)} chars`}
                                         </span>
                                     )}
@@ -674,8 +732,9 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted }: Props) => {
                                     </div>
                                 ) : profiles.length === 0 ? (
                                     <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500 dark:border-neutral-600 dark:bg-neutral-800/40 dark:text-gray-400">
-                                        No episode profiles found. Create an episode profile
-                                        before generating a podcast.
+                                        {isAdmin
+                                            ? 'No episode profiles found. Create an episode profile before generating a podcast.'
+                                            : 'Podcast generation is not set up yet. Please contact an administrator.'}
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
@@ -702,7 +761,7 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted }: Props) => {
                                                     </option>
                                                 ))}
                                             </select>
-                                            {selectedProfile && (
+                                            {selectedProfile && isAdmin && (
                                                 <p className="text-xs text-gray-500 dark:text-gray-400">
                                                     Uses speaker profile{' '}
                                                     <strong>
@@ -745,6 +804,26 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted }: Props) => {
                                     </div>
                                 )}
                             </div>
+
+                            {contextUsage && contextUsage !== 'ok' && contextLimit && (
+                                <div
+                                    className={`flex items-start gap-2 rounded-lg border p-3 text-sm ${
+                                        contextUsage === 'over'
+                                            ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300'
+                                            : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300'
+                                    }`}
+                                >
+                                    <LucideAlertCircle
+                                        size={16}
+                                        className="mt-0.5 flex-none"
+                                    />
+                                    <span>
+                                        {contextUsage === 'over'
+                                            ? `The selected content (~${formatNumber(tokenCount)} tokens) likely exceeds the ~${formatTokenLimit(contextLimit.window)}-token context limit of ${formatModelName(contextLimit.modelName)}, used by this episode profile — generation will fail. Switch sources to Summary mode or deselect content.`
+                                            : `The selected content (~${formatNumber(tokenCount)} tokens) is close to the ~${formatTokenLimit(contextLimit.window)}-token context limit of ${formatModelName(contextLimit.modelName)}, used by this episode profile. Consider switching sources to Summary mode.`}
+                                    </span>
+                                </div>
+                            )}
 
                             {error && (
                                 <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">

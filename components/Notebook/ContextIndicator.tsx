@@ -1,4 +1,5 @@
 import { IconBulb, IconFileText, IconNotes } from '@tabler/icons-react';
+import { formatTokenLimit, getContextUsageStatus } from './modelContext';
 
 interface Props {
     sourcesInsights: number;
@@ -6,6 +7,12 @@ interface Props {
     notesCount: number;
     tokenCount?: number;
     charCount?: number;
+    // Context window (tokens) of the model currently answering, when known —
+    // turns the plain token count into "used / limit" with a warning once the
+    // selection approaches the model's capacity.
+    contextWindow?: number | null;
+    // Human label for that model, used in the warning message.
+    modelLabel?: string | null;
 }
 
 const formatNumber = (num: number): string => {
@@ -22,8 +29,21 @@ export const ContextIndicator = ({
     notesCount,
     tokenCount,
     charCount,
+    contextWindow,
+    modelLabel,
 }: Props) => {
     const hasContext = sourcesInsights + sourcesFull > 0 || notesCount > 0;
+
+    const usage =
+        contextWindow && tokenCount !== undefined && tokenCount > 0
+            ? getContextUsageStatus(tokenCount, contextWindow)
+            : null;
+    const usageColor =
+        usage === 'over'
+            ? 'text-red-600 dark:text-red-400'
+            : usage === 'warn'
+              ? 'text-amber-600 dark:text-amber-400'
+              : 'text-gray-500 dark:text-gray-400';
 
     if (!hasContext) {
         return (
@@ -34,7 +54,8 @@ export const ContextIndicator = ({
     }
 
     return (
-        <div className="flex flex-none flex-wrap items-center justify-between gap-2 border-t border-gray-100 bg-gray-50/60 px-6 py-2 dark:border-neutral-700/60 dark:bg-neutral-800/40">
+        <div className="flex-none border-t border-gray-100 bg-gray-50/60 px-6 py-2 dark:border-neutral-700/60 dark:bg-neutral-800/40">
+            <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Context:</span>
 
@@ -76,14 +97,28 @@ export const ContextIndicator = ({
             </div>
 
             {(tokenCount !== undefined || charCount !== undefined) && (
-                <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                    {tokenCount !== undefined && tokenCount > 0 && <span>{formatNumber(tokenCount)} tokens</span>}
+                <div className={`flex items-center gap-1.5 text-xs ${usageColor}`}>
+                    {tokenCount !== undefined && tokenCount > 0 && (
+                        <span>
+                            {formatNumber(tokenCount)}
+                            {contextWindow ? ` / ${formatTokenLimit(contextWindow)}` : ''} tokens
+                        </span>
+                    )}
                     {tokenCount !== undefined &&
                         charCount !== undefined &&
                         tokenCount > 0 &&
-                        charCount > 0 && <span>/</span>}
+                        charCount > 0 && <span>·</span>}
                     {charCount !== undefined && charCount > 0 && <span>{formatNumber(charCount)} chars</span>}
                 </div>
+            )}
+            </div>
+
+            {usage && usage !== 'ok' && contextWindow && (
+                <p className={`mt-1 text-[11px] ${usageColor}`}>
+                    {usage === 'over'
+                        ? `Selected content likely exceeds the ~${formatTokenLimit(contextWindow)}-token context limit${modelLabel ? ` of ${modelLabel}` : ''} — replies will fail. Switch sources to Insights or deselect some content.`
+                        : `Approaching the ~${formatTokenLimit(contextWindow)}-token context limit${modelLabel ? ` of ${modelLabel}` : ''}. Long chats may fail; consider switching sources to Insights.`}
+                </p>
             )}
         </div>
     );
