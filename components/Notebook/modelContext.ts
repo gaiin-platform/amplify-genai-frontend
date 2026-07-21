@@ -1,11 +1,15 @@
-// Context-window catalog for registered model names, mirroring the
+// Fallback context-window catalog for registered model names, mirroring the
 // name-pattern approach of modelDisplay.ts: registered names are usually raw
 // Bedrock model IDs ("us.anthropic.claude-sonnet-4-6-20250514-v1:0") but can
 // also be plain names from openai-compatible providers ("gemma-3-27b-it").
 //
-// The backend has no per-model capability metadata, so this is the single
-// place that knows how much context a model accepts. Unknown models return
-// null and the UI simply keeps its current "N tokens" display.
+// The authoritative source is the backend's ModelResponse.context_window
+// (open_notebook/ai/context_windows.py in the fork) — prefer that when
+// present. This local table covers older backends that don't send the field
+// and legacy profile entries that carry only a model name. It's deliberately
+// limited to families this deployment can register (Bedrock + OpenAI +
+// openai-compatible gemma); unknown models return null and the UI keeps its
+// plain "N tokens" display.
 //
 // First matching pattern wins — keep specific variants above their family
 // fallbacks (e.g. "nova-premier" before "nova-").
@@ -30,12 +34,7 @@ const CONTEXT_WINDOWS: [RegExp, number][] = [
     [/gpt-5/i, 400_000],
     [/gpt-4o|gpt-4-turbo/i, 128_000],
     [/gpt-3\.5/i, 16_000],
-    [/gemini-1\.5-pro/i, 2_000_000],
-    [/gemini/i, 1_000_000],
     [/gemma-?3/i, 128_000],
-    [/gemma/i, 8_000],
-    [/grok-4/i, 256_000],
-    [/grok/i, 131_000],
 ];
 
 export const getContextWindow = (modelName: string): number | null => {

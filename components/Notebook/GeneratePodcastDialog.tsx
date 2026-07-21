@@ -297,19 +297,22 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
     // (outline_llm/transcript_llm); legacy ones carry the model name directly.
     const contextLimit = useMemo(() => {
         if (!selectedProfile) return null;
-        const resolveName = (llmId?: string | null, legacyName?: string | null) =>
-            languageModels.find((m) => m.id === llmId)?.name ?? legacyName ?? null;
+        // Backend-provided context_window wins; the local pattern catalog is a
+        // fallback for older backends and legacy name-only profile fields.
+        const resolve = (llmId?: string | null, legacyName?: string | null) => {
+            const record = languageModels.find((m) => m.id === llmId);
+            const name = record?.name ?? legacyName;
+            if (!name) return null;
+            const window = record?.context_window ?? getContextWindow(name);
+            return window !== null && window !== undefined ? { window, modelName: name } : null;
+        };
         const candidates = [
-            resolveName(selectedProfile.outline_llm, selectedProfile.outline_model),
-            resolveName(selectedProfile.transcript_llm, selectedProfile.transcript_model),
+            resolve(selectedProfile.outline_llm, selectedProfile.outline_model),
+            resolve(selectedProfile.transcript_llm, selectedProfile.transcript_model),
         ];
         let limit: { window: number; modelName: string } | null = null;
-        for (const name of candidates) {
-            if (!name) continue;
-            const window = getContextWindow(name);
-            if (window !== null && (!limit || window < limit.window)) {
-                limit = { window, modelName: name };
-            }
+        for (const c of candidates) {
+            if (c && (!limit || c.window < limit.window)) limit = c;
         }
         return limit;
     }, [selectedProfile, languageModels]);

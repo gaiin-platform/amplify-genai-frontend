@@ -1083,6 +1083,10 @@ export interface NotebookModel {
     credential?: string | null;
     created: string;
     updated: string;
+    // Max tokens the model accepts, from the backend's context-window catalog.
+    // Missing/null on older backends or unknown models — callers fall back to
+    // the local catalog in components/Notebook/modelContext.ts.
+    context_window?: number | null;
 }
 
 export interface DiscoveredNotebookModel {

@@ -14,6 +14,7 @@ import {
     ChatSession,
     ContextSelections,
     Note,
+    NotebookModel,
     SourceListItem,
     buildChatContext,
     createChatSession,
@@ -180,9 +181,9 @@ export const ChatPanel = ({
     const [showSessions, setShowSessions] = useState<boolean>(false);
     // Model used to answer; '' = deployment default (no override sent).
     const [modelOverride, setModelOverride] = useState<string>('');
-    // Raw name of the model that will answer (override or default), reported
-    // by ChatModelSelect — drives the context-limit readout in the indicator.
-    const [activeModelName, setActiveModelName] = useState<string | null>(null);
+    // Record of the model that will answer (override or default), reported by
+    // ChatModelSelect — drives the context-limit readout in the indicator.
+    const [activeModel, setActiveModel] = useState<NotebookModel | null>(null);
     // IME composition guard — don't submit on the Enter that confirms a
     // composition (matches the main chat input).
     const [isTyping, setIsTyping] = useState<boolean>(false);
@@ -472,8 +473,12 @@ export const ChatPanel = ({
                 notesCount={contextStats.notesCount}
                 tokenCount={tokenCount}
                 charCount={charCount}
-                contextWindow={activeModelName ? getContextWindow(activeModelName) : null}
-                modelLabel={activeModelName ? formatModelName(activeModelName) : null}
+                contextWindow={
+                    activeModel
+                        ? activeModel.context_window ?? getContextWindow(activeModel.name)
+                        : null
+                }
+                modelLabel={activeModel ? formatModelName(activeModel.name) : null}
             />
 
             {/* Input Area */}
@@ -484,7 +489,7 @@ export const ChatPanel = ({
                         value={modelOverride}
                         onChange={setModelOverride}
                         disabled={isSending}
-                        onResolvedModel={setActiveModelName}
+                        onResolvedModel={setActiveModel}
                     />
                 </div>
                 <div className="flex min-w-0 items-end gap-2">
