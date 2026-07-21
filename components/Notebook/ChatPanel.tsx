@@ -27,6 +27,8 @@ import {
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import { ChatModelSelect } from './ChatModelSelect';
 import { ContextIndicator } from './ContextIndicator';
+import { formatModelName } from './modelDisplay';
+import { getContextWindow } from './modelContext';
 import { SessionManagerModal } from './SessionManagerModal';
 
 interface Props {
@@ -178,6 +180,9 @@ export const ChatPanel = ({
     const [showSessions, setShowSessions] = useState<boolean>(false);
     // Model used to answer; '' = deployment default (no override sent).
     const [modelOverride, setModelOverride] = useState<string>('');
+    // Raw name of the model that will answer (override or default), reported
+    // by ChatModelSelect — drives the context-limit readout in the indicator.
+    const [activeModelName, setActiveModelName] = useState<string | null>(null);
     // IME composition guard — don't submit on the Enter that confirms a
     // composition (matches the main chat input).
     const [isTyping, setIsTyping] = useState<boolean>(false);
@@ -467,6 +472,8 @@ export const ChatPanel = ({
                 notesCount={contextStats.notesCount}
                 tokenCount={tokenCount}
                 charCount={charCount}
+                contextWindow={activeModelName ? getContextWindow(activeModelName) : null}
+                modelLabel={activeModelName ? formatModelName(activeModelName) : null}
             />
 
             {/* Input Area */}
@@ -477,6 +484,7 @@ export const ChatPanel = ({
                         value={modelOverride}
                         onChange={setModelOverride}
                         disabled={isSending}
+                        onResolvedModel={setActiveModelName}
                     />
                 </div>
                 <div className="flex min-w-0 items-end gap-2">

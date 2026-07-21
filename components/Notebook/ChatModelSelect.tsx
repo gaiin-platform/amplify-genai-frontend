@@ -10,6 +10,11 @@ interface Props {
     value: string;
     onChange: (modelId: string) => void;
     disabled?: boolean;
+    // Reports the raw registered name of the model that will actually answer
+    // (the override, or the deployment default when value is ''). Null until
+    // models load or when the id can't be resolved. Lets the parent derive
+    // model-dependent info (e.g. context window) without re-fetching models.
+    onResolvedModel?: (modelName: string | null) => void;
 }
 
 // Mirrors lucide-react's Settings2 icon (2 line paths + 2 circles) used by the
@@ -39,7 +44,7 @@ const IconModelSliders = ({ size = 14 }: { size?: number }) => (
 // "Default" entry that resolves to the configured default chat model. Clicking
 // the trigger opens a dialog (matching upstream's Settings2 button + Dialog)
 // instead of a native <select>, so the description text has room to show.
-export const ChatModelSelect = ({ value, onChange, disabled }: Props) => {
+export const ChatModelSelect = ({ value, onChange, disabled, onResolvedModel }: Props) => {
     const {
         state: { lightMode },
     } = useContext(HomeContext);
@@ -68,6 +73,16 @@ export const ChatModelSelect = ({ value, onChange, disabled }: Props) => {
         const m = models.find((mm) => mm.id === defaultId);
         return m ? formatModelName(m.name) : null;
     }, [models, defaultId]);
+
+    useEffect(() => {
+        if (!onResolvedModel) return;
+        const effectiveId = value || defaultId;
+        const m = models.find((mm) => mm.id === effectiveId);
+        onResolvedModel(m ? m.name : null);
+        // onResolvedModel is intentionally omitted: parents pass inline
+        // functions, and re-firing on every parent render would loop.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [value, defaultId, models]);
 
     const currentModelName = useMemo(() => {
         if (value && value !== defaultId) {

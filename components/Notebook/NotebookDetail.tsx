@@ -414,7 +414,10 @@ const NotebookHeader = ({
     return (
         <div className="flex-none border-b border-gray-200 pb-6 dark:border-neutral-700">
             <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
+                {/* pr-12 keeps Archive/Delete clear of the floating UserMenu
+                    avatar (fixed top-4 right-4) — same as the notebooks list
+                    header. */}
+                <div className="flex items-center justify-between pr-12">
                     <div className="flex flex-1 items-center gap-3">
                         <InlineEditText
                             value={notebook.name || ''}
