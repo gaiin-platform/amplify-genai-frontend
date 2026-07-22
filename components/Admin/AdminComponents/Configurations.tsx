@@ -925,7 +925,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                                                             <span className={`w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-white text-[9px] font-bold ${avatarColorClass(email)}`}>
                                                                                 {getInitials(email)}
                                                                             </span>
-                                                                            <span className="text-xs text-blue-800 dark:text-blue-200 truncate" title={email}>{email}</span>
+                                                                            <span className="text-xs text-blue-800 dark:text-blue-700 truncate" title={email}>{email}</span>
                                                                         </span>
                                                                     ))}
                                                                     {extra > 0 && (
@@ -940,7 +940,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                                                         className="ml-auto flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-700 transition-colors"
                                                                         onClick={() => { setManageMembersGroup(groupName); setMemberModalInput(''); }}
                                                                     >
-                                                                        <IconUsers size={13} />
+                                                                        <IconUsers size={13} className="text-blue-600 dark:text-blue-700"/>
                                                                         Manage
                                                                     </button>
                                                                 </>
