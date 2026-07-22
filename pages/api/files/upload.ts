@@ -17,18 +17,7 @@ const getPresignedUrl =
 
         const itemData = req.body;
 
-        // Check if file service should run locally (same logic as doRequestOp)
-        let apiUrl = (process.env.API_BASE_URL || "") + '/files/upload';
-        const localServices = process.env.NEXT_PUBLIC_LOCAL_SERVICES || '';
-        const serviceConfigs = localServices.split(',').map(s => s.trim());
-        for (const config of serviceConfigs) {
-            const [service, port, stage] = config.split(':');
-            if (service?.trim() === 'file' && port) {
-                apiUrl = `http://localhost:${port.trim()}/${(stage || 'dev').trim()}/files/upload`;
-                console.log('[UPLOAD] Routing to local file service:', apiUrl);
-                break;
-            }
-        }
+        const apiUrl = (process.env.API_BASE_URL || "") + '/files/upload';
 
         try {
 
