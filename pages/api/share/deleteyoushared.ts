@@ -1,19 +1,15 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import {getServerSession} from "next-auth/next";
-import {authOptions} from "@/pages/api/auth/[...nextauth]";
+import { getServerAccessToken } from "@/utils/server/accessToken";
 
 
 export const deleteItem =
     async (req: NextApiRequest, res: NextApiResponse) => {
 
-        const session = await getServerSession(req, res, authOptions);
+        const accessToken = await getServerAccessToken(req);
 
-        if (!session) {
-            // Unauthorized access, no session found
+        if (!accessToken) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
-
-        const { accessToken } = session;
 
         const apiUrl = process.env.API_BASE_URL + "/state/shared/delete"; 
 

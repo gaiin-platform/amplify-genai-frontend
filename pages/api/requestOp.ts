@@ -1,6 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import {getServerSession} from "next-auth/next";
-import {authOptions} from "@/pages/api/auth/[...nextauth]";
+import { getServerAccessToken } from "@/utils/server/accessToken";
 import { transformPayload } from "@/utils/app/data";
 import { lzwCompress } from "@/utils/app/lzwCompression";
 import { validateUrlForSSRF } from "@/utils/app/urlValidation";
@@ -53,10 +52,9 @@ const validateMCPPayloadUrl = (path: string, op: string, payload: any): string |
 const requestOp =
     async (req: NextApiRequest, res: NextApiResponse) => {
 
-        const session = await getServerSession(req, res, authOptions);
+        const accessToken = await getServerAccessToken(req);
 
-        if (!session) {
-            // Unauthorized access, no session found
+        if (!accessToken) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
@@ -74,9 +72,6 @@ const requestOp =
             console.warn(`Blocked unsafe MCP URL for path=${reqPath} op=${reqOp}: ${ssrfError}`);
             return res.status(400).json({ error: ssrfError });
         }
-
-        // @ts-ignore
-        const { accessToken } = session;
 
         let reqPayload: reqPayload = {
             method: method,
