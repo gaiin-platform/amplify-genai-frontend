@@ -203,6 +203,16 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
                 </div>);
                 break;
         case 'binary/octet-stream':
+        case 'text/x-python':
+        case 'text/plain':
+        case 'application/json':
+        case 'text/markdown':
+        case 'application/x-yaml':
+        case 'text/tab-separated-values':
+        case 'application/geo+json':
+        case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+        case 'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+        case 'application/octet-stream':
             setFileContent(
             <div>
                 <DownloadFileButton
@@ -214,6 +224,29 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
             </div>
             );
             break;
+        case 'text/html':
+            // Sandboxed with no `allow-scripts`/`allow-same-origin` so any script tags in
+            // sandbox-generated HTML cannot execute or access the parent page/app origin —
+            // this is user/LLM-generated content, not trusted first-party markup.
+            setFileContent(
+                <div className='mb-6'>
+                    <DownloadFileButton
+                    fileName={fileName}
+                    presigned_url={presigned_url}>
+                      <IconDownload size={24}/>
+                    </DownloadFileButton>
+                    <iframe
+                        className='mt-6'
+                        id="Generated_HTML"
+                        width="625"
+                        height="450"
+                        src={presigned_url}
+                        sandbox=""
+                        style={{ border: 'none' }} />
+                </div>);
+            break;
+        case 'image/gif':
+        case 'image/svg+xml':
         case 'image/png':
             let downloadPresignedUrl = presigned_url;
             // We need to get the high quality version

@@ -296,6 +296,7 @@ export function useSendService() {
 
                     let isArtifactsOn = featureFlags.artifacts && featureOptions.includeArtifacts &&
                         // we only consider whats in the plugins if we have the feature option for it on.
+                        (!pluginIds || (pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER))) &&
                         (!pluginIds || pluginIds.includes(PluginID.ARTIFACTS)) &&
                         // turn off artifacts for base prompt templates
                         !(selectedConversation?.promptTemplate && isBasePrompt(selectedConversation.promptTemplate.id));
