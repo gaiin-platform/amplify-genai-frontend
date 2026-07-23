@@ -1112,7 +1112,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
                                                 style={{ width: `${innderWindow.width * 0.75}px` }}>
                                                 You currently do not have any assistants in this group. </label>}
 
-                                            <div className="overflow-hidden">
+                                            <div className="overflow-y-hidden overflow-x-auto" style={{scrollbarWidth: 'thin'}}>
                                                 <div className="flex flex-row gap-1 flex-nowrap ml-2 pr-2 items-end">
                                                     {/* ── Regular Assistant Tabs ── */}
                                                     {selectedGroup.assistants.length > 0 && selectedGroup.assistants.map((ast: Prompt, index: number) => {
