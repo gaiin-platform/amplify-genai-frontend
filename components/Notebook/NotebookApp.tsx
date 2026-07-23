@@ -213,7 +213,12 @@ const NotebookRow = ({ notebook: nb, onOpen, ...actionProps }: NotebookItemProps
 );
 
 export const NotebookApp = () => {
-    const { dispatch } = useContext(HomeContext);
+    const { dispatch, state } = useContext(HomeContext);
+    // Transformations/Settings/Advanced edit shared, global backend records that
+    // apply to every user of the notebook feature — gate them behind the same
+    // admin feature flag used elsewhere in the app (e.g. the "Admin" menu) so a
+    // non-admin can't change defaults for everyone else.
+    const isAdmin = !!state.featureFlags?.adminInterface;
 
     const [notebooks, setNotebooks] = useState<NotebookSummary[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
@@ -409,6 +414,7 @@ export const NotebookApp = () => {
                 onBack={goBackToChat}
                 collapsed={sidebarCollapsed}
                 onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
+                isAdmin={isAdmin}
             />
             <div className="flex flex-col flex-1 min-w-0">
             {showAppBar && (
@@ -463,12 +469,12 @@ export const NotebookApp = () => {
                 ) : section === 'ask' ? (
                     <AskSearchPage onOpenSource={handleOpenSourceFromGlobalList} />
                 ) : section === 'podcasts' ? (
-                    <PodcastsPage key={podcastsRefreshKey} />
-                ) : section === 'transformations' ? (
+                    <PodcastsPage key={podcastsRefreshKey} isAdmin={isAdmin} />
+                ) : section === 'transformations' && isAdmin ? (
                     <TransformationsPage />
-                ) : section === 'settings' ? (
+                ) : section === 'settings' && isAdmin ? (
                     <SettingsPage />
-                ) : section === 'advanced' ? (
+                ) : section === 'advanced' && isAdmin ? (
                     <AdvancedPage />
                 ) : !isNotebooksSection ? (
                     <ComingSoonPanel section={section} />
