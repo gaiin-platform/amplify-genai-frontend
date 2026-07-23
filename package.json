@@ -66,6 +66,7 @@
     "read-excel-file": "^5.6.1",
     "rehype-katex": "^7.0.1",
     "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^3.0.1",
     "remark-math": "^5.1.1",
     "spark-md5": "^3.0.2",
