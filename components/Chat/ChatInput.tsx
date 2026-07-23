@@ -702,7 +702,7 @@ export const ChatInput = ({
         // Add pending artifacts to message data
         if (pendingArtifacts.length > 0) {
             messageData.artifacts = pendingArtifacts
-                .filter(pa => pa.loadingState === 'ready' && pa.artifact)
+                .filter(pa => pa.loadingState === 'ready' && pa.artifact && pa.artifactId)
                 .map(pa => {
                     // Extract base artifact ID (remove version/date suffix)
                     const baseArtifactId = pa.artifactId.split(':')[0];
