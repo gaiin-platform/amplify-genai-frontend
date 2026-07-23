@@ -1,6 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import {getServerSession} from "next-auth/next";
-import {authOptions} from "@/pages/api/auth/[...nextauth]";
+import { getServerAccessToken } from "@/utils/server/accessToken";
 import { transformPayload } from "@/utils/app/data";
 import { lzwCompress } from "@/utils/app/lzwCompression";
 import { validateUrlForSSRF } from "@/utils/app/urlValidation";
@@ -53,10 +52,9 @@ const validateMCPPayloadUrl = (path: string, op: string, payload: any): string |
 const requestOp =
     async (req: NextApiRequest, res: NextApiResponse) => {
 
-        const session = await getServerSession(req, res, authOptions);
+        const accessToken = await getServerAccessToken(req);
 
-        if (!session) {
-            // Unauthorized access, no session found
+        if (!accessToken) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
@@ -74,9 +72,6 @@ const requestOp =
             console.warn(`Blocked unsafe MCP URL for path=${reqPath} op=${reqOp}: ${ssrfError}`);
             return res.status(400).json({ error: ssrfError });
         }
-
-        // @ts-ignore
-        const { accessToken } = session;
 
         let reqPayload: reqPayload = {
             method: method,
@@ -119,6 +114,11 @@ const requestOp =
         }
 
         const apiUrl = constructUrl(reqData);
+
+        if (!apiUrl) {
+            console.warn(`Blocked request: constructed URL failed origin validation`);
+            return res.status(400).json({ error: 'Invalid request URL' });
+        }
 
         try {
             const response = await fetch(apiUrl, reqPayload);
@@ -165,13 +165,28 @@ const sanitizePathSegment = (segment: string): string => {
     return sanitized;
 };
 
-const constructUrl = (data: any) => {
-    let apiUrl = process.env.API_BASE_URL || "";
-
+const constructUrl = (data: any): string | null => {
     const path: string = sanitizePathSegment(data.path || "");
     const op: string = sanitizePathSegment(data.op || "");
 
-    apiUrl += path + op;
+    // Server-side local service routing — the URL is built entirely from the
+    // server's own env var, never from anything the client sent.
+    const localServicesConfig = process.env.NEXT_PUBLIC_LOCAL_SERVICES || '';
+    if (localServicesConfig && data.service) {
+        const serviceConfigs = localServicesConfig.split(',').map((s: string) => s.trim());
+        for (const config of serviceConfigs) {
+            const [service, port, stage] = config.split(':');
+            if (service?.trim() === data.service && port) {
+                const localUrl = `http://localhost:${port.trim()}/${(stage || 'dev').trim()}${path}${op}`;
+                console.log(`[LOCAL] Routing service "${data.service}" to: ${localUrl}`);
+                return localUrl;
+            }
+        }
+    }
+
+    const baseUrl = process.env.API_BASE_URL || "";
+
+    let apiUrl = baseUrl + path + op;
 
     const queryParams: { [key: string]: string } | undefined = data.queryParams;
 
@@ -181,6 +196,24 @@ const constructUrl = (data: any) => {
         .join('&');
       apiUrl += `?${queryString}`;
     }
+
+    // Final origin check: ensure the constructed URL still points to API_BASE_URL's origin.
+    // This catches any bypass technique (encoded chars, path manipulation, etc.) that could
+    // redirect the request to a different host after path concatenation.
+    if (baseUrl) {
+        try {
+            const constructedOrigin = new URL(apiUrl).origin;
+            const allowedOrigin = new URL(baseUrl).origin;
+            if (constructedOrigin !== allowedOrigin) {
+                console.warn(`Blocked SSRF attempt: constructed origin "${constructedOrigin}" !== allowed origin "${allowedOrigin}"`);
+                return null;
+            }
+        } catch (e) {
+            console.warn(`Blocked request: failed to parse constructed URL "${apiUrl}"`);
+            return null;
+        }
+    }
+
     console.log(`--- API url Request to: ${apiUrl} ---`);
     return apiUrl;
   };

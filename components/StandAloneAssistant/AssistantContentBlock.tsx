@@ -3,6 +3,23 @@ import { MemoizedReactMarkdown } from "@/components/Markdown/MemoizedReactMarkdo
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+
+// Sanitization schema: extends the safe default to allow the custom elements
+// used by the standalone assistant renderer (math-display, math-inline for LaTeX),
+// while blocking <script>, event handlers, javascript: hrefs, etc.
+const assistantSanitizeSchema = {
+    ...defaultSchema,
+    tagNames: [
+        ...(defaultSchema.tagNames ?? []),
+        'math-display',
+        'math-inline',
+    ],
+    attributes: {
+        ...defaultSchema.attributes,
+        '*': [...(defaultSchema.attributes?.['*'] ?? []), 'style', 'className', 'class'],
+    },
+};
 import { CodeBlock } from "@/components/Markdown/CodeBlock";
 import Mermaid from "@/components/Chat/ChatContentBlocks/MermaidBlock";
 import VegaVis from "@/components/Chat/ChatContentBlocks/VegaVisBlock";
@@ -171,7 +188,7 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
           className="prose dark:prose-invert flex-1 max-w-none w-full"
           remarkPlugins={[remarkGfm, remarkMath]}
           // @ts-ignore
-          rehypePlugins={[rehypeRaw]}
+          rehypePlugins={[rehypeRaw, [rehypeSanitize, assistantSanitizeSchema]]}
           components={{
             // @ts-ignore
             Mermaid,

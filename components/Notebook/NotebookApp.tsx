@@ -686,6 +686,7 @@ export const NotebookApp = () => {
                 <GeneratePodcastDialog
                     onClose={() => setShowPodcast(false)}
                     onSubmitted={handlePodcastSubmitted}
+                    isAdmin={isAdmin}
                 />
             )}
 

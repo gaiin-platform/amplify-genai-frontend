@@ -1652,11 +1652,14 @@ export const PodcastsPage = ({ isAdmin = false }: { isAdmin?: boolean }) => {
             <header className="space-y-1">
                 <h1 className="text-2xl font-semibold tracking-tight">Podcasts</h1>
                 <p className="text-gray-500 dark:text-gray-400">
-                    Keep track of generated episodes and manage reusable profiles.
+                    {isAdmin
+                        ? 'Keep track of generated episodes and manage reusable profiles.'
+                        : 'Keep track of your generated episodes.'}
                 </p>
             </header>
 
-            {!profilesLoading && hasUnconfiguredProfiles && (
+            {/* Only admins can edit profiles, so only they can act on this. */}
+            {isAdmin && !profilesLoading && hasUnconfiguredProfiles && (
                 <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-300">
                     <LucideAlertTriangle size={16} className="mt-0.5 flex-none" />
                     <div>
@@ -1714,6 +1717,7 @@ export const PodcastsPage = ({ isAdmin = false }: { isAdmin?: boolean }) => {
                 <GeneratePodcastDialog
                     onClose={() => setShowGenerate(false)}
                     onSubmitted={handleGenerated}
+                    isAdmin={isAdmin}
                 />
             )}
 

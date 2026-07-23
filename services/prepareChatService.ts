@@ -1,5 +1,4 @@
 import {  Conversation, Message } from "@/types/chat";
-import {getSession} from "next-auth/react"
 import { sendChatRequestWithDocuments } from "./chatService";
 import { Artifact, ArtifactBlockDetail } from "@/types/artifacts";
 import { messageTopicData, messageTopicDataPast } from "@/types/topics";
@@ -261,10 +260,6 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
 
     const controller = new AbortController();
 
-    const accessToken = await getSession().then((session) => {
-                                // @ts-ignore
-                                return session.accessToken
-                            })
     let customInstructions = isSmartMessagesOn ? DIVIDER_CUSTOM_INSTRUCTIONS : "";
 
     // PHASE 1: Data Gathering
@@ -310,7 +305,6 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
         const chatBody = {
             model: cheapestModel, // isSmartMessagesOn ? advancedModel : cheapestModel,
             messages: messageTopicDataOnly,
-            key: accessToken,
             prompt: customInstructions,
             temperature: 0.8,
             maxTokens: 2000,
@@ -325,7 +319,7 @@ export const getFocusedMessages = async (chatEndpoint:string, conversation:Conve
 
         // PHASE 2: LLM Analysis
         const llmStartTime = performance.now();
-        const response = await sendChatRequestWithDocuments(chatEndpoint, accessToken, chatBody, controller.signal);
+        const response = await sendChatRequestWithDocuments(chatEndpoint, chatBody, controller.signal);
 
         const responseData = response.body;
         const reader = responseData ? responseData.getReader() : null;

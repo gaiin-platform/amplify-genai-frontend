@@ -1,7 +1,6 @@
 import React, {useContext, useEffect, useRef, useState} from "react";
 import HomeContext from "@/pages/api/home/home.context";
 import {Conversation, Message, newMessage} from "@/types/chat";
-import {getSession} from "next-auth/react"
 import {deepMerge} from "@/utils/app/state";
 import { MetaHandler, sendChatRequestWithDocuments } from "@/services/chatService";
 import { IconHammer } from "@tabler/icons-react";
@@ -338,11 +337,6 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
     homeDispatch({field: "currentRequestId", value: requestId});
     if (selectedConversation && selectedConversation?.messages) {
 
-        const accessToken = await getSession().then((session) => { 
-                                            // @ts-ignore
-                                            return session.accessToken
-                                            })
-            
         // Create a new controller
         const controller = new AbortController(); 
 
@@ -378,7 +372,6 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             const chatBody = {
             model: model,
             messages: [{role: 'user', content: llmInstructions} as Message],
-            key: accessToken,
             prompt: ARTIFACT_CUSTOM_INSTRUCTIONS,
             temperature: 0.5,
             maxTokens: model.outputTokenLimit, // Default to max token
@@ -394,7 +387,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
 
             window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: true, artifactIndex:  selectArtifacts.length - 1}} ));
 
-            const response = await sendChatRequestWithDocuments(chatEndpoint || '', accessToken, chatBody, controller.signal, metaHandler);
+            const response = await sendChatRequestWithDocuments(chatEndpoint || null, chatBody, controller.signal, metaHandler);
 
             let updatedConversation: Conversation = {...selectedConversation, artifacts: selectedConversation.artifacts || {}};
            // selectedConversation with the assistant message stripped of artifact block data

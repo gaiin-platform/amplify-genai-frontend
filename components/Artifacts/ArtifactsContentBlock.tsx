@@ -2,7 +2,25 @@ import {MemoizedReactMarkdown} from "@/components/Markdown/MemoizedReactMarkdown
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import {visit} from 'unist-util-visit';
+
+// Sanitization schema: extends the safe default to allow the custom elements
+// used by the artifacts renderer (math-display, math-inline for LaTeX), while
+// blocking <script>, event handlers, javascript: hrefs, etc.
+const artifactSanitizeSchema = {
+    ...defaultSchema,
+    tagNames: [
+        ...(defaultSchema.tagNames ?? []),
+        'math-display',
+        'math-inline',
+    ],
+    attributes: {
+        ...defaultSchema.attributes,
+        // Allow style and data-* on any element (used by dark mode styles + height hints)
+        '*': [...(defaultSchema.attributes?.['*'] ?? []), 'style', 'className', 'class', 'data-height'],
+    },
+};
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {CodeBlock} from "@/components/Markdown/CodeBlock";
 import Mermaid from "@/components/Chat/ChatContentBlocks/MermaidBlock";
@@ -218,7 +236,7 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
         className="prose dark:prose-invert flex-1 max-w-none w-full"
         remarkPlugins={[remarkGfm, remarkMath]}
         // @ts-ignore
-        rehypePlugins={[rehypeRaw, rehypeDarkModeStyles]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, artifactSanitizeSchema], rehypeDarkModeStyles]}
         //onMouseUp={handleTextHighlight}
         components={{
             // @ts-ignore

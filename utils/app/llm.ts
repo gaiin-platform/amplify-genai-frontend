@@ -12,7 +12,6 @@ We could certaintly call the chat endpoint in amplify lambda however, this is fa
 
 import {  Message } from "@/types/chat";
 import { Model } from "@/types/model";
-import {getSession } from "next-auth/react"
 import { sendChatRequestWithDocuments } from "@/services/chatService";
 import { Account } from "@/types/accounts";
 import { scrubMessages } from "./messages";
@@ -22,17 +21,11 @@ import { scrubMessages } from "./messages";
 export const promptForData = async (chatEndpoint:string, messages: Message[], model: Model, 
                                     prompt: string, account?: Account, statsService: any = null, maxTokens: number = 4000) => {
     const controller = new AbortController();
-    
-     const accessToken = await getSession().then((session) => { 
-                                // @ts-ignore
-                                return session?.accessToken
-                            })
 
     try {
         const chatBody = {
             model: model,
             messages: scrubMessages(messages),
-            key: accessToken,
             prompt: prompt,
             temperature: 0.5,
             maxTokens: maxTokens,
@@ -46,7 +39,7 @@ export const promptForData = async (chatEndpoint:string, messages: Message[], mo
 
         if (statsService) statsService.sendChatEvent(chatBody);
 
-        const response = await sendChatRequestWithDocuments(chatEndpoint, accessToken, chatBody, controller.signal);
+        const response = await sendChatRequestWithDocuments(chatEndpoint, chatBody, controller.signal);
 
         const responseData = response.body;
         const reader = responseData ? responseData.getReader() : null;
