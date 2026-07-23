@@ -28,6 +28,11 @@ interface Props {
     allowedFileExtensions?: string[];
     groupId?: string;
     disableRag?: boolean;
+    // Override for the ambient HomeContext.ragOn flag. Callers use this when a mode
+    // outside the RAG plugin (e.g. Code Interpreter) still needs newly attached files
+    // to be RAG-indexed at upload time, so the file remains accessible to normal chat
+    // if that other mode is later disabled in the same conversation.
+    forceRagOn?: boolean;
     className?: string;
     props?: any;
 }
@@ -230,10 +235,11 @@ export const handleFile = async (file: any,
     }
 }
 
-export const AttachFile: FC<Props> = ({ id, onAttach, onUploadProgress, onSetMetadata, onSetKey, onSetAbortController, allowedFileExtensions, disallowedFileExtensions, groupId, disableRag, className = "", props = {} }) => {
+export const AttachFile: FC<Props> = ({ id, onAttach, onUploadProgress, onSetMetadata, onSetKey, onSetAbortController, allowedFileExtensions, disallowedFileExtensions, groupId, disableRag, forceRagOn, className = "", props = {} }) => {
     const { t } = useTranslation('sidebar');
 
-    const { state: { featureFlags, statsService, ragOn } } = useContext(HomeContext);
+    const { state: { featureFlags, statsService, ragOn: ragOnFromContext } } = useContext(HomeContext);
+    const ragOn = forceRagOn || ragOnFromContext;
 
     const uploadDocuments = featureFlags.uploadDocuments;
 

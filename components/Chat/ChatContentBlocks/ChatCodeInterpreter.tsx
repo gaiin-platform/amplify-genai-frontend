@@ -31,9 +31,9 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
 
   const [csvPreview, setCsvPreview] = useState<string[] | null>([]);
   const [csvOverflow, setcsvOverflow] = useState(false);
-  
+
   const [pdfError, setPdfError] = useState(false);
-  
+
 
 
   useEffect(() => {
@@ -42,15 +42,15 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
         const response = await fetch(presignedUrl);
         if (!response.ok) throw new Error('Failed to fetch CSV content');
         const csvText = await response.text();
-        
+
         let contentToShow =  csvText.trim().split('\n');
-        
+
         if (contentToShow.length > 11) {
             const previewRows = contentToShow.slice(0, 11);
             previewRows.push('...')
             setcsvOverflow(true);
             contentToShow = previewRows;
-        } 
+        }
         setCsvPreview(contentToShow);
       } catch (error) {
         console.error('Error fetching or parsing CSV:', error);
@@ -67,17 +67,17 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
     try {
       const response = await fetch(presignedUrl);
       if (!response.ok) throw new Error('Failed to fetch PDF');
-  
+
       const pdfBlob = await response.blob();
       return URL.createObjectURL(pdfBlob);
-    
+
     } catch (error) {
       console.error('Error fetching or displaying PDF:', error);
       setPdfError(true);
       return ""
     }
   }
-  
+
 
   const isUrlExpired = (url: string): boolean => {
     const regex = /Expires=(\d+)/;
@@ -105,13 +105,13 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
   };
 
   useEffect(() => {
-  const renderFileContent = async () => {   
+  const renderFileContent = async () => {
     const { type, values } = file_info;
     let { presigned_url, file_key } = values;
-    
+
     // Check for low-res image first
     let isLowRes = false;
-    if (type === 'image/png' && values.presigned_url_low_res && values.file_key_low_res) { //think about download the whole file 
+    if (type === 'image/png' && values.presigned_url_low_res && values.file_key_low_res) { //think about download the whole file
       presigned_url = values.presigned_url_low_res;
       file_key = values.file_key_low_res
       isLowRes = true;
@@ -119,10 +119,10 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
 
     const fileNameMatch = file_key.match(/-FN-([^\/]+)/);
     const fileName = fileNameMatch && fileNameMatch[1] ? fileNameMatch[1] : `Generated_${type.split('/')[1]}_file`;
-    
+
     if (isUrlExpired(presigned_url)) {
 
-      //fetch new presigned url and set it 
+      //fetch new presigned url and set it
        const urlResponse = await getNewPresignedUrl({'key': file_key, "fileName": fileName});
        if (urlResponse) {
             presigned_url = urlResponse;
@@ -137,17 +137,17 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
     switch (type) {
       case 'text/csv':
             const scrollableStyle: React.CSSProperties = {
-                overflowX: 'auto',   
-                width: '100%',       
-                maxHeight: '400px',  
-                display: 'block'     
+                overflowX: 'auto',
+                width: '100%',
+                maxHeight: '400px',
+                display: 'block'
             };
-            
+
             const cellStyle: React.CSSProperties = {
-                whiteSpace: 'nowrap', 
-                minWidth: '80px'     
+                whiteSpace: 'nowrap',
+                minWidth: '80px'
             };
-            
+
             const renderCsvTable = () => {
                 return (
                     <div style={scrollableStyle}>
@@ -156,7 +156,7 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
                             {csvPreview && csvPreview.map((row, rowIndex) => (
                                 <tr key={rowIndex}>
                                 {row.split(',').map((cell, cellIndex) => (
-                                    <td key={cellIndex} style={cellStyle}>{cell}</td>  
+                                    <td key={cellIndex} style={cellStyle}>{cell}</td>
                                 ))}
                                 </tr>
                             ))}
@@ -172,9 +172,9 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
                   presigned_url={presigned_url}>
                   <IconDownload size={24}/>
                 </DownloadFileButton>
-                
-                { !csvPreview ? <div>Loading...</div> : csvPreview.length > 0 
-                            ? <div >{renderCsvTable()} {csvOverflow && <>{'Download to see full content'}</>} </div> 
+
+                { !csvPreview ? <div>Loading...</div> : csvPreview.length > 0
+                            ? <div >{renderCsvTable()} {csvOverflow && <>{'Download to see full content'}</>} </div>
                             : <div>Unfortunately, we are unable to display the file contents at this time...</div>}
             </div>
             );
@@ -188,8 +188,8 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
                     presigned_url={presigned_url}>
                       <IconDownload size={24}/>
                     </DownloadFileButton>
-                    {pdfError ? ( <div>Unfortunately, we are unable to display the PDF at this time...</div>) 
-                              : pdfUrl && pdfUrl !== "" ? 
+                    {pdfError ? ( <div>Unfortunately, we are unable to display the PDF at this time...</div>)
+                              : pdfUrl && pdfUrl !== "" ?
                                         (<iframe
                                             className='mt-6'
                                             id="Generated_PDF"
@@ -199,10 +199,20 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
                                             onError={() => setPdfError(true)}
                                             style={{ border: 'none' }} /> )
                                         : <div>Loading...</div>}
-                             
+
                 </div>);
                 break;
-        case 'binary/octet-stream': 
+        case 'binary/octet-stream':
+        case 'text/x-python':
+        case 'text/plain':
+        case 'application/json':
+        case 'text/markdown':
+        case 'application/x-yaml':
+        case 'text/tab-separated-values':
+        case 'application/geo+json':
+        case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+        case 'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+        case 'application/octet-stream':
             setFileContent(
             <div>
                 <DownloadFileButton
@@ -214,6 +224,29 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
             </div>
             );
             break;
+        case 'text/html':
+            // Sandboxed with no `allow-scripts`/`allow-same-origin` so any script tags in
+            // sandbox-generated HTML cannot execute or access the parent page/app origin —
+            // this is user/LLM-generated content, not trusted first-party markup.
+            setFileContent(
+                <div className='mb-6'>
+                    <DownloadFileButton
+                    fileName={fileName}
+                    presigned_url={presigned_url}>
+                      <IconDownload size={24}/>
+                    </DownloadFileButton>
+                    <iframe
+                        className='mt-6'
+                        id="Generated_HTML"
+                        width="625"
+                        height="450"
+                        src={presigned_url}
+                        sandbox=""
+                        style={{ border: 'none' }} />
+                </div>);
+            break;
+        case 'image/gif':
+        case 'image/svg+xml':
         case 'image/png':
             let downloadPresignedUrl = presigned_url;
             // We need to get the high quality version
@@ -223,8 +256,8 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
                     if (urlResponse) {
                         file_info.values.presigned_url = urlResponse;
                         downloadPresignedUrl = urlResponse;
-                    }  
-                }        
+                    }
+                }
             }
 
             setFileContent(
@@ -234,11 +267,11 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
                 presigned_url={presigned_url}>
                   <IconDownload size={24}/>
                 </DownloadFileButton>
-                <img 
-                    src={presigned_url} 
-                    alt={fileName} 
-                    loading="lazy" 
-                    style={{ maxWidth: '100%', height: 'auto', display: 'block'}} 
+                <img
+                    src={presigned_url}
+                    alt={fileName}
+                    loading="lazy"
+                    style={{ maxWidth: '100%', height: 'auto', display: 'block'}}
                     onError={(e) => {
                         // Display error text or handle the error as desired
                         e.currentTarget.alt = 'Unfortunately, we are unable to display the image at this time...';
@@ -256,8 +289,6 @@ const ChatCodeInterpreter: React.FC<ChatCodeInterpreterProps> = ({ file_info }) 
 }, [file_info, csvPreview]);
 
   return <>{fileContent}</>;
-};    
+};
 
 export default ChatCodeInterpreter;
-
-

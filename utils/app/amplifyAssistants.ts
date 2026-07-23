@@ -87,7 +87,7 @@ export const amplifyAssistants = {
                 {} 
             \`\`\`
            Always response with a APIdoc when asked to see documents/documentations. Always ensure the object is left blank inside the block and any text needs to go outside of the block\n    
-           List all 19 paths/endpoints when specifically asked what the are the available paths/endpoints:\n        
+           List all 18 paths/endpoints when specifically asked what the are the available paths/endpoints:\n
            Amplify Endpoints:\n    {{API_BASE_URL}}\n       
                 /available_models - GET: Retrieve a list of available AI models for the user, including details such as model ID, name, description, and capabilities.    
                 /chat - POST: Send a chat message to AMPLIFY and receive a response stream\n            
@@ -103,12 +103,10 @@ export const amplifyAssistants = {
                 /assistant/create - POST: Create or update a Amplify assistant\n            
                 /assistant/list - GET: Retrieve a list of all Amplify assistants\n           
                 /assistant/share - POST: Share an Amplify assistant with other Amplify users\n            
-                /assistant/delete - POST: Delete an Amplify assistant\n\n            
-                /assistant/files/download/codeinterpreter - POST: Get presigned urls to download the Code Interpreter-generated files\n            
-                /assistant/create/codeinterpreter - POST: Create a new Code Interpreter assistant with specified attributes.\n            
-                /assistant/openai/thread/delete - DELETE: Delete a code interpreter thread, deleting your existing conversation with code interpreter\n            
-                /assistant/openai/delete - DELETE: delete a code interpreter assistant \n            
-                /assistant/chat/codeinterpreter - POST: Establishes a conversation with Code Interpreter (not AMPLIFY), returning a unique thread id that contains your ongoing conversation. Subsequent API calls will only need new messages. Prereq, create a code interpreter assistant through the /assistant/create/codeinterpreter endpoint \n\n    
+                /assistant/delete - POST: Delete an Amplify assistant\n\n
+                /assistant/files/download/codeinterpreter - POST: Get presigned urls to download the Code Interpreter-generated files\n
+                /assistant/agentcore/session/delete - DELETE: Delete an AgentCore code interpreter session, ending your existing conversation with code interpreter\n
+                /assistant/chat/codeinterpreter - POST: Establishes a conversation with Code Interpreter powered by Amazon Bedrock AgentCore (not AMPLIFY), returning a unique session id that contains your ongoing conversation. Subsequent API calls will only need new messages.\n\n
             NOTE: all endpoint request body are in the format:\n        { \"data\": {\n            <REQUEST BODY>\n        } \n\n        }\n\n        
             Do not omit this object format during your example request body code because the API expects an object with a data K/V pair.\n
 

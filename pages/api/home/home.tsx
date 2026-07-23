@@ -521,16 +521,9 @@ const Home = ({
                 const newConversation = cloneDeep({
                                                    ...selectedConversation,  
                                                    id: uuidv4(), 
-                                                   codeInterpreterAssistantId: undefined,
+                                                   codeInterpreterRecordId: undefined,
                                                    date: getFullTimestamp(),
-                                                   messages: selectedConversation?.messages.slice(0, messageIndex + 1)
-                                                             .map((m:Message) => {
-                                                                if ( m.data?.state?.codeInterpreter ) {
-                                                                    const {codeInterpreter, ...state} = m.data?.state;
-                                                                    return {...m, data: {...m.data, state : state}}
-                                                                }
-                                                                return m;
-                                                             })});
+                                                   messages: selectedConversation?.messages.slice(0, messageIndex + 1)});
                 if (isRemoteConversation(newConversation)) await uploadConversation(newConversation, foldersRef.current);
                 statsService.newConversationEvent();
     
