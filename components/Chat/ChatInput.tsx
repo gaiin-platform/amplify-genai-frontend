@@ -698,18 +698,20 @@ export const ChatInput = ({
                 }))
             };
         }
-
+         console.log('pendingArtifacts', pendingArtifacts);
         // Add pending artifacts to message data
         if (pendingArtifacts.length > 0) {
             messageData.artifacts = pendingArtifacts
-                .filter(pa => pa.loadingState === 'ready' && pa.artifact && pa.artifactId)
+                .filter(pa => pa.loadingState === 'ready' && pa.artifact && (pa.artifactId || pa.artifact?.artifactId))
                 .map(pa => {
                     // Extract base artifact ID (remove version/date suffix)
-                    const baseArtifactId = pa.artifactId.split(':')[0];
+                    // Fall back to pa.artifact.artifactId if pa.artifactId is missing
+                    const resolvedId = pa.artifactId || pa.artifact!.artifactId;
+                    const baseArtifactId = resolvedId.split(':')[0];
                     return {
                         artifactId: baseArtifactId,
-                        name: pa.name,
-                        description: pa.description,
+                        name: pa.name || pa.artifact!.name,
+                        description: pa.description || pa.artifact!.description,
                         createdAt: pa.artifact!.createdAt,
                         version: pa.artifact!.version
                     } as ArtifactBlockDetail;
@@ -782,10 +784,12 @@ export const ChatInput = ({
             const conversationArtifacts = selectedConversation.artifacts ?? {};
 
             pendingArtifacts.forEach(pa => {
-                if (pa.artifact && pa.loadingState === 'ready') {
+                if (pa.artifact && pa.loadingState === 'ready' && (pa.artifactId || pa.artifact?.artifactId)) {
                     // Extract base artifact ID (remove version/date suffix)
                     // e.g., "Fun_Animated_SVG:v1-20251020" -> "Fun_Animated_SVG"
-                    const baseArtifactId = pa.artifactId.split(':')[0];
+                    // Fall back to pa.artifact.artifactId if pa.artifactId is missing
+                    const resolvedId = pa.artifactId || pa.artifact.artifactId;
+                    const baseArtifactId = resolvedId.split(':')[0];
 
                     // Preserve the artifact with its original version and update the artifactId
                     const artifact = { ...pa.artifact, artifactId: baseArtifactId };
