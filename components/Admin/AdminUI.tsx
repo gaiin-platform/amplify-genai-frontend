@@ -487,9 +487,6 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             const completion = `openai/deployments/${endpoint.model}/embeddings?api-version=2024-02-01`;
             result =  await testEmbeddingEndpoint(`${url}${completion}`, endpoint.key);
 
-          } else if (model === "code-interpreter") {
-            result = await testEndpoint(endpoint.url, endpoint.key, model);
-
           } else {
             result =  await testEndpoint(endpoint.url, endpoint.key, model);
           }
