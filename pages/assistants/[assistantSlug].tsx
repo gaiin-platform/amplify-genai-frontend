@@ -538,8 +538,7 @@ const AssistantPage = ({
       setResponseStatus('Finalizing response...');
 
       const session = await getSession();
-      // @ts-ignore - accessToken exists on session but not in base type
-      if (!session || !session.accessToken) {
+      if (!session) {
         throw new Error('Session expired');
       }
 
@@ -581,8 +580,6 @@ const AssistantPage = ({
 
       const response = await sendChatRequestWithDocuments(
         chatEndpoint!,
-        // @ts-ignore - accessToken exists on session
-        session.accessToken,
         chatBody,
         new AbortController().signal,
         metaHandler

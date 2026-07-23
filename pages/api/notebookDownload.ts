@@ -1,7 +1,6 @@
 import axios from 'axios';
 import { NextApiRequest, NextApiResponse } from 'next';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/pages/api/auth/[...nextauth]';
+import { getServerAccessToken } from '@/utils/server/accessToken';
 import {
     getOpenNotebookBase,
     upstreamErrorMessage,
@@ -32,10 +31,8 @@ const notebookDownload = async (req: NextApiRequest, res: NextApiResponse) => {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const session = await getServerSession(req, res, authOptions);
-    if (!session) return res.status(401).json({ error: 'Unauthorized' });
-    const accessToken = (session as any).accessToken;
-    if (!accessToken) return res.status(401).json({ error: 'No access token' });
+    const accessToken = await getServerAccessToken(req);
+    if (!accessToken) return res.status(401).json({ error: 'Unauthorized' });
 
     const sourceId = typeof req.query.sourceId === 'string' ? req.query.sourceId : '';
     if (!sourceId) return res.status(400).json({ error: 'sourceId is required' });

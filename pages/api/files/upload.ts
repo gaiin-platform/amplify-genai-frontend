@@ -1,19 +1,14 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getSession } from "next-auth/react";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { getServerAccessToken } from "@/utils/server/accessToken";
 
 const getPresignedUrl =
     async (req: NextApiRequest, res: NextApiResponse) => {
 
-        const session = await getServerSession(req, res, authOptions);
+        const accessToken = await getServerAccessToken(req);
 
-        if (!session) {
-            // Unauthorized access, no session found
+        if (!accessToken) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
-
-        const { accessToken } = session;
 
         const itemData = req.body;
 

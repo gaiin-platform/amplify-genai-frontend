@@ -97,8 +97,9 @@ export const authOptions = {
         },
 
         async session({ session, token, user }) {
-            // Send properties to the client, like an access_token from a provider.
-            session.accessToken = token.accessToken;
+            // Send properties to the client. The Cognito access token deliberately stays
+            // server-side in the JWT cookie — API routes read it via getServerAccessToken()
+            // (utils/server/accessToken.ts) instead of exposing it to client JS here.
             session.error = token.error;
             session.upgradedOrCreated = !!token.upgradedOrCreated;
             session.user.username = token.immutableId;
@@ -108,7 +109,7 @@ export const authOptions = {
     secret: process.env.NEXTAUTH_SECRET,
 }
 
-async function refreshAccessToken(token) {
+export async function refreshAccessToken(token) {
     try {
 
         if(!token || !token.refreshToken){
