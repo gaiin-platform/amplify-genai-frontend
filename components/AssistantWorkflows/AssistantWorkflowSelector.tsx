@@ -25,7 +25,7 @@ export const AssistantWorkflowSelector: React.FC<Props> = ({
 
     const [workflowTemplates, setWorkflowTemplates] = useState<AstWorkflow[] | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const { state: {featureFlags} } = useContext(HomeContext);
+    const { state: {featureFlags, amplifyUsers} } = useContext(HomeContext);
 
     const allowWorkflowCreation = featureFlags.createAssistantWorkflows;
 
@@ -59,7 +59,7 @@ export const AssistantWorkflowSelector: React.FC<Props> = ({
                 > 
                     {workflowTemplates && workflowTemplates.map((template: AstWorkflow, index: number) => (
                         <option key={`${template.templateId}-${index}`} value={template.templateId}
-                                title={`${template.description} ${template.user && template.user != user ? `Provided by ${template.user}` : ""}`}>
+                                title={`${template.description} ${template.user && template.user != user ? `Provided by ${amplifyUsers[template.user] || template.user}` : ""}`}>
                             {snakeCaseToTitleCase(template.name)}
                         </option>
                     ))}
