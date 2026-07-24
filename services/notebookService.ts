@@ -291,6 +291,11 @@ export const createSourceFromText = async ({
 interface PresignedUpload {
     upload_url: string;
     file_path: string;
+    // Effective Content-Type the backend signed into upload_url. May differ
+    // from the requested type when a render-unsafe type (e.g. text/html,
+    // image/svg+xml) was neutralised server-side. The PUT must send exactly
+    // this value or S3 rejects it with a signature mismatch.
+    content_type?: string;
 }
 
 // Multipart fallback through the Next.js proxy at /api/notebookUpload, which
@@ -349,10 +354,14 @@ export const createSourceFromFile = async (
 
     if (presigned?.upload_url && presigned.file_path) {
         try {
+            // Must match the content type SIGNED INTO the URL, which the
+            // backend may have neutralised (e.g. text/html -> octet-stream)
+            // to stop the stored object rendering inline. Fall back to the
+            // requested type if an older backend didn't echo one back.
+            const signedContentType = presigned.content_type || contentType;
             const put = await fetch(presigned.upload_url, {
                 method: 'PUT',
-                // Must match the content type signed into the URL.
-                headers: { 'Content-Type': contentType },
+                headers: { 'Content-Type': signedContentType },
                 body: file,
             });
             if (put.ok) {
