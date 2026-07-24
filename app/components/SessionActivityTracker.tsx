@@ -23,7 +23,7 @@ export function SessionActivityTracker() {
 
       // Set new timeout
       timeoutRef.current = setTimeout(() => {
-        signOut({ callbackUrl: '/login?reason=inactivity' });
+        signOut({ callbackUrl: '/?reason=inactivity' });
       }, INACTIVITY_TIMEOUT);
     };
 
