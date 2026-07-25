@@ -6,6 +6,12 @@ import {
     getOpenNotebookBase,
     upstreamErrorMessage,
 } from '@/utils/server/openNotebook';
+import {
+    checkBodyForSsrf,
+    checkUploadUrlRequest,
+    normalisePath,
+    rejectIfUnauthorized,
+} from '@/utils/server/notebookAuthz';
 
 export const config = {
     api: {
@@ -44,6 +50,44 @@ const notebookProxy = async (req: NextApiRequest, res: NextApiResponse) => {
 
     const url = buildNotebookUrl(base, path, queryParams);
     if (!url) return res.status(400).json({ error: 'Invalid path' });
+
+    // Authorization: block path traversal and gate admin/global resources.
+    // This proxy is the only auth layer in front of Open Notebook, mirroring
+    // the amplify-lambda-api notebook_proxy.py Lambda.
+    const authzRejection = await rejectIfUnauthorized(method, path, accessToken);
+    if (authzRejection) {
+        return res.status(authzRejection.status).json({
+            success: false,
+            status: authzRejection.status,
+            data: null,
+            message: authzRejection.message,
+        });
+    }
+
+    const normPath = normalisePath(path);
+
+    // SSRF: validate URL-bearing body fields (/sources url, /credentials base_url).
+    const ssrfRejection = await checkBodyForSsrf(method, normPath, body);
+    if (ssrfRejection) {
+        return res.status(ssrfRejection.status).json({
+            success: false,
+            status: ssrfRejection.status,
+            data: null,
+            message: ssrfRejection.message,
+        });
+    }
+
+    // Arbitrary-file-upload: validate the presigned upload-url mint request so a
+    // dangerous filename/content_type cannot yield an unconstrained S3 PUT URL.
+    const uploadUrlRejection = checkUploadUrlRequest(method, normPath, body);
+    if (uploadUrlRejection) {
+        return res.status(uploadUrlRejection.status).json({
+            success: false,
+            status: uploadUrlRejection.status,
+            data: null,
+            message: uploadUrlRejection.message,
+        });
+    }
 
     try {
         const upstream = await axios.request({
