@@ -1,4 +1,4 @@
-import { IconArrowRight, IconCircleCheck, IconCircleX, IconBrackets, IconRobot, IconTerminal2, IconUser, IconCurrencyDollar, IconBrain, IconBulb } from '@tabler/icons-react';
+import { IconArrowRight, IconCircleCheck, IconCircleX, IconBrackets, IconRobot, IconTerminal2, IconUser, IconCurrencyDollar, IconBrain, IconBulb, IconCode } from '@tabler/icons-react';
 import React, { useEffect, useState } from "react";
 
 
@@ -93,6 +93,212 @@ function formatCost(cost: number) {
 }
 
 
+const SKIP_KEYS = new Set(['stdout', 'tool', 'tool_executed', 'id', 'timestamp']);
+
+const renderValue = (value: any): React.ReactNode => {
+  if (value === null || value === undefined) return null;
+  // Array of objects — render each as a mini card
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="text-gray-400 italic text-sm">empty</span>;
+    return (
+      <div className="flex flex-col gap-1 mt-1 w-full">
+        {value.map((item: any, i: number) => (
+          <div key={i} className="border border-gray-200 dark:border-gray-600 rounded p-2">
+            {typeof item === 'object' && item !== null
+              ? Object.entries(item).filter(([k]) => !SKIP_KEYS.has(k) && item[k] !== null && item[k] !== undefined).map(([k, v]) => (
+                  <div key={k} className="flex flex-row gap-2 text-sm">
+                    <span className="text-gray-500 dark:text-gray-400 min-w-fit shrink-0">{k}:</span>
+                    <span className="text-gray-800 dark:text-gray-200 break-words">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
+                  </div>
+                ))
+              : <span className="text-gray-800 dark:text-gray-200 text-sm">{String(item)}</span>
+            }
+          </div>
+        ))}
+      </div>
+    );
+  }
+  // Plain object
+  if (typeof value === 'object') return <span className="text-gray-700 dark:text-gray-300 text-sm">{JSON.stringify(value)}</span>;
+  return <span className="text-gray-800 dark:text-gray-200 text-sm break-words">{String(value)}</span>;
+};
+
+const EnvironmentResultBlock: React.FC<{ msg: any; hasError: boolean }> = ({ msg, hasError }) => {
+  const [showRaw, setShowRaw] = useState(false);
+
+  const tool = msg.content?.tool ?? '';
+  const result = msg.content?.result ?? msg.content;
+  const errorMsg = msg.content?.error;
+
+  const renderFriendly = () => {
+    if (errorMsg) {
+      return <p className="text-red-500 dark:text-red-400 text-sm">{String(errorMsg)}</p>;
+    }
+    if (!result || typeof result !== 'object') {
+      return <p className="text-sm text-gray-700 dark:text-gray-300">{String(result ?? '')}</p>;
+    }
+    // Array at top level
+    if (Array.isArray(result)) {
+      const rendered = renderValue(result);
+      return rendered ?? <p className="text-sm text-gray-500 dark:text-gray-400 italic">No result data</p>;
+    }
+    const entries = Object.entries(result).filter(([k, v]) => !SKIP_KEYS.has(k) && v !== null && v !== undefined);
+    if (entries.length === 0) {
+      return <p className="text-sm text-gray-500 dark:text-gray-400 italic">No result data</p>;
+    }
+    return (
+      <div className="flex flex-col gap-1 mt-1 w-full">
+        {entries.map(([key, value]) => (
+          <div key={key} className="flex flex-row gap-2 text-sm">
+            <span className="text-gray-500 dark:text-gray-400 min-w-fit shrink-0">{key}:</span>
+            <div className="flex-1 min-w-0">
+              {/* Render strings that look like prose via markdown, others inline */}
+              {typeof value === 'string' && value.length > 60
+                ? <MemoizedReactMarkdown
+                    className="prose dark:prose-invert text-sm max-w-full"
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                  >{value}</MemoizedReactMarkdown>
+                : renderValue(value)
+              }
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex items-start gap-2 bg-gray-50 dark:bg-[#444654] rounded p-2 my-1">
+      <IconTerminal2 className="min-w-[20px] mt-0.5 text-blue-600 dark:text-blue-400" />
+      <div className="w-full overflow-x-auto">
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <div className="flex items-center gap-2">
+            {hasError ? (
+              <IconCircleX className="min-w-[16px] text-red-600 dark:text-red-400" />
+            ) : (
+              <IconCircleCheck className="min-w-[16px] text-green-700 dark:text-green-300" />
+            )}
+            <span className={`font-medium ${hasError ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`}>
+              Result{tool ? `: ${tool}` : ''}
+            </span>
+          </div>
+          <button
+            onClick={() => setShowRaw(r => !r)}
+            className="flex items-center gap-1 text-xs px-2 py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+          >
+            <IconCode size={12} />
+            {showRaw ? 'Friendly' : 'Raw'}
+          </button>
+        </div>
+        {showRaw ? (
+          <MemoizedReactMarkdown
+            className="prose dark:prose-invert mt-1 break-words w-full max-w-full"
+            remarkPlugins={[remarkGfm, remarkMath]}
+            components={{
+              code({ node, inline, className, children, ...props }) {
+                return <CodeBlock language="json" value={String(children).replace(/\n$/, '')} {...props} />;
+              },
+            }}
+          >
+            {`\`\`\`json\n${JSON.stringify(msg.content, null, 2)}\n\`\`\``}
+          </MemoizedReactMarkdown>
+        ) : (
+          renderFriendly()
+        )}
+      </div>
+    </div>
+  );
+};
+
+const AssistantActionBlock: React.FC<{ msg: any }> = ({ msg }) => {
+  const [showRaw, setShowRaw] = useState(false);
+  const args = msg.content?.args;
+  const isSkipped = msg.content?.skipped;
+
+  const renderFriendlyArgs = () => {
+    if (!args || typeof args !== 'object' || Object.keys(args).length === 0) return null;
+    return (
+      <div className="flex flex-col gap-1">
+        {Object.entries(args).map(([key, value]) => (
+          <div key={key} className="flex flex-row gap-2 text-sm">
+            <span className="text-gray-500 dark:text-gray-400 min-w-fit shrink-0">{key}:</span>
+            <div className="flex-1 min-w-0">
+              {typeof value === 'string' && value.length > 60
+                ? <MemoizedReactMarkdown
+                    className="prose dark:prose-invert text-sm max-w-full"
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                  >{value}</MemoizedReactMarkdown>
+                : <span className="text-gray-800 dark:text-gray-200 break-words">
+                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                  </span>
+              }
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-2 bg-gray-50 dark:bg-[#444654] rounded p-2 my-1">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <IconRobot className="min-w-[20px] text-blue-600 dark:text-blue-400" />
+          <IconArrowRight className="min-w-[16px] text-blue-500 dark:text-blue-300" />
+          {isSkipped
+            ? <span className="font-medium text-lg text-red-700 dark:text-red-500">Skipped: </span>
+            : <div className="flex flex-row items-center gap-1">
+                {msg.content?.advanced_reasoning && <span title="Advanced Reasoning Model Used"><IconBrain size={18}/></span>}
+                <span className="font-medium text-blue-700 dark:text-blue-300">Execute: </span>
+              </div>
+          }
+          <span className="text-gray-600 dark:text-gray-300">{msg.content?.tool ?? ''}</span>
+        </div>
+        {!isSkipped && args && Object.keys(args).length > 0 && (
+          <button
+            onClick={() => setShowRaw(r => !r)}
+            className="flex items-center gap-1 text-xs px-2 py-0.5 rounded border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+          >
+            <IconCode size={12} />
+            {showRaw ? 'Friendly' : 'Raw'}
+          </button>
+        )}
+      </div>
+      <div className="ml-9">
+        {isSkipped ? (
+          <MemoizedReactMarkdown
+            className="prose dark:prose-invert w-full max-w-full"
+            remarkPlugins={[remarkGfm, remarkMath]}
+          >{msg.content?.skipped ?? ''}</MemoizedReactMarkdown>
+        ) : (
+          <>
+            {args && Object.keys(args).length > 0 && (
+              <div className="flex items-center gap-2 mb-1">
+                <IconBrackets className="min-w-[16px] text-amber-500 dark:text-amber-400" />
+                <span className="font-medium text-amber-600 dark:text-amber-300">Arguments:</span>
+              </div>
+            )}
+            {showRaw
+              ? <MemoizedReactMarkdown
+                  className="prose dark:prose-invert w-full max-w-full"
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  components={{
+                    code({ node, inline, className, children, ...props }) {
+                      return <CodeBlock language="json" value={String(children).replace(/\n$/, '')} {...props} />;
+                    },
+                  }}
+                >
+                  {`\`\`\`json\n${JSON.stringify(args, null, 2)}\n\`\`\``}
+                </MemoizedReactMarkdown>
+              : renderFriendlyArgs()
+            }
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const getAgentLogItem = (msg: any) => {
   if (msg.role === 'assistant' && msg.content && msg.content.tool === 'exec_code') {
     return (
@@ -174,53 +380,7 @@ const getAgentLogItem = (msg: any) => {
   }
 
   else if (msg.role === 'assistant') {
-    return (
-      <div className="flex flex-col gap-2 bg-gray-50 dark:bg-[#444654] rounded p-2 my-1">
-        <div className="flex items-center gap-2">
-          <IconRobot className="min-w-[20px] text-blue-600 dark:text-blue-400" />
-          <IconArrowRight className="min-w-[16px] text-blue-500 dark:text-blue-300" />
-          <div className="flex flex-row gap-2">
-            {msg.content?.skipped ?
-            <span className="font-medium text-lg text-red-700 dark:text-red-500">
-              {"Skipped: "}
-            </span> :
-            <div className="flex flex-row items-center gap-1 text-blue-700 dark:text-blue-300">
-              {msg.content?.advanced_reasoning && 
-              <span title="Advanced Reasoning Model Used"><IconBrain size={18}/></span> }
-              <span className="font-medium text-blue-700 dark:text-blue-300">{"Execute: "} </span>
-            </div>}
-            <span className="text-gray-600 dark:text-gray-300">
-              {msg.content && msg.content.tool ? msg.content.tool : ""}
-            </span>
-          </div>
-        </div>
-        <div className="ml-9">
-          <div className="flex items-center gap-2 mb-1">
-            {!msg.content?.skipped && <IconBrackets className="min-w-[16px] text-amber-500 dark:text-amber-400" />}
-            <span className="font-medium text-amber-600 dark:text-amber-300">
-              {msg.content?.skipped ? "Reasoning: " : "Arguments: "}
-            </span>
-          </div>
-          <MemoizedReactMarkdown
-            className="prose dark:prose-invert w-full max-w-full"
-            remarkPlugins={[remarkGfm, remarkMath]}
-            components={{
-              code({ node, inline, className, children, ...props }) {
-                return (
-                  <CodeBlock
-                    language="json"
-                    value={String(children).replace(/\n$/, '')}
-                    {...props}
-                  />
-                );
-              },
-            }}
-          >
-            {msg.content && msg.content.args ? `\`\`\`json\n${JSON.stringify(msg.content.args, null, 2)}\n\`\`\`` : msg.content?.skipped ?? ""}
-          </MemoizedReactMarkdown>
-        </div> 
-      </div>
-    );
+    return <AssistantActionBlock msg={msg} />;
   } else if (msg.role === 'user') {
     
     return (
@@ -257,49 +417,14 @@ const getAgentLogItem = (msg: any) => {
         <IconCurrencyDollar className="min-w-[20px] text-green-500" />
         <div>
           <span className="font-medium text-lg">
-            {`Total Token Cost: ${formatCost(msg.content.total_token_cost)}`}            
+            {`Total Token Cost: ${formatCost(msg.content.total_token_cost)}`}
           </span>
         </div>
       </div>
       );
     }
     const hasError = msg.content?.error;
-    return (
-      <div className="flex items-center gap-2 bg-gray-50 dark:bg-[#444654] rounded p-2 my-1">
-        <IconTerminal2 className="min-w-[20px] text-blue-600 dark:text-blue-400" />
-        <div className="w-full overflow-x-auto">
-          <div className="flex items-center gap-2 mb-1">
-            {hasError ? (
-              <IconCircleX className="min-w-[16px] text-red-600 dark:text-red-400" />
-            ) : (
-              <IconCircleCheck className="min-w-[16px] text-green-700 dark:text-green-300" />
-            )}
-            <span className={`font-medium ${hasError ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'}`}>
-           Result:
-         </span>
-          </div>
-          <div className="overflow-x-auto">
-            <MemoizedReactMarkdown
-              className="prose dark:prose-invert mt-1 break-words w-full max-w-full"
-              remarkPlugins={[remarkGfm, remarkMath]}
-              components={{
-                code({ node, inline, className, children, ...props }) {
-                  return (
-                    <CodeBlock
-                      language="json"
-                      value={String(children).replace(/\n$/, '')}
-                      {...props}
-                    />
-                  );
-                },
-              }}
-            >
-              {`\`\`\`json\n${JSON.stringify(msg.content, null, 2)}\n\`\`\``}
-            </MemoizedReactMarkdown>
-          </div>
-        </div>
-      </div>
-    );
+    return <EnvironmentResultBlock msg={msg} hasError={hasError} />;
   }
 };
 
