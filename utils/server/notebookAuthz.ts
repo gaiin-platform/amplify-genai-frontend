@@ -34,16 +34,41 @@ const fullyDecode = (path: string): string => {
 };
 
 // True if the path has a dot-dot segment or empty (//) segment after decoding.
-// Mirrors _has_traversal().
+// Mirrors _has_traversal(). Note: a single-dot ('.') segment is NOT rejected
+// here because it is legal and simply collapses to nothing; normalisePath()
+// removes it before the auth decision so it cannot be used to dodge a prefix
+// match (e.g. '/./settings' -> '/settings'). We still block '..' outright
+// because it changes which resource is addressed.
 export const hasTraversal = (path: string): boolean => {
     const raw = fullyDecode(path.split('?', 1)[0].split('#', 1)[0]);
     if (raw.includes('//')) return true;
     return raw.split('/').some((segment) => segment === '..');
 };
 
-// Canonicalise a path for the auth decision only. Mirrors _normalise_path().
+// Collapse RFC-3986 dot-segments ('.' and '..') the way uvicorn/the upstream
+// router will before it dispatches. Without this, '/./settings' or
+// '/x/../settings' slip past the admin prefix check (they are not literally
+// '/settings') yet resolve to the admin resource upstream -> auth bypass.
+// '..' should already have been rejected by hasTraversal, but we resolve it
+// here too so normalisePath is correct on its own.
+const collapseDotSegments = (path: string): string => {
+    const out: string[] = [];
+    for (const seg of path.split('/')) {
+        if (seg === '' || seg === '.') continue; // drop empty and single-dot
+        if (seg === '..') { out.pop(); continue; } // pop parent for dot-dot
+        out.push(seg);
+    }
+    return '/' + out.join('/');
+};
+
+// Canonicalise a path for the auth decision only. Fully decodes, collapses
+// dot-segments (so '/./settings' == '/settings' for the gate), forces a single
+// leading slash, drops the trailing slash, and lowercases. Mirrors
+// _normalise_path(). Used ONLY for the auth decision; the original path is
+// forwarded upstream.
 export const normalisePath = (path: string): string => {
-    let p = fullyDecode(path.split('?', 1)[0].split('#', 1)[0]).trim();
+    const decoded = fullyDecode(path.split('?', 1)[0].split('#', 1)[0]).trim();
+    let p = collapseDotSegments(decoded);
     if (!p.startsWith('/')) p = '/' + p;
     if (p.length > 1) p = p.replace(/\/+$/, '');
     return p.toLowerCase();
@@ -251,14 +276,19 @@ const DANGEROUS_UPLOAD_CONTENT_TYPES = new Set([
 
 // Reject an upload whose extension or content-type is dangerous. Mirrors
 // _check_multipart_file_type().
+//
+// Checks EVERY dotted component of the filename, not just the final one: a
+// double extension like 'xss.svg.txt' is dangerous because the upstream (and
+// browsers / downstream processors) can treat the file as SVG by its inner
+// '.svg' component even though the trailing token is a benign '.txt'. The
+// pentest (pj-80e53b96) bypassed a last-token-only check exactly this way, so
+// any dangerous token anywhere in the name is treated as dangerous.
 export const isDangerousUpload = (
     filename: string,
     contentType: string,
 ): boolean => {
-    const ext = filename.includes('.')
-        ? filename.split('.').pop()!.toLowerCase()
-        : '';
-    if (ext && DANGEROUS_UPLOAD_EXTENSIONS.has(ext)) return true;
+    const tokens = filename.toLowerCase().split('.').slice(1); // all extensions
+    if (tokens.some((t) => DANGEROUS_UPLOAD_EXTENSIONS.has(t.trim()))) return true;
     const baseCt = (contentType || '').split(';', 1)[0].trim().toLowerCase();
     return DANGEROUS_UPLOAD_CONTENT_TYPES.has(baseCt);
 };
