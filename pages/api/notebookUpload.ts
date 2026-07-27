@@ -5,6 +5,7 @@ import {
     getOpenNotebookBase,
     upstreamErrorMessage,
 } from '@/utils/server/openNotebook';
+import { checkMultipartUpload } from '@/utils/server/notebookAuthz';
 
 export const config = {
     api: {
@@ -48,6 +49,15 @@ const notebookUpload = async (req: NextApiRequest, res: NextApiResponse) => {
 
     try {
         const body = await readRawBody(req);
+
+        // Block dangerous (executable/active) file types and SSRF via a url
+        // form field, mirroring the notebook_proxy.py upload validation.
+        const uploadRejection = await checkMultipartUpload(contentType, body);
+        if (uploadRejection) {
+            return res
+                .status(uploadRejection.status === 200 ? 400 : uploadRejection.status)
+                .json({ error: uploadRejection.message });
+        }
 
         const upstream = await axios.post(`${base}/api/sources`, body, {
             headers: {
