@@ -313,3 +313,76 @@ describe('checkUploadUrlRequest (presigned S3 upload)', () => {
         expect(r).toBeNull();
     });
 });
+
+describe('dot-segment normalization bypass (pj-80e53b96 regression)', () => {
+    // The pentest bypassed the admin gate with a single-dot '/./' segment:
+    // '/./config' was not literally '/config' so it fell through to the user
+    // branch, but uvicorn normalized it to '/config' upstream -> 200 admin data.
+    it('normalises /./config to /config', () => {
+        expect(normalisePath('/./config')).toBe('/config');
+    });
+    it('normalises /./settings to /settings', () => {
+        expect(normalisePath('/./settings')).toBe('/settings');
+    });
+    it('normalises /x/../settings to /settings', () => {
+        expect(normalisePath('/x/../settings')).toBe('/settings');
+    });
+    it('normalises /././config to /config', () => {
+        expect(normalisePath('/././config')).toBe('/config');
+    });
+    it('normalises /./credentials/env-status to /credentials/env-status', () => {
+        expect(normalisePath('/./credentials/env-status')).toBe('/credentials/env-status');
+    });
+    // The auth decision must now treat all these as admin.
+    it('requires admin for /./config', () => {
+        expect(requiredLevel('GET', normalisePath('/./config'))).toBe('admin');
+    });
+    it('requires admin for /./settings', () => {
+        expect(requiredLevel('GET', normalisePath('/./settings'))).toBe('admin');
+    });
+    it('requires admin for /./models/defaults mutation', () => {
+        expect(requiredLevel('PUT', normalisePath('/./models/defaults'))).toBe('admin');
+    });
+    it('requires admin for /./docs and /./redoc', () => {
+        expect(requiredLevel('GET', normalisePath('/./docs'))).toBe('admin');
+        expect(requiredLevel('GET', normalisePath('/./redoc'))).toBe('admin');
+    });
+    // Legit single-dot on a user path still resolves and stays user-level.
+    it('keeps /./notebooks as user-level', () => {
+        expect(normalisePath('/./notebooks')).toBe('/notebooks');
+        expect(requiredLevel('GET', normalisePath('/./notebooks'))).toBe('user');
+    });
+});
+
+describe('double-extension upload bypass (pj-80e53b96 regression)', () => {
+    // The pentest uploaded 'xss.svg.txt' — a last-token-only check saw '.txt'
+    // and allowed it, but the file is SVG (stored XSS). Every dotted component
+    // must be inspected.
+    it('blocks xss.svg.txt (svg inner extension)', () => {
+        expect(isDangerousUpload('xss.svg.txt', 'text/plain')).toBe(true);
+    });
+    it('blocks test.html.txt', () => {
+        expect(isDangerousUpload('test.html.txt', 'text/plain')).toBe(true);
+    });
+    it('blocks shell.php.jpg', () => {
+        expect(isDangerousUpload('shell.php.jpg', 'image/jpeg')).toBe(true);
+    });
+    it('blocks evil.html.txt', () => {
+        expect(isDangerousUpload('evil.html.txt', 'text/plain')).toBe(true);
+    });
+    it('blocks shell.php.txt', () => {
+        expect(isDangerousUpload('shell.php.txt', 'text/plain')).toBe(true);
+    });
+    // Legit multi-dot names with only safe tokens still pass.
+    it('allows my.report.2026.pdf', () => {
+        expect(isDangerousUpload('my.report.2026.pdf', 'application/pdf')).toBe(false);
+    });
+    it('allows archive.tar.gz style safe name', () => {
+        expect(isDangerousUpload('data.backup.csv', 'text/csv')).toBe(false);
+    });
+    // And upload-url guard inherits the same fix.
+    it('upload-url blocks xss.svg.txt', () => {
+        const r = checkUploadUrlRequest('POST', '/sources/upload-url', { filename: 'xss.svg.txt' });
+        expect(r).not.toBeNull();
+    });
+});
