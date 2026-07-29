@@ -1,4 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
+import { MemoizedReactMarkdown } from '@/components/Markdown/MemoizedReactMarkdown';
+import LatexBlock from '@/components/Chat/ChatContentBlocks/LatexBlock';
 import {
     LucideAlertCircle,
     LucideCheckCircle,
@@ -38,10 +43,6 @@ interface ParsedRef {
     endIndex: number;
 }
 
-type Segment =
-    | { kind: 'text'; text: string }
-    | { kind: 'citation'; n: number; type: RefType; id: string };
-
 interface Citation {
     n: number;
     type: RefType;
@@ -50,6 +51,49 @@ interface Citation {
 }
 
 const REF_RE = /(source_insight|note|source):([A-Za-z0-9_]+)/g;
+
+// LaTeX rendering matches the main chat renderer (ChatContentBlock): this repo
+// pins react-markdown@8 (unified@10), so rehype-katax@7 (a unified@11 plugin)
+// can't be used — see components/Notebook/MarkdownEditor.tsx. Instead we rewrite
+// $$…$$ / \[…\] / \(…\) into <math-display>/<math-inline> custom elements (via
+// rehype-raw), rendered by LatexBlock. Code spans/blocks are shielded first so
+// dollar signs inside them aren't treated as math.
+const processLatex = (content: string): string => {
+    const stash: string[] = [];
+    const placeholders: string[] = [];
+
+    let processed = content.replace(/```[\s\S]*?```/g, (match) => {
+        const ph = `__CODE_BLOCK_${stash.length}__`;
+        stash.push(match);
+        placeholders.push(ph);
+        return ph;
+    });
+    processed = processed.replace(/`[^`]*`/g, (match) => {
+        const ph = `__INLINE_CODE_${stash.length}__`;
+        stash.push(match);
+        placeholders.push(ph);
+        return ph;
+    });
+
+    processed = processed.replace(/\$\$(.*?)\$\$/g, (_m, latex) => `<math-display>${latex}</math-display>`);
+    processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (_m, latex) => `<math-display>${latex}</math-display>`);
+    processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (_m, latex) => `<math-inline>${latex}</math-inline>`);
+
+    placeholders.forEach((ph, i) => {
+        processed = processed.replace(ph, stash[i]);
+    });
+    return processed;
+};
+
+// Allow the custom math elements through sanitization (mirrors chatSanitizeSchema).
+const mathSanitizeSchema = {
+    ...defaultSchema,
+    tagNames: [...(defaultSchema.tagNames ?? []), 'math-display', 'math-inline'],
+    attributes: {
+        ...defaultSchema.attributes,
+        '*': [...(defaultSchema.attributes?.['*'] ?? []), 'className', 'class'],
+    },
+};
 
 const parseRefs = (text: string): ParsedRef[] => {
     const refs: ParsedRef[] = [];
@@ -68,10 +112,10 @@ const parseRefs = (text: string): ParsedRef[] => {
 
 const renderAnswer = (
     raw: string,
-): { segments: Segment[]; orderedRefs: { type: RefType; id: string }[] } => {
+): { markdown: string; orderedRefs: { type: RefType; id: string }[] } => {
     const refs = parseRefs(raw);
     if (refs.length === 0) {
-        return { segments: [{ kind: 'text', text: raw }], orderedRefs: [] };
+        return { markdown: raw, orderedRefs: [] };
     }
 
     const order = new Map<string, number>();
@@ -81,7 +125,11 @@ const renderAnswer = (
         if (!order.has(key)) order.set(key, next++);
     }
 
-    const segments: Segment[] = [];
+    // Rebuild the answer text, replacing each citation (and any surrounding
+    // brackets) with a markdown link `[n](#ref-type-id)` so react-markdown
+    // renders the surrounding prose (bold, lists, tables, LaTeX) while the
+    // numbered citation stays a clickable chip via the custom `a` renderer.
+    let markdown = '';
     let pos = 0;
     for (const r of refs) {
         const before = raw.substring(Math.max(0, r.startIndex - 2), r.startIndex);
@@ -95,19 +143,19 @@ const renderAnswer = (
             from = r.startIndex - 1;
             to = r.endIndex + 1;
         }
-        if (from > pos) segments.push({ kind: 'text', text: raw.substring(pos, from) });
+        if (from > pos) markdown += raw.substring(pos, from);
         const n = order.get(`${r.type}:${r.id}`)!;
-        segments.push({ kind: 'citation', n, type: r.type, id: r.id });
+        markdown += `[${n}](#ref-${r.type}-${r.id})`;
         pos = to;
     }
-    if (pos < raw.length) segments.push({ kind: 'text', text: raw.substring(pos) });
+    if (pos < raw.length) markdown += raw.substring(pos);
 
     const orderedRefs = Array.from(order.entries()).map(([key]) => {
         const [type, id] = key.split(':') as [RefType, string];
         return { type, id };
     });
 
-    return { segments, orderedRefs };
+    return { markdown, orderedRefs };
 };
 
 const labelForType = (type: RefType): string => {
@@ -349,13 +397,13 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
         </button>
     );
 
-    const citationChip = (n: number, key?: React.Key, title?: string) => (
+    const citationChip = (label: React.ReactNode, key?: React.Key, title?: string) => (
         <span
             key={key}
             title={title}
             className="mx-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-purple-500/20 px-1.5 text-[11px] font-semibold text-purple-700 dark:bg-purple-400/20 dark:text-purple-200"
         >
-            {n}
+            {label}
         </span>
     );
 
@@ -551,19 +599,63 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                     </h3>
                                 </div>
                                 <div className="px-6">
-                                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                                        {answerRendered.segments.map((seg, i) =>
-                                            seg.kind === 'text' ? (
-                                                <span key={i}>{seg.text}</span>
-                                            ) : (
-                                                citationChip(
-                                                    seg.n,
-                                                    i,
-                                                    `${labelForType(seg.type)} ${seg.id}`,
-                                                )
+                                    <MemoizedReactMarkdown
+                                        className="prose prose-sm dark:prose-invert max-w-none break-words text-sm leading-relaxed"
+                                        remarkPlugins={[remarkGfm]}
+                                        // @ts-ignore — rehype-raw/sanitize typings vs react-markdown@8
+                                        rehypePlugins={[rehypeRaw, [rehypeSanitize, mathSanitizeSchema]]}
+                                        components={{
+                                            // @ts-ignore — custom math elements aren't in react-markdown@8's component map
+                                            'math-display': ({
+                                                children,
+                                            }: {
+                                                children: React.ReactNode;
+                                            }) => (
+                                                <LatexBlock
+                                                    math={String(children)}
+                                                    displayMode={true}
+                                                />
                                             ),
-                                        )}
-                                    </div>
+                                            'math-inline': ({
+                                                children,
+                                            }: {
+                                                children: React.ReactNode;
+                                            }) => (
+                                                <LatexBlock
+                                                    math={String(children)}
+                                                    displayMode={false}
+                                                />
+                                            ),
+                                            // Citations are rewritten as `[n](#ref-type-id)`
+                                            // links; render those as static numbered chips
+                                            // (matching the reference's citationChip) instead
+                                            // of navigating. Real URLs fall through to a
+                                            // normal new-tab anchor.
+                                            a({ href, children, ...props }) {
+                                                if (href && href.startsWith('#ref-')) {
+                                                    return citationChip(
+                                                        children as React.ReactNode,
+                                                        undefined,
+                                                        href
+                                                            .slice('#ref-'.length)
+                                                            .replace('-', ' '),
+                                                    );
+                                                }
+                                                return (
+                                                    <a
+                                                        href={href}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        {...props}
+                                                    >
+                                                        {children}
+                                                    </a>
+                                                );
+                                            },
+                                        }}
+                                    >
+                                        {processLatex(answerRendered.markdown)}
+                                    </MemoizedReactMarkdown>
 
                                     {answerCitations.length > 0 && (
                                         <div className="mt-4 border-t border-gray-200 pt-3 dark:border-neutral-700">
@@ -794,15 +886,54 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                                             {expanded && (
                                                                 <div className="mt-2 space-y-1">
                                                                     {matches.map((m, i) => (
-                                                                        <div
+                                                                        <MemoizedReactMarkdown
                                                                             key={i}
-                                                                            className="border-l-2 border-gray-200 py-1 pl-6 text-sm dark:border-neutral-600"
+                                                                            className="prose prose-sm dark:prose-invert max-w-none break-words border-l-2 border-gray-200 py-1 pl-6 text-sm dark:border-neutral-600"
+                                                                            remarkPlugins={[
+                                                                                remarkGfm,
+                                                                            ]}
+                                                                            // @ts-ignore — rehype-raw/sanitize typings vs react-markdown@8
+                                                                            rehypePlugins={[rehypeRaw, [rehypeSanitize, mathSanitizeSchema]]}
+                                                                            components={{
+                                                                                // @ts-ignore — custom math elements aren't in react-markdown@8's component map
+                                                                                'math-display': ({
+                                                                                    children,
+                                                                                }: {
+                                                                                    children: React.ReactNode;
+                                                                                }) => (
+                                                                                    <LatexBlock
+                                                                                        math={String(
+                                                                                            children,
+                                                                                        )}
+                                                                                        displayMode={
+                                                                                            true
+                                                                                        }
+                                                                                    />
+                                                                                ),
+                                                                                'math-inline': ({
+                                                                                    children,
+                                                                                }: {
+                                                                                    children: React.ReactNode;
+                                                                                }) => (
+                                                                                    <LatexBlock
+                                                                                        math={String(
+                                                                                            children,
+                                                                                        )}
+                                                                                        displayMode={
+                                                                                            false
+                                                                                        }
+                                                                                    />
+                                                                                ),
+                                                                            }}
                                                                         >
-                                                                            {typeof m === 'string'
-                                                                                ? m
-                                                                                : (m as any)
-                                                                                      ?.text || ''}
-                                                                        </div>
+                                                                            {processLatex(
+                                                                                typeof m === 'string'
+                                                                                    ? m
+                                                                                    : (m as any)
+                                                                                          ?.text ||
+                                                                                          '',
+                                                                            )}
+                                                                        </MemoizedReactMarkdown>
                                                                     ))}
                                                                 </div>
                                                             )}
