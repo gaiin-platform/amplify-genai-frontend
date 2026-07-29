@@ -1,4 +1,5 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import remarkGfm from 'remark-gfm';
 import HomeContext from '@/pages/api/home/home.context';
 import {
     LucideBot,
@@ -27,6 +28,7 @@ import {
     updateChatSession,
 } from '@/services/notebookService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
+import { MemoizedReactMarkdown } from '@/components/Markdown/MemoizedReactMarkdown';
 import { ChatModelSelect } from './ChatModelSelect';
 import { ContextIndicator } from './ContextIndicator';
 import { formatModelName } from './modelDisplay';
@@ -46,8 +48,9 @@ interface Props {
 // The LLM emits citations as raw SurrealDB record IDs (e.g. `[source:abc]`,
 // `source:abc` bare, `[[source:abc]]`, or `[source:a, note:b]` comma-grouped).
 // Ported from open-notebook's convertReferencesToCompactMarkdown so we cover the
-// same edge cases. Output is a segment list (mix of plain text + numbered
-// citation buttons) plus an ordered citation list for the footer.
+// same edge cases. Output is the message text with each citation rewritten as a
+// markdown link (`[n](#ref-type-id)`) so the whole message can be rendered
+// through react-markdown, plus an ordered citation list for the footer.
 type RefType = 'source' | 'note' | 'source_insight';
 interface ParsedRef {
     type: RefType;
@@ -55,9 +58,6 @@ interface ParsedRef {
     startIndex: number;
     endIndex: number;
 }
-type Segment =
-    | { kind: 'text'; text: string }
-    | { kind: 'citation'; n: number; type: RefType; id: string };
 interface Citation {
     n: number;
     type: RefType;
@@ -66,7 +66,11 @@ interface Citation {
     targetDomId: string;
 }
 interface RenderedMessage {
-    segments: Segment[];
+    // Message text with inline citations rewritten as markdown links
+    // (`[n](#ref-type-id)`); rendered via react-markdown so **bold**, lists,
+    // tables, etc. render, while the numbered citations stay clickable through
+    // a custom link renderer that intercepts `#ref-` hrefs.
+    markdown: string;
     citations: Citation[];
 }
 
@@ -94,7 +98,7 @@ const renderCitations = (
 ): RenderedMessage => {
     const refs = parseRefs(raw);
     if (refs.length === 0) {
-        return { segments: [{ kind: 'text', text: raw }], citations: [] };
+        return { markdown: raw, citations: [] };
     }
 
     const order = new Map<string, number>();
@@ -104,7 +108,10 @@ const renderCitations = (
         if (!order.has(key)) order.set(key, next++);
     }
 
-    const segments: Segment[] = [];
+    // Rebuild the message text, replacing each citation (and any surrounding
+    // brackets) with a markdown link `[n](#ref-type-id)` so react-markdown
+    // renders the surrounding prose while the citation stays clickable.
+    let markdown = '';
     let pos = 0;
     for (const r of refs) {
         const before = raw.substring(Math.max(0, r.startIndex - 2), r.startIndex);
@@ -118,12 +125,12 @@ const renderCitations = (
             from = r.startIndex - 1;
             to = r.endIndex + 1;
         }
-        if (from > pos) segments.push({ kind: 'text', text: raw.substring(pos, from) });
+        if (from > pos) markdown += raw.substring(pos, from);
         const n = order.get(`${r.type}:${r.id}`)!;
-        segments.push({ kind: 'citation', n, type: r.type, id: r.id });
+        markdown += `[${n}](#ref-${r.type}-${r.id})`;
         pos = to;
     }
-    if (pos < raw.length) segments.push({ kind: 'text', text: raw.substring(pos) });
+    if (pos < raw.length) markdown += raw.substring(pos);
 
     const citations: Citation[] = Array.from(order.entries()).map(([key, n]) => {
         const [type, id] = key.split(':') as [RefType, string];
@@ -139,7 +146,7 @@ const renderCitations = (
         return { n, type, id, label, targetDomId: `ref-${type}-${id}` };
     });
 
-    return { segments, citations };
+    return { markdown, citations };
 };
 
 const focusReference = (domId: string) => {
@@ -575,7 +582,7 @@ const MessageBubble = ({
     const [saved, setSaved] = useState<boolean>(false);
 
     const rendered: RenderedMessage = isHuman
-        ? { segments: [{ kind: 'text', text: message.content }], citations: [] }
+        ? { markdown: message.content, citations: [] }
         : renderCitations(message.content, sources, notes);
 
     const handleCopy = async () => {
@@ -617,25 +624,54 @@ const MessageBubble = ({
             )}
             <div className="flex max-w-[80%] flex-col gap-2">
                 <div
-                    className={`whitespace-pre-wrap rounded-lg px-4 py-2 text-sm ${
+                    className={`rounded-lg px-4 py-2 text-sm ${
                         isHuman
-                            ? 'bg-purple-500 text-white'
+                            ? 'whitespace-pre-wrap bg-purple-500 text-white'
                             : 'bg-gray-100 text-gray-800 dark:bg-neutral-700 dark:text-neutral-100'
                     }`}
                 >
-                    {rendered.segments.map((seg, i) =>
-                        seg.kind === 'text' ? (
-                            <span key={i}>{seg.text}</span>
-                        ) : (
-                            <button
-                                key={i}
-                                onClick={() => focusReference(`ref-${seg.type}-${seg.id}`)}
-                                className="mx-0.5 inline-flex items-baseline rounded bg-purple-100 px-1 font-mono text-[11px] font-medium text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:hover:bg-purple-900/60"
-                                title={`Jump to ${seg.type}`}
-                            >
-                                {seg.n}
-                            </button>
-                        ),
+                    {isHuman ? (
+                        rendered.markdown
+                    ) : (
+                        <MemoizedReactMarkdown
+                            className="prose prose-sm dark:prose-invert max-w-none break-words"
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                                // Numbered citations are emitted as `[n](#ref-type-id)`
+                                // links; intercept those to scroll/flash the referenced
+                                // source or note instead of navigating. All other links
+                                // (real URLs) fall through to a normal new-tab anchor.
+                                a({ href, children, ...props }) {
+                                    if (href && href.startsWith('#ref-')) {
+                                        return (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    focusReference(href.slice(1));
+                                                }}
+                                                className="mx-0.5 inline-flex items-baseline rounded bg-purple-100 px-1 font-mono text-[11px] font-medium text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:hover:bg-purple-900/60"
+                                                title="Jump to reference"
+                                            >
+                                                {children}
+                                            </button>
+                                        );
+                                    }
+                                    return (
+                                        <a
+                                            href={href}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            {...props}
+                                        >
+                                            {children}
+                                        </a>
+                                    );
+                                },
+                            }}
+                        >
+                            {rendered.markdown}
+                        </MemoizedReactMarkdown>
                     )}
                     {rendered.citations.length > 0 && (
                         <div className="mt-2 border-t border-gray-300 pt-1.5 text-[11px] text-gray-600 dark:border-neutral-600 dark:text-gray-300">
