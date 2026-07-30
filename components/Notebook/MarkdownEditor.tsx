@@ -1,4 +1,4 @@
-import { useContext } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { codeEdit, codeLive, codePreview } from '@uiw/react-md-editor/commands';
 import HomeContext from '@/pages/api/home/home.context';
@@ -49,12 +49,34 @@ export const MarkdownEditor = ({ value, onChange, placeholder, height = 380, tex
         state: { lightMode },
     } = useContext(HomeContext);
 
+    // The editor's fixed height (340-380px) was set assuming a tall enough
+    // viewport; nested inside a modal's own fixed-height scroll container
+    // (#modalScroll), a short/small-window viewport could end up with the
+    // editor taller than the space the modal has for it, producing a
+    // scrollbar on the editor's own internal textarea/preview AND a second
+    // one on the modal's outer scroll container. Shrink to fit whatever's
+    // actually available on short viewports instead of a constant value.
+    const [effectiveHeight, setEffectiveHeight] = useState(height);
+    useEffect(() => {
+        const recompute = () => {
+            // Leaves ~260px for the rest of the dialog's chrome (title,
+            // labels, other fields, footer buttons) above/below the editor —
+            // an approximation, not an exact measurement, since the editor
+            // doesn't know its sibling content's height.
+            const available = window.innerHeight * 0.9 - 260;
+            setEffectiveHeight(Math.max(160, Math.min(height, available)));
+        };
+        recompute();
+        window.addEventListener('resize', recompute);
+        return () => window.removeEventListener('resize', recompute);
+    }, [height]);
+
     return (
         <div data-color-mode={lightMode}>
             <MDEditor
                 value={value}
                 onChange={(v) => onChange(v ?? '')}
-                height={height}
+                height={effectiveHeight}
                 preview="live"
                 extraCommands={EXTRA_COMMANDS}
                 textareaProps={{ placeholder: placeholder || 'Write your note…', id: textareaId }}

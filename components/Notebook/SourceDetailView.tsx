@@ -1,5 +1,6 @@
-import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import remarkGfm from 'remark-gfm';
+import HomeContext from '@/pages/api/home/home.context';
 import {
     LucideAlertCircle,
     LucideAlignLeft,
@@ -12,6 +13,7 @@ import {
     LucideExternalLink,
     LucideLightbulb,
     LucideLink,
+    LucideChevronDown,
     LucideLoader2,
     LucideMoreVertical,
     LucidePlus,
@@ -41,6 +43,7 @@ import {
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import { MemoizedReactMarkdown } from '@/components/Markdown/MemoizedReactMarkdown';
+import { filterTransformationsForRole } from './transformationAccess';
 import { InlineEditText } from './InlineEditText';
 import { DropdownButton, DropdownItem } from './DropdownButton';
 import { SourceChatPanel } from './SourceChatPanel';
@@ -67,6 +70,15 @@ const sourceKind = (s: SourceListItem): 'link' | 'file' | 'text' => {
     if (s.asset?.file_path) return 'file';
     return 'text';
 };
+
+// asset.file_path is an internal storage path — for S3-backed deployments
+// it's the full `s3://open-notebook-data/user_<...>/uploads/<uuid>/name.ext`
+// URI, exposing the bucket name, the user's DB-identifier path segment, and
+// an opaque upload UUID to someone who just wants to know which file this
+// is. Show only the filename; the full path is still available via the
+// element's title tooltip for anyone who needs it (e.g. support/debugging).
+const fileBaseName = (filePath: string): string =>
+    filePath.split(/[/\\]/).pop() || filePath;
 
 const KIND_LABELS: Record<'link' | 'file' | 'text', string> = {
     link: 'Link',
@@ -165,6 +177,16 @@ export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated
         setSrc(source);
     }, [source]);
 
+    // Once a 404 sets fileAvailable=false, nothing ever cleared it — so
+    // "File unavailable" (and the disabled Download button) could wrongly
+    // persist across unrelated updates to this source (rename, embed) or
+    // even after navigating to a completely different source that reuses
+    // this mounted component. Reset whenever we're looking at a different
+    // source record.
+    useEffect(() => {
+        setFileAvailable(null);
+    }, [source.id]);
+
     useEffect(() => {
         let cancelled = false;
         listSourceInsights(source.id).then((data) => {
@@ -230,8 +252,7 @@ export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated
             return;
         }
         setFileAvailable(true);
-        const fallbackName =
-            src.asset.file_path.split(/[/\\]/).pop() || `source-${src.id}`;
+        const fallbackName = fileBaseName(src.asset.file_path) || `source-${src.id}`;
         const blobUrl = window.URL.createObjectURL(result.blob);
         const link = document.createElement('a');
         link.href = blobUrl;
@@ -312,7 +333,9 @@ export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated
         <div className="grid h-full gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
             <div className="flex min-h-0 min-w-0 flex-col">
                 {/* Header */}
-                <div className="px-2 pb-4">
+                {/* id targeted by SourceChatPanel's "This source" citations
+                    (see focusReference/onBeforeFocusReference below). */}
+                <div id="ref-this-source" className="px-2 pb-4">
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                             <InlineEditText
@@ -321,9 +344,6 @@ export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated
                                 className="text-2xl font-bold"
                                 onSave={handleRename}
                             />
-                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                Source ID: {src.id}
-                            </p>
                         </div>
                         <div className="flex flex-none items-center gap-2">
                             <KindIcon kind={kind} size={20} />
@@ -443,7 +463,16 @@ export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated
             </div>
 
             <div className="min-h-0 min-w-0">
-                <SourceChatPanel source={src} />
+                <SourceChatPanel
+                    source={src}
+                    onBeforeFocusReference={(domId) => {
+                        // Insight citation targets only exist in the DOM once
+                        // the Insights tab is mounted; switch to it before
+                        // SourceChatPanel tries to scroll/flash the element.
+                        if (domId.startsWith('ref-source_insight-')) setTab('insights');
+                        else if (domId === 'ref-this-source') setTab('content');
+                    }}
+                />
             </div>
 
             {confirmDeleteSource && (
@@ -475,6 +504,11 @@ const InsightsTab = ({
     source: SourceListItem;
     onCountChange: (count: number) => void;
 }) => {
+    const {
+        state: { featureFlags },
+    } = useContext(HomeContext);
+    const isAdmin = !!featureFlags?.adminInterface;
+
     const [insights, setInsights] = useState<SourceInsight[]>([]);
     const [transformations, setTransformations] = useState<Transformation[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
@@ -506,14 +540,25 @@ const InsightsTab = ({
             ]);
             if (cancelled) return;
             setInsights(insightsData);
-            setTransformations(transformationsData);
+            // Non-admins are offered only the curated transformation set;
+            // admins keep the full list.
+            const allowedTransformations = filterTransformationsForRole(transformationsData, isAdmin);
+            setTransformations(allowedTransformations);
+            // Default the picker to "Dense Summary" when available so the
+            // common case (generate a summary) is a single click.
+            const denseSummary = allowedTransformations.find(
+                (t) => (t.title || t.name) === 'Dense Summary',
+            );
+            if (denseSummary) {
+                setSelectedTransformationId(denseSummary.id);
+            }
             onCountChange(insightsData.length);
             setLoading(false);
         })();
         return () => {
             cancelled = true;
         };
-    }, [source.id, onCountChange]);
+    }, [source.id, onCountChange, isAdmin]);
 
     const handleGenerate = async () => {
         if (!selectedTransformationId || generating) return;
@@ -528,20 +573,71 @@ const InsightsTab = ({
         }
         setSelectedTransformationId('');
 
-        // The backend submits an async job; poll for completion. If no
-        // command_id comes back (older deployments), fall back to a single
-        // refetch.
-        if (response.command_id) {
-            const final = await waitForCommand(response.command_id, {
-                intervalMs: 2500,
-                timeoutMs: 180_000,
-            });
-            if (final && final.status !== 'completed') {
-                setGenerationError(final.error_message || `Job ${final.status}.`);
+        const baselineCount = insights.length;
+
+        // The command_id's own status only tracks the outer run_transformation
+        // job — the insight itself is created by a separate create_insight
+        // command fired from within that job's graph, so run_transformation
+        // can report "completed" slightly before the new insight is actually
+        // visible via GET /sources/{id}/insights (or the status value coming
+        // back through the proxy just doesn't land cleanly). That gap is why
+        // this previously sat on "Generating insight…" indefinitely while
+        // staying on the page: waitForCommand alone doesn't tell us whether
+        // the insight actually landed. Poll the insights list itself instead
+        // — the same list a manual navigate-away-and-back re-fetches — and
+        // stop as soon as it actually grows, independent of what the command
+        // status field says.
+        const insightAppeared = async (): Promise<boolean> => {
+            const data = await refreshInsights();
+            return data.length > baselineCount;
+        };
+
+        let commandFailed: string | null = null;
+        let commandSettled = false;
+        const commandWait = response.command_id
+            ? waitForCommand(response.command_id, { intervalMs: 2500, timeoutMs: 180_000 }).then(
+                  (final) => {
+                      if (final && final.status !== 'completed') {
+                          commandFailed = final.error_message || `Job ${final.status}.`;
+                      }
+                      commandSettled = true;
+                  },
+              )
+            : Promise.resolve().then(() => {
+                  commandSettled = true;
+              });
+
+        const POLL_INTERVAL_MS = 3000;
+        const POLL_TIMEOUT_MS = 180_000;
+        const startedAt = Date.now();
+        let appeared = await insightAppeared();
+        while (!appeared && !commandFailed && Date.now() - startedAt < POLL_TIMEOUT_MS) {
+            // Once commandWait has already settled, racing it again would
+            // resolve instantly every time (an already-settled promise wins
+            // a race immediately) and turn this into a tight loop hammering
+            // insightAppeared() with no delay. Only race it while it's still
+            // pending; afterwards just wait out the fixed poll interval.
+            if (commandSettled) {
+                await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+            } else {
+                await Promise.race([new Promise((r) => setTimeout(r, POLL_INTERVAL_MS)), commandWait]);
             }
+            if (commandFailed) break;
+            appeared = await insightAppeared();
         }
 
-        await refreshInsights();
+        if (commandFailed) {
+            setGenerationError(commandFailed);
+        } else if (!appeared) {
+            // Gave up after 3 minutes without ever seeing the new insight —
+            // it may still finish server-side, but there's nothing more to
+            // wait for here.
+            setGenerationError(
+                "This is taking longer than expected. It may still finish in the " +
+                    'background — check back in a bit, or try again.',
+            );
+        }
+
         setGenerating(false);
     };
 
@@ -562,30 +658,20 @@ const InsightsTab = ({
     };
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                        <LucideLightbulb size={20} />
-                        Insights
-                    </span>
-                    <span className={badgeClass('secondary')}>{insights.length}</span>
-                </CardTitle>
-                <CardDescription>Insights generated from model analysis</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-                {/* Create New Insight */}
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-neutral-700 dark:bg-[#343541]">
-                    <label className="mb-3 flex items-center gap-2 text-sm font-semibold">
-                        <LucideSparkles size={16} />
-                        Generate New Insight
-                    </label>
-                    <div className="flex gap-2">
+        <div className="flex flex-col gap-4">
+            {/* Create New Insight */}
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-neutral-700 dark:bg-[#343541]">
+                <label className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                    <LucideSparkles size={16} />
+                    Generate New Insight
+                </label>
+                <div className="flex gap-2">
+                    <div className="relative min-w-0 flex-1">
                         <select
                             value={selectedTransformationId}
                             onChange={(e) => setSelectedTransformationId(e.target.value)}
                             disabled={generating || loading}
-                            className="h-9 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm shadow-sm disabled:opacity-50 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                            className="h-9 w-full min-w-0 appearance-none rounded-md border border-gray-300 bg-white px-3 pr-8 text-sm shadow-sm disabled:opacity-50 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
                         >
                             <option value="">Select a transformation...</option>
                             {transformations.map((t) => (
@@ -594,84 +680,110 @@ const InsightsTab = ({
                                 </option>
                             ))}
                         </select>
-                        <button
-                            onClick={handleGenerate}
-                            disabled={!selectedTransformationId || generating || loading}
-                            className={primaryButtonClass}
-                        >
-                            {generating ? (
-                                <>
-                                    <LucideLoader2 size={12} className="animate-spin" />
-                                    Creating...
-                                </>
-                            ) : (
-                                <>
-                                    <LucidePlus size={16} />
-                                    New
-                                </>
-                            )}
-                        </button>
+                        <LucideChevronDown
+                            size={16}
+                            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                        />
                     </div>
-                    {generationError && (
-                        <div className="mt-2 flex items-start gap-1.5 text-xs text-red-600 dark:text-red-400">
-                            <LucideAlertCircle size={14} className="mt-0.5 flex-none" />
-                            <span>{generationError}</span>
+                    <button
+                        onClick={handleGenerate}
+                        disabled={!selectedTransformationId || generating || loading}
+                        className={primaryButtonClass}
+                    >
+                        {generating ? (
+                            <>
+                                <LucideLoader2 size={12} className="animate-spin" />
+                                Creating...
+                            </>
+                        ) : (
+                            <>
+                                <LucidePlus size={16} />
+                                New
+                            </>
+                        )}
+                    </button>
+                </div>
+                {generationError && (
+                    <div className="mt-2 flex items-start gap-1.5 text-xs text-red-600 dark:text-red-400">
+                        <LucideAlertCircle size={14} className="mt-0.5 flex-none" />
+                        <span>{generationError}</span>
+                    </div>
+                )}
+            </div>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <LucideLightbulb size={20} />
+                        Insights
+                    </CardTitle>
+                    <CardDescription>Insights generated from model analysis</CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                    {error && (
+                        <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+                    )}
+
+                    {/* Insights List */}
+                    {loading ? (
+                        <div className="flex items-center justify-center py-8">
+                            <LucideLoader2 size={24} className="animate-spin text-gray-400" />
+                        </div>
+                    ) : insights.length === 0 && !generating ? (
+                        <div className="py-8 text-center text-gray-500 dark:text-gray-400">
+                            <LucideLightbulb size={48} className="mx-auto mb-3 opacity-50" />
+                            <p className="text-sm">No insights yet</p>
+                            <p className="mt-1 text-xs">
+                                Create your first insight using a transformation above
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-3">
+                            {generating && (
+                                <div className="flex items-center gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500 dark:border-neutral-600 dark:bg-[#343541] dark:text-gray-400">
+                                    <LucideLoader2 size={16} className="animate-spin flex-none" />
+                                    Generating insight…
+                                </div>
+                            )}
+                            {insights.map((insight) => (
+                                <div
+                                    key={insight.id}
+                                    id={`ref-source_insight-${insight.id.split(':')[1] ?? insight.id}`}
+                                    className="rounded-lg border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-[#2b2c36]"
+                                >
+                                    <div className="flex items-start justify-between">
+                                        <span className={badgeClass('outline', 'uppercase')}>
+                                            {insight.insight_type}
+                                        </span>
+                                    </div>
+                                    <div className="mt-2 line-clamp-3 text-sm text-gray-500 dark:text-gray-400">
+                                        <MemoizedReactMarkdown
+                                            className="prose prose-sm dark:prose-invert max-w-none break-words [&_*]:my-0 [&_*]:text-sm [&_*]:font-normal [&_*]:leading-normal"
+                                            remarkPlugins={[remarkGfm]}
+                                        >
+                                            {insight.content}
+                                        </MemoizedReactMarkdown>
+                                    </div>
+                                    <div className="mt-3 flex justify-end gap-2">
+                                        <button
+                                            onClick={() => setViewInsight(insight)}
+                                            className={outlineButtonClass}
+                                        >
+                                            View Insight
+                                        </button>
+                                        <button
+                                            onClick={() => setPendingDelete(insight)}
+                                            className={`${outlineButtonClass} text-red-600 hover:text-red-600 dark:text-red-400`}
+                                        >
+                                            <LucideTrash2 size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
-                </div>
-
-                {error && (
-                    <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
-                )}
-
-                {/* Insights List */}
-                {loading ? (
-                    <div className="flex items-center justify-center py-8">
-                        <LucideLoader2 size={24} className="animate-spin text-gray-400" />
-                    </div>
-                ) : insights.length === 0 ? (
-                    <div className="py-8 text-center text-gray-500 dark:text-gray-400">
-                        <LucideLightbulb size={48} className="mx-auto mb-3 opacity-50" />
-                        <p className="text-sm">No insights yet</p>
-                        <p className="mt-1 text-xs">
-                            Create your first insight using a transformation above
-                        </p>
-                    </div>
-                ) : (
-                    <div className="flex flex-col gap-3">
-                        {insights.map((insight) => (
-                            <div
-                                key={insight.id}
-                                className="rounded-lg border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-[#2b2c36]"
-                            >
-                                <div className="flex items-start justify-between">
-                                    <span className={badgeClass('outline', 'uppercase')}>
-                                        {insight.insight_type}
-                                    </span>
-                                </div>
-                                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                    {insight.content.slice(0, 180)}
-                                    {insight.content.length > 180 ? '…' : ''}
-                                </p>
-                                <div className="mt-3 flex justify-end gap-2">
-                                    <button
-                                        onClick={() => setViewInsight(insight)}
-                                        className={outlineButtonClass}
-                                    >
-                                        View Insight
-                                    </button>
-                                    <button
-                                        onClick={() => setPendingDelete(insight)}
-                                        className={`${outlineButtonClass} text-red-600 hover:text-red-600 dark:text-red-400`}
-                                    >
-                                        <LucideTrash2 size={16} />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </CardContent>
+                </CardContent>
+            </Card>
 
             {viewInsight && (
                 <Modal
@@ -709,7 +821,7 @@ const InsightsTab = ({
                     onDeny={() => setPendingDelete(null)}
                 />
             )}
-        </Card>
+        </div>
     );
 };
 
@@ -735,12 +847,19 @@ const DetailsTab = ({
     onSourceUpdated: (source: SourceListItem) => void;
 }) => {
     const [copied, setCopied] = useState<boolean>(false);
+    const [idCopied, setIdCopied] = useState<boolean>(false);
 
     const handleCopyUrl = () => {
         if (!source.asset?.url) return;
         navigator.clipboard.writeText(source.asset.url);
         setCopied(true);
         window.setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleCopyId = () => {
+        navigator.clipboard.writeText(source.id);
+        setIdCopied(true);
+        window.setTimeout(() => setIdCopied(false), 2000);
     };
 
     const created = source.created ? new Date(source.created.replace(' ', 'T')) : null;
@@ -824,8 +943,11 @@ const DetailsTab = ({
                             <div className="flex flex-col gap-2">
                                 <h3 className="text-sm font-semibold">Uploaded File</h3>
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <code className="min-w-0 max-w-full truncate rounded bg-gray-100 px-2 py-1 text-sm dark:bg-neutral-700">
-                                        {source.asset.file_path}
+                                    <code
+                                        title={source.asset.file_path}
+                                        className="min-w-0 max-w-full truncate rounded bg-gray-100 px-2 py-1 text-sm dark:bg-neutral-700"
+                                    >
+                                        {fileBaseName(source.asset.file_path)}
                                     </code>
                                     <button
                                         onClick={onDownload}
@@ -899,6 +1021,27 @@ const DetailsTab = ({
                                 <p className="text-xs text-gray-500 dark:text-gray-400">
                                     {updated ? updated.toLocaleString() : '—'}
                                 </p>
+                            </div>
+                        </div>
+                        <div className="mt-4">
+                            <p className="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+                                Source ID
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <code className="min-w-0 flex-1 truncate rounded bg-gray-100 px-2 py-1 text-sm dark:bg-neutral-700">
+                                    {source.id}
+                                </code>
+                                <button
+                                    onClick={handleCopyId}
+                                    title="Copy source ID"
+                                    className={outlineButtonClass}
+                                >
+                                    {idCopied ? (
+                                        <LucideCheckCircle size={16} />
+                                    ) : (
+                                        <LucideCopy size={16} />
+                                    )}
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1015,7 +1158,17 @@ const ManageNotebooksCard = ({
                                                 <h4 className="truncate text-sm font-medium">
                                                     {nb.name || '(untitled)'}
                                                 </h4>
-                                                {isLinked && !hasChanges && (
+                                                {/* Per-row, not gated on the
+                                                    global hasChanges — that
+                                                    previously hid every
+                                                    linked checkmark at once
+                                                    the moment ANY row was
+                                                    toggled. Show the check
+                                                    only for a row that's
+                                                    linked and still selected
+                                                    (i.e. no pending removal
+                                                    queued for THIS row). */}
+                                                {isLinked && isSelected && (
                                                     <LucideCheck
                                                         size={16}
                                                         className="flex-none text-green-600"

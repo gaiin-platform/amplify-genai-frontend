@@ -51,7 +51,7 @@ interface Props {
 // same edge cases. Output is the message text with each citation rewritten as a
 // markdown link (`[n](#ref-type-id)`) so the whole message can be rendered
 // through react-markdown, plus an ordered citation list for the footer.
-type RefType = 'source' | 'note' | 'source_insight';
+type RefType = 'source' | 'note' | 'source_insight' | 'insight';
 interface ParsedRef {
     type: RefType;
     id: string;
@@ -74,7 +74,13 @@ interface RenderedMessage {
     citations: Citation[];
 }
 
-const REF_RE = /(source_insight|note|source):([A-Za-z0-9_]+)/g;
+// The source-chat/notebook-chat system prompts tell the model to cite
+// insights with the shorthand `insight:<id>`, but the actual SurrealDB table
+// (and the id the model copies out of context) is `source_insight:<id>`.
+// That mismatch let raw `insight:xxxx` citations slip past this regex
+// untouched, leaking the id straight into the rendered message. Match the
+// bare `insight` alias too so it gets the same citation treatment.
+const REF_RE = /(source_insight|insight|note|source):([A-Za-z0-9_]+)/g;
 
 const parseRefs = (text: string): ParsedRef[] => {
     const refs: ParsedRef[] = [];
@@ -192,6 +198,10 @@ export const ChatPanel = ({
     // Record of the model that will answer (override or default), reported by
     // ChatModelSelect — drives the context-limit readout in the indicator.
     const [activeModel, setActiveModel] = useState<NotebookModel | null>(null);
+    // Whether there's actually more than one model to choose from — when
+    // there isn't, showing "Model: <name>" is just branding noise since the
+    // user has no choice to make, so the whole label+picker row is hidden.
+    const [hasModelAlternatives, setHasModelAlternatives] = useState<boolean>(true);
     // Amplify's admin model table — the source of truth for context windows.
     const {
         state: { availableModels },
@@ -274,7 +284,14 @@ export const ChatPanel = ({
             setError(null);
             const session = await getChatSession(currentSessionId);
             if (cancelled) return;
-            if (session) setMessages(session.messages || []);
+            if (session) {
+                setMessages(session.messages || []);
+                // Without this, modelOverride keeps whatever session A had
+                // selected after switching to session B — the ChatModelSelect
+                // badge would show A's override while the next message to B
+                // silently used it too.
+                setModelOverride(session.model_override || '');
+            }
             setLoadingMessages(false);
         };
         load();
@@ -310,6 +327,9 @@ export const ChatPanel = ({
         setSessions((prev) => [created, ...prev]);
         setCurrentSessionId(created.id);
         setMessages([]);
+        // A brand-new session has no override yet — don't carry over
+        // whatever the previously active session had selected.
+        setModelOverride(created.model_override || '');
         setShowSessions(false);
     };
 
@@ -345,6 +365,13 @@ export const ChatPanel = ({
     const handleSend = async () => {
         const text = draft.trim();
         if (!text || isSending) return;
+        // Set before the first await (session creation) so a fast
+        // double-click/double-Enter on the very first message of a new chat
+        // can't race past this guard — the Send button's `disabled` also
+        // reads `isSending`, so this closes the window where a second
+        // invocation could create a duplicate session and send the message
+        // twice.
+        setIsSending(true);
 
         let sessionId = currentSessionId;
         if (!sessionId) {
@@ -358,6 +385,7 @@ export const ChatPanel = ({
             const created = await createChatSession(notebookId, title);
             if (!created) {
                 setError('Failed to create session.');
+                setIsSending(false);
                 return;
             }
             locallyCreatedRef.current.add(created.id);
@@ -374,7 +402,6 @@ export const ChatPanel = ({
             content: text,
         };
         setMessages((prev) => [...prev, userMsg]);
-        setIsSending(true);
 
         // Context is built from the selections server-side, so there's no
         // separate buildChatContext round-trip on the send path.
@@ -390,9 +417,21 @@ export const ChatPanel = ({
                 throw new Error('Failed to send message.');
             }
             setMessages(result.messages);
+            // The message is now persisted, so a fresh fetch would return the
+            // same list we just set — safe to stop treating this as a
+            // locally-created session with special-cased state. Without
+            // this, switching away from and back to this session later would
+            // hit the `locallyCreatedRef.current.has(...)` guard above and
+            // skip the fetch, leaving whatever session's messages happened to
+            // be in state at the time (i.e. a different session's messages
+            // rendered under this session's header).
+            locallyCreatedRef.current.delete(sessionId);
         } catch (e: any) {
             setError(e?.message || 'Failed to send message.');
             setMessages((prev) => prev.filter((m) => !m.id.startsWith('temp-')));
+            // Send failed: this session (if newly created) still has no
+            // persisted messages, so keep it in locallyCreatedRef — leave as
+            // is (mirrors SourceChatPanel.tsx's handleSend).
         } finally {
             setIsSending(false);
         }
@@ -493,15 +532,18 @@ export const ChatPanel = ({
 
             {/* Input Area */}
             <div className="flex flex-none flex-col gap-3 border-t border-gray-200 p-4 dark:border-neutral-700">
-                <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-gray-500 dark:text-gray-400">Model</span>
-                    <ChatModelSelect
-                        value={modelOverride}
-                        onChange={setModelOverride}
-                        disabled={isSending}
-                        onResolvedModel={setActiveModel}
-                    />
-                </div>
+                {hasModelAlternatives && (
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">Model</span>
+                        <ChatModelSelect
+                            value={modelOverride}
+                            onChange={setModelOverride}
+                            disabled={isSending}
+                            onResolvedModel={setActiveModel}
+                            onHasAlternatives={setHasModelAlternatives}
+                        />
+                    </div>
+                )}
                 <div className="flex min-w-0 items-end gap-2">
                     <textarea
                         ref={textareaRef}

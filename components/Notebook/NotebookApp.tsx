@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { IconArrowLeft, IconNotebook, IconX } from '@tabler/icons-react';
 import {
     LucideArchive,
@@ -140,7 +140,10 @@ const NotebookCard = ({ notebook: nb, onOpen, ...actionProps }: NotebookItemProp
         <div className="p-6 pb-3">
             <div className="flex items-start justify-between">
                 <div className="min-w-0 flex-1">
-                    <div className="truncate text-base font-semibold leading-none transition-colors group-hover:text-purple-600 dark:group-hover:text-purple-400">
+                    {/* leading-tight, not leading-none: `truncate` sets
+                        overflow-hidden, and a line-height of exactly 1 clips
+                        glyph descenders (g/y/p/j) off the bottom. */}
+                    <div className="truncate text-base font-semibold leading-tight transition-colors group-hover:text-purple-600 dark:group-hover:text-purple-400">
                         {nb.name || '(untitled)'}
                     </div>
                     {nb.archived && (
@@ -234,6 +237,11 @@ export const NotebookApp = () => {
     // Source opened from the Sources page — renders the full-page source
     // viewer (content + insights + source-scoped chat) in place of the list.
     const [viewingSource, setViewingSource] = useState<SourceListItem | null>(null);
+    // Tracks the most recently requested source id so a slow `getSource` for a
+    // source the user has since navigated away from can't clobber
+    // `viewingSource` with the wrong source after a faster, later request
+    // resolves first (see handleOpenSourceFromGlobalList).
+    const viewingSourceRequestIdRef = useRef<string | null>(null);
     const [pendingDelete, setPendingDelete] = useState<NotebookSummary | null>(null);
     const [section, setSection] = useState<NotebookSection>('notebooks');
     const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
@@ -258,17 +266,30 @@ export const NotebookApp = () => {
     const toggleArchive = async (nb: NotebookSummary) => {
         setArchivingId(nb.id);
         setActionError(null);
-        const updated = await updateNotebook(nb.id, { archived: !nb.archived });
-        setArchivingId(null);
-        if (!updated) {
-            setActionError(
-                `Couldn't ${nb.archived ? 'unarchive' : 'archive'} "${nb.name || '(untitled)'}".`,
+        // try/finally guarantees archivingId always clears, even if
+        // updateNotebook throws instead of resolving to null (its normal
+        // failure mode) — without this, an unexpected exception here left
+        // archivingId stuck and the Archive button permanently disabled
+        // until a full page reload.
+        try {
+            const updated = await updateNotebook(nb.id, { archived: !nb.archived });
+            if (!updated) {
+                setActionError(
+                    `Couldn't ${nb.archived ? 'unarchive' : 'archive'} "${nb.name || '(untitled)'}".`,
+                );
+                return;
+            }
+            setNotebooks((prev) =>
+                prev.map((n) => (n.id === nb.id ? { ...n, ...updated } : n)),
             );
-            return;
+        } catch (e: any) {
+            setActionError(
+                e?.message ||
+                    `Couldn't ${nb.archived ? 'unarchive' : 'archive'} "${nb.name || '(untitled)'}".`,
+            );
+        } finally {
+            setArchivingId(null);
         }
-        setNotebooks((prev) =>
-            prev.map((n) => (n.id === nb.id ? { ...n, ...updated } : n)),
-        );
     };
 
     const goBackToChat = () => dispatch({ field: 'page', value: 'chat' });
@@ -292,7 +313,16 @@ export const NotebookApp = () => {
     // page. The list items lack full_text/notebooks, so fetch the full record
     // first; only that fetch failing counts as "couldn't open".
     const handleOpenSourceFromGlobalList = async (source: SourceListItem): Promise<boolean> => {
+        // If the user clicks source A then quickly clicks source B before A's
+        // fetch resolves, both `getSource` calls are in flight; without this
+        // guard whichever resolves LAST wins and overwrites `viewingSource`,
+        // regardless of which source the user most recently clicked — this is
+        // exactly what produced citation footers/titles from an unrelated
+        // source. Only the request matching the latest click is allowed to
+        // apply its result.
+        viewingSourceRequestIdRef.current = source.id;
         const full = await getSource(source.id);
+        if (viewingSourceRequestIdRef.current !== source.id) return true;
         if (!full) return false;
         setViewingSource(full);
         return true;

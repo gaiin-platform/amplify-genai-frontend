@@ -43,6 +43,13 @@ export const DropdownButton = ({
 }: Props) => {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement | null>(null);
+    const triggerRef = useRef<HTMLButtonElement | null>(null);
+    // Every menu built on this shared component (Add Source, bulk
+    // context-mode, row overflow menus) previously had no keyboard support
+    // beyond Tab — no Escape to close, no arrow-key navigation, and no
+    // menu/menuitem roles for a screen reader to announce this as a menu at
+    // all. itemRefs backs Up/Down/Home/End navigation below.
+    const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
     useEffect(() => {
         if (!open) return;
@@ -53,6 +60,46 @@ export const DropdownButton = ({
         return () => document.removeEventListener('mousedown', onClickOutside);
     }, [open]);
 
+    useEffect(() => {
+        if (open) itemRefs.current[0]?.focus();
+    }, [open]);
+
+    const enabledIndices = items
+        .map((item, i) => (item.disabled ? -1 : i))
+        .filter((i) => i >= 0);
+
+    const focusRelative = (currentIndex: number, delta: 1 | -1) => {
+        if (enabledIndices.length === 0) return;
+        const pos = enabledIndices.indexOf(currentIndex);
+        const nextPos =
+            pos === -1
+                ? delta === 1
+                    ? 0
+                    : enabledIndices.length - 1
+                : (pos + delta + enabledIndices.length) % enabledIndices.length;
+        itemRefs.current[enabledIndices[nextPos]]?.focus();
+    };
+
+    const handleMenuKeyDown = (e: React.KeyboardEvent, index: number) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            setOpen(false);
+            triggerRef.current?.focus();
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            focusRelative(index, 1);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            focusRelative(index, -1);
+        } else if (e.key === 'Home') {
+            e.preventDefault();
+            itemRefs.current[enabledIndices[0]]?.focus();
+        } else if (e.key === 'End') {
+            e.preventDefault();
+            itemRefs.current[enabledIndices[enabledIndices.length - 1]]?.focus();
+        }
+    };
+
     const triggerClass =
         variant === 'solid'
             ? 'flex h-8 items-center gap-1.5 rounded-md bg-purple-500 px-3 text-sm font-medium text-white shadow-sm hover:bg-purple-600 transition-colors'
@@ -61,7 +108,14 @@ export const DropdownButton = ({
     return (
         <div ref={ref} className="relative">
             <button
+                ref={triggerRef}
                 onClick={() => setOpen((v) => !v)}
+                onKeyDown={(e) => {
+                    if ((e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') && !open) {
+                        e.preventDefault();
+                        setOpen(true);
+                    }
+                }}
                 title={title}
                 aria-haspopup="true"
                 aria-expanded={open}
@@ -72,6 +126,7 @@ export const DropdownButton = ({
 
             {open && (
                 <div
+                    role="menu"
                     className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} top-full z-20 mt-1 w-56 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-neutral-600 dark:bg-[#2b2c36]`}
                 >
                     {items.map((item, i) => (
@@ -80,6 +135,12 @@ export const DropdownButton = ({
                                 <div className="my-1 h-px bg-gray-200 dark:bg-neutral-600" />
                             )}
                             <button
+                                ref={(el) => {
+                                    itemRefs.current[i] = el;
+                                }}
+                                role="menuitem"
+                                tabIndex={-1}
+                                onKeyDown={(e) => handleMenuKeyDown(e, i)}
                                 onClick={() => {
                                     if (item.disabled) return;
                                     setOpen(false);

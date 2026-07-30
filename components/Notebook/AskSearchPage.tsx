@@ -29,12 +29,13 @@ import {
     listSources,
     searchKnowledgeBase,
 } from '@/services/notebookService';
-import { formatModelName, prepareModelOptions } from './modelDisplay';
+import { filterSelectableChatModels, formatModelName, prepareModelOptions } from './modelDisplay';
+import { useCanSelectNotebookModel } from './modelAccess';
 import { AdvancedModelsDialog, AskModels } from './AdvancedModelsDialog';
 import { SaveToNotebooksDialog } from './SaveToNotebooksDialog';
 
 type Tab = 'ask' | 'search';
-type RefType = 'source' | 'note' | 'source_insight';
+type RefType = 'source' | 'note' | 'source_insight' | 'insight';
 
 interface ParsedRef {
     type: RefType;
@@ -50,7 +51,13 @@ interface Citation {
     label: string;
 }
 
-const REF_RE = /(source_insight|note|source):([A-Za-z0-9_]+)/g;
+// The ask/search system prompts tell the model to cite insights with the
+// shorthand `insight:<id>`, but the actual SurrealDB table (and the id the
+// model copies out of context) is `source_insight:<id>`. That mismatch let
+// raw `insight:xxxx` citations slip past this regex untouched, leaking the id
+// straight into the rendered answer — match the bare `insight` alias too so
+// it gets the same citation treatment (mirrors ChatPanel.tsx/SourceChatPanel.tsx).
+const REF_RE = /(source_insight|insight|note|source):([A-Za-z0-9_]+)/g;
 
 // LaTeX rendering matches the main chat renderer (ChatContentBlock): this repo
 // pins react-markdown@8 (unified@10), so rehype-katax@7 (a unified@11 plugin)
@@ -164,6 +171,20 @@ const labelForType = (type: RefType): string => {
     return 'Insight';
 };
 
+// Citation links are `#ref-type-id` (e.g. `#ref-source_insight-abc-123-xyz`).
+// A naive single `.replace('-', ' ')` only swaps the FIRST hyphen, which
+// garbles any id that itself contains a hyphen (e.g. producing
+// "source_insight abc-123-xyz" instead of a clean "Insight: abc-123-xyz").
+// Split on the known type prefixes instead so the id is never touched.
+const REF_TYPE_PREFIXES: RefType[] = ['source_insight', 'insight', 'note', 'source'];
+const refTooltipFromDomId = (href: string): string => {
+    const rest = href.slice('#ref-'.length);
+    const type = REF_TYPE_PREFIXES.find((t) => rest.startsWith(`${t}-`));
+    if (!type) return rest;
+    const id = rest.slice(type.length + 1);
+    return `${labelForType(type)}: ${id}`;
+};
+
 const scoreFor = (r: SearchResult): number =>
     r.relevance ?? r.similarity ?? r.score ?? 0;
 
@@ -182,6 +203,8 @@ interface Props {
 }
 
 export const AskSearchPage = ({ onOpenSource }: Props) => {
+    const canSelectModel = useCanSelectNotebookModel();
+
     const [tab, setTab] = useState<Tab>('ask');
 
     // Shared state
@@ -232,6 +255,14 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
         };
     }, []);
 
+    // Without the model-select feature flag the Advanced dialog is hidden
+    // entirely; this list only matters when it is on. The unfiltered
+    // languageModels list is kept for name resolution below.
+    const selectableModels = useMemo(
+        () => filterSelectableChatModels(languageModels, canSelectModel),
+        [languageModels, canSelectModel],
+    );
+
     const hasEmbedding = !!defaults?.default_embedding_model;
     const hasChatModel = !!defaults?.default_chat_model;
 
@@ -270,8 +301,18 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                 }
             }
 
-            const sourceName = (s: SourceListItem): string =>
-                s.title || s.asset?.file_path || s.asset?.url || '(untitled source)';
+            // asset.file_path is an internal storage path (for S3-backed
+            // deployments, a full s3://bucket/user_.../uploads/<uuid>/name
+            // URI) — fall back to just the filename, not the raw path, so a
+            // citation for an untitled upload doesn't leak bucket/user/UUID
+            // details into the answer.
+            const sourceName = (s: SourceListItem): string => {
+                if (s.title) return s.title;
+                if (s.asset?.file_path) {
+                    return s.asset.file_path.split(/[/\\]/).pop() || s.asset.file_path;
+                }
+                return s.asset?.url || '(untitled source)';
+            };
 
             const citations: Citation[] = [];
             let n = 1;
@@ -420,7 +461,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                     {tabButton(
                         'ask',
                         <LucideMessageCircleQuestion size={16} />,
-                        'Ask (beta)',
+                        'Ask',
                     )}
                     {tabButton('search', <LucideSearch size={16} />, 'Search')}
                 </div>
@@ -430,7 +471,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                 <div className="flex flex-col gap-6 rounded-xl border border-gray-200 bg-white py-6 shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
                     <div className="flex flex-col gap-1.5 px-6">
                         <h2 className="text-lg font-semibold leading-none">
-                            Ask Your Knowledge Base (beta)
+                            Ask Your Knowledge Base
                         </h2>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                             The LLM will answer your query based on the documents in your
@@ -484,53 +525,63 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                         <div className="flex items-center gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-600 dark:bg-amber-950/20 dark:text-amber-500">
                                             <LucideAlertCircle size={16} className="flex-none" />
                                             <span>
-                                                No default chat model is configured. Pick models
-                                                via Advanced below, or set a default on the
-                                                Models page.
+                                                {canSelectModel
+                                                    ? 'No default chat model is configured. Pick models via Advanced below, or set a default on the Models page.'
+                                                    : 'No default chat model is configured. Ask an administrator to set one on the Models page.'}
                                             </span>
                                         </div>
                                     )}
 
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                                                {customModels
-                                                    ? 'Using Custom Models'
-                                                    : 'Using Default Models'}
-                                            </span>
-                                            <button
-                                                onClick={() => setShowAdvanced(true)}
-                                                disabled={asking}
-                                                className="inline-flex items-center rounded-md px-2 py-1 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:pointer-events-none disabled:opacity-50 dark:text-gray-200 dark:hover:bg-neutral-700"
-                                            >
-                                                <LucideSettings size={12} className="mr-1" />
-                                                Advanced
-                                            </button>
+                                    {/* Picking a model is feature-flagged (see
+                                        modelAccess.ts). Without the flag there's
+                                        nothing to override, so this entire section
+                                        — including naming the model — is hidden.
+                                        Showing "Model in use: <name>" next to a
+                                        control the user can't touch is just
+                                        unrequested branding, not information they
+                                        asked for. */}
+                                    {canSelectModel && (
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                    {customModels
+                                                        ? 'Using Custom Models'
+                                                        : 'Using Default Models'}
+                                                </span>
+                                                <button
+                                                    onClick={() => setShowAdvanced(true)}
+                                                    disabled={asking}
+                                                    className="inline-flex items-center rounded-md px-2 py-1 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:pointer-events-none disabled:opacity-50 dark:text-gray-200 dark:hover:bg-neutral-700"
+                                                >
+                                                    <LucideSettings size={12} className="mr-1" />
+                                                    Advanced
+                                                </button>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2 text-xs">
+                                                <span className={secondaryBadgeClass}>
+                                                    Strategy:{' '}
+                                                    {resolveModelName(
+                                                        customModels?.strategy ||
+                                                            defaults?.default_chat_model,
+                                                    )}
+                                                </span>
+                                                <span className={secondaryBadgeClass}>
+                                                    Answer:{' '}
+                                                    {resolveModelName(
+                                                        customModels?.answer ||
+                                                            defaults?.default_chat_model,
+                                                    )}
+                                                </span>
+                                                <span className={secondaryBadgeClass}>
+                                                    Final:{' '}
+                                                    {resolveModelName(
+                                                        customModels?.finalAnswer ||
+                                                            defaults?.default_chat_model,
+                                                    )}
+                                                </span>
+                                            </div>
                                         </div>
-                                        <div className="flex flex-wrap gap-2 text-xs">
-                                            <span className={secondaryBadgeClass}>
-                                                Strategy:{' '}
-                                                {resolveModelName(
-                                                    customModels?.strategy ||
-                                                        defaults?.default_chat_model,
-                                                )}
-                                            </span>
-                                            <span className={secondaryBadgeClass}>
-                                                Answer:{' '}
-                                                {resolveModelName(
-                                                    customModels?.answer ||
-                                                        defaults?.default_chat_model,
-                                                )}
-                                            </span>
-                                            <span className={secondaryBadgeClass}>
-                                                Final:{' '}
-                                                {resolveModelName(
-                                                    customModels?.finalAnswer ||
-                                                        defaults?.default_chat_model,
-                                                )}
-                                            </span>
-                                        </div>
-                                    </div>
+                                    )}
 
                                     <div className="flex flex-col gap-2 sm:flex-row">
                                         <button
@@ -636,9 +687,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                                     return citationChip(
                                                         children as React.ReactNode,
                                                         undefined,
-                                                        href
-                                                            .slice('#ref-'.length)
-                                                            .replace('-', ' '),
+                                                        refTooltipFromDomId(href),
                                                     );
                                                 }
                                                 return (
@@ -961,7 +1010,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
 
             {showAdvanced && (
                 <AdvancedModelsDialog
-                    models={languageModels}
+                    models={selectableModels}
                     initial={
                         customModels || {
                             strategy: defaults?.default_chat_model || '',

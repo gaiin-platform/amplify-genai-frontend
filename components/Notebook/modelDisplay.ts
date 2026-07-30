@@ -66,3 +66,31 @@ export const prepareModelOptions = <
     dedupeModels(models).sort((a, b) =>
         formatModelName(a.name).localeCompare(formatModelName(b.name)),
     );
+
+// Mirrors the server-side chat allowlist (open-notebook
+// open_notebook/ai/model_policy.py) and the reference frontend ModelSelector:
+// Claude Sonnet 4.6 on Bedrock only. The backend rejects any other model_override
+// on the chat/ask endpoints with a 403 ("Selected model is not permitted..."),
+// so offering other models is a dead end. Substring match on the family token
+// accepts both "us.anthropic.claude-sonnet-4-6" and the versioned
+// "…-20250514-v1:0", matching the reference frontend's filter.
+const CHAT_ALLOWLIST_NAME_MATCH = 'claude-sonnet-4-6';
+
+export const isChatAllowlistedModel = <
+    T extends { name: string; provider?: string | null },
+>(
+    model: T,
+): boolean =>
+    (model.provider ?? '').toLowerCase() === 'bedrock' &&
+    model.name.toLowerCase().includes(CHAT_ALLOWLIST_NAME_MATCH);
+
+// Which models a chat/ask picker may offer. Without the notebook model-select
+// feature flag (see modelAccess.ts) a user is held to the allowlisted model,
+// which is all the server accepts anyway; with it, the full registered list is
+// offered so an admin can point the notebook at another model.
+export const filterSelectableChatModels = <
+    T extends { name: string; provider?: string | null },
+>(
+    models: T[],
+    canSelectAnyModel: boolean,
+): T[] => (canSelectAnyModel ? models : models.filter(isChatAllowlistedModel));

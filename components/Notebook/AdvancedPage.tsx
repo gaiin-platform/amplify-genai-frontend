@@ -109,8 +109,20 @@ const RebuildEmbeddings = () => {
     const [commandId, setCommandId] = useState<string | null>(null);
     const [status, setStatus] = useState<RebuildStatusResponse | null>(null);
     const [openFaq, setOpenFaq] = useState<string | null>(null);
+    // There's no cancel-job endpoint — the backend command keeps running
+    // either way — but without this, a stuck/slow job left the user staring
+    // at "Submitting jobs..." indefinitely with literally no control on the
+    // page (handleReset/"Start New Rebuild" only appears once status is
+    // completed/failed, which a stuck job may never reach). This lets them
+    // stop watching and leave the page in a normal state.
+    const [gaveUpWaiting, setGaveUpWaiting] = useState<boolean>(false);
 
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const pollStartedAtRef = useRef<number>(0);
+    // After this long with no completed/failed status, stop auto-polling and
+    // show an explicit "still running, but we've stopped watching" message
+    // instead of spinning forever with no explanation.
+    const MAX_POLL_MS = 5 * 60 * 1000;
 
     const stopPolling = () => {
         if (pollRef.current) {
@@ -123,7 +135,14 @@ const RebuildEmbeddings = () => {
 
     const startPolling = (cmdId: string) => {
         stopPolling();
+        setGaveUpWaiting(false);
+        pollStartedAtRef.current = Date.now();
         pollRef.current = setInterval(async () => {
+            if (Date.now() - pollStartedAtRef.current > MAX_POLL_MS) {
+                stopPolling();
+                setGaveUpWaiting(true);
+                return;
+            }
             const data = await getRebuildStatus(cmdId);
             if (!data) return; // transient fetch failure; keep polling
             setStatus(data);
@@ -162,6 +181,15 @@ const RebuildEmbeddings = () => {
         setCommandId(null);
         setStatus(null);
         setError(null);
+        setGaveUpWaiting(false);
+    };
+
+    // Manual escape hatch, mirrors the automatic MAX_POLL_MS give-up below —
+    // lets the user stop watching a rebuild whenever they want instead of
+    // only after 5 minutes, without pretending the backend job itself stops.
+    const handleStopWatching = () => {
+        stopPolling();
+        setGaveUpWaiting(true);
     };
 
     const progress = status?.progress;
@@ -171,7 +199,10 @@ const RebuildEmbeddings = () => {
     const processedItems = progress?.processed_items ?? progress?.processed ?? 0;
     const rawPercent =
         progress?.percentage ?? (totalItems > 0 ? (processedItems / totalItems) * 100 : 0);
-    const percent = Number.isFinite(rawPercent) ? Math.min(100, rawPercent) : 0;
+    // Clamp both ends: a transient negative percentage or processed_items
+    // briefly exceeding total_items (backend counters racing) would otherwise
+    // render a negative-width/broken progress bar.
+    const percent = Number.isFinite(rawPercent) ? Math.min(100, Math.max(0, rawPercent)) : 0;
     const failedItems = stats?.failed_items ?? stats?.failed ?? 0;
 
     const computedDuration =
@@ -267,10 +298,37 @@ const RebuildEmbeddings = () => {
                     </div>
                 )}
 
-                {commandId && !status && (
-                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                        <LucideLoader2 size={16} className="animate-spin" />
-                        Rebuild submitted — waiting for status…
+                {commandId && !status && !gaveUpWaiting && (
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                            <LucideLoader2 size={16} className="animate-spin" />
+                            Rebuild submitted — waiting for status…
+                        </div>
+                        <button
+                            onClick={handleStopWatching}
+                            className="inline-flex h-8 flex-none items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-sm font-medium shadow-sm transition-colors hover:bg-gray-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
+                        >
+                            Stop Watching
+                        </button>
+                    </div>
+                )}
+
+                {gaveUpWaiting && (
+                    <div className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm dark:border-neutral-700 dark:bg-[#343541]">
+                        <div className="flex items-start gap-2">
+                            <LucideClock size={16} className="mt-0.5 flex-none text-gray-500 dark:text-gray-400" />
+                            <span className="text-gray-600 dark:text-gray-300">
+                                Still waiting on this rebuild — it's likely still running on the
+                                server, but this page has stopped checking. You can safely leave
+                                this page; the rebuild isn't affected either way.
+                            </span>
+                        </div>
+                        <button
+                            onClick={handleReset}
+                            className="inline-flex h-8 flex-none items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-sm font-medium shadow-sm transition-colors hover:bg-gray-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
+                        >
+                            Dismiss
+                        </button>
                     </div>
                 )}
 
@@ -285,6 +343,14 @@ const RebuildEmbeddings = () => {
                                     className="inline-flex h-8 items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-sm font-medium shadow-sm transition-colors hover:bg-gray-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
                                 >
                                     Start New Rebuild
+                                </button>
+                            )}
+                            {(status.status === 'queued' || status.status === 'running') && (
+                                <button
+                                    onClick={handleStopWatching}
+                                    className="inline-flex h-8 items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-sm font-medium shadow-sm transition-colors hover:bg-gray-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
+                                >
+                                    Stop Watching
                                 </button>
                             )}
                         </div>
@@ -409,7 +475,7 @@ const RebuildEmbeddings = () => {
 export const AdvancedPage = () => (
     <div className="mx-auto max-w-4xl space-y-6 text-neutral-800 dark:text-neutral-100">
         <div>
-            <h1 className="text-3xl font-bold">AdvancedTools</h1>
+            <h1 className="text-3xl font-bold">Advanced Tools</h1>
             <p className="mt-2 text-gray-500 dark:text-gray-400">
                 Advanced tools and utilities for power users
             </p>

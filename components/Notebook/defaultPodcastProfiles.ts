@@ -24,6 +24,41 @@ export interface DefaultEpisodeProfile {
     num_segments: number;
 }
 
+// The voice_id values below (nova/alloy/echo/shimmer/ash) are OpenAI TTS
+// voice names — they only mean anything when the deployment's registered
+// text_to_speech model is actually OpenAI. Mirrors the backend's own
+// per-provider test-voice defaults (open_notebook/ai/connection_tester.py's
+// DEFAULT_TEST_VOICES) so seeding a starter profile on a non-OpenAI TTS
+// provider (Azure, Google, xAI, Deepgram) substitutes a voice name that
+// provider actually recognizes, instead of silently shipping an OpenAI name
+// that fails opaquely the first time someone tries to generate an episode.
+export const PROVIDER_DEFAULT_VOICE: Record<string, string> = {
+    openai: 'alloy',
+    azure: 'alloy',
+    google: 'Kore',
+    vertex: 'Kore',
+    openai_compatible: 'alloy',
+    deepgram: 'aura-2-thalia-en',
+    xai: 'eve',
+};
+
+// Providers with no static default voice at all — ElevenLabs (and Mistral)
+// resolve voices dynamically per-account, so there's no name we can safely
+// substitute here. Seeding on one of these still creates the profile (so the
+// user isn't blocked), but callers should warn that the seeded voice_ids are
+// placeholders needing manual replacement before generation will work.
+export const PROVIDERS_WITHOUT_STATIC_VOICES = new Set(['elevenlabs', 'mistral']);
+
+// Resolves a real voice id for `provider`, or null when this provider has no
+// static default (see PROVIDERS_WITHOUT_STATIC_VOICES) and the caller should
+// warn the user instead of silently guessing.
+export const resolveDefaultVoiceId = (provider: string | null | undefined): string | null => {
+    if (!provider) return null;
+    const key = provider.toLowerCase();
+    if (PROVIDERS_WITHOUT_STATIC_VOICES.has(key)) return null;
+    return PROVIDER_DEFAULT_VOICE[key] ?? null;
+};
+
 export const DEFAULT_SPEAKER_PROFILES: DefaultSpeakerProfile[] = [
     {
         name: 'tech_experts',

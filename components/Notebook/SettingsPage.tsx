@@ -14,6 +14,7 @@ import {
     getSettings,
     updateSettings as updateSettingsApi,
 } from '@/services/notebookService';
+import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 
 // Shared classes mirroring the reference shadcn sizes.
 const cardClass =
@@ -91,6 +92,7 @@ export const SettingsPage = () => {
     const [saving, setSaving] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [expandedHelp, setExpandedHelp] = useState<Set<string>>(new Set());
+    const [confirmRefresh, setConfirmRefresh] = useState<boolean>(false);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -147,18 +149,45 @@ export const SettingsPage = () => {
         setOriginal(result);
     };
 
+    const handleRefreshClick = () => {
+        // Refresh silently overwrote in-progress unsaved edits with server
+        // data — a user who tweaked a couple of dropdowns and then hit
+        // Refresh (e.g. out of habit, or to see the current values elsewhere)
+        // would lose those edits with zero warning. Only prompt when there's
+        // actually something to lose.
+        if (dirty) {
+            setConfirmRefresh(true);
+            return;
+        }
+        load();
+    };
+
     return (
         <div className="max-w-4xl text-neutral-800 dark:text-neutral-100">
             <div className="mb-6 flex items-center gap-4">
                 <h1 className="text-2xl font-bold">Settings</h1>
                 <button
-                    onClick={load}
+                    onClick={handleRefreshClick}
                     title="Refresh"
                     className="inline-flex h-8 items-center justify-center rounded-md border border-gray-300 bg-white px-3 shadow-sm transition-colors hover:bg-gray-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
                 >
                     <LucideRefreshCw size={16} />
                 </button>
             </div>
+
+            {confirmRefresh && (
+                <ConfirmModal
+                    title="Discard unsaved changes?"
+                    message="Refreshing will reload settings from the server and discard your unsaved changes."
+                    confirmLabel="Discard and Refresh"
+                    denyLabel="Cancel"
+                    onConfirm={() => {
+                        setConfirmRefresh(false);
+                        load();
+                    }}
+                    onDeny={() => setConfirmRefresh(false)}
+                />
+            )}
 
             {loading ? (
                 <div className="flex items-center justify-center py-12">

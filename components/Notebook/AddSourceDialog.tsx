@@ -1,5 +1,6 @@
-import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
+import HomeContext from '@/pages/api/home/home.context';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import {
     LucideCheckCircle,
@@ -21,6 +22,7 @@ import {
     listNotebooks,
     listTransformations,
 } from '@/services/notebookService';
+import { filterTransformationsForRole } from './transformationAccess';
 
 type SourceType = 'link' | 'upload' | 'text';
 
@@ -257,6 +259,11 @@ interface BatchProgress {
 // notebooks → transformations/embedding) with batch URL/file support and a
 // processing view while sources are submitted.
 export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
+    const {
+        state: { featureFlags },
+    } = useContext(HomeContext);
+    const isAdmin = !!featureFlags?.adminInterface;
+
     const [currentStep, setCurrentStep] = useState(1);
 
     // Step 1 form state. The URL tab starts open, matching the reference.
@@ -285,6 +292,10 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
     // Submission state.
     const [processing, setProcessing] = useState(false);
     const [processingMessage, setProcessingMessage] = useState('');
+    // Distinguishes "still working" from "failed" so the processing view can
+    // show a real error message with an error icon instead of the spinner —
+    // previously any failure just showed the bare word "Error" here.
+    const [processingFailed, setProcessingFailed] = useState(false);
     const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -299,9 +310,15 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
             if (cancelled) return;
             setNotebooks(nbs);
             setNotebooksLoading(false);
-            setTransformations(trs);
+            // Non-admins are offered only the curated transformation set; admins
+            // keep the full list. Filter first so both the displayed options and
+            // the apply_default pre-selection derive from the allowed set.
+            const allowedTrs = filterTransformationsForRole(trs, isAdmin);
+            setTransformations(allowedTrs);
             setTransformationsLoading(false);
-            setSelectedTransformations(trs.filter((t) => t.apply_default).map((t) => t.id));
+            setSelectedTransformations(
+                allowedTrs.filter((t) => t.apply_default).map((t) => t.id),
+            );
             setSettings(stg);
             const option = stg?.default_embedding_option;
             setEmbed(option === 'always' || option === 'ask' || !option);
@@ -309,6 +326,10 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
         return () => {
             cancelled = true;
         };
+        // Runs once on mount. isAdmin is derived from feature flags that are
+        // resolved before the dialog opens and don't change during its lifetime,
+        // so it's intentionally omitted to avoid re-fetching on every render.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -439,9 +460,27 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
         return null;
     };
 
+    // createOne/createSourceFromText now throw with the backend's real error
+    // message on failure instead of returning null — this normalizes that
+    // back to null-or-message so batch mode can keep counting failures while
+    // single-source mode can show the user *why* it failed instead of the
+    // bare word "Error".
+    const createOneSafe = async (
+        item: { url?: string; file?: File },
+        itemTitle?: string,
+    ): Promise<{ result: SourceListItem | null; error: string | null }> => {
+        try {
+            const result = await createOne(item, itemTitle);
+            return { result, error: result ? null : 'Failed to create source.' };
+        } catch (e: any) {
+            return { result: null, error: e?.message || 'Failed to create source.' };
+        }
+    };
+
     const handleSubmit = async () => {
         if (!isStepValid(1) || processing) return;
         setProcessing(true);
+        setProcessingFailed(false);
 
         if (isBatchMode) {
             const items: { url?: string; file?: File }[] =
@@ -454,18 +493,25 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
 
             let success = 0;
             let failed = 0;
+            // Remembers the most recent per-item failure message so the
+            // "all failed" / "some failed" toasts below can say *why*
+            // instead of just a bare count (e.g. rejected file type,
+            // upload error) — previously every batch failure was silently
+            // indistinguishable from every other.
+            let lastError: string | null = null;
             for (const item of items) {
                 const label = item.url
                     ? `${item.url.substring(0, 50)}...`
                     : item.file?.name ?? '';
                 setBatchProgress((prev) => (prev ? { ...prev, currentItem: label } : null));
 
-                const result = await createOne(item);
+                const { result, error } = await createOneSafe(item);
                 if (result) {
                     success++;
                     reportCreated(result);
                 } else {
                     failed++;
+                    lastError = error;
                 }
                 setBatchProgress((prev) =>
                     prev ? { ...prev, completed: success, failed } : null,
@@ -475,9 +521,18 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
             if (failed === 0) {
                 toast.success(`${success} source(s) created successfully`);
             } else if (success === 0) {
-                toast.error(`Failed to create all ${failed} sources`);
+                toast.error(
+                    lastError
+                        ? `Failed to create all ${failed} sources: ${lastError}`
+                        : `Failed to create all ${failed} sources`,
+                );
             } else {
-                toast(`${success} succeeded, ${failed} failed`, { icon: '⚠️' });
+                toast(
+                    lastError
+                        ? `${success} succeeded, ${failed} failed (${lastError})`
+                        : `${success} succeeded, ${failed} failed`,
+                    { icon: '⚠️' },
+                );
             }
             onClose();
             return;
@@ -487,26 +542,36 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
         setProcessingMessage('Submitting source for processing...');
         const trimmedTitle = title.trim() || undefined;
         let result: SourceListItem | null = null;
-        if (type === 'link') {
-            result = await createOne({ url: url.trim() }, trimmedTitle);
-        } else if (type === 'text') {
-            result = await createSourceFromText({
-                notebooks: selectedNotebooks,
-                content: content.trim(),
-                title: title.trim(),
-                transformations: selectedTransformations,
-                embed,
-            });
-        } else if (type === 'upload' && files[0]) {
-            result = await createOne({ file: files[0] }, trimmedTitle);
+        let errorMessage: string | null = null;
+        try {
+            if (type === 'link') {
+                result = await createOne({ url: url.trim() }, trimmedTitle);
+            } else if (type === 'text') {
+                result = await createSourceFromText({
+                    notebooks: selectedNotebooks,
+                    content: content.trim(),
+                    title: title.trim(),
+                    transformations: selectedTransformations,
+                    embed,
+                });
+            } else if (type === 'upload' && files[0]) {
+                result = await createOne({ file: files[0] }, trimmedTitle);
+            }
+        } catch (e: any) {
+            errorMessage = e?.message || 'Failed to create source.';
         }
 
         if (!result) {
-            setProcessingMessage('Error');
+            // Show the backend's real reason (rejected file type, upload
+            // failure, validation error, etc.) instead of the bare word
+            // "Error", which previously discarded it entirely.
+            setProcessingMessage(errorMessage || 'Failed to create source.');
+            setProcessingFailed(true);
             timeoutRef.current = setTimeout(() => {
                 setProcessing(false);
+                setProcessingFailed(false);
                 setBatchProgress(null);
-            }, 3000);
+            }, 5000);
             return;
         }
         reportCreated(result);
@@ -532,14 +597,29 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                 content={
                     <div className="flex flex-col gap-4 p-2 text-neutral-800 dark:text-neutral-100">
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {batchProgress
+                            {processingFailed
+                                ? "Something went wrong and your source wasn't created."
+                                : batchProgress
                                 ? `Processing ${batchProgress.total} sources. This may take a few moments.`
                                 : 'Your source is being processed. This may take a few moments.'}
                         </p>
 
                         <div className="flex items-center gap-3">
-                            <LucideLoader2 size={20} className="animate-spin text-purple-500" />
-                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                            {processingFailed ? (
+                                <LucideXCircle
+                                    size={20}
+                                    className="flex-none text-red-600 dark:text-red-400"
+                                />
+                            ) : (
+                                <LucideLoader2 size={20} className="animate-spin flex-none text-purple-500" />
+                            )}
+                            <span
+                                className={`text-sm ${
+                                    processingFailed
+                                        ? 'text-red-600 dark:text-red-400'
+                                        : 'text-gray-500 dark:text-gray-400'
+                                }`}
+                            >
                                 {processingMessage || 'Processing...'}
                             </span>
                         </div>

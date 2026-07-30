@@ -75,6 +75,14 @@ export const CreateNotebookDialog = ({ onClose, onCreated }: Props) => {
                                 setName(e.target.value);
                                 setNameTouched(true);
                             }}
+                            onKeyDown={(e) => {
+                                // Mirrors SessionManagerModal's equivalent
+                                // create-session input: Enter submits.
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleSubmit();
+                                }
+                            }}
                             placeholder="Notebook name"
                             className={`w-full ${inputClass}`}
                         />
