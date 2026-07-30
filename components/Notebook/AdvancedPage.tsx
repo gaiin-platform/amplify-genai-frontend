@@ -318,9 +318,9 @@ const RebuildEmbeddings = () => {
                         <div className="flex items-start gap-2">
                             <LucideClock size={16} className="mt-0.5 flex-none text-gray-500 dark:text-gray-400" />
                             <span className="text-gray-600 dark:text-gray-300">
-                                Still waiting on this rebuild — it's likely still running on the
-                                server, but this page has stopped checking. You can safely leave
-                                this page; the rebuild isn't affected either way.
+                                Still waiting on this rebuild — it&apos;s likely still running on
+                                the server, but this page has stopped checking. You can safely
+                                leave this page; the rebuild isn&apos;t affected either way.
                             </span>
                         </div>
                         <button
