@@ -22,9 +22,17 @@ const selectClass =
 // Pick a specific model for each stage of the Ask pipeline (strategy → answer →
 // final answer), mirroring the original app's Advanced Model Selection dialog.
 export const AdvancedModelsDialog = ({ models, initial, onSave, onClose }: Props) => {
-    const [strategy, setStrategy] = useState(initial.strategy);
-    const [answer, setAnswer] = useState(initial.answer);
-    const [finalAnswer, setFinalAnswer] = useState(initial.finalAnswer);
+    // If `initial` holds a model id that's no longer in `models` (removed/
+    // renamed since it was saved), a <select> can't display it — the browser
+    // silently falls back to rendering its first <option> without firing
+    // onChange, so the visible selection would disagree with this state, and
+    // clicking Save would re-persist the stale, invisible id instead of what
+    // the user actually sees selected. Fall back to '' (shows the "Select a
+    // model" placeholder) so state always matches what's rendered.
+    const validId = (id: string) => (models.some((m) => m.id === id) ? id : '');
+    const [strategy, setStrategy] = useState(validId(initial.strategy));
+    const [answer, setAnswer] = useState(validId(initial.answer));
+    const [finalAnswer, setFinalAnswer] = useState(validId(initial.finalAnswer));
 
     const canSave = !!strategy && !!answer && !!finalAnswer;
 

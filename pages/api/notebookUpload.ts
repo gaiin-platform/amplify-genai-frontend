@@ -76,8 +76,14 @@ const notebookUpload = async (req: NextApiRequest, res: NextApiResponse) => {
                 `notebookUpload upstream error: ${upstream.status}`,
                 upstream.data,
             );
+            // Pass the real upstream status through (mirrors
+            // pages/api/notebook/proxy.ts, ask.ts, sourceChat.ts) instead of
+            // collapsing every failure to a generic 502 — a 413 (file too
+            // large), 415 (unsupported type), or 401/403 reads very
+            // differently to the client than a gateway error, even though
+            // the message text was already being forwarded correctly.
             return res
-                .status(502)
+                .status(upstream.status >= 400 && upstream.status < 600 ? upstream.status : 502)
                 .json({ error: upstreamErrorMessage(upstream.status, upstream.data) });
         }
         return res.status(200).json(upstream.data);

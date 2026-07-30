@@ -95,7 +95,7 @@ export const TransformationEditorDialog = ({ transformation, onClose, onSaved }:
                         ? 'Saving...'
                         : 'Creating...'
                     : isEdit
-                      ? 'Edit Transformation'
+                      ? 'Save Changes'
                       : 'Create New'
             }
             disableSubmit={!canSubmit}
@@ -169,7 +169,7 @@ export const TransformationEditorDialog = ({ transformation, onClose, onSaved }:
                                 />
                                 <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                                     Prompts should be written with the source content in mind.
-                                    You can ask the model to summarise, extract insights, or
+                                    You can ask the model to summarize, extract insights, or
                                     produce structured outputs such as tables.
                                 </p>
                             </div>

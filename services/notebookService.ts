@@ -252,6 +252,10 @@ export const listSources = async (
     return Array.isArray(result) ? result : [];
 };
 
+// Throws with the backend's real error message on failure (rather than
+// returning null) so callers like AddSourceDialog can surface *why* a source
+// failed instead of a generic "Error" — mirrors askKnowledgeBaseSimple's
+// reject-with-real-message approach.
 export const createSourceFromUrl = async ({
     notebooks,
     url,
@@ -259,15 +263,21 @@ export const createSourceFromUrl = async ({
     transformations,
     embed,
 }: CreateSourceLinkRequest): Promise<SourceListItem | null> => {
-    return notebookCall<SourceListItem>('POST', '/sources/json', {
-        type: 'link',
-        url,
-        title,
-        notebooks,
-        transformations: transformations ?? [],
-        embed: embed ?? true,
-        async_processing: true,
-    });
+    const { success, data, message } = await notebookCallResult<SourceListItem>(
+        'POST',
+        '/sources/json',
+        {
+            type: 'link',
+            url,
+            title,
+            notebooks,
+            transformations: transformations ?? [],
+            embed: embed ?? true,
+            async_processing: true,
+        },
+    );
+    if (!success) throw new Error(message || 'Failed to add source from URL.');
+    return data;
 };
 
 export const createSourceFromText = async ({
@@ -277,15 +287,21 @@ export const createSourceFromText = async ({
     transformations,
     embed,
 }: CreateSourceTextRequest): Promise<SourceListItem | null> => {
-    return notebookCall<SourceListItem>('POST', '/sources/json', {
-        type: 'text',
-        content,
-        title,
-        notebooks,
-        transformations: transformations ?? [],
-        embed: embed ?? true,
-        async_processing: true,
-    });
+    const { success, data, message } = await notebookCallResult<SourceListItem>(
+        'POST',
+        '/sources/json',
+        {
+            type: 'text',
+            content,
+            title,
+            notebooks,
+            transformations: transformations ?? [],
+            embed: embed ?? true,
+            async_processing: true,
+        },
+    );
+    if (!success) throw new Error(message || 'Failed to add text source.');
+    return data;
 };
 
 interface PresignedUpload {
@@ -324,17 +340,25 @@ const createSourceFromFileMultipart = async ({
             body: form,
         });
         if (!response.ok) {
-            const errBody = await response.text().catch(() => '');
+            // /api/notebookUpload responds with { error: "<real backend
+            // detail>" } (see pages/api/notebookUpload.ts's upstreamErrorMessage),
+            // so parse and surface that instead of just logging it — this was
+            // previously swallowed entirely, leaving AddSourceDialog with
+            // nothing but a generic "Error" to show the user.
+            const errBody = await response.json().catch(() => null);
+            const message =
+                (errBody && typeof errBody === 'object' && errBody.error) ||
+                `Upload failed (${response.status})`;
             console.error(
-                `createSourceFromFile failed: ${response.status} ${response.statusText} — ${errBody}`,
+                `createSourceFromFile failed: ${response.status} ${response.statusText} — ${message}`,
             );
-            return null;
+            throw new Error(message);
         }
         const data = await response.json();
         return data as SourceListItem;
-    } catch (e) {
+    } catch (e: any) {
         console.error('createSourceFromFile threw:', e);
-        return null;
+        throw e instanceof Error ? e : new Error('Upload failed.');
     }
 };
 
@@ -353,19 +377,38 @@ export const createSourceFromFile = async (
     });
 
     if (presigned?.upload_url && presigned.file_path) {
+        // Must match the content type SIGNED INTO the URL, which the backend
+        // may have neutralised (e.g. text/html -> octet-stream) to stop the
+        // stored object rendering inline. Fall back to the requested type if
+        // an older backend didn't echo one back.
+        const signedContentType = presigned.content_type || contentType;
+        let put: Response | null = null;
         try {
-            // Must match the content type SIGNED INTO the URL, which the
-            // backend may have neutralised (e.g. text/html -> octet-stream)
-            // to stop the stored object rendering inline. Fall back to the
-            // requested type if an older backend didn't echo one back.
-            const signedContentType = presigned.content_type || contentType;
-            const put = await fetch(presigned.upload_url, {
+            put = await fetch(presigned.upload_url, {
                 method: 'PUT',
                 headers: { 'Content-Type': signedContentType },
                 body: file,
             });
-            if (put.ok) {
-                return notebookCall<SourceListItem>('POST', '/sources/json', {
+        } catch (e) {
+            // Only a failure of the PUT fetch itself (network error) should
+            // fall back to multipart.
+            console.error(
+                'createSourceFromFile: presigned PUT threw; falling back to multipart',
+                e,
+            );
+        }
+
+        if (put?.ok) {
+            // The file is already uploaded to S3 at this point — if
+            // registering it as a source fails, throw immediately (outside
+            // the try/catch above) rather than falling into the multipart
+            // fallback below, which would re-upload the same bytes through a
+            // completely different path for no benefit, since this failure
+            // has nothing to do with the presigned PUT.
+            const { success, data, message } = await notebookCallResult<SourceListItem>(
+                'POST',
+                '/sources/json',
+                {
                     type: 'upload',
                     file_path: presigned.file_path,
                     title,
@@ -373,15 +416,16 @@ export const createSourceFromFile = async (
                     transformations: transformations ?? [],
                     embed: embed ?? true,
                     async_processing: true,
-                });
+                },
+            );
+            if (!success) {
+                throw new Error(message || 'Failed to add uploaded file as a source.');
             }
+            return data;
+        }
+        if (put) {
             console.error(
                 `createSourceFromFile: presigned PUT failed (${put.status}); falling back to multipart`,
-            );
-        } catch (e) {
-            console.error(
-                'createSourceFromFile: presigned PUT threw; falling back to multipart',
-                e,
             );
         }
     }
@@ -522,6 +566,7 @@ export type CommandJobStatus =
     | 'completed'
     | 'failed'
     | 'cancelled'
+    | 'canceled'
     | string;
 
 export interface CommandJobStatusResponse {
@@ -583,7 +628,20 @@ export const getCommandJobStatus = async (
     );
 };
 
-const TERMINAL_COMMAND_STATUSES = new Set(['completed', 'failed', 'cancelled', 'error']);
+// 'canceled' (single L) is what the surreal_commands worker actually emits
+// (see its core/service.py update_command_result call sites); 'cancelled'
+// (double L, British spelling) was the only spelling recognized here, so a
+// genuinely canceled job was never treated as terminal — waitForCommand
+// polled it all the way to its own timeout instead of stopping immediately,
+// leaving any "Generating…" UI spinning far longer than necessary. Both
+// spellings are kept since we can't be certain no caller ever sent the other.
+const TERMINAL_COMMAND_STATUSES = new Set([
+    'completed',
+    'failed',
+    'cancelled',
+    'canceled',
+    'error',
+]);
 
 // Polls /commands/jobs/{job_id} until the job reaches a terminal status,
 // `timeoutMs` elapses, or `signal` is aborted. Resolves with the final

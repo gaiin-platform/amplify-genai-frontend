@@ -47,6 +47,7 @@ import { DropdownButton } from './DropdownButton';
 import {
     DEFAULT_EPISODE_PROFILES,
     DEFAULT_SPEAKER_PROFILES,
+    resolveDefaultVoiceId,
 } from './defaultPodcastProfiles';
 import { GeneratePodcastDialog } from './GeneratePodcastDialog';
 import { formatDistanceToNow } from './relativeTime';
@@ -231,9 +232,11 @@ const SummaryBadge = ({ label, value }: { label: string; value: number }) => (
 
 const EpisodeDetailsModal = ({
     episode,
+    models,
     onClose,
 }: {
     episode: PodcastEpisode;
+    models: NotebookModel[];
     onClose: () => void;
 }) => {
     const [activeTab, setActiveTab] = useState<'summary' | 'outline' | 'transcript'>(
@@ -242,6 +245,27 @@ const EpisodeDetailsModal = ({
 
     const profile = episode.episode_profile as EpisodeProfile | undefined;
     const speakerProfile = episode.speaker_profile as SpeakerProfile | undefined;
+
+    // Resolves a new-style model-record reference first, falling back to the
+    // legacy provider/model string pair — mirrors EpisodeProfilesPanel's
+    // modelName helper so this dialog doesn't show "— / —" for profiles
+    // created through the current UI (which only populate the *_llm /
+    // voice_model fields, not the legacy ones).
+    const modelName = useCallback(
+        (
+            ref?: string | null,
+            legacyProvider?: string | null,
+            legacyModel?: string | null,
+        ): string => {
+            if (ref) {
+                const m = models.find((mm) => mm.id === ref);
+                return m ? `${m.provider} / ${m.name}` : ref;
+            }
+            if (legacyProvider && legacyModel) return `${legacyProvider} / ${legacyModel}`;
+            return '—';
+        },
+        [models],
+    );
     const outlineSegments = (episode.outline as any)?.segments || [];
     const transcriptEntries = (episode.transcript as any)?.transcript || [];
     const isCompleted = episode.job_status === 'completed';
@@ -299,8 +323,11 @@ const EpisodeDetailsModal = ({
                                                 Outline model
                                             </p>
                                             <p>
-                                                {profile?.outline_provider ?? '—'} /{' '}
-                                                {profile?.outline_model ?? '—'}
+                                                {modelName(
+                                                    profile?.outline_llm,
+                                                    profile?.outline_provider,
+                                                    profile?.outline_model,
+                                                )}
                                             </p>
                                         </div>
                                         <div>
@@ -308,8 +335,11 @@ const EpisodeDetailsModal = ({
                                                 Transcript model
                                             </p>
                                             <p>
-                                                {profile?.transcript_provider ?? '—'} /{' '}
-                                                {profile?.transcript_model ?? '—'}
+                                                {modelName(
+                                                    profile?.transcript_llm,
+                                                    profile?.transcript_provider,
+                                                    profile?.transcript_model,
+                                                )}
                                             </p>
                                         </div>
                                         <div>
@@ -327,10 +357,13 @@ const EpisodeDetailsModal = ({
                                 </section>
 
                                 <section className="space-y-2">
-                                    <h4 className="text-sm font-semibold">Speaker Profile</h4>
+                                    <h4 className="text-sm font-semibold">Speaker profile</h4>
                                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                                        {speakerProfile?.tts_provider ?? '—'} /{' '}
-                                        {speakerProfile?.tts_model ?? '—'}
+                                        {modelName(
+                                            speakerProfile?.voice_model,
+                                            speakerProfile?.tts_provider,
+                                            speakerProfile?.tts_model,
+                                        )}
                                     </p>
                                     {(speakerProfile?.speakers || []).map((sp, i) => (
                                         <div key={`${sp.name}-${i}`} className={infoBox}>
@@ -590,7 +623,7 @@ const EpisodesTab = ({
                 <div className="space-y-1">
                     <h2 className="text-xl font-semibold">Episodes overview</h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Monitor podcast generation jobs and review the final artefacts.
+                        Monitor podcast generation jobs and review the final artifacts.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1133,7 +1166,7 @@ const EpisodeProfilesPanel = ({
                                         </div>
                                     )}
                                     <div>
-                                        <p className={labelClass}>Speaker Profile</p>
+                                        <p className={labelClass}>Speaker profile</p>
                                         <div className="flex items-center gap-2">
                                             <LucideUsers size={16} />
                                             <span>{profile.speaker_config}</span>
@@ -1223,7 +1256,16 @@ const TemplatesTab = ({
         // The upstream seeds reference openai models; substitute this
         // deployment's registered models so the profiles can actually generate.
         const langModel = models.find((m) => m.type === 'language')?.id ?? null;
-        const ttsModel = models.find((m) => m.type === 'text_to_speech')?.id ?? null;
+        const ttsModelRecord = models.find((m) => m.type === 'text_to_speech') ?? null;
+        const ttsModel = ttsModelRecord?.id ?? null;
+        // The starter profiles' speakers[].voice_id values are OpenAI voice
+        // names (nova/alloy/echo/...) — meaningless to any other TTS
+        // provider. Substitute a real default for this deployment's actual
+        // provider (mirrors the backend's own per-provider test-voice
+        // defaults) so generation doesn't fail opaquely on a provider
+        // mismatch the UI never surfaced.
+        const substituteVoice = resolveDefaultVoiceId(ttsModelRecord?.provider);
+        const noStaticVoiceForProvider = !!ttsModelRecord && !substituteVoice;
 
         const failures: string[] = [];
         for (const sp of missingDefaults.speakers) {
@@ -1231,7 +1273,10 @@ const TemplatesTab = ({
                 name: sp.name,
                 description: sp.description,
                 voice_model: ttsModel,
-                speakers: sp.speakers,
+                speakers: sp.speakers.map((speaker) => ({
+                    ...speaker,
+                    voice_id: substituteVoice ?? speaker.voice_id,
+                })),
             });
             if (!created) failures.push(sp.name);
         }
@@ -1250,6 +1295,12 @@ const TemplatesTab = ({
         setSeeding(false);
         if (failures.length > 0) {
             setActionError(`Couldn't create: ${failures.join(', ')}.`);
+        } else if (noStaticVoiceForProvider) {
+            setActionError(
+                `Starter speaker profiles were created, but ${ttsModelRecord?.provider} voices ` +
+                    "must be looked up per-account — edit each speaker's Voice ID before " +
+                    'generating an episode, or generation will fail.',
+            );
         }
         await onReload();
     };
@@ -1740,6 +1791,7 @@ export const PodcastsPage = ({ isAdmin = false }: { isAdmin?: boolean }) => {
             {viewing && (
                 <EpisodeDetailsModal
                     episode={viewing}
+                    models={models}
                     onClose={() => setViewing(null)}
                 />
             )}

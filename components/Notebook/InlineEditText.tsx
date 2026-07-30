@@ -45,6 +45,14 @@ export const InlineEditText = ({
         } else if (e.key === 'Enter' && !multiline) {
             e.preventDefault();
             commit();
+        } else if (e.key === 'Enter' && multiline && (e.metaKey || e.ctrlKey)) {
+            // Plain Enter still inserts a newline in multiline mode (needed
+            // for multi-line descriptions) — Cmd/Ctrl+Enter is the explicit
+            // "save" affordance, matching the common textarea convention
+            // (blur/Escape already worked, but there was previously no
+            // keyboard-only way to save without leaving the field).
+            e.preventDefault();
+            commit();
         }
     };
 
@@ -80,6 +88,7 @@ export const InlineEditText = ({
                 inputRef.current = el;
             }}
             rows={2}
+            title="Cmd/Ctrl+Enter to save, Escape to cancel"
         />
     ) : (
         <input

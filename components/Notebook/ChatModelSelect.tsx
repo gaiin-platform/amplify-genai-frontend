@@ -16,6 +16,13 @@ interface Props {
     // models load or when the id can't be resolved. Lets the parent derive
     // model-dependent info (e.g. context window) without re-fetching models.
     onResolvedModel?: (model: NotebookModel | null) => void;
+    // Reports whether there's actually anything to switch to (false once
+    // models have loaded and there is 0 or 1 selectable model, or the
+    // feature flag is off). Lets the parent hide its own "Model" label too —
+    // showing a model's name next to a control that can't change it is just
+    // unnecessary branding noise, not useful information, when there's no
+    // real choice being made.
+    onHasAlternatives?: (hasAlternatives: boolean) => void;
 }
 
 // Mirrors lucide-react's Settings2 icon (2 line paths + 2 circles) used by the
@@ -45,7 +52,13 @@ const IconModelSliders = ({ size = 14 }: { size?: number }) => (
 // "Default" entry that resolves to the configured default chat model. Clicking
 // the trigger opens a dialog (matching upstream's Settings2 button + Dialog)
 // instead of a native <select>, so the description text has room to show.
-export const ChatModelSelect = ({ value, onChange, disabled, onResolvedModel }: Props) => {
+export const ChatModelSelect = ({
+    value,
+    onChange,
+    disabled,
+    onResolvedModel,
+    onHasAlternatives,
+}: Props) => {
     const {
         state: { lightMode },
     } = useContext(HomeContext);
@@ -110,10 +123,19 @@ export const ChatModelSelect = ({ value, onChange, disabled, onResolvedModel }: 
 
     // Without the feature flag there is nothing to switch to, and even with it a
     // deployment may register only the one allowed model — either way a dropdown
-    // would be dead UI. Show the resolved model as a read-only label instead. The
-    // models still load, so onResolvedModel (and the parent's context-window
-    // indicator) keeps working.
+    // would be dead UI, and naming the model next to it is just unrequested
+    // branding, not a choice the user is making. The models still load, so
+    // onResolvedModel (and the parent's context-window indicator) keeps
+    // working even though nothing is rendered here.
     const noAlternatives = !canSelectModel || (!loading && selectableModels.length === 0);
+
+    useEffect(() => {
+        if (!onHasAlternatives || loading) return;
+        onHasAlternatives(!noAlternatives);
+        // onHasAlternatives is intentionally omitted, matching onResolvedModel
+        // above — parents pass inline functions.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [noAlternatives, loading]);
 
     const openDialog = () => {
         // An explicit selection equal to the default collapses back to "Default"
@@ -133,8 +155,17 @@ export const ChatModelSelect = ({ value, onChange, disabled, onResolvedModel }: 
         setOpen(false);
     };
 
-    // Read-only display when there's nothing to switch to: no trigger, no dialog,
-    // just the name of the model that will answer.
+    // Nothing to switch to and we already know it (not mid-load): render
+    // nothing at all, and let the parent hide its own "Model" label too via
+    // onHasAlternatives — naming the model when there's no real choice is
+    // just unrequested branding, not information the user asked for.
+    if (noAlternatives && !loading) {
+        return null;
+    }
+
+    // Read-only display while models are still loading (brief, and useful —
+    // tells the user something is happening — unlike the resolved
+    // no-alternatives case above, which has nothing left to say).
     if (noAlternatives) {
         return (
             <span

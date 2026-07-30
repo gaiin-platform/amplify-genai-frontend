@@ -71,6 +71,15 @@ const sourceKind = (s: SourceListItem): 'link' | 'file' | 'text' => {
     return 'text';
 };
 
+// asset.file_path is an internal storage path — for S3-backed deployments
+// it's the full `s3://open-notebook-data/user_<...>/uploads/<uuid>/name.ext`
+// URI, exposing the bucket name, the user's DB-identifier path segment, and
+// an opaque upload UUID to someone who just wants to know which file this
+// is. Show only the filename; the full path is still available via the
+// element's title tooltip for anyone who needs it (e.g. support/debugging).
+const fileBaseName = (filePath: string): string =>
+    filePath.split(/[/\\]/).pop() || filePath;
+
 const KIND_LABELS: Record<'link' | 'file' | 'text', string> = {
     link: 'Link',
     file: 'File',
@@ -168,6 +177,16 @@ export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated
         setSrc(source);
     }, [source]);
 
+    // Once a 404 sets fileAvailable=false, nothing ever cleared it — so
+    // "File unavailable" (and the disabled Download button) could wrongly
+    // persist across unrelated updates to this source (rename, embed) or
+    // even after navigating to a completely different source that reuses
+    // this mounted component. Reset whenever we're looking at a different
+    // source record.
+    useEffect(() => {
+        setFileAvailable(null);
+    }, [source.id]);
+
     useEffect(() => {
         let cancelled = false;
         listSourceInsights(source.id).then((data) => {
@@ -233,8 +252,7 @@ export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated
             return;
         }
         setFileAvailable(true);
-        const fallbackName =
-            src.asset.file_path.split(/[/\\]/).pop() || `source-${src.id}`;
+        const fallbackName = fileBaseName(src.asset.file_path) || `source-${src.id}`;
         const blobUrl = window.URL.createObjectURL(result.blob);
         const link = document.createElement('a');
         link.href = blobUrl;
@@ -315,7 +333,9 @@ export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated
         <div className="grid h-full gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
             <div className="flex min-h-0 min-w-0 flex-col">
                 {/* Header */}
-                <div className="px-2 pb-4">
+                {/* id targeted by SourceChatPanel's "This source" citations
+                    (see focusReference/onBeforeFocusReference below). */}
+                <div id="ref-this-source" className="px-2 pb-4">
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                             <InlineEditText
@@ -324,9 +344,6 @@ export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated
                                 className="text-2xl font-bold"
                                 onSave={handleRename}
                             />
-                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                Source ID: {src.id}
-                            </p>
                         </div>
                         <div className="flex flex-none items-center gap-2">
                             <KindIcon kind={kind} size={20} />
@@ -446,7 +463,16 @@ export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated
             </div>
 
             <div className="min-h-0 min-w-0">
-                <SourceChatPanel source={src} />
+                <SourceChatPanel
+                    source={src}
+                    onBeforeFocusReference={(domId) => {
+                        // Insight citation targets only exist in the DOM once
+                        // the Insights tab is mounted; switch to it before
+                        // SourceChatPanel tries to scroll/flash the element.
+                        if (domId.startsWith('ref-source_insight-')) setTab('insights');
+                        else if (domId === 'ref-this-source') setTab('content');
+                    }}
+                />
             </div>
 
             {confirmDeleteSource && (
@@ -547,20 +573,71 @@ const InsightsTab = ({
         }
         setSelectedTransformationId('');
 
-        // The backend submits an async job; poll for completion. If no
-        // command_id comes back (older deployments), fall back to a single
-        // refetch.
-        if (response.command_id) {
-            const final = await waitForCommand(response.command_id, {
-                intervalMs: 2500,
-                timeoutMs: 180_000,
-            });
-            if (final && final.status !== 'completed') {
-                setGenerationError(final.error_message || `Job ${final.status}.`);
+        const baselineCount = insights.length;
+
+        // The command_id's own status only tracks the outer run_transformation
+        // job — the insight itself is created by a separate create_insight
+        // command fired from within that job's graph, so run_transformation
+        // can report "completed" slightly before the new insight is actually
+        // visible via GET /sources/{id}/insights (or the status value coming
+        // back through the proxy just doesn't land cleanly). That gap is why
+        // this previously sat on "Generating insight…" indefinitely while
+        // staying on the page: waitForCommand alone doesn't tell us whether
+        // the insight actually landed. Poll the insights list itself instead
+        // — the same list a manual navigate-away-and-back re-fetches — and
+        // stop as soon as it actually grows, independent of what the command
+        // status field says.
+        const insightAppeared = async (): Promise<boolean> => {
+            const data = await refreshInsights();
+            return data.length > baselineCount;
+        };
+
+        let commandFailed: string | null = null;
+        let commandSettled = false;
+        const commandWait = response.command_id
+            ? waitForCommand(response.command_id, { intervalMs: 2500, timeoutMs: 180_000 }).then(
+                  (final) => {
+                      if (final && final.status !== 'completed') {
+                          commandFailed = final.error_message || `Job ${final.status}.`;
+                      }
+                      commandSettled = true;
+                  },
+              )
+            : Promise.resolve().then(() => {
+                  commandSettled = true;
+              });
+
+        const POLL_INTERVAL_MS = 3000;
+        const POLL_TIMEOUT_MS = 180_000;
+        const startedAt = Date.now();
+        let appeared = await insightAppeared();
+        while (!appeared && !commandFailed && Date.now() - startedAt < POLL_TIMEOUT_MS) {
+            // Once commandWait has already settled, racing it again would
+            // resolve instantly every time (an already-settled promise wins
+            // a race immediately) and turn this into a tight loop hammering
+            // insightAppeared() with no delay. Only race it while it's still
+            // pending; afterwards just wait out the fixed poll interval.
+            if (commandSettled) {
+                await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+            } else {
+                await Promise.race([new Promise((r) => setTimeout(r, POLL_INTERVAL_MS)), commandWait]);
             }
+            if (commandFailed) break;
+            appeared = await insightAppeared();
         }
 
-        await refreshInsights();
+        if (commandFailed) {
+            setGenerationError(commandFailed);
+        } else if (!appeared) {
+            // Gave up after 3 minutes without ever seeing the new insight —
+            // it may still finish server-side, but there's nothing more to
+            // wait for here.
+            setGenerationError(
+                "This is taking longer than expected. It may still finish in the " +
+                    'background — check back in a bit, or try again.',
+            );
+        }
+
         setGenerating(false);
     };
 
@@ -671,6 +748,7 @@ const InsightsTab = ({
                             {insights.map((insight) => (
                                 <div
                                     key={insight.id}
+                                    id={`ref-source_insight-${insight.id.split(':')[1] ?? insight.id}`}
                                     className="rounded-lg border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-[#2b2c36]"
                                 >
                                     <div className="flex items-start justify-between">
@@ -769,12 +847,19 @@ const DetailsTab = ({
     onSourceUpdated: (source: SourceListItem) => void;
 }) => {
     const [copied, setCopied] = useState<boolean>(false);
+    const [idCopied, setIdCopied] = useState<boolean>(false);
 
     const handleCopyUrl = () => {
         if (!source.asset?.url) return;
         navigator.clipboard.writeText(source.asset.url);
         setCopied(true);
         window.setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleCopyId = () => {
+        navigator.clipboard.writeText(source.id);
+        setIdCopied(true);
+        window.setTimeout(() => setIdCopied(false), 2000);
     };
 
     const created = source.created ? new Date(source.created.replace(' ', 'T')) : null;
@@ -858,8 +943,11 @@ const DetailsTab = ({
                             <div className="flex flex-col gap-2">
                                 <h3 className="text-sm font-semibold">Uploaded File</h3>
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <code className="min-w-0 max-w-full truncate rounded bg-gray-100 px-2 py-1 text-sm dark:bg-neutral-700">
-                                        {source.asset.file_path}
+                                    <code
+                                        title={source.asset.file_path}
+                                        className="min-w-0 max-w-full truncate rounded bg-gray-100 px-2 py-1 text-sm dark:bg-neutral-700"
+                                    >
+                                        {fileBaseName(source.asset.file_path)}
                                     </code>
                                     <button
                                         onClick={onDownload}
@@ -933,6 +1021,27 @@ const DetailsTab = ({
                                 <p className="text-xs text-gray-500 dark:text-gray-400">
                                     {updated ? updated.toLocaleString() : '—'}
                                 </p>
+                            </div>
+                        </div>
+                        <div className="mt-4">
+                            <p className="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+                                Source ID
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <code className="min-w-0 flex-1 truncate rounded bg-gray-100 px-2 py-1 text-sm dark:bg-neutral-700">
+                                    {source.id}
+                                </code>
+                                <button
+                                    onClick={handleCopyId}
+                                    title="Copy source ID"
+                                    className={outlineButtonClass}
+                                >
+                                    {idCopied ? (
+                                        <LucideCheckCircle size={16} />
+                                    ) : (
+                                        <LucideCopy size={16} />
+                                    )}
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1049,7 +1158,17 @@ const ManageNotebooksCard = ({
                                                 <h4 className="truncate text-sm font-medium">
                                                     {nb.name || '(untitled)'}
                                                 </h4>
-                                                {isLinked && !hasChanges && (
+                                                {/* Per-row, not gated on the
+                                                    global hasChanges — that
+                                                    previously hid every
+                                                    linked checkmark at once
+                                                    the moment ANY row was
+                                                    toggled. Show the check
+                                                    only for a row that's
+                                                    linked and still selected
+                                                    (i.e. no pending removal
+                                                    queued for THIS row). */}
+                                                {isLinked && isSelected && (
                                                     <LucideCheck
                                                         size={16}
                                                         className="flex-none text-green-600"

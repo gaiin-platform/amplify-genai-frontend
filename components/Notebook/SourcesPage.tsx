@@ -230,6 +230,13 @@ export const SourcesPage = ({ onOpenSource }: Props) => {
             return;
         }
         setSources((prev) => prev.filter((s) => s.id !== pendingDelete.id));
+        // offsetRef tracks how many sources we've fetched from the server so
+        // the next scroll-triggered page starts where the last one left off.
+        // Without decrementing it here, offsetRef stays one ahead of what's
+        // actually left on the server after this delete, so the next
+        // fetchPage(false) skips exactly one source between the last-loaded
+        // item and the first item of the next page.
+        offsetRef.current = Math.max(0, offsetRef.current - 1);
         setPendingDelete(null);
     };
 
