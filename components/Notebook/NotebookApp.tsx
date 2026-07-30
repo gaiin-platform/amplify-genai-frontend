@@ -140,7 +140,10 @@ const NotebookCard = ({ notebook: nb, onOpen, ...actionProps }: NotebookItemProp
         <div className="p-6 pb-3">
             <div className="flex items-start justify-between">
                 <div className="min-w-0 flex-1">
-                    <div className="truncate text-base font-semibold leading-none transition-colors group-hover:text-purple-600 dark:group-hover:text-purple-400">
+                    {/* leading-tight, not leading-none: `truncate` sets
+                        overflow-hidden, and a line-height of exactly 1 clips
+                        glyph descenders (g/y/p/j) off the bottom. */}
+                    <div className="truncate text-base font-semibold leading-tight transition-colors group-hover:text-purple-600 dark:group-hover:text-purple-400">
                         {nb.name || '(untitled)'}
                     </div>
                     {nb.archived && (

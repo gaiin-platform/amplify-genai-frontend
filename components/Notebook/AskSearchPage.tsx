@@ -29,7 +29,8 @@ import {
     listSources,
     searchKnowledgeBase,
 } from '@/services/notebookService';
-import { formatModelName, prepareModelOptions } from './modelDisplay';
+import { filterSelectableChatModels, formatModelName, prepareModelOptions } from './modelDisplay';
+import { useCanSelectNotebookModel } from './modelAccess';
 import { AdvancedModelsDialog, AskModels } from './AdvancedModelsDialog';
 import { SaveToNotebooksDialog } from './SaveToNotebooksDialog';
 
@@ -182,6 +183,8 @@ interface Props {
 }
 
 export const AskSearchPage = ({ onOpenSource }: Props) => {
+    const canSelectModel = useCanSelectNotebookModel();
+
     const [tab, setTab] = useState<Tab>('ask');
 
     // Shared state
@@ -231,6 +234,14 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
             cancelled = true;
         };
     }, []);
+
+    // Without the model-select feature flag the Advanced dialog is hidden
+    // entirely; this list only matters when it is on. The unfiltered
+    // languageModels list is kept for name resolution below.
+    const selectableModels = useMemo(
+        () => filterSelectableChatModels(languageModels, canSelectModel),
+        [languageModels, canSelectModel],
+    );
 
     const hasEmbedding = !!defaults?.default_embedding_model;
     const hasChatModel = !!defaults?.default_chat_model;
@@ -484,9 +495,9 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                         <div className="flex items-center gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-600 dark:bg-amber-950/20 dark:text-amber-500">
                                             <LucideAlertCircle size={16} className="flex-none" />
                                             <span>
-                                                No default chat model is configured. Pick models
-                                                via Advanced below, or set a default on the
-                                                Models page.
+                                                {canSelectModel
+                                                    ? 'No default chat model is configured. Pick models via Advanced below, or set a default on the Models page.'
+                                                    : 'No default chat model is configured. Ask an administrator to set one on the Models page.'}
                                             </span>
                                         </div>
                                     )}
@@ -494,41 +505,64 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
                                             <span className="text-xs text-gray-500 dark:text-gray-400">
-                                                {customModels
-                                                    ? 'Using Custom Models'
-                                                    : 'Using Default Models'}
+                                                {!canSelectModel
+                                                    ? 'Model in use'
+                                                    : customModels
+                                                      ? 'Using Custom Models'
+                                                      : 'Using Default Models'}
                                             </span>
-                                            <button
-                                                onClick={() => setShowAdvanced(true)}
-                                                disabled={asking}
-                                                className="inline-flex items-center rounded-md px-2 py-1 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:pointer-events-none disabled:opacity-50 dark:text-gray-200 dark:hover:bg-neutral-700"
-                                            >
-                                                <LucideSettings size={12} className="mr-1" />
-                                                Advanced
-                                            </button>
+                                            {/* Picking a model is feature-flagged
+                                                (see modelAccess.ts). Without the flag
+                                                there is nothing to override, so the
+                                                switcher is hidden and the badge below
+                                                just names the model that answers. */}
+                                            {canSelectModel && (
+                                                <button
+                                                    onClick={() => setShowAdvanced(true)}
+                                                    disabled={asking}
+                                                    className="inline-flex items-center rounded-md px-2 py-1 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:pointer-events-none disabled:opacity-50 dark:text-gray-200 dark:hover:bg-neutral-700"
+                                                >
+                                                    <LucideSettings size={12} className="mr-1" />
+                                                    Advanced
+                                                </button>
+                                            )}
                                         </div>
                                         <div className="flex flex-wrap gap-2 text-xs">
-                                            <span className={secondaryBadgeClass}>
-                                                Strategy:{' '}
-                                                {resolveModelName(
-                                                    customModels?.strategy ||
+                                            {canSelectModel ? (
+                                                <>
+                                                    <span className={secondaryBadgeClass}>
+                                                        Strategy:{' '}
+                                                        {resolveModelName(
+                                                            customModels?.strategy ||
+                                                                defaults?.default_chat_model,
+                                                        )}
+                                                    </span>
+                                                    <span className={secondaryBadgeClass}>
+                                                        Answer:{' '}
+                                                        {resolveModelName(
+                                                            customModels?.answer ||
+                                                                defaults?.default_chat_model,
+                                                        )}
+                                                    </span>
+                                                    <span className={secondaryBadgeClass}>
+                                                        Final:{' '}
+                                                        {resolveModelName(
+                                                            customModels?.finalAnswer ||
+                                                                defaults?.default_chat_model,
+                                                        )}
+                                                    </span>
+                                                </>
+                                            ) : (
+                                                // Every ask stage runs on the default
+                                                // model when nothing can be overridden,
+                                                // so the per-stage breakdown would just
+                                                // repeat one name three times.
+                                                <span className={secondaryBadgeClass}>
+                                                    {resolveModelName(
                                                         defaults?.default_chat_model,
-                                                )}
-                                            </span>
-                                            <span className={secondaryBadgeClass}>
-                                                Answer:{' '}
-                                                {resolveModelName(
-                                                    customModels?.answer ||
-                                                        defaults?.default_chat_model,
-                                                )}
-                                            </span>
-                                            <span className={secondaryBadgeClass}>
-                                                Final:{' '}
-                                                {resolveModelName(
-                                                    customModels?.finalAnswer ||
-                                                        defaults?.default_chat_model,
-                                                )}
-                                            </span>
+                                                    )}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
 
@@ -961,7 +995,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
 
             {showAdvanced && (
                 <AdvancedModelsDialog
-                    models={languageModels}
+                    models={selectableModels}
                     initial={
                         customModels || {
                             strategy: defaults?.default_chat_model || '',

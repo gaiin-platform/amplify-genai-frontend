@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { IconSparkles } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { NotebookModel, getDefaults, listModels } from '@/services/notebookService';
-import { formatModelName, prepareModelOptions } from './modelDisplay';
+import { filterSelectableChatModels, formatModelName, prepareModelOptions } from './modelDisplay';
+import { useCanSelectNotebookModel } from './modelAccess';
 
 interface Props {
     // Selected model record ID; '' means "use the deployment default".
@@ -48,6 +49,7 @@ export const ChatModelSelect = ({ value, onChange, disabled, onResolvedModel }: 
     const {
         state: { lightMode },
     } = useContext(HomeContext);
+    const canSelectModel = useCanSelectNotebookModel();
 
     const [models, setModels] = useState<NotebookModel[]>([]);
     const [defaultId, setDefaultId] = useState<string | null>(null);
@@ -91,12 +93,27 @@ export const ChatModelSelect = ({ value, onChange, disabled, onResolvedModel }: 
         return defaultName ? `Default (${defaultName})` : 'Default';
     }, [value, models, defaultName, defaultId]);
 
+    // The model that will actually answer, named plainly — no "Default (…)"
+    // wrapper. Used for the read-only label, where the point is to tell the user
+    // which model is running, not how it was chosen.
+    const resolvedModelName = useMemo(() => {
+        const m = models.find((mm) => mm.id === (value || defaultId));
+        return m ? formatModelName(m.name) : null;
+    }, [value, models, defaultId]);
+
     // The default model is only offered via the "Default (X)" entry, never as a
     // second explicit row — so it can't appear twice in the dropdown.
     const selectableModels = useMemo(
-        () => models.filter((m) => m.id !== defaultId),
-        [models, defaultId],
+        () => filterSelectableChatModels(models, canSelectModel).filter((m) => m.id !== defaultId),
+        [models, defaultId, canSelectModel],
     );
+
+    // Without the feature flag there is nothing to switch to, and even with it a
+    // deployment may register only the one allowed model — either way a dropdown
+    // would be dead UI. Show the resolved model as a read-only label instead. The
+    // models still load, so onResolvedModel (and the parent's context-window
+    // indicator) keeps working.
+    const noAlternatives = !canSelectModel || (!loading && selectableModels.length === 0);
 
     const openDialog = () => {
         // An explicit selection equal to the default collapses back to "Default"
@@ -115,6 +132,22 @@ export const ChatModelSelect = ({ value, onChange, disabled, onResolvedModel }: 
         onChange('');
         setOpen(false);
     };
+
+    // Read-only display when there's nothing to switch to: no trigger, no dialog,
+    // just the name of the model that will answer.
+    if (noAlternatives) {
+        return (
+            <span
+                title="Model used to answer"
+                className="flex h-[26px] items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-600 dark:border-neutral-600 dark:bg-[#2b2c36] dark:text-gray-300"
+            >
+                <IconModelSliders size={14} />
+                <span className="max-w-[160px] truncate">
+                    {loading ? 'Loading model…' : resolvedModelName || currentModelName}
+                </span>
+            </span>
+        );
+    }
 
     return (
         <>

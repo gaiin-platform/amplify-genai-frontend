@@ -29,6 +29,51 @@ interface Props {
     source: SourceListItem;
 }
 
+// The LLM emits citations as raw SurrealDB record IDs (e.g. `[source:abc]`,
+// bare `source:abc`, `[[source:abc]]`, or `[source:a, note:b]` comma-grouped).
+// This panel is scoped to a single source, so unlike ChatPanel.tsx there's no
+// sources/notes list to resolve a title from -- just replace any citation of
+// *this* source with its real title, and anything else with a generic label,
+// so the raw id never leaks into the rendered message.
+const REF_RE = /(source_insight|note|source):([A-Za-z0-9_]+)/g;
+
+const cleanCitations = (raw: string, source: SourceListItem): string => {
+    REF_RE.lastIndex = 0;
+    let out = '';
+    let pos = 0;
+    let m: RegExpExecArray | null;
+    while ((m = REF_RE.exec(raw)) !== null) {
+        const [full, type, id] = m;
+        const start = m.index;
+        const end = start + full.length;
+        const before = raw.substring(Math.max(0, start - 2), start);
+        const after = raw.substring(end, Math.min(raw.length, end + 2));
+        let from = start;
+        let to = end;
+        if (before === '[[' && after.startsWith(']]')) {
+            from = start - 2;
+            to = end + 2;
+        } else if (before.endsWith('[') && after.startsWith(']')) {
+            from = start - 1;
+            to = end + 1;
+        }
+        if (from > pos) out += raw.substring(pos, from);
+        const fullId = `${type}:${id}`;
+        const label =
+            type === 'source' && fullId === source.id
+                ? source.title || 'this source'
+                : type === 'note'
+                  ? 'a note'
+                  : type === 'source_insight'
+                    ? 'an insight'
+                    : 'this source';
+        out += `*(${label})*`;
+        pos = to;
+    }
+    if (pos < raw.length) out += raw.substring(pos);
+    return out;
+};
+
 // Mirrors components/Chat/ChatInput.tsx: on mobile, Enter inserts a newline
 // (send is via the button) rather than submitting.
 const isMobile = () => {
@@ -276,7 +321,7 @@ export const SourceChatPanel = ({ source }: Props) => {
                         </div>
                     )}
                     {messages.map((m) => (
-                        <MessageBubble key={m.id} message={m} />
+                        <MessageBubble key={m.id} message={m} source={source} />
                     ))}
                     {isSending && (
                         <div className="flex justify-start gap-3">
@@ -377,7 +422,13 @@ export const SourceChatPanel = ({ source }: Props) => {
 };
 
 
-const MessageBubble = ({ message }: { message: ChatMessage }) => {
+const MessageBubble = ({
+    message,
+    source,
+}: {
+    message: ChatMessage;
+    source: SourceListItem;
+}) => {
     const isHuman = message.type === 'human';
     const [copied, setCopied] = useState<boolean>(false);
 
@@ -415,7 +466,7 @@ const MessageBubble = ({ message }: { message: ChatMessage }) => {
                             className="prose prose-sm dark:prose-invert max-w-none break-words"
                             remarkPlugins={[remarkGfm]}
                         >
-                            {message.content}
+                            {cleanCitations(message.content, source)}
                         </MemoizedReactMarkdown>
                     )}
                 </div>

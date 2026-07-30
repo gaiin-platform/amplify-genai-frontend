@@ -1,5 +1,6 @@
-import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import remarkGfm from 'remark-gfm';
+import HomeContext from '@/pages/api/home/home.context';
 import {
     LucideAlertCircle,
     LucideAlignLeft,
@@ -12,6 +13,7 @@ import {
     LucideExternalLink,
     LucideLightbulb,
     LucideLink,
+    LucideChevronDown,
     LucideLoader2,
     LucideMoreVertical,
     LucidePlus,
@@ -41,6 +43,7 @@ import {
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import { MemoizedReactMarkdown } from '@/components/Markdown/MemoizedReactMarkdown';
+import { filterTransformationsForRole } from './transformationAccess';
 import { InlineEditText } from './InlineEditText';
 import { DropdownButton, DropdownItem } from './DropdownButton';
 import { SourceChatPanel } from './SourceChatPanel';
@@ -475,6 +478,11 @@ const InsightsTab = ({
     source: SourceListItem;
     onCountChange: (count: number) => void;
 }) => {
+    const {
+        state: { featureFlags },
+    } = useContext(HomeContext);
+    const isAdmin = !!featureFlags?.adminInterface;
+
     const [insights, setInsights] = useState<SourceInsight[]>([]);
     const [transformations, setTransformations] = useState<Transformation[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
@@ -506,14 +514,25 @@ const InsightsTab = ({
             ]);
             if (cancelled) return;
             setInsights(insightsData);
-            setTransformations(transformationsData);
+            // Non-admins are offered only the curated transformation set;
+            // admins keep the full list.
+            const allowedTransformations = filterTransformationsForRole(transformationsData, isAdmin);
+            setTransformations(allowedTransformations);
+            // Default the picker to "Dense Summary" when available so the
+            // common case (generate a summary) is a single click.
+            const denseSummary = allowedTransformations.find(
+                (t) => (t.title || t.name) === 'Dense Summary',
+            );
+            if (denseSummary) {
+                setSelectedTransformationId(denseSummary.id);
+            }
             onCountChange(insightsData.length);
             setLoading(false);
         })();
         return () => {
             cancelled = true;
         };
-    }, [source.id, onCountChange]);
+    }, [source.id, onCountChange, isAdmin]);
 
     const handleGenerate = async () => {
         if (!selectedTransformationId || generating) return;
@@ -562,30 +581,20 @@ const InsightsTab = ({
     };
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                        <LucideLightbulb size={20} />
-                        Insights
-                    </span>
-                    <span className={badgeClass('secondary')}>{insights.length}</span>
-                </CardTitle>
-                <CardDescription>Insights generated from model analysis</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-                {/* Create New Insight */}
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-neutral-700 dark:bg-[#343541]">
-                    <label className="mb-3 flex items-center gap-2 text-sm font-semibold">
-                        <LucideSparkles size={16} />
-                        Generate New Insight
-                    </label>
-                    <div className="flex gap-2">
+        <div className="flex flex-col gap-4">
+            {/* Create New Insight */}
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-neutral-700 dark:bg-[#343541]">
+                <label className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                    <LucideSparkles size={16} />
+                    Generate New Insight
+                </label>
+                <div className="flex gap-2">
+                    <div className="relative min-w-0 flex-1">
                         <select
                             value={selectedTransformationId}
                             onChange={(e) => setSelectedTransformationId(e.target.value)}
                             disabled={generating || loading}
-                            className="h-9 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm shadow-sm disabled:opacity-50 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                            className="h-9 w-full min-w-0 appearance-none rounded-md border border-gray-300 bg-white px-3 pr-8 text-sm shadow-sm disabled:opacity-50 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
                         >
                             <option value="">Select a transformation...</option>
                             {transformations.map((t) => (
@@ -594,84 +603,109 @@ const InsightsTab = ({
                                 </option>
                             ))}
                         </select>
-                        <button
-                            onClick={handleGenerate}
-                            disabled={!selectedTransformationId || generating || loading}
-                            className={primaryButtonClass}
-                        >
-                            {generating ? (
-                                <>
-                                    <LucideLoader2 size={12} className="animate-spin" />
-                                    Creating...
-                                </>
-                            ) : (
-                                <>
-                                    <LucidePlus size={16} />
-                                    New
-                                </>
-                            )}
-                        </button>
+                        <LucideChevronDown
+                            size={16}
+                            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                        />
                     </div>
-                    {generationError && (
-                        <div className="mt-2 flex items-start gap-1.5 text-xs text-red-600 dark:text-red-400">
-                            <LucideAlertCircle size={14} className="mt-0.5 flex-none" />
-                            <span>{generationError}</span>
+                    <button
+                        onClick={handleGenerate}
+                        disabled={!selectedTransformationId || generating || loading}
+                        className={primaryButtonClass}
+                    >
+                        {generating ? (
+                            <>
+                                <LucideLoader2 size={12} className="animate-spin" />
+                                Creating...
+                            </>
+                        ) : (
+                            <>
+                                <LucidePlus size={16} />
+                                New
+                            </>
+                        )}
+                    </button>
+                </div>
+                {generationError && (
+                    <div className="mt-2 flex items-start gap-1.5 text-xs text-red-600 dark:text-red-400">
+                        <LucideAlertCircle size={14} className="mt-0.5 flex-none" />
+                        <span>{generationError}</span>
+                    </div>
+                )}
+            </div>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <LucideLightbulb size={20} />
+                        Insights
+                    </CardTitle>
+                    <CardDescription>Insights generated from model analysis</CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                    {error && (
+                        <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+                    )}
+
+                    {/* Insights List */}
+                    {loading ? (
+                        <div className="flex items-center justify-center py-8">
+                            <LucideLoader2 size={24} className="animate-spin text-gray-400" />
+                        </div>
+                    ) : insights.length === 0 && !generating ? (
+                        <div className="py-8 text-center text-gray-500 dark:text-gray-400">
+                            <LucideLightbulb size={48} className="mx-auto mb-3 opacity-50" />
+                            <p className="text-sm">No insights yet</p>
+                            <p className="mt-1 text-xs">
+                                Create your first insight using a transformation above
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-3">
+                            {generating && (
+                                <div className="flex items-center gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500 dark:border-neutral-600 dark:bg-[#343541] dark:text-gray-400">
+                                    <LucideLoader2 size={16} className="animate-spin flex-none" />
+                                    Generating insight…
+                                </div>
+                            )}
+                            {insights.map((insight) => (
+                                <div
+                                    key={insight.id}
+                                    className="rounded-lg border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-[#2b2c36]"
+                                >
+                                    <div className="flex items-start justify-between">
+                                        <span className={badgeClass('outline', 'uppercase')}>
+                                            {insight.insight_type}
+                                        </span>
+                                    </div>
+                                    <div className="mt-2 line-clamp-3 text-sm text-gray-500 dark:text-gray-400">
+                                        <MemoizedReactMarkdown
+                                            className="prose prose-sm dark:prose-invert max-w-none break-words [&_*]:my-0 [&_*]:text-sm [&_*]:font-normal [&_*]:leading-normal"
+                                            remarkPlugins={[remarkGfm]}
+                                        >
+                                            {insight.content}
+                                        </MemoizedReactMarkdown>
+                                    </div>
+                                    <div className="mt-3 flex justify-end gap-2">
+                                        <button
+                                            onClick={() => setViewInsight(insight)}
+                                            className={outlineButtonClass}
+                                        >
+                                            View Insight
+                                        </button>
+                                        <button
+                                            onClick={() => setPendingDelete(insight)}
+                                            className={`${outlineButtonClass} text-red-600 hover:text-red-600 dark:text-red-400`}
+                                        >
+                                            <LucideTrash2 size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
-                </div>
-
-                {error && (
-                    <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
-                )}
-
-                {/* Insights List */}
-                {loading ? (
-                    <div className="flex items-center justify-center py-8">
-                        <LucideLoader2 size={24} className="animate-spin text-gray-400" />
-                    </div>
-                ) : insights.length === 0 ? (
-                    <div className="py-8 text-center text-gray-500 dark:text-gray-400">
-                        <LucideLightbulb size={48} className="mx-auto mb-3 opacity-50" />
-                        <p className="text-sm">No insights yet</p>
-                        <p className="mt-1 text-xs">
-                            Create your first insight using a transformation above
-                        </p>
-                    </div>
-                ) : (
-                    <div className="flex flex-col gap-3">
-                        {insights.map((insight) => (
-                            <div
-                                key={insight.id}
-                                className="rounded-lg border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-[#2b2c36]"
-                            >
-                                <div className="flex items-start justify-between">
-                                    <span className={badgeClass('outline', 'uppercase')}>
-                                        {insight.insight_type}
-                                    </span>
-                                </div>
-                                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                    {insight.content.slice(0, 180)}
-                                    {insight.content.length > 180 ? '…' : ''}
-                                </p>
-                                <div className="mt-3 flex justify-end gap-2">
-                                    <button
-                                        onClick={() => setViewInsight(insight)}
-                                        className={outlineButtonClass}
-                                    >
-                                        View Insight
-                                    </button>
-                                    <button
-                                        onClick={() => setPendingDelete(insight)}
-                                        className={`${outlineButtonClass} text-red-600 hover:text-red-600 dark:text-red-400`}
-                                    >
-                                        <LucideTrash2 size={16} />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </CardContent>
+                </CardContent>
+            </Card>
 
             {viewInsight && (
                 <Modal
@@ -709,7 +743,7 @@ const InsightsTab = ({
                     onDeny={() => setPendingDelete(null)}
                 />
             )}
-        </Card>
+        </div>
     );
 };
 

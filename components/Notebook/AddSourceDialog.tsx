@@ -1,5 +1,6 @@
-import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
+import HomeContext from '@/pages/api/home/home.context';
 import { Modal } from '@/components/ReusableComponents/Modal';
 import {
     LucideCheckCircle,
@@ -21,6 +22,7 @@ import {
     listNotebooks,
     listTransformations,
 } from '@/services/notebookService';
+import { filterTransformationsForRole } from './transformationAccess';
 
 type SourceType = 'link' | 'upload' | 'text';
 
@@ -257,6 +259,11 @@ interface BatchProgress {
 // notebooks → transformations/embedding) with batch URL/file support and a
 // processing view while sources are submitted.
 export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
+    const {
+        state: { featureFlags },
+    } = useContext(HomeContext);
+    const isAdmin = !!featureFlags?.adminInterface;
+
     const [currentStep, setCurrentStep] = useState(1);
 
     // Step 1 form state. The URL tab starts open, matching the reference.
@@ -299,9 +306,15 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
             if (cancelled) return;
             setNotebooks(nbs);
             setNotebooksLoading(false);
-            setTransformations(trs);
+            // Non-admins are offered only the curated transformation set; admins
+            // keep the full list. Filter first so both the displayed options and
+            // the apply_default pre-selection derive from the allowed set.
+            const allowedTrs = filterTransformationsForRole(trs, isAdmin);
+            setTransformations(allowedTrs);
             setTransformationsLoading(false);
-            setSelectedTransformations(trs.filter((t) => t.apply_default).map((t) => t.id));
+            setSelectedTransformations(
+                allowedTrs.filter((t) => t.apply_default).map((t) => t.id),
+            );
             setSettings(stg);
             const option = stg?.default_embedding_option;
             setEmbed(option === 'always' || option === 'ask' || !option);
@@ -309,6 +322,10 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
         return () => {
             cancelled = true;
         };
+        // Runs once on mount. isAdmin is derived from feature flags that are
+        // resolved before the dialog opens and don't change during its lifetime,
+        // so it's intentionally omitted to avoid re-fetching on every render.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
