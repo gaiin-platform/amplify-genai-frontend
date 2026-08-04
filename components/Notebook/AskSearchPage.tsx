@@ -4,6 +4,7 @@ import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { MemoizedReactMarkdown } from '@/components/Markdown/MemoizedReactMarkdown';
 import LatexBlock from '@/components/Chat/ChatContentBlocks/LatexBlock';
+import { Modal } from '@/components/ReusableComponents/Modal';
 import {
     LucideAlertCircle,
     LucideCheckCircle,
@@ -17,14 +18,18 @@ import {
 import {
     AskRequest,
     ModelDefaults,
+    Note,
     NotebookModel,
     SearchResponse,
     SearchResult,
     SearchType,
+    SourceInsight,
     SourceListItem,
     askKnowledgeBaseSimple,
     getDefaults,
+    getInsight,
     getNote,
+    getSource,
     listModels,
     listSources,
     searchKnowledgeBase,
@@ -32,6 +37,7 @@ import {
 import { filterSelectableChatModels, formatModelName, prepareModelOptions } from './modelDisplay';
 import { useCanSelectNotebookModel } from './modelAccess';
 import { AdvancedModelsDialog, AskModels } from './AdvancedModelsDialog';
+import { NoteEditorDialog } from './NoteEditorDialog';
 import { SaveToNotebooksDialog } from './SaveToNotebooksDialog';
 
 type Tab = 'ask' | 'search';
@@ -185,6 +191,16 @@ const refTooltipFromDomId = (href: string): string => {
     return `${labelForType(type)}: ${id}`;
 };
 
+// Same split-on-prefix approach as refTooltipFromDomId, but returns the
+// parsed {type, id} pair so the inline citation chip's click handler can
+// call openCitation(type, id) instead of just describing the ref in a tooltip.
+const parseRefFromDomId = (href: string): { type: RefType; id: string } | null => {
+    const rest = href.slice('#ref-'.length);
+    const type = REF_TYPE_PREFIXES.find((t) => rest.startsWith(`${t}-`));
+    if (!type) return null;
+    return { type, id: rest.slice(type.length + 1) };
+};
+
 const scoreFor = (r: SearchResult): number =>
     r.relevance ?? r.similarity ?? r.score ?? 0;
 
@@ -197,9 +213,12 @@ const secondaryBadgeClass =
     'inline-flex items-center rounded-md border border-transparent bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-neutral-700 dark:text-gray-200';
 
 interface Props {
-    // Clicking a source result title opens the full-page source viewer
-    // (the reference opens a source modal there).
-    onOpenSource?: (source: SourceListItem) => void;
+    // Clicking a source result title (or a `source:` citation) opens the
+    // full-page source viewer. The real implementation
+    // (handleOpenSourceFromGlobalList in NotebookApp.tsx) resolves to
+    // `false` when the fetch fails, which citation click-through uses to
+    // surface an error instead of silently doing nothing.
+    onOpenSource?: (source: SourceListItem) => void | boolean | Promise<void | boolean>;
 }
 
 export const AskSearchPage = ({ onOpenSource }: Props) => {
@@ -227,6 +246,15 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
     // title matches even if the user has already typed a new question.
     const [answeredQuestion, setAnsweredQuestion] = useState<string>('');
     const [savedNotice, setSavedNotice] = useState<boolean>(false);
+    // Citation click-to-open state: clicking a `note:` or `source_insight:`
+    // citation (inline chip or the "Sources cited" list) fetches the full
+    // record and shows it in a Modal, mirroring how SourceDetailView shows
+    // insights and how NotebookDetail opens NoteEditorDialog. `source:`
+    // citations instead go through onOpenSource (the full-page viewer),
+    // matching the Search tab's existing click-to-open behavior.
+    const [viewingNote, setViewingNote] = useState<Note | null>(null);
+    const [viewingInsight, setViewingInsight] = useState<SourceInsight | null>(null);
+    const [citationLoadError, setCitationLoadError] = useState<string | null>(null);
 
     // Search state
     const [searchQuery, setSearchQuery] = useState<string>('');
@@ -299,6 +327,24 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                     const recordId = s.id.includes(':') ? s.id.split(':').slice(1).join(':') : s.id;
                     if (recordId !== s.id) sourceById.set(recordId, s);
                 }
+
+                // The bulk list is capped at 500 and only returns page one —
+                // a workspace with more sources than that (or a citation for
+                // a source that fell outside the page) would silently render
+                // "(untitled source)" even though the source has a real
+                // title, indistinguishable from a genuinely untitled source.
+                // Fetch each cited source that missed the bulk lookup
+                // directly by id instead of guessing.
+                const missingIds = orderedRefs
+                    .filter((r) => r.type === 'source')
+                    .map((r) => `${r.type}:${r.id}`)
+                    .filter((fullId) => !sourceById.has(fullId));
+                if (missingIds.length > 0) {
+                    const fetched = await Promise.all(missingIds.map((id) => getSource(id)));
+                    fetched.forEach((s, i) => {
+                        if (s) sourceById.set(missingIds[i], s);
+                    });
+                }
             }
 
             // asset.file_path is an internal storage path (for S3-backed
@@ -321,6 +367,13 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                 let label = '(untitled)';
                 if (r.type === 'source') {
                     const found = sourceById.get(fullId) || sourceById.get(r.id);
+                    if (!found) {
+                        // Distinguish "we couldn't resolve this citation at
+                        // all" from "the source is genuinely untitled" so
+                        // the failure is diagnosable instead of silently
+                        // looking identical to a real empty title.
+                        console.warn(`Ask citation could not be resolved: ${fullId}`);
+                    }
                     label = found ? sourceName(found) : '(untitled source)';
                 } else if (r.type === 'note') {
                     const note = await getNote(fullId);
@@ -334,6 +387,37 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
             return citations;
         },
         [],
+    );
+
+    // Clicking an inline citation chip or a "Sources cited" list entry opens
+    // the underlying document: sources go through the full-page viewer
+    // (onOpenSource, same as the Search tab), notes open in NoteEditorDialog,
+    // and insights open in the same Modal pattern SourceDetailView uses.
+    const openCitation = useCallback(
+        async (type: RefType, id: string) => {
+            setCitationLoadError(null);
+            const fullId = `${type}:${id}`;
+            if (type === 'source') {
+                if (!onOpenSource) return;
+                const ok = await onOpenSource({ id: fullId } as SourceListItem);
+                if (ok === false) setCitationLoadError('Could not open that source.');
+            } else if (type === 'note') {
+                const note = await getNote(fullId);
+                if (!note) {
+                    setCitationLoadError('Could not open that note.');
+                    return;
+                }
+                setViewingNote(note);
+            } else {
+                const insight = await getInsight(fullId);
+                if (!insight) {
+                    setCitationLoadError('Could not open that insight.');
+                    return;
+                }
+                setViewingInsight(insight);
+            }
+        },
+        [onOpenSource],
     );
 
     const finalizeAnswer = async (text: string) => {
@@ -438,15 +522,38 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
         </button>
     );
 
-    const citationChip = (label: React.ReactNode, key?: React.Key, title?: string) => (
-        <span
-            key={key}
-            title={title}
-            className="mx-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-purple-500/20 px-1.5 text-[11px] font-semibold text-purple-700 dark:bg-purple-400/20 dark:text-purple-200"
-        >
-            {label}
-        </span>
-    );
+    // `onClick` is optional so this still renders a static chip anywhere the
+    // caller can't resolve type/id (kept for defensiveness, though every
+    // current call site now passes a handler).
+    const citationChip = (
+        label: React.ReactNode,
+        key?: React.Key,
+        title?: string,
+        onClick?: () => void,
+    ) =>
+        onClick ? (
+            <button
+                key={key}
+                type="button"
+                title={title}
+                onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onClick();
+                }}
+                className="mx-0.5 inline-flex h-5 min-w-[20px] cursor-pointer items-center justify-center rounded-full bg-purple-500/20 px-1.5 text-[11px] font-semibold text-purple-700 transition-colors hover:bg-purple-500/30 dark:bg-purple-400/20 dark:text-purple-200 dark:hover:bg-purple-400/30"
+            >
+                {label}
+            </button>
+        ) : (
+            <span
+                key={key}
+                title={title}
+                className="mx-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-purple-500/20 px-1.5 text-[11px] font-semibold text-purple-700 dark:bg-purple-400/20 dark:text-purple-200"
+            >
+                {label}
+            </span>
+        );
 
     return (
         <div className="w-full space-y-6">
@@ -684,10 +791,14 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                             // normal new-tab anchor.
                                             a({ href, children, ...props }) {
                                                 if (href && href.startsWith('#ref-')) {
+                                                    const parsed = parseRefFromDomId(href);
                                                     return citationChip(
                                                         children as React.ReactNode,
                                                         undefined,
                                                         refTooltipFromDomId(href),
+                                                        parsed
+                                                            ? () => openCitation(parsed.type, parsed.id)
+                                                            : undefined,
                                                     );
                                                 }
                                                 return (
@@ -717,16 +828,27 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                                         key={`${c.type}-${c.id}`}
                                                         className="flex items-start gap-2"
                                                     >
-                                                        {citationChip(c.n)}
-                                                        <span className="truncate">
+                                                        {citationChip(c.n, undefined, undefined, () =>
+                                                            openCitation(c.type, c.id),
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openCitation(c.type, c.id)}
+                                                            className="truncate text-left hover:underline"
+                                                        >
                                                             <span className="text-gray-400 dark:text-gray-500">
                                                                 {labelForType(c.type)}:
                                                             </span>{' '}
                                                             {c.label}
-                                                        </span>
+                                                        </button>
                                                     </li>
                                                 ))}
                                             </ol>
+                                            {citationLoadError && (
+                                                <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+                                                    {citationLoadError}
+                                                </p>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -1005,6 +1127,44 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                     answer={answer}
                     onClose={() => setShowSaveDialog(false)}
                     onSaved={() => setSavedNotice(true)}
+                />
+            )}
+
+            {viewingNote && (
+                // notebookId is only used by NoteEditorDialog's create path;
+                // since we always pass an existing `note` here it takes the
+                // edit path and notebookId is never read.
+                <NoteEditorDialog
+                    notebookId=""
+                    note={viewingNote}
+                    onClose={() => setViewingNote(null)}
+                    onSaved={() => setViewingNote(null)}
+                />
+            )}
+
+            {viewingInsight && (
+                <Modal
+                    title="Source Insight"
+                    onCancel={() => setViewingInsight(null)}
+                    showSubmit={false}
+                    cancelLabel="Close"
+                    width={() => Math.min(768, window.innerWidth * 0.9)}
+                    height={() => window.innerHeight * 0.85}
+                    content={
+                        <div className="flex flex-col gap-3 p-2 text-neutral-800 dark:text-neutral-100">
+                            <div>
+                                <span className={secondaryBadgeClass}>
+                                    {viewingInsight.insight_type}
+                                </span>
+                            </div>
+                            <MemoizedReactMarkdown
+                                className="prose prose-sm dark:prose-invert max-w-none break-words"
+                                remarkPlugins={[remarkGfm]}
+                            >
+                                {viewingInsight.content}
+                            </MemoizedReactMarkdown>
+                        </div>
+                    }
                 />
             )}
 
