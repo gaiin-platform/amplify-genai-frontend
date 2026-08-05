@@ -1,0 +1,453 @@
+/**
+ * NewSidebar — the unified sidebar for the new Amplify UI.
+ *
+ * Replaces the old TabSidebar (3 tabs: Chats, Assistants, Settings).
+ * One sidebar with all navigation, recents, pinned items, and account.
+ *
+ * Layout (3 flex regions in a flex column):
+ *   1. Header (flex-shrink:0) — wordmark, collapse, search
+ *   2. Nav (flex-shrink:0) — new chat, primary nav items
+ *   3. Recents (flex:1 overflow-y:auto) — scrollable chat history
+ *   4. Footer (flex-shrink:0) — account row
+ *
+ * Responsive:
+ *   ≥1100px: fixed 310px
+ *   760-1099px: collapsed icon rail (60px)  [TODO: Phase 4]
+ *   <760px: off-canvas drawer               [TODO: Phase 4]
+ */
+import React, { useContext, useState, useEffect, useRef, useCallback } from 'react';
+import {
+  IconMessage2,
+  IconSparkles,
+  IconLayoutGridAdd,
+  IconClock,
+  IconPlus,
+  IconArrowsSort,
+  IconLayoutList,
+  IconBooks,
+  IconAdjustments,
+} from '@tabler/icons-react';
+
+import HomeContext from '@/pages/api/home/home.context';
+import { Conversation } from '@/types/chat';
+import {
+  saveConversations,
+  deleteConversationCleanUp,
+} from '@/utils/app/conversation';
+import { deleteRemoteConversation } from '@/services/remoteConversationService';
+import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
+import { getFullTimestamp, getDateName } from '@/utils/app/date';
+import { DefaultModels } from '@/types/model';
+import { v4 as uuidv4 } from 'uuid';
+
+import { SidebarHeader } from './SidebarHeader';
+import { SidebarNavItem } from './SidebarNavItem';
+import { SidebarSection } from './SidebarSection';
+import { ConversationRow } from './ConversationRow';
+import { AccountMenu } from './AccountMenu';
+import { IconButton } from '@/components/NewUI/shared/IconButton';
+import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
+
+interface NewSidebarProps {
+  email?: string | null;
+  name?: string | null;
+  username?: string | null;
+}
+
+// Group conversations by time bucket.
+// Priority for date: conversation.date (ISO) → folder.date (ISO from addDateAttribute) → folder.name parse
+function groupConversationsByTime(
+  conversations: Conversation[],
+  folders: { id: string; name: string; date?: string }[]
+): {
+  today: Conversation[];
+  yesterday: Conversation[];
+  previous: Conversation[];
+} {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterdayStart = new Date(todayStart);
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+
+  const today: Conversation[] = [];
+  const yesterday: Conversation[] = [];
+  const previous: Conversation[] = [];
+
+  // Sort newest first before grouping
+  const sorted = [...conversations].sort((a, b) => {
+    const da = a.date ? new Date(a.date).getTime() : 0;
+    const db = b.date ? new Date(b.date).getTime() : 0;
+    return db - da;
+  });
+
+  for (const c of sorted) {
+    let ts: Date | null = null;
+
+    // 1. Conversation's own ISO date
+    if (c.date) {
+      const p = new Date(c.date);
+      if (!isNaN(p.getTime())) ts = p;
+    }
+
+    // 2. Folder's date (set by addDateAttribute — already ISO YYYY-MM-DD)
+    if (!ts && c.folderId) {
+      const folder = folders.find((f) => f.id === c.folderId);
+      if (folder) {
+        if (folder.date) {
+          const p = new Date(folder.date);
+          if (!isNaN(p.getTime())) ts = p;
+        } else if (folder.name) {
+          // Try parsing "Aug 5, 2026" directly
+          const p = new Date(folder.name);
+          if (!isNaN(p.getTime())) ts = p;
+        }
+      }
+    }
+
+    if (!ts) {
+      previous.push(c);
+      continue;
+    }
+
+    if (ts >= todayStart) today.push(c);
+    else if (ts >= yesterdayStart) yesterday.push(c);
+    else previous.push(c);
+  }
+
+  return { today, yesterday, previous };
+}
+
+export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username }) => {
+  const {
+    state: {
+      conversations,
+      selectedConversation,
+      page,
+      featureFlags,
+      storageSelection,
+      statsService,
+      folders,
+      syncingConversations,
+    },
+    dispatch,
+    handleNewConversation,
+    handleSelectConversation,
+    handleUpdateConversation,
+    getDefaultModel,
+  } = useContext(HomeContext);
+
+  const [isOpen, setIsOpen] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const stored = localStorage.getItem('showChatbar');
+    return stored !== null ? stored === 'true' : true;
+  });
+  // settingsSection: null = closed, 'general' = open to General, 'skills' = open to Customize
+  const [settingsSection, setSettingsSection] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const conversationsRef = useRef(conversations);
+  useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
+
+  const handleToggle = () => {
+    const next = !isOpen;
+    setIsOpen(next);
+    dispatch({ field: 'showChatbar', value: next });
+    localStorage.setItem('showChatbar', JSON.stringify(next));
+  };
+
+  const handleDeleteConversation = useCallback((conversation: Conversation) => {
+    deleteConversationCleanUp(conversation);
+    const updated = conversationsRef.current.filter((c) => c.id !== conversation.id);
+
+    statsService.deleteConversationEvent(conversation);
+
+    if (updated.length === 0) {
+      const defaultModel = getDefaultModel(DefaultModels.DEFAULT);
+      const newConversation: Conversation = {
+        id: uuidv4(),
+        name: 'New Conversation',
+        messages: [],
+        model: defaultModel,
+        prompt: '',
+        temperature: 0.5,
+        folderId: null,
+      } as any;
+      updated.push(newConversation);
+      dispatch({ field: 'selectedConversation', value: newConversation });
+    } else if (selectedConversation?.id === conversation.id) {
+      dispatch({ field: 'selectedConversation', value: updated[updated.length - 1] });
+    }
+
+    saveConversations(updated);
+    dispatch({ field: 'conversations', value: updated });
+
+    if (!getIsLocalStorageSelection(storageSelection)) {
+      deleteRemoteConversation(conversation.id).catch(() => {});
+    }
+  }, [conversations, selectedConversation, storageSelection, statsService]);
+
+  // Filter conversations by search — show ALL conversations (they all have date-based folderIds)
+  const noFolderConversations = searchTerm
+    ? conversations.filter((c) =>
+        c.name.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : conversations;
+
+  const { today, yesterday, previous } = groupConversationsByTime(noFolderConversations, folders);
+
+  // Pinned conversations (if any have a pin flag)
+  const pinned = noFolderConversations.filter((c) => (c as any).pinned);
+  const unpinned_today = today.filter((c) => !(c as any).pinned);
+  const unpinned_yesterday = yesterday.filter((c) => !(c as any).pinned);
+  const unpinned_previous = previous.filter((c) => !(c as any).pinned);
+
+  const navItems = [
+    {
+      icon: <IconMessage2 size={18} />,
+      label: 'Chats',
+      id: 'chats',
+      action: () => dispatch({ field: 'page', value: 'chat' }),
+    },
+    {
+      icon: <IconSparkles size={18} />,
+      label: 'Assistants',
+      id: 'assistants',
+      action: () => dispatch({ field: 'page', value: 'assistantGallery' }),
+    },
+    {
+      icon: <IconBooks size={18} />,
+      label: 'Library',
+      id: 'library',
+      action: () => dispatch({ field: 'page', value: 'library' as any }),
+    },
+    {
+      icon: <IconAdjustments size={18} />,
+      label: 'Customize',
+      id: 'customize',
+      // Opens settings modal to the Skills section (per spec)
+      action: () => setSettingsSection('skills'),
+    },
+    ...(featureFlags.notebook ? [{
+      icon: <IconLayoutGridAdd size={18} />,
+      label: 'Notebook',
+      id: 'notebook',
+      action: () => dispatch({ field: 'page', value: 'notebook' }),
+    }] : []),
+    ...(featureFlags.scheduledTasks ? [{
+      icon: <IconClock size={18} />,
+      label: 'Scheduled',
+      id: 'scheduled',
+      action: () => window.dispatchEvent(new CustomEvent('openScheduledTasksTrigger', { detail: {} })),
+    }] : []),
+  ];
+
+  const currentNavId =
+    settingsSection !== null ? 'customize'
+    : page === 'chat' ? 'chats'
+    : page === 'assistantGallery' ? 'assistants'
+    : (page as any) === 'library' ? 'library'
+    : page === 'notebook' ? 'notebook'
+    : (page as any) === 'chats' ? 'chats'
+    : 'chats';
+
+  const renderConversationGroup = (convs: Conversation[], label?: string) => {
+    if (convs.length === 0) return null;
+    return (
+      <div key={label}>
+        {label && <SidebarSection label={label} />}
+        <div className="flex flex-col gap-[2px] px-[10px]">
+          {convs.map((c) => (
+            <ConversationRow
+              key={c.id}
+              conversation={c}
+              isSelected={selectedConversation?.id === c.id}
+              onSelect={() => handleSelectConversation(c)}
+              onDelete={() => handleDeleteConversation(c)}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Collapsed state — just show an open button
+  if (!isOpen) {
+    return (
+      <div className="flex flex-col items-center w-[52px] py-3 border-r border-[--border-subtle] bg-[--bg-sidebar] flex-shrink-0">
+        <button
+          onClick={handleToggle}
+          title="Open sidebar"
+          className="w-9 h-9 flex items-center justify-center rounded-[8px] text-[--text-muted] hover:text-[--text-primary] hover:bg-[--bg-hover] transition-colors"
+        >
+          <IconMessage2 size={18} />
+        </button>
+        <button
+          onClick={() => handleNewConversation({})}
+          title="New conversation (⌘N)"
+          className="mt-2 w-9 h-9 flex items-center justify-center rounded-[8px] text-[--text-muted] hover:text-[--text-primary] hover:bg-[--bg-hover] transition-colors"
+        >
+          <IconPlus size={18} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div
+        className={`
+          relative flex flex-col w-[310px] flex-shrink-0
+          bg-[--bg-sidebar] border-r border-[--border-subtle]
+          h-screen
+          transition-all duration-200
+        `}
+        style={{ fontFamily: 'Inter, sans-serif' }}
+      >
+        {/* 1. Header */}
+        <SidebarHeader
+          onCollapse={handleToggle}
+          onSearch={() => {/* TODO: open command palette */}}
+        />
+
+        {/* 2. Nav actions */}
+        <div className="flex flex-col gap-[2px] px-[10px] pb-2 flex-shrink-0">
+          {/* New Chat button */}
+          <button
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false }}));
+              handleNewConversation({});
+            }}
+            className={`
+              group w-full flex items-center gap-[10px] h-[36px] px-[10px]
+              rounded-[10px] bg-[--bg-raised]
+              text-[14px] font-normal text-[--text-secondary]
+              hover:bg-[--bg-active] hover:text-[--text-primary]
+              transition-colors duration-100
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]
+            `}
+          >
+            <IconPlus size={16} className="flex-shrink-0" />
+            <span className="flex-1 text-left">New chat</span>
+            <span className="text-[11px] text-[--text-muted] opacity-0 group-hover:opacity-100 transition-opacity">
+              ⌘N
+            </span>
+          </button>
+
+          {/* Primary nav items */}
+          <div className="flex flex-col gap-[2px] mt-2">
+            {navItems.map((item) => (
+              <SidebarNavItem
+                key={item.id}
+                icon={item.icon}
+                label={item.label}
+                isActive={currentNavId === item.id}
+                onClick={item.action}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Separator */}
+        <div className="h-px bg-[--border-subtle] mx-[10px] mb-1 flex-shrink-0" />
+
+        {/* 3. Scrollable Recents */}
+        <div
+          className="flex-1 overflow-y-auto overflow-x-hidden"
+          style={{
+            maskImage: 'linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 16px), transparent 100%)',
+          }}
+        >
+          {/* Pinned section */}
+          {pinned.length > 0 && (
+            <div className="group">
+              <SidebarSection label="Pinned" />
+              <div className="flex flex-col gap-[2px] px-[10px]">
+                {pinned.map((c) => (
+                  <ConversationRow
+                    key={c.id}
+                    conversation={c}
+                    isSelected={selectedConversation?.id === c.id}
+                    onSelect={() => handleSelectConversation(c)}
+                    onDelete={() => handleDeleteConversation(c)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Recents header */}
+          <div className="flex items-center justify-between px-[10px] pt-[18px] pb-[4px]">
+            <span className="text-[12px] font-normal text-[--text-muted] leading-none select-none">
+              Recents
+            </span>
+            <div className="flex items-center gap-1">
+              <IconButton size="sm" title="Sort conversations">
+                <IconArrowsSort size={13} />
+              </IconButton>
+              <IconButton
+                size="sm"
+                title="View all chats"
+                onClick={() => dispatch({ field: 'page', value: 'chats' as any })}
+              >
+                <IconLayoutList size={13} />
+              </IconButton>
+            </div>
+          </div>
+
+          {/* Skeleton rows while loading */}
+          {syncingConversations && noFolderConversations.length === 0 && (
+            <div className="flex flex-col gap-[4px] px-[10px] pt-2">
+              {[80, 65, 75, 55, 70].map((w, i) => (
+                <div
+                  key={i}
+                  className="h-[32px] rounded-[8px] bg-[--bg-hover] animate-pulse"
+                  style={{ width: `${w}%` }}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Today — hide "New Conversation" entries that have no messages (placeholder convs) */}
+          {renderConversationGroup(
+            unpinned_today.filter(c => c.name !== 'New Conversation' || c.messages?.length > 0),
+            unpinned_today.filter(c => c.name !== 'New Conversation' || c.messages?.length > 0).length > 0 &&
+            (unpinned_yesterday.length > 0 || unpinned_previous.length > 0) ? 'Today' : undefined
+          )}
+
+          {/* Yesterday */}
+          {renderConversationGroup(unpinned_yesterday, 'Yesterday')}
+
+          {/* Previous 30 days */}
+          {renderConversationGroup(unpinned_previous, unpinned_previous.length > 0 ? 'Previous 30 days' : undefined)}
+
+          {/* Empty state — only when not loading */}
+          {!syncingConversations && noFolderConversations.filter(c => c.name !== 'New Conversation' || c.messages?.length > 0).length === 0 && (
+            <div className="px-[10px] py-8 text-center text-[13px] text-[--text-muted]">
+              No conversations yet
+            </div>
+          )}
+
+          {/* Bottom padding for scroll */}
+          <div className="h-4" />
+        </div>
+
+        {/* 4. Footer — Account */}
+        <AccountMenu
+          name={name}
+          email={email}
+          onOpenSettings={() => setSettingsSection('general')}
+        />
+      </div>
+
+      {/* New Settings Modal — two-column per spec */}
+      {settingsSection !== null && (
+        <NewSettingsModal
+          openToSection={settingsSection}
+          onClose={() => setSettingsSection(null)}
+        />
+      )}
+    </>
+  );
+};
+
+export default NewSidebar;

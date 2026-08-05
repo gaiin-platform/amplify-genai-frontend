@@ -98,6 +98,14 @@ import { ConversationStorage } from '@/types/conversationStorage';
 import UserMenu from '@/components/Layout/UserMenu';
 import { Logo } from '@/components/Logo/Logo';
 import { ThemeService } from '@/utils/whiteLabel/themeService';
+// New UI imports
+import { NewSidebar } from '@/components/NewUI/sidebar/NewSidebar';
+import { NewHome } from '@/components/NewUI/home/NewHome';
+import { ChatsListView } from '@/components/NewUI/views/ChatsListView';
+import { LibraryView } from '@/components/NewUI/views/LibraryView';
+import { ConversationViewShell } from '@/components/NewUI/chat/ConversationViewShell';
+import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
+import { UIPreferenceBanner, getUIPreference, type UIPreference } from '@/components/NewUI/UIPreferenceBanner';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -127,6 +135,26 @@ const Home = ({
     const [loadingMessage, setLoadingMessage] = useState<string>('');
 
     const [loadingAmplify, setLoadingAmplify] = useState<boolean>(true);
+
+    // New UI preference — 'new' | 'classic' | null (null = show banner)
+    const [uiPreference, setUiPreference] = useState<UIPreference>(null);
+    // Initialize after mount so localStorage is available
+    useEffect(() => {
+        setUiPreference(getUIPreference());
+    }, []);
+
+    // New UI ⌘, shortcut — opens settings modal
+    const [newUiSettingsSection, setNewUiSettingsSection] = useState<string | null>(null);
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+                e.preventDefault();
+                setNewUiSettingsSection('general');
+            }
+        };
+        document.addEventListener('keydown', handler);
+        return () => document.removeEventListener('keydown', handler);
+    }, []);
 
     const [dataDisclosure, setDataDisclosure] = useState<{url: string, html: string | null}|null>(null);
     const [hasAcceptedDataDisclosure, sethasAcceptedDataDisclosure] = useState<boolean | null> (null);
@@ -1578,52 +1606,100 @@ const Home = ({
                     <main
                         className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
                     >
-                        <div className="flex h-full w-full">
-                            <UserMenu
-                                email={user?.email}
-                                name={session?.user?.name}
-                                username={(session?.user as any)?.username}
-
+                        {/* UI Preference Banner — shown on first visit when no preference set */}
+                        {uiPreference === null && (
+                            <UIPreferenceBanner
+                                onSelectNew={() => setUiPreference('new')}
+                                onSelectClassic={() => setUiPreference('classic')}
                             />
+                        )}
 
+                        {/* ── NEW UI LAYOUT ── */}
+                        {uiPreference === 'new' ? (
+                            <div className="flex h-full w-full overflow-hidden" style={{ fontFamily: 'Inter, sans-serif' }}>
+                                {/* Unified new sidebar */}
+                                {page !== 'notebook' && (
+                                    <NewSidebar
+                                        email={user?.email}
+                                        name={session?.user?.name}
+                                        username={(session?.user as any)?.username}
+                                    />
+                                )}
 
-                            {page !== 'notebook' && (
-                                <TabSidebar
-                                    side={"left"}
-                                >
-                                    <Tab icon={<IconMessage />} title="Chats" onClick={() => dispatch({ field: 'page', value: 'chat' })}><Chatbar /></Tab>
-                                    <Tab icon={<IconSparkles />} title="Assistants" onClick={() => dispatch({ field: 'page', value: 'chat' })}><Promptbar /></Tab>
-                                    <Tab icon={<IconHammer />} title="Settings" onClick={() => dispatch({ field: 'page', value: 'chat' })}><SettingsBar /></Tab>
-                                </TabSidebar>
-                            )}
+                                {/* Main content area */}
+                                <div id="main-content" tabIndex={-1} className="flex flex-1 overflow-hidden">
+                                    {page === 'chat' && selectedConversation && selectedConversation.messages.length === 0 && (
+                                        <NewHome />
+                                    )}
+                                    {page === 'chat' && selectedConversation && selectedConversation.messages.length > 0 && (
+                                        <ConversationViewShell stopConversationRef={stopConversationRef} />
+                                    )}
+                                    {page === 'chat' && !selectedConversation && (
+                                        <NewHome />
+                                    )}
+                                    {page === 'home' && (
+                                        <NewHome />
+                                    )}
+                                    {(page as any) === 'chats' && (
+                                        <ChatsListView />
+                                    )}
+                                    {(page as any) === 'library' && (
+                                        <LibraryView />
+                                    )}
+                                    {page === 'assistantGallery' && (
+                                        <AssistantGallery />
+                                    )}
+                                    {page === 'notebook' && featureFlags.notebook && (
+                                        <NotebookApp />
+                                    )}
+                                </div>
 
-                            <div id="main-content" tabIndex={-1} className="flex flex-1">
-                                {page === 'chat' && (
-                                    <Chat stopConversationRef={stopConversationRef} />
-                                )}
-                                {/* {page === 'market' && (
-                                    <Market items={[
-                                        // {id: "1", name: "Item 1"},
-                                    ]} />
-                                )} */}
-                                {page === 'home' && (
-                                    <MyHome />
-                                )}
-                                {page === 'assistantGallery' && (
-                                    <AssistantGallery />
-                                )}
-                                {page === 'notebook' && featureFlags.notebook && (
-                                    <NotebookApp />
+                                {/* ⌘, global settings shortcut for new UI */}
+                                {newUiSettingsSection !== null && (
+                                    <NewSettingsModal
+                                        openToSection={newUiSettingsSection}
+                                        onClose={() => setNewUiSettingsSection(null)}
+                                    />
                                 )}
                             </div>
-                            
+                        ) : (
+                            /* ── CLASSIC UI LAYOUT (unchanged) ── */
+                            <div className="flex h-full w-full">
+                                <UserMenu
+                                    email={user?.email}
+                                    name={session?.user?.name}
+                                    username={(session?.user as any)?.username}
+                                />
 
-                        </div>
+                                {page !== 'notebook' && (
+                                    <TabSidebar
+                                        side={"left"}
+                                    >
+                                        <Tab icon={<IconMessage />} title="Chats" onClick={() => dispatch({ field: 'page', value: 'chat' })}><Chatbar /></Tab>
+                                        <Tab icon={<IconSparkles />} title="Assistants" onClick={() => dispatch({ field: 'page', value: 'chat' })}><Promptbar /></Tab>
+                                        <Tab icon={<IconHammer />} title="Settings" onClick={() => dispatch({ field: 'page', value: 'chat' })}><SettingsBar /></Tab>
+                                    </TabSidebar>
+                                )}
+
+                                <div id="main-content" tabIndex={-1} className="flex flex-1">
+                                    {page === 'chat' && (
+                                        <Chat stopConversationRef={stopConversationRef} />
+                                    )}
+                                    {page === 'home' && (
+                                        <MyHome />
+                                    )}
+                                    {page === 'assistantGallery' && (
+                                        <AssistantGallery />
+                                    )}
+                                    {page === 'notebook' && featureFlags.notebook && (
+                                        <NotebookApp />
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         <LoadingDialog open={!!loadingMessage} message={loadingMessage}/>
                         <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/>
-
-                        
-
                     </main>
                 )}
 

@@ -1,0 +1,173 @@
+/**
+ * UIPreferenceBanner — shown once when the user hasn't yet chosen
+ * between the Classic UI and the New UI.
+ *
+ * Behavior:
+ *   - Reads localStorage key `amplify_new_ui_preference`
+ *   - If not set, shows a centered modal asking the user
+ *   - "Try New UI" → sets preference to 'new', sets cookie X-Amplify-UI=new, calls onSelectNew()
+ *   - "Stay Classic" → sets preference to 'classic', calls onSelectClassic()
+ *   - User can always switch later via Settings → Appearance
+ *
+ * The cookie is for future load-balancer routing:
+ *   LB listener rule #3 on port 443 matches X-Amplify-UI=new
+ *   and forwards to the new-UI target group.
+ */
+import React, { useEffect, useState } from 'react';
+
+export const UI_PREF_KEY = 'amplify_new_ui_preference';
+export type UIPreference = 'new' | 'classic' | null;
+
+export function getUIPreference(): UIPreference {
+  if (typeof window === 'undefined') return null;
+  const val = localStorage.getItem(UI_PREF_KEY);
+  if (val === 'new' || val === 'classic') return val;
+  return null;
+}
+
+export function setUIPreference(pref: 'new' | 'classic') {
+  localStorage.setItem(UI_PREF_KEY, pref);
+  // Set cookie for future load-balancer routing
+  if (pref === 'new') {
+    document.cookie = 'X-Amplify-UI=new; path=/; SameSite=Lax; max-age=31536000';
+  } else {
+    // Clear the cookie
+    document.cookie = 'X-Amplify-UI=; path=/; SameSite=Lax; max-age=0';
+  }
+}
+
+interface UIPreferenceBannerProps {
+  onSelectNew: () => void;
+  onSelectClassic: () => void;
+}
+
+export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
+  onSelectNew,
+  onSelectClassic,
+}) => {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    // Only show if no preference has been saved
+    const pref = getUIPreference();
+    if (!pref) setVisible(true);
+  }, []);
+
+  if (!visible) return null;
+
+  const handleNew = () => {
+    setUIPreference('new');
+    setVisible(false);
+    onSelectNew();
+  };
+
+  const handleClassic = () => {
+    setUIPreference('classic');
+    setVisible(false);
+    onSelectClassic();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center"
+      style={{
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        backdropFilter: 'blur(4px)',
+      }}
+    >
+      <div
+        className={`
+          relative w-full max-w-[520px] mx-4
+          bg-[--bg-raised] border border-[--border-subtle]
+          rounded-[--radius-panel]
+          shadow-[0_24px_60px_rgba(0,0,0,0.5)]
+          p-8
+          animate-fade-in
+        `}
+        style={{ transformOrigin: 'center' }}
+      >
+        {/* Accent mark */}
+        <div className="flex items-center gap-2 mb-6">
+          <span
+            className="text-[22px] leading-none"
+            style={{ color: 'var(--accent)' }}
+          >
+            ✳
+          </span>
+          <span
+            className="text-[22px] text-[--text-primary] tracking-[-0.01em]"
+            style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}
+          >
+            Amplify
+          </span>
+        </div>
+
+        <h2 className="text-[22px] font-medium text-[--text-primary] mb-3 leading-tight">
+          We have a new look
+        </h2>
+        <p className="text-[15px] text-[--text-secondary] mb-8 leading-relaxed">
+          We've redesigned Amplify with a cleaner, more focused interface. You
+          can switch back to the classic view at any time from Settings →
+          Appearance.
+        </p>
+
+        {/* Comparison row */}
+        <div className="grid grid-cols-2 gap-3 mb-8">
+          {/* New UI preview card */}
+          <div
+            className="rounded-[10px] border-2 border-[--accent] bg-[--bg-app] p-4 cursor-pointer hover:bg-[--bg-hover] transition-colors"
+            onClick={handleNew}
+          >
+            <div className="text-[13px] font-medium text-[--text-primary] mb-1">New UI</div>
+            <div className="text-[12px] text-[--text-muted] leading-relaxed">
+              Clean sidebar, unified navigation, modern composer
+            </div>
+            <div className="mt-3 text-[11px] font-medium text-[--accent] uppercase tracking-wide">
+              Recommended
+            </div>
+          </div>
+
+          {/* Classic preview card */}
+          <div
+            className="rounded-[10px] border border-[--border-subtle] bg-[--bg-app] p-4 cursor-pointer hover:bg-[--bg-hover] transition-colors"
+            onClick={handleClassic}
+          >
+            <div className="text-[13px] font-medium text-[--text-primary] mb-1">Classic UI</div>
+            <div className="text-[12px] text-[--text-muted] leading-relaxed">
+              Original interface with three-tab sidebar
+            </div>
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex flex-col gap-2 sm:flex-row-reverse">
+          <button
+            onClick={handleNew}
+            className={`
+              flex-1 h-[42px] rounded-[10px] text-[14px] font-medium
+              text-white transition-colors
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent] focus-visible:ring-offset-2
+            `}
+            style={{ backgroundColor: 'var(--accent)' }}
+          >
+            Try New UI
+          </button>
+          <button
+            onClick={handleClassic}
+            className={`
+              flex-1 h-[42px] rounded-[10px] text-[14px] font-medium
+              bg-[--bg-active] text-[--text-secondary]
+              hover:bg-[--bg-hover] hover:text-[--text-primary]
+              transition-colors
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary] focus-visible:ring-offset-2
+            `}
+          >
+            Stay on Classic
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default UIPreferenceBanner;

@@ -2,9 +2,57 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400&display=swap');
 @import 'sidebar-enhancements.css';
 @import 'table-enhancements.css';
+@import 'conversation-view.css';
+
+/* ============================================================
+   NEW UI DESIGN TOKENS — Claude-inspired sidebar shell
+   Defined before the white-label variables so they can be
+   consumed with var(--bg-app) etc throughout NewUI components.
+   ============================================================ */
+:root {
+  /* Surface hierarchy */
+  --bg-app:        #ffffff;
+  --bg-sidebar:    #f9f9f9;
+  --bg-raised:     #f2f2f0;
+  --bg-hover:      #ebebeb;
+  --bg-active:     #e2e2e0;
+  --border-subtle: #e5e5e5;
+
+  /* Text hierarchy */
+  --text-primary:   #1a1a1a;
+  --text-secondary: #555555;
+  --text-muted:     #888888;
+
+  /* Accent — Amplify orange (appears sparingly: wordmark ✳, greeting ✳) */
+  --accent: #D97757;
+
+  /* Geometry */
+  --radius-row:    8px;
+  --radius-button: 10px;
+  --radius-panel:  14px;
+  --row-h:         36px;
+  --row-pad-x:     10px;
+  --sidebar-pad:   10px;
+  --gap-section:   18px;
+}
+
+.dark {
+  --bg-app:        #262624;
+  --bg-sidebar:    #1F1E1D;
+  --bg-raised:     #30302E;
+  --bg-hover:      #2F2E2C;
+  --bg-active:     #3A3A38;
+  --border-subtle: #33322F;
+
+  --text-primary:   #FAF9F5;
+  --text-secondary: #C2C0B6;
+  --text-muted:     #8A8780;
+
+  --accent: #D97757;
+}
 
 /* White Label CSS Custom Properties */
 /* These variables can be overridden in a custom CSS file to rebrand the application */

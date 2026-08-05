@@ -1,0 +1,209 @@
+/**
+ * conversation-view.css
+ * Scoped overrides for the new UI chat shell ([data-new-ui="true"]).
+ * Applied on top of the existing Chat component without changing its logic.
+ * Reference: /Users/maxmoundas/Downloads/conversation-view-spec.md
+ */
+
+/* ── Shell background ─────────────────────────────────────────────────────── */
+[data-new-ui="true"],
+[data-new-ui="true"] > div {
+  background-color: var(--bg-app) !important;
+}
+
+/* Override dark hardcoded backgrounds */
+[data-new-ui="true"] .dark\:bg-\[\#343541\],
+[data-new-ui="true"] .bg-neutral-100 {
+  background-color: var(--bg-app) !important;
+}
+
+/* ── Message column — 760px centered ─────────────────────────────────────── */
+[data-new-ui="true"] .chatcontainer {
+  max-width: 100% !important;
+}
+
+[data-new-ui="true"] #overflowScroll > div,
+[data-new-ui="true"] .mx-auto.flex.flex-col {
+  max-width: 760px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 24px !important;
+  padding-right: 24px !important;
+}
+
+/* ── Scroll fade masks ────────────────────────────────────────────────────── */
+[data-new-ui="true"] .chatcontainer,
+[data-new-ui="true"] #overflowScroll {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 28px,
+    #000 calc(100% - 32px),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 28px,
+    #000 calc(100% - 32px),
+    transparent 100%
+  );
+}
+
+/* ── User message bubbles ─────────────────────────────────────────────────── */
+[data-new-ui="true"] .amplify-user-message,
+[data-new-ui="true"] [class*="human-message"],
+[data-new-ui="true"] [class*="user-message"] {
+  margin-left: auto !important;
+  margin-right: 0 !important;
+  max-width: 72% !important;
+  width: fit-content !important;
+  background-color: var(--bg-raised) !important;
+  color: var(--text-primary) !important;
+  border-radius: 16px !important;
+  padding: 12px 18px !important;
+  font-size: 16px !important;
+  line-height: 1.65 !important;
+}
+
+/* ── Assistant messages — no bubble ──────────────────────────────────────── */
+[data-new-ui="true"] .amplify-assistant-message,
+[data-new-ui="true"] .dark\:bg-\[\#444654\] {
+  background-color: transparent !important;
+  border-radius: 0 !important;
+  max-width: 100% !important;
+  padding: 0 !important;
+  font-size: 16px !important;
+  line-height: 1.7 !important;
+  color: var(--text-primary) !important;
+}
+
+/* ── Assistant prose typography ───────────────────────────────────────────── */
+[data-new-ui="true"] .assistantContentBlock {
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+
+[data-new-ui="true"] .assistantContentBlock p {
+  margin-bottom: 16px;
+}
+
+[data-new-ui="true"] .assistantContentBlock h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 26px;
+  margin-bottom: 10px;
+}
+
+[data-new-ui="true"] .assistantContentBlock h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-top: 20px;
+  margin-bottom: 8px;
+}
+
+[data-new-ui="true"] .assistantContentBlock ul,
+[data-new-ui="true"] .assistantContentBlock ol {
+  padding-left: 24px;
+  margin-bottom: 16px;
+}
+
+[data-new-ui="true"] .assistantContentBlock li {
+  margin-bottom: 8px;
+}
+
+[data-new-ui="true"] .assistantContentBlock blockquote {
+  border-left: 2px solid var(--border-subtle);
+  padding-left: 16px;
+  color: var(--text-secondary);
+  margin: 0 0 16px;
+}
+
+[data-new-ui="true"] .assistantContentBlock code:not(pre code) {
+  font-size: 13.5px;
+  background-color: var(--bg-active);
+  border-radius: 5px;
+  padding: 1px 5px;
+  color: var(--text-primary);
+}
+
+/* ── Code blocks ──────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .codeblock,
+[data-new-ui="true"] pre:has(.codeblock) {
+  margin: 18px 0;
+  border-radius: 12px !important;
+  overflow: hidden;
+  background-color: var(--bg-sidebar) !important;
+  border: 1px solid var(--border-subtle) !important;
+}
+
+/* ── Tables ───────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .assistantContentBlock table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 18px 0;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+
+[data-new-ui="true"] .assistantContentBlock th {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background-color: var(--bg-sidebar);
+  padding: 10px 14px;
+  text-align: left;
+}
+
+[data-new-ui="true"] .assistantContentBlock td {
+  font-size: 14px;
+  color: var(--text-primary);
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* ── Input/composer area ──────────────────────────────────────────────────── */
+[data-new-ui="true"] textarea,
+[data-new-ui="true"] [class*="chat-input"] {
+  background-color: transparent !important;
+}
+
+/* Chat input container */
+[data-new-ui="true"] .md\:bottom-3 {
+  padding-bottom: 20px !important;
+}
+
+/* ── Turn spacing ─────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .md\:space-y-8 > * + * {
+  margin-top: 44px !important;
+}
+
+/* ── Date separators ──────────────────────────────────────────────────────── */
+[data-new-ui="true"] [class*="date-separator"],
+[data-new-ui="true"] .sticky.top-0 {
+  background-color: var(--bg-app) !important;
+  font-size: 12px !important;
+  color: var(--text-muted) !important;
+  border: none !important;
+}
+
+/* ── Remove noisy dark backgrounds ───────────────────────────────────────── */
+[data-new-ui="true"] .dark\:bg-\[\#2b2c36\] {
+  background-color: var(--bg-raised) !important;
+}
+
+[data-new-ui="true"] .dark\:bg-\[\#454757\] {
+  background-color: var(--bg-active) !important;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] ::-webkit-scrollbar {
+  width: 6px;
+}
+
+[data-new-ui="true"] ::-webkit-scrollbar-thumb {
+  background-color: var(--border-subtle);
+  border-radius: 3px;
+}

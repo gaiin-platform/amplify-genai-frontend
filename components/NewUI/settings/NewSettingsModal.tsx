@@ -1,0 +1,639 @@
+import React, {
+  FC,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import {
+  IconSettings,
+  IconUser,
+  IconChartBar,
+  IconPuzzle,
+  IconPlug,
+  IconDatabase,
+  IconKey,
+  IconExternalLink,
+  IconX,
+  IconSearch,
+} from '@tabler/icons-react';
+
+import HomeContext from '@/pages/api/home/home.context';
+import { getSettings, saveSettings, featureOptionFlags } from '@/utils/app/settings';
+import { FlagsMap, Flag } from '@/components/ReusableComponents/FlagsMap';
+import { SkillsLibrary } from '@/components/Skills/SkillsLibrary';
+import { IntegrationTabs } from '@/components/Integrations/IntegrationsTab';
+// MCPServersTab removed (Plugins section removed)
+import { ConversationsStorage } from '@/components/Settings/ConversationStorage';
+import { ApiKeys } from '@/components/Settings/AccountComponents/ApiKeys';
+import { Accounts } from '@/components/Settings/AccountComponents/Account';
+import { noCoaAccount } from '@/types/accounts';
+import { Account } from '@/types/accounts';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface NewSettingsModalProps {
+  onClose: () => void;
+  openToSection?: string;
+}
+
+interface NavItem {
+  id: string;
+  label: string;
+  Icon: React.FC<{ size?: number; stroke?: number; className?: string }>;
+  external?: boolean;
+}
+
+interface NavGroup {
+  heading: string;
+  items: NavItem[];
+}
+
+// ---------------------------------------------------------------------------
+// Nav definition
+// ---------------------------------------------------------------------------
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    heading: 'Settings',
+    items: [
+      { id: 'general', label: 'General', Icon: IconSettings },
+      { id: 'account', label: 'Account', Icon: IconUser },
+      { id: 'usage', label: 'Usage', Icon: IconChartBar },
+      { id: 'storage', label: 'Storage', Icon: IconDatabase },
+      { id: 'apikeys', label: 'API Access', Icon: IconKey },
+    ],
+  },
+  {
+    heading: 'Customize',
+    items: [
+      { id: 'skills', label: 'Skills', Icon: IconPuzzle },
+      { id: 'connectors', label: 'Connectors', Icon: IconPlug },
+    ],
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Helper: flatten all nav items for search
+// ---------------------------------------------------------------------------
+
+const ALL_NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);
+
+// ---------------------------------------------------------------------------
+// General Section
+// ---------------------------------------------------------------------------
+
+const GeneralSection: FC = () => {
+  const {
+    dispatch: homeDispatch,
+    state: { featureFlags, lightMode },
+  } = useContext(HomeContext);
+
+  const settings = getSettings(featureFlags);
+  const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(
+    settings.featureOptions,
+  );
+
+  const handleThemeChange = (value: 'light' | 'dark') => {
+    homeDispatch({ field: 'lightMode', value });
+    localStorage.setItem('lightMode', value);
+    if (value === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    const current = getSettings(featureFlags);
+    saveSettings({ ...current, theme: value });
+  };
+
+  const handleFlagChange = (key: string, value: boolean) => {
+    const updated = { ...featureOptions, [key]: value };
+    setFeatureOptions(updated);
+    const current = getSettings(featureFlags);
+    saveSettings({ ...current, featureOptions: updated });
+    window.dispatchEvent(new Event('updateFeatureSettings'));
+  };
+
+  const visibleFlags: Flag[] = featureOptionFlags.filter((f: Flag) =>
+    Object.prototype.hasOwnProperty.call(featureOptions, f.key),
+  );
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Theme */}
+      <div
+        style={{
+          background: 'var(--bg-raised)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-panel, 12px)',
+          padding: '20px',
+        }}
+      >
+        <h3
+          style={{
+            color: 'var(--text-primary)',
+            fontSize: '15px',
+            fontWeight: 600,
+            marginBottom: '4px',
+          }}
+        >
+          Theme
+        </h3>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '16px' }}>
+          Choose your preferred visual theme
+        </p>
+        <div className="flex gap-3">
+          {(['dark', 'light'] as const).map((t) => (
+            <label
+              key={t}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                color: 'var(--text-primary)',
+                fontSize: '14px',
+              }}
+            >
+              <input
+                type="radio"
+                name="theme"
+                value={t}
+                checked={lightMode === t}
+                onChange={() => handleThemeChange(t)}
+                style={{ accentColor: 'var(--accent)' }}
+              />
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Feature flags */}
+      {visibleFlags.length > 0 && (
+        <div
+          style={{
+            background: 'var(--bg-raised)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-panel, 12px)',
+            padding: '20px',
+          }}
+        >
+          <h3
+            style={{
+              color: 'var(--text-primary)',
+              fontSize: '15px',
+              fontWeight: 600,
+              marginBottom: '4px',
+            }}
+          >
+            Features
+          </h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '16px' }}>
+            Enable or disable features
+          </p>
+          <FlagsMap
+            id="new-settings-features"
+            flags={visibleFlags}
+            state={featureOptions}
+            flagChanged={handleFlagChange}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Account Section
+// ---------------------------------------------------------------------------
+
+const AccountSection: FC<{ active: boolean }> = ({ active }) => {
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [defaultAccount, setDefaultAccount] = useState<Account>(noCoaAccount);
+  const [unsaved, setUnsaved] = useState(false);
+
+  return (
+    <div>
+      <Accounts
+        accounts={accounts}
+        setAccounts={setAccounts}
+        defaultAccount={defaultAccount}
+        setDefaultAccount={setDefaultAccount}
+        setUnsavedChanged={setUnsaved}
+        isLoading={false}
+      />
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Skills Section
+// ---------------------------------------------------------------------------
+
+const SkillsSection: FC = () => {
+  const { state: { chatEndpoint } } = useContext(HomeContext);
+
+  if (!chatEndpoint) {
+    return (
+      <div style={{ color: 'var(--text-muted)', fontSize: '14px', padding: '20px' }}>
+        Skills require a connected endpoint. Please check your configuration.
+      </div>
+    );
+  }
+
+  return <SkillsLibrary chatEndpoint={chatEndpoint} />;
+};
+
+// ---------------------------------------------------------------------------
+// Storage Section
+// ---------------------------------------------------------------------------
+
+const StorageSection: FC<{ active: boolean }> = ({ active }) => {
+  const [unsaved, setUnsaved] = useState(false);
+  const [pendingSelection, setPendingSelection] = useState<string | null>(null);
+
+  return (
+    <ConversationsStorage
+      open={active}
+      setUnsavedChanges={setUnsaved}
+      pendingSelection={pendingSelection}
+      setPendingSelection={setPendingSelection}
+    />
+  );
+};
+
+// ---------------------------------------------------------------------------
+// API Keys Section
+// ---------------------------------------------------------------------------
+
+const ApiKeysSection: FC<{ active: boolean }> = ({ active }) => {
+  const [unsaved, setUnsaved] = useState(false);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [defaultAccount, setDefaultAccount] = useState<Account>(noCoaAccount);
+
+  return (
+    <ApiKeys
+      open={active}
+      setUnsavedChanges={setUnsaved}
+      accounts={accounts}
+      defaultAccount={defaultAccount}
+      onClose={() => {}}
+    />
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Placeholder Section
+// ---------------------------------------------------------------------------
+
+const PlaceholderSection: FC<{ title: string }> = ({ title }) => (
+  <div
+    style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '200px',
+      color: 'var(--text-muted)',
+      fontSize: '14px',
+      gap: '8px',
+    }}
+  >
+    <span style={{ fontSize: '28px' }}>🚧</span>
+    <span>
+      <strong style={{ color: 'var(--text-secondary)' }}>{title}</strong> — Coming soon
+    </span>
+  </div>
+);
+
+// ---------------------------------------------------------------------------
+// Section renderer
+// ---------------------------------------------------------------------------
+
+const SectionContent: FC<{ sectionId: string }> = ({ sectionId }) => {
+  switch (sectionId) {
+    case 'general':
+      return <GeneralSection />;
+    case 'account':
+      return <AccountSection active={true} />;
+    case 'usage':
+      return <PlaceholderSection title="Usage" />;
+    case 'storage':
+      return <StorageSection active={true} />;
+    case 'apikeys':
+      return <ApiKeysSection active={true} />;
+    case 'skills':
+      return <SkillsSection />;
+    case 'connectors':
+      return <IntegrationTabs open={true} depth={1} />;
+    default:
+      return <PlaceholderSection title={sectionId} />;
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Left Rail Nav Row
+// ---------------------------------------------------------------------------
+
+interface NavRowProps {
+  item: NavItem;
+  isSelected: boolean;
+  onClick: () => void;
+}
+
+const NavRow: FC<NavRowProps> = ({ item, isSelected, onClick }) => {
+  const { Icon } = item;
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '14px',
+        width: '100%',
+        height: '36px',
+        padding: '0 8px',
+        borderRadius: '8px',
+        border: 'none',
+        cursor: 'pointer',
+        fontSize: '14px',
+        fontWeight: isSelected ? 500 : 400,
+        background: isSelected ? 'var(--bg-active)' : 'transparent',
+        color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)',
+        textAlign: 'left',
+        transition: 'background 0.1s, color 0.1s',
+      }}
+      onMouseEnter={(e) => {
+        if (!isSelected) {
+          (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-hover)';
+          (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)';
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!isSelected) {
+          (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+          (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)';
+        }
+      }}
+    >
+      <Icon size={18} stroke={1.5} />
+      <span style={{ flex: 1 }}>{item.label}</span>
+      {item.external && <IconExternalLink size={12} stroke={1.5} style={{ opacity: 0.5 }} />}
+    </button>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Main Modal
+// ---------------------------------------------------------------------------
+
+export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSection }) => {
+  const [activeSection, setActiveSection] = useState<string>(openToSection ?? 'general');
+  const [searchQuery, setSearchQuery] = useState('');
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Escape key + overlay click to close
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [onClose]);
+
+  // Scroll content pane to top when section changes
+  useEffect(() => {
+    if (contentRef.current) {
+      contentRef.current.scrollTop = 0;
+    }
+  }, [activeSection]);
+
+  const handleOverlayClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (e.target === e.currentTarget) onClose();
+    },
+    [onClose],
+  );
+
+  // Filter nav groups by search
+  const filteredGroups: NavGroup[] = searchQuery.trim()
+    ? NAV_GROUPS.map((group) => ({
+        ...group,
+        items: group.items.filter((item) =>
+          item.label.toLowerCase().includes(searchQuery.toLowerCase()),
+        ),
+      })).filter((group) => group.items.length > 0)
+    : NAV_GROUPS;
+
+  // Active item label for the heading
+  const activeItem = ALL_NAV_ITEMS.find((i) => i.id === activeSection);
+
+  return (
+    /* Overlay */
+    <div
+      onClick={handleOverlayClick}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(2px)',
+        WebkitBackdropFilter: 'blur(2px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {/* Panel — fixed height so both panes can independently scroll */}
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '1040px',
+          height: 'min(780px, 88dvh)',   /* fixed, not max-height, so children can fill and scroll */
+          background: 'var(--bg-app)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          display: 'grid',
+          gridTemplateColumns: '210px 1fr',
+          gridTemplateRows: '100%',       /* single row fills height */
+          boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Settings"
+      >
+        {/* ----------------------------------------------------------------
+            Left Rail
+        ---------------------------------------------------------------- */}
+        <div
+          style={{
+            background: 'var(--bg-sidebar)',
+            borderRight: '1px solid var(--border-subtle)',
+            padding: '14px 10px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
+            height: '100%',
+            boxSizing: 'border-box',
+          }}
+        >
+          {/* Search */}
+          <div
+            style={{
+              position: 'relative',
+              marginBottom: '8px',
+            }}
+          >
+            <IconSearch
+              size={14}
+              style={{
+                position: 'absolute',
+                left: '9px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--text-muted)',
+                pointerEvents: 'none',
+              }}
+            />
+            <input
+              type="text"
+              placeholder="Search settings"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                height: '34px',
+                background: 'var(--bg-raised)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: '8px',
+                padding: '0 10px 0 28px',
+                fontSize: '13px',
+                color: 'var(--text-primary)',
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          {/* Nav groups */}
+          {filteredGroups.map((group) => (
+            <div key={group.heading} style={{ marginBottom: '12px' }}>
+              <div
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: 'var(--text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  padding: '0 8px',
+                  marginBottom: '4px',
+                }}
+              >
+                {group.heading}
+              </div>
+              {group.items.map((item) => (
+                <NavRow
+                  key={item.id}
+                  item={item}
+                  isSelected={activeSection === item.id}
+                  onClick={() => {
+                    setActiveSection(item.id);
+                    setSearchQuery('');
+                  }}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+
+        {/* ----------------------------------------------------------------
+            Right Content Pane — overflowY:auto + height:100% lets it scroll
+        ---------------------------------------------------------------- */}
+        <div
+          ref={contentRef}
+          style={{
+            padding: '20px 32px 40px',
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
+            position: 'relative',
+            height: '100%',
+            boxSizing: 'border-box',
+          }}
+        >
+          {/* Close button — sticky top-right */}
+          <div
+            style={{
+              position: 'sticky',
+              top: '20px',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              zIndex: 10,
+              marginBottom: '-20px',
+              pointerEvents: 'none',
+            }}
+          >
+            <button
+              onClick={onClose}
+              aria-label="Close settings"
+              style={{
+                pointerEvents: 'auto',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '8px',
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--bg-raised)',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                transition: 'background 0.1s, color 0.1s',
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-hover)';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-raised)';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)';
+              }}
+            >
+              <IconX size={16} stroke={2} />
+            </button>
+          </div>
+
+          {/* Section heading */}
+          <h2
+            style={{
+              fontSize: '18px',
+              fontWeight: 700,
+              color: 'var(--text-primary)',
+              marginBottom: '20px',
+              marginTop: '0',
+              paddingRight: '44px',
+            }}
+          >
+            {activeItem?.label ?? activeSection}
+          </h2>
+
+          {/* Section content — error boundary per section */}
+          <React.Suspense
+            fallback={
+              <div style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Loading…</div>
+            }
+          >
+            <SectionContent sectionId={activeSection} />
+          </React.Suspense>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default NewSettingsModal;
