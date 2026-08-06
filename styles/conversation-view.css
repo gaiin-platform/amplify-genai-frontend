@@ -1,195 +1,34 @@
 /**
  * conversation-view.css
- * Scoped overrides for the new UI chat shell ([data-new-ui="true"]).
- * Applied on top of the existing Chat component without changing its logic.
- * Reference: /Users/maxmoundas/Downloads/conversation-view-spec.md
+ * Scoped overrides for [data-new-ui="true"] conversation shell.
+ * Reference: conversation-view-spec2.md
+ *
+ * Architecture (spec §2 / §7 / defect #8):
+ *   ConversationViewShell is a flex COLUMN:
+ *     scroll-area  (flex:1, overflow:hidden)  — chatcontainer lives here
+ *     dock         (flex-shrink:0)            — ConversationComposer, NOT an overlay
+ *
+ * Column geometry (spec §2 / defects #1–#3):
+ *   --column-w:     min(75ch, 100% - 48px)       message text column
+ *   --composer-pad: 24px                          composer inner h-pad
+ *   --dock-w:       column-w + composer-pad * 2   composer outer box
+ *
+ *   Each .enhanced-chat-message is constrained to --column-w and centered.
+ *   The composer uses --dock-w so its inner text-inset aligns with message prose.
  */
 
-/* ── Shell background ─────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────────
+   Shell background
+───────────────────────────────────────────────────────────────────────────── */
 [data-new-ui="true"],
-[data-new-ui="true"] > div {
-  background-color: var(--bg-app) !important;
-}
-
-/* Override dark hardcoded backgrounds */
+[data-new-ui="true"] > div,
 [data-new-ui="true"] .dark\:bg-\[\#343541\],
-[data-new-ui="true"] .bg-neutral-100 {
+[data-new-ui="true"] .bg-neutral-100,
+[data-new-ui="true"] .dark\:bg-\[\#444654\],
+[data-new-ui="true"] .bg-white {
   background-color: var(--bg-app) !important;
 }
 
-/* ── Message column — 760px centered ─────────────────────────────────────── */
-[data-new-ui="true"] .chatcontainer {
-  max-width: 100% !important;
-}
-
-[data-new-ui="true"] #overflowScroll > div,
-[data-new-ui="true"] .mx-auto.flex.flex-col {
-  max-width: 760px !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
-  padding-left: 24px !important;
-  padding-right: 24px !important;
-}
-
-/* ── Scroll fade masks ────────────────────────────────────────────────────── */
-[data-new-ui="true"] .chatcontainer,
-[data-new-ui="true"] #overflowScroll {
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 28px,
-    #000 calc(100% - 32px),
-    transparent 100%
-  );
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 28px,
-    #000 calc(100% - 32px),
-    transparent 100%
-  );
-}
-
-/* ── User message bubbles ─────────────────────────────────────────────────── */
-[data-new-ui="true"] .amplify-user-message,
-[data-new-ui="true"] [class*="human-message"],
-[data-new-ui="true"] [class*="user-message"] {
-  margin-left: auto !important;
-  margin-right: 0 !important;
-  max-width: 72% !important;
-  width: fit-content !important;
-  background-color: var(--bg-raised) !important;
-  color: var(--text-primary) !important;
-  border-radius: 16px !important;
-  padding: 12px 18px !important;
-  font-size: 16px !important;
-  line-height: 1.65 !important;
-}
-
-/* ── Assistant messages — no bubble ──────────────────────────────────────── */
-[data-new-ui="true"] .amplify-assistant-message,
-[data-new-ui="true"] .dark\:bg-\[\#444654\] {
-  background-color: transparent !important;
-  border-radius: 0 !important;
-  max-width: 100% !important;
-  padding: 0 !important;
-  font-size: 16px !important;
-  line-height: 1.7 !important;
-  color: var(--text-primary) !important;
-}
-
-/* ── Assistant prose typography ───────────────────────────────────────────── */
-[data-new-ui="true"] .assistantContentBlock {
-  font-size: 16px;
-  line-height: 1.7;
-  color: var(--text-primary);
-}
-
-[data-new-ui="true"] .assistantContentBlock p {
-  margin-bottom: 16px;
-}
-
-[data-new-ui="true"] .assistantContentBlock h2 {
-  font-size: 18px;
-  font-weight: 600;
-  margin-top: 26px;
-  margin-bottom: 10px;
-}
-
-[data-new-ui="true"] .assistantContentBlock h3 {
-  font-size: 16px;
-  font-weight: 600;
-  margin-top: 20px;
-  margin-bottom: 8px;
-}
-
-[data-new-ui="true"] .assistantContentBlock ul,
-[data-new-ui="true"] .assistantContentBlock ol {
-  padding-left: 24px;
-  margin-bottom: 16px;
-}
-
-[data-new-ui="true"] .assistantContentBlock li {
-  margin-bottom: 8px;
-}
-
-[data-new-ui="true"] .assistantContentBlock blockquote {
-  border-left: 2px solid var(--border-subtle);
-  padding-left: 16px;
-  color: var(--text-secondary);
-  margin: 0 0 16px;
-}
-
-[data-new-ui="true"] .assistantContentBlock code:not(pre code) {
-  font-size: 13.5px;
-  background-color: var(--bg-active);
-  border-radius: 5px;
-  padding: 1px 5px;
-  color: var(--text-primary);
-}
-
-/* ── Code blocks ──────────────────────────────────────────────────────────── */
-[data-new-ui="true"] .codeblock,
-[data-new-ui="true"] pre:has(.codeblock) {
-  margin: 18px 0;
-  border-radius: 12px !important;
-  overflow: hidden;
-  background-color: var(--bg-sidebar) !important;
-  border: 1px solid var(--border-subtle) !important;
-}
-
-/* ── Tables ───────────────────────────────────────────────────────────────── */
-[data-new-ui="true"] .assistantContentBlock table {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 18px 0;
-  border-radius: 10px;
-  border: 1px solid var(--border-subtle);
-  overflow: hidden;
-}
-
-[data-new-ui="true"] .assistantContentBlock th {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  background-color: var(--bg-sidebar);
-  padding: 10px 14px;
-  text-align: left;
-}
-
-[data-new-ui="true"] .assistantContentBlock td {
-  font-size: 14px;
-  color: var(--text-primary);
-  padding: 10px 14px;
-  border-top: 1px solid var(--border-subtle);
-}
-
-/* ── Input/composer area ──────────────────────────────────────────────────── */
-[data-new-ui="true"] textarea,
-[data-new-ui="true"] [class*="chat-input"] {
-  background-color: transparent !important;
-}
-
-/* Chat input container */
-[data-new-ui="true"] .md\:bottom-3 {
-  padding-bottom: 20px !important;
-}
-
-/* ── Turn spacing ─────────────────────────────────────────────────────────── */
-[data-new-ui="true"] .md\:space-y-8 > * + * {
-  margin-top: 44px !important;
-}
-
-/* ── Date separators ──────────────────────────────────────────────────────── */
-[data-new-ui="true"] [class*="date-separator"],
-[data-new-ui="true"] .sticky.top-0 {
-  background-color: var(--bg-app) !important;
-  font-size: 12px !important;
-  color: var(--text-muted) !important;
-  border: none !important;
-}
-
-/* ── Remove noisy dark backgrounds ───────────────────────────────────────── */
 [data-new-ui="true"] .dark\:bg-\[\#2b2c36\] {
   background-color: var(--bg-raised) !important;
 }
@@ -198,12 +37,652 @@
   background-color: var(--bg-active) !important;
 }
 
-/* ── Scrollbar ────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────────
+   HIDE Chat's old header (both sticky variants) — replaced by ConversationHeader
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .sticky.top-0.z-10,
+[data-new-ui="true"] .sticky.top-4.mt-4 {
+  display: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   HIDE Chat's old ChatInput dock — replaced by ConversationComposer
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .px-20.absolute.bottom-0.left-0 {
+  display: none !important;
+}
+
+/* Also hide the floating FeaturePlugin selector */
+[data-new-ui="true"] .relative.z-20[style*="height: 0"] {
+  display: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Scroll area shell (new-ui-scroll-area wrapper created by ConversationViewShell)
+   — the Chat component and its parents need to fill this div completely
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .new-ui-scroll-area {
+  flex: 1;
+  min-height: 0;       /* critical — lets flex child shrink below content size */
+  position: relative;
+  overflow: hidden;
+}
+
+/* All the height-100% chain from new-ui-scroll-area down to chatcontainer.
+   Chat wraps its output in several relative/flex divs; all must fill their
+   parent so chatcontainer actually gets the full available height. */
+[data-new-ui="true"] .new-ui-scroll-area,
+[data-new-ui="true"] .new-ui-scroll-area > div,
+[data-new-ui="true"] .relative.flex-1.bg-neutral-100,
+[data-new-ui="true"] .relative.flex-1,
+[data-new-ui="true"] .relative.overflow-hidden {
+  height: 100% !important;
+  /* Prevent these wrapper divs from adding their own scrollbars */
+  overflow: hidden !important;
+}
+/* chatcontainer is the actual scroller — keep it scrollable */
+[data-new-ui="true"] #chatScrollWindow {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Scroll container (spec §2 / defects #2 #6 #7)
+   — reserve 52px top for header overlay
+   — NO padding-bottom needed: composer is now a flex sibling, not an overlay
+   — scrollbar-gutter: stable prevents column shift (defect #6)
+   — fade masks on both edges
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .chatcontainer {
+  /* Layout */
+  max-width: 100% !important;
+  padding-top: 52px !important;      /* header overlay height */
+  padding-bottom: 32px !important;   /* comfortable bottom buffer */
+  height: 100% !important;           /* overrides JS inline height: 94vh */
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overflow-anchor: auto;
+  scrollbar-gutter: stable;          /* prevents column shift on scroll (defect #6) */
+
+  /* Fade masks (spec §2) */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 80px,          /* top fade clears the 52px header */
+    #000 calc(100% - 64px),
+    transparent 100%    /* bottom fade above composer edge */
+  ) !important;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 80px,
+    #000 calc(100% - 64px),
+    transparent 100%
+  ) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Scrollbar — thin, overlay-style (defect #6)
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .chatcontainer::-webkit-scrollbar {
+  width: 4px;
+}
+[data-new-ui="true"] .chatcontainer::-webkit-scrollbar-track {
+  background: transparent;
+}
+[data-new-ui="true"] .chatcontainer::-webkit-scrollbar-thumb {
+  background-color: var(--border-subtle);
+  border-radius: 2px;
+}
+[data-new-ui="true"] .chatcontainer::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-muted);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   #overflowScroll — empty-conversation state container
+   Chat.tsx sets minHeight/maxHeight inline; override both so the empty-state
+   model selector doesn't push everything down (defect #4).
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] #overflowScroll,
+[data-new-ui="true"] #overflowScroll > div {
+  max-width: 100% !important;
+  min-height: 0 !important;     /* override JS-set minHeight */
+  max-height: none !important;  /* override JS-set maxHeight */
+  width: 100% !important;
+  padding: 0 !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ══ THE COLUMN CONSTRAINT (defects #1 #2 #3 #5) ══
+
+   Every .enhanced-chat-message is capped at --column-w and centered.
+   This is the fix for the root cause: messages had no constrained column.
+
+   75ch ≈ 600-650px at 16px body, giving ~75 chars/line (spec §1).
+   48px ensures 24px minimum inset on both sides at any window width.
+
+   NOTE: We do NOT set margin: 0 here (would override the auto centering).
+         Padding is zeroed to remove Chat.tsx's md:px-4.
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .enhanced-chat-message {
+  --column-w: min(75ch, calc(100% - 48px));
+  max-width: var(--column-w) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  width: 100% !important;
+  padding: 0 !important;              /* removes md:px-4 */
+  /* Decorative resets */
+  background: transparent !important;
+  border-left: none !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+}
+
+[data-new-ui="true"] .enhanced-chat-message.user-message {
+  display: flex !important;
+  justify-content: flex-end !important;
+  /* Inherited from above: max-width, margin-inline: auto */
+}
+
+[data-new-ui="true"] .enhanced-chat-message.assistant-message {
+  /* Inherited from above: max-width, margin-inline: auto */
+  background: transparent !important;
+}
+
+[data-new-ui="true"] .enhanced-chat-message::before {
+  display: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Model-settings panel (only model selector, top of thread) — also constrained
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .flex.flex-col.md\:gap-6 {
+  max-width: min(75ch, calc(100% - 48px)) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  width: 100% !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Bottom spacer — Chat.tsx renders a h-[300px] div as the scrollable bottom gap.
+   Since the composer is now a flex SIBLING (not an overlay), we don't need 300px
+   of clearance. Reduce to 48px for a comfortable end-of-thread gap.
+   Constrained to column so the accent asterisk aligns with message text.
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .h-\[300px\] {
+  max-width: min(75ch, calc(100% - 48px)) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  width: 100% !important;
+  background: transparent !important;
+  height: 48px !important;      /* was 300px — composer no longer overlays this */
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  padding-top: 20px !important;
+}
+
+[data-new-ui="true"] .h-\[300px\]::after {
+  content: "✳";
+  display: block;
+  font-size: 22px;
+  color: var(--accent);
+  opacity: 0.55;
+  line-height: 1;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Enhanced message content — strip nested padding Chat adds
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .enhanced-message-content {
+  padding: 0 !important;
+  margin: 0 !important;
+  display: block !important;
+  gap: 0 !important;
+}
+
+/* Hide the avatar/icon column */
+[data-new-ui="true"] .enhanced-message-content > .flex-shrink-0 {
+  display: none !important;
+}
+
+/* The prose/content div — full width, no excess margin */
+[data-new-ui="true"] .enhanced-message-content #chatHover {
+  margin: 0 !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  padding: 0 !important;
+}
+
+/* Hide @Amplify: prefix labels */
+[data-new-ui="true"] .enhanced-at-block {
+  display: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Turn rhythm (spec §4.7)
+   — 60px between exchanges (larger gap is the key visual cue between turns)
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .md\:space-y-8 > * + * {
+  margin-top: 60px !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   User message bubble — right-aligned WITHIN the column (spec §4.2 / defect #5)
+   Right edge aligns with column right edge. max-width 72% of column.
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .enhanced-chat-message.user-message .enhanced-message-content {
+  display: flex !important;
+  justify-content: flex-end !important;
+  width: 100% !important;
+}
+
+[data-new-ui="true"] .enhanced-chat-message.user-message #chatHover {
+  background-color: var(--bg-raised) !important;
+  border-radius: 16px !important;
+  padding: 12px 18px !important;
+  max-width: 72% !important;       /* 72% of the column (spec §4.2) */
+  width: fit-content !important;
+  margin-left: auto !important;
+  margin-right: 0 !important;      /* right edge = column right edge (defect #5) */
+  font-size: 16px !important;
+  line-height: 1.65 !important;
+  color: var(--text-primary) !important;
+}
+
+[data-new-ui="true"] #userMessage {
+  font-size: 16px !important;
+  line-height: 1.65 !important;
+  color: var(--text-primary) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Assistant message — no bubble (spec §4.3)
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .enhanced-message-content {
+  width: 100% !important;
+}
+
+[data-new-ui="true"] .enhanced-chat-message.assistant-message #chatHover {
+  background: transparent !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  font-size: 16px !important;
+  line-height: 1.7 !important;
+  color: var(--text-primary) !important;
+  margin: 0 !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Assistant prose typography (spec §5)
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .assistantContentBlock,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose {
+  font-size: 16px !important;
+  line-height: 1.7 !important;
+  color: var(--text-primary) !important;
+}
+
+[data-new-ui="true"] .assistantContentBlock p,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose p {
+  margin-bottom: 16px !important;
+  color: var(--text-primary) !important;
+}
+
+[data-new-ui="true"] .assistantContentBlock h1 {
+  font-size: 22px !important;
+  font-weight: 400 !important;
+  margin-top: 28px !important;
+  margin-bottom: 12px !important;
+  color: var(--text-primary) !important;
+}
+
+[data-new-ui="true"] .assistantContentBlock h2,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose h2 {
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  margin-top: 26px !important;
+  margin-bottom: 10px !important;
+  color: var(--text-primary) !important;
+}
+
+[data-new-ui="true"] .assistantContentBlock h3,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose h3 {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  margin-top: 20px !important;
+  margin-bottom: 8px !important;
+  color: var(--text-primary) !important;
+}
+
+[data-new-ui="true"] .assistantContentBlock ul,
+[data-new-ui="true"] .assistantContentBlock ol,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose ul,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose ol {
+  padding-left: 2.2em !important;
+  margin-bottom: 16px !important;
+}
+
+[data-new-ui="true"] .assistantContentBlock li,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose li {
+  margin-bottom: 10px !important;
+  color: var(--text-primary) !important;
+}
+
+[data-new-ui="true"] .assistantContentBlock ul > li::marker {
+  color: var(--text-muted) !important;
+}
+
+[data-new-ui="true"] .assistantContentBlock ol > li::marker {
+  color: var(--text-muted) !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+[data-new-ui="true"] .assistantContentBlock blockquote,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose blockquote {
+  border-left: 2px solid var(--border-subtle) !important;
+  padding-left: 16px !important;
+  color: var(--text-secondary) !important;
+  margin: 0 0 16px !important;
+  font-style: normal !important;
+}
+
+[data-new-ui="true"] .assistantContentBlock a,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose a {
+  color: var(--text-primary) !important;
+  text-decoration: underline !important;
+  text-decoration-color: var(--text-muted) !important;
+  text-underline-offset: 3px !important;
+}
+
+[data-new-ui="true"] .assistantContentBlock a:hover {
+  text-decoration-color: var(--text-primary) !important;
+}
+
+/* Inline code — warm coral tone per spec §5 */
+[data-new-ui="true"] .assistantContentBlock code:not(pre code),
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose code:not(pre code) {
+  font-size: 13.5px !important;
+  background-color: var(--bg-active) !important;
+  border-radius: 4px !important;
+  padding: 1px 5px !important;
+  color: #D9776A !important; /* --code-fg per spec */
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  white-space: nowrap !important;
+}
+
+[data-new-ui="true"] .assistantContentBlock strong,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose strong {
+  font-weight: 600 !important;
+  color: var(--text-primary) !important;
+}
+
+/* Bold lead-in paragraphs (spec §5) */
+[data-new-ui="true"] .assistantContentBlock p > strong:first-child {
+  letter-spacing: -0.003em !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Code blocks (spec §5)
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .codeblock,
+[data-new-ui="true"] pre:has(code) {
+  margin: 18px 0 !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  background-color: var(--bg-sidebar) !important;
+  border: 1px solid var(--border-subtle) !important;
+}
+
+[data-new-ui="true"] pre code {
+  font-size: 13.5px !important;
+  line-height: 1.6 !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  background: transparent !important;
+  padding: 14px 16px !important;
+  display: block !important;
+  overflow-x: auto !important;
+  tab-size: 2 !important;
+  color: var(--text-primary) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Tables (spec §5)
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .assistantContentBlock table,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+  margin: 18px 0 !important;
+  border-radius: 10px !important;
+  border: 1px solid var(--border-subtle) !important;
+  overflow: hidden !important;
+  display: table !important;
+}
+
+[data-new-ui="true"] .assistantContentBlock th,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose th {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--text-secondary) !important;
+  background-color: var(--bg-sidebar) !important;
+  padding: 10px 14px !important;
+  text-align: left !important;
+}
+
+[data-new-ui="true"] .assistantContentBlock td,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose td {
+  font-size: 14px !important;
+  color: var(--text-primary) !important;
+  padding: 10px 14px !important;
+  border-top: 1px solid var(--border-subtle) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Action row icons (spec §4.6)
+   The old enhanced-chat-icons are hidden entirely in new UI — replaced by
+   NewUIMessageActionsLayer which renders a custom floating overlay.
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .enhanced-chat-icons {
+  display: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Stop Generating button
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] #stopGenerating {
+  background-color: var(--bg-raised) !important;
+  border-color: var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+  border-radius: 10px !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Light mode — ensure text is always readable on --bg-app
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .prose,
+[data-new-ui="true"] .prose p,
+[data-new-ui="true"] .prose li,
+[data-new-ui="true"] .prose h1,
+[data-new-ui="true"] .prose h2,
+[data-new-ui="true"] .prose h3,
+[data-new-ui="true"] .prose strong,
+[data-new-ui="true"] .prose em {
+  color: var(--text-primary) !important;
+}
+
+/* composer card focus border */
+[data-new-ui="true"] .new-ui-composer-card:focus-within {
+  border-color: var(--bg-active) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Global thin scrollbar (non-chatcontainer, e.g. expanded reasoning blocks)
+───────────────────────────────────────────────────────────────────────────── */
 [data-new-ui="true"] ::-webkit-scrollbar {
-  width: 6px;
+  width: 4px !important;
+  height: 4px !important;
+}
+
+[data-new-ui="true"] ::-webkit-scrollbar-track {
+  background: transparent !important;
 }
 
 [data-new-ui="true"] ::-webkit-scrollbar-thumb {
-  background-color: var(--border-subtle);
-  border-radius: 3px;
+  background-color: var(--border-subtle) !important;
+  border-radius: 2px !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PromptStatus — spec §4.4 in-stream step lines
+   Override the old card (bg-image + wave animations) with a clean muted line
+───────────────────────────────────────────────────────────────────────────── */
+
+/* Hide the old card chrome: background image panel, animated waves */
+[data-new-ui="true"] .rounded-xl.bg-neutral-200,
+[data-new-ui="true"] .rounded-xl.dark\:bg-\[\#343541\].shadow-lg {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  height: auto !important;
+  margin-bottom: 0 !important;
+  overflow: visible !important;
+}
+
+/* The cover image column */
+[data-new-ui="true"] .rounded-xl.shadow-lg .w-14 {
+  display: none !important;
+}
+
+/* The text content area — render as spec step line */
+[data-new-ui="true"] .rounded-xl.shadow-lg .mt-0.ml-3 {
+  margin-left: 0 !important;
+  font-size: 14px !important;
+  color: var(--text-muted) !important;
+  font-family: Inter, sans-serif !important;
+  font-style: normal !important;
+  padding: 20px 0 20px !important;
+  display: block !important;
+}
+
+/* Hide animated bg elements */
+[data-new-ui="true"] .rounded-xl.shadow-lg .absolute.inset-0.overflow-hidden {
+  display: none !important;
+}
+
+/* Status details panel — spec §4.5 expandable block */
+[data-new-ui="true"] .mx-2.mt-0.py-2.px-5.bg-neutral-200,
+[data-new-ui="true"] .mx-2.mt-0.py-2.px-5.dark\:bg-\[\#343541\] {
+  background-color: var(--bg-sidebar) !important;
+  border-radius: 12px !important;
+  border-left: 2px solid var(--border-subtle) !important;
+  margin: 0 0 8px !important;
+  padding: 12px 16px !important;
+  font-size: 13.5px !important;
+  color: var(--text-muted) !important;
+  box-shadow: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   AssistantReasoningMessage / ExpansionComponent — spec §4.4 disclosure
+   Collapsed: ⌄ Reasoning  |  Expanded: block with sidebar bg
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .text-sm\!important.opacity-70 {
+  opacity: 1 !important;
+  margin-bottom: 26px !important;
+}
+
+/* The toggle button */
+[data-new-ui="true"] #expandComponent {
+  font-size: 14px !important;
+  color: var(--text-secondary) !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+[data-new-ui="true"] #expandComponent:hover {
+  color: var(--text-primary) !important;
+}
+
+[data-new-ui="true"] #expandComponent svg {
+  color: var(--text-muted) !important;
+  width: 12px !important;
+  height: 12px !important;
+}
+
+[data-new-ui="true"] #expandComponent .font-medium {
+  font-size: 14px !important;
+  font-weight: 400 !important;
+}
+
+/* The expanded content block */
+[data-new-ui="true"] .border-l.border-gray-300,
+[data-new-ui="true"] .border-l.dark\:border-gray-600 {
+  border-left: 2px solid var(--border-subtle) !important;
+  border-color: var(--border-subtle) !important;
+  background-color: var(--bg-sidebar) !important;
+  border-radius: 12px !important;
+  padding: 12px 16px !important;
+  margin-left: 0 !important;
+  margin-top: 8px !important;
+  font-size: 13.5px !important;
+  line-height: 1.6 !important;
+  color: var(--text-muted) !important;
+  max-height: 320px !important;
+  overflow-y: auto !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   New UI action row button style — used by NewUIMessageActionsLayer overlay
+───────────────────────────────────────────────────────────────────────────── */
+.new-ui-action-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.1s, color 0.1s;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.new-ui-action-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.new-ui-action-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Loader (ping) during streaming — keep minimal
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .loader-ping,
+[data-new-ui="true"] [class*="loader"] {
+  color: var(--text-muted) !important;
+  opacity: 0.6 !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Stars / rating widget — keep it minimal in new UI
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .stars-container {
+  margin-top: 8px !important;
+  opacity: 0.7 !important;
 }

@@ -26,6 +26,7 @@ import {
   IconLayoutList,
   IconBooks,
   IconAdjustments,
+
 } from '@tabler/icons-react';
 
 import HomeContext from '@/pages/api/home/home.context';
@@ -37,6 +38,7 @@ import {
 import { deleteRemoteConversation } from '@/services/remoteConversationService';
 import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
 import { getFullTimestamp, getDateName } from '@/utils/app/date';
+import { getArchiveNumOfDays } from '@/utils/app/folders';
 import { DefaultModels } from '@/types/model';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -54,60 +56,110 @@ interface NewSidebarProps {
   username?: string | null;
 }
 
+/**
+ * Parse a date for bucketing, handling three cases:
+ *
+ * 1. Full ISO timestamp (conversation.date) — e.g. "2026-08-06T18:23:00.000Z"
+ *    → parse normally, compare as local-midnight boundaries
+ *
+ * 2. ISO date-only string (folder.date from addDateAttribute) — e.g. "2026-08-06"
+ *    → MUST be parsed as LOCAL midnight, NOT UTC midnight.
+ *    new Date("2026-08-06") gives UTC midnight which is "yesterday" in UTC-5.
+ *    Fix: split into parts and use new Date(year, month-1, day).
+ *
+ * 3. Human-readable folder name — e.g. "Aug 6, 2026"
+ *    → new Date("Aug 6, 2026") parses as local time, which is correct.
+ */
+function parseDateForBucket(dateStr: string): Date | null {
+  if (!dateStr) return null;
+
+  // Case 2: YYYY-MM-DD only (no time component)
+  const ymdMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymdMatch) {
+    const [, y, m, d] = ymdMatch.map(Number);
+    return new Date(y, m - 1, d); // local midnight — correct
+  }
+
+  // Case 1 & 3: full ISO or human-readable — let the browser parse
+  const p = new Date(dateStr);
+  return isNaN(p.getTime()) ? null : p;
+}
+
+/** Returns today's local-midnight Date */
+function localMidnight(offsetDays = 0): Date {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  d.setDate(d.getDate() + offsetDays);
+  return d;
+}
+
 // Group conversations by time bucket.
-// Priority for date: conversation.date (ISO) → folder.date (ISO from addDateAttribute) → folder.name parse
+// Priority for date: conversation.date (ISO) → folder.date (YYYY-MM-DD) → folder.name parse
+// archiveDays: conversations older than this many days are excluded (0 = show all)
 function groupConversationsByTime(
   conversations: Conversation[],
-  folders: { id: string; name: string; date?: string }[]
+  folders: { id: string; name: string; date?: string }[],
+  archiveDays: number = 0,
 ): {
   today: Conversation[];
   yesterday: Conversation[];
   previous: Conversation[];
 } {
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterdayStart = new Date(todayStart);
-  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+  const todayStart = localMidnight(0);
+  const yesterdayStart = localMidnight(-1);
+  // Archive cutoff: anything before this date is hidden (unless archiveDays === 0)
+  const archiveCutoff = archiveDays > 0 ? localMidnight(-archiveDays) : null;
 
   const today: Conversation[] = [];
   const yesterday: Conversation[] = [];
   const previous: Conversation[] = [];
 
-  // Sort newest first before grouping
-  const sorted = [...conversations].sort((a, b) => {
-    const da = a.date ? new Date(a.date).getTime() : 0;
-    const db = b.date ? new Date(b.date).getTime() : 0;
-    return db - da;
-  });
+  // Sort newest first before grouping — use best available date for sort too
+  const getConvTimestamp = (c: Conversation): number => {
+    if (c.date) {
+      const p = new Date(c.date);
+      if (!isNaN(p.getTime())) return p.getTime();
+    }
+    if (c.folderId) {
+      const folder = folders.find((f) => f.id === c.folderId);
+      if (folder) {
+        const dateStr = folder.date || folder.name;
+        const p = parseDateForBucket(dateStr);
+        if (p) return p.getTime();
+      }
+    }
+    return 0;
+  };
+
+  const sorted = [...conversations].sort((a, b) => getConvTimestamp(b) - getConvTimestamp(a));
 
   for (const c of sorted) {
     let ts: Date | null = null;
 
-    // 1. Conversation's own ISO date
+    // 1. Conversation's own ISO timestamp (newest conversations always have this)
     if (c.date) {
-      const p = new Date(c.date);
-      if (!isNaN(p.getTime())) ts = p;
+      ts = parseDateForBucket(c.date);
     }
 
-    // 2. Folder's date (set by addDateAttribute — already ISO YYYY-MM-DD)
+    // 2. Folder date (older conversations — folder.date set by addDateAttribute or folder.name)
     if (!ts && c.folderId) {
       const folder = folders.find((f) => f.id === c.folderId);
       if (folder) {
-        if (folder.date) {
-          const p = new Date(folder.date);
-          if (!isNaN(p.getTime())) ts = p;
-        } else if (folder.name) {
-          // Try parsing "Aug 5, 2026" directly
-          const p = new Date(folder.name);
-          if (!isNaN(p.getTime())) ts = p;
-        }
+        // Prefer folder.date (already normalized YYYY-MM-DD by addDateAttribute)
+        // Fall back to folder.name ("Aug 6, 2026" format)
+        const dateStr = folder.date || folder.name;
+        ts = parseDateForBucket(dateStr);
       }
     }
 
     if (!ts) {
+      // No date at all — always show (can't determine age, don't hide)
       previous.push(c);
       continue;
     }
+
+    // Apply archive cutoff — skip conversations older than N days
+    if (archiveCutoff && ts < archiveCutoff) continue;
 
     if (ts >= todayStart) today.push(c);
     else if (ts >= yesterdayStart) yesterday.push(c);
@@ -148,6 +200,32 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
   const conversationsRef = useRef(conversations);
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
 
+  // Listen for admin panel open event (dispatched by AccountMenu admin button)
+  useEffect(() => {
+    const handler = () => setSettingsSection('admin');
+    window.addEventListener('openNewUIAdminPanel', handler);
+    return () => window.removeEventListener('openNewUIAdminPanel', handler);
+  }, []);
+
+  // Listen for settings section open event (dispatched by AttachMenu submenus)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const section = (e as CustomEvent).detail?.section;
+      if (section) setSettingsSection(section);
+    };
+    window.addEventListener('openNewUISettingsSection', handler);
+    return () => window.removeEventListener('openNewUISettingsSection', handler);
+  }, []);
+
+  // Archive cutoff — mirrors ChatFolders' archiveConversationPastNumOfDays logic.
+  // 0 = show all; positive = hide folders older than N days.
+  const [archiveDays, setArchiveDays] = useState(() => getArchiveNumOfDays());
+  useEffect(() => {
+    const handler = (e: Event) => setArchiveDays((e as CustomEvent).detail?.threshold ?? 0);
+    window.addEventListener('updateArchiveThreshold', handler as EventListener);
+    return () => window.removeEventListener('updateArchiveThreshold', handler as EventListener);
+  }, []);
+
   const handleToggle = () => {
     const next = !isOpen;
     setIsOpen(next);
@@ -186,17 +264,20 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     }
   }, [conversations, selectedConversation, storageSelection, statsService]);
 
+  // Only pass chat-type folders to the grouping function (never 'prompt' or 'workflow' folders)
+  const chatFolders = folders.filter((f: any) => !f.type || f.type === 'chat');
+
   // Filter conversations by search — show ALL conversations (they all have date-based folderIds)
-  const noFolderConversations = searchTerm
+  const filteredConversations = searchTerm
     ? conversations.filter((c) =>
         c.name.toLowerCase().includes(searchTerm.toLowerCase())
       )
     : conversations;
 
-  const { today, yesterday, previous } = groupConversationsByTime(noFolderConversations, folders);
+  const { today, yesterday, previous } = groupConversationsByTime(filteredConversations, chatFolders, archiveDays);
 
   // Pinned conversations (if any have a pin flag)
-  const pinned = noFolderConversations.filter((c) => (c as any).pinned);
+  const pinned = filteredConversations.filter((c) => (c as any).pinned);
   const unpinned_today = today.filter((c) => !(c as any).pinned);
   const unpinned_yesterday = yesterday.filter((c) => !(c as any).pinned);
   const unpinned_previous = previous.filter((c) => !(c as any).pinned);
@@ -394,8 +475,8 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
             </div>
           </div>
 
-          {/* Skeleton rows while loading */}
-          {syncingConversations && noFolderConversations.length === 0 && (
+          {/* Skeleton rows while loading — show any time we're syncing and nothing is visible yet */}
+          {syncingConversations && (unpinned_today.length + unpinned_yesterday.length + unpinned_previous.length) === 0 && (
             <div className="flex flex-col gap-[4px] px-[10px] pt-2">
               {[80, 65, 75, 55, 70].map((w, i) => (
                 <div
@@ -417,11 +498,16 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
           {/* Yesterday */}
           {renderConversationGroup(unpinned_yesterday, 'Yesterday')}
 
-          {/* Previous 30 days */}
-          {renderConversationGroup(unpinned_previous, unpinned_previous.length > 0 ? 'Previous 30 days' : undefined)}
+          {/* Previous N days — label matches the archive window */}
+          {renderConversationGroup(
+            unpinned_previous,
+            unpinned_previous.length > 0
+              ? (archiveDays > 0 ? `Previous ${archiveDays} days` : 'Older')
+              : undefined
+          )}
 
-          {/* Empty state — only when not loading */}
-          {!syncingConversations && noFolderConversations.filter(c => c.name !== 'New Conversation' || c.messages?.length > 0).length === 0 && (
+          {/* Empty state — only when not loading and nothing visible after archive filter */}
+          {!syncingConversations && (unpinned_today.length + unpinned_yesterday.length + unpinned_previous.length + pinned.length) === 0 && (
             <div className="px-[10px] py-8 text-center text-[13px] text-[--text-muted]">
               No conversations yet
             </div>

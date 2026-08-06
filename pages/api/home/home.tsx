@@ -1628,14 +1628,37 @@ const Home = ({
 
                                 {/* Main content area */}
                                 <div id="main-content" tabIndex={-1} className="flex flex-1 overflow-hidden">
-                                    {page === 'chat' && selectedConversation && selectedConversation.messages.length === 0 && (
+                                    {page === 'chat' && (!selectedConversation || selectedConversation.messages.length === 0) && (
                                         <NewHome />
                                     )}
-                                    {page === 'chat' && selectedConversation && selectedConversation.messages.length > 0 && (
-                                        <ConversationViewShell stopConversationRef={stopConversationRef} />
-                                    )}
-                                    {page === 'chat' && !selectedConversation && (
-                                        <NewHome />
+                                    {/* ConversationViewShell is always mounted while page=chat AND a
+                                        conversation exists — even when messages.length === 0.
+                                        This is necessary so Chat + ChatInput render immediately when
+                                        handleNewConversation fires (before any messages are added),
+                                        letting ConversationViewShell inject the pending message.
+                                        We hide it visually (position:absolute, overflow:hidden, 0×0)
+                                        while NewHome is showing so the user only sees the landing page.
+                                        Chat.tsx sizes itself by windowInnerDims so it renders inputs
+                                        even when the container is collapsed. */}
+                                    {page === 'chat' && selectedConversation && (
+                                        <div
+                                            key={selectedConversation.id}
+                                            style={selectedConversation.messages.length === 0 ? {
+                                                position: 'fixed',
+                                                top: 0,
+                                                left: '-100vw',
+                                                width: '100vw',
+                                                height: '100vh',
+                                                pointerEvents: 'none',
+                                                visibility: 'hidden',
+                                            } : {
+                                                display: 'flex',
+                                                flex: 1,
+                                                overflow: 'hidden',
+                                            }}
+                                        >
+                                            <ConversationViewShell stopConversationRef={stopConversationRef} />
+                                        </div>
                                     )}
                                     {page === 'home' && (
                                         <NewHome />

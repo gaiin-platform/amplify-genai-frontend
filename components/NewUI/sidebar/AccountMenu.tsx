@@ -19,6 +19,7 @@ import {
   IconLogout,
   IconExternalLink,
   IconDeviceDesktop,
+  IconShield,
 } from '@tabler/icons-react';
 import { signOut } from 'next-auth/react';
 import HomeContext from '@/pages/api/home/home.context';
@@ -39,7 +40,7 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
   org,
   onOpenSettings,
 }) => {
-  const { state: { lightMode }, dispatch } = useContext(HomeContext);
+  const { state: { lightMode, featureFlags }, dispatch } = useContext(HomeContext);
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -134,6 +135,18 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
             Settings
             <span className="ml-auto text-[11px] text-[--text-muted]">⌘,</span>
           </button>
+
+          {/* Admin Panel — only shown when featureFlags.adminInterface is true */}
+          {featureFlags.adminInterface && (
+            <button
+              role="menuitem"
+              onClick={() => { setOpen(false); onOpenSettings?.(); /* caller wires to admin section */ window.dispatchEvent(new CustomEvent('openNewUIAdminPanel')); }}
+              className={menuItem}
+            >
+              <IconShield size={15} />
+              Admin Panel
+            </button>
+          )}
 
           {/* Appearance */}
           <div className="px-3 py-1">

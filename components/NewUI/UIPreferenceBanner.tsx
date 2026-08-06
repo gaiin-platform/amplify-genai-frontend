@@ -106,13 +106,13 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
           We have a new look
         </h2>
         <p className="text-[15px] text-[--text-secondary] mb-8 leading-relaxed">
-          We've redesigned Amplify with a cleaner, more focused interface. You
+          We&apos;ve redesigned Amplify with a cleaner, more focused interface. You
           can switch back to the classic view at any time from Settings →
           Appearance.
         </p>
 
-        {/* Comparison row */}
-        <div className="grid grid-cols-2 gap-3 mb-8">
+        {/* Comparison row — clicking a card directly selects the UI */}
+        <div className="grid grid-cols-2 gap-3">
           {/* New UI preview card */}
           <div
             className="rounded-[10px] border-2 border-[--accent] bg-[--bg-app] p-4 cursor-pointer hover:bg-[--bg-hover] transition-colors"
@@ -139,32 +139,6 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
           </div>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex flex-col gap-2 sm:flex-row-reverse">
-          <button
-            onClick={handleNew}
-            className={`
-              flex-1 h-[42px] rounded-[10px] text-[14px] font-medium
-              text-white transition-colors
-              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent] focus-visible:ring-offset-2
-            `}
-            style={{ backgroundColor: 'var(--accent)' }}
-          >
-            Try New UI
-          </button>
-          <button
-            onClick={handleClassic}
-            className={`
-              flex-1 h-[42px] rounded-[10px] text-[14px] font-medium
-              bg-[--bg-active] text-[--text-secondary]
-              hover:bg-[--bg-hover] hover:text-[--text-primary]
-              transition-colors
-              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary] focus-visible:ring-offset-2
-            `}
-          >
-            Stay on Classic
-          </button>
-        </div>
       </div>
     </div>
   );

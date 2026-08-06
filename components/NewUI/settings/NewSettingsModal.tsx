@@ -17,6 +17,8 @@ import {
   IconExternalLink,
   IconX,
   IconSearch,
+  IconShield,
+  IconServer,
 } from '@tabler/icons-react';
 
 import HomeContext from '@/pages/api/home/home.context';
@@ -24,12 +26,13 @@ import { getSettings, saveSettings, featureOptionFlags } from '@/utils/app/setti
 import { FlagsMap, Flag } from '@/components/ReusableComponents/FlagsMap';
 import { SkillsLibrary } from '@/components/Skills/SkillsLibrary';
 import { IntegrationTabs } from '@/components/Integrations/IntegrationsTab';
-// MCPServersTab removed (Plugins section removed)
+import { MCPServersTab } from '@/components/Settings/MCPServersTab';
 import { ConversationsStorage } from '@/components/Settings/ConversationStorage';
 import { ApiKeys } from '@/components/Settings/AccountComponents/ApiKeys';
 import { Accounts } from '@/components/Settings/AccountComponents/Account';
 import { noCoaAccount } from '@/types/accounts';
 import { Account } from '@/types/accounts';
+import { AdminUI } from '@/components/Admin/AdminUI';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,10 +56,10 @@ interface NavGroup {
 }
 
 // ---------------------------------------------------------------------------
-// Nav definition
+// Nav definition (base — admin group added dynamically in modal based on featureFlags)
 // ---------------------------------------------------------------------------
 
-const NAV_GROUPS: NavGroup[] = [
+const BASE_NAV_GROUPS: NavGroup[] = [
   {
     heading: 'Settings',
     items: [
@@ -72,15 +75,14 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: 'skills', label: 'Skills', Icon: IconPuzzle },
       { id: 'connectors', label: 'Connectors', Icon: IconPlug },
+      { id: 'mcp', label: 'MCP Servers', Icon: IconServer },
     ],
   },
 ];
 
-// ---------------------------------------------------------------------------
-// Helper: flatten all nav items for search
-// ---------------------------------------------------------------------------
-
-const ALL_NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);
+// Note: NAV_GROUPS and ALL_NAV_ITEMS removed — the dynamic navGroups / allNavItems
+// computed inside the modal component replace them (they include the admin entry
+// only when featureFlags.adminInterface is true).
 
 // ---------------------------------------------------------------------------
 // General Section
@@ -286,6 +288,11 @@ const ApiKeysSection: FC<{ active: boolean }> = ({ active }) => {
   );
 };
 
+// AdminSection is intentionally empty — the main NewSettingsModal handles
+// rendering AdminUI as a peer modal when activeSection === 'admin'.
+// This placeholder is never actually rendered because the modal short-circuits.
+const AdminSection: FC = () => null;
+
 // ---------------------------------------------------------------------------
 // Placeholder Section
 // ---------------------------------------------------------------------------
@@ -330,6 +337,10 @@ const SectionContent: FC<{ sectionId: string }> = ({ sectionId }) => {
       return <SkillsSection />;
     case 'connectors':
       return <IntegrationTabs open={true} depth={1} />;
+    case 'mcp':
+      return <MCPServersTab open={true} />;
+    case 'admin':
+      return <AdminSection />;
     default:
       return <PlaceholderSection title={sectionId} />;
   }
@@ -392,9 +403,29 @@ const NavRow: FC<NavRowProps> = ({ item, isSelected, onClick }) => {
 // ---------------------------------------------------------------------------
 
 export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSection }) => {
+  const { state: { featureFlags } } = useContext(HomeContext);
   const [activeSection, setActiveSection] = useState<string>(openToSection ?? 'general');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showAdminUI, setShowAdminUI] = useState(openToSection === 'admin');
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // Build nav groups dynamically — admin group only shown to admins
+  const navGroups: NavGroup[] = [
+    ...BASE_NAV_GROUPS,
+    ...(featureFlags.adminInterface
+      ? [
+          {
+            heading: 'Admin',
+            items: [
+              { id: 'admin', label: 'Admin Panel', Icon: IconShield },
+            ],
+          } as NavGroup,
+        ]
+      : []),
+  ];
+
+  // Flat item list (includes admin when applicable)
+  const allNavItems: NavItem[] = navGroups.flatMap((g) => g.items);
 
   // Escape key + overlay click to close
   useEffect(() => {
@@ -421,16 +452,16 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
 
   // Filter nav groups by search
   const filteredGroups: NavGroup[] = searchQuery.trim()
-    ? NAV_GROUPS.map((group) => ({
+    ? navGroups.map((group) => ({
         ...group,
         items: group.items.filter((item) =>
           item.label.toLowerCase().includes(searchQuery.toLowerCase()),
         ),
       })).filter((group) => group.items.length > 0)
-    : NAV_GROUPS;
+    : navGroups;
 
   // Active item label for the heading
-  const activeItem = ALL_NAV_ITEMS.find((i) => i.id === activeSection);
+  const activeItem = allNavItems.find((i) => i.id === activeSection);
 
   return (
     /* Overlay */
@@ -543,8 +574,13 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
                   item={item}
                   isSelected={activeSection === item.id}
                   onClick={() => {
-                    setActiveSection(item.id);
-                    setSearchQuery('');
+                    if (item.id === 'admin') {
+                      setShowAdminUI(true);
+                    } else {
+                      setActiveSection(item.id);
+                      setShowAdminUI(false);
+                      setSearchQuery('');
+                    }
                   }}
                 />
               ))}
@@ -632,6 +668,18 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
           </React.Suspense>
         </div>
       </div>
+
+      {/* Admin Panel — rendered as a peer modal on top of the settings modal */}
+      {showAdminUI && featureFlags.adminInterface && (
+        <AdminUI
+          open={showAdminUI}
+          onClose={() => {
+            setShowAdminUI(false);
+            // Return to General section when admin panel is closed
+            setActiveSection('general');
+          }}
+        />
+      )}
     </div>
   );
 };

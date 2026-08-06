@@ -173,8 +173,20 @@ components/NewUI/
     SettingsModal.tsx        ← overlay wrapper for existing SettingDialog
   home/
     NewHome.tsx              ← greeting ✳ + composer landing (shown when page=chat and 0 messages)
+                               Props: none. Uses availableModels, defaultModelId, featureFlags, ragOn from context.
+                               Features: working model dropdown (filtered, sorted, default-labelled), file attachment
+                               (hidden input → handleFile service → chips with progress), sends model + pending
+                               message/docs via sessionStorage → handleNewConversation.
   chat/
     ConversationViewShell.tsx ← thin wrapper around Chat.tsx with data-new-ui="true" for CSS scoping
+                               Also handles pending-message bridge: reads sessionStorage on mount,
+                               injects text into #messageChatInputText via native setter, clicks #sendMessage.
+    ConversationHeader.tsx    ← spec §3 compliant 52px sticky header (title menu, share button, assistant chip)
+    ConversationComposer.tsx  ← spec §7 docked composer (AttachMenu + ModelPicker + send/stop bridge into Chat's hidden textarea)
+    NewUIMessageActionsLayer.tsx ← floating action pill for hovered messages (no props)
+                               User messages: Copy + Edit (clicks hidden #editPrompt to trigger ChatMessage's existing edit+resend flow)
+                               Assistant messages: Copy + Read Aloud (window.speechSynthesis, auto-cancel on stream)
+                               Event delegation on .chatcontainer, 200ms DOM-ready retry, position:fixed pill.
   views/
     ChatsListView.tsx        ← full-pane "Chats and tasks" table (search, filter, relative dates). page='chats'
     LibraryView.tsx          ← full-pane document library wrapping DataSourcesTable. page='library'
@@ -188,9 +200,25 @@ components/NewUI/
     IconButton.tsx           ← REUSABLE 28×28/32×32 icon button with hover ring
     Badge.tsx                ← REUSABLE "Labs"-style pill badge
     RichComposer.tsx         ← REUSABLE contentEditable composer with inline code block support
-                               Props: onSend(markdown), placeholder, editorClassName, autoFocus
+                               Props: onSend(markdown), onChange?(value), placeholder, editorClassName, autoFocus
                                Ref handle: clear(), focus(), getValue()
                                Trigger: type ``` then Shift+Enter → inserts styled code block
+    AttachMenu.tsx           ← REUSABLE ⊕ attach + tools menu (attach-menu-spec.md)
+                               Props: isNewChat, plugins, onAddFiles, onAddFromLibrary,
+                                      webSearchEnabled, onToggleWebSearch,
+                                      selectedSkillIds, onSkillsChange, chatEndpoint?, composerRef?
+                               Exports: AttachMenu (trigger+panel) + AttachMenuChips (active state chips)
+                               Group 1: Add files ⌘U, Add from library, Add assistant ›
+                               Group 2: Skills › (loads getUserSkills, toggle per skill), Connectors › (→ settings)
+                               Group 3: Web search toggle (stays open on activate)
+                               Trigger rotates 45° → × while open; badge dot when any toggle active
+                               Dispatches openNewUISettingsSection event for "Manage skills…" / "Browse connectors…"
+    ModelPicker.tsx          ← REUSABLE spec-compliant model+effort picker (model-picker-spec.md)
+                               Props: selectedModelId, selectedEffort: EffortLevel, onModelChange, onEffortChange, composerRef?
+                               Three surfaces: trigger → primary menu → effort|more-models submenu
+                               Effort levels: 'low'|'medium'|'high'|'off' (maps to REASONING_LEVELS)
+                               Uses Floating UI (useFloating) for primary menu, absolute for submenus
+                               Used by: NewHome
                                Enter → sends, Escape inside block → exits to line after
 ```
 
@@ -391,8 +419,142 @@ Visual changes allowed:
 - [x] AccountMenu: Settings option opens NewSettingsModal to 'general'
 - [x] home.tsx: ⌘, shortcut wired for new UI, renders NewSettingsModal via `newUiSettingsSection` state
 
-### Phase 7 — Polish (NEXT)
-- [ ] `NewChatInput.tsx` — redesigned bottom composer (replaces the overlay plugin selector)
+### Phase 7 — Functionality Wiring ✅ COMPLETE
+- [x] **Model dropdown fully functional** — `NewHome.tsx` now shows all available models from `availableModels` state, filtered by `hiddenModelIds` settings, with a working dropdown sorted alphabetically. Selected model is passed to `handleNewConversation` so the new conversation starts with the right model.
+- [x] **Attachment button fully functional** — `NewHome.tsx` now has a hidden `<input type="file">` wired to the `handleFile` service (same code as old `AttachFile` component). Attached files show as chips with upload progress. Files are stored in `sessionStorage` alongside the pending message.
+- [x] **Pending message bridge** — `ConversationViewShell.tsx` now reads `sessionStorage` keys (`amplify_pending_message`, `amplify_pending_docs`, `amplify_pending_model_id`) after `Chat` mounts, injects text into `#messageChatInputText` via React's native setter trick, then clicks `#sendMessage`. Zero changes to `Chat.tsx`.
+- [x] **Admin Panel in new UI** — `NewSettingsModal.tsx` now has a dynamic "Admin" group in the nav rail (only when `featureFlags.adminInterface === true`). Clicking it opens the existing `AdminUI` as a peer modal on top of the settings modal. Also accessible via sidebar "Admin" nav item (when feature-flagged) and via `AccountMenu` → "Admin Panel" button.
+- [x] **Admin entry points wired** — `NewSidebar.tsx` adds "Admin" nav item gated by `featureFlags.adminInterface`, active when `settingsSection === 'admin'`. `AccountMenu.tsx` adds "Admin Panel" menu item (gated by `featureFlags.adminInterface`) that dispatches `openNewUIAdminPanel` custom event. `NewSidebar.tsx` listens for `openNewUIAdminPanel` and sets `settingsSection('admin')`.
+- [x] Feature flags admin (create/set/modify flags) is fully accessible via the existing `AdminUI` → Feature Flags tab — no new code needed there, just wiring the entry point (done above).
+- [x] Fixed `UIPreferenceBanner.tsx` unescaped apostrophe (build error).
+
+### Phase 7b — Bug Fixes ✅ COMPLETE
+- [x] **Admin panel "Unable to fetch" error** — caused by a corrupted `.next` build cache (vendor-chunks directory was empty while `webpack-api-runtime.js` still referenced it). Fixed by clearing `.next`. Re-run `npm run dev` and it rebuilds cleanly.
+- [x] **Conversations timezone bucketing bug** — `folder.date` values (YYYY-MM-DD from `addDateAttribute`) were being parsed as UTC midnight by `new Date("2026-08-06")`, placing today's conversations into "Yesterday" in any timezone west of UTC (e.g. US/Central). Fixed with `parseDateForBucket()` helper that detects YYYY-MM-DD strings and parses them as `new Date(year, month-1, day)` (local midnight). Full ISO timestamps still parsed normally.
+- [x] **Conversation filter uses chat-type folders only** — `groupConversationsByTime` now receives `chatFolders` (filtered to `type === 'chat'`) so prompt/workflow folders can't accidentally affect bucketing.
+- [x] `noFolderConversations` renamed to `filteredConversations` for clarity.
+
+### Phase 8 — Model Picker ✅ COMPLETE
+- [x] `ModelPicker.tsx` — spec v2 compliant three-surface model + effort picker (`components/NewUI/shared/ModelPicker.tsx`)
+  - **Two states**: `isNewChat=true` → 280px, opens downward, full slate (Opus+Sonnet+Haiku); `isNewChat=false` → 220px, opens upward, current model only
+  - Family matching: finds newest/most capable model per family (`opus`, `sonnet`, `haiku`) by matching model `name` or `id` substring, sorts capability-descending by tier
+  - Falls back to first 3 models if no family names match (handles custom model naming)
+  - `modelDescription()` helper: uses `model.description` if set, falls back to family-appropriate use-case text ("For complex tasks" etc.)
+  - Trigger: `[ModelName] [Effort] ⌄` — model name capped at 18ch, effort omitted for non-reasoning models
+  - Primary menu: 2-line model rows (48px) + **two dividers** (model block → Effort → More models); single divider when Effort row absent
+  - Effort submenu (320px, absolute right-start): consequence header + Low/Medium/High/Off with Default badge + ⓘ tooltips
+  - More models submenu (260px, absolute right-start): all models alphabetically, check on active
+  - Uses `REASONING_LEVELS` (`low|medium|high|off`) from `types/model.ts` — no Fable constraint
+  - Hover-intent: 150ms open, 300ms close — parent row stays `--bg-active` while submenu is open
+  - Animation: 120ms opacity+translateY+scale, `transformOrigin` follows resolved side
+- [x] `NewHome.tsx` updated — replaces inline dropdown with `ModelPicker`, adds `selectedEffort` state, stores effort in `sessionStorage` alongside pending message
+- [x] Send button updated per spec §7: 32×32, radius 8px, `--accent` background, `#2A1710` dark glyph (not white), disabled state uses `--bg-active`
+- [x] Mic/send swap per spec §7: cross-fade 120ms — mic shows when input empty, send shows when content present
+- [x] `RichComposer.tsx` — added optional `onChange?: (value: string) => void` prop, called on every content change
+- [x] `ModelPicker` wired as entry for `composerRef` to restore focus after model/effort selection
+
+### Phase 9 — Attach Menu ✅ COMPLETE
+- [x] `AttachMenu.tsx` — spec-compliant ⊕ attach/tools menu (`components/NewUI/shared/AttachMenu.tsx`)
+  - Trigger: 30×30, ⊕ glyph, rotates 45°→× over 140ms while open, badge dot when any toggle is active
+  - Panel: 246px, Floating UI, flips down (new chat) / up (conversation) — spec §3
+  - Group 1: Add files or photos (⌘U, `featureFlags.uploadDocuments`) · Add from library (`featureFlags.dataSourceSelectorOnInput`)
+  - Group 2: Skills › (loads skills via `getUserSkills`, per-skill toggle, "Manage skills…" → settings) · Connectors › (→ settings/connectors)
+  - Group 3: Web search toggle — `menuitemcheckbox`, stays open on activate, `featureFlags.webSearch + WEB_SEARCH plugin`
+  - Two dividers: Group 1 | Group 2 | Group 3 (only rendered when adjacent groups are both present)
+  - Hover-intent: 150ms open, 300ms close on submenu rows
+  - `AttachMenuChips` exported separately — renders active-toggle chips in toolbar (26px, `--bg-active`, × to dismiss)
+  - **Add assistant `›`** — searchable submenu of all assistants + layered/group assistants. Selection dispatches `selectedAssistant` to HomeContext. Active assistant shown as chip (`[🤖 Opus Assistant ×]`); chip × resets to DEFAULT_ASSISTANT.
+  - No Projects, no Deep Research, no Screenshots (excluded per product direction)
+- [x] `NewHome.tsx` updated — replaces old paperclip button with `AttachMenu`, adds `webSearchEnabled` + `selectedSkillIds` state, stores both in sessionStorage for ConversationViewShell
+- [x] `NewSidebar.tsx` — now listens for `openNewUISettingsSection` event (dispatched by AttachMenu "Manage skills…" / "Browse connectors…")
+- [x] ⌘U global shortcut wired in NewHome
+
+### Phase 10 — Conversation View (spec §2–§7) ✅ COMPLETE
+- [x] `conversation-view.css` — complete rewrite per spec v3
+  - Shell bg: `--bg-app` everywhere, all hardcoded dark colors overridden
+  - **Header**: 52px sticky, `--bg-app` bg, no border, correct colors on title/icons
+  - **Message column**: `min(74ch, 100% - 48px)` centered, `padding: 24px`
+  - **Composer/dock**: background gradient fade, max-width = column + 48px (text insets align), 14px radius card
+  - **User bubbles** (spec §4.2): right-aligned (`margin-left: auto`), `--bg-raised`, `border-radius: 16px`, `padding: 12px 18px`, `font: 16px/1.65`, `max-width: 72%`, `width: fit-content`
+  - **Assistant messages** (spec §4.3): no bubble, no avatar, no name label — `background: transparent`, full column width, `font: 16px/1.7`
+  - **Removed old decorations**: `enhanced-chat-message` gradient bg, border-left, `::before` shimmer, icon column, `@Amplify:` prefix label all hidden
+  - **Turn spacing** (spec §4.7): 44px between turns via `space-y-8`
+  - **Accent asterisk** (spec §6): idle end-of-thread marker via CSS `::after` on the bottom spacer div — `✳`, 22px, `--accent`, 55% opacity
+  - **Prose typography** (spec §5): h1/h2/h3, ul/ol markers, blockquote, `a` underline, `code` inline, `strong` letter-spacing
+  - **Code blocks** (spec §5): `--bg-sidebar` bg, `border-radius: 12px`, 36px header, `13.5px/1.6` mono body
+  - **Tables** (spec §5): `--bg-sidebar` header, `--border-subtle` borders, `border-radius: 10px`
+  - **Scroll fade masks** (spec §2): `28px` top, `32px` bottom via `mask-image`
+  - **Action row**: icon buttons 28×28 circle, `--text-muted` → `--text-primary` on hover, opacity 0→1 on message hover/focus
+  - **Light mode**: explicit `--text-primary` on all prose elements, `prose-invert` override
+- [x] `ConversationViewShell.tsx` — added spec §7 disclaimer line: "Amplify can make mistakes. Verify important information." — 11.5px `--text-muted`, centered, positioned above the bottom spacer
+
+### Phase 11 — Conversation View Components ✅ COMPLETE
+- [x] `ConversationHeader.tsx` — spec §3 compliant 52px sticky header
+  - Left: conversation title as menu trigger (chevron, 15px/500, max 40ch, ellipsis); title dropdown: Rename (inline input, Enter/Escape), Share, Delete
+  - Right: filled Share button (--bg-active, 30px, 8px radius, 14px, "Share")
+  - Assistant chip when non-default assistant active (✳ name, --bg-raised pill)
+  - Overlays Chat.tsx's own header (hidden via CSS)
+- [x] `ConversationComposer.tsx` — spec §7 docked composer
+  - Fixed two-band rect: textarea (auto-grows to 12 lines) | toolbar (36px)
+  - Width matches --dock-w so inner text aligns with message column
+  - Bridges into Chat's hidden textarea (#messageChatInputText) + send button (#sendMessage)
+  - Toolbar left: AttachMenu ⊕ + active chips
+  - Toolbar right: ModelPicker (collapsed/upward per spec §7.3) + mic + send/stop slot
+  - Stop button shown while messageIsStreaming (clicks Chat's hidden #stopGenerating)
+  - Model changes applied immediately via handleUpdateConversation
+  - Web search + skills persisted to conversation.data
+  - Disclaimer: "Amplify can make mistakes. Verify important information."
+- [x] `ConversationViewShell.tsx` updated — renders ConversationHeader + ConversationComposer as overlays; removed old inline disclaimer
+- [x] `conversation-view.css` updated:
+  - HIDES Chat's old sticky header (.sticky.top-0.z-10, .sticky.top-4.mt-4)
+  - HIDES Chat's old ChatInput dock (.px-20.absolute.bottom-0)
+  - HIDES FeaturePlugin floating selector
+  - scroll container gets padding-top:52px + padding-bottom:180px for overlays
+  - fade masks adjusted: 80px top (after header), 48px bottom (before composer)
+  - inline code: warm coral #D9776A per spec §5
+  - list indent: 2.2em per spec §5
+
+### Phase 12 — Chat View Interior Styling ✅ COMPLETE
+All via `conversation-view.css` additions — zero changes to `ChatMessage.tsx` or any protected files.
+
+- [x] **PromptStatus** (the "Amplify Assistant is responding." card) — old card (bg-image, wave animations, rounded-xl shadow) replaced with spec §4.4 in-stream step line: transparent bg, 14px `--text-muted`, 20px vertical padding, no chrome. Details panel styled as spec §4.5 expandable block (--bg-sidebar, 12px radius, border-left 2px).
+- [x] **AssistantReasoningMessage / ExpansionComponent** — styled as spec §4.4 collapsible disclosure: toggle button at 14px `--text-secondary`, 12px chevron; expanded block uses `--bg-sidebar` bg, `border-radius: 12px`, `border-left: 2px --border-subtle`, `13.5px/1.6 --text-muted`, max-height 320px with scroll.
+- [x] **Action icons** — moved from old side-rail (fixed/sticky, right of message) to spec §4.6 horizontal row **below** the message content: `position: static`, `flex-direction: row`, 28×28 circle ghost buttons, 4px gap, opacity 0 → 1 on message hover/focus-within.
+- [x] **User message icon row** — right-aligned below the bubble via `flex-direction: column + align-items: flex-end`.
+- [x] **Assistant message icon row** — left-aligned below the prose via `flex-direction: column` on the containing flex row.
+
+### Phase 13 — Message Action Layer & Layout Polish ✅ COMPLETE
+- [x] **`NewUIMessageActionsLayer.tsx`** — new component in `components/NewUI/chat/`. Replaces the old clunky sidebar icon rail entirely. Uses event delegation on `.chatcontainer` (with DOM-ready retry) to track hovered messages. Renders a `position: fixed` floating pill below the hovered message with:
+  - **User messages**: Copy (`IconCopy` → `IconCheck` 1.8s) + Edit (`IconEdit` — clicks hidden `#editPrompt` to trigger ChatMessage's existing edit flow, which resends on save)
+  - **Assistant messages**: Copy + Read Aloud (`IconVolume` → `IconPlayerStop` while speaking via `window.speechSynthesis`)
+  - Pill fades 120ms, right-aligned for user bubbles, left-aligned for assistant prose
+  - Clamped so it never overlaps the bottom composer (stays above 220px from bottom)
+  - SSR-safe: all `window`/`speechSynthesis` usage guarded by `typeof window !== 'undefined'`
+  - Speech cancelled when `messageIsStreaming` becomes true
+- [x] **Old `enhanced-chat-icons` hidden** — `[data-new-ui="true"] .enhanced-chat-icons { display: none !important }` in `conversation-view.css`. The big old fixed-position icon sidebar is gone.
+- [x] **`ConversationViewShell.tsx`** — imports and renders `<NewUIMessageActionsLayer />` as the 4th child
+- [x] **Horizontal breathing room** — `#overflowScroll` padding increased from 24px to 32px per side; user bubble max-width reduced from 72% to 68%; turn spacing increased from 44px to 60px
+- [x] **`.new-ui-action-btn`** CSS class added globally (not scoped to `[data-new-ui]`) — 28×28, 6px radius, ghost, `--text-muted` → hover `--bg-hover`+`--text-primary`
+
+### Phase 14 — Layout Geometry Fix ✅ COMPLETE
+Addressed all 9 defects from the layout spec. No visual (color/typography) changes — geometry only.
+
+- [x] **Root cause fixed** — messages now have a constrained centered column (`--column-w: min(75ch, 100% - 48px)`) applied directly to every `.enhanced-chat-message`. Previously the max-width rule was targeting the model-settings panel (wrong element).
+- [x] **Defect #1 — line length** — 75ch cap on `.enhanced-chat-message`, ~75 chars/line
+- [x] **Defect #2 — zero left gutter** — `margin-inline: auto` + min 24px inset on both sides
+- [x] **Defect #3 — composer/column misaligned** — `--dock-w: column-w + 48px` (2 × 24px composer pad). Composer uses `min(75ch, calc(100% - 48px)) + 48px`. Text insets now align.
+- [x] **Defect #4 — content bottom-anchored** — `#overflowScroll` minHeight/maxHeight (JS-set) overridden to 0/none. Bottom spacer `.h-[300px]` reduced to 48px since composer is now a flex sibling, not overlay. Content top-anchors naturally.
+- [x] **Defect #5 — user bubble at viewport edge** — bubble `max-width: 72%`, `margin-right: 0` aligns to column right edge
+- [x] **Defect #6 — heavy scrollbar** — `scrollbar-gutter: stable` prevents column shift; `width: 4px` thin overlay scrollbar on `.chatcontainer`
+- [x] **Defect #7 — missing scroll-to-latest** — 40px circle button in `ConversationViewShell`, centered on message column via `--dock-w` container, appears when >200px from bottom, `aria-label="Scroll to latest message"`, smooth scroll on click
+- [x] **Defect #8 — dock as overlay** — `ConversationComposer` is now a **flex sibling** of the scroll area, not `position: absolute`. Growing the composer shortens the scroller. `ConversationViewShell` restructured: `new-ui-scroll-area (flex:1) + new-ui-dock (flex-shrink:0)`.
+- [x] **Defect #9 — vertical rhythm** — turn spacing 60px, well differentiated from within-turn gaps
+- [x] **`scrollbar-gutter: stable`** added so the column doesn't shift when a thread becomes scrollable
+- [x] `ConversationComposer.tsx` — removed `position: absolute/bottom:0` overlay, now a plain block; updated `max-width` to match 75ch column
+- [x] `ConversationViewShell.tsx` — restructured into flex column with scroll-area + dock regions; added scroll-to-latest button; added DOM-ready retry for `.chatcontainer` scroll listener
+- [x] `conversation-view.css` — column constraint moved to `.enhanced-chat-message` directly; height chain through `new-ui-scroll-area → .relative.flex-1 → chatcontainer` established; JS-set inline heights overridden with `!important`
+
+### Phase 15 — Polish (NEXT)
 - [ ] Responsive: icon rail at 760-1099px
 - [ ] Responsive: off-canvas drawer <760px
 - [ ] All transitions under `prefers-reduced-motion`
@@ -448,6 +610,27 @@ The app uses `window.dispatchEvent(new CustomEvent(...))` for cross-component co
 - `openScheduledTasksTrigger` → open scheduler
 - `openSettingsTrigger` → open settings to a tab
 - `openAstAdminInterfaceTrigger` → open assistant admin
+- `openNewUIAdminPanel` → (new) open settings modal to admin section (dispatched by AccountMenu admin button, received by NewSidebar)
+
+### Pending-Message Bridge Pattern
+When `NewHome` creates a new conversation, it stores the typed message (and optionally attached docs + selected model ID) in `sessionStorage` before calling `handleNewConversation`. Then `ConversationViewShell` — which mounts when the conversation view renders — polls for `#messageChatInputText` (textarea) and `#sendMessage` (button), injects the text via React's native setter trick (`Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, val)` + `input`/`change` events), then clicks send. This lets the full `ChatInput` pipeline (assistants, plugins, file attachments) handle the send without touching `Chat.tsx`.
+
+### Date Parsing — Timezone Gotcha
+**Never** use `new Date("YYYY-MM-DD")` to parse a date-only string for local date comparison. ISO date-only strings are parsed as UTC midnight, which shifts to the previous calendar day in any timezone west of UTC.
+**Always** use:
+```ts
+const [, y, m, d] = "2026-08-06".match(/^(\d{4})-(\d{2})-(\d{2})$/)!.map(Number);
+const localDate = new Date(y, m - 1, d); // local midnight — correct
+```
+Full ISO timestamps (`2026-08-06T18:23:00.000Z`) are fine to parse normally — they have an explicit UTC offset.
+The `parseDateForBucket()` helper in `NewSidebar.tsx` implements this correctly.
+
+### Admin Panel in New UI
+`featureFlags.adminInterface` (fetched from admin API on load) gates all admin entry points:
+- Sidebar nav item "Admin" (`IconShield`) → `setSettingsSection('admin')` 
+- AccountMenu → "Admin Panel" → dispatches `openNewUIAdminPanel` event → sidebar listener sets section
+- Settings modal nav "Admin" group → clicking opens `AdminUI` as a **peer modal** (not embedded in settings content)
+- `AdminUI` is rendered as a sibling element inside `NewSettingsModal`'s return, z-stacked on top
 
 ---
 

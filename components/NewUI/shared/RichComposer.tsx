@@ -42,6 +42,8 @@ export interface RichComposerHandle {
 
 interface RichComposerProps {
   onSend: (markdown: string) => void;
+  /** Called every time the content changes (with the current raw text value) */
+  onChange?: (value: string) => void;
   placeholder?: string;
   /** Additional className for the editable div */
   editorClassName?: string;
@@ -130,7 +132,7 @@ function lineBeforeCursor(range: Range): string {
 // ── Component ──────────────────────────────────────────────────────────────
 
 export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
-  ({ onSend, placeholder = 'Ask anything…', editorClassName = '', autoFocus = false }, ref) => {
+  ({ onSend, onChange, placeholder = 'Ask anything…', editorClassName = '', autoFocus = false }, ref) => {
     const editorRef = useRef<HTMLDivElement>(null);
     const [hasContent, setHasContent] = useState(false);
 
@@ -152,12 +154,14 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
     }, [autoFocus]);
 
     // Keep track of whether editor has visible content (for placeholder visibility)
+    // Also fires the optional onChange callback so parents can react to content changes.
     const updateHasContent = useCallback(() => {
       const editor = editorRef.current;
       if (!editor) return;
       const text = (editor.textContent ?? '').replace(new RegExp(ZWS, 'g'), '').trim();
       setHasContent(text.length > 0);
-    }, []);
+      onChange?.(text);
+    }, [onChange]);
 
     // ── Paste: strip formatting ────────────────────────────────────────────
     const handlePaste = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
