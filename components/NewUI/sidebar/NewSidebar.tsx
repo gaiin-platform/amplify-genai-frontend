@@ -306,7 +306,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
       icon: <IconMessage2 size={18} />,
       label: 'Chats',
       id: 'chats',
-      action: () => dispatch({ field: 'page', value: 'chat' }),
+      action: () => dispatch({ field: 'page', value: 'chats' as any }),
     },
     {
       icon: <IconSparkles size={18} />,
@@ -341,14 +341,13 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     }] : []),
   ];
 
-  const currentNavId =
+  const currentNavId: string | null =
     settingsSection !== null ? 'customize'
-    : page === 'chat' ? 'chats'
     : page === 'assistantGallery' ? 'assistants'
     : (page as any) === 'library' ? 'library'
     : page === 'notebook' ? 'notebook'
     : (page as any) === 'chats' ? 'chats'
-    : 'chats';
+    : null; // home/chat view — nothing highlighted
 
   const renderConversationGroup = (convs: Conversation[], label?: string) => {
     if (convs.length === 0) return null;
@@ -419,9 +418,9 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
             }}
             className={`
               group w-full flex items-center gap-[10px] h-[36px] px-[10px]
-              rounded-[10px] bg-[--bg-raised]
+              rounded-[8px]
               text-[14px] font-normal text-[--text-secondary]
-              hover:bg-[--bg-active] hover:text-[--text-primary]
+              hover:bg-[--bg-hover] hover:text-[--text-primary]
               transition-colors duration-100
               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]
             `}
@@ -434,13 +433,13 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
           </button>
 
           {/* Primary nav items */}
-          <div className="flex flex-col gap-[2px] mt-2">
+          <div className="flex flex-col gap-[2px]">
             {navItems.map((item) => (
               <SidebarNavItem
                 key={item.id}
                 icon={item.icon}
                 label={item.label}
-                isActive={currentNavId === item.id}
+                isActive={currentNavId !== null && currentNavId === item.id}
                 onClick={item.action}
               />
             ))}
