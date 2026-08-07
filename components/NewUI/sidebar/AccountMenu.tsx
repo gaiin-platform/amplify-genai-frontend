@@ -32,6 +32,8 @@ interface AccountMenuProps {
   email?: string | null;
   org?: string | null;
   onOpenSettings?: () => void;
+  /** When true, renders as a compact 36×36 icon button with the popover opening to the right */
+  collapsed?: boolean;
 }
 
 export const AccountMenu: React.FC<AccountMenuProps> = ({
@@ -39,6 +41,7 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
   email,
   org,
   onOpenSettings,
+  collapsed = false,
 }) => {
   const { state: { lightMode, featureFlags }, dispatch } = useContext(HomeContext);
   const [open, setOpen] = useState(false);
@@ -102,19 +105,22 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
 
   return (
     <div className="relative">
-      {/* ── Popover — opens upward ── */}
+      {/* ── Popover — opens upward (expanded) or to the right (collapsed) ── */}
       {open && (
         <div
           ref={menuRef}
           id="account-menu"
           role="menu"
-          className="
-            fixed bottom-[64px] left-[8px] z-50 w-[288px]
+          className={`
+            fixed z-50 w-[288px]
             bg-[--bg-raised] border border-[--border-subtle]
             rounded-[14px] shadow-[0_16px_40px_rgba(0,0,0,0.4)]
             py-[6px] animate-fade-in
-          "
-          style={{ transformOrigin: 'bottom left' }}
+            ${collapsed
+              ? 'bottom-[8px] left-[60px]'
+              : 'bottom-[64px] left-[8px]'}
+          `}
+          style={{ transformOrigin: collapsed ? 'bottom left' : 'bottom left' }}
         >
           {/* Identity header */}
           <div className="px-3 pt-2 pb-2">
@@ -215,41 +221,64 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
         </div>
       )}
 
-      {/* ── Trigger row ── */}
-      <button
-        ref={triggerRef}
-        onClick={() => setOpen((p) => !p)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls="account-menu"
-        className="
-          w-full flex items-center gap-2 h-[56px] px-3
-          border-t border-[--border-subtle]
-          hover:bg-[--bg-hover] transition-colors
-          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary] focus-visible:ring-inset
-        "
-      >
-        {/* Avatar */}
-        <div className="flex-shrink-0 w-7 h-7 rounded-full bg-[--bg-active] flex items-center justify-center text-[12px] font-medium text-[--text-primary]">
-          {initials}
+      {/* ── Trigger ── */}
+      {collapsed ? (
+        /* Compact: 36×36 avatar button, centred in the icon rail */
+        <div className="flex items-center justify-center pb-3">
+          <button
+            ref={triggerRef}
+            onClick={() => setOpen((p) => !p)}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            aria-controls="account-menu"
+            title={displayName}
+            className="
+              w-9 h-9 flex items-center justify-center rounded-full
+              bg-[--bg-active] text-[12px] font-medium text-[--text-primary]
+              hover:ring-2 hover:ring-[--border-subtle] transition-all
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]
+            "
+          >
+            {initials}
+          </button>
         </div>
+      ) : (
+        /* Full-width trigger row */
+        <button
+          ref={triggerRef}
+          onClick={() => setOpen((p) => !p)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-controls="account-menu"
+          className="
+            w-full flex items-center gap-2 h-[56px] px-3
+            border-t border-[--border-subtle]
+            hover:bg-[--bg-hover] transition-colors
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary] focus-visible:ring-inset
+          "
+        >
+          {/* Avatar */}
+          <div className="flex-shrink-0 w-7 h-7 rounded-full bg-[--bg-active] flex items-center justify-center text-[12px] font-medium text-[--text-primary]">
+            {initials}
+          </div>
 
-        {/* Name block */}
-        <div className="flex-1 min-w-0 text-left">
-          <span className="text-[14px] font-medium text-[--text-primary] truncate block leading-none">
-            {displayName}
-            {org && (
-              <span className="font-normal text-[--text-muted]"> · {org}</span>
-            )}
-          </span>
-        </div>
+          {/* Name block */}
+          <div className="flex-1 min-w-0 text-left">
+            <span className="text-[14px] font-medium text-[--text-primary] truncate block leading-none">
+              {displayName}
+              {org && (
+                <span className="font-normal text-[--text-muted]"> · {org}</span>
+              )}
+            </span>
+          </div>
 
-        {/* Chevron */}
-        <IconChevronUp
-          size={14}
-          className={`flex-shrink-0 text-[--text-muted] transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
-        />
-      </button>
+          {/* Chevron */}
+          <IconChevronUp
+            size={14}
+            className={`flex-shrink-0 text-[--text-muted] transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+          />
+        </button>
+      )}
     </div>
   );
 };

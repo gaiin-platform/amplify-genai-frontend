@@ -27,7 +27,7 @@ import {
   IconLayoutList,
   IconBooks,
   IconAdjustments,
-
+  IconLayoutSidebarLeftExpand,
 } from '@tabler/icons-react';
 
 import HomeContext from '@/pages/api/home/home.context';
@@ -369,25 +369,96 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     );
   };
 
-  // Collapsed state — just show an open button
+  // Collapsed state — icon rail with the specified buttons
   if (!isOpen) {
+    const iconBtn = (onClick: () => void, title: string, icon: React.ReactNode, isActive = false) => (
+      <button
+        onClick={onClick}
+        title={title}
+        className={`
+          w-9 h-9 flex items-center justify-center rounded-[8px] transition-colors
+          ${isActive
+            ? 'bg-[--bg-active] text-[--text-primary]'
+            : 'text-[--text-muted] hover:text-[--text-primary] hover:bg-[--bg-hover]'}
+        `}
+      >
+        {icon}
+      </button>
+    );
+
     return (
-      <div className="flex flex-col items-center w-[52px] py-3 border-r border-[--border-subtle] bg-[--bg-sidebar] flex-shrink-0">
-        <button
-          onClick={handleToggle}
-          title="Open sidebar"
-          className="w-9 h-9 flex items-center justify-center rounded-[8px] text-[--text-muted] hover:text-[--text-primary] hover:bg-[--bg-hover] transition-colors"
-        >
-          <IconMessage2 size={18} />
-        </button>
-        <button
-          onClick={() => handleNewConversation({})}
-          title="New conversation (⌘N)"
-          className="mt-2 w-9 h-9 flex items-center justify-center rounded-[8px] text-[--text-muted] hover:text-[--text-primary] hover:bg-[--bg-hover] transition-colors"
-        >
-          <IconPlus size={18} />
-        </button>
-      </div>
+      <>
+        <div className="flex flex-col items-center w-[52px] py-3 border-r border-[--border-subtle] bg-[--bg-sidebar] flex-shrink-0 h-screen">
+          {/* Expand sidebar */}
+          {iconBtn(handleToggle, 'Expand sidebar', <IconLayoutSidebarLeftExpand size={18} />)}
+
+          {/* Small gap */}
+          <div className="h-3" />
+
+          {/* New chat */}
+          {iconBtn(
+            () => {
+              window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false } }));
+              handleNewConversation({});
+            },
+            'New chat (⌘N)',
+            <IconPlus size={18} />,
+          )}
+
+          {/* Chats and tasks */}
+          {iconBtn(
+            () => dispatch({ field: 'page', value: 'chats' as any }),
+            'Chats and tasks',
+            <IconMessage2 size={18} />,
+            currentNavId === 'chats',
+          )}
+
+          {/* Assistants */}
+          {iconBtn(
+            () => dispatch({ field: 'page', value: 'assistantGallery' }),
+            'Assistants',
+            <IconSparkles size={18} />,
+            currentNavId === 'assistants',
+          )}
+
+          {/* Customize */}
+          {iconBtn(
+            () => setSettingsSection('skills'),
+            'Customize',
+            <IconAdjustments size={18} />,
+            currentNavId === 'customize',
+          )}
+
+          {/* Spacer — pushes account to bottom */}
+          <div className="flex-1" />
+
+          {/* Account */}
+          <AccountMenu
+            name={name}
+            email={email}
+            collapsed
+            onOpenSettings={() => setSettingsSection('general')}
+          />
+        </div>
+
+        {/* Settings + Scheduled tasks modals still render outside the rail */}
+        {settingsSection !== null && (
+          <NewSettingsModal
+            openToSection={settingsSection}
+            onClose={() => setSettingsSection(null)}
+          />
+        )}
+        {isScheduledTasksOpen && typeof window !== 'undefined' && createPortal(
+          <React.Suspense fallback={null}>
+            <ScheduledTasks
+              isOpen={isScheduledTasksOpen}
+              onClose={() => { setIsScheduledTasksOpen(false); setInitScheduledTask(undefined); }}
+              initTask={initScheduledTask}
+            />
+          </React.Suspense>,
+          document.body,
+        )}
+      </>
     );
   }
 
