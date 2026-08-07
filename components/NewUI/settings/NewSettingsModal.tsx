@@ -19,6 +19,7 @@ import {
   IconSearch,
   IconShield,
   IconServer,
+  IconNotes,
 } from '@tabler/icons-react';
 
 import HomeContext from '@/pages/api/home/home.context';
@@ -73,6 +74,7 @@ const BASE_NAV_GROUPS: NavGroup[] = [
   {
     heading: 'Customize',
     items: [
+      { id: 'customInstructions', label: 'Custom Instructions', Icon: IconNotes },
       { id: 'skills', label: 'Skills', Icon: IconPuzzle },
       { id: 'connectors', label: 'Connectors', Icon: IconPlug },
       { id: 'mcp', label: 'MCP Servers', Icon: IconServer },
@@ -318,6 +320,120 @@ const PlaceholderSection: FC<{ title: string }> = ({ title }) => (
 );
 
 // ---------------------------------------------------------------------------
+// Custom Instructions Section
+// ---------------------------------------------------------------------------
+
+const CustomInstructionsSection: FC = () => {
+  const STORAGE_KEY = 'amplify_custom_instructions';
+  const MAX_CHARS = 4000;
+
+  const [value, setValue] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return localStorage.getItem(STORAGE_KEY) ?? '';
+  });
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = () => {
+    localStorage.setItem(STORAGE_KEY, value);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleClear = () => {
+    setValue('');
+    localStorage.removeItem(STORAGE_KEY);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div style={{ background: 'var(--bg-raised)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-panel, 12px)', padding: '20px' }}>
+        <h3 style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>
+          Custom Instructions
+        </h3>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '16px' }}>
+          Add context and preferences that Amplify will consider in every conversation. You can describe your role, working style, or any standing instructions.
+        </p>
+        <textarea
+          value={value}
+          onChange={(e) => setValue(e.target.value.slice(0, MAX_CHARS))}
+          placeholder="e.g. 'I am a software engineer working on React and TypeScript. Prefer concise explanations with code examples. Always use TypeScript syntax.'"
+          rows={8}
+          style={{
+            width: '100%',
+            background: 'var(--bg-app)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '8px',
+            padding: '12px 14px',
+            fontSize: '14px',
+            color: 'var(--text-primary)',
+            lineHeight: '1.6',
+            resize: 'vertical',
+            outline: 'none',
+            fontFamily: 'Inter, sans-serif',
+            boxSizing: 'border-box',
+          }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+            {value.length} / {MAX_CHARS}
+          </span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={handleClear}
+              style={{
+                height: '32px',
+                padding: '0 14px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-subtle)',
+                background: 'transparent',
+                color: 'var(--text-secondary)',
+                fontSize: '13px',
+                cursor: 'pointer',
+              }}
+            >
+              Clear
+            </button>
+            <button
+              onClick={handleSave}
+              style={{
+                height: '32px',
+                padding: '0 16px',
+                borderRadius: '8px',
+                border: 'none',
+                background: saved ? 'var(--bg-active)' : 'var(--accent)',
+                color: saved ? 'var(--text-primary)' : '#fff',
+                fontSize: '13px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'background 0.15s',
+              }}
+            >
+              {saved ? '✓ Saved' : 'Save'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ background: 'var(--bg-raised)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-panel, 12px)', padding: '20px' }}>
+        <h3 style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>
+          How it works
+        </h3>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.7' }}>
+          Custom instructions are added to the system prompt of every new conversation. They help Amplify understand your context and preferences without repeating them each time.
+        </p>
+        <ul style={{ margin: '12px 0 0', paddingLeft: '20px', color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.8' }}>
+          <li>Instructions apply to all new conversations going forward</li>
+          <li>You can always override them by editing the system prompt in a specific conversation</li>
+          <li>Instructions are stored locally in your browser</li>
+        </ul>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
 // Section renderer
 // ---------------------------------------------------------------------------
 
@@ -333,6 +449,8 @@ const SectionContent: FC<{ sectionId: string }> = ({ sectionId }) => {
       return <StorageSection active={true} />;
     case 'apikeys':
       return <ApiKeysSection active={true} />;
+    case 'customInstructions':
+      return <CustomInstructionsSection />;
     case 'skills':
       return <SkillsSection />;
     case 'connectors':

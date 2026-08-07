@@ -189,12 +189,21 @@ components/NewUI/
                                Event delegation on .chatcontainer, 200ms DOM-ready retry, position:fixed pill.
   views/
     ChatsListView.tsx        ← full-pane "Chats and tasks" table (search, filter, relative dates). page='chats'
+                               Auto-focuses search input on mount (80ms delay).
     LibraryView.tsx          ← full-pane document library wrapping DataSourcesTable. page='library'
+    NewAssistantsView.tsx    ← new-UI reimplementation of AssistantGallery. page='assistantGallery' (new UI path only)
+                               Four tabs: My Assistants | Group Assistants | Prompt Templates | Layered Assistants
+                               Each tab has: search, "+ New" creation button, list rows (not old gradient card grid)
+                               All creation flows use AssistantModal / PromptModal / openLayeredBuilderTrigger
+                               Group admin actions gate on featureFlags.assistantAdminInterface + GroupAccessType
+                               Old AssistantGallery still renders in the classic-UI path — untouched.
   settings/
     NewSettingsModal.tsx     ← two-column settings modal. Props: onClose, openToSection?:string
-                               Sections: general|account|usage|capabilities|code|cowork|
-                                         skills|assistants|connectors|plugins|storage|apikeys|organization
+                               Sections: general|account|usage|storage|apikeys|customInstructions|
+                                         skills|connectors|mcp|admin
                                Entry points: sidebar Customize (→skills), AccountMenu (→general), ⌘, (→general)
+                               "Custom Instructions" is the rebrand of the system prompt / custom instructions
+                               concept from the old UI. Stored in localStorage key: amplify_custom_instructions
   shared/
     SegmentedControl.tsx     ← REUSABLE segmented tab control (size: sm=sidebar, xs=composer)
     IconButton.tsx           ← REUSABLE 28×28/32×32 icon button with hover ring
@@ -299,11 +308,27 @@ The floating `PluginSelector` component (`components/Chat/FeaturePluginSelector/
 | File/Folder | What to change |
 |---|---|
 | `pages/api/home/home.tsx` | Layout/render section only (lines ~1600+); keep all state/handlers |
-| `components/TabSidebar/TabSidebar.tsx` | Can be replaced by NewSidebar in new-UI mode |
-| `components/Sidebar/Sidebar.tsx` | Used by old UI; keep as-is; new UI uses NewSidebar |
-| `components/Chatbar/Chatbar.tsx` | Logic stays; visual layer can be wrapped |
 | `styles/globals.css` | Add new design tokens; keep existing classes |
 | `tailwind.config.js` | Add new theme keys safely |
+
+### ⛔ The One-Directory Rule
+
+> **ALL new UI code lives in `components/NewUI/`. Never modify any component outside that directory.**
+
+This is the rule that keeps both UIs functional simultaneously. Violating it means:
+- Changes can break the classic UI for users who haven't opted in to the new UI
+- The two-UI strategy collapses — we can no longer switch safely
+- Future cleanup (removing the classic UI entirely) becomes tangled
+
+**The correct approach for any feature that exists in the old UI:**
+
+1. **Preferred:** Write a new implementation inside `components/NewUI/` that fits the new visual language. It can *import* old utility functions (`utils/`, `types/`, `services/`) and even old modal components that are pure UI (e.g. `AssistantModal`, `PromptModal`) — but it must not *modify* them.
+
+2. **Acceptable (with note):** Copy just the minimal logic you need into a new file inside `components/NewUI/`, clearly mark it as a "port" of the old component, and add a TODO noting it should be improved/revised later.
+
+3. **Never:** Edit old component files (outside `components/NewUI/`) to add new-UI behavior, even conditionally.
+
+The only file outside `components/NewUI/` that may be touched is `pages/api/home/home.tsx` — but only the layout/render section (the part that switches between new-UI and classic-UI rendering at lines ~1600+).
 
 ---
 
@@ -554,12 +579,44 @@ Addressed all 9 defects from the layout spec. No visual (color/typography) chang
 - [x] `ConversationViewShell.tsx` — restructured into flex column with scroll-area + dock regions; added scroll-to-latest button; added DOM-ready retry for `.chatcontainer` scroll listener
 - [x] `conversation-view.css` — column constraint moved to `.enhanced-chat-message` directly; height chain through `new-ui-scroll-area → .relative.flex-1 → chatcontainer` established; JS-set inline heights overridden with `!important`
 
-### Phase 15 — Polish (NEXT)
+### Phase 15 — Wiring, Polish, and Settings Expansion ✅ COMPLETE
+- [x] **Scheduled Tasks connected** — `NewSidebar.tsx` now listens for `openScheduledTasksTrigger` events AND the Scheduled nav item directly opens `ScheduledTasks` modal. Uses `React.lazy + createPortal` to render the existing `ScheduledTasks` component (from `components/Agent/ScheduledTasks.tsx`) without touching it. Works whether triggered by the nav item OR by other components dispatching the event (e.g. `ScheduledTaskButton` in assistant modals).
+- [x] **Message action pill fixed** — Removed `background: 'var(--bg-app)'`, `border`, and `boxShadow` from the floating pill in `NewUIMessageActionsLayer.tsx`. The action buttons (Copy, Edit, Read Aloud) now appear as bare icon buttons with no card/backdrop behind them. Individual `.new-ui-action-btn` hover states still work via CSS.
+- [x] **Reasoning block styling improved** — Enhanced `conversation-view.css`: reasoning toggle label is now 13px muted text with 0.7 opacity chevron; expanded block increases `max-height` from 320px → 480px; added prose sub-selectors for `p` and `code` inside the block for better readability.
+- [x] **Custom Instructions in Settings** — Added `CustomInstructionsSection` component to `NewSettingsModal.tsx`. Placed first in the Customize nav group. Features: 8-row textarea, 4000 char limit with counter, Clear + Save buttons with "✓ Saved" flash. Saved to `localStorage` key `amplify_custom_instructions`. Includes a "How it works" info card. **This is the rebranded "System Prompt" / "Custom Instructions" feature** — the field label in the old `SystemPrompt.tsx` component was "Custom Instructions"; here it is surfaced as a first-class settings section under Customize.
+
+### Phase 16 — Search + Full Gallery Creation Buttons ✅ COMPLETE
+- [x] **Search button → Chats & Tasks page** — `NewSidebar.tsx` now dispatches `page = 'chats'` when the search icon in the sidebar header is clicked. `ChatsListView.tsx` auto-focuses its search input (80ms delay for mount) so the user can type immediately.
+- [x] **Create new assistant in Assistants view** — `IndividualAssistantsGallery.tsx` now has:
+  - A "New Assistant" button (indigo, `IconPlus`) in the gallery header next to the search box
+  - A "Create your first assistant" button in the empty-state of the "Your Assistants" tab
+  - `handleCreateAssistant()` mirrors Promptbar's logic exactly: creates a blank `Prompt` with an empty `AssistantDefinition` via `createEmptyPrompt` + sets `folderId = 'assistants'`
+  - Opens the existing `AssistantModal` component with the blank prompt so users get the full assistant-creation experience (name, instructions, data sources, tools, etc.)
+  - On cancel: removes the unsaved blank prompt from state + localStorage
+  - On save: `handleUpdateAssistantPrompt` persists the new assistant
+- [x] **Create new prompt template** — `PromptTemplatesGallery.tsx` — "New Template" button (indigo) in header + empty-state CTA. Uses `createEmptyPrompt` + opens `PromptModal`. Cancel cleans up the unsaved blank from state.
+- [x] **Create new layered assistant** — `LayeredAssistantsGallery.tsx` — "New Layered Assistant" button (purple) in search bar row + empty-state CTA. Dispatches `openLayeredBuilderTrigger` with `createLayeredAssistant('New Layered Assistant')` as `initialData` — the existing builder handles the full creation flow.
+- [x] **Create new group assistant** — `GroupAssistantsGallery.tsx` — "New Assistant" button (purple) in header, **only visible to users with admin/write access to at least one group** (gated by `hasAccessToGroupAdminInterface`). Dispatches `openAstAdminInterfaceTrigger` with the target group pre-selected (auto-picks the group when user only admins one; otherwise opens admin interface for group selection).
+
+### Phase 17 — Architecture Cleanup + Documentation ✅ COMPLETE
+- [x] **One-Directory Rule enforced** — Reverted gallery changes that accidentally modified old-UI files. Rule documented in Section 8 of this file and in `NEW_UI_WIKI_INSTRUCTIONS.md`.
+- [x] **`NewAssistantsView.tsx`** — proper new-UI reimplementation of `AssistantGallery` inside `components/NewUI/views/`. Four tabs (My Assistants, Group Assistants, Prompt Templates, Layered Assistants), all with search + create buttons, clean list-row design using new-UI tokens. Old `AssistantGallery` untouched; `home.tsx` now renders `NewAssistantsView` for the new-UI path and `AssistantGallery` for the classic path.
+- [x] **`NEW_UI_PORTING_STATUS.md`** created — tracks: (1) features still to port, (2) features intentionally removed forever, (3) future ideas for after the rewrite. Authoritative source for migration status.
+- [x] Updated `NEW_UI_WIKI_INSTRUCTIONS.md` with One-Directory Rule.
+
+### Phase 18 — Remaining Port Work (NEXT)
 - [ ] Responsive: icon rail at 760-1099px
 - [ ] Responsive: off-canvas drawer <760px
 - [ ] All transitions under `prefers-reduced-motion`
 - [ ] Light mode polish for new components
-- [ ] Fill in placeholder settings sections: Usage, Capabilities, Assistants
+- [ ] Settings → Usage section (port `UserCostBreakdownModal`)
+- [ ] Settings → Capabilities section
+- [ ] Wire `amplify_custom_instructions` into `handleNewConversation` so new conversations use the saved custom instructions as their system prompt
+- [ ] New-UI styling pass for Notebook view
+- [ ] Conversation fork surfaced in new UI
+- [ ] Import / Export / Clear conversations in new UI
+- [ ] Memory dialog surfaced in new UI
+- [ ] See `NEW_UI_PORTING_STATUS.md` for full tracking
 
 ---
 
@@ -624,6 +681,13 @@ const localDate = new Date(y, m - 1, d); // local midnight — correct
 ```
 Full ISO timestamps (`2026-08-06T18:23:00.000Z`) are fine to parse normally — they have an explicit UTC offset.
 The `parseDateForBucket()` helper in `NewSidebar.tsx` implements this correctly.
+
+### Custom Instructions (formerly "System Prompt")
+`localStorage.getItem('amplify_custom_instructions')` stores the user's global custom instructions.
+- Set via Settings → Customize → Custom Instructions
+- The old `SystemPrompt.tsx` component labeled this field "Custom Instructions" in the old UI; this is the same concept now surfaced as a settings section
+- **TODO Phase 16:** Wire this into `handleNewConversation` in `home.tsx` so new conversations use it as the system prompt instead of (or prepended to) `DEFAULT_SYSTEM_PROMPT`
+- Key: `amplify_custom_instructions`, max 4000 chars
 
 ### Admin Panel in New UI
 `featureFlags.adminInterface` (fetched from admin API on load) gates all admin entry points:

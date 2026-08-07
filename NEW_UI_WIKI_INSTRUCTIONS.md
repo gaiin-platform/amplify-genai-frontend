@@ -183,6 +183,61 @@ Run this check and update the wiki before starting major new work.
 5. **Every new component must be listed in the registry with path, purpose, and props**
 6. **Dark mode support (`dark:` Tailwind variant or CSS variable) is required on every new UI element**
 7. **Reusable components live in `components/NewUI/shared/` — put them there, not inline**
+8. **⛔ THE ONE-DIRECTORY RULE: never modify any file outside `components/NewUI/` for UI purposes** — see below
+
+---
+
+## 9a. The One-Directory Rule (Critical)
+
+The entire reason we have `components/NewUI/` is to **preserve both UIs simultaneously** until the new UI is complete and battle-tested. The moment we modify an old-UI component to add new-UI behavior — even conditionally — we start coupling the two UIs together and risk breaking the classic UI.
+
+### The rule
+**Every line of new UI code lives inside `components/NewUI/`.** The only exceptions are:
+- `pages/api/home/home.tsx` — the layout render section only (the `uiPreference === 'new'` block, lines ~1617+)
+- `styles/globals.css` — adding new CSS design tokens (never removing old ones)
+- `tailwind.config.js` — adding new theme keys (never removing old ones)
+
+### When you need something from the old UI
+
+**Case 1 — You need a modal/dialog that already exists (e.g. `AssistantModal`, `PromptModal`)**
+→ You may *import* it into your new component in `components/NewUI/`. This is fine because you're consuming, not modifying.
+
+**Case 2 — You need a feature that has a full old-UI component (e.g. the Chatbar conversation list)**
+→ Build a new implementation inside `components/NewUI/`. It can call the same utilities (`utils/`, `services/`, `types/`) but must be its own fresh component file. Check `NEW_UI_PORTING_STATUS.md` first — the feature may already be ported.
+
+**Case 3 — You need a feature that would take too long to reimplement right now**
+→ As a temporary measure, you may copy the minimal logic into a new file inside `components/NewUI/`. Add a clearly visible comment:
+```tsx
+// PORT: Copied from components/OldDir/OldComponent.tsx
+// TODO: Replace with proper new-UI implementation. This is a placeholder.
+```
+And add an entry to `NEW_UI_PORTING_STATUS.md` under "Partially ported" with a 🚧 marker.
+
+**Case 4 — The old component fires custom events (e.g. `openLayeredBuilderTrigger`)**
+→ Dispatch those events from your new-UI code. That's the correct pattern — the old modal listens and opens. No modification needed.
+
+### Why this matters
+If we start editing `IndividualAssistantsGallery.tsx` or `GroupAssistantsGallery.tsx` to add new-UI features, then:
+- Classic UI users see those changes (may break their experience)
+- When we eventually cut over to new UI only, cleanup becomes: "which parts of this file were added for new UI vs old UI?"
+- Git history becomes confusing
+
+Keep them separate. Always.
+
+---
+
+## 9b. The Porting Status Document
+
+`NEW_UI_PORTING_STATUS.md` is the third document in this set. It tracks:
+1. What old-UI features are still pending a port to the new UI
+2. What features are intentionally removed (will never return)
+3. Future ideas to suggest to the team after the rewrite is complete
+
+**Update it** whenever:
+- You port a feature from old to new (mark ✅)
+- You partially port something (mark 🚧 + add a TODO note)
+- You intentionally skip/remove something (add to Section 8 with rationale)
+- A new future idea comes up (add to Section 9)
 
 ---
 
@@ -192,10 +247,11 @@ Run this check and update the wiki before starting major new work.
 |---|---|
 | `/Users/maxmoundas/Amplify/amplify-genai-frontend/NEW_UI_DOCS.md` | **The wiki** — read first, update last |
 | `/Users/maxmoundas/Amplify/amplify-genai-frontend/NEW_UI_WIKI_INSTRUCTIONS.md` | **This file** — schema and maintenance rules |
+| `/Users/maxmoundas/Amplify/amplify-genai-frontend/NEW_UI_PORTING_STATUS.md` | **Migration tracker** — what's ported, removed, and future ideas |
 | `/Users/maxmoundas/Downloads/sidebar-shell-spec.md` | Sidebar design spec |
 | `/Users/maxmoundas/Downloads/conversation-view-spec.md` | Chat view design spec |
 | `/Users/maxmoundas/Downloads/settings-spec.md` | Settings modal design spec |
-| `components/NewUI/` | All new UI components |
+| `components/NewUI/` | All new UI components — the only directory we modify |
 | `styles/globals.css` | Design tokens + global styles |
 | `styles/conversation-view.css` | Scoped chat overrides |
-| `pages/api/home/home.tsx` | Root component — layout switching lives here |
+| `pages/api/home/home.tsx` | Root component — layout switching lives here (render section only) |

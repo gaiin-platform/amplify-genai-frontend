@@ -16,6 +16,7 @@
  *   <760px: off-canvas drawer               [TODO: Phase 4]
  */
 import React, { useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   IconMessage2,
   IconSparkles,
@@ -49,6 +50,10 @@ import { ConversationRow } from './ConversationRow';
 import { AccountMenu } from './AccountMenu';
 import { IconButton } from '@/components/NewUI/shared/IconButton';
 import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
+
+const ScheduledTasks = React.lazy(() =>
+  import('@/components/Agent/ScheduledTasks').then((m) => ({ default: m.ScheduledTasks })),
+);
 
 interface NewSidebarProps {
   email?: string | null;
@@ -188,6 +193,9 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     getDefaultModel,
   } = useContext(HomeContext);
 
+  const [isScheduledTasksOpen, setIsScheduledTasksOpen] = useState(false);
+  const [initScheduledTask, setInitScheduledTask] = useState<any>(undefined);
+
   const [isOpen, setIsOpen] = useState(() => {
     if (typeof window === 'undefined') return true;
     const stored = localStorage.getItem('showChatbar');
@@ -215,6 +223,17 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     };
     window.addEventListener('openNewUISettingsSection', handler);
     return () => window.removeEventListener('openNewUISettingsSection', handler);
+  }, []);
+
+  // Listen for scheduled tasks open event
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const scheduledTask = (e as CustomEvent).detail?.scheduledTask;
+      setInitScheduledTask(scheduledTask);
+      setIsScheduledTasksOpen(true);
+    };
+    window.addEventListener('openScheduledTasksTrigger', handler);
+    return () => window.removeEventListener('openScheduledTasksTrigger', handler);
   }, []);
 
   // Archive cutoff — mirrors ChatFolders' archiveConversationPastNumOfDays logic.
@@ -318,7 +337,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
       icon: <IconClock size={18} />,
       label: 'Scheduled',
       id: 'scheduled',
-      action: () => window.dispatchEvent(new CustomEvent('openScheduledTasksTrigger', { detail: {} })),
+      action: () => { setInitScheduledTask(undefined); setIsScheduledTasksOpen(true); },
     }] : []),
   ];
 
@@ -387,7 +406,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
         {/* 1. Header */}
         <SidebarHeader
           onCollapse={handleToggle}
-          onSearch={() => {/* TODO: open command palette */}}
+          onSearch={() => dispatch({ field: 'page', value: 'chats' as any })}
         />
 
         {/* 2. Nav actions */}
@@ -531,6 +550,18 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
           openToSection={settingsSection}
           onClose={() => setSettingsSection(null)}
         />
+      )}
+
+      {/* Scheduled Tasks Modal */}
+      {isScheduledTasksOpen && typeof window !== 'undefined' && createPortal(
+        <React.Suspense fallback={null}>
+          <ScheduledTasks
+            isOpen={isScheduledTasksOpen}
+            onClose={() => { setIsScheduledTasksOpen(false); setInitScheduledTask(undefined); }}
+            initTask={initScheduledTask}
+          />
+        </React.Suspense>,
+        document.body,
       )}
     </>
   );

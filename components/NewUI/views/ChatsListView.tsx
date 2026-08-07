@@ -5,7 +5,7 @@
  *
  * Reusable via: dispatch({ field: 'page', value: 'chats' })
  */
-import React, { useContext, useState, useMemo } from 'react';
+import React, { useContext, useState, useMemo, useRef, useEffect } from 'react';
 import { IconSearch, IconFilter, IconMessage2, IconPlus } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { Conversation } from '@/types/chat';
@@ -41,6 +41,15 @@ export const ChatsListView: React.FC = () => {
   } = useContext(HomeContext);
 
   const [search, setSearch] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // Auto-focus the search box when the view opens
+  useEffect(() => {
+    const t = setTimeout(() => {
+      searchRef.current?.focus();
+    }, 80);
+    return () => clearTimeout(t);
+  }, []);
 
   // Sort newest first, then filter by search
   const sorted = useMemo(() => {
@@ -84,6 +93,7 @@ export const ChatsListView: React.FC = () => {
               className="absolute left-3 top-1/2 -translate-y-1/2 text-[--text-muted] pointer-events-none"
             />
             <input
+              ref={searchRef}
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}

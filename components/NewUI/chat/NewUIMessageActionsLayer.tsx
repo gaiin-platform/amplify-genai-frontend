@@ -286,14 +286,13 @@ export const NewUIMessageActionsLayer: React.FC = () => {
     display: 'flex',
     gap: 2,
     padding: '4px 6px',
-    background: 'var(--bg-app)',
-    border: '1px solid var(--border-subtle)',
+    background: 'transparent',
+    border: 'none',
     borderRadius: 8,
     opacity: visible ? 1 : 0,
     transition: 'opacity 120ms ease',
     pointerEvents: visible ? 'auto' : 'none',
-    // Subtle shadow to lift the pill off the content
-    boxShadow: '0 1px 6px rgba(0,0,0,0.08)',
+    boxShadow: 'none',
   };
 
   if (position.align === 'right') {

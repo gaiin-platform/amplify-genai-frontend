@@ -593,52 +593,82 @@
 ───────────────────────────────────────────────────────────────────────────── */
 [data-new-ui="true"] .text-sm\!important.opacity-70 {
   opacity: 1 !important;
-  margin-bottom: 26px !important;
+  margin-bottom: 20px !important;
 }
 
-/* The toggle button */
+/* The toggle button — "▸ Reasoning" style */
 [data-new-ui="true"] #expandComponent {
-  font-size: 14px !important;
-  color: var(--text-secondary) !important;
+  font-size: 13px !important;
+  color: var(--text-muted) !important;
   background: transparent !important;
   border: none !important;
-  padding: 0 !important;
+  padding: 4px 0 !important;
   cursor: pointer !important;
-  display: flex !important;
+  display: inline-flex !important;
   align-items: center !important;
-  gap: 6px !important;
+  gap: 5px !important;
+  letter-spacing: 0.01em !important;
+  user-select: none !important;
 }
 
 [data-new-ui="true"] #expandComponent:hover {
-  color: var(--text-primary) !important;
+  color: var(--text-secondary) !important;
 }
 
 [data-new-ui="true"] #expandComponent svg {
   color: var(--text-muted) !important;
   width: 12px !important;
   height: 12px !important;
+  opacity: 0.7 !important;
 }
 
 [data-new-ui="true"] #expandComponent .font-medium {
-  font-size: 14px !important;
+  font-size: 13px !important;
   font-weight: 400 !important;
 }
 
-/* The expanded content block */
+/* The expanded content block — clean card, scrollable with generous height */
 [data-new-ui="true"] .border-l.border-gray-300,
 [data-new-ui="true"] .border-l.dark\:border-gray-600 {
   border-left: 2px solid var(--border-subtle) !important;
   border-color: var(--border-subtle) !important;
   background-color: var(--bg-sidebar) !important;
-  border-radius: 12px !important;
-  padding: 12px 16px !important;
+  border-radius: 10px !important;
+  padding: 14px 18px !important;
   margin-left: 0 !important;
   margin-top: 8px !important;
   font-size: 13.5px !important;
-  line-height: 1.6 !important;
-  color: var(--text-muted) !important;
-  max-height: 320px !important;
+  line-height: 1.65 !important;
+  color: var(--text-secondary) !important;
+  max-height: 480px !important;
   overflow-y: auto !important;
+}
+
+/* Prose inside the reasoning block — readable but clearly secondary */
+[data-new-ui="true"] .border-l.border-gray-300 p,
+[data-new-ui="true"] .border-l.dark\:border-gray-600 p {
+  font-size: 13.5px !important;
+  line-height: 1.65 !important;
+  color: var(--text-secondary) !important;
+  margin-bottom: 10px !important;
+}
+
+[data-new-ui="true"] .border-l.border-gray-300 code,
+[data-new-ui="true"] .border-l.dark\:border-gray-600 code {
+  font-size: 12px !important;
+  color: var(--text-muted) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Action overlay pill — no background wrapper, just bare icon buttons
+───────────────────────────────────────────────────────────────────────────── */
+
+/* Extra specificity to ensure no inherited backgrounds leak onto the action pill */
+[data-new-ui="true"] .new-ui-action-pill-container {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

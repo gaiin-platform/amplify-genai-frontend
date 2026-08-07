@@ -106,6 +106,7 @@ import { LibraryView } from '@/components/NewUI/views/LibraryView';
 import { ConversationViewShell } from '@/components/NewUI/chat/ConversationViewShell';
 import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
 import { UIPreferenceBanner, getUIPreference, type UIPreference } from '@/components/NewUI/UIPreferenceBanner';
+import { NewAssistantsView } from '@/components/NewUI/views/NewAssistantsView';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -1670,7 +1671,7 @@ const Home = ({
                                         <LibraryView />
                                     )}
                                     {page === 'assistantGallery' && (
-                                        <AssistantGallery />
+                                        <NewAssistantsView />
                                     )}
                                     {page === 'notebook' && featureFlags.notebook && (
                                         <NotebookApp />
