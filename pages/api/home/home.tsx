@@ -102,7 +102,7 @@ import { ThemeService } from '@/utils/whiteLabel/themeService';
 import { NewSidebar } from '@/components/NewUI/sidebar/NewSidebar';
 import { NewHome } from '@/components/NewUI/home/NewHome';
 import { ChatsListView } from '@/components/NewUI/views/ChatsListView';
-import { LibraryView } from '@/components/NewUI/views/LibraryView';
+import { NewLibraryView } from '@/components/NewUI/views/NewLibraryView';
 import { ConversationViewShell } from '@/components/NewUI/chat/ConversationViewShell';
 import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
 import { UIPreferenceBanner, getUIPreference, type UIPreference } from '@/components/NewUI/UIPreferenceBanner';
@@ -1668,7 +1668,7 @@ const Home = ({
                                         <ChatsListView />
                                     )}
                                     {(page as any) === 'library' && (
-                                        <LibraryView />
+                                        <NewLibraryView />
                                     )}
                                     {page === 'assistantGallery' && (
                                         <NewAssistantsView />

@@ -1,0 +1,983 @@
+/**
+ * NewLibraryView — New UI full-pane view of the user's uploaded documents (Library).
+ *
+ * Replaces LibraryView.tsx's old DataSourcesTable (MantineReactTable) with the
+ * same clean, token-driven list-row design used in NewAssistantsView.
+ *
+ * Data-fetching logic is adapted from DataSourcesTable.tsx (same service calls,
+ * no changes to any service/util files).
+ *
+ * Design tokens: --bg-app, --bg-sidebar, --bg-raised, --bg-hover, --bg-active,
+ *                --border-subtle, --text-primary, --text-secondary, --text-muted, --accent
+ */
+
+import React, {
+    useContext, useEffect, useMemo, useRef, useState, useCallback
+} from 'react';
+import toast from 'react-hot-toast';
+import {
+    IconX,
+    IconSearch,
+    IconCloudUpload,
+    IconDownload,
+    IconTrash,
+    IconRefresh,
+    IconReload,
+    IconLoader2,
+    IconCheck,
+    IconFile,
+    IconFileTypePdf,
+    IconFileTypeCsv,
+    IconFileTypeDoc,
+    IconFileTypeDocx,
+    IconFileTypePng,
+    IconFileTypeJpg,
+    IconFileTypeXls,
+    IconFileText,
+    IconFileCode,
+    IconFileSpreadsheet,
+    IconChevronDown,
+    IconAlertCircle,
+    IconCheckbox,
+    IconSquare,
+} from '@tabler/icons-react';
+import HomeContext from '@/pages/api/home/home.context';
+import {
+    FileRecord, FileQuery, PageKey, queryUserFiles, setTags, getFileDownloadUrl
+} from '@/services/fileService';
+import {
+    downloadDataSourceFile, deleteDatasourceFile, extractKey,
+    getDocumentStatusConfig, getFileAction, startFileStatusPolling,
+    startFileReprocessingWithPolling, disableSupportReprocess
+} from '@/utils/app/files';
+import { mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
+import { embeddingDocumentStatus } from '@/services/adminService';
+import { capitalize } from '@/utils/app/data';
+import { handleFile } from '@/components/Chat/AttachFile';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatDate(isoString: string): string {
+    try {
+        return new Date(isoString).toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric',
+        });
+    } catch {
+        return '—';
+    }
+}
+
+function formatTime(isoString: string): string {
+    try {
+        return new Date(isoString).toLocaleTimeString('en-US', {
+            hour: 'numeric', minute: '2-digit', hour12: true,
+        });
+    } catch {
+        return '';
+    }
+}
+
+/** Return the appropriate Tabler file-type icon for a mime type. */
+function FileTypeIcon({ mime, size = 18 }: { mime: string; size?: number }) {
+    const color = 'var(--text-muted)';
+    const s = size;
+    if (!mime) return <IconFile size={s} style={{ color }} />;
+    if (mime.includes('pdf')) return <IconFileTypePdf size={s} style={{ color }} />;
+    if (mime.includes('csv')) return <IconFileTypeCsv size={s} style={{ color }} />;
+    if (mime.includes('docx') || mime.includes('wordprocessingml'))
+        return <IconFileTypeDocx size={s} style={{ color }} />;
+    if (mime.includes('doc')) return <IconFileTypeDoc size={s} style={{ color }} />;
+    if (mime.includes('png')) return <IconFileTypePng size={s} style={{ color }} />;
+    if (mime.includes('jpg') || mime.includes('jpeg')) return <IconFileTypeJpg size={s} style={{ color }} />;
+    if (mime.includes('xls') || mime.includes('spreadsheetml'))
+        return <IconFileTypeXls size={s} style={{ color }} />;
+    if (mime.includes('text/plain')) return <IconFileText size={s} style={{ color }} />;
+    if (mime.includes('json') || mime.includes('xml') || mime.includes('html'))
+        return <IconFileCode size={s} style={{ color }} />;
+    if (mime.includes('sheet') || mime.includes('excel'))
+        return <IconFileSpreadsheet size={s} style={{ color }} />;
+    return <IconFile size={s} style={{ color }} />;
+}
+
+/** Status badge styled with new-UI tokens */
+function StatusBadge({ status }: { status: string | undefined }) {
+    if (!status) return null;
+    const config = getDocumentStatusConfig(status);
+    if (!config) return null;
+
+    const statusMap: Record<string, { bg: string; fg: string; dot?: boolean }> = {
+        completed:   { bg: 'var(--bg-raised)',  fg: 'var(--text-secondary)' },
+        processing:  { bg: '#3A2A0A',            fg: '#E8A030', dot: true },
+        starting:    { bg: 'rgba(80,120,200,0.15)', fg: '#6090D8', dot: true },
+        failed:      { bg: 'rgba(200,60,60,0.15)',  fg: '#E05252', dot: true },
+        terminated:  { bg: 'rgba(100,100,100,0.15)',fg: 'var(--text-muted)', dot: true },
+        not_found:   { bg: 'transparent',          fg: 'var(--text-muted)' },
+    };
+
+    const style = statusMap[status] ?? { bg: 'var(--bg-raised)', fg: 'var(--text-muted)' };
+
+    return (
+        <span
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap"
+            style={{ backgroundColor: style.bg, color: style.fg }}
+        >
+            {style.dot && (
+                <span
+                    className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                        status === 'processing' || status === 'starting' ? 'animate-pulse' : ''
+                    }`}
+                    style={{ backgroundColor: style.fg }}
+                />
+            )}
+            {config.text === '-----' ? '—' : capitalize(config.text)}
+        </span>
+    );
+}
+
+// ── Tag chip ──────────────────────────────────────────────────────────────────
+
+function TagChip({ label }: { label: string }) {
+    return (
+        <span
+            className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] whitespace-nowrap"
+            style={{ backgroundColor: 'var(--bg-active)', color: 'var(--text-muted)' }}
+        >
+            {label}
+        </span>
+    );
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+
+const EmptyState: React.FC<{ message: string; subMessage?: string; onUpload?: () => void }> = ({
+    message, subMessage, onUpload,
+}) => (
+    <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
+        <IconCloudUpload size={36} className="mb-4 opacity-20" style={{ color: 'var(--text-muted)' }} />
+        <p className="text-[14px] font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+            {message}
+        </p>
+        {subMessage && (
+            <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>{subMessage}</p>
+        )}
+        {onUpload && (
+            <button
+                onClick={onUpload}
+                className="mt-5 flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+                style={{ backgroundColor: 'var(--accent)' }}
+            >
+                <IconCloudUpload size={14} />
+                Upload a file
+            </button>
+        )}
+    </div>
+);
+
+// ── File row ─────────────────────────────────────────────────────────────────
+
+interface FileRowProps {
+    file: FileRecord & { commonType?: string };
+    embeddingStatus: Record<string, string> & { metadata?: Record<string, any> } | null;
+    fetchedKeys: Set<string>;
+    pollingFiles: Set<string>;
+    isDeleteMode: boolean;
+    isSelected: boolean;
+    onToggleSelect: () => void;
+    onDownload: () => void;
+    onDelete: () => void;
+    onReprocess: () => void;
+    onStatusRefresh: () => void;
+}
+
+const FileRow: React.FC<FileRowProps> = ({
+    file,
+    embeddingStatus,
+    fetchedKeys,
+    pollingFiles,
+    isDeleteMode,
+    isSelected,
+    onToggleSelect,
+    onDownload,
+    onDelete,
+    onReprocess,
+    onStatusRefresh,
+}) => {
+    const [hovered, setHovered] = useState(false);
+    const key = extractKey(file);
+    const status = embeddingStatus?.[key];
+    const isPolling = pollingFiles.has(file.id);
+    const hasFetched = fetchedKeys.has(key);
+    const action = hasFetched && status ? getFileAction(file.createdAt, status, embeddingStatus?.metadata?.[key]) : null;
+    const canReprocess = !disableSupportReprocess(file.type);
+
+    return (
+        <div
+            className="group flex items-center gap-3 px-4 py-2.5 rounded-[8px] transition-colors duration-100 cursor-default"
+            style={{ backgroundColor: hovered ? 'var(--bg-hover)' : 'transparent' }}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+        >
+            {/* Select checkbox (delete mode) */}
+            {isDeleteMode && (
+                <button
+                    className="flex-shrink-0 flex items-center justify-center w-5 h-5"
+                    onClick={(e) => { e.stopPropagation(); onToggleSelect(); }}
+                    title={isSelected ? 'Deselect' : 'Select'}
+                >
+                    {isSelected
+                        ? <IconCheckbox size={18} style={{ color: 'var(--accent)' }} />
+                        : <IconSquare size={18} style={{ color: 'var(--text-muted)' }} />
+                    }
+                </button>
+            )}
+
+            {/* File type icon */}
+            <div
+                className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-[8px]"
+                style={{ backgroundColor: 'var(--bg-raised)' }}
+            >
+                <FileTypeIcon mime={file.type} size={16} />
+            </div>
+
+            {/* Name + tags */}
+            <div className="flex-1 min-w-0">
+                <p
+                    className="text-[13px] font-medium truncate"
+                    style={{ color: 'var(--text-primary)' }}
+                    title={file.name}
+                >
+                    {file.name}
+                </p>
+                {file.tags && file.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                        {file.tags.slice(0, 4).map((tag) => (
+                            <TagChip key={tag} label={tag} />
+                        ))}
+                        {file.tags.length > 4 && (
+                            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                +{file.tags.length - 4}
+                            </span>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* Type label */}
+            <span
+                className="hidden sm:block text-[12px] w-[80px] text-right flex-shrink-0"
+                style={{ color: 'var(--text-muted)' }}
+            >
+                {file.commonType || (file.type ? file.type.slice(0, 12) : '—')}
+            </span>
+
+            {/* Date */}
+            <span
+                className="hidden md:block text-[12px] w-[90px] text-right flex-shrink-0"
+                style={{ color: 'var(--text-muted)' }}
+                title={formatDate(file.createdAt) + ' ' + formatTime(file.createdAt)}
+            >
+                {formatDate(file.createdAt)}
+            </span>
+
+            {/* Status */}
+            <div className="flex items-center gap-1 w-[100px] justify-end flex-shrink-0">
+                {!hasFetched ? (
+                    <IconLoader2 size={14} className="animate-spin" style={{ color: 'var(--text-muted)' }} />
+                ) : (
+                    <StatusBadge status={status} />
+                )}
+                {/* Polling spinner */}
+                {isPolling && (
+                    <IconLoader2 size={13} className="animate-spin ml-1" style={{ color: 'var(--text-muted)' }} />
+                )}
+                {/* Action buttons (refresh / reprocess) */}
+                {!isPolling && hasFetched && canReprocess && action === 'refresh' && (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onStatusRefresh(); }}
+                        className="flex items-center justify-center h-5 w-5 rounded-[4px] transition-colors"
+                        style={{ color: 'var(--text-muted)' }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#6090D8'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
+                        title="Check status update"
+                    >
+                        <IconRefresh size={13} />
+                    </button>
+                )}
+                {!isPolling && hasFetched && canReprocess && action === 'reprocess' && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm('Regenerate text extraction and embeddings for this file?')) {
+                                onReprocess();
+                            }
+                        }}
+                        className="flex items-center justify-center h-5 w-5 rounded-[4px] transition-colors"
+                        style={{ color: 'var(--text-muted)' }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#E8A030'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
+                        title="Regenerate embeddings"
+                    >
+                        <IconReload size={13} />
+                    </button>
+                )}
+            </div>
+
+            {/* Hover actions */}
+            <div
+                className={`flex items-center gap-1 transition-opacity duration-100 ${
+                    hovered && !isDeleteMode ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                }`}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <button
+                    className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
+                    style={{ color: 'var(--text-muted)' }}
+                    onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
+                        (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+                    }}
+                    onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                        (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                    }}
+                    onClick={onDownload}
+                    title="Download"
+                >
+                    <IconDownload size={14} />
+                </button>
+                <button
+                    className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
+                    style={{ color: 'var(--text-muted)' }}
+                    onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
+                        (e.currentTarget as HTMLElement).style.color = '#E05252';
+                    }}
+                    onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                        (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                    }}
+                    onClick={onDelete}
+                    title="Delete"
+                >
+                    <IconTrash size={14} />
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// ── Column header ─────────────────────────────────────────────────────────────
+
+const ColumnHeader: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
+    <span
+        className={`text-[11px] font-semibold uppercase tracking-wider ${className}`}
+        style={{ color: 'var(--text-muted)' }}
+    >
+        {children}
+    </span>
+);
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+export const NewLibraryView: React.FC = () => {
+    const {
+        state: { featureFlags },
+        dispatch,
+        setLoadingMessage,
+    } = useContext(HomeContext);
+
+    // ── Data state ─────────────────────────────────────────────────────────────
+    const [data, setData] = useState<(FileRecord & { commonType?: string })[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isRefetching, setIsRefetching] = useState(false);
+    const [isError, setIsError] = useState(false);
+    const [refreshKey, setRefreshKey] = useState(0);
+
+    // Pagination
+    const [pageIndex, setPageIndex] = useState(0);
+    const [pageKeys, setPageKeys] = useState<PageKey[]>([]);
+    const [hasMore, setHasMore] = useState(false);
+    const PAGE_SIZE = 50;
+
+    // Embedding status
+    const [embeddingStatus, setEmbeddingStatus] = useState<Record<string, string> & { metadata?: Record<string, any> } | null>(null);
+    const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+    const fetchedStatusKeys = useRef<Set<string>>(new Set());
+    const [pollingFiles, setPollingFiles] = useState<Set<string>>(new Set());
+
+    // Delete mode
+    const [isDeleteMode, setIsDeleteMode] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+    // Search
+    const [search, setSearch] = useState('');
+    const [committedSearch, setCommittedSearch] = useState('');
+    const searchRef = useRef<HTMLInputElement>(null);
+
+    // Upload
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [uploading, setUploading] = useState(false);
+
+    // ── Fetch ──────────────────────────────────────────────────────────────────
+
+    const fetchPage = useCallback(async (newSearch: string, newPageIndex: number, keys: PageKey[]) => {
+        if (!data.length) setIsLoading(true);
+        else setIsRefetching(true);
+
+        try {
+            const pageKeyIndex = newPageIndex - 1;
+            const pageKey = pageKeyIndex >= 0 ? keys[pageKeyIndex] : null;
+
+            const query: FileQuery = {
+                pageSize: PAGE_SIZE,
+                sortIndex: 'createdAt',
+                forwardScan: false, // newest first (desc=true → forwardScan=false)
+                filters: [{
+                    attribute: 'data.type',
+                    operator: 'not_startsWith',
+                    value: 'assistant',
+                }],
+            };
+            if (pageKey) query.pageKey = pageKey;
+            if (newSearch.trim()) query.namePrefix = newSearch.trim();
+
+            const result = await queryUserFiles(query, null);
+            if (!result.success || !result.data) {
+                setIsError(true);
+                return;
+            }
+
+            const items: (FileRecord & { commonType?: string })[] = (result.data.items || [])
+                .filter((f: FileRecord) => !(f?.data?.type && f.data.type.startsWith('assistant')))
+                .map((f: FileRecord) => ({
+                    ...f,
+                    commonType: mimeTypeToCommonName[f.type] || (f.type ? f.type.slice(0, 15) : 'Unknown'),
+                }));
+
+            setData(items);
+            setHasMore(!!result.data.pageKey);
+
+            if ((pageKeyIndex >= keys.length - 1 || keys.length === 0) && result.data.pageKey) {
+                setPageKeys((prev) => {
+                    const updated = [...prev];
+                    updated[newPageIndex] = result.data.pageKey!;
+                    return updated;
+                });
+            }
+
+            setIsError(false);
+        } catch (e) {
+            console.error(e);
+            setIsError(true);
+        } finally {
+            setIsLoading(false);
+            setIsRefetching(false);
+        }
+    }, [data.length]);
+
+    // Initial + refresh fetch
+    useEffect(() => {
+        setPageIndex(0);
+        setPageKeys([]);
+        fetchPage(committedSearch, 0, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [committedSearch, refreshKey]);
+
+    // Subsequent page fetches
+    useEffect(() => {
+        if (pageIndex === 0) return; // handled above
+        fetchPage(committedSearch, pageIndex, pageKeys);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pageIndex]);
+
+    // ── Embedding status ───────────────────────────────────────────────────────
+
+    useEffect(() => {
+        if (data.length === 0 || isLoadingStatus) return;
+        setIsLoadingStatus(true);
+        fetchedStatusKeys.current.clear();
+
+        const keys = data.map((f) => ({ key: extractKey(f), type: f.type })).filter((k) => k.key);
+        if (!keys.length) { setIsLoadingStatus(false); return; }
+
+        const CHUNK = 25;
+        const chunks: typeof keys[] = [];
+        for (let i = 0; i < keys.length; i += CHUNK) chunks.push(keys.slice(i, i + CHUNK));
+
+        const promises = chunks.map((chunk) =>
+            embeddingDocumentStatus(chunk)
+                .then((resp) => {
+                    if (resp?.success && resp?.data) {
+                        setEmbeddingStatus((prev) => ({
+                            ...prev,
+                            ...resp.data,
+                            ...(resp.metadata && { metadata: { ...prev?.metadata, ...resp.metadata } }),
+                        }));
+                    }
+                    chunk.forEach((item) => fetchedStatusKeys.current.add(item.key));
+                })
+                .catch(() => { chunk.forEach((item) => fetchedStatusKeys.current.add(item.key)); })
+        );
+
+        Promise.allSettled(promises).finally(() => setIsLoadingStatus(false));
+    }, [data]);
+
+    // ── Actions ────────────────────────────────────────────────────────────────
+
+    const handleDownload = (file: FileRecord & { commonType?: string }) => {
+        downloadDataSourceFile({ id: file.id, name: file.name, type: file.type });
+    };
+
+    const handleDelete = async (file: FileRecord) => {
+        if (!confirm(`Delete "${file.name}"?`)) return;
+        setLoadingMessage('Deleting file…');
+        try {
+            await deleteDatasourceFile({ id: file.id, name: file.name });
+            setRefreshKey((k) => k + 1);
+        } finally {
+            setLoadingMessage('');
+        }
+    };
+
+    const handleBatchDelete = async () => {
+        if (!selectedIds.size) return;
+        setLoadingMessage(`Deleting ${selectedIds.size} file(s)…`);
+        try {
+            const results = await Promise.all(
+                Array.from(selectedIds).map((id) => {
+                    const f = data.find((x) => x.id === id);
+                    return deleteDatasourceFile({ id, name: f?.name }, false);
+                })
+            );
+            const failed = results.filter((r) => !r.success);
+            const ok = results.length - failed.length;
+            if (!failed.length) toast.success(`Deleted ${ok} file(s)`);
+            else toast.error(`Deleted ${ok}, failed ${failed.length}`);
+            setSelectedIds(new Set());
+            setShowDeleteConfirm(false);
+            setIsDeleteMode(false);
+            setRefreshKey((k) => k + 1);
+        } catch (e) {
+            toast.error('Unexpected error during batch deletion');
+        } finally {
+            setLoadingMessage('');
+        }
+    };
+
+    const handleReprocess = async (file: FileRecord) => {
+        await startFileReprocessingWithPolling({
+            key: extractKey(file),
+            fileType: file.type,
+            setPollingFiles,
+            setEmbeddingStatus,
+            setLoadingMessage,
+        });
+    };
+
+    const handleStatusRefresh = (file: FileRecord) => {
+        startFileStatusPolling({
+            key: extractKey(file),
+            fileType: file.type,
+            setPollingFiles,
+            setEmbeddingStatus,
+        });
+    };
+
+    // ── Upload ─────────────────────────────────────────────────────────────────
+
+    const handleUploadChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || !files.length) return;
+        setUploading(true);
+        setLoadingMessage('Uploading file…');
+        try {
+            for (const file of Array.from(files)) {
+                await handleFile(
+                    file,
+                    () => { /* onAttach — we'll refresh list */ },
+                    () => {},
+                    () => {},
+                    () => {},
+                    () => {},
+                    featureFlags.uploadDocuments ?? false,
+                    undefined,
+                    false,
+                    {},
+                    []
+                );
+            }
+            // Refresh after upload
+            setRefreshKey((k) => k + 1);
+        } finally {
+            setUploading(false);
+            setLoadingMessage('');
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    // ── Search ─────────────────────────────────────────────────────────────────
+
+    const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') setCommittedSearch(search);
+        if (e.key === 'Escape') { setSearch(''); setCommittedSearch(''); }
+    };
+
+    // ── Select all ────────────────────────────────────────────────────────────
+
+    const toggleSelectAll = () => {
+        if (selectedIds.size === data.length) setSelectedIds(new Set());
+        else setSelectedIds(new Set(data.map((f) => f.id)));
+    };
+
+    // ── Pagination ─────────────────────────────────────────────────────────────
+
+    const loadNextPage = () => setPageIndex((i) => i + 1);
+    const loadPrevPage = () => setPageIndex((i) => Math.max(0, i - 1));
+
+    // ── Render ─────────────────────────────────────────────────────────────────
+
+    return (
+        <div
+            className="flex flex-col h-full w-full overflow-hidden"
+            style={{ backgroundColor: 'var(--bg-app)', fontFamily: 'Inter, sans-serif' }}
+        >
+            {/* ── Top bar ───────────────────────────────────────────────────── */}
+            <div
+                className="flex-shrink-0 flex items-center justify-between px-6 border-b"
+                style={{
+                    backgroundColor: 'var(--bg-sidebar)',
+                    borderColor: 'var(--border-subtle)',
+                    height: 56,
+                }}
+            >
+                {/* Left: close + title */}
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => dispatch({ field: 'page', value: 'chat' })}
+                        className="flex items-center justify-center h-8 w-8 rounded-[8px] transition-colors flex-shrink-0"
+                        style={{ color: 'var(--text-muted)' }}
+                        onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)';
+                            (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+                        }}
+                        onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                        }}
+                        title="Close"
+                    >
+                        <IconX size={16} />
+                    </button>
+                    <h1
+                        className="text-[17px] font-semibold tracking-tight"
+                        style={{ color: 'var(--text-primary)', fontFamily: '"Newsreader", "Georgia", serif' }}
+                    >
+                        Library
+                    </h1>
+                </div>
+
+                {/* Right: search + actions */}
+                <div className="flex items-center gap-2">
+                    {/* Search */}
+                    <div className="relative">
+                        <IconSearch
+                            size={14}
+                            className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                            style={{ color: 'var(--text-muted)' }}
+                        />
+                        <input
+                            ref={searchRef}
+                            type="text"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            onKeyDown={handleSearchKeyDown}
+                            placeholder="Search files… (Enter)"
+                            className="h-[32px] pl-8 pr-3 rounded-[8px] text-[12px] border focus:outline-none w-[200px] transition-colors"
+                            style={{
+                                backgroundColor: 'var(--bg-raised)',
+                                borderColor: 'var(--border-subtle)',
+                                color: 'var(--text-primary)',
+                            }}
+                        />
+                    </div>
+
+                    {/* Refresh */}
+                    <button
+                        onClick={() => setRefreshKey((k) => k + 1)}
+                        className="flex items-center justify-center h-[32px] w-[32px] rounded-[8px] transition-colors"
+                        style={{ color: 'var(--text-muted)' }}
+                        onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)';
+                            (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+                        }}
+                        onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                        }}
+                        title="Refresh"
+                    >
+                        <IconRefresh size={15} />
+                    </button>
+
+                    {/* Delete mode toggle */}
+                    <button
+                        onClick={() => {
+                            if (isDeleteMode) { setIsDeleteMode(false); setSelectedIds(new Set()); setShowDeleteConfirm(false); }
+                            else setIsDeleteMode(true);
+                        }}
+                        className="flex items-center justify-center h-[32px] w-[32px] rounded-[8px] transition-colors"
+                        style={{
+                            color: isDeleteMode ? '#E05252' : 'var(--text-muted)',
+                            backgroundColor: isDeleteMode ? 'rgba(224,82,82,0.1)' : 'transparent',
+                        }}
+                        onMouseEnter={(e) => {
+                            if (!isDeleteMode) {
+                                (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)';
+                                (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+                            }
+                        }}
+                        onMouseLeave={(e) => {
+                            if (!isDeleteMode) {
+                                (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                                (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                            }
+                        }}
+                        title={isDeleteMode ? 'Cancel selection' : 'Select files to delete'}
+                    >
+                        <IconTrash size={15} />
+                    </button>
+
+                    {/* Upload */}
+                    {featureFlags.uploadDocuments && (
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="flex items-center gap-1.5 h-[32px] px-3 rounded-[8px] text-[12px] font-medium text-white transition-opacity hover:opacity-90"
+                            style={{ backgroundColor: 'var(--accent)' }}
+                            disabled={uploading}
+                        >
+                            {uploading
+                                ? <IconLoader2 size={13} className="animate-spin" />
+                                : <IconCloudUpload size={13} />
+                            }
+                            Upload
+                        </button>
+                    )}
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        className="hidden"
+                        onChange={handleUploadChange}
+                    />
+                </div>
+            </div>
+
+            {/* ── Batch-delete confirmation bar ─────────────────────────────── */}
+            {isDeleteMode && (
+                <div
+                    className="flex-shrink-0 flex items-center gap-3 px-6 py-2 border-b text-[13px]"
+                    style={{
+                        backgroundColor: 'var(--bg-raised)',
+                        borderColor: 'var(--border-subtle)',
+                        color: 'var(--text-secondary)',
+                    }}
+                >
+                    <button
+                        onClick={toggleSelectAll}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded-[6px] transition-colors"
+                        style={{ color: 'var(--text-secondary)' }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
+                    >
+                        {selectedIds.size === data.length && data.length > 0 ? 'Deselect all' : 'Select all'}
+                    </button>
+                    <span style={{ color: 'var(--text-muted)' }}>{selectedIds.size} selected</span>
+                    {!showDeleteConfirm ? (
+                        <button
+                            onClick={() => setShowDeleteConfirm(true)}
+                            disabled={selectedIds.size === 0}
+                            className="flex items-center gap-1 px-3 py-1 rounded-[6px] text-white text-[12px] font-medium transition-opacity disabled:opacity-40"
+                            style={{ backgroundColor: '#c94040' }}
+                        >
+                            <IconTrash size={12} /> Delete {selectedIds.size > 0 ? selectedIds.size : ''} file(s)
+                        </button>
+                    ) : (
+                        <div
+                            className="flex items-center gap-2 px-2 py-1 rounded-[6px]"
+                            style={{ backgroundColor: 'rgba(224,82,82,0.1)' }}
+                        >
+                            <IconAlertCircle size={14} style={{ color: '#E05252' }} />
+                            <span className="text-[12px]" style={{ color: '#E05252' }}>
+                                Delete {selectedIds.size} file(s)?
+                            </span>
+                            <button
+                                onClick={handleBatchDelete}
+                                className="flex items-center justify-center h-5 w-5 rounded transition-colors"
+                                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(80,200,120,0.2)'; }}
+                                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
+                                title="Confirm delete"
+                            >
+                                <IconCheck size={14} style={{ color: '#50C878' }} />
+                            </button>
+                            <button
+                                onClick={() => setShowDeleteConfirm(false)}
+                                className="flex items-center justify-center h-5 w-5 rounded transition-colors"
+                                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(224,82,82,0.2)'; }}
+                                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
+                                title="Cancel"
+                            >
+                                <IconX size={14} style={{ color: '#E05252' }} />
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ── Column headers ────────────────────────────────────────────── */}
+            <div
+                className="flex-shrink-0 flex items-center gap-3 px-4 py-2 border-b"
+                style={{ borderColor: 'var(--border-subtle)' }}
+            >
+                {isDeleteMode && <div className="w-5 flex-shrink-0" />}
+                <div className="w-9 flex-shrink-0" />
+                <div className="flex-1">
+                    <ColumnHeader>Name</ColumnHeader>
+                </div>
+                <div className="hidden sm:block w-[80px] text-right flex-shrink-0">
+                    <ColumnHeader>Type</ColumnHeader>
+                </div>
+                <div className="hidden md:block w-[90px] text-right flex-shrink-0">
+                    <ColumnHeader>Date</ColumnHeader>
+                </div>
+                <div className="w-[100px] text-right flex-shrink-0">
+                    <ColumnHeader>Status</ColumnHeader>
+                </div>
+                {/* Actions spacer */}
+                <div className="w-[60px] flex-shrink-0" />
+            </div>
+
+            {/* ── File list ─────────────────────────────────────────────────── */}
+            <div className="flex-1 overflow-y-auto px-2 py-1">
+                {isLoading ? (
+                    /* Skeleton rows */
+                    <div className="flex flex-col gap-1 pt-2 px-2">
+                        {Array.from({ length: 8 }).map((_, i) => (
+                            <div
+                                key={i}
+                                className="flex items-center gap-3 px-4 py-2.5 rounded-[8px] animate-pulse"
+                            >
+                                <div
+                                    className="w-9 h-9 rounded-[8px] flex-shrink-0"
+                                    style={{ backgroundColor: 'var(--bg-raised)' }}
+                                />
+                                <div className="flex-1 flex flex-col gap-1.5">
+                                    <div
+                                        className="h-3 rounded w-1/3"
+                                        style={{ backgroundColor: 'var(--bg-raised)' }}
+                                    />
+                                    <div
+                                        className="h-2.5 rounded w-1/5"
+                                        style={{ backgroundColor: 'var(--bg-raised)', opacity: 0.6 }}
+                                    />
+                                </div>
+                                <div
+                                    className="h-5 w-16 rounded-full hidden sm:block"
+                                    style={{ backgroundColor: 'var(--bg-raised)' }}
+                                />
+                                <div
+                                    className="h-5 w-16 rounded-full hidden md:block"
+                                    style={{ backgroundColor: 'var(--bg-raised)' }}
+                                />
+                                <div
+                                    className="h-5 w-20 rounded-full"
+                                    style={{ backgroundColor: 'var(--bg-raised)' }}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                ) : isError ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-3">
+                        <IconAlertCircle size={32} className="opacity-40" style={{ color: '#E05252' }} />
+                        <p className="text-[14px]" style={{ color: 'var(--text-secondary)' }}>
+                            Failed to load files
+                        </p>
+                        <button
+                            onClick={() => setRefreshKey((k) => k + 1)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[13px] transition-colors"
+                            style={{ backgroundColor: 'var(--bg-raised)', color: 'var(--text-secondary)' }}
+                        >
+                            <IconRefresh size={13} /> Try again
+                        </button>
+                    </div>
+                ) : data.length === 0 ? (
+                    <EmptyState
+                        message={committedSearch ? 'No files match your search' : 'No files uploaded yet'}
+                        subMessage={!committedSearch ? 'Upload a file to get started' : undefined}
+                        onUpload={!committedSearch && featureFlags.uploadDocuments ? () => fileInputRef.current?.click() : undefined}
+                    />
+                ) : (
+                    <>
+                        {data.map((file) => (
+                            <FileRow
+                                key={file.id}
+                                file={file}
+                                embeddingStatus={embeddingStatus}
+                                fetchedKeys={fetchedStatusKeys.current}
+                                pollingFiles={pollingFiles}
+                                isDeleteMode={isDeleteMode}
+                                isSelected={selectedIds.has(file.id)}
+                                onToggleSelect={() => {
+                                    const n = new Set(selectedIds);
+                                    n.has(file.id) ? n.delete(file.id) : n.add(file.id);
+                                    setSelectedIds(n);
+                                }}
+                                onDownload={() => handleDownload(file)}
+                                onDelete={() => handleDelete(file)}
+                                onReprocess={() => handleReprocess(file)}
+                                onStatusRefresh={() => handleStatusRefresh(file)}
+                            />
+                        ))}
+
+                        {/* Load-more / pagination */}
+                        <div className="flex items-center justify-center gap-3 py-4 mt-2">
+                            {pageIndex > 0 && (
+                                <button
+                                    onClick={loadPrevPage}
+                                    className="flex items-center gap-1 px-3 py-1.5 rounded-[8px] text-[12px] transition-colors"
+                                    style={{ backgroundColor: 'var(--bg-raised)', color: 'var(--text-secondary)' }}
+                                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)'; }}
+                                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-raised)'; }}
+                                >
+                                    ← Previous
+                                </button>
+                            )}
+                            {isRefetching && (
+                                <IconLoader2 size={16} className="animate-spin" style={{ color: 'var(--text-muted)' }} />
+                            )}
+                            {hasMore && !isRefetching && (
+                                <button
+                                    onClick={loadNextPage}
+                                    className="flex items-center gap-1 px-3 py-1.5 rounded-[8px] text-[12px] transition-colors"
+                                    style={{ backgroundColor: 'var(--bg-raised)', color: 'var(--text-secondary)' }}
+                                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)'; }}
+                                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-raised)'; }}
+                                >
+                                    Next →
+                                </button>
+                            )}
+                            {!hasMore && !isRefetching && data.length > 0 && (
+                                <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
+                                    {data.length} file{data.length !== 1 ? 's' : ''}
+                                    {pageIndex > 0 ? ` on page ${pageIndex + 1}` : ''}
+                                </span>
+                            )}
+                        </div>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default NewLibraryView;

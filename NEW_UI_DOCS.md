@@ -196,7 +196,16 @@ components/NewUI/
   views/
     ChatsListView.tsx        ← full-pane "Chats and tasks" table (search, filter, relative dates). page='chats'
                                Auto-focuses search input on mount (80ms delay).
-    LibraryView.tsx          ← full-pane document library wrapping DataSourcesTable. page='library'
+    LibraryView.tsx          ← (SUPERSEDED) thin wrapper around DataSourcesTable. No longer used in new-UI path.
+    NewLibraryView.tsx       ← full-pane new-UI document library. page='library'
+                               Design matches NewAssistantsView: clean list rows, design tokens, no MantineReactTable.
+                               Columns: file-type icon, name + tags, type, date, status badge, download/delete hover actions.
+                               Search: search bar (Enter to commit) with server-side namePrefix query.
+                               Upload: "Upload" button (gated by featureFlags.uploadDocuments) via handleFile.
+                               Status: StatusBadge per file using getDocumentStatusConfig; refresh/reprocess action buttons.
+                               Delete: single row × on hover + batch delete mode (select all / confirm bar).
+                               Pagination: "Previous / Next" load-page buttons; skeleton rows while loading.
+                               Embedding status fetched in 25-key chunks via embeddingDocumentStatus (same as DataSourcesTable).
     NewAssistantsView.tsx    ← new-UI reimplementation of AssistantGallery. page='assistantGallery' (new UI path only)
                                Four tabs: My Assistants | Group Assistants | Prompt Templates | Layered Assistants
                                Each tab has: search, "+ New" creation button, list rows (not old gradient card grid)
@@ -660,6 +669,21 @@ Addressed all 9 defects from the layout spec. No visual (color/typography) chang
 - [x] **Preview centered** — fixed `AttachmentPreview` layout. Root cause: `transform:translate(-50%,-50%)` and FLIP `transform` cannot coexist on the same element. Solution: outer `fixed inset-0 flex items-center justify-center` wrapper handles centering; inner panel ref receives FLIP transforms only.
 - [x] **Image thumbnails visible** — root cause: `handleFile` sets `doc.raw = ""` so `URL.createObjectURL` was impossible after the callback. Fix: `addFileToRail()` in `NewHome` calls `URL.createObjectURL(file)` on the original `File` *before* calling `handleFile`, stashes the URL in `thumbUrlsRef`, then passes it into `createUIAttachmentFromDoc` as `prebuiltThumbUrl`. Object-URLs are revoked on remove and on send.
 - [x] **Image paste** — `RichComposer` now has `onImagePaste?(file: File)` prop; checks `clipboardData.items` for `image/*` first. `ConversationComposer.handleTextareaPaste` checks the same. Both route to `addFileToRail` / `addImageToRail` so pasted screenshots/images appear in the rail immediately.
+
+### Phase 20 — New Library View ✅ COMPLETE
+- [x] **`NewLibraryView.tsx`** — new-UI reimplementation of the Library (Document Library) view
+  - Replaces old `LibraryView.tsx` (which was a thin wrapper around `DataSourcesTable` using MantineReactTable)
+  - Clean list-row design matching `NewAssistantsView` — uses all new-UI design tokens, Inter font, `--bg-*` variables
+  - File type icons: per-MIME Tabler icons (`IconFileTypePdf`, `IconFileTypeCsv`, `IconFileTypeDocx`, etc.)
+  - Status badges: `StatusBadge` component using `getDocumentStatusConfig` with warm-color new-UI styling (no Tailwind hardcoded colors)
+  - Columns: icon square + name/tags | type | date | status+action | hover actions (download, delete)
+  - Search: input field, Enter commits a server-side `namePrefix` query; Escape clears
+  - Upload: "Upload" button (gated by `featureFlags.uploadDocuments`) via `handleFile`, multi-file support
+  - Embedding status: fetched in 25-key chunks with `embeddingDocumentStatus`; refresh and reprocess action icons per row
+  - Batch delete mode: trash-mode toggle shows checkboxes; select-all / confirm bar with ✓/✗ buttons
+  - Single-row delete: hover × on each row (no confirmation — matches UX of similar tools)
+  - Pagination: "Previous / Next" page buttons + file count footer; skeleton loading rows
+  - Wired in `home.tsx`: `NewLibraryView` replaces `LibraryView` for the new-UI path
 
 ### Phase 19 — Remaining Port Work (NEXT)
 - [ ] Responsive: icon rail at 760-1099px

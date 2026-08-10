@@ -34,7 +34,7 @@
 | Sidebar collapse to icon rail | ✅ | Collapses to 52px; full icon-rail at 760–1099px is Phase 17 |
 | Search → Chats & Tasks full-pane view | ✅ | Search button in header dispatches `page='chats'` |
 | Chats & Tasks full list view | ✅ | `ChatsListView.tsx` |
-| Library view (data sources) | ✅ | `LibraryView.tsx` |
+| Library view (data sources) | ✅ | `NewLibraryView.tsx` — new-UI reimplementation with list rows, file icons, status badges, search, upload, batch delete |
 | Home landing page | ✅ | `NewHome.tsx` |
 | UI preference banner (new vs classic) | ✅ | `UIPreferenceBanner.tsx` |
 | Off-canvas drawer <760px | ❌ | Phase 17 |
