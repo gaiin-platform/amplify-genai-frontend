@@ -24,7 +24,7 @@ const notebookSourceChat = async (req: NextApiRequest, res: NextApiResponse) => 
 
     const base = getOpenNotebookBase();
     if (!base) {
-        return res.status(500).json({ error: 'API_BASE_URL not configured' });
+        return res.status(500).json({ error: 'OPEN_NOTEBOOK_INTERNAL_URL not configured' });
     }
 
     const {

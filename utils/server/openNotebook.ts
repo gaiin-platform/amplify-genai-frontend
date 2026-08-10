@@ -6,11 +6,20 @@
 // validates the token and routes the request to that user's isolated
 // database, so these routes add no authorization of their own — they exist
 // only because the browser session token lives server-side in next-auth.
+//
+// The base URL comes from OPEN_NOTEBOOK_INTERNAL_URL, an explicit per-stage
+// env var (e.g. https://open-notebook.vanderbilt.ai in prod,
+// https://open-notebook.dev-amplify.vanderbilt.ai in dev) set on this app's
+// own task definition/environment. Previously this was derived from
+// API_BASE_URL via a `.replace('dev-api', 'open-notebook')` string hack,
+// which only worked in dev because dev's API_BASE_URL happens to contain the
+// literal substring "dev-api" -- prod's API_BASE_URL (prod-api.vanderbilt.ai)
+// does not, so the hack silently no-op'd and pointed requests at the Amplify
+// API Gateway domain instead of the Open Notebook ALB.
 
 export const getOpenNotebookBase = (): string | null => {
-    const apiBaseUrl = process.env.API_BASE_URL;
-    if (!apiBaseUrl) return null;
-    const url = apiBaseUrl.replace('dev-api', 'open-notebook');
+    const url = process.env.OPEN_NOTEBOOK_INTERNAL_URL;
+    if (!url) return null;
     return url.replace(/\/+$/, '');
 };
 
