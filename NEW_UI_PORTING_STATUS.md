@@ -119,7 +119,7 @@
 | Skills | ✅ | Wraps existing `SkillsLibrary` |
 | Connectors / Integrations | ✅ | Wraps existing `IntegrationTabs` |
 | MCP Servers | ✅ | Wraps existing `MCPServersTab` |
-| Admin Panel | ✅ | `NewAdminModal.tsx` — same two-column shell as settings, all tabs as left-rail nav items |
+| Admin Panel | ✅ | `NewAdminModal.tsx` — same two-column shell as settings, all tabs as left-rail nav items; light-mode text inheritance fixed (Phase 22) |
 | Capabilities section | ❌ | Placeholder |
 | Code section | ❌ | Placeholder |
 

@@ -225,6 +225,9 @@ components/NewUI/
                                Escape / overlay-click both confirm before closing when unsaved changes exist.
                                Entry: NewSettingsModal "Admin Panel" nav → renders NewAdminModal above settings modal.
                                Old AdminUI is no longer rendered in the new-UI path (still used in classic-UI path).
+                               LIGHT MODE: right content pane has className="text-neutral-900 dark:text-white" — this
+                               is the inherited base color for all admin tab child components (mirrors old AdminUI wrapper).
+                               Without it, components that only set dark:text-* have no light-mode fallback.
                                Sections: general|account|usage|storage|apikeys|customInstructions|
                                          skills|connectors|mcp|admin
                                Entry points: sidebar Customize (→skills), AccountMenu (→general), ⌘, (→general)
@@ -711,11 +714,19 @@ Addressed all 9 defects from the layout spec. No visual (color/typography) chang
   - Entry points unchanged: AccountMenu → "Admin Panel" → `openNewUIAdminPanel` event → `settingsSection='admin'` → `NewAdminModal`
   - Classic-UI path still uses old `AdminUI` — untouched
 
+### Phase 22 — Admin Panel Light Mode Fixes ✅ COMPLETE
+- [x] **Root cause fixed** — `NewAdminModal` right content pane now has `className="text-neutral-900 dark:text-white"`. This mirrors the `text-black dark:text-white` wrapper the old `AdminUI` had, giving all admin tab components a correct inherited base text color in light mode.
+- [x] **`Configurations.tsx`** — `text-blue-100` cloud icon → `text-blue-500` (was ~1.1:1 contrast on white, now visible); `hover:text-neutral-200` edit-rate-limit button → `hover:text-neutral-700 dark:hover:text-neutral-200` (was near-white on hover in light mode)
+- [x] **`SupportedModels.tsx`** — `text-[#0bb9f4]` (bright cyan, ~2.2:1 contrast) → `text-[#0284c7] dark:text-[#38bdf8]` on both the "(* Required)" span and all model-selector labels; readable in both modes
+- [x] **`FeatureData.tsx`** — `text-blue-400` plus icon on `bg-blue-100` button (~1.5:1 contrast) → `text-blue-600 dark:text-blue-400`
+- [x] **`Ops.tsx`** — `text-neutral-400` "Search by" label (~2.6:1 contrast) → `text-neutral-600 dark:text-neutral-400`
+- [x] **`OpenAIEndpoints.tsx`** — delete/remove-model buttons had `dark:text-neutral-100` with no light-mode color → added `text-neutral-700` on both
+
 ### Phase 19 — Remaining Port Work (NEXT)
 - [ ] Responsive: icon rail at 760-1099px
 - [ ] Responsive: off-canvas drawer <760px
 - [ ] All transitions under `prefers-reduced-motion`
-- [ ] Light mode polish for new components
+- [ ] Light mode polish for new components (non-admin areas)
 - [ ] Settings → Usage section (port `UserCostBreakdownModal`)
 - [ ] Settings → Capabilities section
 - [ ] Wire `amplify_custom_instructions` into `handleNewConversation` so new conversations use the saved custom instructions as their system prompt
@@ -765,6 +776,22 @@ Always use Tailwind's `dark:` variant:
   // OR
 <div className="bg-white dark:bg-[#1F1E1D] text-gray-900 dark:text-[#FAF9F5]">
 ```
+
+**Light-mode gotcha when wrapping old components in new-UI modals:**
+Old admin/settings components often relied on a parent wrapper that set the inherited text color
+(e.g. `AdminUI` had `<div className="text-black dark:text-white">`). When you render these
+components inside a new-UI modal that doesn't have that wrapper, any element that only sets
+`dark:text-*` (without a matching light-mode `text-*`) will have no light-mode text color and may
+be invisible or very low contrast on the white/light-gray modal background.
+
+**The fix:** Add `className="text-neutral-900 dark:text-white"` to the outermost content div of
+any new-UI modal that renders old components. This restores the inheritance chain. See
+`NewAdminModal`'s right content pane for the reference implementation.
+
+Specific old-component color patterns to watch for:
+- `dark:text-neutral-100` / `dark:text-white` with no preceding light `text-*` → add `text-neutral-700` or `text-neutral-900`
+- `text-blue-100` / `text-neutral-200` without `dark:` prefix → these are *always* near-white, usually an error; replace with a visible color like `text-blue-500`
+- `text-[#0bb9f4]` or similar bright cyan → contrast ~2.2:1 on white; use `text-[#0284c7]` (darker) for light, original for dark
 
 ### Event Bus Pattern (existing, keep using)
 The app uses `window.dispatchEvent(new CustomEvent(...))` for cross-component communication:

@@ -184,6 +184,7 @@ Run this check and update the wiki before starting major new work.
 6. **Dark mode support (`dark:` Tailwind variant or CSS variable) is required on every new UI element**
 7. **Reusable components live in `components/NewUI/shared/` — put them there, not inline**
 8. **⛔ THE ONE-DIRECTORY RULE: never modify any file outside `components/NewUI/` for UI purposes** — see below
+9. **When wrapping old components in a new-UI modal, add `className="text-neutral-900 dark:text-white"` to the outermost content div.** Old components often rely on an inherited base text color set by their original parent wrapper. Without this, elements that only set `dark:text-*` have no light-mode fallback and will be invisible on the white/light-gray modal background. See `NewAdminModal` and Section 13 ("Light-mode gotcha") for details.
 
 ---
 
