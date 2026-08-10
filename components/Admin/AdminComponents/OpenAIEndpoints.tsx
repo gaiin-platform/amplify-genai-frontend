@@ -197,7 +197,7 @@ export const OpenAIEndpointsTab: FC<Props> = ({openAiEndpoints, setOpenAiEndpoin
                                 title="Delete Endpoints"
                                 id={`deleteEndpointButton-${modelName}`}
                                 disabled={isDeletingEndpoint === modelName}
-                                className={`mt-1 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 dark:text-neutral-100 transition-colors duration-200 ${isDeletingEndpoint !== modelName ? "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" : ""}`}
+                                className={`mt-1 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 text-neutral-700 dark:text-neutral-100 transition-colors duration-200 ${isDeletingEndpoint !== modelName ? "cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" : ""}`}
                                 onClick={() => {
                                     setIsDeletingEndpoint(modelName);
                                     setDeleteEndpointsList([]);
@@ -209,7 +209,7 @@ export const OpenAIEndpointsTab: FC<Props> = ({openAiEndpoints, setOpenAiEndpoin
                             <button
                                 title="Delete Model"
                                 id={`deleteModelButton-${modelName}`}
-                                className={`mt-1 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 dark:text-neutral-100 transition-colors duration-200 cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10`}
+                                className={`mt-1 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 text-neutral-700 dark:text-neutral-100 transition-colors duration-200 cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10`}
                                 onClick={() => {
                                     const updatedModels = openAiEndpoints.models.filter((_, index) => index !== modelIndex);
                                     setOpenAiEndpoints({ models: updatedModels });

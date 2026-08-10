@@ -33,7 +33,7 @@ import { ApiKeys } from '@/components/Settings/AccountComponents/ApiKeys';
 import { Accounts } from '@/components/Settings/AccountComponents/Account';
 import { noCoaAccount } from '@/types/accounts';
 import { Account } from '@/types/accounts';
-import { AdminUI } from '@/components/Admin/AdminUI';
+import { NewAdminModal } from '@/components/NewUI/settings/NewAdminModal';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -787,13 +787,11 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
         </div>
       </div>
 
-      {/* Admin Panel — rendered as a peer modal on top of the settings modal */}
+      {/* Admin Panel — new-UI two-column panel, rendered above the settings modal */}
       {showAdminUI && featureFlags.adminInterface && (
-        <AdminUI
-          open={showAdminUI}
+        <NewAdminModal
           onClose={() => {
             setShowAdminUI(false);
-            // Return to General section when admin panel is closed
             setActiveSection('general');
           }}
         />

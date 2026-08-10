@@ -119,7 +119,7 @@
 | Skills | ✅ | Wraps existing `SkillsLibrary` |
 | Connectors / Integrations | ✅ | Wraps existing `IntegrationTabs` |
 | MCP Servers | ✅ | Wraps existing `MCPServersTab` |
-| Admin Panel | ✅ | Gated by `featureFlags.adminInterface`; opens existing `AdminUI` |
+| Admin Panel | ✅ | `NewAdminModal.tsx` — same two-column shell as settings, all tabs as left-rail nav items |
 | Capabilities section | ❌ | Placeholder |
 | Code section | ❌ | Placeholder |
 

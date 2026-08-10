@@ -459,7 +459,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyUsers, ampl
                                 disabled={isAddingAst !== ''}
                                 >
                                 {isAddingAst === ast ? <>{loadingIcon()}</>
-                                : <IconPlus className="icon-pop-group text-blue-400" size={18}/> }
+                                : <IconPlus className="icon-pop-group text-blue-600 dark:text-blue-400" size={18}/> }
                                 {"Assistant Copy"}
                                     
                             </button>}

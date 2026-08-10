@@ -18,7 +18,7 @@ export const opsSearchToggleButtons = (opSearchBy: string, setOpSearchBy: Dispat
                                        shift:string, translate: string, showLabel=true) => {
     return <div className={`h-[0px] items-center ${shift} flex flex-row gap-4`}
                 style={{transform: translate}}>
-            {showLabel && <div className="ml-auto text-neutral-400"> Search by</div>}
+            {showLabel && <div className="ml-auto text-neutral-600 dark:text-neutral-400"> Search by</div>}
             <div className="w-[140px] flex items-center rounded-md border border-neutral-600 bg-neutral-200 dark:bg-[#39394a] p-1">
             {["name", "tag"].map((search: string) => 
             <button onMouseDown={(e) =>  e.preventDefault()}

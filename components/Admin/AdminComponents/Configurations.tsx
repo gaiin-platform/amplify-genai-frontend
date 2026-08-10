@@ -639,7 +639,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                             <div className="settings-theme-option-content">
                                 <div className="settings-theme-option-icon">
                                     {storage === 'future-cloud' ? 
-                                        <IconCloudFilled className='text-blue-100 dark:text-white'/> : 
+                                        <IconCloudFilled className='text-blue-500 dark:text-white'/> :
                                         <IconMessage className='text-gray-600 dark:text-white'/>
                                     }
                                 </div>
@@ -1142,7 +1142,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                                                 <button
                                                                     type="button"
                                                                     id="editRateLimit"
-                                                                    className="text-neutral-400 hover:text-neutral-200 flex-shrink-0"
+                                                                    className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 flex-shrink-0"
                                                                     onClick={() => {
                                                                         const rl = group.rateLimit;
                                                                         let normalized: RateLimit[];

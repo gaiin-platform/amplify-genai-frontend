@@ -214,6 +214,17 @@ components/NewUI/
                                Old AssistantGallery still renders in the classic-UI path — untouched.
   settings/
     NewSettingsModal.tsx     ← two-column settings modal. Props: onClose, openToSection?:string
+    NewAdminModal.tsx        ← two-column admin panel (same shell as NewSettingsModal). Props: onClose, openToTab?:AdminTab
+                               Left rail: Configurations | Supported Models | Application Variables | OpenAI Endpoints
+                                          Feature Flags | Feature Data | Ops | Embeddings
+                                          Integrations (conditional) | Critical Errors (conditional)
+                               Right pane: same tab components from components/Admin/AdminComponents/ — untouched.
+                               Nav items show an accent-orange dot when the tab has unsaved changes.
+                               Left-rail footer: Reload button + Save button (active orange when changes pending, dim when none).
+                               Save count shown in button label: "Save 3 changes".
+                               Escape / overlay-click both confirm before closing when unsaved changes exist.
+                               Entry: NewSettingsModal "Admin Panel" nav → renders NewAdminModal above settings modal.
+                               Old AdminUI is no longer rendered in the new-UI path (still used in classic-UI path).
                                Sections: general|account|usage|storage|apikeys|customInstructions|
                                          skills|connectors|mcp|admin
                                Entry points: sidebar Customize (→skills), AccountMenu (→general), ⌘, (→general)
@@ -684,6 +695,21 @@ Addressed all 9 defects from the layout spec. No visual (color/typography) chang
   - Single-row delete: hover × on each row (no confirmation — matches UX of similar tools)
   - Pagination: "Previous / Next" page buttons + file count footer; skeleton loading rows
   - Wired in `home.tsx`: `NewLibraryView` replaces `LibraryView` for the new-UI path
+
+### Phase 21 — New Admin Modal ✅ COMPLETE
+- [x] **`NewAdminModal.tsx`** — new-UI two-column admin panel in `components/NewUI/settings/`
+  - Same shell as `NewSettingsModal`: blurred overlay, 1100×820px panel, 220px left rail + scrollable right pane
+  - All 10 admin tabs become left-rail nav items (no more horizontal scrolling top-tab bar)
+  - Nav items: Configurations | Supported Models | Application Variables | OpenAI Endpoints | Feature Flags | Feature Data | Ops | Embeddings | Integrations (conditional) | Critical Errors (conditional)
+  - Each nav item shows an accent-orange dot when the tab has unsaved changes (`adminTabHasChanges`)
+  - Left-rail footer: Reload button + Save button; save button shows change count ("Save 3 changes"), dims to gray when no changes
+  - Right pane heading shows "● unsaved" indicator when active tab has changes
+  - All data-fetching, save, validate, test-endpoint logic is **identical** to `AdminUI.tsx` — no changes to services
+  - All tab content components (`ConfigurationsTab`, `SupportedModelsTab`, etc.) rendered unchanged
+  - Escape and overlay-click both show confirmation dialog when there are unsaved changes
+  - **Wired:** `NewSettingsModal` "Admin Panel" nav item now renders `NewAdminModal` instead of `AdminUI`
+  - Entry points unchanged: AccountMenu → "Admin Panel" → `openNewUIAdminPanel` event → `settingsSection='admin'` → `NewAdminModal`
+  - Classic-UI path still uses old `AdminUI` — untouched
 
 ### Phase 19 — Remaining Port Work (NEXT)
 - [ ] Responsive: icon rail at 760-1099px
