@@ -174,15 +174,21 @@ components/NewUI/
   home/
     NewHome.tsx              ← greeting ✳ + composer landing (shown when page=chat and 0 messages)
                                Props: none. Uses availableModels, defaultModelId, featureFlags, ragOn from context.
-                               Features: working model dropdown (filtered, sorted, default-labelled), file attachment
-                               (hidden input → handleFile service → chips with progress), sends model + pending
-                               message/docs via sessionStorage → handleNewConversation.
+                               Features: working model dropdown (filtered, sorted, default-labelled), AttachmentRail
+                               above textarea (3-band grid: rail|textarea|toolbar), file attachment via addFileToRail()
+                               (generates thumbUrl object-URL BEFORE calling handleFile — see Image Thumbnail gotcha below),
+                               image paste via RichComposer onImagePaste, large-text paste via onLargePaste → attachment card,
+                               sends model + pending message/docs via sessionStorage → handleNewConversation.
   chat/
     ConversationViewShell.tsx ← thin wrapper around Chat.tsx with data-new-ui="true" for CSS scoping
                                Also handles pending-message bridge: reads sessionStorage on mount,
                                injects text into #messageChatInputText via native setter, clicks #sendMessage.
     ConversationHeader.tsx    ← spec §3 compliant 52px sticky header (title menu, share button, assistant chip)
     ConversationComposer.tsx  ← spec §7 docked composer (AttachMenu + ModelPicker + send/stop bridge into Chat's hidden textarea)
+                               AttachmentRail above textarea (3-band grid: rail|textarea|toolbar)
+                               Image paste: textarea onPaste checks clipboardData.items for image/* first → addImageToRail()
+                               Large-text paste: textarea onPaste intercepts text ≥ 4,000 chars → attachment card
+                               Thumbnail object-URLs tracked in thumbUrlsRef; revoked on remove
     NewUIMessageActionsLayer.tsx ← floating action pill for hovered messages (no props)
                                User messages: Copy + Edit (clicks hidden #editPrompt to trigger ChatMessage's existing edit+resend flow)
                                Assistant messages: Copy + Read Aloud (window.speechSynthesis, auto-cancel on stream)
@@ -209,9 +215,44 @@ components/NewUI/
     IconButton.tsx           ← REUSABLE 28×28/32×32 icon button with hover ring
     Badge.tsx                ← REUSABLE "Labs"-style pill badge
     RichComposer.tsx         ← REUSABLE contentEditable composer with inline code block support
-                               Props: onSend(markdown), onChange?(value), placeholder, editorClassName, autoFocus
+                               Props: onSend(markdown), onChange?(value), onLargePaste?(text), onImagePaste?(file), placeholder, editorClassName, autoFocus
                                Ref handle: clear(), focus(), getValue()
                                Trigger: type ``` then Shift+Enter → inserts styled code block
+                               onImagePaste: fires for any clipboard item with type image/* — file is never inserted as text; parent calls addFileToRail(file)
+                               onLargePaste: fires when pasted text ≥ 4,000 chars; composer is NOT updated — parent converts to attachment card
+                               Paste order: image check → large-text check → normal insert
+    attachmentTypes.ts       ← Shared types + helpers for the attachment rail
+                               UIAttachment type, PASTE_AS_FILE_THRESHOLD = 4000
+                               createUIAttachmentFromDoc(doc, progress, prebuiltThumbUrl?) → UIAttachment
+                                 NOTE: doc.raw is "" by the time handleFile calls onAttach — pass prebuiltThumbUrl
+                                 generated from the original File BEFORE calling handleFile (see Image Thumbnail gotcha)
+                               createPasteAttachment(text) → UIAttachment
+                               derivePasteTitle(text), formatBytes(bytes), getExtBadge(name, mime)
+    AttachmentCard.tsx       ← REUSABLE 160×160 attachment tile (image/file/paste variants)
+                               Props: attachment, onRemove, onPreview(id, originRect), alwaysShowRemove, enterState
+                               Image: thumbnail letterboxed with cross-fade on load, no badge
+                               File: wrapping name (4 lines, overflow-wrap: anywhere) + uppercase badge
+                               Paste: first ~400 chars faded at bottom + PASTED badge
+                               Remove × fades in on hover (sibling button, not nested — valid HTML)
+                               Upload progress: centered circular SVG spinner overlay (not a bottom bar)
+                                 Determinate: filling arc, transitions smoothly as progress increases
+                                 Indeterminate: rotating 25%-arc via @keyframes attachment-spinner
+                               Failure state: #6E4540 border, FAILED badge in warm red
+    AttachmentRail.tsx       ← REUSABLE horizontal scrolling rail of AttachmentCards
+                               Props: attachments, onRemove, onPreview
+                               Collapses to 0 height when empty (220ms ease-out), opens to 176px when cards present
+                               Entry animation: rail opens t=0, card enters t=60ms (opacity+scale+translateY), stagger +40ms per card (max 5)
+                               Roving tabindex keyboard nav (←/→/⌫/Escape), scroll-snap-x
+    AttachmentPreview.tsx    ← REUSABLE preview overlay for any UIAttachment
+                               Props: attachments[], initialIndex, originRect?, onClose
+                               Layout: outer centering wrapper (fixed inset-0 flex center, never transformed) +
+                                       inner panel div (FLIP transforms applied here only)
+                               FLIP animation: panel expands from card's DOMRect (320ms ease-out); reverse on close (240ms)
+                               Falls back to opacity fade when no originRect (e.g. card scrolled out of view)
+                               Content panels: image (letterboxed + checkerboard bg), CSV (parsed table, 500 row cap), text (raw monospace pre)
+                               Unavailable states: too-large / unsupported / pending / failed — correct copy + optional Download button
+                               Navigation: ← / → between attachments, "N of M" counter
+                               a11y: role="dialog" aria-modal, focus trap, Escape closes
     AttachMenu.tsx           ← REUSABLE ⊕ attach + tools menu (attach-menu-spec.md)
                                Props: isNewChat, plugins, onAddFiles, onAddFromLibrary,
                                       webSearchEnabled, onToggleWebSearch,
@@ -604,7 +645,23 @@ Addressed all 9 defects from the layout spec. No visual (color/typography) chang
 - [x] **`NEW_UI_PORTING_STATUS.md`** created — tracks: (1) features still to port, (2) features intentionally removed forever, (3) future ideas for after the rewrite. Authoritative source for migration status.
 - [x] Updated `NEW_UI_WIKI_INSTRUCTIONS.md` with One-Directory Rule.
 
-### Phase 18 — Remaining Port Work (NEXT)
+### Phase 18 — Attachment Rail, Paste Capture, and Preview Overlay ✅ COMPLETE
+- [x] `attachmentTypes.ts` — shared types (`UIAttachment`, `PASTE_AS_FILE_THRESHOLD = 4000`) + helpers (`createUIAttachmentFromDoc`, `createPasteAttachment`, `derivePasteTitle`, `formatBytes`)
+- [x] `AttachmentCard.tsx` — 160×160 tile with three variants (image/file/paste), hover-reveal × remove, circular SVG spinner overlay, failure state
+- [x] `AttachmentRail.tsx` — horizontal scroll rail with enter/exit animations, rail height 0↔176px, roving tabindex keyboard nav, scroll-snap
+- [x] `AttachmentPreview.tsx` — FLIP-animated overlay (centering wrapper + panel), image/CSV/text content panels, unavailable-preview states, ←/→ navigation
+- [x] `RichComposer.tsx` — added `onLargePaste` + `onImagePaste` props; image paste intercepted before large-text check; pastes ≥ 4,000 chars become attachment cards
+- [x] `NewHome.tsx` — replaced old flat chip row with `AttachmentRail`; composer card changed to 3-band grid (rail|textarea|toolbar); `AttachmentPreview` portal added; image paste + large-text paste wired; `addFileToRail()` generates `thumbUrl` object-URL before `handleFile`
+- [x] `ConversationComposer.tsx` — added `AttachmentRail` + `AttachmentPreview`; `handleTextareaPaste` checks image clipboard items first, then large-text threshold; `addImageToRail()` builds `UIAttachment` directly with object-URL
+- [x] `globals.css` — `@keyframes attachment-spinner` for rotating SVG arc
+
+### Phase 18b — Attachment Polish ✅ COMPLETE
+- [x] **Circular spinner** — replaced 2px bottom bar with a centered SVG ring spinner on `AttachmentCard`. Determinate: filling arc. Indeterminate: rotating 25%-arc via CSS animation.
+- [x] **Preview centered** — fixed `AttachmentPreview` layout. Root cause: `transform:translate(-50%,-50%)` and FLIP `transform` cannot coexist on the same element. Solution: outer `fixed inset-0 flex items-center justify-center` wrapper handles centering; inner panel ref receives FLIP transforms only.
+- [x] **Image thumbnails visible** — root cause: `handleFile` sets `doc.raw = ""` so `URL.createObjectURL` was impossible after the callback. Fix: `addFileToRail()` in `NewHome` calls `URL.createObjectURL(file)` on the original `File` *before* calling `handleFile`, stashes the URL in `thumbUrlsRef`, then passes it into `createUIAttachmentFromDoc` as `prebuiltThumbUrl`. Object-URLs are revoked on remove and on send.
+- [x] **Image paste** — `RichComposer` now has `onImagePaste?(file: File)` prop; checks `clipboardData.items` for `image/*` first. `ConversationComposer.handleTextareaPaste` checks the same. Both route to `addFileToRail` / `addImageToRail` so pasted screenshots/images appear in the rail immediately.
+
+### Phase 19 — Remaining Port Work (NEXT)
 - [ ] Responsive: icon rail at 760-1099px
 - [ ] Responsive: off-canvas drawer <760px
 - [ ] All transitions under `prefers-reduced-motion`
@@ -671,6 +728,29 @@ The app uses `window.dispatchEvent(new CustomEvent(...))` for cross-component co
 
 ### Pending-Message Bridge Pattern
 When `NewHome` creates a new conversation, it stores the typed message (and optionally attached docs + selected model ID) in `sessionStorage` before calling `handleNewConversation`. Then `ConversationViewShell` — which mounts when the conversation view renders — polls for `#messageChatInputText` (textarea) and `#sendMessage` (button), injects the text via React's native setter trick (`Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, val)` + `input`/`change` events), then clicks send. This lets the full `ChatInput` pipeline (assistants, plugins, file attachments) handle the send without touching `Chat.tsx`.
+
+### Image Thumbnail Gotcha — handleFile Wipes doc.raw
+`handleFile` (from `components/Chat/AttachFile.tsx`) sets `doc.raw = ""` (empty string) on the `AttachedDocument` it passes to `onAttach`. This means you **cannot** generate a thumbnail from `doc.raw` inside `addDocument`.
+
+**The correct pattern:**
+```ts
+const addFileToRail = (file: File) => {
+  let intercepted = false;
+  const wrappedAdd = (doc: AttachedDocument) => {
+    if (!intercepted) {
+      intercepted = true;
+      const thumbUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
+      if (thumbUrl) thumbUrlsRef.current[doc.id] = thumbUrl;
+    }
+    addDocument(doc); // passes thumbUrl via createUIAttachmentFromDoc(..., thumbUrl)
+  };
+  handleFile(file, wrappedAdd, ...);
+};
+```
+Always revoke object-URLs on remove and on send to avoid memory leaks.
+
+### Image Paste Pattern
+Both `RichComposer` (`onImagePaste` prop) and the plain `<textarea>` in `ConversationComposer` (`onPaste` handler) check `clipboardData.items` for `image/*` entries **before** any text-paste logic. This covers screenshots (⌘⇧4 then ⌘V on macOS) and images copied from browsers/apps.
 
 ### Date Parsing — Timezone Gotcha
 **Never** use `new Date("YYYY-MM-DD")` to parse a date-only string for local date comparison. ISO date-only strings are parsed as UTC midnight, which shifts to the previous calendar day in any timezone west of UTC.

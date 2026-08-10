@@ -54,6 +54,12 @@
   --accent: #D97757;
 }
 
+/* ── Attachment card: upload spinner ── */
+@keyframes attachment-spinner {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 /* White Label CSS Custom Properties */
 /* These variables can be overridden in a custom CSS file to rebrand the application */
 /* Light theme colors (default) */

@@ -34,6 +34,13 @@ import {
 import HomeContext from '@/pages/api/home/home.context';
 import { AttachMenu, AttachMenuChips } from '@/components/NewUI/shared/AttachMenu';
 import { ModelPicker, type EffortLevel } from '@/components/NewUI/shared/ModelPicker';
+import { AttachmentRail } from '@/components/NewUI/shared/AttachmentRail';
+import { AttachmentPreview } from '@/components/NewUI/shared/AttachmentPreview';
+import {
+  UIAttachment,
+  createPasteAttachment,
+  PASTE_AS_FILE_THRESHOLD,
+} from '@/components/NewUI/shared/attachmentTypes';
 import { PluginID, Plugin, Plugins } from '@/types/plugin';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 
@@ -208,7 +215,73 @@ export const ConversationComposer: React.FC = () => {
     }
   };
 
-  const canSend = text.trim().length > 0 && !messageIsStreaming;
+  // ── Attachment rail ────────────────────────────────────────────────────────
+  const [uiAttachments, setUIAttachments] = useState<UIAttachment[]>([]);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [previewOriginRect, setPreviewOriginRect] = useState<DOMRect | undefined>(undefined);
+  // object-URL store for image thumbnails (revoke on remove)
+  const thumbUrlsRef = useRef<Record<string, string>>({});
+
+  const handleRemoveAttachment = (id: string) => {
+    if (thumbUrlsRef.current[id]) {
+      URL.revokeObjectURL(thumbUrlsRef.current[id]);
+      delete thumbUrlsRef.current[id];
+    }
+    setUIAttachments((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  /** Add an image File to the rail, generating a thumbnail object-URL first. */
+  const addImageToRail = useCallback((file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    try {
+      const url = URL.createObjectURL(file);
+      // Build a minimal UIAttachment directly — no handleFile needed for display
+      const id = Math.random().toString(36).slice(2);
+      thumbUrlsRef.current[id] = url;
+      const ua: UIAttachment = {
+        id,
+        kind: 'image',
+        status: 'ready',
+        name: file.name || 'pasted-image.png',
+        ext: null,
+        bytes: file.size,
+        mime: file.type,
+        thumbUrl: url,
+        previewState: 'available',
+      };
+      setUIAttachments((prev) => [...prev, ua]);
+    } catch {
+      // silently ignore — user sees no card but the file isn't lost
+    }
+  }, []);
+
+  // Large-paste interception in the plain textarea (spec §6)
+  const handleTextareaPaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      // Check for image data first
+      const items = Array.from(e.clipboardData.items);
+      const imageItem = items.find((item) => item.type.startsWith('image/'));
+      if (imageItem) {
+        e.preventDefault();
+        const file = imageItem.getAsFile();
+        if (file) addImageToRail(file);
+        return;
+      }
+
+      const pastedText = e.clipboardData.getData('text/plain');
+      if (pastedText.length >= PASTE_AS_FILE_THRESHOLD) {
+        e.preventDefault(); // do not let text land in textarea
+        setUIAttachments((prev) => [...prev, createPasteAttachment(pastedText)]);
+        return;
+      }
+      // Smaller pastes fall through to the default textarea behaviour
+    },
+    [addImageToRail],
+  );
+
+  const canSend =
+    (!messageIsStreaming && text.trim().length > 0) ||
+    uiAttachments.some((a) => a.status === 'ready');
 
   return (
     <div
@@ -232,7 +305,7 @@ export const ConversationComposer: React.FC = () => {
           pointerEvents: 'auto',
         }}
       >
-        {/* Composer card */}
+        {/* Composer card — 3-band grid: rail | textarea | toolbar */}
         <div
           className="new-ui-composer-card"
           style={{
@@ -241,19 +314,31 @@ export const ConversationComposer: React.FC = () => {
             borderRadius: 14,
             padding: '16px 24px 12px',
             display: 'grid',
-            gridTemplateRows: '1fr auto',
-            gap: 10,
+            gridTemplateRows: 'auto 1fr auto',
+            gap: 0,
             minHeight: 88,
             transition: 'border-color 0.15s',
           }}
           onClick={() => textareaRef.current?.focus()}
         >
-          {/* ── Textarea band ── */}
+          {/* ── Band 1: Attachment rail (collapses to 0 when empty) ── */}
+          <AttachmentRail
+            attachments={uiAttachments}
+            onRemove={handleRemoveAttachment}
+            onPreview={(id, rect) => {
+              setPreviewId(id);
+              setPreviewOriginRect(rect);
+            }}
+          />
+
+          {/* ── Band 2: Textarea ── */}
           <textarea
             ref={textareaRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handleTextareaPaste}
+            data-composer-textarea="true"
             placeholder="Write a message…"
             rows={1}
             style={{
@@ -272,13 +357,14 @@ export const ConversationComposer: React.FC = () => {
             }}
           />
 
-          {/* ── Toolbar band (36px) ── */}
+          {/* ── Band 3: Toolbar (36px) ── */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               height: 36,
+              marginTop: 10,
             }}
           >
             {/* Left: attach + chips */}
@@ -397,6 +483,16 @@ export const ConversationComposer: React.FC = () => {
           Amplify can make mistakes. Verify important information.
         </p>
       </div>
+
+      {/* Attachment preview overlay */}
+      {previewId && (
+        <AttachmentPreview
+          attachments={uiAttachments}
+          initialIndex={uiAttachments.findIndex((a) => a.id === previewId)}
+          originRect={previewOriginRect}
+          onClose={() => { setPreviewId(null); setPreviewOriginRect(undefined); }}
+        />
+      )}
     </div>
   );
 };

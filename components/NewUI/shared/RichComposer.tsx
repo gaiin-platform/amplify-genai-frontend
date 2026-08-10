@@ -32,6 +32,13 @@ import React, {
 const CODE_BLOCK_CLS = 'rich-code-block';
 const ZWS = '​'; // zero-width space used to anchor cursor inside empty blocks
 
+/**
+ * 4,000 characters — see attachmentTypes.ts PASTE_AS_FILE_THRESHOLD for rationale.
+ * Intentionally duplicated here so RichComposer has zero dependency on the attachment
+ * system; the parent wires them together via the onLargePaste prop.
+ */
+const PASTE_AS_FILE_THRESHOLD = 4_000;
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface RichComposerHandle {
@@ -44,6 +51,17 @@ interface RichComposerProps {
   onSend: (markdown: string) => void;
   /** Called every time the content changes (with the current raw text value) */
   onChange?: (value: string) => void;
+  /**
+   * Called when the user pastes text that exceeds PASTE_AS_FILE_THRESHOLD (4,000 chars).
+   * When this fires, the composer is NOT updated — the text is intercepted and the parent
+   * should convert it to an attachment card (spec §6).
+   */
+  onLargePaste?: (text: string) => void;
+  /**
+   * Called when the user pastes an image (any clipboard item with type starting 'image/').
+   * The composer never tries to insert image data as text — always intercepted and forwarded.
+   */
+  onImagePaste?: (file: File) => void;
   placeholder?: string;
   /** Additional className for the editable div */
   editorClassName?: string;
@@ -132,7 +150,7 @@ function lineBeforeCursor(range: Range): string {
 // ── Component ──────────────────────────────────────────────────────────────
 
 export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
-  ({ onSend, onChange, placeholder = 'Ask anything…', editorClassName = '', autoFocus = false }, ref) => {
+  ({ onSend, onChange, onLargePaste, onImagePaste, placeholder = 'Ask anything…', editorClassName = '', autoFocus = false }, ref) => {
     const editorRef = useRef<HTMLDivElement>(null);
     const [hasContent, setHasContent] = useState(false);
 
@@ -163,13 +181,34 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
       onChange?.(text);
     }, [onChange]);
 
-    // ── Paste: strip formatting ────────────────────────────────────────────
+    // ── Paste: strip formatting; intercept large pastes + images (spec §6) ──
     const handlePaste = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
-      e.preventDefault();
+      // 1. Check clipboard items for image data first
+      if (onImagePaste) {
+        const items = Array.from(e.clipboardData.items);
+        const imageItem = items.find((item) => item.type.startsWith('image/'));
+        if (imageItem) {
+          e.preventDefault();
+          const file = imageItem.getAsFile();
+          if (file) onImagePaste(file);
+          return;
+        }
+      }
+
       const text = e.clipboardData.getData('text/plain');
+
+      // 2. Large-paste interception: measure BEFORE inserting (spec §6.1)
+      if (onLargePaste && text.length >= PASTE_AS_FILE_THRESHOLD) {
+        e.preventDefault(); // never let the text land in the textarea
+        onLargePaste(text);
+        return;
+      }
+
+      // 3. Normal paste: strip rich formatting, insert plain text
+      e.preventDefault();
       document.execCommand('insertText', false, text);
       updateHasContent();
-    }, [updateHasContent]);
+    }, [updateHasContent, onLargePaste, onImagePaste]);
 
     // ── Insert code block ──────────────────────────────────────────────────
     // SURGICAL approach — never rebuild the entire DOM.

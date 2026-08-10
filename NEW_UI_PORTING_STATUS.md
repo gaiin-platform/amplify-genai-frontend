@@ -61,6 +61,11 @@
 | Stop generating button | ✅ | In `ConversationComposer.tsx` |
 | Scroll-to-latest button | ✅ | |
 | Hover action row (copy, edit, read aloud) | ✅ | `NewUIMessageActionsLayer.tsx` — transparent pill, no backdrop |
+| Attachment rail (pre-send cards) | ✅ | `AttachmentRail` + `AttachmentCard` — 160×160 cards above textarea, image/file/paste variants; circular spinner overlay during upload |
+| Attachment preview overlay | ✅ | `AttachmentPreview` — centered FLIP animation (separate centering wrapper), image/CSV/text panels, unavailable states, ← / → nav |
+| Large-paste capture (≥4k chars) | ✅ | `RichComposer.onLargePaste` + `ConversationComposer` `onPaste` — paste becomes attachment card |
+| Image paste (clipboard/screenshot) | ✅ | `RichComposer.onImagePaste` + `ConversationComposer` `onPaste` — pasted images appear as thumbnail cards in the rail |
+| Image thumbnails on attachment cards | ✅ | `addFileToRail()` generates `URL.createObjectURL` before `handleFile` runs (doc.raw is "" after handleFile) |
 | Artifacts panel | 🚧 | Old `Artifacts` component still opens via event; no new-UI wrapper |
 | Conversation rename (inline in header) | ✅ | Via `ConversationHeader.tsx` title dropdown |
 | Conversation delete | ✅ | Via `ConversationHeader.tsx` title dropdown + sidebar row |

@@ -22,9 +22,6 @@
 import React, { useContext, useRef, useState, useCallback, useEffect } from 'react';
 import {
   IconArrowUp,
-  IconCheck,
-  IconX,
-  IconFile,
   IconMicrophone,
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
@@ -33,6 +30,13 @@ import { handleFile } from '@/components/Chat/AttachFile';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { ModelPicker, type EffortLevel } from '@/components/NewUI/shared/ModelPicker';
 import { AttachMenu, AttachMenuChips } from '@/components/NewUI/shared/AttachMenu';
+import { AttachmentRail } from '@/components/NewUI/shared/AttachmentRail';
+import { AttachmentPreview } from '@/components/NewUI/shared/AttachmentPreview';
+import {
+  UIAttachment,
+  createUIAttachmentFromDoc,
+  createPasteAttachment,
+} from '@/components/NewUI/shared/attachmentTypes';
 import { PluginID, Plugin, Plugins } from '@/types/plugin';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 
@@ -72,35 +76,105 @@ export const NewHome: React.FC = () => {
 
   // ── Attachment ────────────────────────────────────────────────────────────
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // UIAttachments: visual representations of docs/pastes in the rail
+  const [uiAttachments, setUIAttachments] = useState<UIAttachment[]>([]);
+  // thumbUrl object-URLs to revoke on remove/send
+  const thumbUrlsRef = useRef<Record<string, string>>({});
+  // Backing AttachedDocuments (for send payload)
   const [attachedDocs, setAttachedDocs] = useState<AttachedDocument[]>([]);
-  const [docProgress, setDocProgress] = useState<Record<string, number>>({});
 
+  // Preview overlay state
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [previewOriginRect, setPreviewOriginRect] = useState<DOMRect | undefined>(undefined);
+
+  /**
+   * Generate a thumbnail object-URL for an image File BEFORE calling handleFile,
+   * because handleFile sets doc.raw = "" and we lose access to the File object.
+   */
+  const makethumbUrl = (file: File): string | undefined => {
+    if (!file.type.startsWith('image/')) return undefined;
+    try {
+      const url = URL.createObjectURL(file);
+      return url;
+    } catch {
+      return undefined;
+    }
+  };
+
+  // addDocument is called by handleFile after it has processed the file.
+  // We look up the pre-generated thumbUrl from thumbUrlsRef.
   const addDocument = useCallback((doc: AttachedDocument) => {
+    const thumbUrl = thumbUrlsRef.current[doc.id];
     setAttachedDocs((prev) => [...prev, doc]);
+    setUIAttachments((prev) => [...prev, createUIAttachmentFromDoc(doc, 0, thumbUrl)]);
   }, []);
+
   const handleUploadProgress = useCallback((doc: AttachedDocument, progress: number) => {
-    setDocProgress((prev) => ({ ...prev, [doc.id]: progress }));
+    const fraction = progress / 100;
+    setUIAttachments((prev) =>
+      prev.map((a) =>
+        a.id === doc.id
+          ? { ...a, progress: fraction, status: fraction >= 1 ? 'ready' : 'uploading' }
+          : a,
+      ),
+    );
   }, []);
+
   const handleSetKey = useCallback((doc: AttachedDocument, key: string) => {
     setAttachedDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, key } : d)));
   }, []);
+
   const handleSetMetadata = useCallback((doc: AttachedDocument, metadata: any) => {
     setAttachedDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, metadata } : d)));
   }, []);
-  const handleRemoveDoc = (docId: string) => {
-    setAttachedDocs((prev) => prev.filter((d) => d.id !== docId));
-    setDocProgress((prev) => { const n = { ...prev }; delete n[docId]; return n; });
+
+  const handleRemoveAttachment = (id: string) => {
+    // Revoke any object-URL we created
+    if (thumbUrlsRef.current[id]) {
+      URL.revokeObjectURL(thumbUrlsRef.current[id]);
+      delete thumbUrlsRef.current[id];
+    }
+    setUIAttachments((prev) => prev.filter((a) => a.id !== id));
+    setAttachedDocs((prev) => prev.filter((d) => d.id !== id));
   };
+
+  /**
+   * Core helper: generate thumbUrl, stash it, then hand the file to handleFile.
+   * Called from both the file-input handler and the image-paste handler.
+   */
+  const addFileToRail = useCallback((file: File) => {
+    // We need a stable id to link the thumbUrl → addDocument callback.
+    // handleFile generates its own uuid; we can't know it in advance.
+    // So we generate the thumbUrl lazily inside addDocument via thumbUrlsRef,
+    // keyed by a "pending" entry we match by filename+size when addDocument fires.
+    // Simpler approach: wrap addDocument to intercept the first call for this file.
+    let intercepted = false;
+    const wrappedAdd = (doc: AttachedDocument) => {
+      if (!intercepted) {
+        intercepted = true;
+        const thumbUrl = makethumbUrl(file);
+        if (thumbUrl) thumbUrlsRef.current[doc.id] = thumbUrl;
+      }
+      addDocument(doc);
+    };
+    handleFile(
+      file, wrappedAdd, handleUploadProgress, handleSetKey, handleSetMetadata,
+      () => {}, featureFlags.uploadDocuments ?? false, undefined, ragOn, {}, [],
+    );
+  }, [addDocument, handleUploadProgress, handleSetKey, handleSetMetadata, featureFlags.uploadDocuments, ragOn]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
-    Array.from(e.target.files).forEach((file) => {
-      handleFile(
-        file, addDocument, handleUploadProgress, handleSetKey, handleSetMetadata,
-        () => {}, featureFlags.uploadDocuments ?? false, undefined, ragOn, {}, [],
-      );
-    });
+    Array.from(e.target.files).forEach((file) => addFileToRail(file));
     e.target.value = '';
   };
+
+  // Large-paste → attachment card (spec §6)
+  const handleLargePaste = useCallback((text: string) => {
+    const pasteAttachment = createPasteAttachment(text);
+    setUIAttachments((prev) => [...prev, pasteAttachment]);
+    // Pastes don't have a backing doc — we'll send the fullText via sessionStorage
+  }, []);
 
   // ── Toggle state (web search, skills) ────────────────────────────────────
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
@@ -109,7 +183,8 @@ export const NewHome: React.FC = () => {
   // ── Send ──────────────────────────────────────────────────────────────────
   const handleSend = (markdown: string) => {
     const trimmed = markdown.trim();
-    if (!trimmed && attachedDocs.length === 0) return;
+    const readyAttachments = uiAttachments.filter((a) => a.status !== 'failed');
+    if (!trimmed && readyAttachments.length === 0) return;
     if (typeof window !== 'undefined') {
       if (trimmed) sessionStorage.setItem('amplify_pending_message', trimmed);
       if (attachedDocs.length > 0)
@@ -130,12 +205,17 @@ export const NewHome: React.FC = () => {
     composerRef.current?.clear();
     setHasContent(false);
     setAttachedDocs([]);
-    setDocProgress({});
+    setUIAttachments([]);
+    // Revoke all thumbnail object-URLs
+    Object.values(thumbUrlsRef.current).forEach((u) => URL.revokeObjectURL(u));
+    thumbUrlsRef.current = {};
   };
 
-  const allUploaded =
-    attachedDocs.length === 0 || attachedDocs.every((d) => (docProgress[d.id] ?? 0) >= 100);
-  const canSend = (hasContent || attachedDocs.length > 0) && allUploaded;
+  // Send enabled when text OR at least one ready attachment (spec §1)
+  const allUploaded = uiAttachments.every(
+    (a) => a.status !== 'uploading',
+  );
+  const canSend = (hasContent || uiAttachments.some((a) => a.status === 'ready')) && allUploaded;
 
   // ⌘U global shortcut
   useEffect(() => {
@@ -198,7 +278,7 @@ export const NewHome: React.FC = () => {
           </h1>
         </div>
 
-        {/* Composer box */}
+        {/* Composer box — 3-band grid: rail | textarea | toolbar */}
         <div
           className="
             w-full bg-[--bg-raised] rounded-[14px]
@@ -207,51 +287,32 @@ export const NewHome: React.FC = () => {
             transition-colors duration-150
             p-4 pb-3
           "
+          style={{ display: 'grid', gridTemplateRows: 'auto 1fr auto' }}
           onClick={() => composerRef.current?.focus()}
         >
-          {/* Rich composer */}
+          {/* Band 1 — attachment rail (collapses to 0 when empty) */}
+          <AttachmentRail
+            attachments={uiAttachments}
+            onRemove={handleRemoveAttachment}
+            onPreview={(id, rect) => {
+              setPreviewId(id);
+              setPreviewOriginRect(rect);
+            }}
+          />
+
+          {/* Band 2 — Rich composer */}
           <RichComposer
             ref={composerRef}
             onSend={handleSend}
             onChange={(value) => setHasContent(value.trim().length > 0)}
+            onLargePaste={handleLargePaste}
+            onImagePaste={addFileToRail}
             placeholder="Ask anything…"
             editorClassName="max-h-[240px] overflow-y-auto"
             autoFocus
           />
 
-          {/* Attached file chips */}
-          {attachedDocs.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2 mb-1">
-              {attachedDocs.map((doc) => {
-                const progress = docProgress[doc.id] ?? 0;
-                return (
-                  <div
-                    key={doc.id}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] text-[12px]
-                               bg-[--bg-hover] border border-[--border-subtle] text-[--text-secondary]"
-                  >
-                    <IconFile size={13} className="flex-shrink-0 text-[--text-muted]" />
-                    <span className="max-w-[140px] truncate">{doc.name}</span>
-                    {progress < 100 ? (
-                      <span className="text-[--text-muted] ml-1">{progress}%</span>
-                    ) : (
-                      <IconCheck size={13} className="text-green-500 flex-shrink-0" />
-                    )}
-                    <button
-                      className="ml-0.5 text-[--text-muted] hover:text-[--text-primary] transition-colors"
-                      onClick={(e) => { e.stopPropagation(); handleRemoveDoc(doc.id); }}
-                      onMouseDown={(e) => e.preventDefault()}
-                      title="Remove file"
-                    >
-                      <IconX size={12} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Toolbar */}
+          {/* Band 3 — Toolbar */}
           <div
             className="flex items-center justify-between mt-3"
             style={{ minHeight: 34 }}
@@ -335,6 +396,16 @@ export const NewHome: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Attachment preview overlay */}
+      {previewId && (
+        <AttachmentPreview
+          attachments={uiAttachments}
+          initialIndex={uiAttachments.findIndex((a) => a.id === previewId)}
+          originRect={previewOriginRect}
+          onClose={() => { setPreviewId(null); setPreviewOriginRect(undefined); }}
+        />
+      )}
     </div>
   );
 };
