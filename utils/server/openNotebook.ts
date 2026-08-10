@@ -7,20 +7,30 @@
 // database, so these routes add no authorization of their own — they exist
 // only because the browser session token lives server-side in next-auth.
 //
-// The base URL comes from OPEN_NOTEBOOK_INTERNAL_URL, an explicit per-stage
-// env var (e.g. https://open-notebook.vanderbilt.ai in prod,
-// https://open-notebook.dev-amplify.vanderbilt.ai in dev) set on this app's
-// own task definition/environment. Previously this was derived from
-// API_BASE_URL via a `.replace('dev-api', 'open-notebook')` string hack,
-// which only worked in dev because dev's API_BASE_URL happens to contain the
-// literal substring "dev-api" -- prod's API_BASE_URL (prod-api.vanderbilt.ai)
-// does not, so the hack silently no-op'd and pointed requests at the Amplify
-// API Gateway domain instead of the Open Notebook ALB.
-
+// The base URL is derived from API_BASE_URL rather than a separate env var:
+// per-stage, the Amplify API custom domain and the Open Notebook ALB domain
+// share the same parent domain and differ only in the leftmost hostname
+// label -- e.g. dev-api.dev-amplify.vanderbilt.ai -> open-notebook.dev-amplify.vanderbilt.ai
+// and prod-api.vanderbilt.ai -> open-notebook.vanderbilt.ai. Swapping that
+// label generically (instead of literally replacing the substring "dev-api",
+// which only matched in dev) makes the derivation work for every stage.
 export const getOpenNotebookBase = (): string | null => {
-    const url = process.env.OPEN_NOTEBOOK_INTERNAL_URL;
-    if (!url) return null;
-    return url.replace(/\/+$/, '');
+    const apiBaseUrl = process.env.API_BASE_URL;
+    if (!apiBaseUrl) return null;
+
+    let parsed: URL;
+    try {
+        parsed = new URL(apiBaseUrl);
+    } catch {
+        return null;
+    }
+
+    const labels = parsed.hostname.split('.');
+    if (labels.length < 2) return null; // no parent domain to preserve
+    labels[0] = 'open-notebook';
+    parsed.hostname = labels.join('.');
+
+    return parsed.toString().replace(/\/+$/, '');
 };
 
 // Builds the full upstream URL for an Open Notebook API path.
