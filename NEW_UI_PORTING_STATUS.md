@@ -129,7 +129,9 @@
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Scheduled Tasks modal | ✅ | Opened via sidebar "Scheduled" nav item or `openScheduledTasksTrigger` event. Renders existing `ScheduledTasks` component via portal. Gated by `featureFlags.scheduledTasks`. |
+| Scheduled Tasks full-pane view | ✅ | `NewScheduledTasksView.tsx` — new-UI reimplementation (list pane + editor/logs detail pane), same clean list-row design as `NewAssistantsView`/`NewLibraryView`. Opened via sidebar "Scheduled" nav item (`page='scheduledTasks'`) or `openScheduledTasksTrigger` event (payload bridged via `sessionStorage` key `amplify_pending_scheduled_task`). Gated by `featureFlags.scheduledTasks`. Old portal-rendered `ScheduledTasks` modal removed from `NewSidebar.tsx`. |
+| Task create/edit/delete/run-now/logs | ✅ | Ported 1:1 — same `services/scheduledTasksService.ts` calls, same `types/scheduledTasks.ts` shape |
+| Object-selector sub-flow (Assistant/Action/Workflow + inline Action Set builder) | 🚧 | Functionality fully ported; reuses old, unmodified sub-widgets (`CronScheduleBuilder`, `ActionSetList`, `CompositeActionsPanel`, `ApiItemSelector`, `ApiParameterBindingEditor`) wrapped in new-UI containers — these sub-widgets still have old-UI internal styling. TODO: dedicated new-UI visual pass. |
 | Scheduler panel (inline) | 🚧 | `SchedulerPanel` is old UI; surfaced via events in other components |
 
 ---

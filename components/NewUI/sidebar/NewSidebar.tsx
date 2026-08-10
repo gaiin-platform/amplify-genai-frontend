@@ -16,7 +16,6 @@
  *   <760px: off-canvas drawer               [TODO: Phase 4]
  */
 import React, { useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import {
   IconMessage2,
   IconSparkles,
@@ -51,9 +50,10 @@ import { AccountMenu } from './AccountMenu';
 import { IconButton } from '@/components/NewUI/shared/IconButton';
 import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
 
-const ScheduledTasks = React.lazy(() =>
-  import('@/components/Agent/ScheduledTasks').then((m) => ({ default: m.ScheduledTasks })),
-);
+// sessionStorage key used to hand off an initial ScheduledTask (from ScheduledTaskButton
+// elsewhere in the old UI) into the freshly-mounted NewScheduledTasksView — mirrors the
+// Pending-Message Bridge Pattern used by NewHome → ConversationViewShell.
+const PENDING_SCHEDULED_TASK_KEY = 'amplify_pending_scheduled_task';
 
 interface NewSidebarProps {
   email?: string | null;
@@ -193,9 +193,6 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     getDefaultModel,
   } = useContext(HomeContext);
 
-  const [isScheduledTasksOpen, setIsScheduledTasksOpen] = useState(false);
-  const [initScheduledTask, setInitScheduledTask] = useState<any>(undefined);
-
   const [isOpen, setIsOpen] = useState(() => {
     if (typeof window === 'undefined') return true;
     const stored = localStorage.getItem('showChatbar');
@@ -225,16 +222,21 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     return () => window.removeEventListener('openNewUISettingsSection', handler);
   }, []);
 
-  // Listen for scheduled tasks open event
+  // Listen for scheduled tasks open event (dispatched by ScheduledTaskButton elsewhere in
+  // the old UI, e.g. from assistant modals). Hands the pre-filled task off to
+  // NewScheduledTasksView via sessionStorage, then navigates to the full-pane view.
   useEffect(() => {
     const handler = (e: Event) => {
       const scheduledTask = (e as CustomEvent).detail?.scheduledTask;
-      setInitScheduledTask(scheduledTask);
-      setIsScheduledTasksOpen(true);
+      if (typeof window !== 'undefined') {
+        if (scheduledTask) sessionStorage.setItem(PENDING_SCHEDULED_TASK_KEY, JSON.stringify(scheduledTask));
+        else sessionStorage.removeItem(PENDING_SCHEDULED_TASK_KEY);
+      }
+      dispatch({ field: 'page', value: 'scheduledTasks' as any });
     };
     window.addEventListener('openScheduledTasksTrigger', handler);
     return () => window.removeEventListener('openScheduledTasksTrigger', handler);
-  }, []);
+  }, [dispatch]);
 
   // Archive cutoff — mirrors ChatFolders' archiveConversationPastNumOfDays logic.
   // 0 = show all; positive = hide folders older than N days.
@@ -337,7 +339,10 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
       icon: <IconClock size={18} />,
       label: 'Scheduled',
       id: 'scheduled',
-      action: () => { setInitScheduledTask(undefined); setIsScheduledTasksOpen(true); },
+      action: () => {
+        if (typeof window !== 'undefined') sessionStorage.removeItem(PENDING_SCHEDULED_TASK_KEY);
+        dispatch({ field: 'page', value: 'scheduledTasks' as any });
+      },
     }] : []),
   ];
 
@@ -347,6 +352,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     : (page as any) === 'library' ? 'library'
     : page === 'notebook' ? 'notebook'
     : (page as any) === 'chats' ? 'chats'
+    : (page as any) === 'scheduledTasks' ? 'scheduled'
     : null; // home/chat view — nothing highlighted
 
   const renderConversationGroup = (convs: Conversation[], label?: string) => {
@@ -429,6 +435,17 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
             currentNavId === 'customize',
           )}
 
+          {/* Scheduled tasks */}
+          {featureFlags.scheduledTasks && iconBtn(
+            () => {
+              if (typeof window !== 'undefined') sessionStorage.removeItem(PENDING_SCHEDULED_TASK_KEY);
+              dispatch({ field: 'page', value: 'scheduledTasks' as any });
+            },
+            'Scheduled',
+            <IconClock size={18} />,
+            currentNavId === 'scheduled',
+          )}
+
           {/* Spacer — pushes account to bottom */}
           <div className="flex-1" />
 
@@ -441,22 +458,12 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
           />
         </div>
 
-        {/* Settings + Scheduled tasks modals still render outside the rail */}
+        {/* Settings modal still renders outside the rail */}
         {settingsSection !== null && (
           <NewSettingsModal
             openToSection={settingsSection}
             onClose={() => setSettingsSection(null)}
           />
-        )}
-        {isScheduledTasksOpen && typeof window !== 'undefined' && createPortal(
-          <React.Suspense fallback={null}>
-            <ScheduledTasks
-              isOpen={isScheduledTasksOpen}
-              onClose={() => { setIsScheduledTasksOpen(false); setInitScheduledTask(undefined); }}
-              initTask={initScheduledTask}
-            />
-          </React.Suspense>,
-          document.body,
         )}
       </>
     );
@@ -620,18 +627,6 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
           openToSection={settingsSection}
           onClose={() => setSettingsSection(null)}
         />
-      )}
-
-      {/* Scheduled Tasks Modal */}
-      {isScheduledTasksOpen && typeof window !== 'undefined' && createPortal(
-        <React.Suspense fallback={null}>
-          <ScheduledTasks
-            isOpen={isScheduledTasksOpen}
-            onClose={() => { setIsScheduledTasksOpen(false); setInitScheduledTask(undefined); }}
-            initTask={initScheduledTask}
-          />
-        </React.Suspense>,
-        document.body,
       )}
     </>
   );

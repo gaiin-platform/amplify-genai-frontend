@@ -194,6 +194,28 @@ components/NewUI/
                                Assistant messages: Copy + Read Aloud (window.speechSynthesis, auto-cancel on stream)
                                Event delegation on .chatcontainer, 200ms DOM-ready retry, position:fixed pill.
   views/
+    NewScheduledTasksView.tsx ← full-pane new-UI reimplementation of the old ScheduledTasks modal. page='scheduledTasks'
+                               (gated by featureFlags.scheduledTasks). Replaces the lazy-loaded+portal
+                               old ScheduledTasks modal that used to render from NewSidebar.
+                               Layout: 48px top bar (back + title) | 340px list pane (search, type filter,
+                               "New Task" button, grouped-by-type rows) | detail pane (editor or run-logs).
+                               Data/services identical to old component — no service/type changes:
+                               services/scheduledTasksService.ts (create/get/list/update/delete/executeTask/
+                               getTaskExecutionDetails), types/scheduledTasks.ts (ScheduledTask, TASK_TYPE_MAP).
+                               PORT: object-selector sub-flow (Assistant/Action/Workflow picker + inline
+                               "Create Action Set" builder) reuses old, unmodified sub-widgets wrapped in
+                               new-UI containers: CronScheduleBuilder, ActionSetList, CompositeActionsPanel,
+                               ApiItemSelector, ApiParameterBindingEditor, AgentLogBlock (for run-result
+                               rendering). Each reused-widget wrapper has
+                               className="text-neutral-900 dark:text-white" per the light-mode gotcha.
+                               TODO: give these sub-widgets a dedicated new-UI visual pass in a future phase.
+                               Entry: NewSidebar "Scheduled" nav item (expanded + collapsed rail) → dispatches
+                               page='scheduledTasks'. Also listens for the existing openScheduledTasksTrigger
+                               event (still dispatched by old-UI ScheduledTaskButton, e.g. from assistant
+                               modals) — NewSidebar's listener now stores the prefilled ScheduledTask into
+                               sessionStorage key `amplify_pending_scheduled_task` (one-shot handoff, same
+                               pattern as the Pending-Message Bridge) and dispatches page='scheduledTasks';
+                               NewScheduledTasksView reads+consumes that key on mount via useMemo.
     ChatsListView.tsx        ← full-pane "Chats and tasks" table (search, filter, relative dates). page='chats'
                                Auto-focuses search input on mount (80ms delay).
     LibraryView.tsx          ← (SUPERSEDED) thin wrapper around DataSourcesTable. No longer used in new-UI path.
@@ -722,6 +744,15 @@ Addressed all 9 defects from the layout spec. No visual (color/typography) chang
 - [x] **`Ops.tsx`** — `text-neutral-400` "Search by" label (~2.6:1 contrast) → `text-neutral-600 dark:text-neutral-400`
 - [x] **`OpenAIEndpoints.tsx`** — delete/remove-model buttons had `dark:text-neutral-100` with no light-mode color → added `text-neutral-700` on both
 
+### Phase 23 — New Scheduled Tasks View ✅ COMPLETE
+- [x] **`NewScheduledTasksView.tsx`** — new-UI full-pane reimplementation of the old `ScheduledTasks.tsx` modal, in `components/NewUI/views/`. Same design language as `NewAssistantsView`/`NewLibraryView`: top bar (back + title), 340px search/filter/create list pane on the left grouped by task type (assistant/actionSet/apiTool/workflow), detail pane on the right showing either the task editor form or the run-logs viewer.
+- [x] All data/service logic ported 1:1 from the old component — `services/scheduledTasksService.ts` and `types/scheduledTasks.ts` untouched. Includes: create/edit/delete/run-now/poll-for-completion/view-logs/view-execution-details.
+- [x] Object-selector sub-flow (choose Assistant / Action [API tool, Action Set, or inline "Create Action Set" builder] / Workflow template) reuses old, unmodified widgets wrapped in new-UI containers: `CronScheduleBuilder`, `ActionSetList`, `CompositeActionsPanel`, `ApiItemSelector`, `ApiParameterBindingEditor`, `AgentLogBlock`. Each wrapper adds `className="text-neutral-900 dark:text-white"` per the light-mode gotcha (Section 13). **TODO:** give these sub-widgets a dedicated new-UI visual pass in a future phase.
+- [x] **Wiring change (`NewSidebar.tsx`)**: removed the `React.lazy` + `createPortal` modal wrapper for the old `ScheduledTasks` component entirely (in both the collapsed-rail and expanded-sidebar render paths). The "Scheduled" nav item (in both rail states) now dispatches `page: 'scheduledTasks'` instead of opening a modal — following the same full-pane-view pattern as Assistants/Library/Chats rather than a portal modal.
+- [x] **Event bridge preserved**: `openScheduledTasksTrigger` (still dispatched unmodified by old-UI `ScheduledTaskButton`, e.g. from assistant modals) is still listened for in `NewSidebar.tsx`. The handler now writes the prefilled `ScheduledTask` payload into `sessionStorage` key `amplify_pending_scheduled_task` (new one-shot handoff key, same pattern as the Pending-Message Bridge) and dispatches `page: 'scheduledTasks'`. `NewScheduledTasksView` reads+removes that key on mount via a `useMemo`.
+- [x] **`home.tsx`** — added import for `NewScheduledTasksView` (next to the other NewUI view imports, ~line 110) and a new render branch `{(page as any) === 'scheduledTasks' && featureFlags.scheduledTasks && (<NewScheduledTasksView />)}` in the new-UI layout switch (~line 1679), following the exact `'chats'`/`'library'` precedent (loose `page: string` field, no union type change needed — confirmed `home.state.tsx` still declares `page: string`).
+- [x] `NEW_UI_PORTING_STATUS.md` Section 5 updated: "Scheduled Tasks modal" → "Scheduled Tasks full-pane view", marked ✅ with new component name.
+
 ### Phase 19 — Remaining Port Work (NEXT)
 - [ ] Responsive: icon rail at 760-1099px
 - [ ] Responsive: off-canvas drawer <760px
@@ -798,13 +829,22 @@ The app uses `window.dispatchEvent(new CustomEvent(...))` for cross-component co
 - `homeChatBarTabSwitch` → switch sidebar tab
 - `openArtifactsTrigger` → open/close artifacts
 - `updateFeatureSettings` → feature flags changed
-- `openScheduledTasksTrigger` → open scheduler
+- `openScheduledTasksTrigger` → navigate to the Scheduled Tasks full-pane view (`page='scheduledTasks'`), carrying an optional prefilled `ScheduledTask` via the sessionStorage bridge (see below)
 - `openSettingsTrigger` → open settings to a tab
 - `openAstAdminInterfaceTrigger` → open assistant admin
 - `openNewUIAdminPanel` → (new) open settings modal to admin section (dispatched by AccountMenu admin button, received by NewSidebar)
 
 ### Pending-Message Bridge Pattern
 When `NewHome` creates a new conversation, it stores the typed message (and optionally attached docs + selected model ID) in `sessionStorage` before calling `handleNewConversation`. Then `ConversationViewShell` — which mounts when the conversation view renders — polls for `#messageChatInputText` (textarea) and `#sendMessage` (button), injects the text via React's native setter trick (`Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, val)` + `input`/`change` events), then clicks send. This lets the full `ChatInput` pipeline (assistants, plugins, file attachments) handle the send without touching `Chat.tsx`.
+
+**Generalized one-shot sessionStorage handoff** (same pattern, simpler consumer): any time an old-UI
+event carries a payload that a new full-pane view needs after a `page` switch, write the payload to a
+dedicated `sessionStorage` key just before dispatching the page change, then have the view's own
+`useMemo`/`useEffect` on mount read + immediately `removeItem` that key. No DOM-polling is needed unless
+the payload must be injected into a native input (only the message-bridge case needs that). Example:
+`NewSidebar.tsx`'s `openScheduledTasksTrigger` listener writes `amplify_pending_scheduled_task`
+(`JSON.stringify`'d `ScheduledTask`) before dispatching `page: 'scheduledTasks'`; `NewScheduledTasksView`
+consumes it via `useMemo` on mount.
 
 ### Image Thumbnail Gotcha — handleFile Wipes doc.raw
 `handleFile` (from `components/Chat/AttachFile.tsx`) sets `doc.raw = ""` (empty string) on the `AttachedDocument` it passes to `onAttach`. This means you **cannot** generate a thumbnail from `doc.raw` inside `addDocument`.
