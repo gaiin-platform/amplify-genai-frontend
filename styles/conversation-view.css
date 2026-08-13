@@ -238,8 +238,9 @@
   /* Inherited from above: max-width, margin-inline: auto */
   background: transparent !important;
   /* Phase 34: assistant messages reduced to 20px — 36px was too much per user feedback.
-     Phase 35 Fix 2: reduced further to 8px — 20px was still too large per user feedback. */
-  padding-bottom: 8px !important;
+     Phase 35 Fix 2: reduced further to 8px — 20px was still too large per user feedback.
+     Phase 36 Fix 2: reduced to 2px — 8px was still too much vertical space below AI responses. */
+  padding-bottom: 2px !important;
 }
 
 [data-new-ui="true"] .enhanced-chat-message::before {

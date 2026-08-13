@@ -1493,6 +1493,24 @@ and `components/NewUI/chat/NewUIMessageActionsLayer.tsx` touched (One-Directory 
   all pre-existing test-runner-globals / missing-dev-dep issues in `__tests__/**` + `utils/**/__tests__/**`,
   unrelated to and predating this session.
 
+### Phase 36 — Two Targeted Chat-Pane Fixes ✅ COMPLETE
+Two small fixes; no new files, no new components. `ConversationViewShell.tsx` and
+`styles/conversation-view.css` touched only (One-Directory Rule observed).
+
+- [x] **Fix 1 — Invisible slab covering chat content at jump-button position** (`ConversationViewShell.tsx`)
+  Root cause: the jump-to-latest button's outer wrapper `<div>` (`position:absolute; bottom:190px;
+  left:0; right:0`) had no explicit `height` set, so it defaulted to its content height (~40px).
+  Even though it was `pointer-events:none`, the shell's `overflow:hidden` meant the wrapper's rendered
+  40px-tall area could cause paint interference with content at that vertical position. Fix: added
+  `height: 0` and `overflow: 'visible'` to the outer wrapper so it occupies zero space in the layout
+  and cannot cause any clipping or paint interference. The button (40px tall) still renders and is
+  clickable via `overflow: visible` and the button's own `pointerEvents: showJumpBtn ? 'auto' : 'none'`.
+- [x] **Fix 2 — Still too much space below AI responses** (`styles/conversation-view.css`)
+  `.enhanced-chat-message.assistant-message` `padding-bottom` reduced `8px → 2px` (Phase 35 had
+  reduced it 20px→8px; still too large per user). User-message value unchanged (36px, confirmed good).
+- [x] **`tsc --noEmit` confirmed clean** — zero errors in production source; all errors in output are
+  pre-existing test-file issues in `__tests__/` unrelated to this session's changes.
+
 ### Phase 19 — Remaining Port Work (NEXT)
 - [ ] Responsive: icon rail at 760-1099px
 - [ ] Responsive: off-canvas drawer <760px

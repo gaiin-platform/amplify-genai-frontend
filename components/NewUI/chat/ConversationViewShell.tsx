@@ -237,6 +237,8 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
           bottom: 190,
           left: 0,
           right: 0,
+          height: 0,
+          overflow: 'visible',
           pointerEvents: 'none',
           zIndex: 28,
           display: 'flex',
