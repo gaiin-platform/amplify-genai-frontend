@@ -56,6 +56,7 @@ import { getUserSkills } from '@/services/skillsService';
 import { Skill } from '@/types/skill';
 import { Assistant, DEFAULT_ASSISTANT } from '@/types/assistant';
 import { LayeredAssistant } from '@/types/layeredAssistant';
+import { Prompt } from '@/types/prompt';
 import { isAssistant } from '@/utils/app/assistants';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -741,9 +742,12 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   const [primaryOpen, setPrimaryOpen] = useState(false);
   const [submenu, setSubmenu] = useState<'skills' | 'connectors' | 'library' | 'assistant' | null>(null);
 
-  // Build assistant list from prompts (same as ChatInput)
+  // Build assistant list from prompts (same as ChatInput).
+  // Mirrors Promptbar.tsx's visiblePrompts filter: hide prompts marked data.hidden
+  // unless featureFlags.overrideInvisiblePrompts is set.
   const availableAssistants: Assistant[] = (prompts ?? [])
     .filter(isAssistant)
+    .filter((p: Prompt) => featureFlags.overrideInvisiblePrompts || !p.data?.hidden)
     .map((p: any) => {
       const ast = p.data?.assistant;
       if (!ast) return null;

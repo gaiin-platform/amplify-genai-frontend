@@ -26,7 +26,9 @@ import { Chat } from '@/components/Chat/Chat';
 import { ConversationHeader } from './ConversationHeader';
 import { ConversationComposer } from './ConversationComposer';
 import { NewUIMessageActionsLayer } from './NewUIMessageActionsLayer';
+import { NewUIUserMessageMarkdownLayer } from './NewUIUserMessageMarkdownLayer';
 import HomeContext from '@/pages/api/home/home.context';
+import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
 
 interface ConversationViewShellProps {
   stopConversationRef: MutableRefObject<boolean>;
@@ -51,10 +53,14 @@ const SCROLL_THRESHOLD = 200;
 export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
   stopConversationRef,
 }) => {
-  const { state: { messageIsStreaming } } = useContext(HomeContext);
+  const {
+    state: { messageIsStreaming, selectedConversation, featureFlags },
+    handleUpdateConversation,
+  } = useContext(HomeContext);
 
   const hasFiredRef = useRef(false);
   const [showJumpBtn, setShowJumpBtn] = useState(false);
+  const shellRef = useRef<HTMLDivElement>(null);
 
   // ── Pending-message bridge ──────────────────────────────────────────────
   useEffect(() => {
@@ -80,6 +86,39 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
 
       if (textarea && sendBtn) {
         hasFiredRef.current = true;
+
+        // Consume the pending web-search/skills bridge written by NewHome.tsx
+        // for brand-new conversations (see NEW_UI_DOCS.md §13 "Pending-Message
+        // Bridge" / "RAG / Web Search Wiring Gap"). These two keys were
+        // previously written but never read anywhere — that's the bug.
+        const pendingWebSearch = sessionStorage.getItem('amplify_pending_web_search') === 'true';
+        const pendingSkillsRaw = sessionStorage.getItem('amplify_pending_skills');
+        let pendingSkills: string[] = [];
+        if (pendingSkillsRaw) {
+          try { pendingSkills = JSON.parse(pendingSkillsRaw); } catch { /* ignore malformed value */ }
+        }
+
+        if (pendingWebSearch && selectedConversation) {
+          // Persist onto the freshly-created conversation so ChatInput.tsx's
+          // own send handler (which reads selectedConversation.data.webSearchEnabled)
+          // includes it as a per-message flag.
+          handleUpdateConversation(selectedConversation, {
+            key: 'data',
+            value: {
+              ...selectedConversation.data,
+              webSearchEnabled: true,
+              skills: pendingSkills,
+              skillSelectionMode: 'auto',
+            },
+          });
+        }
+        if (pendingWebSearch) {
+          // Ensure Chat.tsx's local `plugins` array (a separate, session-level
+          // gate ANDed with the per-message flag above — see
+          // useChatSendService.ts) actually contains WEB_SEARCH.
+          persistWebSearchPluginPreference(featureFlags);
+        }
+
         sessionStorage.removeItem('amplify_pending_message');
         sessionStorage.removeItem('amplify_pending_docs');
         sessionStorage.removeItem('amplify_pending_model_id');
@@ -100,6 +139,35 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
 
     tryInject();
     return () => { if (timer) clearTimeout(timer); };
+  }, []);
+
+  // ── Asterisk two-state: set data-streaming on the shell ─────────────────
+  useEffect(() => {
+    if (shellRef.current) {
+      if (messageIsStreaming) {
+        shellRef.current.setAttribute('data-streaming', 'true');
+      } else {
+        shellRef.current.removeAttribute('data-streaming');
+      }
+    }
+  }, [messageIsStreaming]);
+
+  // ── Chat font: set data-body-face from localStorage ──────────────────────
+  useEffect(() => {
+    if (!shellRef.current) return;
+    const savedFont = typeof window !== 'undefined'
+      ? (localStorage.getItem('amplify_chat_font') ?? 'serif')
+      : 'serif';
+    shellRef.current.setAttribute('data-body-face', savedFont);
+
+    // Listen for settings-change events so the font updates without reload
+    const handler = () => {
+      if (!shellRef.current) return;
+      const f = localStorage.getItem('amplify_chat_font') ?? 'serif';
+      shellRef.current.setAttribute('data-body-face', f);
+    };
+    window.addEventListener('amplifyChatFontChanged', handler);
+    return () => window.removeEventListener('amplifyChatFontChanged', handler);
   }, []);
 
   // ── Scroll-to-latest button ─────────────────────────────────────────────
@@ -141,6 +209,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
 
   return (
     <div
+      ref={shellRef}
       data-new-ui="true"
       className="new-ui-chat-shell"
       style={{
@@ -176,7 +245,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
       >
         <div
           style={{
-            width: 'min(75ch, calc(100% - 48px))',
+            width: 'min(74ch, calc(100% - 48px))',
             display: 'flex',
             justifyContent: 'center',
           }}
@@ -209,6 +278,9 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
 
       {/* Floating action row (Copy / Edit / Read Aloud) */}
       <NewUIMessageActionsLayer />
+
+      {/* §4/§5: Markdown rendering + collapse for user messages */}
+      <NewUIUserMessageMarkdownLayer />
     </div>
   );
 };

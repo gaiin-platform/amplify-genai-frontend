@@ -33,7 +33,7 @@
 | Conversation list with time bucketing | ✅ | Today / Yesterday / Older, archive-aware |
 | Sidebar collapse to icon rail | ✅ | Collapses to 52px; full icon-rail at 760–1099px is Phase 17 |
 | Search → Chats & Tasks full-pane view | ✅ | Search button in header dispatches `page='chats'` |
-| Chats & Tasks full list view | ✅ | `ChatsListView.tsx` |
+| Chats & Tasks full list view | ✅ | `ChatsListView.tsx`. Search now matches message content for local conversations (via `uncompressMessages`), not just conversation name — matches classic `Chatbar.tsx:181-197` search behavior including its "remote messages are unsearchable" limitation. |
 | Library view (data sources) | ✅ | `NewLibraryView.tsx` — new-UI reimplementation with list rows, file icons, status badges, search, upload, batch delete |
 | Home landing page | ✅ | `NewHome.tsx` |
 | UI preference banner (new vs classic) | ✅ | `UIPreferenceBanner.tsx` |
@@ -47,20 +47,22 @@
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Chat message rendering | ✅ | Via `ConversationViewShell` wrapping existing `Chat.tsx` |
-| User message bubbles (right-aligned) | ✅ | CSS-scoped in `conversation-view.css` |
-| Assistant prose (no bubble) | ✅ | |
+| User message bubbles (right-aligned) | ✅ | CSS-scoped in `conversation-view.css`. Max-width bumped to 85% (was 72%) per spec §10. |
+| Markdown in user messages (§4) | ✅ | `NewUIUserMessageMarkdownLayer.tsx` — portal-based ReactMarkdown render inside each user bubble; hides raw `#userMessage` text via `.new-ui-has-markdown` CSS class. Scope: paragraphs, line breaks, fenced code (inset panel: `--bg-app` bg, `1px --border-subtle`, `12px radius`), inline code (`--bg-active`/`#D9776A`), lists, bold, italic. No headings/tables/images per spec. Bubble always sans face. |
+| Long user message collapse (§5) | ✅ | `NewUIUserMessageMarkdownLayer.tsx` — collapses at 380px scrollHeight threshold; bottom fade mask-image (72px); plain-text "Show more"/"Show less" left-aligned; 240ms ease-out expand animation; per-message non-persisted state. |
+| Assistant prose (no bubble) | ✅ | §6: Serif Chat font (Newsreader, 17px/1.62) by default. Sans option available via Settings → General → Chat font. Code/tables always sans regardless of Chat font setting. |
 | Code block styling | ✅ | |
 | Table styling | ✅ | |
-| Reasoning / thinking disclosure block | ✅ | `AssistantReasoningMessage` styled via CSS |
-| PromptStatus in-stream step lines | ✅ | |
-| Composer (new chat + in-conversation) | ✅ | `NewHome.tsx` + `ConversationComposer.tsx` |
-| Model picker | ✅ | `ModelPicker.tsx` — family-aware, effort levels |
-| Attach menu (⊕) | ✅ | `AttachMenu.tsx` — files, library, skills, connectors, web search |
+| Reasoning / thinking disclosure block | 🚧 | `AssistantReasoningMessage` styled via CSS (chevron replaces triangle, literal "Reasoning" text hidden/replaced — Phase 28, chat-pane-migration-spec.md §3). **Blocked on backend**: no `reasoning.summary` field exists in the data model (confirmed by direct investigation), so the disclosure currently shows a neutral placeholder ("Thought process") instead of the spec's real per-turn prose summary ("Calculated recovery window..."). Also can't fully implement "omit line for no-reasoning-and-no-tool-use" since no structured tool-use flag exists either. See NEW_UI_DOCS.md §12 Phase 28 for the full blocker writeup and backend recommendation. This block still only mounts once streaming is complete (`ChatMessage.tsx` gates it on `!messageIsStreaming`) — it's never shown "live" while thinking. Phase 26 added a 0.35s settle-in transition (`prefers-reduced-motion`-gated) so its post-stream arrival doesn't pop in abruptly. |
+| PromptStatus in-stream step lines | ✅ | Phase 26: added a calm streaming-in-progress animation — breathing accent dot + gradient text shimmer sweep, both `prefers-reduced-motion`-gated (no animation at all when the user prefers reduced motion). This is the actual "live thinking" indicator, since it's the only element present in the DOM while `status.inProgress` is true. |
+| Composer (new chat + in-conversation) | ✅ | `NewHome.tsx` + `ConversationComposer.tsx`. §7: send/voice/stop cross-fade in one slot (no layout shift). §8: 74ch column width for exact text alignment. |
+| Model picker | ✅ | `ModelPicker.tsx` — family-aware, effort levels. `supportsImages` capability icon added (camera icon, both primary-menu rows and "More models" submenu) to match classic `ModelSelect.tsx`. |
+| Attach menu (⊕) | ✅ | `AttachMenu.tsx` — files, library, skills, connectors, web search. Web search toggle now bridges into `Chat.tsx`'s request-time `plugins` array via the shared `getSettings`/`saveSettings` utilities (see `components/NewUI/shared/webSearchPreference.ts`) — see NEW_UI_DOCS.md §13 "RAG / Web Search Wiring Gap — Web Search Fixed". Known remaining edge case: the very first message sent in an *already-open* conversation immediately after flipping the toggle on may still miss the plugin (Chat.tsx doesn't re-derive `plugins` until its next mount); every new/reopened/reloaded conversation after that first toggle works correctly. |
 | Pending-message bridge (home → chat) | ✅ | sessionStorage injection |
-| Conversation header (title + share) | ✅ | `ConversationHeader.tsx` |
+| Conversation header (title + share) | ✅ | `ConversationHeader.tsx`. §9: Share button is label-only (no icon), 30px, `--bg-active`, hover `#45443F`. |
 | Stop generating button | ✅ | In `ConversationComposer.tsx` |
 | Scroll-to-latest button | ✅ | |
-| Hover action row (copy, edit, read aloud) | ✅ | `NewUIMessageActionsLayer.tsx` — transparent pill, no backdrop |
+| Hover action row (full spec §1/§2) | ✅ | `NewUIMessageActionsLayer.tsx` — Phase 28 full rewrite; Phase 31/32 bug-fix passes; **Phase 33 positioning rewrite**. User: `timestamp · retry · edit · copy`, right-aligned. Assistant: `copy · read aloud · good · bad · retry · timestamp`, left-aligned, bare icons. **Phase 33: rows are now `position:absolute` children of an overlay `createPortal`'d into `.chatcontainer` (the scroller) — they scroll in perfect lock-step with content, NO scroll listeners / rAF / per-frame state (the old `position:fixed` + getBoundingClientRect + rAF model lagged ≥1 frame on scroll). Position = offsetTop/offsetLeft chain from `#chatHover` to `.chatcontainer` + 6px GAP, computed only in `scan()`. `.chatcontainer` made `position:relative`; `.enhanced-chat-message` gets `padding-bottom:36px` for the in-flow row.** Phase 33 §2: the always-visible last-assistant row was REMOVED per user request — rows now appear on hover/`:focus-within` only, for every message including the last. Phase 33 §3: `pointermove` 60px keep-alive removed; hide grace timer 600ms→200ms (row is now adjacent in DOM). Earlier fixes retained: retry "Try again" only (3 retry-menu variants + `···` overflow not built), good/bad rating persists to `message.data.newUiRating`/`newUiFeedback`, "Thought process" reasoning label left-aligned. **Phase 35 bug-fix pass:** (1) hover row no longer disappears when moving between icon buttons — the container-level `onMouseOut` delegation ignores events originating inside `.new-ui-actions-overlay`, and row-exit is now driven by the row container's non-bubbling `mouseleave` (clears immediately, no timer); (2) icon-cluster horizontal gaps already tightened in Phase 34; (3) "Thought process" label alignment made exact (`#expandComponent` margin-left/gap zeroed + `.font-medium` margin-left zeroed → lands at prose left edge, replacing Phase 32's overshooting `-18px`); (4) assistant message `padding-bottom` 20px→8px; (5) `.chatcontainer` bottom mask fade removed (was reading as a bar covering text near the jump button). |
 | Attachment rail (pre-send cards) | ✅ | `AttachmentRail` + `AttachmentCard` — 160×160 cards above textarea, image/file/paste variants; circular spinner overlay during upload |
 | Attachment preview overlay | ✅ | `AttachmentPreview` — centered FLIP animation (separate centering wrapper), image/CSV/text panels, unavailable states, ← / → nav |
 | Large-paste capture (≥4k chars) | ✅ | `RichComposer.onLargePaste` + `ConversationComposer` `onPaste` — paste becomes attachment card |
@@ -79,6 +81,7 @@
 | Context window / focused messages | ✅ | Feature flag wired in General settings |
 | Prompt highlighter | 🚧 | Feature flag wired; component not new-UI styled |
 | Memory presenter | ❌ | Not yet surfaced in new UI |
+| RAG toggle (`featureFlags.ragEnabled` / `ragOn` / `PluginID.RAG`) | ❌ | **Confirmed (2026-08-11): there is no RAG toggle UI anywhere in `components/NewUI/` — this is a not-yet-built feature, not a broken existing toggle.** `ragEnabled`/`cachedDocuments`/`ragOn`/`PluginID.RAG` are referenced zero times in any New UI component. "Add from library" in `AttachMenu.tsx` is a document-*picker launcher* only (opens the native file input or bridges into old UI's `#viewFiles` button) — it does not toggle RAG on/off and writes nothing to `conversation.data`. Building a RAG toggle is scoped, new feature work: it would need (a) a toggle UI (mirroring the Web Search `ToggleRow` pattern in `AttachMenu.tsx`), (b) a `conversation.data.ragEnabled`-style persisted field, and (c) a bridge into `Chat.tsx`'s local `plugins` state using the same settings-utility mechanism now proven out for Web Search — see `components/NewUI/shared/webSearchPreference.ts` and NEW_UI_DOCS.md §13 "RAG / Web Search Wiring Gap — Web Search Fixed" for the template to replicate. Not attempted in the 2026-08-11 session (out of scope for a bug-fix task — no toggle existed to fix). |
 
 ---
 
@@ -101,6 +104,7 @@
 | Assistant admin interface | 🚧 | `AdminUI` / `openAstAdminInterfaceTrigger`; old UI panel |
 | Assistant email events config | ❌ | Not surfaced yet in new UI |
 | Promptbar folder tree (old sidebar) | 🚫 | Intentionally removed — replaced by flat list in new view |
+| Hidden-prompt filter (`data.hidden` / `overrideInvisiblePrompts`) | ✅ | Fixed in load-time state audit (see NEW_UI_DOCS.md §13 "Load-Time State Consumption Audit"). `NewAssistantsView.tsx` (My Assistants, Group Assistants, Prompt Templates tabs) and `AttachMenu.tsx` (assistant selector) now apply the same `!p.data?.hidden` filter (bypassed by `featureFlags.overrideInvisiblePrompts`) that classic `Promptbar.tsx:249-250` always applied. Admin edit actions still pass the *unfiltered* group object so hidden assistants remain manageable. |
 
 ---
 
@@ -111,6 +115,7 @@
 | Settings modal (two-column) | ✅ | `NewSettingsModal.tsx` |
 | General — theme toggle | ✅ | |
 | General — feature flags | ✅ | |
+| General — Chat font (Serif/Sans) | ✅ | Radio toggle in General section. Saves to `amplify_chat_font` localStorage key. Default: Serif (Newsreader 17px/1.62). Sans: Inter 16px/1.7. Wired into `ConversationViewShell` via `data-body-face` attribute + `amplifyChatFontChanged` event. |
 | Custom Instructions | ✅ | Rebrand of "System Prompt"; saves to `amplify_custom_instructions` localStorage key |
 | Account info | ✅ | Wraps existing `Accounts` component |
 | Usage section | ❌ | Placeholder — `UserCostBreakdownModal` not yet ported |
@@ -175,7 +180,8 @@ These features existed in the old UI and have been **deliberately dropped**. The
 | **"Chat/Cowork" segmented toggle on home screen** | Was removed — the Cowork concept is not part of the new UI direction. |
 | **Quick-action suggestion chips on home screen** | Removed — the blank composer is the right starting point; chips felt promotional/cluttered. |
 | **"@Amplify:" prefix label on assistant messages** | Visual decoration with no informational value. Hidden via CSS. |
-| **Message animated status card** (wave animation, cover image) | Replaced with a clean muted in-stream step line per spec §4.4. |
+| **Message animated status card** (wave animation, cover image) | Replaced with a clean muted in-stream step line per spec §4.4. Phase 26 added a *new*, deliberately different calm animation to that step line (breathing dot + text shimmer, no bg-image/ripple) — this is not a reintroduction of the removed wave effect, see Phase 26 notes in `NEW_UI_DOCS.md` §12. |
+| **Artifact button logo swatch** (`#artifactsButtonBlock` background-image cover, Amplify/white-label logo) | Hidden via CSS (Phase 26) — same treatment as the old "@Amplify:" prefix label; the artifact button itself was restyled to use design tokens (`--bg-raised`, `--border-subtle`) instead of `bg-yellow-400`/`shadow-lg`. |
 
 ---
 

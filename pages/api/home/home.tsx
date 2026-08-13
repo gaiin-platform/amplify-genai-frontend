@@ -161,6 +161,23 @@ const Home = ({
     const [dataDisclosure, setDataDisclosure] = useState<{url: string, html: string | null}|null>(null);
     const [hasAcceptedDataDisclosure, sethasAcceptedDataDisclosure] = useState<boolean | null> (null);
 
+    // Phase 27 bug fix: bridges the gap between NewHome writing the pending-message
+    // sessionStorage bridge (see ConversationViewShell.tsx) and messageIsStreaming
+    // actually flipping true. Without this, a brand-new conversation's
+    // messages.length===0 window (before the DOM-injection bridge fires, ~150-300ms)
+    // caused the NewHome/landing page to flash back in right after the user hit
+    // send — looking like a revert to "old UI". NewHome.tsx dispatches
+    // 'amplifyNewConversationSendPending' synchronously right before calling
+    // handleNewConversation; we clear it once messageIsStreaming goes true (the
+    // real signal that Chat.tsx's send pipeline has taken over) with a safety-net
+    // timeout in case the bridge silently fails for any reason.
+    const [pendingNewConversationSend, setPendingNewConversationSend] = useState(false);
+    useEffect(() => {
+        const handler = () => setPendingNewConversationSend(true);
+        window.addEventListener('amplifyNewConversationSendPending', handler);
+        return () => window.removeEventListener('amplifyNewConversationSendPending', handler);
+    }, []);
+
     const { data: session, status } = useSession();
     const [user, setUser] = useState<any>(null);
 
@@ -695,6 +712,24 @@ const Home = ({
     }
 
     // EFFECTS  --------------------------------------------
+
+    // Phase 27 bug fix: clear the pending-send bridge flag once real streaming
+    // has taken over (messageIsStreaming===true means Chat.tsx's send pipeline
+    // is now driving the UI, so NewHome/ConversationViewShell no longer need the
+    // synthetic override). A short safety-net timeout also clears the flag if
+    // messageIsStreaming never flips true for some reason (e.g. the pending-
+    // message DOM-injection bridge failed to find the hidden textarea/button),
+    // so a genuinely stuck flag can't permanently hide NewHome for an empty
+    // conversation the user isn't actually sending anything in.
+    useEffect(() => {
+        if (!pendingNewConversationSend) return;
+        if (messageIsStreaming) {
+            setPendingNewConversationSend(false);
+            return;
+        }
+        const safetyTimer = setTimeout(() => setPendingNewConversationSend(false), 4000);
+        return () => clearTimeout(safetyTimer);
+    }, [pendingNewConversationSend, messageIsStreaming]);
 
     useEffect(() => {
         if (window.innerWidth < 640) {
@@ -1630,7 +1665,18 @@ const Home = ({
 
                                 {/* Main content area */}
                                 <div id="main-content" tabIndex={-1} className="flex flex-1 overflow-hidden">
-                                    {page === 'chat' && (!selectedConversation || selectedConversation.messages.length === 0) && (
+                                    {/* Bug fix (Phase 27): `messageIsStreaming || loading` keeps the chat
+                                        view showing even in the brief window where a brand-new
+                                        conversation has messages.length===0 but a send is already in
+                                        flight (the pending-message sessionStorage bridge in
+                                        ConversationViewShell.tsx takes ~150-300ms to inject text + click
+                                        send — during that window `messages.length` is genuinely 0, which
+                                        previously flashed NewHome/landing page ["old UI"] right after the
+                                        user hit send on the very first message of a new conversation).
+                                        `pendingNewConversationSend` (see effect below) covers the gap
+                                        between NewHome's sessionStorage write and messageIsStreaming
+                                        actually flipping true. See NEW_UI_DOCS.md §12 Phase 27. */}
+                                    {page === 'chat' && (!selectedConversation || (selectedConversation.messages.length === 0 && !messageIsStreaming && !pendingNewConversationSend)) && (
                                         <NewHome />
                                     )}
                                     {/* ConversationViewShell is always mounted while page=chat AND a
@@ -1645,7 +1691,7 @@ const Home = ({
                                     {page === 'chat' && selectedConversation && (
                                         <div
                                             key={selectedConversation.id}
-                                            style={selectedConversation.messages.length === 0 ? {
+                                            style={(selectedConversation.messages.length === 0 && !messageIsStreaming && !pendingNewConversationSend) ? {
                                                 position: 'fixed',
                                                 top: 0,
                                                 left: '-100vw',

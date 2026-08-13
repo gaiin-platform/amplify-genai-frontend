@@ -9,7 +9,7 @@
  *     dock         (flex-shrink:0)            — ConversationComposer, NOT an overlay
  *
  * Column geometry (spec §2 / defects #1–#3):
- *   --column-w:     min(75ch, 100% - 48px)       message text column
+ *   --column-w:     min(74ch, 100% - 48px)       message text column (spec §8)
  *   --composer-pad: 24px                          composer inner h-pad
  *   --dock-w:       column-w + composer-pad * 2   composer outer box
  *
@@ -89,36 +89,75 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Scroll container (spec §2 / defects #2 #6 #7)
    — reserve 52px top for header overlay
-   — NO padding-bottom needed: composer is now a flex sibling, not an overlay
    — scrollbar-gutter: stable prevents column shift (defect #6)
    — fade masks on both edges
+
+   Phase 27 bug fix ("responses getting cut off"): ConversationComposer.tsx is
+   actually a `position:absolute; bottom:0` overlay (NOT a flex sibling of the
+   scroll area, despite this section's older comment claiming otherwise — see
+   ConversationViewShell.tsx, which renders <Chat/>, <ConversationHeader/>, and
+   <ConversationComposer/> as siblings inside one relative-positioned flex
+   column, with the header/composer using position:absolute internally). The
+   composer's real rendered height is ~170-190px (16px+12px card padding +
+   ~24px textarea + 10px toolbar margin + 36px toolbar + 20px outer bottom
+   padding + ~24px disclaimer line), plus up to 176px more when the
+   attachment rail is showing. The previous 32px bottom padding left the tail
+   of every message sitting underneath the opaque composer card with zero
+   scroll clearance — this, not any fade/mask effect, was the actual cause of
+   "responses getting cut off": the content was in the DOM but visually
+   covered. Bumped to 220px (comfortably covers the composer without the
+   rail) and the bottom fade start point adjusted to match.
 ───────────────────────────────────────────────────────────────────────────── */
 [data-new-ui="true"] .chatcontainer {
   /* Layout */
   max-width: 100% !important;
-  padding-top: 52px !important;      /* header overlay height */
-  padding-bottom: 32px !important;   /* comfortable bottom buffer */
-  height: 100% !important;           /* overrides JS inline height: 94vh */
+  padding-top: 52px !important;       /* header overlay height */
+  padding-bottom: 220px !important;   /* clears the absolutely-positioned composer overlay */
+  height: 100% !important;            /* overrides JS inline height: 94vh */
   overflow-y: auto !important;
   overflow-x: hidden !important;
   overflow-anchor: auto;
   scrollbar-gutter: stable;          /* prevents column shift on scroll (defect #6) */
 
-  /* Fade masks (spec §2) */
+  /* Phase 33: make .chatcontainer the positioned containing block / offsetParent
+     for NewUIMessageActionsLayer's absolute overlay + rows. The rows live inside
+     this scroller, so they scroll in perfect lock-step with the content — no
+     scroll listeners, no rAF, no per-frame position state. */
+  position: relative !important;
+
+  /* Fade masks (spec §2) — TOP FADE ONLY.
+     Phase 35 Fix 1: the bottom fade band (from #000 to transparent in the last
+     ~200px) made content in that region semi-transparent. Because the
+     scroll-to-bottom jump-button's outer wrapper div spans left:0/right:0 at
+     exactly that scroll position (bottom:190px in ConversationViewShell.tsx),
+     the faded band read visually as a bar covering the response text. The top
+     fade (clearing the 52px header overlay) is still needed and kept; only the
+     bottom fade is removed. */
   mask-image: linear-gradient(
     to bottom,
     transparent 0,
     #000 80px,          /* top fade clears the 52px header */
-    #000 calc(100% - 64px),
-    transparent 100%    /* bottom fade above composer edge */
+    #000 100%
   ) !important;
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0,
     #000 80px,
-    #000 calc(100% - 64px),
-    transparent 100%
+    #000 100%
   ) !important;
+}
+
+/* Fix 1 (Phase 34): The .new-ui-actions-overlay is a direct child of
+   .chatcontainer and therefore inherits the parent's mask-image. When the
+   scroll-to-bottom button is visible (user scrolled up), the mask's top
+   transparent band creates a semi-transparent strip that makes the background
+   colour bleed through — appearing as a solid bar covering text. Since the
+   overlay's rows are position:absolute in scroll-coordinate space (not
+   viewport-relative), the mask transition point never applies meaningfully to
+   them anyway; removing it is safe and correct. */
+[data-new-ui="true"] .chatcontainer > .new-ui-actions-overlay {
+  mask-image: none !important;
+  -webkit-mask-image: none !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -158,19 +197,28 @@
    Every .enhanced-chat-message is capped at --column-w and centered.
    This is the fix for the root cause: messages had no constrained column.
 
-   75ch ≈ 600-650px at 16px body, giving ~75 chars/line (spec §1).
+   74ch ≈ 590-640px at 16px body, ~74 chars/line (spec §1/§8).
    48px ensures 24px minimum inset on both sides at any window width.
 
    NOTE: We do NOT set margin: 0 here (would override the auto centering).
          Padding is zeroed to remove Chat.tsx's md:px-4.
 ───────────────────────────────────────────────────────────────────────────── */
 [data-new-ui="true"] .enhanced-chat-message {
-  --column-w: min(75ch, calc(100% - 48px));
+  --column-w: min(74ch, calc(100% - 48px));
   max-width: var(--column-w) !important;
   margin-left: auto !important;
   margin-right: auto !important;
   width: 100% !important;
   padding: 0 !important;              /* removes md:px-4 */
+  /* Phase 33 §4b: reserve space below each message for the absolutely-positioned
+     action row (NewUIMessageActionsLayer). The row is now IN-FLOW inside the
+     scroller's coordinate system (6px GAP + ~24px row height + breathing room),
+     so the next element needs clearance below to avoid visual overlap.
+     Longhand after the `padding: 0` shorthand (both !important) wins for the
+     bottom edge only, leaving left/right/top at 0.
+     Phase 34: split into role-specific values — user (36px confirmed good),
+     assistant (20px, was too large per user feedback). */
+  padding-bottom: 36px !important; /* fallback; overridden by role rules below */
   /* Decorative resets */
   background: transparent !important;
   border-left: none !important;
@@ -182,11 +230,16 @@
   display: flex !important;
   justify-content: flex-end !important;
   /* Inherited from above: max-width, margin-inline: auto */
+  /* Phase 34: user messages keep 36px — confirmed correct spacing */
+  padding-bottom: 36px !important;
 }
 
 [data-new-ui="true"] .enhanced-chat-message.assistant-message {
   /* Inherited from above: max-width, margin-inline: auto */
   background: transparent !important;
+  /* Phase 34: assistant messages reduced to 20px — 36px was too much per user feedback.
+     Phase 35 Fix 2: reduced further to 8px — 20px was still too large per user feedback. */
+  padding-bottom: 8px !important;
 }
 
 [data-new-ui="true"] .enhanced-chat-message::before {
@@ -197,7 +250,7 @@
    Model-settings panel (only model selector, top of thread) — also constrained
 ───────────────────────────────────────────────────────────────────────────── */
 [data-new-ui="true"] .flex.flex-col.md\:gap-6 {
-  max-width: min(75ch, calc(100% - 48px)) !important;
+  max-width: min(74ch, calc(100% - 48px)) !important;
   margin-left: auto !important;
   margin-right: auto !important;
   padding-left: 0 !important;
@@ -212,7 +265,7 @@
    Constrained to column so the accent asterisk aligns with message text.
 ───────────────────────────────────────────────────────────────────────────── */
 [data-new-ui="true"] .h-\[300px\] {
-  max-width: min(75ch, calc(100% - 48px)) !important;
+  max-width: min(74ch, calc(100% - 48px)) !important;
   margin-left: auto !important;
   margin-right: auto !important;
   width: 100% !important;
@@ -224,13 +277,47 @@
   padding-top: 20px !important;
 }
 
+/*
+ * §11 — Pending asterisk: flush with body text left edge.
+ * The ✳ glyph has left side bearing so it appears to sit slightly inside
+ * the column left edge; margin-left: -0.05em compensates (spec §11).
+ *
+ * Two states (spec §11 / conversation-view-spec.md §6):
+ *   idle        55% opacity, static
+ *   streaming   full opacity, slow 2.4s pulse animation
+ * The [data-streaming] attribute is toggled on .h-[300px]'s closest ancestor
+ * that we can target without touching Chat.tsx — in practice we set it on
+ * the [data-new-ui="true"] shell element itself via a small CSS approach:
+ * we can't easily read messageIsStreaming here, so we use a body class
+ * `new-ui-streaming` toggled by ConversationViewShell (see the effect below).
+ */
 [data-new-ui="true"] .h-\[300px\]::after {
   content: "✳";
   display: block;
   font-size: 22px;
   color: var(--accent);
-  opacity: 0.55;
+  opacity: 0.55;                  /* idle state: 55% opacity */
   line-height: 1;
+  margin-left: -0.05em;           /* compensate for glyph left side bearing (spec §11) */
+  transition: opacity 0.3s ease;
+}
+
+/* Streaming state: animate to full opacity */
+.new-ui-is-streaming [data-new-ui="true"] .h-\[300px\]::after,
+[data-new-ui="true"][data-streaming="true"] .h-\[300px\]::after {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .new-ui-is-streaming [data-new-ui="true"] .h-\[300px\]::after,
+  [data-new-ui="true"][data-streaming="true"] .h-\[300px\]::after {
+    animation: new-ui-asterisk-pulse 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes new-ui-asterisk-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%       { opacity: 1; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -282,8 +369,8 @@
 [data-new-ui="true"] .enhanced-chat-message.user-message #chatHover {
   background-color: var(--bg-raised) !important;
   border-radius: 16px !important;
-  padding: 12px 18px !important;
-  max-width: 72% !important;       /* 72% of the column (spec §4.2) */
+  padding: 12px 22px !important;
+  max-width: 85% !important;       /* 85% of the column (chat-pane-migration-spec §10) */
   width: fit-content !important;
   margin-left: auto !important;
   margin-right: 0 !important;      /* right edge = column right edge (defect #5) */
@@ -311,10 +398,83 @@
   padding: 0 !important;
   max-width: 100% !important;
   width: 100% !important;
-  font-size: 16px !important;
-  line-height: 1.7 !important;
+  font-size: 17px !important;   /* §6: 17px base; overridden to 16px by sans variant below */
+  line-height: 1.62 !important; /* §6: 1.62; overridden to 1.7 by sans variant */
   color: var(--text-primary) !important;
   margin: 0 !important;
+}
+
+/* Sans override — explicit sans face, 16px/1.7 (original pre-§6 values) */
+[data-new-ui="true"][data-body-face="sans"] .enhanced-chat-message.assistant-message #chatHover {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 16px !important;
+  line-height: 1.7 !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §6 — Assistant body typography: Chat font setting
+   (chat-pane-migration-spec.md §6)
+
+   Default: "Chat font" = Serif. ConversationViewShell sets
+   data-body-face="serif" (or "sans") on the shell element, read from
+   localStorage key `amplify_chat_font`. When absent, defaults to "serif".
+
+   - Serif face:  Newsreader (already loaded via globals.css)
+   - Sans face:   Inter (fallback)
+   - Font size:   17px / line-height 1.62 (spec §6)
+   - Para gap:    16px (spec §6)
+
+   User bubbles, code, tables, inline code, and all UI chrome ALWAYS stay
+   sans regardless of Chat font (spec §6: "Serif in a bubble reads as a
+   quotation"). The reasoning block disclosure also stays sans (spec §3:
+   "UI SANS face even when body copy is serif — it's system narration").
+───────────────────────────────────────────────────────────────────────────── */
+
+/* Serif variant (data-body-face="serif" or unset — serif is the default) */
+[data-new-ui="true"]:not([data-body-face="sans"]) .enhanced-chat-message.assistant-message #chatHover,
+[data-new-ui="true"][data-body-face="serif"] .enhanced-chat-message.assistant-message #chatHover {
+  font-family: Newsreader, Georgia, 'Times New Roman', serif !important;
+  font-size: 17px !important;
+  line-height: 1.62 !important;
+}
+
+[data-new-ui="true"]:not([data-body-face="sans"]) .assistantContentBlock,
+[data-new-ui="true"][data-body-face="serif"] .assistantContentBlock,
+[data-new-ui="true"]:not([data-body-face="sans"]) .enhanced-chat-message.assistant-message .prose,
+[data-new-ui="true"][data-body-face="serif"] .enhanced-chat-message.assistant-message .prose {
+  font-family: Newsreader, Georgia, 'Times New Roman', serif !important;
+  font-size: 17px !important;
+  line-height: 1.62 !important;
+}
+
+[data-new-ui="true"]:not([data-body-face="sans"]) .assistantContentBlock p,
+[data-new-ui="true"][data-body-face="serif"] .assistantContentBlock p,
+[data-new-ui="true"]:not([data-body-face="sans"]) .enhanced-chat-message.assistant-message .prose p {
+  margin-bottom: 16px !important;
+  font-family: inherit !important;
+}
+
+/* Code/pre: ALWAYS monospace regardless of Chat font */
+[data-new-ui="true"]:not([data-body-face="sans"]) .assistantContentBlock code,
+[data-new-ui="true"][data-body-face="serif"] .assistantContentBlock code,
+[data-new-ui="true"]:not([data-body-face="sans"]) .assistantContentBlock pre,
+[data-new-ui="true"][data-body-face="serif"] .assistantContentBlock pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+}
+
+/* Tables: ALWAYS sans regardless of Chat font (spec §6: "serif numerals break table alignment") */
+[data-new-ui="true"]:not([data-body-face="sans"]) .assistantContentBlock table,
+[data-new-ui="true"][data-body-face="serif"] .assistantContentBlock table,
+[data-new-ui="true"]:not([data-body-face="sans"]) .assistantContentBlock th,
+[data-new-ui="true"][data-body-face="serif"] .assistantContentBlock th,
+[data-new-ui="true"]:not([data-body-face="sans"]) .assistantContentBlock td,
+[data-new-ui="true"][data-body-face="serif"] .assistantContentBlock td {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif !important;
+}
+
+[data-new-ui="true"]:not([data-body-face="sans"]) .text-sm\!important.opacity-70,
+[data-new-ui="true"][data-body-face="serif"] .text-sm\!important.opacity-70 {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -322,9 +482,17 @@
 ───────────────────────────────────────────────────────────────────────────── */
 [data-new-ui="true"] .assistantContentBlock,
 [data-new-ui="true"] .enhanced-chat-message.assistant-message .prose {
+  font-size: 17px !important;   /* §6: 17px base; overridden by sans variant below */
+  line-height: 1.62 !important; /* §6: 1.62 */
+  color: var(--text-primary) !important;
+}
+
+/* Sans override for .assistantContentBlock */
+[data-new-ui="true"][data-body-face="sans"] .assistantContentBlock,
+[data-new-ui="true"][data-body-face="sans"] .enhanced-chat-message.assistant-message .prose {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif !important;
   font-size: 16px !important;
   line-height: 1.7 !important;
-  color: var(--text-primary) !important;
 }
 
 [data-new-ui="true"] .assistantContentBlock p,
@@ -483,6 +651,160 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   §4 — Markdown in user messages (chat-pane-migration-spec.md §4)
+
+   NewUIUserMessageMarkdownLayer.tsx adds .new-ui-has-markdown to each user
+   message element whose content has been rendered into a .new-ui-user-md-host
+   portal. When that class is present, hide the original #userMessage (the
+   raw whitespace-pre-wrap text node) so the rendered markdown takes over.
+
+   Hide .new-ui-user-md-host when UserMessageEditor is active (the .user-message
+   element gets a #editResponse textarea during inline editing — we want the
+   editor to show, not a stale markdown render of the pre-edit text).
+───────────────────────────────────────────────────────────────────────────── */
+
+/* Hide the raw text when markdown is rendered in its place */
+[data-new-ui="true"] .user-message.new-ui-has-markdown #userMessage {
+  display: none !important;
+}
+
+/* Hide the markdown render while the inline editor is open */
+[data-new-ui="true"] .user-message:has(#editResponse) .new-ui-user-md-host {
+  display: none !important;
+}
+
+/* ── User markdown host: inherit bubble sizing ───────────────────────────── */
+[data-new-ui="true"] .new-ui-user-md-host {
+  width: 100%;
+}
+
+/* ── Markdown body: sans face regardless of Chat font (spec §4) ─────────── */
+[data-new-ui="true"] .new-ui-user-markdown {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 16px !important;
+  line-height: 1.65 !important;
+  color: var(--text-primary) !important;
+}
+
+/* Paragraphs: 16px margin between (spec §4) */
+[data-new-ui="true"] .new-ui-user-markdown p {
+  margin: 0 0 16px !important;
+  color: var(--text-primary) !important;
+}
+[data-new-ui="true"] .new-ui-user-markdown p:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Lists: same indent as assistant prose (spec §4) */
+[data-new-ui="true"] .new-ui-user-markdown ul,
+[data-new-ui="true"] .new-ui-user-markdown ol {
+  padding-left: 2.2em !important;
+  margin: 0 0 16px !important;
+  color: var(--text-primary) !important;
+}
+[data-new-ui="true"] .new-ui-user-markdown li {
+  margin-bottom: 6px !important;
+  color: var(--text-primary) !important;
+}
+
+/* Bold & italic */
+[data-new-ui="true"] .new-ui-user-markdown strong {
+  font-weight: 600 !important;
+  color: var(--text-primary) !important;
+}
+[data-new-ui="true"] .new-ui-user-markdown em {
+  font-style: italic !important;
+  color: var(--text-primary) !important;
+}
+
+/* Inline code (spec §4: "--code-fg on --bg-active at 60%, radius 4px, nowrap") */
+[data-new-ui="true"] .new-ui-user-markdown .new-ui-user-inline-code {
+  font-size: 13.5px !important;
+  background-color: rgba(var(--bg-active-rgb, 58, 58, 56), 0.6) !important;
+  background-color: var(--bg-active) !important;
+  border-radius: 4px !important;
+  padding: 1px 5px !important;
+  color: #D9776A !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  white-space: nowrap !important;
+  font-style: normal !important;
+}
+
+/* Fenced code block inset panel (spec §4):
+   --bg-app (recessed against the bubble's --bg-raised); 1px --border-subtle;
+   radius 12px; padding 16px 18px; margin 14px 0;
+   13.5px/1.6 monospace --text-primary; overflow-x auto; no syntax highlighting */
+[data-new-ui="true"] .new-ui-user-markdown .new-ui-user-code-block {
+  background-color: var(--bg-app) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 12px !important;
+  padding: 16px 18px !important;
+  margin: 14px 0 !important;
+  overflow-x: auto !important;
+}
+[data-new-ui="true"] .new-ui-user-markdown .new-ui-user-code-block code {
+  font-size: 13.5px !important;
+  line-height: 1.6 !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  color: var(--text-primary) !important;
+  background: transparent !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  white-space: pre !important;
+}
+
+/* ── §5 — Collapse "Show more" control ──────────────────────────────────── */
+
+/*
+ * "Show more" / "Show less":
+ *   15px --text-primary, left-aligned inside the bubble's padding, 14px below
+ *   the faded edge, no icon, no background. Toggles to "Show less".
+ *   Reads as part of the message rather than as chrome.
+ */
+[data-new-ui="true"] .new-ui-show-more {
+  display: block !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 14px 0 0 !important;
+  margin: 0 !important;
+  cursor: pointer !important;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 15px !important;
+  line-height: 1.4 !important;
+  color: var(--text-primary) !important;
+  text-align: left !important;
+  width: 100% !important;
+  outline: none !important;
+}
+[data-new-ui="true"] .new-ui-show-more:hover {
+  opacity: 0.75 !important;
+}
+[data-new-ui="true"] .new-ui-show-more:focus-visible {
+  outline: 2px solid var(--text-secondary) !important;
+  outline-offset: 2px !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Bug 4 fix — ChatFollowups.tsx phantom whitespace
+   ChatFollowups.tsx (DO-NOT-CHANGE) renders a `<div className="mt-4 flex-wrap gap-4">`
+   inside the user message #chatHover bubble container even when NO follow-up
+   prompts match the current message. The empty div's `mt-4` (16px top margin)
+   appears as phantom whitespace at the top of the bubble, visible once
+   messageIsStreaming becomes false (the component is gated on
+   `!isEditing && !messageIsStreaming`).
+   Hiding the wrapper entirely for new UI is safe: ChatFollowups is a prompt
+   suggestion feature that new UI has not yet surfaced — its content is always
+   empty inside user bubbles anyway (prompts matched by the template logic are
+   assistant-side affordances). This selector is specific enough: it targets
+   only a direct .mt-4.flex-wrap.gap-4 child of a user-message #chatHover;
+   there are no other .mt-4.flex-wrap.gap-4 divs in the user bubble tree.
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .enhanced-chat-message.user-message .mt-4.flex-wrap.gap-4 {
+  display: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Action row icons (spec §4.6)
    The old enhanced-chat-icons are hidden entirely in new UI — replaced by
    NewUIMessageActionsLayer which renders a custom floating overlay.
@@ -588,48 +910,217 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   AssistantReasoningMessage / ExpansionComponent — spec §4.4 disclosure
-   Collapsed: ⌄ Reasoning  |  Expanded: block with sidebar bg
+   AssistantReasoningMessage / ExpansionComponent — spec §3 disclosure redesign
+   (chat-pane-migration-spec.md §3). Full context:
+
+   AssistantReasoningMessage.tsx (DO-NOT-CHANGE, read-only) hardcodes
+   `<ExpansionComponent title="Reasoning" .../>` — the literal word "Reasoning"
+   and the ▸/⌄ IconCaretRight/IconCaretDown triangle icons are baked into a
+   protected component tree (AssistantReasoningMessage → ExpansionComponent,
+   both DO-NOT-CHANGE). There is no window/event bridge for this piece (unlike
+   retry/edit, which have DOM buttons to click) — the only lever available
+   without touching a protected file is CSS text/icon substitution, which is
+   the same technique already established for the ChatLoader "▍" glyph
+   (Phase 27, see the `.animate-pulse { font-size: 0 !important; }` block
+   above) and reused here.
+
+   ██ BLOCKED ON BACKEND — see NEW_UI_DOCS.md §12 Phase 28 / §13 ██
+   Spec §3.1 calls for a real per-turn prose summary ("Calculated recovery
+   window and identified retrievable recordings") sourced from a new
+   `reasoning.summary` field on the turn payload. That field does not exist
+   anywhere in the current data model (confirmed by direct investigation of
+   types/chat.ts, hooks/useChatSendService.ts, and every `data.state.*` key
+   ever written) — `message.data.state.reasoning` is only the full raw
+   reasoning body, never a summary. Per instructions, this session does NOT
+   fabricate a plausible-looking summary sentence. The CSS below removes the
+   literal word "Reasoning" (spec acceptance check §5) and replaces it with a
+   neutral, honest placeholder label ("Thought process") that makes no claim
+   about what the model actually did — this is a stand-in, not the target
+   design, and should be swapped for the true per-turn summary the moment
+   `reasoning.summary` exists on the payload (search this file for
+   "Thought process" to find the exact spot to change).
+
+   Known residual gap: because the replacement text is CSS-generated content
+   (an ::after pseudo-element), it is visual-only — a screen reader will still
+   announce the original "Reasoning" accessible name from the hidden span's
+   text content. Fixing that requires either the protected file itself
+   passing a different `title`, or wiring a genuine `aria-label` override,
+   neither of which is possible from CSS alone. Documented, not fixed, this
+   session.
+
+   Also blocked on the same field: spec §3.2's "two variants" (chevron only
+   when `reasoning.body` is non-empty) cannot actually occur with current
+   data, because AssistantReasoningMessage.tsx returns null unless
+   `data.state.reasoning` (the body) is itself non-empty — there is no way,
+   with only a body field and no separate summary field, to be in a state
+   where a summary exists but the body doesn't. Once `reasoning.summary`
+   ships, this CSS will need a variant selector for "summary present, body
+   absent" — not addressable via CSS alone since it requires conditional
+   markup only the protected component can emit.
 ───────────────────────────────────────────────────────────────────────────── */
 [data-new-ui="true"] .text-sm\!important.opacity-70 {
   opacity: 1 !important;
-  margin-bottom: 20px !important;
+  /* Phase 33 §4a: reduced from 26px → 10px — user reported too much space
+     between "Thought process" and the response below it. */
+  margin-bottom: 10px !important;
 }
 
-/* The toggle button — "▸ Reasoning" style */
-[data-new-ui="true"] #expandComponent {
-  font-size: 13px !important;
+/* SCOPING NOTE (bug caught + fixed during this session): #expandComponent is
+   NOT unique to the reasoning block — ExpansionComponent.tsx (DO-NOT-CHANGE)
+   hardcodes `id="expandComponent"` and is reused by ~20 unrelated call sites
+   across the assistant message tree alone (ChatSourcesBlock "Sources",
+   AgentLogBlock, ChatCodeInterpreterFilesBlock "Generated Files",
+   RagEvaluationBlock, MCP Tool Result / Jupyter Notebook blocks in
+   ChatContentBlock.tsx, RemovedDataSourcesBlock, etc. — see grep results in
+   NEW_UI_DOCS.md §12 Phase 28). A bare `[data-new-ui="true"] #expandComponent`
+   selector would incorrectly relabel and re-icon ALL of those as "Thought
+   process" with a chevron. Every rule below is therefore scoped through the
+   reasoning wrapper's own distinguishing class from AssistantReasoningMessage.tsx
+   line 38 (`className="text-sm!important opacity-70 mb-4"`, escaped below as
+   `.text-sm\!important.opacity-70`), which is NOT reused by any other
+   assistant content block. */
+
+/* The toggle button. Chevron (not triangle) + one-line-clamped label, flush
+   left with the body text (no indent) per spec §3.4.
+
+   Phase 35 Fix 4 — "Thought process" label left-alignment (exact):
+   Investigated the real DOM offset chain (AssistantReasoningMessage.tsx +
+   ExpansionComponent.tsx, both DO-NOT-CHANGE):
+     - The reasoning wrapper `.text-sm!important.opacity-70` has ONLY `mb-4`
+       (no left padding/margin) — it sits at the prose left edge (x=0). There
+       is nothing to zero out on the wrapper itself.
+     - The rightward offset of the "T" comes from INSIDE #expandComponent:
+       it is `display:inline-flex; gap:6px`, and its children in order are the
+       (now display:none, 0-width) caret icon, then the label
+       `<span class="font-medium" style="margin-left:8px">`. So the label sits
+       flex-gap(6px) + span margin-left(8px) = ~14px right of the button's
+       content-left edge.
+     - The previous `margin-left:-18px` (derived from the `.border-l` block's
+       border+padding, NOT the button's own flex layout) overcompensated:
+       -18 + 14 = -4px → label landed ~4px LEFT of the prose ("slightly too
+       far left", as the user reported). The literal `-4px` would overshoot to
+       +10px right.
+   The exact, layout-robust fix: zero the button's own margin, remove the flex
+   `gap`, and zero the label span's inline `margin-left` (rule below) so the
+   "T" lands at exactly x=0 — the same pixel column as the assistant prose. */
+[data-new-ui="true"] .text-sm\!important.opacity-70 #expandComponent {
+  font-size: 14px !important;
   color: var(--text-muted) !important;
   background: transparent !important;
   border: none !important;
   padding: 4px 0 !important;
+  margin-left: 0 !important;
   cursor: pointer !important;
   display: inline-flex !important;
   align-items: center !important;
-  gap: 5px !important;
+  gap: 0 !important;
+  max-width: 100% !important;
   letter-spacing: 0.01em !important;
   user-select: none !important;
+  font-family: Inter, sans-serif !important; /* spec §3: UI sans even when body is serif */
 }
 
-[data-new-ui="true"] #expandComponent:hover {
+/* Zero the label span's inline margin-left:8px (set in ExpansionComponent.tsx
+   line 37) so the label text starts flush at the button content-left edge = the
+   prose left edge. The hidden caret icon is display:none (0 width), so the label
+   is effectively the first laid-out child. Chevron is ::after (to the right),
+   unaffected. */
+[data-new-ui="true"] .text-sm\!important.opacity-70 #expandComponent .font-medium {
+  margin-left: 0 !important;
+}
+
+[data-new-ui="true"] .text-sm\!important.opacity-70 #expandComponent:hover {
   color: var(--text-secondary) !important;
 }
 
-[data-new-ui="true"] #expandComponent svg {
-  color: var(--text-muted) !important;
-  width: 12px !important;
-  height: 12px !important;
-  opacity: 0.7 !important;
+[data-new-ui="true"] .text-sm\!important.opacity-70 #expandComponent:focus-visible {
+  outline: 2px solid var(--text-secondary) !important;
+  outline-offset: 2px !important;
 }
 
-[data-new-ui="true"] #expandComponent .font-medium {
-  font-size: 13px !important;
-  font-weight: 400 !important;
+/* Hide the old ▸/⌄ triangle icons entirely — replaced by a chevron below. */
+[data-new-ui="true"] .text-sm\!important.opacity-70 #expandComponent svg {
+  display: none !important;
 }
 
-/* The expanded content block — clean card, scrollable with generous height */
-[data-new-ui="true"] .border-l.border-gray-300,
-[data-new-ui="true"] .border-l.dark\:border-gray-600 {
+/* Chevron glyph (spec §3.3 / Bug 1 fix):
+   - Appears AFTER the label text (::after, not ::before), so it sits to the
+     RIGHT of "Thought process".
+   - Hidden at rest (opacity:0); revealed on hover or :focus-visible on the
+     #expandComponent button (opacity:0.75).
+   - Rotation state is read off ExpansionComponent's own DOM: closed state
+     wraps its icon in `.icon-pop-group`, open state does not — see
+     ExpansionComponent.tsx (DO-NOT-CHANGE, read-only) lines 33-36.
+   NOTE: the ::after below is on #expandComponent itself (the button), placed
+   after the .font-medium span child. The .font-medium::after pseudo-element
+   (the "Thought process" replacement text) is a child pseudo — placing the
+   chevron on #expandComponent::after keeps DOM order correct: label, then
+   chevron. */
+[data-new-ui="true"] .text-sm\!important.opacity-70 #expandComponent::after {
+  content: "⌄";
+  display: inline-block;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-muted);
+  opacity: 0;  /* hidden at rest (Bug 1 fix) */
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease, opacity 0.12s ease;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+/* Show chevron on hover or keyboard focus */
+[data-new-ui="true"] .text-sm\!important.opacity-70 #expandComponent:hover::after,
+[data-new-ui="true"] .text-sm\!important.opacity-70 #expandComponent:focus-visible::after {
+  opacity: 0.75;
+}
+
+/* Open state: rotate to point downward (0deg = ⌄ points down) */
+[data-new-ui="true"] .text-sm\!important.opacity-70 #expandComponent:not(:has(.icon-pop-group))::after {
+  transform: rotate(0deg);
+}
+
+/* The label itself. Original text ("Reasoning") is collapsed to zero size
+   (Phase 27 pattern) and replaced with a neutral placeholder via ::after —
+   see the BLOCKED-ON-BACKEND note above for why this isn't the true per-turn
+   summary yet. Clamped to one line with ellipsis per spec §3.6. */
+[data-new-ui="true"] .text-sm\!important.opacity-70 #expandComponent .font-medium {
+  font-size: 0 !important;
+  line-height: 0 !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  max-width: 320px !important;
+  display: inline-block !important;
+}
+
+[data-new-ui="true"] .text-sm\!important.opacity-70 #expandComponent .font-medium::after {
+  content: "Thought process";
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+/* The expanded content block — clean card, grows to fit its full content.
+   Phase 27 bug fix ("reasoning length getting cut off"): this block previously
+   had `max-height: 480px; overflow-y: auto`, which silently clipped any
+   reasoning longer than ~480px of text with only the thin global scrollbar
+   (no visible scroll affordance) as a hint — reading as truncated output
+   rather than a scrollable area. Since the user explicitly expands this
+   disclosure to read it, it should show in full; removed the height cap so
+   it grows naturally with the message column instead of an inner scroller. */
+/* SCOPING NOTE (pre-existing bug, also caught + fixed this session): the
+   `.border-l.border-gray-300 / dark:border-gray-600` classes come from
+   ExpansionComponent.tsx line 43 and are therefore shared by every one of its
+   ~20 call sites (Sources, Agent Log, Generated Files, RAG Evaluation, MCP
+   Tool Result, etc.), not just the reasoning block — an unscoped selector
+   here restyles ALL of those expanded panels as if they were reasoning
+   output. Scoped through the same reasoning-only wrapper class used above. */
+[data-new-ui="true"] .text-sm\!important.opacity-70 .border-l.border-gray-300,
+[data-new-ui="true"] .text-sm\!important.opacity-70 .border-l.dark\:border-gray-600 {
   border-left: 2px solid var(--border-subtle) !important;
   border-color: var(--border-subtle) !important;
   background-color: var(--bg-sidebar) !important;
@@ -640,21 +1131,21 @@
   font-size: 13.5px !important;
   line-height: 1.65 !important;
   color: var(--text-secondary) !important;
-  max-height: 480px !important;
-  overflow-y: auto !important;
+  max-height: none !important;
+  overflow-y: visible !important;
 }
 
 /* Prose inside the reasoning block — readable but clearly secondary */
-[data-new-ui="true"] .border-l.border-gray-300 p,
-[data-new-ui="true"] .border-l.dark\:border-gray-600 p {
+[data-new-ui="true"] .text-sm\!important.opacity-70 .border-l.border-gray-300 p,
+[data-new-ui="true"] .text-sm\!important.opacity-70 .border-l.dark\:border-gray-600 p {
   font-size: 13.5px !important;
   line-height: 1.65 !important;
   color: var(--text-secondary) !important;
   margin-bottom: 10px !important;
 }
 
-[data-new-ui="true"] .border-l.border-gray-300 code,
-[data-new-ui="true"] .border-l.dark\:border-gray-600 code {
+[data-new-ui="true"] .text-sm\!important.opacity-70 .border-l.border-gray-300 code,
+[data-new-ui="true"] .text-sm\!important.opacity-70 .border-l.dark\:border-gray-600 code {
   font-size: 12px !important;
   color: var(--text-muted) !important;
 }
@@ -673,11 +1164,13 @@
 
 /* ─────────────────────────────────────────────────────────────────────────────
    New UI action row button style — used by NewUIMessageActionsLayer overlay
+   (chat-pane-migration-spec.md §2.1/§2.2: 28×28 --bg-hover CIRCLE behind on
+   hover, --text-muted → --text-primary, no bordered box)
 ───────────────────────────────────────────────────────────────────────────── */
 .new-ui-action-btn {
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -695,9 +1188,82 @@
   color: var(--text-primary);
 }
 
+.new-ui-action-btn:focus-visible {
+  outline: 2px solid var(--text-secondary);
+  outline-offset: 2px;
+}
+
 .new-ui-action-btn svg {
   width: 15px;
   height: 15px;
+}
+
+/* Hover-row variant — slightly smaller than spec's original 18px per user
+   feedback. Button touch target 24×24, icon 14×14. */
+.new-ui-action-btn-lg {
+  width: 24px;
+  height: 24px;
+}
+
+.new-ui-action-btn-lg svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Message hover-action row (chat-pane-migration-spec.md §1/§2)
+───────────────────────────────────────────────────────────────────────────── */
+.new-ui-msg-action-row {
+  font-family: Inter, sans-serif;
+}
+
+/* Phase 33 §2: the always-visible last-assistant row (formerly rendered at 0.6
+   opacity at rest via [data-last-assistant="true"]) was removed per user
+   request — action rows now appear on hover/focus only, for every message
+   including the last. No resting-state opacity rule needed. */
+
+.new-ui-msg-timestamp {
+  font-family: Inter, sans-serif;
+}
+
+.new-ui-feedback-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 6px 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: 31;
+}
+
+.new-ui-feedback-input input {
+  width: 220px;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  color: var(--text-primary);
+  font-family: Inter, sans-serif;
+}
+
+.new-ui-feedback-input input::placeholder {
+  color: var(--text-muted);
+}
+
+.new-ui-feedback-input button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: none;
+  background: var(--bg-active);
+  color: var(--text-primary);
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -715,4 +1281,187 @@
 [data-new-ui="true"] .stars-container {
   margin-top: 8px !important;
   opacity: 0.7 !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Phase 27 — ChatLoader ("old loading animation") replaced with new-ui shimmer
+
+   ChatLoader.tsx (rendered via `{loading && <ChatLoader/>}` in Chat.tsx) is a
+   SEPARATE component from PromptStatus — it shows for the brief window between
+   clicking send and the response headers arriving (hooks/useChatSendService.ts:
+   `loading:true` right before the request, `loading:false` once the stream
+   reader is obtained). It renders the old Amplify avatar (Avatars.tsx) + a
+   plain blinking `▍` cursor, with old gray/dark card chrome
+   (`bg-gray-50 dark:bg-[#444654] border-b border-black/10`) that was never
+   covered by any existing new-ui CSS rule — this is the "old loading
+   animation" that persisted after Phase 26's PromptStatus shimmer work (which
+   only touched PromptStatus, a different component). This was also the
+   direct cause of the "old UI shows right after send, before the response
+   begins" symptom — the unstyled ChatLoader card looks exactly like a
+   reversion to old UI for that brief window.
+
+   Fix: hide ChatLoader's old avatar + card chrome entirely and replace with
+   the same calm shimmer dot used on PromptStatus's step line, so the visual
+   language is identical the whole way from "sent" through "streaming" through
+   "reasoning" through "complete."
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .group.border-b.border-black\/10.bg-gray-50 {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* Hide the old Amplify avatar inside ChatLoader specifically */
+[data-new-ui="true"] .group.border-b.border-black\/10.bg-gray-50 .enhanced-avatar {
+  display: none !important;
+}
+
+[data-new-ui="true"] .group.border-b.border-black\/10.bg-gray-50 > div {
+  margin-left: 0 !important;
+  padding: 20px 0 !important;
+  min-width: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+/* Replace the blinking text-cursor `▍` with the same breathing accent dot
+   used on PromptStatus (Phase 26), so pre-stream and in-stream loading states
+   feel like the same calm animation rather than two different old/new looks. */
+[data-new-ui="true"] .group.border-b.border-black\/10.bg-gray-50 .animate-pulse {
+  font-size: 0 !important; /* hide the literal ▍ glyph, keep the element for layout */
+  display: inline-block !important;
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 50% !important;
+  background-color: var(--accent) !important;
+  opacity: 0.6 !important;
+  animation: none !important; /* Tailwind's animate-pulse replaced by our own below */
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-new-ui="true"] .group.border-b.border-black\/10.bg-gray-50 .animate-pulse {
+    animation: new-ui-thinking-pulse 1.8s ease-in-out infinite !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Phase 26 — Streaming / "thinking" shimmer animation
+   Reference: NEW_UI_DOCS.md §12 Phase 26
+
+   Two live indicators exist while a response is generating/thinking:
+     1. PromptingStatusDisplay's in-stream step line (spec §4.4, styled Phase 12)
+        — the ONLY element actually present in the DOM while status.inProgress
+        is true (the reasoning/disclosure block below does not mount until
+        streaming is finished — ChatMessage.tsx gates it on !messageIsStreaming).
+     2. AssistantReasoningMessage / ExpansionComponent (#expandComponent + the
+        expanded .border-l block) — mounts the instant reasoning becomes
+        available. Gets a calm settle-in transition so its arrival doesn't pop.
+
+   Explicitly NOT the old "wave animation" (removed — see
+   NEW_UI_PORTING_STATUS.md §8 "Message animated status card"): no bg-image,
+   no radiating ripple. This is a soft gradient shimmer on the status text +
+   a slow-breathing accent dot — calm, premium, text-only.
+
+   prefers-reduced-motion: all animation rules below are scoped inside
+   `@media (prefers-reduced-motion: no-preference)`. When the user has
+   reduced motion enabled, no @keyframes are ever applied — elements simply
+   render in their static, final-state styling (Phase 19 TODO, done here).
+───────────────────────────────────────────────────────────────────────────── */
+
+/* Static (always-present, non-animated) breathing dot before the status text */
+[data-new-ui="true"] .rounded-xl.shadow-lg .mt-0.ml-3::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  opacity: 0.6;
+  margin-right: 8px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Breathing accent dot — slow, soft pulse */
+  [data-new-ui="true"] .rounded-xl.shadow-lg .mt-0.ml-3::before {
+    animation: new-ui-thinking-pulse 1.8s ease-in-out infinite;
+  }
+
+  /* Gradient shimmer sweep across the status text itself.
+     NOTE: the text node lives in the nested `.mt-0.pt-0` div, not the
+     `.mt-0.ml-3` row wrapper — background-clip:text must be applied directly
+     to the element containing the text, or it renders fully transparent. */
+  [data-new-ui="true"] .rounded-xl.shadow-lg .mt-0.ml-3 .mt-0.pt-0 {
+    display: inline-block;
+    background-image: linear-gradient(
+      100deg,
+      var(--text-muted) 35%,
+      var(--text-primary) 50%,
+      var(--text-muted) 65%
+    );
+    background-size: 250% 100%;
+    background-repeat: no-repeat;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent !important;
+    animation: new-ui-shimmer-sweep 2.6s ease-in-out infinite;
+  }
+
+  /* Calm settle-in for the reasoning disclosure block once it mounts.
+     Scoped to the reasoning-only wrapper class (see Phase 28 scoping note
+     above §3 disclosure redesign) — #expandComponent / .border-l are shared
+     by ~20 other ExpansionComponent call sites and were previously getting
+     this animation on every mount too (pre-existing since Phase 26; fixed
+     as part of the Phase 28 scoping pass since it's the same root cause). */
+  [data-new-ui="true"] .text-sm\!important.opacity-70 #expandComponent,
+  [data-new-ui="true"] .text-sm\!important.opacity-70 .border-l.border-gray-300,
+  [data-new-ui="true"] .text-sm\!important.opacity-70 .border-l.dark\:border-gray-600 {
+    animation: new-ui-reasoning-settle-in 0.35s ease-out;
+  }
+}
+
+@keyframes new-ui-thinking-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50%      { opacity: 0.9;  transform: scale(1.2); }
+}
+
+@keyframes new-ui-shimmer-sweep {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@keyframes new-ui-reasoning-settle-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Phase 26 — Old-branding sweep
+
+   ArtifactsBlock's per-artifact button (#artifactsButtonBlock) renders a
+   background-image logo swatch (Amplify/white-label logo, .w-14 div — see
+   components/Chat/ChatContentBlocks/ArtifactsBlock.tsx) plus old-UI chrome
+   (bg-yellow-400 / shadow-lg). Explicit selector added below rather than
+   relying on incidental overlap with the unrelated `.rounded-xl.shadow-lg
+   .w-14` rule above (PromptStatus's own cover-image column), which happens
+   to share ancestor classes but is a different component.
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] #artifactsButtonBlock .w-14 {
+  display: none !important;
+}
+
+[data-new-ui="true"] #artifactsButtonBlock {
+  background-color: var(--bg-raised) !important;
+  box-shadow: none !important;
+  border: 1px solid var(--border-subtle) !important;
+}
+
+[data-new-ui="true"] #artifactsButtonBlock .text-black {
+  color: var(--text-primary) !important;
+}
+
+[data-new-ui="true"] #artifactsButtonBlock .text-gray-500 {
+  color: var(--text-muted) !important;
 }

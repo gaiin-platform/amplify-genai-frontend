@@ -43,6 +43,7 @@ import {
 } from '@/components/NewUI/shared/attachmentTypes';
 import { PluginID, Plugin, Plugins } from '@/types/plugin';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
+import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
 
 /** Inject value into a React-controlled textarea via native setter. */
 function setNativeValue(el: HTMLTextAreaElement, value: string) {
@@ -300,7 +301,7 @@ export const ConversationComposer: React.FC = () => {
       {/* Centered dock column — matches --dock-w (column-w + 2 × 24px pad) */}
       <div
         style={{
-          maxWidth: 'calc(min(75ch, calc(100% - 48px)) + 48px)',
+          maxWidth: 'calc(min(74ch, calc(100% - 48px)) + 48px)',
           margin: '0 auto',
           pointerEvents: 'auto',
         }}
@@ -386,7 +387,16 @@ export const ConversationComposer: React.FC = () => {
                   viewFilesBtn?.click();
                 }}
                 webSearchEnabled={webSearchEnabled}
-                onToggleWebSearch={() => setWebSearchEnabled((v: boolean) => !v)}
+                onToggleWebSearch={() => {
+                  setWebSearchEnabled((v: boolean) => {
+                    const next = !v;
+                    // Seed Chat.tsx's plugins array (via the shared settings
+                    // utility) as early as possible — see webSearchPreference.ts
+                    // for why this is necessary and what it does not cover.
+                    if (next) persistWebSearchPluginPreference(featureFlags);
+                    return next;
+                  });
+                }}
                 selectedSkillIds={selectedSkillIds}
                 onSkillsChange={setSelectedSkillIds}
                 chatEndpoint={chatEndpoint ?? undefined}
@@ -413,29 +423,21 @@ export const ConversationComposer: React.FC = () => {
                 composerRef={composerRef}
               />
 
-              {/* Mic — visible when not streaming */}
-              {!messageIsStreaming && (
-                <button
-                  type="button"
-                  className="w-[30px] h-[30px] flex items-center justify-center rounded-[8px] transition-colors"
-                  style={{ background: 'transparent', color: 'var(--text-muted)' }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
-                  title="Voice input"
-                  aria-label="Voice input"
-                >
-                  <IconMicrophone size={17} />
-                </button>
-              )}
-
-              {/* Send ↔ Stop slot (32×32) */}
+              {/*
+               * §7 Send ↔ Voice ↔ Stop slot (32×32, zero layout shift).
+               * One slot, three possible occupants — all absolutely positioned,
+               * cross-fading via opacity+pointer-events over 120ms:
+               *   streaming    → Stop button  (--bg-active, PlayerStop icon)
+               *   idle + empty → Voice button (transparent, mic icon, 28×28)
+               *   idle + text  → Send button  (--accent, ArrowUp icon)
+               */}
               <div className="relative w-[32px] h-[32px]">
                 {/* Stop — when streaming */}
                 <button
                   type="button"
                   className="absolute inset-0 flex items-center justify-center rounded-[8px] transition-all duration-[120ms]"
                   style={{
-                    background: messageIsStreaming ? 'var(--bg-active)' : 'transparent',
+                    background: 'var(--bg-active)',
                     color: 'var(--text-primary)',
                     opacity: messageIsStreaming ? 1 : 0,
                     pointerEvents: messageIsStreaming ? 'auto' : 'none',
@@ -447,19 +449,36 @@ export const ConversationComposer: React.FC = () => {
                   <IconPlayerStop size={16} />
                 </button>
 
-                {/* Send — when not streaming */}
+                {/* Voice — idle + empty composer */}
                 <button
                   type="button"
                   className="absolute inset-0 flex items-center justify-center rounded-[8px] transition-all duration-[120ms]"
                   style={{
-                    background: canSend ? 'var(--accent)' : 'var(--bg-active)',
-                    color: canSend ? '#2A1710' : 'var(--text-muted)',
-                    opacity: messageIsStreaming ? 0 : 1,
-                    pointerEvents: (messageIsStreaming || !canSend) ? 'none' : 'auto',
-                    cursor: canSend ? 'pointer' : 'default',
+                    background: 'transparent',
+                    color: 'var(--text-muted)',
+                    opacity: (!messageIsStreaming && !canSend) ? 1 : 0,
+                    pointerEvents: (!messageIsStreaming && !canSend) ? 'auto' : 'none',
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                  title="Voice input"
+                  aria-label="Voice input"
+                >
+                  <IconMicrophone size={17} />
+                </button>
+
+                {/* Send — idle + has content */}
+                <button
+                  type="button"
+                  className="absolute inset-0 flex items-center justify-center rounded-[8px] transition-all duration-[120ms]"
+                  style={{
+                    background: 'var(--accent)',
+                    color: '#2A1710',
+                    opacity: (!messageIsStreaming && canSend) ? 1 : 0,
+                    pointerEvents: (!messageIsStreaming && canSend) ? 'auto' : 'none',
+                    cursor: 'pointer',
                   }}
                   onClick={handleSend}
-                  disabled={!canSend}
                   title="Send (Enter)"
                   aria-label="Send message"
                 >

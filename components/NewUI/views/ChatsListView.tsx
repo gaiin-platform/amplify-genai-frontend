@@ -9,6 +9,8 @@ import React, { useContext, useState, useMemo, useRef, useEffect } from 'react';
 import { IconSearch, IconFilter, IconMessage2, IconPlus } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { Conversation } from '@/types/chat';
+import { isLocalConversation } from '@/utils/app/conversation';
+import { uncompressMessages } from '@/utils/app/messages';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -60,10 +62,21 @@ export const ChatsListView: React.FC = () => {
     });
   }, [conversations]);
 
+  // Mirrors Chatbar.tsx's search filter: matches conversation name AND, for local
+  // conversations, decompressed message content (remote conversations are not
+  // searchable by content — same limitation as classic UI).
   const filtered = useMemo(() => {
     if (!search.trim()) return sorted;
     const q = search.toLowerCase();
-    return sorted.filter((c) => c.name.toLowerCase().includes(q));
+    return sorted.filter((c) => {
+      let messages = '';
+      if (isLocalConversation(c)) {
+        const uncompressedMs = uncompressMessages(c.compressedMessages ?? []);
+        if (uncompressedMs) messages = uncompressedMs.map((m) => m.content).join(' ');
+      }
+      const searchable = c.name.toLowerCase() + ' ' + messages;
+      return searchable.toLowerCase().includes(q);
+    });
   }, [sorted, search]);
 
   const handleOpen = (c: Conversation) => {

@@ -1,121 +1,481 @@
 /**
  * NewUIMessageActionsLayer
  *
- * Renders a floating action row (Copy / Edit for user messages,
- * Copy / Read Aloud for assistant messages) that appears below the
- * hovered message.  It uses event delegation on the .chatcontainer
- * element rather than touching ChatMessage.tsx.
+ * Renders one hover-action row per rendered chat message (user + assistant),
+ * per chat-pane-migration-spec.md §1/§2. Single component with a `side`
+ * concept (user rows right-align, assistant rows left-align) rather than two
+ * separate components, per the spec's explicit instruction.
  *
- * Constraints:
- *  - No modifications to ChatMessage.tsx, Chat.tsx, or any service/hook/type.
- *  - Reads messageIsStreaming from HomeContext so actions are suppressed while
- *    the AI is still writing.
- *  - All DOM interaction is deferred to the browser (SSR-safe guards applied).
+ * ── Phase 33 positioning rewrite (READ THIS BEFORE EDITING) ─────────────────
+ *
+ *  The rows used to be `position: fixed`, positioned from getBoundingClientRect()
+ *  and stored in React state, updated on every scroll frame via rAF. That model
+ *  is intrinsically laggy: when the user scrolls, the DOM moves instantly but the
+ *  React state only catches up on the next rAF, so there is always ≥1 paint frame
+ *  where the fixed row's viewport position doesn't match the message's new scroll
+ *  position — the row appears to "detach" / lag behind the message.
+ *
+ *  The fix: rows are now `position: absolute` children of an overlay div that is
+ *  portaled DIRECTLY INTO `.chatcontainer` (the scrolling element). Because the
+ *  rows live *inside* the scroller, they scroll with the content automatically —
+ *  exactly like any other element — with ZERO scroll listeners, ZERO rAF, and no
+ *  per-frame position state. Positions are pure layout values (offsetTop /
+ *  offsetLeft relative to `.chatcontainer`) that are stable regardless of scroll
+ *  position; they only change when the DOM layout changes (message added / removed
+ *  / resized) or the window resizes, both of which trigger a `scan()`.
+ *
+ *  `.chatcontainer` is made `position: relative` in conversation-view.css so it is
+ *  the offsetParent / containing block for the overlay and its rows.
+ *
+ * Other architecture notes:
+ *  - Zero modifications to ChatMessage.tsx / Chat.tsx / ExpansionComponent.tsx.
+ *    The overlay is injected via createPortal (same proven pattern as
+ *    NewUIUserMessageMarkdownLayer, which portals into each #chatHover).
+ *  - Message discovery is DOM-based (a MutationObserver-driven rescan of
+ *    `.chatcontainer`), matched back to real `Message` objects from HomeContext
+ *    by replicating Chat.tsx's own render-filter exactly:
+ *    `messages.filter(m => m.role !== 'tool' && !(m.data && m.data.actionResult))`
+ *    — so the Nth surviving message corresponds to the Nth
+ *    `.enhanced-chat-message.user-message/.assistant-message` element in the DOM.
+ *  - Real, native keyboard accessibility: each row is a normal DOM subtree with
+ *    normal tab order. Visibility is opacity/pointer-events driven (NOT
+ *    display:none, so no layout shift) and revealed by (a) DOM mouse-hover
+ *    delegation on the corresponding message element, OR (b) the row's own native
+ *    `:focus-within` when a user tabs onto one of its buttons. There is NO
+ *    always-visible last-assistant row (Phase 33 §2: removed per user request —
+ *    rows appear on hover only, for every message including the last).
+ *  - Retry ("Try again" only) is achieved via the edit-and-resubmit DOM bridge:
+ *    click the hidden `#editPrompt` button on the relevant user message, wait for
+ *    `UserMessageEditor` to mount its `#editResponse` textarea, toggle a trailing
+ *    space (ChatMessage's handleEditMessage only resends if content differs), then
+ *    click `#saveTextChange`. For an assistant row, "the relevant user message" is
+ *    the nearest preceding `.enhanced-chat-message.user-message` sibling.
+ *  - Good/bad rating persists to `message.data.newUiRating` / `newUiFeedback` via
+ *    the always-safe `handleUpdateSelectedConversation` context handler (see
+ *    NEW_UI_DOCS.md §12 Phase 28 for why it deliberately does NOT call the
+ *    group-assistant-scoped `saveUserRating` endpoint).
  */
 
-import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import { createPortal } from 'react-dom';
 import {
   IconCheck,
   IconCopy,
   IconEdit,
   IconPlayerStop,
+  IconRefresh,
+  IconThumbDown,
+  IconThumbDownFilled,
+  IconThumbUp,
+  IconThumbUpFilled,
   IconVolume,
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
+import { Conversation, Message } from '@/types/chat';
+import {
+  formatAbsoluteTime,
+  useRelativeTime,
+} from '@/components/NewUI/shared/relativeTimestamp';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface HoveredMessage {
-  el: HTMLElement;
-  role: 'user' | 'assistant';
-}
+type Role = 'user' | 'assistant';
 
-interface ActionRowPosition {
+interface Slot {
+  key: string;
+  el: HTMLElement;
+  role: Role;
+  message: Message;
+  rawIndex: number;
+  /** Layout position within .chatcontainer scroll coordinates (computed in scan). */
   top: number;
-  left: number;
-  width: number;
   align: 'left' | 'right';
+  left?: number;
+  right?: number;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Extract readable text from a message element. */
-function extractMessageText(el: HTMLElement, role: 'user' | 'assistant'): string {
+/** Mirrors Chat.tsx's exact render-time message filter (tool msgs + action-result msgs never render as .user-message/.assistant-message). */
+function filterRenderedMessages(messages: Message[]): Message[] {
+  return messages.filter(
+    (m) => m.role !== 'tool' && !(m.data && m.data.actionResult),
+  );
+}
+
+/** Extract readable text from a message element for copy/read-aloud. */
+function extractMessageText(el: HTMLElement, role: Role): string {
   if (role === 'user') {
     const userMsgEl = el.querySelector<HTMLElement>('#userMessage');
     return (userMsgEl ?? el).innerText ?? '';
   }
-  // For assistant: prefer the prose content block
   const contentBlock = el.querySelector<HTMLElement>('.assistantContentBlock');
   if (contentBlock) return contentBlock.innerText ?? '';
   const chatHover = el.querySelector<HTMLElement>('#chatHover');
   return (chatHover ?? el).innerText ?? '';
 }
 
-/** Walk up from target to find the nearest .enhanced-chat-message ancestor. */
-function findMessageAncestor(target: EventTarget | null): HTMLElement | null {
-  if (!(target instanceof HTMLElement)) return null;
-  let el: HTMLElement | null = target;
-  while (el) {
-    if (el.classList.contains('enhanced-chat-message')) return el;
-    el = el.parentElement;
+/**
+ * Sum offsetTop / offsetLeft up the offsetParent chain from `el` to `container`,
+ * giving `el`'s top-left edge in `container`'s scroll coordinate system.
+ *
+ * Because offsetTop/offsetLeft are always measured relative to the element's
+ * offsetParent (skipping non-positioned ancestors), and `.chatcontainer` is the
+ * nearest positioned ancestor of the whole message subtree (it's made
+ * position:relative in CSS), the walk terminates at `container` and the summed
+ * value is exact — regardless of scroll position. These are pure layout values,
+ * so they never need recomputing on scroll.
+ */
+function offsetWithin(
+  el: HTMLElement,
+  container: HTMLElement,
+): { top: number; left: number } {
+  let top = 0;
+  let left = 0;
+  let node: HTMLElement | null = el;
+  while (node && node !== container) {
+    top += node.offsetTop;
+    left += node.offsetLeft;
+    node = node.offsetParent as HTMLElement | null;
+  }
+  return { top, left };
+}
+
+/**
+ * Compute the row's absolute position within `.chatcontainer` scroll coordinates.
+ *
+ * Anchors to `#chatHover` (the visible bubble/content), not the outer
+ * `.enhanced-chat-message` (whose offsetHeight now includes a reserved
+ * padding-bottom — see conversation-view.css Phase 33). The row sits GAP px
+ * below the visible content, inside that reserved padding region.
+ */
+function computePosition(
+  el: HTMLElement,
+  role: Role,
+  container: HTMLElement,
+): Pick<Slot, 'top' | 'align' | 'left' | 'right'> {
+  const GAP = 6;
+  const anchor = el.querySelector<HTMLElement>('#chatHover') ?? el;
+  const { top: anchorTop, left: anchorLeft } = offsetWithin(anchor, container);
+  const top = anchorTop + anchor.offsetHeight + GAP;
+
+  if (role === 'user') {
+    // Right edge of the bubble = right edge of the column. Set CSS `right`
+    // relative to the overlay (which spans the container's client box).
+    const right = container.clientWidth - (anchorLeft + anchor.offsetWidth);
+    return { top, right, align: 'right' };
+  }
+  // Assistant: left-align to the content's left edge.
+  return { top, left: anchorLeft, align: 'left' };
+}
+
+/** Find the nearest preceding user-message sibling (for assistant-row retry). */
+function findPrecedingUserMessage(el: HTMLElement): HTMLElement | null {
+  let sib: Element | null = el.previousElementSibling;
+  while (sib) {
+    if (sib.classList.contains('enhanced-chat-message') && sib.classList.contains('user-message')) {
+      return sib as HTMLElement;
+    }
+    sib = sib.previousElementSibling;
   }
   return null;
 }
 
-/** Compute the position for the action row floating pill. */
-function computePosition(
-  el: HTMLElement,
-  role: 'user' | 'assistant',
-): ActionRowPosition {
-  const rect = el.getBoundingClientRect();
-  const GAP = 6; // px between bubble bottom and pill top
-  // Clamp so pill never overlaps the bottom composer (~180px from bottom)
-  const maxTop = window.innerHeight - 220;
+/** Click #editPrompt on `userMsgEl`, then resubmit its textarea with a trivial no-op change. */
+function retryFromUserMessageEl(userMsgEl: HTMLElement) {
+  const editBtn = userMsgEl.querySelector<HTMLButtonElement>('#editPrompt');
+  if (!editBtn) return;
+  editBtn.click();
 
-  if (role === 'user') {
-    // Right-align the pill to the right edge of the bubble
-    const bubble = el.querySelector('#chatHover') as HTMLElement | null;
-    const bubbleRect = bubble ? bubble.getBoundingClientRect() : rect;
-    return {
-      top: Math.min(bubbleRect.bottom + GAP, maxTop),
-      left: bubbleRect.right,   // pill is right-aligned from this point
-      width: 0,
-      align: 'right',
-    };
-  }
-
-  // Left-align the pill to the left edge of the message block
-  return {
-    top: Math.min(rect.bottom + GAP, maxTop),
-    left: rect.left,
-    width: 0,
-    align: 'left',
+  let attempts = 0;
+  const tryResubmit = () => {
+    attempts += 1;
+    const textarea = userMsgEl.querySelector<HTMLTextAreaElement>('#editResponse');
+    const saveBtn = userMsgEl.querySelector<HTMLButtonElement>('#saveTextChange');
+    if (textarea && saveBtn) {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        'value',
+      )?.set;
+      // Trivial no-op change: handleEditMessage only resends if content differs.
+      const nextValue = textarea.value.endsWith(' ')
+        ? textarea.value.slice(0, -1)
+        : `${textarea.value} `;
+      setter?.call(textarea, nextValue);
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      setTimeout(() => saveBtn.click(), 30);
+    } else if (attempts < 15) {
+      setTimeout(tryResubmit, 40);
+    }
   };
+  setTimeout(tryResubmit, 40);
 }
+
+// ─── Row sub-component ───────────────────────────────────────────────────────
+
+interface ActionRowProps {
+  slot: Slot;
+  hovered: boolean;
+  onHoverChange: (key: string, hovered: boolean) => void;
+  onCopy: (slot: Slot) => Promise<boolean>;
+  onEdit: (slot: Slot) => void;
+  onRetry: (slot: Slot) => void;
+  onReadAloud: (slot: Slot) => void;
+  isSpeaking: boolean;
+  onRate: (slot: Slot, rating: 'good' | 'bad' | null, feedback?: string) => void;
+}
+
+const ActionRow: React.FC<ActionRowProps> = ({
+  slot,
+  hovered,
+  onHoverChange,
+  onCopy,
+  onEdit,
+  onRetry,
+  onReadAloud,
+  isSpeaking,
+  onRate,
+}) => {
+  const [copied, setCopied] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const relTime = useRelativeTime(slot.message.timestamp);
+  const absTime = slot.message.timestamp ? formatAbsoluteTime(slot.message.timestamp) : '';
+
+  const currentRating: 'good' | 'bad' | null = slot.message.data?.newUiRating ?? null;
+
+  // Phase 33 §2: rows appear on hover (or keyboard focus) only — for every
+  // message including the last. No always-visible last-assistant behaviour.
+  const visible = hovered || focused;
+
+  const handleCopyClick = async () => {
+    const ok = await onCopy(slot);
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    }
+  };
+
+  const handleBadClick = () => {
+    if (currentRating === 'bad') {
+      onRate(slot, null);
+      setShowFeedback(false);
+      return;
+    }
+    onRate(slot, 'bad');
+    setShowFeedback(true);
+  };
+
+  const handleGoodClick = () => {
+    onRate(slot, currentRating === 'good' ? null : 'good');
+    setShowFeedback(false);
+  };
+
+  const submitFeedback = () => {
+    onRate(slot, 'bad', feedbackText.trim() || undefined);
+    setShowFeedback(false);
+  };
+
+  // Position is a pure layout value computed in scan() and passed via `slot`.
+  // The row is position:absolute inside the overlay portaled into .chatcontainer,
+  // so it scrolls with the content automatically — no scroll listener, no rAF.
+  const rowStyle: React.CSSProperties = {
+    position: 'absolute',
+    top: slot.top,
+    left: slot.align === 'left' ? slot.left : undefined,
+    right: slot.align === 'right' ? slot.right : undefined,
+    zIndex: 30,
+    display: 'flex',
+    alignItems: 'center',
+    // No gap on the outer row — spacing is applied per spec §2.1/§2.2:
+    //   user:      20px between timestamp and first icon, 18px between icons
+    //   assistant: 22px between icons, 8px before the (trailing) timestamp
+    opacity: visible ? 1 : 0,
+    // pointer-events auto only when visible, so an invisible row can never
+    // intercept clicks meant for the message beneath it (the overlay host is
+    // pointer-events:none; each visible row re-enables them for itself).
+    pointerEvents: visible ? 'auto' : 'none',
+    transition: 'opacity 120ms ease',
+  };
+
+  // Icon cluster gets the uniform icon-to-icon gap; the timestamp sits
+  // outside it with its own (different) margin to the nearest icon.
+  // Phase 34: reduced gaps — was user:18/assistant:22, now user:8/assistant:10
+  const iconClusterStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: slot.role === 'user' ? 8 : 10,
+  };
+
+  const timestampNode = absTime || relTime ? (
+    <span
+      title={absTime}
+      className="new-ui-msg-timestamp"
+      style={{
+        fontSize: 12,
+        color: 'var(--text-muted)',
+        userSelect: 'none',
+        whiteSpace: 'nowrap',
+        // Phase 34: reduced from 20px/8px → 10px/6px
+        marginRight: slot.role === 'user' ? 10 : 0,
+        marginLeft: slot.role === 'assistant' ? 6 : 0,
+      }}
+    >
+      {relTime}
+    </span>
+  ) : null;
+
+  return (
+    <div
+      className="new-ui-msg-action-row"
+      style={rowStyle}
+      onMouseEnter={() => onHoverChange(slot.key, true)}
+      onMouseLeave={() => onHoverChange(slot.key, false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => {
+        // Only unfocus if focus is truly leaving the row.
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setFocused(false);
+      }}
+    >
+      {slot.role === 'user' ? (
+        <>
+          {timestampNode}
+          <div style={iconClusterStyle}>
+            <button
+              className="new-ui-action-btn new-ui-action-btn-lg"
+              onClick={() => onRetry(slot)}
+              title="Retry"
+              aria-label="Retry — regenerate response"
+            >
+              <IconRefresh size={16} />
+            </button>
+            <button
+              className="new-ui-action-btn new-ui-action-btn-lg"
+              onClick={() => onEdit(slot)}
+              title="Edit"
+              aria-label="Edit message"
+            >
+              <IconEdit size={16} />
+            </button>
+            <button
+              className="new-ui-action-btn new-ui-action-btn-lg"
+              onClick={handleCopyClick}
+              title={copied ? 'Copied!' : 'Copy'}
+              aria-label={copied ? 'Copied!' : 'Copy message'}
+            >
+              {copied ? <IconCheck size={16} /> : <IconCopy size={16} />}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={iconClusterStyle}>
+            <button
+              className="new-ui-action-btn new-ui-action-btn-lg"
+              onClick={handleCopyClick}
+              title={copied ? 'Copied!' : 'Copy'}
+              aria-label={copied ? 'Copied!' : 'Copy message'}
+            >
+              {copied ? <IconCheck size={16} /> : <IconCopy size={16} />}
+            </button>
+            <button
+              className="new-ui-action-btn new-ui-action-btn-lg"
+              onClick={() => onReadAloud(slot)}
+              title={isSpeaking ? 'Stop reading' : 'Read aloud'}
+              aria-label={isSpeaking ? 'Stop reading' : 'Read message aloud'}
+            >
+              {isSpeaking ? <IconPlayerStop size={16} /> : <IconVolume size={16} />}
+            </button>
+            <button
+              className="new-ui-action-btn new-ui-action-btn-lg"
+              onClick={handleGoodClick}
+              title="Good response"
+              aria-label="Mark as a good response"
+              aria-pressed={currentRating === 'good'}
+              style={currentRating === 'good' ? { color: 'var(--accent)' } : undefined}
+            >
+              {currentRating === 'good' ? <IconThumbUpFilled size={16} /> : <IconThumbUp size={16} />}
+            </button>
+            <button
+              className="new-ui-action-btn new-ui-action-btn-lg"
+              onClick={handleBadClick}
+              title="Bad response"
+              aria-label="Mark as a bad response"
+              aria-pressed={currentRating === 'bad'}
+              style={currentRating === 'bad' ? { color: 'var(--accent)' } : undefined}
+            >
+              {currentRating === 'bad' ? <IconThumbDownFilled size={16} /> : <IconThumbDown size={16} />}
+            </button>
+            <button
+              className="new-ui-action-btn new-ui-action-btn-lg"
+              onClick={() => onRetry(slot)}
+              title="Retry"
+              aria-label="Retry — regenerate response"
+            >
+              <IconRefresh size={16} />
+            </button>
+          </div>
+          {timestampNode}
+        </>
+      )}
+
+      {showFeedback && (
+        <div
+          className="new-ui-feedback-input"
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: slot.role === 'assistant' ? 0 : undefined,
+            right: slot.role === 'user' ? 0 : undefined,
+            marginTop: 6,
+          }}
+          onMouseEnter={() => onHoverChange(slot.key, true)}
+        >
+          <input
+            autoFocus
+            type="text"
+            value={feedbackText}
+            onChange={(e) => setFeedbackText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submitFeedback();
+              if (e.key === 'Escape') setShowFeedback(false);
+            }}
+            placeholder="What went wrong? (optional)"
+          />
+          <button onClick={submitFeedback} title="Submit feedback" aria-label="Submit feedback">
+            <IconCheck size={14} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export const NewUIMessageActionsLayer: React.FC = () => {
-  const { state } = useContext(HomeContext);
-  const { messageIsStreaming } = state;
+  const {
+    state: { messageIsStreaming, selectedConversation },
+    handleUpdateSelectedConversation,
+  } = useContext(HomeContext);
 
-  const [hovered, setHovered] = useState<HoveredMessage | null>(null);
-  const [position, setPosition] = useState<ActionRowPosition | null>(null);
-  const [visible, setVisible] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [overlayEl, setOverlayEl] = useState<HTMLElement | null>(null);
+  const speakingKeyRef = useRef<string | null>(null);
 
-  // Keep a ref so event handlers can read the latest hovered state without
-  // stale closures.
-  const hoveredRef = useRef<HoveredMessage | null>(null);
-  hoveredRef.current = hovered;
+  const conversationRef = useRef<Conversation | undefined>(selectedConversation);
+  conversationRef.current = selectedConversation;
 
-  // Track whether pointer is inside the action pill itself so we don't
-  // dismiss it when the user moves to click a button.
-  const overPillRef = useRef(false);
-
-  // ── Speech synthesis cleanup on unmount ──────────────────────────────────
+  // ── Speech synthesis cleanup ──────────────────────────────────────────────
   useEffect(() => {
     return () => {
       if (typeof window !== 'undefined' && window.speechSynthesis) {
@@ -124,228 +484,289 @@ export const NewUIMessageActionsLayer: React.FC = () => {
     };
   }, []);
 
-  // ── Cancel speech when streaming starts ──────────────────────────────────
   useEffect(() => {
     if (messageIsStreaming && typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
+      speakingKeyRef.current = null;
     }
   }, [messageIsStreaming]);
 
-  // ── Update position on scroll / resize ───────────────────────────────────
-  const updatePosition = useCallback(() => {
-    const msg = hoveredRef.current;
-    if (!msg) return;
-    const pos = computePosition(msg.el, msg.role);
-    setPosition(pos);
+  // ── Scan .chatcontainer and build slots (with layout positions) ────────────
+  const scan = useCallback(() => {
+    if (typeof document === 'undefined') return;
+    const container = document.querySelector('.chatcontainer') as HTMLElement | null;
+    if (!container || !conversationRef.current) return;
+
+    const rendered = filterRenderedMessages(conversationRef.current.messages ?? []);
+    const els = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        '.enhanced-chat-message.user-message, .enhanced-chat-message.assistant-message',
+      ),
+    );
+
+    const nextSlots: Slot[] = [];
+    els.forEach((el, i) => {
+      const message = rendered[i];
+      if (!message) return; // DOM/state momentarily out of sync — skip until next scan
+      const role: Role = el.classList.contains('assistant-message') ? 'assistant' : 'user';
+      const key = message.id ?? `${role}-${i}`;
+      el.setAttribute('data-new-ui-msg-key', key);
+      const rawIndex = (conversationRef.current?.messages ?? []).indexOf(message);
+      const pos = computePosition(el, role, container);
+      nextSlots.push({ key, el, role, message, rawIndex, ...pos });
+    });
+
+    setSlots(nextSlots);
   }, []);
 
-  // ── Event delegation on .chatcontainer (with retry if not yet mounted) ──────
+  // ── Attach: find container, create the absolute overlay, observe, scan ─────
+  //
+  // The overlay is a position:absolute; inset:0; pointer-events:none;
+  // overflow:visible div portaled directly into .chatcontainer. Because it (and
+  // its absolutely-positioned row children) live inside the scroller, they scroll
+  // with the content for free — no scroll listeners anywhere in this component.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
     let cleanupFn: (() => void) | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let overlay: HTMLDivElement | null = null;
 
     const attach = () => {
-      // Try .chatcontainer first, fall back to the new-ui shell div
-      const container = (
-        document.querySelector('.chatcontainer') ??
-        document.querySelector('[data-new-ui="true"]')
-      ) as HTMLElement | null;
-
+      const container = document.querySelector('.chatcontainer') as HTMLElement | null;
       if (!container) {
-        // DOM not ready yet — retry shortly
         retryTimer = setTimeout(attach, 200);
         return;
       }
 
-      let hideTimer: ReturnType<typeof setTimeout> | null = null;
+      // Create (or reuse) the overlay host as a direct child of .chatcontainer.
+      let existing = container.querySelector<HTMLDivElement>(':scope > .new-ui-actions-overlay');
+      if (!existing) {
+        existing = document.createElement('div');
+        existing.className = 'new-ui-actions-overlay';
+        existing.style.position = 'absolute';
+        existing.style.inset = '0';
+        existing.style.pointerEvents = 'none';
+        existing.style.overflow = 'visible';
+        container.appendChild(existing);
+      }
+      overlay = existing;
+      setOverlayEl(existing);
 
-      const show = (msgEl: HTMLElement, role: 'user' | 'assistant') => {
-        if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
-        setHovered({ el: msgEl, role });
-        setPosition(computePosition(msgEl, role));
-        setVisible(true);
-        setCopied(false);
+      scan();
+
+      const debouncedScan = () => {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(scan, 120);
       };
 
-      const scheduleHide = () => {
-        hideTimer = setTimeout(() => {
-          if (!overPillRef.current) {
-            setVisible(false);
-            // Delay nulling hovered so the fade-out animation completes
-            setTimeout(() => {
-              if (!overPillRef.current) setHovered(null);
-            }, 150);
+      // subtree:true — message elements + their content mutate a level or two
+      // below .chatcontainer (streaming appends content blocks, markdown layer
+      // injects hosts, images load). The 120ms debounce keeps this cheap.
+      // We ignore mutations inside our own overlay to avoid a rescan loop.
+      const observer = new MutationObserver((records) => {
+        for (const r of records) {
+          if (overlay && (overlay === r.target || overlay.contains(r.target as Node))) {
+            continue;
           }
-        }, 80);
-      };
+          debouncedScan();
+          return;
+        }
+      });
+      observer.observe(container, { childList: true, subtree: true });
 
-      const onMouseOver = (e: MouseEvent) => {
-        if (messageIsStreaming) return;
-        const msgEl = findMessageAncestor(e.target);
-        if (!msgEl) return;
-
-        const role = msgEl.classList.contains('user-message')
-          ? 'user'
-          : msgEl.classList.contains('assistant-message')
-            ? 'assistant'
-            : null;
-        if (!role) return;
-
-        show(msgEl, role);
-      };
-
-      const onMouseOut = (e: MouseEvent) => {
-        const relatedTarget = e.relatedTarget as HTMLElement | null;
-        // Still inside the same message element?
-        if (relatedTarget && hoveredRef.current?.el.contains(relatedTarget)) return;
-        scheduleHide();
-      };
-
-      container.addEventListener('mouseover', onMouseOver);
-      container.addEventListener('mouseout', onMouseOut);
-      window.addEventListener('scroll', updatePosition, { passive: true });
-      window.addEventListener('resize', updatePosition, { passive: true });
-      container.addEventListener('scroll', updatePosition, { passive: true });
+      // A window resize changes the column width → row left/right edges. This is
+      // a layout change (not a scroll), so recompute on a debounced resize. This
+      // is intentionally NOT a scroll listener — the whole point of the rewrite.
+      const onResize = () => debouncedScan();
+      window.addEventListener('resize', onResize, { passive: true });
 
       cleanupFn = () => {
-        container.removeEventListener('mouseover', onMouseOver);
-        container.removeEventListener('mouseout', onMouseOut);
-        window.removeEventListener('scroll', updatePosition);
-        window.removeEventListener('resize', updatePosition);
-        container.removeEventListener('scroll', updatePosition);
-        if (hideTimer) clearTimeout(hideTimer);
+        observer.disconnect();
+        window.removeEventListener('resize', onResize);
+        if (debounceTimer) clearTimeout(debounceTimer);
+        if (overlay && overlay.parentElement) overlay.parentElement.removeChild(overlay);
       };
-    }; // end attach()
+    };
 
     attach();
-
     return () => {
       if (retryTimer) clearTimeout(retryTimer);
       if (cleanupFn) cleanupFn();
     };
-    // NOTE: messageIsStreaming in the closure is intentionally read via the
-    // captured value; we re-subscribe when it changes.
-  }, [messageIsStreaming, updatePosition]);
+  }, [scan]);
+
+  // Rescan whenever the message count or streaming state changes.
+  const messageCount = selectedConversation?.messages?.length ?? 0;
+  useEffect(() => {
+    const t = setTimeout(scan, 100);
+    return () => clearTimeout(t);
+  }, [messageCount, messageIsStreaming, scan]);
+
+  // ── Hover delegation (message → row) ──────────────────────────────────────
+  //
+  // Show a message's row when the pointer is over that message. Keep it alive
+  // when the pointer moves onto the row itself (handleRowHoverChange). Because
+  // the row now sits in the message's reserved padding-bottom region — only 6px
+  // below the visible content and inside the same scroll container — the pointer
+  // travel is tiny, so a short 200ms grace timer is plenty to bridge the gap
+  // between leaving the message and entering the row.
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const container = document.querySelector('.chatcontainer') as HTMLElement | null;
+    if (!container) return;
+
+    const onMouseOver = (e: MouseEvent) => {
+      if (messageIsStreaming) return;
+      const el = (e.target as HTMLElement | null)?.closest<HTMLElement>('.enhanced-chat-message');
+      const key = el?.getAttribute('data-new-ui-msg-key');
+      if (!key) return;
+      if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+      setHoveredKey(key);
+    };
+
+    const onMouseOut = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      const related = e.relatedTarget as HTMLElement | null;
+      // Phase 35 Fix 3: ignore mouseout events that ORIGINATE inside the action
+      // overlay (a row or one of its icon buttons). Because the rows are portaled
+      // into .new-ui-actions-overlay — a real DOM child of .chatcontainer — their
+      // native mouseout events bubble up to this container listener during
+      // intra-row pointer movement (button → gap → button). Left unguarded, that
+      // arms the hide timer even though the pointer is still on the row, and
+      // nothing cancels it (the row's mouseenter/mouseleave don't re-fire for
+      // child-to-child transitions). Row exit is now handled authoritatively by
+      // the row container's own `mouseleave` (see handleRowHoverChange), so we
+      // simply never treat an overlay-originated mouseout as "left the message."
+      if (target && target.closest('.new-ui-actions-overlay')) return;
+      // If the pointer is heading FROM the message toward its action row, keep
+      // the row alive; the row's own mouseenter takes over from here.
+      if (related && related.closest('.new-ui-actions-overlay')) return;
+      const el = target?.closest<HTMLElement>('.enhanced-chat-message');
+      if (el && related && el.contains(related)) return;
+      hideTimerRef.current = setTimeout(() => {
+        hideTimerRef.current = null;
+        setHoveredKey(null);
+      }, 200);
+    };
+
+    container.addEventListener('mouseover', onMouseOver);
+    container.addEventListener('mouseout', onMouseOut);
+    return () => {
+      container.removeEventListener('mouseover', onMouseOver);
+      container.removeEventListener('mouseout', onMouseOut);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    };
+  }, [messageIsStreaming]);
+
+  const handleRowHoverChange = useCallback((key: string, hovered: boolean) => {
+    if (hovered) {
+      // Pointer entered the row — cancel any pending hide timer.
+      if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+      setHoveredKey(key);
+    } else {
+      // Phase 35 Fix 3: this is now driven by `mouseleave` on the row container
+      // div (see ActionRow's onMouseLeave). mouseleave does NOT bubble and does
+      // NOT fire when the pointer moves between child buttons of the same row —
+      // it only fires when the pointer genuinely exits the entire row container.
+      // So the row's own leave no longer needs a grace timer: clear immediately.
+      // (The old container-level onMouseOut delegation still uses its own 200ms
+      // grace timer to bridge the DOM gap between the .enhanced-chat-message
+      // element and the row while travelling toward it.)
+      if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+      setHoveredKey((prev) => (prev === key ? null : prev));
+    }
+  }, []);
 
   // ── Action handlers ───────────────────────────────────────────────────────
 
-  const handleCopy = useCallback(async () => {
-    if (!hovered) return;
-    const text = extractMessageText(hovered.el, hovered.role);
+  const handleCopy = useCallback(async (slot: Slot): Promise<boolean> => {
+    const text = extractMessageText(slot.el, slot.role);
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
+      return true;
     } catch {
-      // Clipboard API unavailable — silently ignore
+      return false;
     }
-  }, [hovered]);
+  }, []);
 
-  const handleEdit = useCallback(() => {
-    if (!hovered) return;
-    // Trigger ChatMessage's existing edit flow by clicking its hidden button
-    const editBtn =
-      (hovered.el.querySelector('#editPrompt') as HTMLButtonElement | null) ??
-      (hovered.el.querySelector('[id="editPrompt"]') as HTMLButtonElement | null);
-    if (editBtn) {
-      editBtn.click();
-      setVisible(false);
-      setHovered(null);
-    }
-  }, [hovered]);
+  const handleEdit = useCallback((slot: Slot) => {
+    if (slot.role !== 'user') return;
+    const editBtn = slot.el.querySelector<HTMLButtonElement>('#editPrompt');
+    editBtn?.click();
+  }, []);
 
-  const handleReadAloud = useCallback(() => {
+  const handleRetry = useCallback((slot: Slot) => {
+    const targetUserEl = slot.role === 'user' ? slot.el : findPrecedingUserMessage(slot.el);
+    if (targetUserEl) retryFromUserMessageEl(targetUserEl);
+  }, []);
+
+  const handleReadAloud = useCallback((slot: Slot) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    if (isSpeaking) {
+    if (speakingKeyRef.current === slot.key) {
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
+      speakingKeyRef.current = null;
       return;
     }
-    if (!hovered) return;
-    const text = extractMessageText(hovered.el, 'assistant');
+    window.speechSynthesis.cancel();
+    const text = extractMessageText(slot.el, 'assistant');
     if (!text.trim()) return;
-
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
+    utterance.onend = () => { setIsSpeaking(false); speakingKeyRef.current = null; };
+    utterance.onerror = () => { setIsSpeaking(false); speakingKeyRef.current = null; };
+    speakingKeyRef.current = slot.key;
     setIsSpeaking(true);
     window.speechSynthesis.speak(utterance);
-  }, [hovered, isSpeaking]);
+  }, []);
+
+  const handleRate = useCallback(
+    (slot: Slot, rating: 'good' | 'bad' | null, feedback?: string) => {
+      const conversation = conversationRef.current;
+      if (!conversation) return;
+      const idx = slot.rawIndex;
+      if (idx < 0 || !conversation.messages[idx]) return;
+
+      const updatedMessages = [...conversation.messages];
+      updatedMessages[idx] = {
+        ...updatedMessages[idx],
+        data: {
+          ...updatedMessages[idx].data,
+          newUiRating: rating,
+          newUiFeedback: feedback,
+        },
+      };
+      handleUpdateSelectedConversation({ ...conversation, messages: updatedMessages });
+    },
+    [handleUpdateSelectedConversation],
+  );
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  if (!hovered || !position) return null;
+  if (!overlayEl || !slots.length) return null;
 
-  const pillStyle: React.CSSProperties = {
-    position: 'fixed',
-    top: position.top,
-    zIndex: 30,
-    display: 'flex',
-    gap: 2,
-    padding: '4px 6px',
-    background: 'transparent',
-    border: 'none',
-    borderRadius: 8,
-    opacity: visible ? 1 : 0,
-    transition: 'opacity 120ms ease',
-    pointerEvents: visible ? 'auto' : 'none',
-    boxShadow: 'none',
-  };
-
-  if (position.align === 'right') {
-    // right-align: anchor right edge of pill to position.left
-    Object.assign(pillStyle, { right: `calc(100vw - ${position.left}px)` });
-  } else {
-    Object.assign(pillStyle, { left: position.left });
-  }
-
-  return (
-    <div
-      style={pillStyle}
-      onMouseEnter={() => { overPillRef.current = true; }}
-      onMouseLeave={() => {
-        overPillRef.current = false;
-        setVisible(false);
-        setTimeout(() => { if (!overPillRef.current) setHovered(null); }, 150);
-      }}
-    >
-      {/* Copy button — present for both user and assistant messages */}
-      <button
-        className="new-ui-action-btn"
-        onClick={handleCopy}
-        title={copied ? 'Copied!' : 'Copy'}
-        aria-label={copied ? 'Copied!' : 'Copy message'}
-      >
-        {copied ? <IconCheck size={15} /> : <IconCopy size={15} />}
-      </button>
-
-      {hovered.role === 'user' && (
-        /* Edit — user messages only */
-        <button
-          className="new-ui-action-btn"
-          onClick={handleEdit}
-          title="Edit"
-          aria-label="Edit message"
-        >
-          <IconEdit size={15} />
-        </button>
-      )}
-
-      {hovered.role === 'assistant' && (
-        /* Read Aloud — assistant messages only */
-        <button
-          className="new-ui-action-btn"
-          onClick={handleReadAloud}
-          title={isSpeaking ? 'Stop reading' : 'Read aloud'}
-          aria-label={isSpeaking ? 'Stop reading' : 'Read message aloud'}
-        >
-          {isSpeaking ? <IconPlayerStop size={15} /> : <IconVolume size={15} />}
-        </button>
-      )}
-    </div>
+  // Rows are portaled into the overlay div living inside .chatcontainer, so they
+  // share the scroller's coordinate system and scroll with the content for free.
+  return createPortal(
+    <>
+      {slots.map((slot) => (
+        <ActionRow
+          key={slot.key}
+          slot={slot}
+          hovered={hoveredKey === slot.key}
+          onHoverChange={handleRowHoverChange}
+          onCopy={handleCopy}
+          onEdit={handleEdit}
+          onRetry={handleRetry}
+          onReadAloud={handleReadAloud}
+          isSpeaking={isSpeaking && speakingKeyRef.current === slot.key}
+          onRate={handleRate}
+        />
+      ))}
+    </>,
+    overlayEl,
   );
 };
 

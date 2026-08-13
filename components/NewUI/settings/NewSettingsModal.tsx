@@ -101,6 +101,19 @@ const GeneralSection: FC = () => {
     settings.featureOptions,
   );
 
+  // Chat font preference (§6)
+  const [chatFont, setChatFont] = useState<'serif' | 'sans'>(() => {
+    if (typeof window === 'undefined') return 'serif';
+    return (localStorage.getItem('amplify_chat_font') as 'serif' | 'sans') ?? 'serif';
+  });
+
+  const handleChatFontChange = (value: 'serif' | 'sans') => {
+    setChatFont(value);
+    localStorage.setItem('amplify_chat_font', value);
+    // Notify ConversationViewShell to update data-body-face
+    window.dispatchEvent(new Event('amplifyChatFontChanged'));
+  };
+
   const handleThemeChange = (value: 'light' | 'dark') => {
     homeDispatch({ field: 'lightMode', value });
     localStorage.setItem('lightMode', value);
@@ -171,6 +184,63 @@ const GeneralSection: FC = () => {
                 style={{ accentColor: 'var(--accent)' }}
               />
               {t.charAt(0).toUpperCase() + t.slice(1)}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Chat font (§6 — Preferences) */}
+      <div
+        style={{
+          background: 'var(--bg-raised)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-panel, 12px)',
+          padding: '20px',
+        }}
+      >
+        <h3
+          style={{
+            color: 'var(--text-primary)',
+            fontSize: '15px',
+            fontWeight: 600,
+            marginBottom: '4px',
+          }}
+        >
+          Chat font
+        </h3>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '16px' }}>
+          Choose the typeface for assistant responses
+        </p>
+        <div className="flex gap-4">
+          {([
+            { value: 'serif', label: 'Serif', desc: 'Newsreader (default)' },
+            { value: 'sans', label: 'Sans', desc: 'Inter' },
+          ] as const).map((opt) => (
+            <label
+              key={opt.value}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                color: 'var(--text-primary)',
+                fontSize: '14px',
+              }}
+            >
+              <input
+                type="radio"
+                name="chatFont"
+                value={opt.value}
+                checked={chatFont === opt.value}
+                onChange={() => handleChatFontChange(opt.value)}
+                style={{ accentColor: 'var(--accent)' }}
+              />
+              <span>
+                {opt.label}
+                <span style={{ color: 'var(--text-muted)', fontSize: '12px', marginLeft: '4px' }}>
+                  {opt.desc}
+                </span>
+              </span>
             </label>
           ))}
         </div>

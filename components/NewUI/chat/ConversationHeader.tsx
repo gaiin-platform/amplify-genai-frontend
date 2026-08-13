@@ -13,7 +13,6 @@ import {
   IconPencil,
   IconShare,
   IconTrash,
-  IconCheck,
   IconSparkles,
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
@@ -180,21 +179,23 @@ export const ConversationHeader: React.FC = () => {
         )}
       </div>
 
-      {/* ── Right: Share button ── */}
+      {/* ── Right: Share button (spec §9: label only, no icon) ── */}
       <div className="flex items-center gap-2.5 flex-shrink-0">
         <button
           type="button"
           onClick={handleShare}
-          className="flex items-center justify-center rounded-[8px] transition-colors focus:outline-none text-[13.5px] font-[500] text-[--text-primary]"
+          className="flex items-center justify-center rounded-[8px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
           style={{
             height: 30,
             padding: '0 14px',
             background: 'var(--bg-active)',
+            fontSize: '13.5px',
+            fontWeight: 500,
+            color: 'var(--text-primary)',
           }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#45443F'; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-active)'; }}
         >
-          <IconShare size={14} className="mr-1.5" />
           Share
         </button>
       </div>

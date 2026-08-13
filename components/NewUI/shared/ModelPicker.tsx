@@ -33,6 +33,7 @@ import React, {
   useState,
 } from 'react';
 import {
+  IconCamera,
   IconCheck,
   IconChevronDown,
   IconChevronRight,
@@ -355,6 +356,11 @@ const MoreModelsMenu: React.FC<{
               >
                 {model.name}
               </span>
+              {model.supportsImages && (
+                <span title="Supports images in prompts" style={{ flexShrink: 0, marginLeft: 6, opacity: 0.7, display: 'flex' }}>
+                  <IconCamera size={14} style={{ color: 'var(--text-muted)' }} />
+                </span>
+              )}
               {model.id === defaultModelId && !isSelected && (
                 <span
                   style={{ fontSize: 11, color: '#60a5fa', flexShrink: 0, marginLeft: 8 }}
@@ -711,6 +717,11 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
                       {modelDescription(model)}
                     </div>
                   </div>
+                  {model.supportsImages && (
+                    <span title="Supports images in prompts" style={{ flexShrink: 0, marginTop: 2, marginLeft: 6, opacity: 0.7, display: 'flex' }}>
+                      <IconCamera size={15} style={{ color: 'var(--text-muted)' }} />
+                    </span>
+                  )}
                   {isActive && (
                     <IconCheck
                       size={16}

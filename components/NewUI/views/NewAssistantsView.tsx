@@ -258,7 +258,7 @@ const SearchInput: React.FC<{ value: string; onChange: (v: string) => void; plac
 
 const MyAssistantsTab: React.FC = () => {
     const {
-        state: { prompts, statsService, availableModels, selectedAssistant },
+        state: { prompts, statsService, availableModels, selectedAssistant, featureFlags },
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
@@ -273,11 +273,15 @@ const MyAssistantsTab: React.FC = () => {
 
     const canEdit = (p: Prompt) => !p.data?.noEdit;
 
+    // Mirrors Promptbar.tsx's visiblePrompts filter: hide prompts/assistants marked
+    // data.hidden unless featureFlags.overrideInvisiblePrompts is set.
+    const isVisible = (p: Prompt) => featureFlags.overrideInvisiblePrompts || !p.data?.hidden;
+
     const allAssistants = useMemo(() =>
         prompts
-            .filter((p: Prompt) => isAssistant(p) && !p.groupId)
+            .filter((p: Prompt) => isAssistant(p) && !p.groupId && isVisible(p))
             .sort((a: Prompt, b: Prompt) => a.name.localeCompare(b.name)),
-        [prompts]
+        [prompts, featureFlags.overrideInvisiblePrompts]
     );
 
     const filtered = useMemo(() => {
@@ -498,35 +502,49 @@ const GroupAssistantsTab: React.FC = () => {
     };
 
     const openAdminInterface = (group: Group, assistant?: Prompt, layeredAssistant?: LayeredAssistant) => {
+        // Admins must see/manage ALL assistants (including hidden ones), so pass the
+        // original unfiltered group from context, not the display-filtered copy used
+        // for the list rendering (see filteredGroups below, which strips data.hidden
+        // assistants for non-admin display purposes only).
+        const originalGroup = groups.find((g: Group) => g.id === group.id) ?? group;
         window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', {
             detail: {
                 isOpen: true,
-                data: { group, assistant, layeredAssistant },
+                data: { group: originalGroup, assistant, layeredAssistant },
             },
         }));
     };
 
-    const filteredGroups = useMemo(() => {
-        return groups.filter((group: Group) => {
-            const hasAssistants = group.assistants && group.assistants.length > 0;
-            const hasLAs = group.layeredAssistants && group.layeredAssistants.length > 0;
-            const isAdmin = hasAdminAccess(group);
-            if (!hasAssistants && !hasLAs && !isAdmin) return false;
+    // Mirrors Promptbar.tsx's visiblePrompts filter: hide prompts/assistants marked
+    // data.hidden unless featureFlags.overrideInvisiblePrompts is set.
+    const isVisible = (p: Prompt) => featureFlags.overrideInvisiblePrompts || !p.data?.hidden;
 
-            if (!search.trim()) return true;
-            const q = search.toLowerCase();
-            return (
-                group.name.toLowerCase().includes(q) ||
-                group.assistants.some((a: Prompt) =>
-                    a.name.toLowerCase().includes(q) ||
-                    (a.description && a.description.toLowerCase().includes(q))
-                ) ||
-                (group.layeredAssistants?.some((la: LayeredAssistant) =>
-                    la.name.toLowerCase().includes(q) ||
-                    (la.description && la.description.toLowerCase().includes(q))
-                ) ?? false)
-            );
-        });
+    const filteredGroups = useMemo(() => {
+        return groups
+            .map((group: Group) => ({
+                ...group,
+                assistants: (group.assistants ?? []).filter(isVisible),
+            }))
+            .filter((group: Group) => {
+                const hasAssistants = group.assistants && group.assistants.length > 0;
+                const hasLAs = group.layeredAssistants && group.layeredAssistants.length > 0;
+                const isAdmin = hasAdminAccess(group);
+                if (!hasAssistants && !hasLAs && !isAdmin) return false;
+
+                if (!search.trim()) return true;
+                const q = search.toLowerCase();
+                return (
+                    group.name.toLowerCase().includes(q) ||
+                    group.assistants.some((a: Prompt) =>
+                        a.name.toLowerCase().includes(q) ||
+                        (a.description && a.description.toLowerCase().includes(q))
+                    ) ||
+                    (group.layeredAssistants?.some((la: LayeredAssistant) =>
+                        la.name.toLowerCase().includes(q) ||
+                        (la.description && la.description.toLowerCase().includes(q))
+                    ) ?? false)
+                );
+            });
     }, [groups, search, userIdentifier, featureFlags]);
 
     return (
@@ -666,7 +684,7 @@ const GroupAssistantsTab: React.FC = () => {
 
 const PromptTemplatesTab: React.FC = () => {
     const {
-        state: { prompts, statsService, availableModels },
+        state: { prompts, statsService, availableModels, featureFlags },
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
@@ -678,9 +696,13 @@ const PromptTemplatesTab: React.FC = () => {
     const [showModal, setShowModal] = useState(false);
     const [selectedTemplate, setSelectedTemplate] = useState<Prompt | null>(null);
 
+    // Mirrors Promptbar.tsx's visiblePrompts filter: hide prompts marked data.hidden
+    // unless featureFlags.overrideInvisiblePrompts is set.
+    const isVisible = (p: Prompt) => featureFlags.overrideInvisiblePrompts || !p.data?.hidden;
+
     const allTemplates = useMemo(
-        () => prompts.filter((p: Prompt) => !isAssistant(p)),
-        [prompts]
+        () => prompts.filter((p: Prompt) => !isAssistant(p) && isVisible(p)),
+        [prompts, featureFlags.overrideInvisiblePrompts]
     );
 
     const grouped = useMemo(() => {

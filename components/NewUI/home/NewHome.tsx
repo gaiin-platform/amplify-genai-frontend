@@ -39,6 +39,7 @@ import {
 } from '@/components/NewUI/shared/attachmentTypes';
 import { PluginID, Plugin, Plugins } from '@/types/plugin';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
+import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
 
 export const NewHome: React.FC = () => {
   const {
@@ -197,6 +198,15 @@ export const NewHome: React.FC = () => {
       if (selectedSkillIds.length > 0)
         sessionStorage.setItem('amplify_pending_skills', JSON.stringify(selectedSkillIds));
     }
+    // Bug fix (Phase 27): tell home.tsx a send is already in flight for the
+    // about-to-be-created conversation, so it doesn't flash NewHome/landing
+    // page again during the ~150-300ms window before ConversationViewShell's
+    // pending-message bridge actually injects the text + clicks send (during
+    // which selectedConversation.messages.length is genuinely still 0). See
+    // NEW_UI_DOCS.md §12 Phase 27 and home.tsx's pendingNewConversationSend.
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('amplifyNewConversationSendPending'));
+    }
     handleNewConversation({
       ...(selectedModelId && availableModels[selectedModelId]
         ? { model: availableModels[selectedModelId] }
@@ -330,7 +340,16 @@ export const NewHome: React.FC = () => {
                   fileInputRef.current?.click();
                 }}
                 webSearchEnabled={webSearchEnabled}
-                onToggleWebSearch={() => setWebSearchEnabled((v) => !v)}
+                onToggleWebSearch={() => {
+                  setWebSearchEnabled((v) => {
+                    const next = !v;
+                    // Seed Chat.tsx's plugins array as early as possible — the
+                    // conversation this creates hasn't mounted Chat.tsx yet, but
+                    // there's no harm in getting the settings write in early.
+                    if (next) persistWebSearchPluginPreference(featureFlags);
+                    return next;
+                  });
+                }}
                 selectedSkillIds={selectedSkillIds}
                 onSkillsChange={setSelectedSkillIds}
                 chatEndpoint={chatEndpoint ?? undefined}
@@ -359,8 +378,14 @@ export const NewHome: React.FC = () => {
                 composerRef={composerRef}
               />
 
-              {/* Mic ↔ Send swap (spec §7) */}
+              {/*
+               * §7 Send ↔ Voice slot (32×32, zero layout shift).
+               * One slot, two occupants — cross-fade over 120ms:
+               *   empty → Voice button (transparent bg, mic icon)
+               *   content → Send button (--accent bg, ArrowUp icon)
+               */}
               <div className="relative w-[32px] h-[32px]">
+                {/* Voice — when empty */}
                 <button
                   className="absolute inset-0 flex items-center justify-center rounded-[8px] transition-all duration-[120ms]"
                   style={{
@@ -372,17 +397,20 @@ export const NewHome: React.FC = () => {
                   title="Voice input"
                   aria-label="Voice input"
                   onMouseDown={(e) => e.preventDefault()}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
                 >
                   <IconMicrophone size={17} />
                 </button>
+                {/* Send — when content */}
                 <button
                   className="absolute inset-0 flex items-center justify-center rounded-[8px] transition-all duration-[120ms]"
                   style={{
-                    background: canSend ? 'var(--accent)' : 'var(--bg-active)',
-                    color: canSend ? '#2A1710' : 'var(--text-muted)',
+                    background: 'var(--accent)',
+                    color: '#2A1710',
                     opacity: canSend ? 1 : 0,
                     pointerEvents: canSend ? 'auto' : 'none',
-                    cursor: canSend ? 'pointer' : 'default',
+                    cursor: 'pointer',
                   }}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => { const md = composerRef.current?.getValue() ?? ''; handleSend(md); }}
