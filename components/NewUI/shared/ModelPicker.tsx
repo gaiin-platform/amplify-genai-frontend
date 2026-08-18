@@ -650,6 +650,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
             }}
             {...getFloatingProps()}
             role="menu"
+            aria-label="Select model"
             style={{
               position: strategy,
               top: y ?? 0,

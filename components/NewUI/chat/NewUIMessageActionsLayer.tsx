@@ -160,7 +160,7 @@ function computePosition(
   role: Role,
   container: HTMLElement,
 ): Pick<Slot, 'top' | 'align' | 'left' | 'right'> {
-  const GAP = 6;
+  const GAP = role === 'user' ? 2 : 1;
   const anchor = el.querySelector<HTMLElement>('#chatHover') ?? el;
   const { top: anchorTop, left: anchorLeft } = offsetWithin(anchor, container);
   const top = anchorTop + anchor.offsetHeight + GAP;
@@ -307,11 +307,11 @@ const ActionRow: React.FC<ActionRowProps> = ({
 
   // Icon cluster gets the uniform icon-to-icon gap; the timestamp sits
   // outside it with its own (different) margin to the nearest icon.
-  // Phase 34: reduced gaps — was user:18/assistant:22, now user:8/assistant:10
+  // Phase 37: tightened gaps — consistent 4px for both roles
   const iconClusterStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
-    gap: slot.role === 'user' ? 8 : 10,
+    gap: 4,
   };
 
   const timestampNode = absTime || relTime ? (
@@ -323,9 +323,9 @@ const ActionRow: React.FC<ActionRowProps> = ({
         color: 'var(--text-muted)',
         userSelect: 'none',
         whiteSpace: 'nowrap',
-        // Phase 34: reduced from 20px/8px → 10px/6px
-        marginRight: slot.role === 'user' ? 10 : 0,
-        marginLeft: slot.role === 'assistant' ? 6 : 0,
+        // Phase 37: reduced from 10px/6px → 6px/4px
+        marginRight: slot.role === 'user' ? 6 : 0,
+        marginLeft: slot.role === 'assistant' ? 4 : 0,
       }}
     >
       {relTime}

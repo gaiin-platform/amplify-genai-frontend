@@ -89,17 +89,40 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Focus trap ────────────────────────────────────────────────────────────
+  // ── Focus trap + keyboard navigation ─────────────────────────────────────
+  const dialogRef = panelRef; // alias for clarity — panelRef IS the dialog element
   useEffect(() => {
     closeBtnRef.current?.focus();
+
+    const FOCUSABLE = [
+      'a[href]',
+      'button:not([disabled])',
+      'textarea:not([disabled])',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(',');
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowLeft') setIdx((i) => Math.max(0, i - 1));
-      if (e.key === 'ArrowRight') setIdx((i) => Math.min(attachments.length - 1, i + 1));
+      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key === 'ArrowLeft') { setIdx((i) => Math.max(0, i - 1)); return; }
+      if (e.key === 'ArrowRight') { setIdx((i) => Math.min(attachments.length - 1, i + 1)); return; }
+      if (e.key !== 'Tab') return;
+      const panel = dialogRef.current;
+      if (!panel) return;
+      const focusable = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+      } else {
+        if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [attachments.length, onClose]);
+  }, [attachments.length, onClose, dialogRef]);
 
   // ── Close with reverse FLIP ───────────────────────────────────────────────
   const handleClose = useCallback(() => {

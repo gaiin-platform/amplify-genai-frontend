@@ -189,6 +189,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   const [activeTab, setActiveTab]             = useState<AdminTab>(openToTab ?? 'Configurations');
   const [searchQuery, setSearchQuery]         = useState('');
   const contentRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   // ── Unsaved changes ───────────────────────────────────────────────────────
   const [unsavedConfigs, setUnsavedConfigs]   = useState<Set<AdminConfigTypes>>(new Set());
@@ -411,14 +412,41 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
     if (!allEmails) setAllEmails(Object.values(amplifyUsers));
   }, [loadData]);
 
-  // ── Keyboard / overlay close ──────────────────────────────────────────────
+  // ── Keyboard / overlay close + focus trap ────────────────────────────────
   useEffect(() => {
+    // Move focus into the modal on open
+    panelRef.current?.focus();
+
+    const FOCUSABLE = [
+      'a[href]',
+      'button:not([disabled])',
+      'textarea:not([disabled])',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(',');
+
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !hasChildModalOpen) {
         if (unsavedConfigs.size === 0 ||
           confirm('You have unsaved changes!\n\nYou will lose any unsaved data. Close anyway?')) {
           onClose();
         }
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusable = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (el) => !el.closest('[aria-hidden="true"]'),
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+      } else {
+        if (document.activeElement === last) { e.preventDefault(); first.focus(); }
       }
     };
     document.addEventListener('keydown', handler);
@@ -973,10 +1001,13 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
           gridTemplateColumns: '220px 1fr',
           gridTemplateRows: '100%',
           boxShadow: '0 24px 64px rgba(0,0,0,0.45)',
+          outline: 'none',
         }}
+        ref={panelRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label="Admin Panel"
+        aria-labelledby="admin-modal-heading"
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Left Rail ───────────────────────────────────────────────────── */}
@@ -996,6 +1027,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
             {/* Title row */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', padding: '0 4px' }}>
               <span
+                id="admin-modal-heading"
                 style={{
                   fontSize: '13px',
                   fontWeight: 700,

@@ -333,6 +333,7 @@ export const ConversationComposer: React.FC = () => {
           />
 
           {/* ── Band 2: Textarea ── */}
+          {/* aria-label because a visible <label> element isn't used in this layout (WCAG SC 1.3.1 / 4.1.2) */}
           <textarea
             ref={textareaRef}
             value={text}
@@ -341,6 +342,8 @@ export const ConversationComposer: React.FC = () => {
             onPaste={handleTextareaPaste}
             data-composer-textarea="true"
             placeholder="Write a message…"
+            aria-label="Message input"
+            aria-multiline="true"
             rows={1}
             style={{
               background: 'transparent',

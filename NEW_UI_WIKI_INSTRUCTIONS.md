@@ -187,6 +187,24 @@ Run this check and update the wiki before starting major new work.
 9. **When wrapping old components in a new-UI modal, add `className="text-neutral-900 dark:text-white"` to the outermost content div.** Old components often rely on an inherited base text color set by their original parent wrapper. Without this, elements that only set `dark:text-*` have no light-mode fallback and will be invisible on the white/light-gray modal background. See `NewAdminModal` and Section 13 ("Light-mode gotcha") for details.
 10. **Before writing a CSS override rule that targets an id or class found inside a protected/shared component (e.g. `components/Chat/ExpansionComponent.tsx`), grep for every consumer of that component first.** Several protected components hardcode the SAME id/class across many unrelated call sites (`ExpansionComponent.tsx`'s `id="expandComponent"` alone has ~20 call sites: Sources, Agent Log, RAG Evaluation, Generated Files, MCP Tool Result, and more, in addition to the reasoning block). An unscoped `[data-new-ui="true"] #someSharedId` selector will silently restyle every one of those unrelated call sites, not just the one you meant. Always add a selector prefix scoped to a class/wrapper that is unique to the ONE call site you're targeting. See NEW_UI_DOCS.md §13 "Shared-id/shared-class CSS scoping gotcha" (discovered and fixed in Phase 28) for the concrete example and fix pattern.
 
+### Per-Component Accessibility Rules (established in A11y Pass 1, 2026-08-14)
+
+These rules are standing requirements for all future sessions:
+
+11. **Every `IconButton` MUST have an accessible name.** Pass `aria-label` (preferred) or `title` (fallback). `IconButton.tsx` now propagates `aria-label` — always pass it when the button has no visible text.
+
+12. **Every modal/dialog MUST implement a focus trap.** Pattern: (a) `role="dialog" aria-modal="true" aria-labelledby="<heading-id>"` on the panel div; (b) `tabIndex={-1}` + `panelRef` on the panel; (c) `useEffect` that calls `panelRef.current?.focus()` on open and traps Tab/Shift-Tab within `querySelectorAll(<FOCUSABLE_SELECTOR>)`. See `NewSettingsModal.tsx` for the reference implementation.
+
+13. **Every `role="menu"` popover MUST move focus to the first menu item on open.** The AccountMenu pattern (focus first `[role="menuitem"]:not([disabled])` on open, return focus to trigger on Escape) is the standing pattern.
+
+14. **Never use `--text-muted` for normal-size body text or interactive labels.** It has been tuned to pass 4.5:1 on all surfaces, but use `--text-secondary` for anything that's primary informational content. `--text-muted` is for timestamps, captions, placeholders, and secondary decorative text only.
+
+15. **Every streaming/loading state change that users need to know about MUST use `aria-live="polite"`.** If the element is inside a DO-NOT-CHANGE component, inject the attribute via a DOM effect in the nearest new-UI shell component (same pattern as the `ConversationViewShell` aria-live injection for PromptStatus).
+
+16. **Every `role="tablist"` MUST have `aria-label`.** `SegmentedControl.tsx` now accepts an `aria-label` prop and defaults to the item labels joined. Always provide a meaningful label when instantiating `SegmentedControl`.
+
+17. **Every CSS transition or animation MUST have a `@media (prefers-reduced-motion: reduce)` override.** For new animations, add the override in the same CSS block. The `@keyframes attachMenuEnter` and `modelPickerEnter` are defined in component `<style>` blocks and overridden in `conversation-view.css` — follow this pattern for any future inline `@keyframes`.
+
 ---
 
 ## 9a. The One-Directory Rule (Critical)

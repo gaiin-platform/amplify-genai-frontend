@@ -63,9 +63,13 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
     return () => document.removeEventListener('mousedown', handleMouseDown);
   }, [open]);
 
-  // Close on Escape
+  // Focus first menu item on open; close on Escape (return focus to trigger)
   useEffect(() => {
     if (!open) return;
+    // Focus the first focusable item in the menu when it opens
+    const firstItem = menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])');
+    firstItem?.focus();
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { setOpen(false); triggerRef.current?.focus(); }
     };

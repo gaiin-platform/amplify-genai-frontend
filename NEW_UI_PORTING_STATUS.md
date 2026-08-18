@@ -37,8 +37,8 @@
 | Library view (data sources) | ✅ | `NewLibraryView.tsx` — new-UI reimplementation with list rows, file icons, status badges, search, upload, batch delete |
 | Home landing page | ✅ | `NewHome.tsx` |
 | UI preference banner (new vs classic) | ✅ | `UIPreferenceBanner.tsx` |
-| Off-canvas drawer <760px | ❌ | Phase 17 |
-| Responsive icon rail 760–1099px | ❌ | Phase 17 |
+| Off-canvas drawer <760px | ✅ | Resolved |
+| Responsive icon rail 760–1099px | ✅ | Resolved |
 
 ---
 
@@ -64,7 +64,7 @@
 | Scroll-to-latest button | ✅ | |
 | Hover action row (full spec §1/§2) | ✅ | `NewUIMessageActionsLayer.tsx` — Phase 28 full rewrite; Phase 31/32 bug-fix passes; **Phase 33 positioning rewrite**. User: `timestamp · retry · edit · copy`, right-aligned. Assistant: `copy · read aloud · good · bad · retry · timestamp`, left-aligned, bare icons. **Phase 33: rows are now `position:absolute` children of an overlay `createPortal`'d into `.chatcontainer` (the scroller) — they scroll in perfect lock-step with content, NO scroll listeners / rAF / per-frame state (the old `position:fixed` + getBoundingClientRect + rAF model lagged ≥1 frame on scroll). Position = offsetTop/offsetLeft chain from `#chatHover` to `.chatcontainer` + 6px GAP, computed only in `scan()`. `.chatcontainer` made `position:relative`; `.enhanced-chat-message` gets `padding-bottom:36px` for the in-flow row.** Phase 33 §2: the always-visible last-assistant row was REMOVED per user request — rows now appear on hover/`:focus-within` only, for every message including the last. Phase 33 §3: `pointermove` 60px keep-alive removed; hide grace timer 600ms→200ms (row is now adjacent in DOM). Earlier fixes retained: retry "Try again" only (3 retry-menu variants + `···` overflow not built), good/bad rating persists to `message.data.newUiRating`/`newUiFeedback`, "Thought process" reasoning label left-aligned. **Phase 35 bug-fix pass:** (1) hover row no longer disappears when moving between icon buttons — the container-level `onMouseOut` delegation ignores events originating inside `.new-ui-actions-overlay`, and row-exit is now driven by the row container's non-bubbling `mouseleave` (clears immediately, no timer); (2) icon-cluster horizontal gaps already tightened in Phase 34; (3) "Thought process" label alignment made exact (`#expandComponent` margin-left/gap zeroed + `.font-medium` margin-left zeroed → lands at prose left edge, replacing Phase 32's overshooting `-18px`); (4) assistant message `padding-bottom` 20px→8px; (5) `.chatcontainer` bottom mask fade removed (was reading as a bar covering text near the jump button). |
 | Attachment rail (pre-send cards) | ✅ | `AttachmentRail` + `AttachmentCard` — 160×160 cards above textarea, image/file/paste variants; circular spinner overlay during upload |
-| Attachment preview overlay | ✅ | `AttachmentPreview` — centered FLIP animation (separate centering wrapper), image/CSV/text panels, unavailable states, ← / → nav |
+| Attachment preview overlay | ✅ | `AttachmentPreview` — centered FLIP animation (separate centering wrapper), image/CSV/text panels, unavailable states, ← / → nav. A11y Pass 1: focus trap Tab-cycling completed. |
 | Large-paste capture (≥4k chars) | ✅ | `RichComposer.onLargePaste` + `ConversationComposer` `onPaste` — paste becomes attachment card |
 | Image paste (clipboard/screenshot) | ✅ | `RichComposer.onImagePaste` + `ConversationComposer` `onPaste` — pasted images appear as thumbnail cards in the rail |
 | Image thumbnails on attachment cards | ✅ | `addFileToRail()` generates `URL.createObjectURL` before `handleFile` runs (doc.raw is "" after handleFile) |
@@ -112,11 +112,11 @@
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Settings modal (two-column) | ✅ | `NewSettingsModal.tsx` |
+| Settings modal (two-column) | ✅ | `NewSettingsModal.tsx`. A11y Pass 1: focus trap added, `aria-labelledby` wired. |
 | General — theme toggle | ✅ | |
 | General — feature flags | ✅ | |
 | General — Chat font (Serif/Sans) | ✅ | Radio toggle in General section. Saves to `amplify_chat_font` localStorage key. Default: Serif (Newsreader 17px/1.62). Sans: Inter 16px/1.7. Wired into `ConversationViewShell` via `data-body-face` attribute + `amplifyChatFontChanged` event. |
-| Custom Instructions | ✅ | Rebrand of "System Prompt"; saves to `amplify_custom_instructions` localStorage key |
+| Custom Instructions | 🚧 | Single set saved to `amplify_custom_instructions` localStorage key. **Needs enhancement (Task 16):** users should be able to save, name, and switch between multiple instruction sets; the active set must be wired into `handleNewConversation` so it is actually applied to new conversations. Currently the saved value is NOT injected into new conversations (Phase 19 TODO). |
 | Account info | ✅ | Wraps existing `Accounts` component |
 | Usage section | ❌ | Placeholder — `UserCostBreakdownModal` not yet ported |
 | Storage selection | ✅ | Wraps existing `ConversationsStorage` |
@@ -124,7 +124,7 @@
 | Skills | ✅ | Wraps existing `SkillsLibrary` |
 | Connectors / Integrations | ✅ | Wraps existing `IntegrationTabs` |
 | MCP Servers | ✅ | Wraps existing `MCPServersTab` |
-| Admin Panel | ✅ | `NewAdminModal.tsx` — same two-column shell as settings, all tabs as left-rail nav items; light-mode text inheritance fixed (Phase 22) |
+| Admin Panel | ✅ | `NewAdminModal.tsx` — same two-column shell as settings, all tabs as left-rail nav items; light-mode text inheritance fixed (Phase 22). A11y Pass 1: focus trap added, `aria-labelledby` wired. |
 | Capabilities section | ❌ | Placeholder |
 | Code section | ❌ | Placeholder |
 
@@ -146,7 +146,7 @@
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Notebook view | ✅ | `NotebookApp` renders when `page='notebook'`; gated by `featureFlags.notebook` |
-| Notebook new-UI styling | ❌ | No `data-new-ui` scoping applied to notebook; renders in old styles |
+| Notebook new-UI styling | 🚫 | **Out of scope for this UI rework** — Notebook is intentionally excluded from the new-UI visual pass. It renders in old styles and that is acceptable. |
 
 ---
 
@@ -154,10 +154,10 @@
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Import conversations from file | ❌ | `Import.tsx` in old sidebar settings; not in new UI yet |
-| Export data | ❌ | `handleExportData` in Chatbar; not in new UI yet |
-| Clear all conversations | ❌ | `ClearConversations.tsx`; not in new UI |
-| User cost breakdown | ❌ | `UserCostBreakdownModal`; planned for Usage settings section |
+| Import conversations from file | 🚫 | **Intentionally removed** — not included in new UI (see §8) |
+| Export data | 🚫 | **Intentionally removed** — not included in new UI (see §8) |
+| Clear all conversations | 🚫 | **Intentionally removed** — not included in new UI (see §8) |
+| User cost breakdown | ❌ | `UserCostBreakdownModal`; **requires backend work before UI can be built** — deferred as a backend TODO after the UI rework is complete (see §8) |
 | Python function modal | ❌ | `PythonFunctionModal`; not surfaced |
 | Workflow builder | ❌ | `AssistantWorkflowBuilder`; not surfaced |
 | Market / template marketplace | ❌ | `Market` components; not reviewed |
@@ -175,6 +175,9 @@ These features existed in the old UI and have been **deliberately dropped**. The
 | Feature | Reason |
 |---------|--------|
 | **PluginSelector floating overlay** | Cluttered the chat interface. Feature flags moved to Settings → General. Skills, web search, and connectors moved to the ⊕ AttachMenu composer toolbar. |
+| **Import conversations from file** | Not included in new UI — clean-slate approach; import/export adds complexity without commensurate value in the new design. |
+| **Export data** | Not included in new UI — same rationale as import. |
+| **Clear all conversations** | Not included in new UI — too destructive a single action to feature prominently; individual delete in sidebar covers the use case. |
 | **Old TabSidebar** (3-tab left+right sidebar) | Replaced by unified `NewSidebar`. The dual-sidebar concept with collapsible left/right panels was confusing UX. |
 | **Sub-tabs and nested navigation inside the old sidebar** | The old sidebar had complex nested state (e.g. "Chats" tab → folder tree → settings sub-sections). Flattened into a single nav list. |
 | **"Chat/Cowork" segmented toggle on home screen** | Was removed — the Cowork concept is not part of the new UI direction. |
@@ -192,7 +195,7 @@ These features existed in the old UI and have been **deliberately dropped**. The
 
 | Idea | Description |
 |------|-------------|
-| **Native deep research** | A built-in deep research mode that fans out searches, fetches sources, synthesizes a cited report — comparable to Perplexity or ChatGPT deep research. Could be a first-party skill or a distinct mode in the composer. |
+| **Native deep research** | A built-in deep research mode that fans out searches, fetches sources, synthesizes a cited report — comparable to Perplexity or ChatGPT deep research. **Requires backend work first** — deferred as a backend TODO after the UI rework is complete. Frontend UI entry point (e.g. a toggle in AttachMenu) can be built once backend capability is confirmed. |
 | **Conversation threading** | Allow branching from any message within a conversation (fork to branch, visualized as a tree). |
 | **Inline document editor** | Ability to open and edit attached documents in-app, not just reference them. |
 | **Assistant marketplace / discovery** | A curated gallery of shareable, community-created assistants that users can install with one click. |

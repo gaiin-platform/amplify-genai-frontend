@@ -1,8 +1,9 @@
 /**
  * SidebarHeader — top row of the new sidebar.
- * Height 48px: [✳ Amplify wordmark] [collapse button] [search button]
+ * Height 48px: [icon2.png Amplify wordmark] [collapse button] [search button]
  */
 import React from 'react';
+import Image from 'next/image';
 import { IconLayoutSidebarLeftCollapse, IconSearch } from '@tabler/icons-react';
 import { IconButton } from '@/components/NewUI/shared/IconButton';
 
@@ -19,13 +20,7 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
     <div className="flex items-center justify-between h-[48px] px-[14px] flex-shrink-0">
       {/* Wordmark */}
       <div className="flex items-center gap-2 select-none">
-        <span
-          className="text-[14px] font-medium"
-          style={{ color: 'var(--accent)' }}
-          aria-hidden="true"
-        >
-          ✳
-        </span>
+        <Image src="/icon2.png" alt="Amplify" width={24} height={24} style={{ borderRadius: 4 }} />
         <span
           className="text-[20px] text-[--text-primary] tracking-[-0.01em]"
           style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}
@@ -37,11 +32,11 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
       {/* Right actions */}
       <div className="flex items-center gap-1">
         {onSearch && (
-          <IconButton onClick={onSearch} title="Search (⌘K)">
+          <IconButton onClick={onSearch} title="Search (⌘K)" aria-label="Search conversations">
             <IconSearch size={16} />
           </IconButton>
         )}
-        <IconButton onClick={onCollapse} title="Collapse sidebar">
+        <IconButton onClick={onCollapse} title="Collapse sidebar" aria-label="Collapse sidebar">
           <IconLayoutSidebarLeftCollapse size={16} />
         </IconButton>
       </div>

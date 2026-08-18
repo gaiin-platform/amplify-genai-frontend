@@ -20,6 +20,7 @@
  * Send button: 32×32, radius 8px, --accent bg, dark glyph #2A1710
  */
 import React, { useContext, useRef, useState, useCallback, useEffect } from 'react';
+import Image from 'next/image';
 import {
   IconArrowUp,
   IconMicrophone,
@@ -273,13 +274,7 @@ export const NewHome: React.FC = () => {
       >
         {/* Greeting */}
         <div className="flex items-center gap-3 mb-8 justify-center">
-          <span
-            className="text-[28px] leading-none flex-shrink-0 select-none"
-            style={{ color: 'var(--accent)' }}
-            aria-hidden="true"
-          >
-            ✳
-          </span>
+          <Image src="/icon2.png" alt="Amplify" width={40} height={40} style={{ borderRadius: 6 }} />
           <h1
             className="text-[40px] text-[--text-primary] leading-none tracking-[-0.01em] text-center"
             style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}

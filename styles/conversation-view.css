@@ -112,7 +112,24 @@
   /* Layout */
   max-width: 100% !important;
   padding-top: 52px !important;       /* header overlay height */
-  padding-bottom: 220px !important;   /* clears the absolutely-positioned composer overlay */
+  /* Phase 39 (send→first-token scroll-jump fix): padding-bottom is now 0.
+     Chat.tsx (DO-NOT-CHANGE) runs TWO competing auto-scroll effects while
+     messageIsStreaming is true — a 250ms throttled `scrollIntoView(true)`
+     (aligns the .h-[300px] spacer's TOP to the viewport top) and a 100ms
+     `setInterval` `scrollIntoView(false)` (aligns the spacer's BOTTOM to the
+     viewport bottom). The spacer is `messagesEndRef` (Chat.tsx ~L1743).
+     When this container had `padding-bottom: 220px`, `scrollIntoView(false)`
+     left that 220px below the fold (scroll = max − 220px) while
+     `scrollIntoView(true)` (tiny 48px spacer) clamped to max bottom — so the
+     two effects targeted positions ~220px apart and fought on a 100/250ms
+     cadence, producing the visible up/down flicker in the "sent → first token"
+     gap (amplified by ChatLoader/assistant-message mount churn).
+     Fix: move the composer clearance OUT of container padding and INTO the
+     spacer element itself (see the .h-[300px] rule below). With 0 padding
+     below the spacer, both scrollIntoView variants converge on the same
+     max-bottom position and the fight disappears. Total bottom clearance is
+     unchanged (was 48px spacer + 220px padding = 268px; now a 268px spacer). */
+  padding-bottom: 0 !important;
   height: 100% !important;            /* overrides JS inline height: 94vh */
   overflow-y: auto !important;
   overflow-x: hidden !important;
@@ -181,14 +198,22 @@
    #overflowScroll — empty-conversation state container
    Chat.tsx sets minHeight/maxHeight inline; override both so the empty-state
    model selector doesn't push everything down (defect #4).
+
+   Phase 38 Bug 2 — hide #overflowScroll entirely in new UI:
+   Chat.tsx renders #overflowScroll (the old empty-conversation panel containing
+   the old-UI ModelSelect + "Start a new conversation." heading) whenever
+   messages.length === 0. In the new UI, NewHome handles the 0-message landing
+   state and ConversationViewShell is hidden via visibility:hidden while
+   messages.length === 0. However, when a new conversation is created via the
+   pending-message bridge (NewHome sends → home.tsx sets pendingNewConversationSend
+   → ConversationViewShell becomes visible while messages.length is still 0),
+   the old ModelSelect inside #overflowScroll flashes briefly (~150-300ms) until
+   the first message is added by the bridge. The new UI never wants to show
+   #overflowScroll — NewHome is the correct 0-message experience. Hide it.
+   Selector is unique to Chat.tsx (id="overflowScroll" is used only once).
 ───────────────────────────────────────────────────────────────────────────── */
-[data-new-ui="true"] #overflowScroll,
-[data-new-ui="true"] #overflowScroll > div {
-  max-width: 100% !important;
-  min-height: 0 !important;     /* override JS-set minHeight */
-  max-height: none !important;  /* override JS-set maxHeight */
-  width: 100% !important;
-  padding: 0 !important;
+[data-new-ui="true"] #overflowScroll {
+  display: none !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -260,10 +285,23 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Bottom spacer — Chat.tsx renders a h-[300px] div as the scrollable bottom gap.
-   Since the composer is now a flex SIBLING (not an overlay), we don't need 300px
-   of clearance. Reduce to 48px for a comfortable end-of-thread gap.
-   Constrained to column so the accent asterisk aligns with message text.
+   Bottom spacer — Chat.tsx renders a h-[300px] div as the scrollable bottom gap,
+   and it is ALSO `messagesEndRef` — the exact element Chat.tsx's auto-scroll
+   effects call `scrollIntoView` on.
+
+   Phase 39 (send→first-token scroll-jump fix): this spacer now carries the FULL
+   composer clearance (268px) that used to live in `.chatcontainer`'s
+   `padding-bottom: 220px`. See the .chatcontainer rule above for the full
+   explanation. The short version: with 0 padding below this spacer, Chat.tsx's
+   two competing streaming auto-scrolls — `scrollIntoView(true)` (align spacer
+   top→viewport top) and `scrollIntoView(false)` (align spacer bottom→viewport
+   bottom) — both converge on the same max-bottom scroll position (because a
+   268px spacer is shorter than any normal viewport, so `scrollIntoView(true)`
+   clamps to max bottom, matching `scrollIntoView(false)`). No fight → no jump.
+   Constrained to column so the accent brand mark aligns with message text; the
+   brand mark sits near the top of the spacer (padding-top: 20px), ~248px above
+   the fold when scrolled to bottom — unchanged from before, so it still clears
+   the composer overlay.
 ───────────────────────────────────────────────────────────────────────────── */
 [data-new-ui="true"] .h-\[300px\] {
   max-width: min(74ch, calc(100% - 48px)) !important;
@@ -271,7 +309,9 @@
   margin-right: auto !important;
   width: 100% !important;
   background: transparent !important;
-  height: 48px !important;      /* was 300px — composer no longer overlays this */
+  height: 268px !important;     /* was 48px; now carries the full composer clearance
+                                   (was 48px spacer + 220px container padding) so
+                                   Chat.tsx's scrollIntoView(true/false) converge */
   display: flex !important;
   align-items: flex-start !important;
   justify-content: flex-start !important;
@@ -293,13 +333,17 @@
  * `new-ui-streaming` toggled by ConversationViewShell (see the effect below).
  */
 [data-new-ui="true"] .h-\[300px\]::after {
-  content: "✳";
+  content: "";
   display: block;
-  font-size: 22px;
-  color: var(--accent);
+  width: 28px;
+  height: 28px;
+  background-image: url('/icon2.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
   opacity: 0.55;                  /* idle state: 55% opacity */
-  line-height: 1;
-  margin-left: -0.05em;           /* compensate for glyph left side bearing (spec §11) */
+  border-radius: 4px;
+  margin-left: 0;
   transition: opacity 0.3s ease;
 }
 
@@ -1277,6 +1321,55 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   Phase 38 Bug 3 — Hide old-UI ldrs spinner animations during pre-response gap
+   (visible alongside the new-UI ChatLoader during the window between send and
+   first streaming token arriving)
+
+   TWO old-UI animations render during messageIsStreaming=true that are not
+   already hidden:
+
+   1. <l-ping> in ChatMessage.tsx line 1036-1038:
+      `{((messageIsStreaming || artifactIsStreaming) && messageIndex == last) ?
+        <Loader type="ping" size="48"/> : null}`
+      This is a custom element <l-ping> (ldrs library, registered at runtime via
+      `ping.register()`). It renders INSIDE the assistant message's
+      `.enhanced-chat-message.assistant-message` div — the bottom of the
+      `.flex.flex-col.w-full` wrapper that contains PromptingStatusDisplay and
+      the prose content. Present during `messageIsStreaming || artifactIsStreaming`.
+      The existing `[class*="loader"]` rule DOES NOT match it because <l-ping>
+      is a custom HTML element with no `class` attribute.
+
+   2. <l-quantum> in PromptStatus.tsx line 48:
+      `if (status.inProgress) { return <Loader size="32" />; }` — the leading
+      component rendered inside the `.w-14.h-12` cover column. The `.rounded-xl
+      .shadow-lg .w-14 { display:none }` rule already hides the whole .w-14
+      wrapper, so <l-quantum> is typically hidden by that. However, the explicit
+      selector is added here as defence-in-depth and to document this animation
+      source clearly.
+
+   Both `l-ping` and `l-quantum` are ldrs custom elements. They have no class
+   attribute, so class-based selectors cannot match them — element-type selectors
+   are required. Neither element is used anywhere in `components/NewUI/`, making
+   this scope safe. Verified via grep: zero `l-ping` or `l-quantum` in NewUI/.
+   Shared-id/class gotcha check: these are HTML custom element tag names (not
+   classes or ids), unique to the ldrs library, not shared with any CSS class
+   or id in the codebase.
+───────────────────────────────────────────────────────────────────────────── */
+
+/* 1. <l-ping> — the 48px ripple spinner inside ChatMessage's assistant div */
+[data-new-ui="true"] l-ping {
+  display: none !important;
+}
+
+/* 2. <l-quantum> — the 32px quantum spinner inside PromptStatus's .w-14 cover
+   (defence-in-depth: .w-14 is already display:none via the .rounded-xl.shadow-lg
+   rule above, but hiding the element itself ensures it never shows if that
+   ancestor rule is ever relaxed or overridden) */
+[data-new-ui="true"] l-quantum {
+  display: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Stars / rating widget — keep it minimal in new UI
 ───────────────────────────────────────────────────────────────────────────── */
 [data-new-ui="true"] .stars-container {
@@ -1305,15 +1398,42 @@
    the same calm shimmer dot used on PromptStatus's step line, so the visual
    language is identical the whole way from "sent" through "streaming" through
    "reasoning" through "complete."
+
+   Phase 38 Bug 1 — column alignment fix:
+   ChatLoader renders as a direct sibling of .enhanced-chat-message elements
+   inside .chatcontainer. It is NOT wrapped in .enhanced-chat-message, so it
+   does NOT receive the column constraint (max-width 74ch, margin: 0 auto)
+   that all message bubbles get. Without the column rules, the ChatLoader outer
+   div spans full viewport width and the dot appears at the far-left edge of
+   the page rather than at the message-column left edge. Fix: apply the same
+   column constraint as .enhanced-chat-message directly to the ChatLoader outer
+   element.
 ───────────────────────────────────────────────────────────────────────────── */
 [data-new-ui="true"] .group.border-b.border-black\/10.bg-gray-50 {
   background: transparent !important;
   border: none !important;
   padding: 0 !important;
+  /* Phase 38 Bug 1: match .enhanced-chat-message column geometry so the dot
+     and text start at the same left-x as .assistantContentBlock prose */
+  max-width: min(74ch, calc(100% - 48px)) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  width: 100% !important;
 }
 
 /* Hide the old Amplify avatar inside ChatLoader specifically */
 [data-new-ui="true"] .group.border-b.border-black\/10.bg-gray-50 .enhanced-avatar {
+  display: none !important;
+}
+
+/* Phase 39: Hide the avatar *wrapper* div too (ChatLoader > div > div:first-child).
+   The wrapper has Tailwind class min-w-[40px] — even though the Amplify avatar inside
+   is display:none, the wrapper itself is still a live flex item taking 40px + 8px gap
+   = 48px of space, pushing the dot that far to the right of the column left edge.
+   Prose (.assistantContentBlock) and "Thought process" are both at x=0 of the column,
+   so the dot must also be at x=0. Hiding the wrapper collapses that space entirely,
+   leaving the dot as the first visible flex child at x=0 = prose left edge. */
+[data-new-ui="true"] .group.border-b.border-black\/10.bg-gray-50 > div > div:first-child {
   display: none !important;
 }
 
@@ -1465,4 +1585,90 @@
 
 [data-new-ui="true"] #artifactsButtonBlock .text-gray-500 {
   color: var(--text-muted) !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   A11Y PASS 1 — prefers-reduced-motion overrides
+   (WCAG 2.1 SC 2.3.3 — Animation from Interactions)
+
+   Phase 26 already gated the thinking-shimmer + reasoning-settle-in animations.
+   This block extends the same treatment to all other transitions in the new UI
+   that can cause vestibular discomfort.
+
+   Covered here:
+     1. AttachmentRail enter/exit height transition
+     2. AttachMenu / ModelPicker open/close opacity+transform animation
+     3. Action row opacity fade (NewUIMessageActionsLayer)
+     4. ConversationComposer send/voice cross-fade
+     5. attachMenuEnter / modelPickerEnter @keyframes (inline <style> in those
+        components add these names globally — override them here)
+     6. User message collapse/expand max-height animation
+     7. Composer card focus border transition
+     8. SidebarNavItem / ConversationRow hover transitions
+     9. Icon rotation (AttachMenu ⊕ → ×, ModelPicker ⌄ flip)
+───────────────────────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  /* 1. AttachmentRail — instant height change */
+  [data-new-ui="true"] .overflow-x-auto.overflow-y-hidden {
+    transition: none !important;
+  }
+
+  /* 2. Menu open/close opacity+scale animations */
+  @keyframes attachMenuEnter {
+    from { opacity: 0; transform: none; }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes modelPickerEnter {
+    from { opacity: 0; transform: none; }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* 3. Action row opacity fade */
+  [data-new-ui="true"] .new-ui-msg-action-row {
+    transition: none !important;
+  }
+
+  /* 4. Composer send/voice/stop cross-fade */
+  [data-new-ui="true"] .new-ui-composer-dock button[style*="opacity"] {
+    transition: none !important;
+  }
+
+  /* 5. User message collapse/expand */
+  [data-new-ui="true"] .new-ui-user-markdown-inner {
+    transition: none !important;
+  }
+
+  /* 6. Composer card focus border */
+  [data-new-ui="true"] .new-ui-composer-card {
+    transition: none !important;
+  }
+
+  /* 7. Hover transitions on nav items / buttons globally within the shell */
+  [data-new-ui="true"] button,
+  [data-new-ui="true"] a {
+    transition: none !important;
+  }
+
+  /* 8. Icon rotation (⊕ → ×, ⌄ flip) — keep as instant change */
+  [data-new-ui="true"] svg[style*="transition"] {
+    transition: none !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   A11Y PASS 1 — aria-live region for streaming status (WCAG SC 4.1.3)
+
+   PromptStatus.tsx (DO-NOT-CHANGE) renders `.rounded-xl.shadow-lg` while
+   `status.inProgress` is true. We cannot add an `aria-live` attribute via CSS,
+   but ConversationViewShell.tsx mounts and runs effects — it can add the
+   attribute via a DOM effect when `.rounded-xl.shadow-lg` enters the DOM
+   (same pattern as the pending-message bridge). That effect is in
+   ConversationViewShell.tsx. This comment is the CSS companion note.
+
+   The `.new-ui-sr-live` class is applied via ConversationViewShell to the
+   PromptStatus container for screen-reader announcement during streaming.
+───────────────────────────────────────────────────────────────────────────── */
+.new-ui-sr-live {
+  /* No visual change — aria-live is a DOM attribute, not CSS */
 }

@@ -23,6 +23,8 @@ interface SegmentedControlProps {
   onChange: (id: string) => void;
   size?: 'sm' | 'xs';
   className?: string;
+  /** Accessible label for the tablist. Defaults to the item labels joined. */
+  'aria-label'?: string;
 }
 
 export const SegmentedControl: React.FC<SegmentedControlProps> = ({
@@ -31,14 +33,17 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
   onChange,
   size = 'sm',
   className = '',
+  'aria-label': ariaLabel,
 }) => {
   const activeIndex = items.findIndex((i) => i.id === value);
   const trackH = size === 'sm' ? 'h-[34px]' : 'h-[28px]';
   const labelSize = size === 'sm' ? 'text-[13px]' : 'text-[12px]';
+  const defaultLabel = items.map((i) => i.label).join(' / ');
 
   return (
     <div
       role="tablist"
+      aria-label={ariaLabel ?? defaultLabel}
       className={`relative flex w-full ${trackH} rounded-[10px] border border-[--border-subtle] bg-[--bg-sidebar] p-[3px] ${className}`}
     >
       {/* Sliding thumb */}

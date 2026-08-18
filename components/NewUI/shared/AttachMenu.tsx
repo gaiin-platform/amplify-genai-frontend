@@ -303,7 +303,7 @@ const SkillsSubmenu: React.FC<{
         overflow: 'hidden',
       }}
     >
-      <div style={{ padding: '6px 0', maxHeight: 280, overflowY: 'auto' }}>
+      <div style={{ padding: '6px 0', maxHeight: 280, overflowY: 'auto' }} aria-live="polite" aria-busy={loading}>
         {loading && (
           <div style={{ padding: '12px 14px', fontSize: 13, color: 'var(--text-muted)' }}>
             Loading…
@@ -941,9 +941,10 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
           />
         </button>
 
-        {/* Badge dot — any toggle active */}
+        {/* Badge dot — any toggle active (decorative; state already in aria-label on the trigger) */}
         {anyToggleActive && !primaryOpen && (
           <span
+            aria-hidden="true"
             className="absolute top-0 right-0 w-[8px] h-[8px] rounded-full pointer-events-none"
             style={{
               background: 'var(--accent)',

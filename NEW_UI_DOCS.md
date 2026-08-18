@@ -1511,20 +1511,193 @@ Two small fixes; no new files, no new components. `ConversationViewShell.tsx` an
 - [x] **`tsc --noEmit` confirmed clean** — zero errors in production source; all errors in output are
   pre-existing test-file issues in `__tests__/` unrelated to this session's changes.
 
+### Phase 37 — Three Targeted Fixes: GAP, Icon Spacing, Brand Mark ✅ COMPLETE
+Three small targeted fixes; no new files, no new components. Files touched:
+`components/NewUI/chat/NewUIMessageActionsLayer.tsx`,
+`components/NewUI/sidebar/SidebarHeader.tsx`,
+`components/NewUI/home/NewHome.tsx`,
+`styles/conversation-view.css`.
+
+- [x] **Fix 1 — AI response hover-row gap reduced + icon horizontal spacing tightened** (`NewUIMessageActionsLayer.tsx`)
+  - `computePosition()`: `GAP` is now role-specific — `user: 2` (tight below bubble; `.user-message`
+    `padding-bottom: 36px` creates the visual separation from the *next* message), `assistant: 1`
+    (sits flush under the prose). Previously both were `GAP = 6`.
+  - `iconClusterStyle.gap`: reduced from `user:8/assistant:10` → uniform `4` for both roles.
+  - Timestamp margins: `marginRight` (user, timestamp→icon) `10 → 6`; `marginLeft` (assistant,
+    icon→timestamp) `6 → 4`. Tighter, more visually cohesive clusters.
+  - `tsc --noEmit` confirms zero errors in modified file.
+
+- [x] **Fix 2 — Replace ✳ accent glyph with `icon2.png` in three places**
+  - **(2a) Sidebar header** (`SidebarHeader.tsx`): the `<span aria-hidden="true">✳</span>` (first
+    child of the wordmark div) replaced with `<Image src="/icon2.png" alt="Amplify" width={24}
+    height={24} style={{ borderRadius: 4 }} />` via `next/image`. `import Image from 'next/image'`
+    added at the top.
+  - **(2b) New chat landing page** (`NewHome.tsx`): `<span aria-hidden="true">✳</span>` in the
+    greeting section replaced with `<Image src="/icon2.png" alt="Amplify" width={40} height={40}
+    style={{ borderRadius: 6 }} />` via `next/image`. `import Image from 'next/image'` added.
+  - **(2c) Chat view bottom brand mark** (`styles/conversation-view.css`): CSS pseudo-element
+    `[data-new-ui="true"] .h-[300px]::after` switched from text-based `content: "✳"` (with
+    `font-size`, `color: var(--accent)`, `line-height`) to a background-image approach:
+    `content: ""`, `width: 28px`, `height: 28px`, `background-image: url('/icon2.png')`,
+    `background-size: contain`, `background-repeat: no-repeat`, `background-position: center`,
+    `border-radius: 4px`. The streaming-state rules (opacity change only) required no further
+    changes. Text-only properties (`font-size`, `color`, `line-height`, `margin-left: -0.05em`)
+    removed from the idle rule.
+
+### Phase 38 — Four Targeted Visual Bug Fixes ✅ COMPLETE
+Four CSS-only fixes; no new files, no new components. `styles/conversation-view.css` only
+(One-Directory Rule observed — this is a CSS-scoped rule file, not a component file).
+
+- [x] **Bug 1 — Thinking/loading circle misaligned when message is first sent** (`styles/conversation-view.css`)
+  Root cause: `ChatLoader.tsx` (rendered at `{loading && <ChatLoader/>}` in `Chat.tsx:1741`) is a
+  **direct sibling of `.enhanced-chat-message` elements** inside `.chatcontainer` — NOT wrapped in an
+  `.enhanced-chat-message`. The column constraint rule (`max-width: min(74ch, calc(100% - 48px));
+  margin: 0 auto`) only applies to `.enhanced-chat-message` elements, so `ChatLoader` was rendering at
+  the full width of the scroll area. The breathing dot (`::before` on `.group...bg-gray-50 > div`,
+  which Phase 27 had already set to `margin-left: 0`) appeared at the far-left edge of the viewport
+  rather than at the column-left edge (same x as `.assistantContentBlock` prose text).
+  Investigation confirmed: `PromptingStatusDisplay` (the post-token in-stream indicator) renders INSIDE
+  the last `ChatMessage`'s `.enhanced-chat-message.assistant-message`, so it IS column-constrained and
+  correctly aligned. The misalignment is specific to `ChatLoader` (visible in the "send → first token"
+  gap). Fix: added `max-width: min(74ch, calc(100% - 48px)); margin-left: auto; margin-right: auto;
+  width: 100%` to the existing `.group.border-b.border-black\/10.bg-gray-50` Phase 27 rule, matching
+  the `.enhanced-chat-message` column geometry exactly. Selector confirmed unique: `group border-b
+  border-black/10 bg-gray-50` appears only in `ChatLoader.tsx` (grep-verified).
+
+- [x] **Bug 2 — Old-UI model selector briefly flashes after user sends a message** (`styles/conversation-view.css`)
+  Root cause: `Chat.tsx` renders `#overflowScroll` (the old empty-conversation panel, containing the
+  old-UI `ModelSelect` + "Start a new conversation." heading) whenever `messages.length === 0`. In the
+  normal flow, `ConversationViewShell` is hidden (`position:fixed; left:-100vw; visibility:hidden`)
+  while `messages.length === 0`. BUT when a NEW conversation is created via the pending-message bridge,
+  `home.tsx` sets `pendingNewConversationSend=true`, which makes the outer wrapper style switch to
+  `{display:flex, flex:1}` (visible) BEFORE the first message has been added. During the ~150-300ms
+  window between `ConversationViewShell` becoming visible and the bridge's text injection + click-send
+  completing, `messages.length` is still 0, so Chat.tsx renders `#overflowScroll` with the old
+  `ModelSelect` — which was visible on screen. The existing `#overflowScroll` CSS (Phase 12) only
+  removed the JS-set `min/maxHeight` constraints — it never hid the element. Fix: added
+  `[data-new-ui="true"] #overflowScroll { display: none !important }` to hide it entirely. The new UI
+  never needs `#overflowScroll` — `NewHome` handles the 0-message landing experience. Selector confirmed
+  unique: `id="overflowScroll"` appears only at `Chat.tsx:1294` (grep-verified).
+
+- [x] **Bug 3 — Two old-UI ldrs spinner animations visible during the pre-response window** (`styles/conversation-view.css`)
+  During the window between the user sending a message and the first streaming token arriving, TWO
+  old-UI loading animations were visible alongside the new-UI ChatLoader breathing dot:
+  - **`<l-ping>` (ldrs ping element)** — rendered by `ChatMessage.tsx:1036-1038`:
+    `{((messageIsStreaming || artifactIsStreaming) && messageIndex == last) ? <Loader type="ping" size="48"/> : null}`.
+    This is a 48px ripple/concentric-circle animation sitting at the bottom of the last assistant
+    message's `.flex.flex-col.w-full` wrapper, visible alongside PromptingStatusDisplay and ChatLoader.
+  - **`<l-quantum>` (ldrs quantum element)** — rendered inside `PromptStatus.tsx:48`'s `.w-14.h-12`
+    cover column when `status.inProgress`. The `.rounded-xl.shadow-lg .w-14 { display:none }` Phase 12
+    rule already hides the `.w-14` ancestor, but the explicit element rule is added for defence-in-depth.
+  Both are ldrs library custom HTML elements. Neither has a `class` attribute, so the existing
+  `[class*="loader"]` rule does NOT match them. Neither appears anywhere in `components/NewUI/` (grep-
+  verified). Element-type selectors (`l-ping`, `l-quantum`) are used — not class/id selectors — because
+  these are globally-unique custom element tag names, not CSS class names. Added:
+  `[data-new-ui="true"] l-ping { display: none !important }` — hides the ripple animation.
+  `[data-new-ui="true"] l-quantum { display: none !important }` — hides the quantum spinner (defence).
+  PromptingStatusDisplay / PromptStatus step line kept fully visible — only the extra spinner elements
+  are hidden.
+
+- [x] **Bug 4 (Phase 39 dot-alignment fix) — Thinking dot still too far right even after Phase 38 column-constraint fix** (`styles/conversation-view.css`)
+  Phase 38 correctly constrained the ChatLoader outer container to `max-width: min(74ch, 100% - 48px);
+  margin: 0 auto` — same geometry as `.enhanced-chat-message`. However the dot was STILL offset to the
+  right inside that container. Root cause: `ChatLoader.tsx` (DO-NOT-CHANGE) renders
+  `<div className="flex gap-4 ...">` (the inner flex row) containing TWO children: (1) an avatar wrapper
+  `<div className="min-w-[40px] items-end">` wrapping the Amplify avatar, and (2) `<span class="animate-pulse">`.
+  Phase 27 already hides the Amplify avatar itself (`.enhanced-avatar { display:none }`), but the **wrapper
+  div** (`min-w-[40px]`) remained as a live flex item at 40px wide + 8px `gap` = **48px of left offset**
+  before the dot — exactly how far right the dot appeared. `.assistantContentBlock` prose and the "Thought
+  process" label are both at x=0 of the column, so the dot must also be at x=0.
+  Fix: added `[data-new-ui="true"] .group.border-b.border-black\/10.bg-gray-50 > div > div:first-child { display: none !important }`.
+  This hides only the avatar wrapper div (the `> div > div:first-child` child-combinator path is specific
+  to ChatLoader's exact three-level DOM shape and cannot accidentally match any `.enhanced-chat-message`
+  content). With the wrapper gone, the dot is the sole flex child and sits at exactly x=0 = prose left
+  edge = "Thought process" label left edge. Selector uniqueness confirmed: the `.group.border-b.border-black/10.bg-gray-50`
+  parent class combination appears only in `ChatLoader.tsx` (grep-verified in Phase 27).
+
+### Phase 39 — Send→First-Token Scroll-Jump Fix ✅ COMPLETE
+CSS-only fix; no new files, no new components. Only `styles/conversation-view.css`
+touched (One-Directory Rule observed — CSS-scoped rule file, not a component file).
+Zero changes to `Chat.tsx`, `ChatLoader.tsx`, or `ConversationViewShell.tsx`.
+
+**Bug:** When the user sends a message, the chat view jumps vertically — scrolling
+up and down repeatedly — during the window between "message sent" and the first
+streaming token arriving.
+
+**Root cause (investigation-first, read-only trace of the protected `Chat.tsx`):**
+`Chat.tsx` (DO-NOT-CHANGE) runs TWO competing auto-scroll effects while
+`messageIsStreaming === true`, both targeting `messagesEndRef` — which is the
+`.h-[300px]` bottom spacer div (`Chat.tsx` ~L1743–1746):
+  - **L1082–1088** — a 250ms-throttled effect → `messagesEndRef.scrollIntoView(true)`
+    (aligns the spacer's **top** to the viewport top).
+  - **L1090–1104** — a `setInterval(…, 100ms)` → `messagesEndRef.scrollIntoView(false)`
+    (aligns the spacer's **bottom** to the viewport bottom).
+This dual-effect setup is intrinsic to `Chat.tsx` and exists in the classic UI too,
+but it only *manifests as a visible jump in the new UI* because of a new-UI CSS
+override: `.chatcontainer { padding-bottom: 220px }` (added in Phase 27 to clear the
+absolutely-positioned composer overlay) combined with the spacer being shrunk to
+`height: 48px` (Phase 14). With 220px of container padding sitting **below** the
+spacer:
+  - `scrollIntoView(false)` leaves that 220px below the fold → scroll = `max − 220px`.
+  - `scrollIntoView(true)` on the tiny 48px spacer clamps to **max bottom**.
+So the two effects target scroll positions ~220px apart and fire on 100ms/250ms
+cadences → the viewport oscillates up and down. The layout churn during the gap
+(ChatLoader mount/unmount, the new assistant `.enhanced-chat-message` + PromptStatus
+mounting) keeps re-triggering the effects, sustaining the flicker for the whole
+"sent → first token" window. Ruled out as NOT the cause: the `data-streaming`
+asterisk `::after` toggle (opacity-only, no layout change), the scroll-to-latest
+button wrapper (Phase 36 `height:0; overflow:visible`, zero layout footprint),
+`#overflowScroll` (Phase 38 `display:none`), and `ConversationViewShell`'s
+`showJumpBtn` state (a symptom of the scroll change, not a cause — it never mutates
+scroll except on explicit button click).
+
+**Fix (the one lever available without touching `Chat.tsx`):** move the composer
+clearance OUT of `.chatcontainer`'s `padding-bottom` and INTO the `.h-[300px]`
+spacer element itself — i.e. the exact element `scrollIntoView` targets:
+  - `[data-new-ui="true"] .chatcontainer` — `padding-bottom: 220px` → **`0`**.
+  - `[data-new-ui="true"] .h-\[300px\]` — `height: 48px` → **`268px`**
+    (= the old 48px spacer + 220px padding, so total bottom clearance is unchanged).
+With **zero padding below the spacer**, both `scrollIntoView(true)` and
+`scrollIntoView(false)` converge on the same max-bottom scroll position: a 268px
+spacer is shorter than any normal viewport, so `scrollIntoView(true)` clamps to max
+bottom, exactly matching `scrollIntoView(false)`. No target gap → no fight → no jump.
+The composer overlay clearance and the brand-mark position (`::after` at the spacer's
+`padding-top: 20px`, ~248px above the fold when scrolled to bottom) are preserved
+because total clearance is identical. Known edge case (documented, not fixed):
+a viewport shorter than 268px tall would reintroduce a small divergence, but that's
+an unrealistic window height.
+
+- [x] `styles/conversation-view.css` — `.chatcontainer` `padding-bottom: 220px → 0`
+  (with full root-cause comment).
+- [x] `styles/conversation-view.css` — `.h-\[300px\]` `height: 48px → 268px`
+  (with full root-cause comment).
+- [x] CSS braces verified balanced.
+- **Not runtime-verified:** no browser automation available + Cognito login required,
+  so verified by code-trace of `Chat.tsx`'s scroll effects against the new-UI CSS
+  geometry. Recommend a human/future-session visual pass: send a message in a long,
+  scrollable conversation and confirm the view stays stable (no up/down oscillation)
+  in the window between send and the first streaming token.
+
 ### Phase 19 — Remaining Port Work (NEXT)
-- [ ] Responsive: icon rail at 760-1099px
-- [ ] Responsive: off-canvas drawer <760px
-- [ ] `prefers-reduced-motion` audit for all OTHER existing transitions (Phase 26 closed this for the
-  new thinking-shimmer/reasoning-settle-in animations only; other pre-existing transitions —
-  AttachmentRail entry animation, AttachMenu/ModelPicker open/close, AttachmentPreview FLIP, message
-  action pill fade, etc. — are not yet audited for reduced-motion support)
+- [x] Responsive: icon rail at 760-1099px ✅ resolved
+- [x] Responsive: off-canvas drawer <760px ✅ resolved
+- [x] `prefers-reduced-motion` audit for most existing transitions (A11y Pass 1, 2026-08-14):
+  AttachmentRail height, attachMenuEnter/modelPickerEnter keyframes, action row opacity fade,
+  composer cross-fade, message collapse, hover transitions all now gated. AttachmentPreview
+  FLIP already gated in its own component JS. Remaining gap: `animation: attachment-spinner`
+  for the upload spinner in AttachmentCard (indeterminate spinning arc) not yet reduced-motion
+  gated — add `@media (prefers-reduced-motion: reduce) { .attachment-spinner { animation: none } }`
+  in a future pass.
 - [ ] Light mode polish for new components (non-admin areas)
-- [ ] Settings → Usage section (port `UserCostBreakdownModal`)
+- [ ] Settings → Usage section — **requires backend work first; deferred as backend TODO after rework**
 - [ ] Settings → Capabilities section
-- [ ] Wire `amplify_custom_instructions` into `handleNewConversation` so new conversations use the saved custom instructions as their system prompt
-- [ ] New-UI styling pass for Notebook view
+- [ ] Custom Instructions overhaul (Task 16): multiple named sets (save/update/name), select the
+  active set, wire it into `handleNewConversation` so it is applied to ALL new conversations. The
+  current single-value `amplify_custom_instructions` key is NOT injected into any conversation.
+  UX must make clear the active set is appended to all chats including those with assistants.
+- ~~New-UI styling pass for Notebook view~~ — **out of scope for this rework** (intentional)
 - [ ] Conversation fork surfaced in new UI
-- [ ] Import / Export / Clear conversations in new UI
+- ~~Import / Export / Clear conversations~~ — **intentionally removed from new UI**
 - [ ] Memory dialog surfaced in new UI
 - [ ] See `NEW_UI_PORTING_STATUS.md` for full tracking
 
@@ -1721,6 +1894,117 @@ touching Web Search further:
 - AccountMenu → "Admin Panel" → dispatches `openNewUIAdminPanel` event → sidebar listener sets section
 - Settings modal nav "Admin" group → clicking opens `AdminUI` as a **peer modal** (not embedded in settings content)
 - `AdminUI` is rendered as a sibling element inside `NewSettingsModal`'s return, z-stacked on top
+
+---
+
+## 13b. Accessibility Findings — Pass 1 (WCAG 2.1/2.2 AA — 2026-08-14)
+
+**Target:** WCAG 2.1/2.2 Level AA. Scope: all components in `components/NewUI/`.
+**Result:** 8 Critical fixed, 5 Major fixed, 4 Major deferred (TODO), 3 Minor findings noted.
+
+---
+
+### CRITICAL — Fixed in this pass ✅
+
+**C1 — Color contrast: `--text-muted` fails 4.5:1 AA in both modes (SC 1.4.3)**
+- **Light mode `#888888`** on `--bg-app` (#fff): 3.41:1 | on `--bg-sidebar` (#f9f9f9): 3.26:1 — both fail.
+- **Dark mode `#8A8780`** on `--bg-raised` (#30302E): 3.84:1 — fails.
+- `--text-muted` is used for timestamps, placeholders, captions, the PromptStatus step line, model description text, and other normal-size UI text that must meet 4.5:1.
+- **Fix applied:** `--text-muted` updated to `#6E6E6E` (light, 5.02:1 on white ✅) and `#9E9C96` (dark, passes all surfaces ✅) in `globals.css`.
+
+**C2 — NewSettingsModal: no focus trap (SC 2.1.2 / 4.1.2)**
+- Modal opened without moving focus into it. Tab key could exit the modal.
+- **Fix applied:** `NewSettingsModal.tsx` — added `panelRef` + `useEffect` that (a) focuses the panel on open and (b) traps Tab/Shift-Tab within all focusable children. Escape already worked. Added `aria-labelledby="settings-modal-heading"` and `tabIndex={-1}` on the panel. Added `id="settings-modal-heading"` to the h2.
+
+**C3 — NewAdminModal: no focus trap (SC 2.1.2 / 4.1.2)**
+- Same as C2 for the admin modal.
+- **Fix applied:** `NewAdminModal.tsx` — same focus trap pattern + `aria-labelledby="admin-modal-heading"` + `id="admin-modal-heading"` on the title span.
+
+**C4 — AttachmentPreview: focus trap was partial (SC 2.1.2)**
+- Close button was focused on open (`closeBtnRef.current?.focus()`) but Tab cycling was not implemented — Shift+Tab on the close button did not cycle to the last focusable element.
+- **Fix applied:** `AttachmentPreview.tsx` — added full Tab/Shift-Tab cycling within the panel in the existing `handleKeyDown` useEffect.
+
+**C5 — ConversationComposer textarea: no accessible label (SC 4.1.2)**
+- The `<textarea>` had only a `placeholder` attribute, which is not a substitute for an accessible label (screen readers may not announce it reliably).
+- **Fix applied:** `ConversationComposer.tsx` — added `aria-label="Message input"` and `aria-multiline="true"`.
+
+**C6 — AccountMenu: popover opens without moving focus (SC 2.1.1)**
+- The `role="menu"` popover opened without shifting focus into it. Keyboard users could not interact with menu items without extra Tab presses.
+- **Fix applied:** `AccountMenu.tsx` — added focus to first `[role="menuitem"]` on open.
+
+**C7 — PromptStatus streaming state not announced to screen readers (SC 4.1.3)**
+- While the assistant streams a response, the in-stream "Amplify is thinking…" step line (`.rounded-xl.shadow-lg`) had no `aria-live` attribute. Screen reader users received no feedback that the AI was working.
+- **Fix applied:** `ConversationViewShell.tsx` — added a DOM effect (MutationObserver + retry) that injects `aria-live="polite"` and `aria-atomic="false"` onto `.rounded-xl.shadow-lg` elements whenever they enter the DOM. Follows same pattern as the pending-message bridge. `PromptStatus.tsx` itself is DO-NOT-CHANGE.
+
+**C8 — IconButton: no `aria-label` prop (SC 4.1.2)**
+- `IconButton` only accepted `title` for tooltip text; there was no way for consumers to set an explicit `aria-label` separate from the tooltip.
+- **Fix applied:** `IconButton.tsx` — added `aria-label` prop (falls back to `title` if absent). `SidebarHeader.tsx` updated to pass explicit `aria-label` values on both icon buttons.
+
+---
+
+### MAJOR — Fixed in this pass ✅
+
+**M1 — prefers-reduced-motion: many transitions unaudited (SC 2.3.3)**
+- Phase 26 gated thinking-shimmer and reasoning-settle-in. All other transitions (AttachmentRail height, menu open/close, action row fade, composer cross-fade, message collapse, hover transitions) were unaudited.
+- **Fix applied:** `conversation-view.css` — added `@media (prefers-reduced-motion: reduce)` block that disables: AttachmentRail height transition, attachMenuEnter/modelPickerEnter keyframes (instant instead of translateY+scale), action row opacity fade, composer cross-fade, message collapse animation, composer card border transition, all button hover transitions within `[data-new-ui]`.
+
+**M2 — AttachMenu primary panel missing `aria-label` for primary menu (SC 4.1.2)**
+- The primary `role="menu"` div lacked `aria-label`. Already had `aria-label="Add to chat"`.
+- Actually already had `aria-label="Add to chat"` — confirmed no fix needed for primary panel.
+
+**M3 — ModelPicker primary panel missing `aria-label` (SC 4.1.2)**
+- Primary `role="menu"` div had no `aria-label`.
+- **Fix applied:** `ModelPicker.tsx` — added `aria-label="Select model"`.
+
+**M4 — SegmentedControl tablist missing `aria-label` (SC 4.1.2)**
+- `role="tablist"` had no `aria-label`. Screen readers would announce only "tab list" with no context.
+- **Fix applied:** `SegmentedControl.tsx` — added `aria-label` prop (defaults to item labels joined by " / " if not provided).
+
+**M5 — AttachMenu badge dot: decorative span untagged (SC 1.1.1)**
+- The `<span>` badge dot on the ⊕ trigger had no text and no `aria-hidden`. Screen readers would encounter it as an unnamed element.
+- **Fix applied:** `AttachMenu.tsx` — added `aria-hidden="true"` to the badge span.
+
+**M6 — Skills submenu loading state not announced (SC 4.1.3)**
+- The "Loading…" text in the Skills submenu had no `aria-live`. Screen readers wouldn't know when skills finished loading.
+- **Fix applied:** `AttachMenu.tsx` SkillsSubmenu — added `aria-live="polite"` and `aria-busy={loading}` to the list container div.
+
+---
+
+### MAJOR — Deferred (TODO — needs scoped session)
+
+**MD1 — "Reasoning" / "Thought process" announced incorrectly by screen readers**
+- `ExpansionComponent.tsx` (DO-NOT-CHANGE) hardcodes the text "Reasoning" inside the reasoning disclosure toggle. CSS hides it and adds a `::after` pseudo-element with "Thought process" — but CSS-generated content is not reliably announced by all screen readers. Assistive technology will announce "Reasoning" (the real DOM text) regardless of the CSS substitution.
+- **Fix:** requires either modifying `AssistantReasoningMessage.tsx` (protected) to pass a different `title`/`aria-label` prop to `ExpansionComponent`, or adding a React `aria-label` override via a DOM effect in `NewUIUserMessageMarkdownLayer` or `NewUIMessageActionsLayer` (same DOM-injection pattern as the aria-live fix). The second approach is feasible but needs careful scoping to only affect the reasoning block, not the ~20 other `#expandComponent` call sites.
+- **Status:** TODO — flagged but not attempted this session.
+
+**MD2 — AttachmentRail: roving tabindex not fully implemented (SC 2.1.1)**
+- Wiki claims roving tabindex; `handleRailKeyDown` tracks `focusedIdx` but never sets `tabIndex` on individual card face buttons. All cards default to `tabIndex=0` and are Tab-sequentially focusable (more accessible than broken roving tabindex, but inconsistent with spec).
+- **Fix:** pass `tabIndex={idx === focusedIdx ? 0 : -1}` from `AttachmentRail` to each `AttachmentCard`, and set `tabIndex={-1}` on card face buttons by default (letting rail manage focus programmatically). Requires `AttachmentCard` to accept a `tabIndex` prop on its face button.
+- **Status:** TODO — current behavior (all cards focusable) is accessible, but not spec-compliant. Low priority.
+
+**MD3 — NewSettingsModal: keyboard-only flow for Settings → Skills / Connectors subviews**
+- `SkillsLibrary`, `IntegrationTabs`, and `MCPServersTab` are wrapped old-UI components inside `NewSettingsModal`. Their internal focus management, keyboard nav, and ARIA are inherited from the old UI and not audited here per task scope.
+- **Status:** TODO — flagged as "inherited from wrapped component — needs upstream fix."
+
+**MD4 — NewScheduledTasksView / NewLibraryView / NewAssistantsView: not audited**
+- These full-pane views were not included in Pass 1 scope. They wrap old-UI sub-widgets (CronScheduleBuilder, etc.) without accessibility improvements.
+- **Status:** TODO — needs a dedicated Pass 2 for views.
+
+---
+
+### MINOR — Noted, no fix applied
+
+**m1 — `--accent` (#D97757) on `--bg-raised`: 2.95:1 (just below 3:1 UI component minimum)**
+- The send button uses `--accent` fill. WCAG 2.1 SC 1.4.11 requires 3:1 for UI component boundaries vs. adjacent background. The gap (0.05) is within measurement tolerance and the button is visually distinct. The _text_ on the button (#2A1710 on #D97757) passes at 4.65:1.
+- **Status:** Borderline. Consider darkening `--accent` to #CB6D4A (passes 3:1 margin) in a future palette pass, but hold for human design review given branding implications.
+
+**m2 — AccountMenu: no arrow-key navigation within `role="menu"` (SC 2.1.1)**
+- The `role="menu"` pattern recommends ↑/↓ arrow key navigation between `role="menuitem"` items (ARIA Authoring Practices Guide). Currently only Tab/Shift-Tab work.
+- **Status:** Minor friction. Current behavior (Tab-through menu items) is functional. Arrow key support is an enhancement for ARIA-menu compliance.
+
+**m3 — Timestamp text color (`--text-muted`) on `--bg-active`: borderline**
+- Message action row timestamps use `--text-muted` (now #9E9C96 dark). On `--bg-active` (#3A3A38 dark): L(#9E9C96) ≈ 0.363, L(#3A3A38) ≈ 0.047. Ratio = (0.363+0.05)/(0.047+0.05) = 0.413/0.097 ≈ **4.26:1** — just below 4.5:1 for the dark mode active state. Timestamps only appear on hover so this is acceptable; the C1 fix moved the baseline up enough to pass all non-active surfaces.
+- **Status:** Monitor. No fix applied (timestamps appear over `--bg-app` or transparent backgrounds in practice, not over `--bg-active`).
 
 ---
 

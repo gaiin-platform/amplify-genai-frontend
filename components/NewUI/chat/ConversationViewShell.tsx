@@ -170,6 +170,47 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
     return () => window.removeEventListener('amplifyChatFontChanged', handler);
   }, []);
 
+  // ── aria-live on PromptStatus container (WCAG SC 4.1.3) ──────────────────
+  // PromptStatus.tsx (DO-NOT-CHANGE) renders `.rounded-xl.shadow-lg` while
+  // the assistant is streaming. We cannot add `aria-live` via CSS, so this
+  // DOM-effect injects it after mount and re-runs whenever streaming starts/
+  // stops (same MutationObserver + DOM-ready-retry pattern as the overlay).
+  // We use aria-live="polite" so screen-reader users hear updates without
+  // interrupting what they're currently reading.
+  useEffect(() => {
+    let observer: MutationObserver | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const applyAriaLive = () => {
+      const containers = document.querySelectorAll<HTMLElement>(
+        '[data-new-ui="true"] .rounded-xl.shadow-lg',
+      );
+      containers.forEach((el) => {
+        if (!el.hasAttribute('aria-live')) {
+          el.setAttribute('aria-live', 'polite');
+          el.setAttribute('aria-atomic', 'false');
+        }
+      });
+    };
+
+    const startObserving = () => {
+      const chatContainer = document.querySelector('.chatcontainer');
+      if (!chatContainer) {
+        retryTimer = setTimeout(startObserving, 300);
+        return;
+      }
+      applyAriaLive();
+      observer = new MutationObserver(applyAriaLive);
+      observer.observe(chatContainer, { childList: true, subtree: true });
+    };
+
+    startObserving();
+    return () => {
+      if (retryTimer) clearTimeout(retryTimer);
+      observer?.disconnect();
+    };
+  }, []);
+
   // ── Scroll-to-latest button ─────────────────────────────────────────────
   const checkScrollPosition = useCallback(() => {
     const container = document.querySelector('.chatcontainer') as HTMLElement | null;

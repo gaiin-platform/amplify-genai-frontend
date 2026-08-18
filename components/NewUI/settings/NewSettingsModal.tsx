@@ -596,6 +596,7 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
   const [searchQuery, setSearchQuery] = useState('');
   const [showAdminUI, setShowAdminUI] = useState(openToSection === 'admin');
   const contentRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   // Build nav groups dynamically — admin group only shown to admins
   const navGroups: NavGroup[] = [
@@ -615,10 +616,39 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
   // Flat item list (includes admin when applicable)
   const allNavItems: NavItem[] = navGroups.flatMap((g) => g.items);
 
-  // Escape key + overlay click to close
+  // Focus trap + Escape to close
   useEffect(() => {
+    // Move focus into the modal on open
+    panelRef.current?.focus();
+
+    const FOCUSABLE = [
+      'a[href]',
+      'button:not([disabled])',
+      'textarea:not([disabled])',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(',');
+
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusable = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (el) => !el.closest('[aria-hidden="true"]'),
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+      } else {
+        if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
     };
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
@@ -669,6 +699,8 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
     >
       {/* Panel — fixed height so both panes can independently scroll */}
       <div
+        ref={panelRef}
+        tabIndex={-1}
         style={{
           width: '100%',
           maxWidth: '1040px',
@@ -681,10 +713,11 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
           gridTemplateColumns: '210px 1fr',
           gridTemplateRows: '100%',       /* single row fills height */
           boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
+          outline: 'none',
         }}
         role="dialog"
         aria-modal="true"
-        aria-label="Settings"
+        aria-labelledby="settings-modal-heading"
       >
         {/* ----------------------------------------------------------------
             Left Rail
@@ -832,8 +865,9 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
             </button>
           </div>
 
-          {/* Section heading */}
+          {/* Section heading — id used by aria-labelledby on the dialog panel */}
           <h2
+            id="settings-modal-heading"
             style={{
               fontSize: '18px',
               fontWeight: 700,

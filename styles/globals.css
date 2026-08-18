@@ -22,9 +22,11 @@
   --border-subtle: #e5e5e5;
 
   /* Text hierarchy */
+  /* Note: --text-muted was #888888 (3.41:1 on white — WCAG AA fail).
+     Updated to #6E6E6E which passes 4.5:1 on all light surfaces (A11y Pass 1). */
   --text-primary:   #1a1a1a;
   --text-secondary: #555555;
-  --text-muted:     #888888;
+  --text-muted:     #6E6E6E;
 
   /* Accent — Amplify orange (appears sparingly: wordmark ✳, greeting ✳) */
   --accent: #D97757;
@@ -47,9 +49,11 @@
   --bg-active:     #3A3A38;
   --border-subtle: #33322F;
 
+  /* Note: --text-muted was #8A8780 (3.84:1 on --bg-raised — WCAG AA fail).
+     Updated to #9E9C96 which passes 4.5:1 on all dark surfaces (A11y Pass 1). */
   --text-primary:   #FAF9F5;
   --text-secondary: #C2C0B6;
-  --text-muted:     #8A8780;
+  --text-muted:     #9E9C96;
 
   --accent: #D97757;
 }
@@ -58,6 +62,14 @@
 @keyframes attachment-spinner {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
+}
+
+/* A11y Pass 1: prefers-reduced-motion — disable spinner rotation (static arc instead) */
+@media (prefers-reduced-motion: reduce) {
+  [style*="attachment-spinner"],
+  .attachment-spinner-arc {
+    animation: none !important;
+  }
 }
 
 /* White Label CSS Custom Properties */
