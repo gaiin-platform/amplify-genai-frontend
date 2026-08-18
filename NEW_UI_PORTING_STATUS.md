@@ -66,8 +66,10 @@
 | Attachment rail (pre-send cards) | ✅ | `AttachmentRail` + `AttachmentCard` — 160×160 cards above textarea, image/file/paste variants; circular spinner overlay during upload |
 | Attachment preview overlay | ✅ | `AttachmentPreview` — centered FLIP animation (separate centering wrapper), image/CSV/text panels, unavailable states, ← / → nav. A11y Pass 1: focus trap Tab-cycling completed. |
 | Large-paste capture (≥4k chars) | ✅ | `RichComposer.onLargePaste` + `ConversationComposer` `onPaste` — paste becomes attachment card |
-| Image paste (clipboard/screenshot) | ✅ | `RichComposer.onImagePaste` + `ConversationComposer` `onPaste` — pasted images appear as thumbnail cards in the rail |
+| Image paste (clipboard/screenshot) | ✅ | `RichComposer.onImagePaste` + `ConversationComposer` `onPaste` — pasted images appear as thumbnail cards in the rail AND are uploaded to S3 (Phase 40 fix: `addImageToRail` now calls `handleFile`, not just creates a visual UIAttachment) |
 | Image thumbnails on attachment cards | ✅ | `addFileToRail()` generates `URL.createObjectURL` before `handleFile` runs (doc.raw is "" after handleFile) |
+| Images/docs actually reaching backend (NewHome flow) | ✅ | Phase 40 fix: `ConversationViewShell` pending-message bridge now reads `amplify_pending_docs` and calls `useSendService().handleSend()` directly with the docs when they have S3 keys — previously the key was stored but never consumed. |
+| Image thumbnails in sent messages (post-send) | ✅ | `DataSourcesBlock.tsx` already renders thumbnails from `message.data.dataSources` (presigned S3 URLs). Phase 40: restyled via `conversation-view.css` to 88×88 compact cards matching new-UI design tokens. |
 | Artifacts panel | 🚧 | Old `Artifacts` component still opens via event; no new-UI wrapper |
 | Conversation rename (inline in header) | ✅ | Via `ConversationHeader.tsx` title dropdown |
 | Conversation delete | ✅ | Via `ConversationHeader.tsx` title dropdown + sidebar row |

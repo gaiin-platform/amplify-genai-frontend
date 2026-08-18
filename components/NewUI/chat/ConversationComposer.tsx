@@ -44,6 +44,14 @@ import {
 import { PluginID, Plugin, Plugins } from '@/types/plugin';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
+// For the direct-send path (pasted images with S3 keys)
+import { handleFile } from '@/components/Chat/AttachFile';
+import type { AttachedDocument } from '@/types/attacheddocument';
+import { useSendService, type ChatRequest } from '@/hooks/useChatSendService';
+import { newMessage, MessageType } from '@/types/chat';
+import { getActivePlugins } from '@/utils/app/plugin';
+import { getSettings } from '@/utils/app/settings';
+import { setAssistant as setAssistantInMsg } from '@/utils/app/assistants';
 
 /** Inject value into a React-controlled textarea via native setter. */
 function setNativeValue(el: HTMLTextAreaElement, value: string) {
@@ -74,8 +82,18 @@ export const ConversationComposer: React.FC = () => {
     handleUpdateConversation,
   } = useContext(HomeContext);
 
+  // ── Direct-send service (for pasted images with S3 keys) ─────────────────
+  const { handleSend: sendViaService } = useSendService();
+  const sendViaServiceRef = useRef(sendViaService);
+  useEffect(() => {
+    sendViaServiceRef.current = sendViaService;
+  }, [sendViaService]);
+
   // ── Local state ────────────────────────────────────────────────────────────
   const [text, setText] = useState('');
+  // Tracks AttachedDocument objects for pasted images (mirroring NewHome).
+  // These are populated by handleFile callbacks inside addImageToRail.
+  const [attachedDocs, setAttachedDocs] = useState<AttachedDocument[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const composerRef = useRef<{ focus: () => void }>({
     focus: () => textareaRef.current?.focus(),
@@ -126,20 +144,61 @@ export const ConversationComposer: React.FC = () => {
     adjustHeight();
   }, [text, adjustHeight]);
 
+  // ── Helpers: update attachedDocs state from handleFile callbacks ──────────
+  // These mirror the NewHome.tsx pattern so pasted images go through the
+  // standard S3 upload pipeline while the thumbnail appears immediately.
+  const addDocCallback = useCallback((doc: AttachedDocument) => {
+    setAttachedDocs((prev) => [...prev, doc]);
+  }, []);
+  const handleDocSetKey = useCallback((doc: AttachedDocument, key: string) => {
+    setAttachedDocs((prev) =>
+      prev.map((d) => (d.id === doc.id ? { ...d, key } : d)),
+    );
+    // Also mark the UIAttachment as fully ready once the S3 key arrives
+    setUIAttachments((prev) =>
+      prev.map((a) =>
+        a.id === doc.id ? { ...a, status: 'ready' as const } : a,
+      ),
+    );
+  }, []);
+  const handleDocSetMetadata = useCallback(
+    (doc: AttachedDocument, metadata: any) => {
+      setAttachedDocs((prev) =>
+        prev.map((d) => (d.id === doc.id ? { ...d, metadata } : d)),
+      );
+    },
+    [],
+  );
+  const handleDocUploadProgress = useCallback(
+    (doc: AttachedDocument, progress: number) => {
+      // Keep UIAttachment in 'uploading' state until handleDocSetKey marks it ready
+      if (progress < 100) {
+        setUIAttachments((prev) =>
+          prev.map((a) =>
+            a.id === doc.id
+              ? { ...a, status: 'uploading' as const, progress }
+              : a,
+          ),
+        );
+      }
+    },
+    [],
+  );
+
   // ── Send — bridge into Chat's hidden ChatInput ────────────────────────────
+  //
+  // Two paths:
+  //   A) attachedDocs have S3 keys → call useSendService directly with docs
+  //   B) no docs with keys → inject text + click #sendMessage (existing path)
+  //
   const handleSend = useCallback(() => {
-    if (!text.trim() || messageIsStreaming) return;
+    const hasText = text.trim().length > 0;
+    const docsWithKeys = attachedDocs.filter((d) => !!d.key);
+    const canSendNow =
+      !messageIsStreaming && (hasText || docsWithKeys.length > 0);
+    if (!canSendNow) return;
 
-    const hiddenTextarea = document.getElementById(
-      'messageChatInputText',
-    ) as HTMLTextAreaElement | null;
-    const hiddenSend = document.getElementById(
-      'sendMessage',
-    ) as HTMLButtonElement | null;
-
-    if (!hiddenTextarea || !hiddenSend) return;
-
-    // Update conversation model if the user changed it
+    // ── Shared model + conversation prep ────────────────────────────────────
     if (
       selectedConversation &&
       selectedModelId &&
@@ -151,8 +210,6 @@ export const ConversationComposer: React.FC = () => {
         value: availableModels[selectedModelId],
       });
     }
-
-    // Persist web search toggle to the conversation
     if (selectedConversation) {
       handleUpdateConversation(selectedConversation, {
         key: 'data',
@@ -167,11 +224,72 @@ export const ConversationComposer: React.FC = () => {
 
     const msgText = text;
     setText('');
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+
+    // ── PATH A: pasted images fully uploaded ─────────────────────────────────
+    if (docsWithKeys.length > 0 && selectedConversation) {
+      // Clear local doc + attachment state
+      const docsToSend = [...docsWithKeys];
+      setAttachedDocs([]);
+      setUIAttachments([]);
+      Object.values(thumbUrlsRef.current).forEach((u) => URL.revokeObjectURL(u));
+      thumbUrlsRef.current = {};
+
+      // Build the message
+      let msg = newMessage({
+        role: 'user',
+        content: msgText || ' ', // at least one space so the message is non-empty
+        type: MessageType.PROMPT,
+        data: {
+          enableWebSearch: webSearchEnabled,
+          skills: selectedSkillIds,
+          skillSelectionMode: 'auto',
+          dataSources: docsToSend.map((d) => ({
+            id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`,
+            type: d.type,
+            name: d.name || '',
+            metadata: d.metadata || {},
+          })),
+        },
+      });
+      msg = setAssistantInMsg(msg, selectedAssistant ?? DEFAULT_ASSISTANT);
+
+      let assistantOptions: Record<string, unknown> | undefined;
+      if (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id) {
+        assistantOptions = {
+          assistantName: selectedAssistant.definition?.name,
+          assistantId: selectedAssistant.definition?.assistantId,
+          groupId: selectedAssistant.definition?.groupId,
+          groupType: selectedConversation.groupType,
+        };
+      }
+
+      const settings =
+        typeof window !== 'undefined' ? getSettings(featureFlags) : null;
+      const plugins = settings ? getActivePlugins(settings, featureFlags) : [];
+
+      const request: ChatRequest = {
+        message: msg,
+        deleteCount: 0,
+        documents: docsToSend,
+        plugins,
+        conversationId: selectedConversation.id,
+        ...(assistantOptions ? { options: assistantOptions } : {}),
+      };
+
+      sendViaServiceRef.current(request, () => false /* ConversationComposer has no stopRef */);
+      return;
     }
 
-    // Inject into Chat's hidden textarea and click send
+    // ── PATH B: text-only — DOM bridge into ChatInput ────────────────────────
+    const hiddenTextarea = document.getElementById(
+      'messageChatInputText',
+    ) as HTMLTextAreaElement | null;
+    const hiddenSend = document.getElementById(
+      'sendMessage',
+    ) as HTMLButtonElement | null;
+    if (!hiddenTextarea || !hiddenSend) return;
+
     setTimeout(() => {
       setNativeValue(hiddenTextarea, msgText);
       setTimeout(() => {
@@ -180,12 +298,15 @@ export const ConversationComposer: React.FC = () => {
     }, 30);
   }, [
     text,
+    attachedDocs,
     messageIsStreaming,
     selectedConversation,
+    selectedAssistant,
     selectedModelId,
     availableModels,
     webSearchEnabled,
     selectedSkillIds,
+    featureFlags,
     handleUpdateConversation,
   ]);
 
@@ -229,32 +350,107 @@ export const ConversationComposer: React.FC = () => {
       delete thumbUrlsRef.current[id];
     }
     setUIAttachments((prev) => prev.filter((a) => a.id !== id));
+    // Also remove the backing AttachedDocument so it isn't sent
+    setAttachedDocs((prev) => prev.filter((d) => d.id !== id));
   };
 
-  /** Add an image File to the rail, generating a thumbnail object-URL first. */
-  const addImageToRail = useCallback((file: File) => {
-    if (!file.type.startsWith('image/')) return;
-    try {
-      const url = URL.createObjectURL(file);
-      // Build a minimal UIAttachment directly — no handleFile needed for display
-      const id = Math.random().toString(36).slice(2);
-      thumbUrlsRef.current[id] = url;
-      const ua: UIAttachment = {
-        id,
-        kind: 'image',
-        status: 'ready',
-        name: file.name || 'pasted-image.png',
-        ext: null,
-        bytes: file.size,
-        mime: file.type,
-        thumbUrl: url,
-        previewState: 'available',
-      };
-      setUIAttachments((prev) => [...prev, ua]);
-    } catch {
-      // silently ignore — user sees no card but the file isn't lost
-    }
-  }, []);
+  /**
+   * Add an image File to the rail.
+   *
+   * Two things happen simultaneously:
+   *   1. An object-URL thumbnail is created and a UIAttachment card is shown
+   *      immediately (same as before).
+   *   2. handleFile is called to start the S3 upload. The wrappedAttach
+   *      callback links the generated doc.id to the UIAttachment id so that
+   *      progress updates and the final doc.key can be tracked. Once
+   *      handleDocSetKey fires, the UIAttachment is marked 'ready' and
+   *      handleSend's PATH A sends it with the message.
+   *
+   * If featureFlags.uploadDocuments is false, the upload step is skipped and
+   * the doc has no key — the image will not be sent to the backend, which
+   * is intentional (same limitation as the old UI).
+   */
+  const addImageToRail = useCallback(
+    (file: File) => {
+      if (!file.type.startsWith('image/')) return;
+      try {
+        const url = URL.createObjectURL(file);
+
+        // Use a sentinel value; the real id comes from handleFile's uuidv4.
+        // The wrappedAttach callback below overwrites the UIAttachment once
+        // the real id is known (by replacing the sentinel entry).
+        const sentinelId = `img-pending-${Date.now()}`;
+        thumbUrlsRef.current[sentinelId] = url;
+
+        // Show placeholder card immediately
+        setUIAttachments((prev) => [
+          ...prev,
+          {
+            id: sentinelId,
+            kind: 'image' as const,
+            status: featureFlags.uploadDocuments ? ('uploading' as const) : ('ready' as const),
+            name: file.name || 'pasted-image.png',
+            ext: null,
+            bytes: file.size,
+            mime: file.type,
+            thumbUrl: url,
+            previewState: 'available' as const,
+          },
+        ]);
+
+        // When handleFile calls onAttach, replace the sentinel id with the
+        // real doc.id so all subsequent callbacks (setKey, progress) find it.
+        let intercepted = false;
+        const wrappedAttach = (doc: AttachedDocument) => {
+          if (!intercepted) {
+            intercepted = true;
+            // Transfer thumb URL from sentinel to real doc id
+            thumbUrlsRef.current[doc.id] = url;
+            delete thumbUrlsRef.current[sentinelId];
+            // Replace the sentinel UIAttachment with the real one
+            setUIAttachments((prev) =>
+              prev.map((a) =>
+                a.id === sentinelId
+                  ? {
+                      ...a,
+                      id: doc.id,
+                      status: featureFlags.uploadDocuments
+                        ? ('uploading' as const)
+                        : ('ready' as const),
+                    }
+                  : a,
+              ),
+            );
+          }
+          addDocCallback(doc);
+        };
+
+        handleFile(
+          file,
+          wrappedAttach,
+          handleDocUploadProgress,
+          handleDocSetKey,
+          handleDocSetMetadata,
+          () => {}, // onSetAbortController
+          featureFlags.uploadDocuments ?? false,
+          undefined, // groupId
+          ragOn,
+          {}, // extra props
+          [], // tags
+        );
+      } catch {
+        // silently ignore — user sees no card but the file isn't lost
+      }
+    },
+    [
+      addDocCallback,
+      handleDocSetKey,
+      handleDocSetMetadata,
+      handleDocUploadProgress,
+      featureFlags.uploadDocuments,
+      ragOn,
+    ],
+  );
 
   // Large-paste interception in the plain textarea (spec §6)
   const handleTextareaPaste = useCallback(
@@ -280,9 +476,15 @@ export const ConversationComposer: React.FC = () => {
     [addImageToRail],
   );
 
+  // canSend: text present OR a fully-uploaded image is ready; blocked while
+  // any image is still uploading (so PATH A doesn't fire with incomplete docs).
+  const allImagesUploaded = uiAttachments
+    .filter((a) => a.kind === 'image')
+    .every((a) => a.status === 'ready');
   const canSend =
-    (!messageIsStreaming && text.trim().length > 0) ||
-    uiAttachments.some((a) => a.status === 'ready');
+    !messageIsStreaming &&
+    allImagesUploaded &&
+    (text.trim().length > 0 || uiAttachments.some((a) => a.status === 'ready'));
 
   return (
     <div

@@ -10,6 +10,10 @@
  *   2. Overlays ConversationHeader (hides Chat's old sticky bar via CSS)
  *   3. Renders ConversationComposer as an absolute overlay at bottom
  *   4. Handles pending-message injection from NewHome via sessionStorage
+ *      — text-only: injects into #messageChatInputText + clicks #sendMessage
+ *      — with docs: calls useSendService().handleSend() directly so that
+ *        the already-uploaded AttachedDocuments (which carry doc.key) are
+ *        included in the ChatRequest without re-uploading.
  *   5. Renders scroll-to-latest button (spec §6 / defect #7)
  *   6. Renders NewUIMessageActionsLayer (hover copy/edit/read-aloud)
  */
@@ -29,6 +33,14 @@ import { NewUIMessageActionsLayer } from './NewUIMessageActionsLayer';
 import { NewUIUserMessageMarkdownLayer } from './NewUIUserMessageMarkdownLayer';
 import HomeContext from '@/pages/api/home/home.context';
 import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
+// Imports for the direct-send path (pending docs with S3 keys)
+import { useSendService, type ChatRequest } from '@/hooks/useChatSendService';
+import { newMessage, MessageType } from '@/types/chat';
+import { getActivePlugins } from '@/utils/app/plugin';
+import { getSettings } from '@/utils/app/settings';
+import { setAssistant as setAssistantInMsg } from '@/utils/app/assistants';
+import { DEFAULT_ASSISTANT } from '@/types/assistant';
+import type { AttachedDocument } from '@/types/attacheddocument';
 
 interface ConversationViewShellProps {
   stopConversationRef: MutableRefObject<boolean>;
@@ -54,15 +66,41 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
   stopConversationRef,
 }) => {
   const {
-    state: { messageIsStreaming, selectedConversation, featureFlags },
+    state: { messageIsStreaming, selectedConversation, featureFlags, selectedAssistant },
     handleUpdateConversation,
   } = useContext(HomeContext);
+
+  // ── Direct-send service (for pending docs path) ───────────────────────────
+  // useSendService is the same hook Chat.tsx uses. We call it here so that
+  // when NewHome attached docs (already uploaded to S3) need to travel with
+  // the first message, we can include them in the ChatRequest without going
+  // through ChatInput's internal documents state (which has no injection API).
+  const { handleSend: sendViaService } = useSendService();
+  // Keep a ref so the tryInject closure ([] deps) always calls the fresh copy.
+  const sendViaServiceRef = useRef(sendViaService);
+  useEffect(() => {
+    sendViaServiceRef.current = sendViaService;
+  }, [sendViaService]);
 
   const hasFiredRef = useRef(false);
   const [showJumpBtn, setShowJumpBtn] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
 
   // ── Pending-message bridge ──────────────────────────────────────────────
+  //
+  // Two paths:
+  //
+  // A) WITH pending docs (images / files already uploaded to S3 by NewHome):
+  //    - Read amplify_pending_docs, parse AttachedDocument[] with doc.key set
+  //    - Call useSendService().handleSend() directly so the docs are included
+  //      in the ChatRequest.documents field (ChatInput's internal documents
+  //      state is unreachable from outside without modifying ChatInput.tsx).
+  //    - Skip the #sendMessage DOM click to avoid a double send.
+  //
+  // B) WITHOUT pending docs (text-only send):
+  //    - Use the existing textarea injection + #sendMessage click approach.
+  //    - ChatInput handles everything through its own pipeline.
+  //
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -79,29 +117,27 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
         return;
       }
 
-      const textarea = document.getElementById(
-        'messageChatInputText',
-      ) as HTMLTextAreaElement | null;
-      const sendBtn = document.getElementById('sendMessage') as HTMLButtonElement | null;
+      // ── Read shared context keys ─────────────────────────────────────────
+      const pendingWebSearch = sessionStorage.getItem('amplify_pending_web_search') === 'true';
+      const pendingSkillsRaw = sessionStorage.getItem('amplify_pending_skills');
+      let pendingSkills: string[] = [];
+      if (pendingSkillsRaw) {
+        try { pendingSkills = JSON.parse(pendingSkillsRaw); } catch { /* ignore */ }
+      }
 
-      if (textarea && sendBtn) {
-        hasFiredRef.current = true;
+      // ── Read pending docs (written by NewHome, previously never consumed) ─
+      const pendingDocsRaw = sessionStorage.getItem('amplify_pending_docs');
+      let pendingDocs: AttachedDocument[] = [];
+      if (pendingDocsRaw) {
+        try { pendingDocs = JSON.parse(pendingDocsRaw); } catch { /* ignore */ }
+      }
+      // Only use docs that completed their S3 upload (doc.key is set by the
+      // async onSetKey callback in handleFile after addFile() resolves).
+      const docsWithKeys = pendingDocs.filter((d) => !!d.key);
 
-        // Consume the pending web-search/skills bridge written by NewHome.tsx
-        // for brand-new conversations (see NEW_UI_DOCS.md §13 "Pending-Message
-        // Bridge" / "RAG / Web Search Wiring Gap"). These two keys were
-        // previously written but never read anywhere — that's the bug.
-        const pendingWebSearch = sessionStorage.getItem('amplify_pending_web_search') === 'true';
-        const pendingSkillsRaw = sessionStorage.getItem('amplify_pending_skills');
-        let pendingSkills: string[] = [];
-        if (pendingSkillsRaw) {
-          try { pendingSkills = JSON.parse(pendingSkillsRaw); } catch { /* ignore malformed value */ }
-        }
-
+      // Helper: apply web-search preferences onto the new conversation
+      const applyWebSearch = () => {
         if (pendingWebSearch && selectedConversation) {
-          // Persist onto the freshly-created conversation so ChatInput.tsx's
-          // own send handler (which reads selectedConversation.data.webSearchEnabled)
-          // includes it as a per-message flag.
           handleUpdateConversation(selectedConversation, {
             key: 'data',
             value: {
@@ -111,20 +147,90 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
               skillSelectionMode: 'auto',
             },
           });
-        }
-        if (pendingWebSearch) {
-          // Ensure Chat.tsx's local `plugins` array (a separate, session-level
-          // gate ANDed with the per-message flag above — see
-          // useChatSendService.ts) actually contains WEB_SEARCH.
           persistWebSearchPluginPreference(featureFlags);
         }
+      };
 
+      // Helper: clean up all pending sessionStorage keys
+      const clearPending = () => {
         sessionStorage.removeItem('amplify_pending_message');
         sessionStorage.removeItem('amplify_pending_docs');
         sessionStorage.removeItem('amplify_pending_model_id');
         sessionStorage.removeItem('amplify_pending_effort');
         sessionStorage.removeItem('amplify_pending_web_search');
         sessionStorage.removeItem('amplify_pending_skills');
+      };
+
+      // ── PATH A: pending docs with S3 keys ──────────────────────────────────
+      if (docsWithKeys.length > 0 && selectedConversation) {
+        hasFiredRef.current = true;
+        applyWebSearch();
+        clearPending();
+
+        // Build the message
+        let msg = newMessage({
+          role: 'user',
+          content: pendingMessage,
+          type: MessageType.PROMPT,
+          data: {
+            enableWebSearch: pendingWebSearch,
+            skills: pendingSkills,
+            skillSelectionMode: 'auto',
+            // Pre-populate dataSources so the useSendService fallback path
+            // (message.data.dataSources) also carries the docs in case
+            // request.documents is not processed for some reason.
+            dataSources: docsWithKeys.map((d) => ({
+              id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`,
+              type: d.type,
+              name: d.name || '',
+              metadata: d.metadata || {},
+            })),
+          },
+        });
+
+        // Apply the active assistant to the message (mirrors ChatInput.tsx:758)
+        msg = setAssistantInMsg(msg, selectedAssistant ?? DEFAULT_ASSISTANT);
+
+        // Build assistant options for the ChatRequest (mirrors Chat.tsx routeMessage)
+        let assistantOptions: Record<string, unknown> | undefined;
+        if (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id) {
+          assistantOptions = {
+            assistantName: selectedAssistant.definition?.name,
+            assistantId: selectedAssistant.definition?.assistantId,
+            groupId: selectedAssistant.definition?.groupId,
+            groupType: selectedConversation.groupType,
+          };
+        }
+
+        // Compute active plugins (same as Chat.tsx's local plugins state init)
+        const settings = typeof window !== 'undefined' ? getSettings(featureFlags) : null;
+        const plugins = settings ? getActivePlugins(settings, featureFlags) : [];
+
+        const request: ChatRequest = {
+          message: msg,
+          deleteCount: 0,
+          documents: docsWithKeys,
+          plugins,
+          conversationId: selectedConversation.id,
+          ...(assistantOptions ? { options: assistantOptions } : {}),
+        };
+
+        // Fire the send. sendViaServiceRef always holds the freshest closure
+        // (updated via the effect above) so it reads current selectedConversation.
+        sendViaServiceRef.current(request, () => stopConversationRef.current === true);
+        return;
+      }
+
+      // ── PATH B: no pending docs — existing DOM bridge ──────────────────────
+      const textarea = document.getElementById(
+        'messageChatInputText',
+      ) as HTMLTextAreaElement | null;
+      const sendBtn = document.getElementById('sendMessage') as HTMLButtonElement | null;
+
+      if (textarea && sendBtn) {
+        hasFiredRef.current = true;
+        applyWebSearch();
+        clearPending();
 
         setTimeout(() => {
           setNativeValue(textarea, pendingMessage);

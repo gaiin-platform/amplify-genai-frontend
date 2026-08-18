@@ -1672,3 +1672,71 @@
 .new-ui-sr-live {
   /* No visual change — aria-live is a DOM attribute, not CSS */
 }
+
+/* ══ DataSourcesBlock — new-UI compact thumbnail strip (Phase 40) ════════════
+ *
+ * DataSourcesBlock renders inside the user bubble AFTER a message is sent
+ * when docs/images were attached. The old-UI default is large 200×200 cards
+ * with a heavy box-shadow. These rules compact them to 88×88 thumbnails that
+ * sit neatly below the message text, matching the visual language of the
+ * pre-send AttachmentRail cards.
+ *
+ * Scoping:
+ *   [data-new-ui="true"] .user-message       — new-UI user bubble only
+ *   .mt-5.text-gray-800                      — DataSourcesBlock outer div
+ *                                              (class combo unique to this
+ *                                              component inside .user-message)
+ *   .rounded-lg.shadow-lg.overflow-hidden    — individual card
+ *
+ * Image data source: DataSourcesBlock fetches a presigned S3 URL via
+ * fetchImageFromPresignedUrl and sets it as a CSS background-image. No
+ * doc.raw / base64 involved — the image is always retrieved from S3.
+ *
+ * Sub-problem B fix: these rules are sufficient because the old UI already
+ * renders image thumbnails; they just need visual restyling, not a new
+ * portal component.
+ ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Outer container: tighten top spacing */
+[data-new-ui="true"] .user-message .mt-5.text-gray-800 {
+  margin-top: 10px !important;
+}
+
+/* Hide the verbose "Included documents:" text label */
+[data-new-ui="true"] .user-message .mt-5.text-gray-800 > .mr-3:first-child {
+  display: none !important;
+}
+
+/* Each card: compact from 200×200 → 88×88; remove the heavy shadow;
+   add a subtle design-token border so it reads as a contained tile */
+[data-new-ui="true"] .user-message .rounded-lg.shadow-lg.overflow-hidden.relative {
+  width:         88px !important;
+  height:        88px !important;
+  border-radius: 8px !important;
+  box-shadow:    none !important;
+  border:        1px solid var(--border-subtle) !important;
+}
+
+/* File name footer: tiny text, keep the dark overlay but reduce padding */
+[data-new-ui="true"] .user-message .rounded-lg.shadow-lg.overflow-hidden.relative .absolute.bottom-0.left-0.right-0 {
+  font-size:   9px !important;
+  line-height: 1.2 !important;
+  padding:     2px 4px !important;
+}
+
+/* Download icon: reposition for smaller card */
+[data-new-ui="true"] .user-message .rounded-lg.shadow-lg.overflow-hidden.relative .absolute.top-2.right-2 {
+  top:   3px !important;
+  right: 3px !important;
+}
+
+/* Zoom-in icon: nudge to bottom-right of smaller card */
+[data-new-ui="true"] .user-message .rounded-lg.shadow-lg.overflow-hidden.relative .absolute.bottom-10.right-2 {
+  bottom: 18px !important;
+  right:   3px !important;
+}
+
+/* Tooltip: font-size for the hover filename tooltip */
+[data-new-ui="true"] .user-message .mt-5.text-gray-800 .relative.group .absolute.-top-10 {
+  font-size: 11px !important;
+}

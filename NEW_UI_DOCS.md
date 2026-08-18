@@ -1678,6 +1678,81 @@ an unrealistic window height.
   scrollable conversation and confirm the view stays stable (no up/down oscillation)
   in the window between send and the first streaming token.
 
+### Phase 40 — Image Attachment Bug Fixes + Post-Send Thumbnail Styling ✅ COMPLETE
+Two related fixes. Zero changes to ChatMessage.tsx, Chat.tsx, useChatSendService.ts, or any
+protected file (One-Directory Rule strictly observed; all changes inside components/NewUI/
+and styles/conversation-view.css).
+
+**Root-cause investigation (Sub-problem A):**
+- `handleFile` (`AttachFile.tsx:127`) always sets `doc.raw = ""` for every file type
+  including images — there is NO binary data in doc.raw to lose via JSON.stringify.
+- `amplify_pending_docs` was written by `NewHome.tsx:193` (`JSON.stringify(attachedDocs)`)
+  but `ConversationViewShell.tsx` only called `removeItem()` on it — **never read it**.
+  All attached docs (images and regular files from the NewHome → new conversation flow)
+  were silently discarded every time.
+- `useChatSendService.ts` never reads `doc.raw`; for images it only needs `doc.key`
+  (the S3 key, set after async upload via `addFile()`). Since `doc.key` IS preserved
+  through JSON.stringify/parse, the data was intact — just unread.
+- `ConversationComposer.addImageToRail` created a `UIAttachment` with a thumbnail
+  object-URL (purely cosmetic) but never called `handleFile`, so pasted images in
+  existing-conversation view were never uploaded to S3 and never sent to the backend.
+
+**Sub-problem A fixes:**
+
+- [x] **`ConversationViewShell.tsx` — pending-message bridge rewritten (two paths):**
+  - Imports: `useSendService`, `newMessage`, `MessageType`, `getActivePlugins`,
+    `getSettings`, `setAssistant` (from utils/app/assistants.ts), `DEFAULT_ASSISTANT`.
+  - Calls `useSendService()` at the component level; holds a ref (`sendViaServiceRef`)
+    that always points to the freshest closure (updated on each render via a separate
+    effect).
+  - PATH A (new): when `amplify_pending_docs` contains docs with `doc.key`, builds a
+    `ChatRequest` (with `message`, `documents`, `plugins` from `getActivePlugins`,
+    `conversationId`, and optional `options.assistantId` for assistants), applies the
+    active assistant via `setAssistantInMsg`, and calls `sendViaServiceRef.current(request,
+    shouldAbort)` directly — the same call that `Chat.tsx`'s own `handleSend` makes.
+    Skips the `#sendMessage` DOM click entirely (avoids double-send).
+  - PATH B (unchanged): when no pending docs with keys, uses the existing textarea
+    injection + `#sendMessage` click approach.
+  - Both paths share the same web-search/skills setup and sessionStorage cleanup logic.
+
+- [x] **`ConversationComposer.tsx` — paste path fixed:**
+  - Imports: `handleFile` from `AttachFile`, `useSendService`, `newMessage`,
+    `MessageType`, `getActivePlugins`, `getSettings`, `setAssistant`.
+  - New state: `attachedDocs: AttachedDocument[]` (mirrors NewHome's pattern).
+  - New callbacks: `addDocCallback`, `handleDocSetKey`, `handleDocSetMetadata`,
+    `handleDocUploadProgress` — fed to `handleFile` to track upload lifecycle.
+  - `addImageToRail` rewritten: creates a sentinel UIAttachment with `status:'uploading'`
+    for immediate display, then calls `handleFile(file, wrappedAttach, ...)` to start
+    the real S3 upload. `wrappedAttach` replaces the sentinel id with the real `doc.id`
+    once `handleFile`'s `onAttach` fires, linking the UIAttachment to the doc.
+    `handleDocSetKey` marks the UIAttachment `status:'ready'` when the key arrives.
+  - `handleRemoveAttachment` updated to also remove from `attachedDocs`.
+  - `handleSend` rewritten with two paths:
+    - PATH A: when `attachedDocs` has docs with keys → call `sendViaService` directly
+      (same ChatRequest construction as ConversationViewShell PATH A).
+    - PATH B: text-only → existing `#messageChatInputText` + `#sendMessage` DOM bridge.
+  - `canSend` now blocks send while any image upload is still in progress
+    (`allImagesUploaded` gate), so PATH A never fires with incomplete docs.
+
+**Sub-problem B fix:**
+
+- [x] **`styles/conversation-view.css` — DataSourcesBlock compact thumbnail strip:**
+  - `DataSourcesBlock.tsx` (DO-NOT-CHANGE) already renders image thumbnails inside
+    user messages via `message.data.dataSources` + presigned S3 URL fetch. The old
+    default (200×200 cards with `shadow-lg`) is restyled for the new UI.
+  - CSS rules (Phase 40 section, scoped to `[data-new-ui="true"] .user-message`):
+    - `.mt-5.text-gray-800` outer container: `margin-top: 10px`
+    - `.mt-5.text-gray-800 > .mr-3:first-child`: `display: none` (hides the
+      "Included documents:" label — thumbnails are self-explanatory)
+    - `.rounded-lg.shadow-lg.overflow-hidden.relative` cards: `88×88px`, `border-radius:
+      8px`, `box-shadow: none`, `border: 1px solid var(--border-subtle)` — matches
+      the new-UI attachment card visual language
+    - File name footer, download icon, zoom icon: repositioned for smaller card
+  - No portal component needed — DataSourcesBlock already handles the image
+    fetch (presigned S3 URLs, not doc.raw/base64). Once Sub-problem A is fixed
+    (docs reach the backend), message.data.dataSources is populated and the
+    thumbnails appear automatically.
+
 ### Phase 19 — Remaining Port Work (NEXT)
 - [x] Responsive: icon rail at 760-1099px ✅ resolved
 - [x] Responsive: off-canvas drawer <760px ✅ resolved
