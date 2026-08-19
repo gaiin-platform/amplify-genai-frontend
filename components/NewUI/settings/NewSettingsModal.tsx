@@ -26,14 +26,14 @@ import HomeContext from '@/pages/api/home/home.context';
 import { getSettings, saveSettings, featureOptionFlags } from '@/utils/app/settings';
 import { FlagsMap, Flag } from '@/components/ReusableComponents/FlagsMap';
 import { SkillsLibrary } from '@/components/Skills/SkillsLibrary';
-import { IntegrationTabs } from '@/components/Integrations/IntegrationsTab';
 import { MCPServersTab } from '@/components/Settings/MCPServersTab';
-import { ConversationsStorage } from '@/components/Settings/ConversationStorage';
 import { ApiKeys } from '@/components/Settings/AccountComponents/ApiKeys';
-import { Accounts } from '@/components/Settings/AccountComponents/Account';
 import { noCoaAccount } from '@/types/accounts';
 import { Account } from '@/types/accounts';
 import { NewAdminModal } from '@/components/NewUI/settings/NewAdminModal';
+import { NewAccountSection } from '@/components/NewUI/settings/NewAccountSection';
+import { NewStorageSection } from '@/components/NewUI/settings/NewStorageSection';
+import { NewConnectorsSection } from '@/components/NewUI/settings/NewConnectorsSection';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -282,26 +282,12 @@ const GeneralSection: FC = () => {
 };
 
 // ---------------------------------------------------------------------------
-// Account Section
+// Account Section — delegates to NewAccountSection (new-UI styled)
 // ---------------------------------------------------------------------------
 
 const AccountSection: FC<{ active: boolean }> = ({ active }) => {
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [defaultAccount, setDefaultAccount] = useState<Account>(noCoaAccount);
-  const [unsaved, setUnsaved] = useState(false);
-
-  return (
-    <div>
-      <Accounts
-        accounts={accounts}
-        setAccounts={setAccounts}
-        defaultAccount={defaultAccount}
-        setDefaultAccount={setDefaultAccount}
-        setUnsavedChanged={setUnsaved}
-        isLoading={false}
-      />
-    </div>
-  );
+  if (!active) return null;
+  return <NewAccountSection />;
 };
 
 // ---------------------------------------------------------------------------
@@ -323,21 +309,12 @@ const SkillsSection: FC = () => {
 };
 
 // ---------------------------------------------------------------------------
-// Storage Section
+// Storage Section — delegates to NewStorageSection (new-UI styled)
 // ---------------------------------------------------------------------------
 
 const StorageSection: FC<{ active: boolean }> = ({ active }) => {
-  const [unsaved, setUnsaved] = useState(false);
-  const [pendingSelection, setPendingSelection] = useState<string | null>(null);
-
-  return (
-    <ConversationsStorage
-      open={active}
-      setUnsavedChanges={setUnsaved}
-      pendingSelection={pendingSelection}
-      setPendingSelection={setPendingSelection}
-    />
-  );
+  if (!active) return null;
+  return <NewStorageSection />;
 };
 
 // ---------------------------------------------------------------------------
@@ -524,7 +501,7 @@ const SectionContent: FC<{ sectionId: string }> = ({ sectionId }) => {
     case 'skills':
       return <SkillsSection />;
     case 'connectors':
-      return <IntegrationTabs open={true} depth={1} />;
+      return <NewConnectorsSection />;
     case 'mcp':
       return <MCPServersTab open={true} />;
     case 'admin':

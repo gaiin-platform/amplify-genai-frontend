@@ -2180,3 +2180,109 @@
   50%       { opacity: 1;    }
 }
 
+/* ==========================================================================
+   Settings — Connectors section (Phase 45)
+   Scoped to .new-ui-tool-api-keys inside [data-new-ui="true"] so these
+   overrides ONLY apply to the ToolApiKeysTab wrapper in NewConnectorsSection.
+   DO NOT MODIFY ToolApiKeysTab.tsx itself — override visually here only.
+   ========================================================================== */
+
+/* Card backgrounds → --bg-raised */
+[data-new-ui="true"] .new-ui-tool-api-keys .border.border-neutral-200,
+[data-new-ui="true"] .new-ui-tool-api-keys .dark\:border-neutral-700 {
+  border-color: var(--border-subtle) !important;
+  background: var(--bg-raised) !important;
+}
+
+/* Inner content backgrounds */
+[data-new-ui="true"] .new-ui-tool-api-keys .border.border-neutral-200.rounded-lg > .p-4 {
+  background: var(--bg-raised) !important;
+}
+
+/* Info box: blue-50/blue-800 → --bg-raised with --accent left accent */
+[data-new-ui="true"] .new-ui-tool-api-keys .bg-blue-50,
+[data-new-ui="true"] .new-ui-tool-api-keys .dark\:bg-blue-800 {
+  background: var(--bg-raised) !important;
+  border-color: var(--border-subtle) !important;
+  border-left: 3px solid var(--accent) !important;
+}
+
+/* Primary text colours in info box */
+[data-new-ui="true"] .new-ui-tool-api-keys .text-blue-700,
+[data-new-ui="true"] .new-ui-tool-api-keys .dark\:text-blue-300 {
+  color: var(--text-secondary) !important;
+}
+
+/* Blue-500 accent (icons, links) → --accent */
+[data-new-ui="true"] .new-ui-tool-api-keys .text-blue-500 {
+  color: var(--accent) !important;
+}
+[data-new-ui="true"] .new-ui-tool-api-keys a.text-blue-500:hover,
+[data-new-ui="true"] .new-ui-tool-api-keys a:hover.text-blue-500 {
+  color: var(--accent) !important;
+  opacity: 0.8;
+}
+
+/* Primary action buttons: bg-blue-500 → --accent */
+[data-new-ui="true"] .new-ui-tool-api-keys .bg-blue-500 {
+  background: var(--accent) !important;
+  border: none !important;
+}
+[data-new-ui="true"] .new-ui-tool-api-keys .hover\:bg-blue-600:hover {
+  background: var(--accent) !important;
+  opacity: 0.9;
+}
+
+/* Outlined "Add API Key" button: border-blue-500 / text-blue-500 → --accent */
+[data-new-ui="true"] .new-ui-tool-api-keys .border-blue-500 {
+  border-color: var(--accent) !important;
+}
+
+/* Masked key display box → --bg-app */
+[data-new-ui="true"] .new-ui-tool-api-keys .bg-neutral-100,
+[data-new-ui="true"] .new-ui-tool-api-keys .dark\:bg-neutral-800.rounded.font-mono {
+  background: var(--bg-app) !important;
+  border: 1px solid var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Password input → --bg-app, --border-subtle */
+[data-new-ui="true"] .new-ui-tool-api-keys input[type="password"] {
+  background: var(--bg-app) !important;
+  border-color: var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+}
+[data-new-ui="true"] .new-ui-tool-api-keys input[type="password"]:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent) !important;
+  border-color: var(--accent) !important;
+}
+
+/* "Configured" badge green → keep, just ensure readable in both modes */
+[data-new-ui="true"] .new-ui-tool-api-keys .bg-green-100 {
+  background: rgba(34, 197, 94, 0.12) !important;
+}
+[data-new-ui="true"] .new-ui-tool-api-keys .dark\:bg-green-900\/30 {
+  background: rgba(34, 197, 94, 0.12) !important;
+}
+
+/* General text */
+[data-new-ui="true"] .new-ui-tool-api-keys h2,
+[data-new-ui="true"] .new-ui-tool-api-keys h3 {
+  color: var(--text-primary) !important;
+}
+[data-new-ui="true"] .new-ui-tool-api-keys p,
+[data-new-ui="true"] .new-ui-tool-api-keys .text-neutral-600,
+[data-new-ui="true"] .new-ui-tool-api-keys .dark\:text-neutral-400 {
+  color: var(--text-secondary) !important;
+}
+[data-new-ui="true"] .new-ui-tool-api-keys .text-neutral-500,
+[data-new-ui="true"] .new-ui-tool-api-keys .dark\:text-neutral-400.text-sm {
+  color: var(--text-muted) !important;
+}
+
+/* Spacing wrapper root — clear default blue ring from focus-within */
+[data-new-ui="true"] .new-ui-tool-api-keys .space-y-6 > * + * {
+  margin-top: 16px !important;
+}
+

@@ -319,6 +319,22 @@ components/NewUI/
   settings/
     NewSettingsModal.tsx     ← two-column settings modal. Props: onClose, openToSection?:string
     NewAdminModal.tsx        ← two-column admin panel (same shell as NewSettingsModal). Props: onClose, openToTab?:AdminTab
+    NewAccountSection.tsx    ← SPECIFIC account settings section (Phase 45). No props.
+                               Self-loads accounts via getAccounts(). MTD cost card + rate-limit
+                               warning banner + add/edit/delete accounts + default selector + save.
+                               Inline NewRateLimiter (port of RateLimit.tsx styling — DO NOT MODIFY original).
+                               Wires settingsSave event. Used by NewSettingsModal AccountSection.
+    NewStorageSection.tsx    ← SPECIFIC storage settings section (Phase 45). No props.
+                               Four styled radio-card options (local-only/future-local/cloud-only/future-cloud).
+                               Pending change callout + migration progress bar + save with confirm dialog.
+                               Wires settingsSave and cleanupApiKeys events. Used by NewSettingsModal StorageSection.
+    NewConnectorsSection.tsx ← SPECIFIC connectors settings section (Phase 45). No props.
+                               SegmentedControl tabs: "Integrations" | "Tool API Keys".
+                               Integrations: flat list of all providers' integrations, skeleton/empty states,
+                               connect (OAuth popup) / disconnect (confirm), per-integration spinners,
+                               token-sharing shortcut. Tool API Keys: wraps <ToolApiKeysTab> in
+                               [data-new-ui="true"] .new-ui-tool-api-keys for CSS scoping.
+                               Used by NewSettingsModal SectionContent case 'connectors'.
                                Left rail: Configurations | Supported Models | Application Variables | OpenAI Endpoints
                                           Feature Flags | Feature Data | Ops | Embeddings
                                           Integrations (conditional) | Critical Errors (conditional)
@@ -2323,6 +2339,78 @@ Single file change: `components/NewUI/sidebar/NewSidebar.tsx` only (no `home.tsx
   `offsetTop`/`offsetLeft` row positions with the correct, post-drag geometry. The 120ms debounce
   means one scan fires after the drag settles, not per pixel.
 - [x] `tsc --noEmit` — zero errors in `components/NewUI/` (pre-existing `__tests__/` errors unchanged)
+
+### Phase 45 — Settings: Account, Storage, and Connectors new-UI redesign ✅ COMPLETE
+Full visual redesign of three Settings sections to match new-UI design language.
+Zero changes to any file outside `components/NewUI/` and `styles/conversation-view.css`
+(One-Directory Rule strictly observed).
+
+**New files:**
+- [x] `components/NewUI/settings/NewAccountSection.tsx` — Self-contained account section with:
+  - Loads accounts on mount via `getAccounts()` (fixes the existing `AccountSection` shell which
+    passed empty state to the old `<Accounts />` without loading anything)
+  - MTD cost summary card (3 stats: today / this month / all time) via `getUserMtdCosts()`
+  - Rate-limit warning banner (≥80% → orange, ≥100% → red) ported from original
+  - Add-account form (`--bg-raised` card: name + COA + inline `NewRateLimiter` + Add button)
+  - Default account dropdown selector
+  - Accounts list (`--bg-raised` rows with hover reveal: rate-limit edit, delete)
+  - Inline rate-limit editing (expand to `NewRateLimiter` with ✓/✗ confirm/cancel)
+  - Delete disabled/hidden for `noCoaAccount`
+  - Save button (accent when unsaved, muted when clean)
+  - `settingsSave` event listener wired exactly like original
+  - `NewRateLimiter` — inline new-UI styled rate limiter (port of `RateLimit.tsx` styling;
+    does NOT modify `RateLimit.tsx`)
+
+- [x] `components/NewUI/settings/NewStorageSection.tsx` — Self-contained storage section with:
+  - Four card rows (local-only / future-local / cloud-only / future-cloud) with styled
+    radio indicator (accent dot) and `--accent` left border when selected
+  - Static info callout (browser-only note) with `--accent` left border
+  - Pending change callout: when selection differs from saved, shows `confirmationMessage()` text
+    inline before user clicks Save (no separate confirm dialog at this point — confirm on save)
+  - `handleSaveWithConfirmation` pattern preserved: shows `window.confirm()` on Save click
+  - Progress bar (thin `--accent` fill, `--bg-active` track) when `storageProcessing.isProcessing`
+  - Save button (accent when unsaved, muted when clean)
+  - `settingsSave` + `cleanupApiKeys` event listeners wired exactly like original
+
+- [x] `components/NewUI/settings/NewConnectorsSection.tsx` — Self-contained connectors section with:
+  - `SegmentedControl` tab bar: "Integrations" | "Tool API Keys" (Tool API Keys tab only shown
+    when `featureFlags.webSearch && canAddWebSearchApiKey`)
+  - Integrations tab:
+    - Skeleton cards during load (3 placeholder rows)
+    - Empty state with 🔌 icon and copy
+    - Integration cards: icon (32×32 logo square) + displayName + Connected badge + Connect/Disconnect
+    - `intIcon()` helper reproduces `translateIntegrationIcon` logic locally (read-only port;
+      DO NOT MODIFY `IntegrationsDialog.tsx`)
+    - Connect: `getOauthRedirect()` → opens 600×600 OAuth popup, polls until closed, refreshes
+    - Token-sharing shortcut handled (when backend shares existing token, no popup needed)
+    - Disconnect: `deleteUserIntegration()` after `window.confirm()`
+    - Per-integration spinner while connecting/disconnecting
+    - Provider settings (Azure admin consent etc.) forwarded to `getOauthRedirect()` exactly as original
+  - Tool API Keys tab: renders `<ToolApiKeysTab open={true} />` wrapped in
+    `<div data-new-ui="true" className="new-ui-tool-api-keys">` for CSS scoping.
+    DO NOT MODIFY `ToolApiKeysTab.tsx` — visual overrides live in `conversation-view.css`.
+
+**Updated files:**
+- [x] `components/NewUI/settings/NewSettingsModal.tsx`:
+  - Imports `NewAccountSection`, `NewStorageSection`, `NewConnectorsSection`
+  - Removed now-unused imports: `IntegrationTabs`, `ConversationsStorage`, `Accounts`
+  - `AccountSection` shell replaced: `if (!active) return null; return <NewAccountSection />`
+  - `StorageSection` shell replaced: `if (!active) return null; return <NewStorageSection />`
+  - `SectionContent` `'connectors'` case replaced: `return <NewConnectorsSection />`
+- [x] `styles/conversation-view.css` — Added `/* Settings — Connectors section (Phase 45) */`
+  block at end of file. Scoped to `[data-new-ui="true"] .new-ui-tool-api-keys`. Overrides:
+  blue → `--accent` (buttons, links, icons), `bg-blue-50/800` info box → `--bg-raised` + `--accent`
+  left border, `bg-neutral-100` key display → `--bg-app`, input borders → `--border-subtle`,
+  text colours → new-UI tokens.
+
+**Design language used:**
+- Backgrounds: `--bg-raised` for cards, `--bg-hover` for row hover, `--bg-active` for inactive btns
+- Typography: 14px/500 primary, 13px secondary, 12px muted/metadata
+- Borders: `1px solid var(--border-subtle)`, `borderRadius: 12px` for cards, 8px for rows/callouts
+- Accent: `--accent` for selected indicator, primary buttons, left border on active/info elements
+- Spacing: 16px between sections, 20px card padding
+
+**TypeScript:** `tsc --noEmit` — zero errors in new files or modified files.
 
 ### Phase 19 — Remaining Port Work (NEXT)
 - [x] Responsive: icon rail at 760-1099px ✅ resolved

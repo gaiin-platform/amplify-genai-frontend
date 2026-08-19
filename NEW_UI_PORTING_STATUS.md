@@ -121,12 +121,12 @@
 | General — feature flags | ✅ | |
 | General — Chat font (Serif/Sans) | ✅ | Radio toggle in General section. Saves to `amplify_chat_font` localStorage key. Default: Serif (Newsreader 17px/1.62). Sans: Inter 16px/1.7. Wired into `ConversationViewShell` via `data-body-face` attribute + `amplifyChatFontChanged` event. |
 | Custom Instructions | 🚧 | Single set saved to `amplify_custom_instructions` localStorage key. **Needs enhancement (Task 16):** users should be able to save, name, and switch between multiple instruction sets; the active set must be wired into `handleNewConversation` so it is actually applied to new conversations. Currently the saved value is NOT injected into new conversations (Phase 19 TODO). |
-| Account info | ✅ | Wraps existing `Accounts` component |
+| Account info | ✅ | `NewAccountSection.tsx` (Phase 45) — full new-UI redesign: self-loading accounts via `getAccounts()`, MTD cost summary card, rate-limit warning, add/edit/delete/default-select, save button, `settingsSave` event wired. Fixes the previous shell which passed empty state without loading. |
 | Usage section | ❌ | Placeholder — `UserCostBreakdownModal` not yet ported |
-| Storage selection | ✅ | Wraps existing `ConversationsStorage` |
+| Storage selection | ✅ | `NewStorageSection.tsx` (Phase 45) — full new-UI redesign: four styled radio-card options with accent left border on selection, pending change callout, migration progress bar, save with confirm dialog, all events wired. |
 | API Keys | ✅ | Wraps existing `ApiKeys` |
 | Skills | ✅ | Wraps existing `SkillsLibrary` |
-| Connectors / Integrations | ✅ | Wraps existing `IntegrationTabs` |
+| Connectors / Integrations | ✅ | `NewConnectorsSection.tsx` (Phase 45) — full new-UI redesign: `SegmentedControl` tabs (Integrations / Tool API Keys), integration cards with OAuth connect/disconnect, skeleton/empty states, per-integration spinners, token-sharing shortcut. Tool API Keys tab wraps `<ToolApiKeysTab>` with CSS overrides in `conversation-view.css`. |
 | MCP Servers | ✅ | Wraps existing `MCPServersTab` |
 | Admin Panel | ✅ | `NewAdminModal.tsx` — same two-column shell as settings, all tabs as left-rail nav items; light-mode text inheritance fixed (Phase 22). A11y Pass 1: focus trap added, `aria-labelledby` wired. |
 | Capabilities section | ❌ | Placeholder |
