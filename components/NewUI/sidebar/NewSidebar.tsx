@@ -360,11 +360,13 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
 
   const { today, yesterday, previous } = groupConversationsByTime(filteredConversations, chatFolders, archiveDays);
 
-  // Pinned conversations (if any have a pin flag)
-  const pinned = filteredConversations.filter((c) => (c as any).pinned);
-  const unpinned_today = today.filter((c) => !(c as any).pinned);
-  const unpinned_yesterday = yesterday.filter((c) => !(c as any).pinned);
-  const unpinned_previous = previous.filter((c) => !(c as any).pinned);
+  // Pinned conversations — check both data.pinned (new storage) and top-level cast (legacy).
+  // TODO: once `pinned?: boolean` is added to the Conversation type, simplify to c.pinned.
+  const isPinnedConv = (c: Conversation) => !!(c.data?.pinned) || !!(c as any).pinned;
+  const pinned = filteredConversations.filter(isPinnedConv);
+  const unpinned_today = today.filter((c) => !isPinnedConv(c));
+  const unpinned_yesterday = yesterday.filter((c) => !isPinnedConv(c));
+  const unpinned_previous = previous.filter((c) => !isPinnedConv(c));
 
   const navItems = [
     {
@@ -608,10 +610,13 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
             maskImage: 'linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 16px), transparent 100%)',
           }}
         >
-          {/* Pinned section */}
+          {/* Pinned section — only rendered when at least one conversation is pinned */}
           {pinned.length > 0 && (
-            <div className="group">
-              <SidebarSection label="Pinned" />
+            <SidebarSection
+              label="Pinned"
+              isCollapsible
+              storageKey="amplify_sidebar_pinned_collapsed"
+            >
               <div className="flex flex-col gap-[2px] px-[10px]">
                 {pinned.map((c) => (
                   <ConversationRow
@@ -623,65 +628,67 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
                   />
                 ))}
               </div>
-            </div>
+            </SidebarSection>
           )}
 
-          {/* Recents header */}
-          <div className="flex items-center justify-between px-[10px] pt-[18px] pb-[4px]">
-            <span className="text-[12px] font-normal text-[--text-muted] leading-none select-none">
-              Recents
-            </span>
-            <div className="flex items-center gap-1">
-              <IconButton size="sm" title="Sort conversations">
-                <IconArrowsSort size={13} />
-              </IconButton>
-              <IconButton
-                size="sm"
-                title="View all chats"
-                onClick={() => dispatch({ field: 'page', value: 'chats' as any })}
-              >
-                <IconLayoutList size={13} />
-              </IconButton>
-            </div>
-          </div>
+          {/* Recents section — collapsible, persisted to localStorage */}
+          <SidebarSection
+            label="Recents"
+            isCollapsible
+            storageKey="amplify_sidebar_recents_collapsed"
+            rightSlot={
+              <div className="flex items-center gap-1">
+                <IconButton size="sm" title="Sort conversations">
+                  <IconArrowsSort size={13} />
+                </IconButton>
+                <IconButton
+                  size="sm"
+                  title="View all chats"
+                  onClick={() => dispatch({ field: 'page', value: 'chats' as any })}
+                >
+                  <IconLayoutList size={13} />
+                </IconButton>
+              </div>
+            }
+          >
+            {/* Skeleton rows while loading */}
+            {syncingConversations && (unpinned_today.length + unpinned_yesterday.length + unpinned_previous.length) === 0 && (
+              <div className="flex flex-col gap-[4px] px-[10px] pt-2">
+                {[80, 65, 75, 55, 70].map((w, i) => (
+                  <div
+                    key={i}
+                    className="h-[32px] rounded-[8px] bg-[--bg-hover] animate-pulse"
+                    style={{ width: `${w}%` }}
+                  />
+                ))}
+              </div>
+            )}
 
-          {/* Skeleton rows while loading — show any time we're syncing and nothing is visible yet */}
-          {syncingConversations && (unpinned_today.length + unpinned_yesterday.length + unpinned_previous.length) === 0 && (
-            <div className="flex flex-col gap-[4px] px-[10px] pt-2">
-              {[80, 65, 75, 55, 70].map((w, i) => (
-                <div
-                  key={i}
-                  className="h-[32px] rounded-[8px] bg-[--bg-hover] animate-pulse"
-                  style={{ width: `${w}%` }}
-                />
-              ))}
-            </div>
-          )}
+            {/* Today — hide "New Conversation" entries that have no messages (placeholder convs) */}
+            {renderConversationGroup(
+              unpinned_today.filter(c => c.name !== 'New Conversation' || c.messages?.length > 0),
+              unpinned_today.filter(c => c.name !== 'New Conversation' || c.messages?.length > 0).length > 0 &&
+              (unpinned_yesterday.length > 0 || unpinned_previous.length > 0) ? 'Today' : undefined
+            )}
 
-          {/* Today — hide "New Conversation" entries that have no messages (placeholder convs) */}
-          {renderConversationGroup(
-            unpinned_today.filter(c => c.name !== 'New Conversation' || c.messages?.length > 0),
-            unpinned_today.filter(c => c.name !== 'New Conversation' || c.messages?.length > 0).length > 0 &&
-            (unpinned_yesterday.length > 0 || unpinned_previous.length > 0) ? 'Today' : undefined
-          )}
+            {/* Yesterday */}
+            {renderConversationGroup(unpinned_yesterday, 'Yesterday')}
 
-          {/* Yesterday */}
-          {renderConversationGroup(unpinned_yesterday, 'Yesterday')}
+            {/* Previous N days — label matches the archive window */}
+            {renderConversationGroup(
+              unpinned_previous,
+              unpinned_previous.length > 0
+                ? (archiveDays > 0 ? `Previous ${archiveDays} days` : 'Older')
+                : undefined
+            )}
 
-          {/* Previous N days — label matches the archive window */}
-          {renderConversationGroup(
-            unpinned_previous,
-            unpinned_previous.length > 0
-              ? (archiveDays > 0 ? `Previous ${archiveDays} days` : 'Older')
-              : undefined
-          )}
-
-          {/* Empty state — only when not loading and nothing visible after archive filter */}
-          {!syncingConversations && (unpinned_today.length + unpinned_yesterday.length + unpinned_previous.length + pinned.length) === 0 && (
-            <div className="px-[10px] py-8 text-center text-[13px] text-[--text-muted]">
-              No conversations yet
-            </div>
-          )}
+            {/* Empty state — only when not loading and nothing visible after archive filter */}
+            {!syncingConversations && (unpinned_today.length + unpinned_yesterday.length + unpinned_previous.length + pinned.length) === 0 && (
+              <div className="px-[10px] py-8 text-center text-[13px] text-[--text-muted]">
+                No conversations yet
+              </div>
+            )}
+          </SidebarSection>
 
           {/* Bottom padding for scroll */}
           <div className="h-4" />

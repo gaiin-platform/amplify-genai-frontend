@@ -31,6 +31,7 @@
 | Unified sidebar (chats + nav + account) | ✅ | `NewSidebar.tsx` |
 | New chat button | ✅ | Sidebar top row |
 | Conversation list with time bucketing | ✅ | Today / Yesterday / Older, archive-aware |
+| Conversation pinning | ✅ | Phase 51: Pin/Unpin in sidebar three-dot menu; pinned conversations float to a "Pinned" collapsible section above Recents. Stored in `conversation.data.pinned`. TODO: add `pinned?: boolean` to `Conversation` type. |
 | Sidebar collapse to icon rail | ✅ | Collapses to 52px; full icon-rail at 760–1099px is Phase 17 |
 | Search → Chats & Tasks full-pane view | ✅ | Search button in header dispatches `page='chats'` |
 | Chats & Tasks full list view | ✅ | `ChatsListView.tsx`. Search now matches message content for local conversations (via `uncompressMessages`), not just conversation name — matches classic `Chatbar.tsx:181-197` search behavior including its "remote messages are unsearchable" limitation. |
@@ -82,7 +83,7 @@
 | Code interpreter block | 🚧 | Renders via old components; no new-UI styling pass yet |
 | Agent log block | 🚧 | Renders via old components; no new-UI styling pass yet |
 | RAG document context manager | ❌ | Old `ConversationContextManager` not surfaced in new UI |
-| Conversation sharing (share button) | 🚧 | Share button in header exists; underlying `ShareAnythingModal` is old UI |
+| Conversation sharing (share button) | 🚧 | Share button in `ConversationHeader`; Phase 51: also added to sidebar three-dot menu (clicks same `#shareChatUpper` DOM button). Underlying `ShareAnythingModal` remains old UI. |
 | Context window / focused messages | ✅ | Feature flag wired in General settings |
 | Prompt highlighter | 🚧 | Feature flag wired; component not new-UI styled |
 | Memory presenter | ❌ | Not yet surfaced in new UI |
@@ -207,7 +208,7 @@ These features existed in the old UI and have been **deliberately dropped**. The
 | **Conversation threading** | Allow branching from any message within a conversation (fork to branch, visualized as a tree). |
 | **Inline document editor** | Ability to open and edit attached documents in-app, not just reference them. |
 | **Assistant marketplace / discovery** | A curated gallery of shareable, community-created assistants that users can install with one click. |
-| **Conversation pinning in sidebar** | Pin frequently used conversations to a persistent "Pinned" section at the top of the sidebar. (Data model supports it with `pinned` flag; UI not wired.) |
+| **Conversation pinning in sidebar** | ✅ Shipped in Phase 51 — Pin/Unpin in sidebar three-dot menu; collapsible Pinned section above Recents. |
 | **Keyboard command palette** | A ⌘K command palette for quick navigation, new chat, switch assistant, search — the search button currently links to ChatsListView but a true command palette would be more powerful. |
 | **Real-time collaborative chat** | Multiple users in the same conversation thread simultaneously. |
 | **Rich media preview in chat** | Inline image preview, PDF viewer, spreadsheet preview without opening a separate artifact panel. |

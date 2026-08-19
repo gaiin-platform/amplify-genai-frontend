@@ -815,9 +815,17 @@ Update NEW_UI_DOCS.md (new phase + registry) and NEW_UI_PORTING_STATUS.md (new r
 
 ## 11. Adjustable Sidebar Width
 
-**Status:** ⬜ Not started
-**% complete:** 0%
+**Status:** ✅ Done
+**% complete:** 100%
 **Type:** Feature build.
+
+### Outcome (Phase 44, implemented after 2026-08-19 orchestrator session)
+Implemented entirely in `components/NewUI/sidebar/NewSidebar.tsx`. Drag handle on right edge;
+min 220px, max 480px, default 310px. Direct DOM updates per pixel (zero React re-renders during
+drag); `sidebarWidth` state committed only on mouseup. Persisted to `localStorage` key
+`amplify_sidebar_width`. Collapsed 52px icon-rail completely unaffected (separate code path).
+A `ResizeObserver` on `.chatcontainer` was also added to `NewUIMessageActionsLayer.tsx` so
+action row positions recompute after a sidebar drag (flex-1 content area changes width).
 
 Currently `NewSidebar` has a fixed 310px width. Users should be able to drag the right edge to
 resize it within a sensible min/max range.
@@ -901,41 +909,102 @@ Update NEW_UI_DOCS.md (add to Phase 38 or a new Phase 39) and NEW_UI_PORTING_STA
 
 ---
 
-## 13. Sidebar Conversation Three-Dot Menu: Add Pin
+## 13. Sidebar Conversation Three-Dot Menu: Pin + Share + Collapsible Sections
 
 **Status:** ⬜ Not started
-**% complete:** ~50% (rename ✅ already exists; pin ❌ not yet)
+**% complete:** ~50% (rename ✅ already exists; pin / share / collapse ❌ not yet)
 **Type:** Small feature — UX enhancement.
 
-The `ConversationRow.tsx` hover ⋯ menu currently has Rename and Delete (wiki Phase 2). The user
-wants to also add **Pin** (which would move the conversation to a "Pinned" section at the top of
-the sidebar, using the `pinned` flag already mentioned in `NEW_UI_PORTING_STATUS.md` §9 Future Ideas
-as "Data model supports it with `pinned` flag; UI not wired").
+The `ConversationRow.tsx` hover ⋯ menu currently has Rename and Delete (wiki Phase 2).
+
+### What's being asked for (updated 2026-08-19)
+1. **Three-dot menu items:** Rename | Delete | Share | Pin (showing "Unpin" when already pinned).
+   Menu order: Rename at top, then Pin/Unpin, then Share, then Delete at bottom (destructive last).
+2. **Pinned section:** When a conversation is pinned it appears in a "Pinned" section **just
+   above** Recents in the sidebar. If nothing is pinned, the Pinned section is hidden entirely.
+3. **Collapsible sections:** Both the "Pinned" section and the "Recents" section should have a
+   small chevron arrow next to their heading that collapses/expands the section's contents.
+   Collapse state persisted to localStorage so it survives reload. This requires adding a
+   `collapsible` capability to `SidebarSection.tsx`.
 
 ### Suggested prompt
 ```
 (standard preamble)
 
-Feature: add a "Pin" option to the ConversationRow three-dot menu in the sidebar.
+Feature: upgrade the sidebar conversation three-dot menu and add collapsible sections.
 
-Step 0 — investigate: check `types/` for the `Conversation` type to confirm a `pinned` (or
-similar) field exists on the data model. Check `home.context.tsx` and `home.tsx` for whether a
-`handleUpdateConversation` or similar handler would naturally persist a `pinned` flag, and whether
-any remote storage service (check `services/remoteConversationService.ts` read-only) would need
-to be called to persist it server-side. Determine if "pin" can be purely local-state (persists via
-the existing state-save pipeline) or requires a dedicated service call.
+**Step 0 — investigate (read-only, no edits):**
+1. Read `types/` for the `Conversation` type: does a `pinned` boolean field exist? If not, note it
+   — the implementer must decide whether to add it to the type or use a local store.
+2. Read `home.context.tsx` and `home.tsx` (read-only): does `handleUpdateConversation` support
+   updating a `pinned` field? Will setting it persist via the existing remote conversation sync
+   pipeline (`services/remoteConversationService.ts` — read-only)?
+3. Read `components/NewUI/sidebar/ConversationRow.tsx`: understand the exact current menu structure
+   (Rename, Delete), the isMenuOpen state pattern, and how actions call context handlers.
+4. Read `components/NewUI/sidebar/SidebarSection.tsx`: understand its current props. It does NOT
+   currently support collapse — note what props to add.
+5. Read `components/NewUI/chat/ConversationHeader.tsx`: find how the Share button there triggers
+   the share flow (likely a callback prop or event dispatch). That is the pattern to replicate
+   from the three-dot menu.
 
-Step 1 — add Pin to the ⋯ menu: in `components/NewUI/sidebar/ConversationRow.tsx`, add a "Pin"
-menu item (IconPin, "Pin" label) and "Unpin" (for already-pinned conversations) to the existing
-rename/delete menu. On click, call the appropriate context handler to toggle `conversation.pinned`.
+Report the answers to these five questions as a brief list before writing any code.
 
-Step 2 — surface pinned conversations: in `components/NewUI/sidebar/NewSidebar.tsx`, add a "Pinned"
-section above the time-bucketed "Today/Yesterday" recents groups showing pinned conversations (with
-an unpin option). The `SidebarSection.tsx` component is already designed for this. If no
-conversations are pinned, the section collapses to 0 height.
+---
 
-Update NEW_UI_DOCS.md (registry entry for the new behavior, Phase N) and
-NEW_UI_PORTING_STATUS.md §1 (add "Conversation pinning" row → ✅ when done).
+**Step 1 — upgrade the ⋯ menu in `ConversationRow.tsx`:**
+
+Add these items to the existing Rename/Delete menu (use `handleUpdateConversation` from context
+for state updates; follow the existing Rename/Delete patterns exactly):
+- **Pin / Unpin**: `IconPin` / `IconPinnedOff`. Toggle `conversation.pinned`. If `pinned` doesn't
+  exist on the type, add it as `pinned?: boolean` in the local Conversation type extension
+  (DO NOT MODIFY `types/` directly — if the field is missing from the canonical type, use a
+  type assertion or data field in your component, and leave a TODO comment noting the type
+  should be updated when backend confirms support).
+- **Share**: `IconShare`. Use whatever mechanism `ConversationHeader.tsx`'s share button uses
+  (found in Step 0 item 5). Do NOT build a new share flow — just trigger the same existing one.
+- Menu order (top → bottom): Rename | Pin (or Unpin) | Share | Delete.
+- Delete remains destructive (keep the same confirm pattern it currently has).
+
+---
+
+**Step 2 — add collapsible support to `SidebarSection.tsx`:**
+
+Add two optional props:
+- `isCollapsible?: boolean` — when true, renders a small chevron (`IconChevronDown` /
+  `IconChevronRight`, 14px, `--text-muted`) in the heading row, right of the label.
+- `storageKey?: string` — localStorage key for persisting collapsed state across reloads.
+  When absent, state is local (non-persisted) and defaults to expanded.
+
+Behavior:
+- Clicking anywhere on the section heading row (not just the chevron) toggles collapsed/expanded.
+- When collapsed: the `children` div is `max-height: 0; overflow: hidden` (animated,
+  `prefers-reduced-motion` gated).
+- Do NOT change behavior of existing SidebarSection uses that don't pass `isCollapsible`.
+
+---
+
+**Step 3 — add Pinned section to `NewSidebar.tsx`:**
+
+- Above the existing time-bucketed Recents groups, add a "Pinned" section using
+  `<SidebarSection label="Pinned" isCollapsible storageKey="amplify_sidebar_pinned_collapsed">`.
+- Only render it when `pinnedConversations.length > 0` (derive this from the conversations list
+  in context: `conversations.filter(c => c.pinned)`).
+- Each row is a standard `<ConversationRow>` (same as Recents rows — the three-dot menu now
+  shows "Unpin" instead of "Pin" for conversations where `c.pinned === true`).
+
+- The Recents section heading should also gain `isCollapsible storageKey="amplify_sidebar_recents_collapsed"`.
+  (The Recents section already has a heading via `SidebarSection` — just pass the new props.)
+
+---
+
+**Files to change:** `components/NewUI/sidebar/ConversationRow.tsx`,
+`components/NewUI/sidebar/SidebarSection.tsx`, `components/NewUI/sidebar/NewSidebar.tsx`.
+No changes outside `components/NewUI/` are needed (One-Directory Rule).
+
+**After implementing:** update `NEW_UI_DOCS.md` (Phase N, registry notes for
+SidebarSection collapsible props, ConversationRow menu update) and
+`NEW_UI_PORTING_STATUS.md` §1 (add "Conversation pinning" row → ✅,
+update "Conversation sharing" row to note sidebar entry point added).
 ```
 
 ---
@@ -1073,9 +1142,19 @@ Update NEW_UI_DOCS.md (extend the existing Task 14 phase entry) and NEW_UI_PORTI
 
 ## 15. Accent Color Consistency — Switch to Blue
 
-**Status:** ⬜ Not started
-**% complete:** 0%
+**Status:** ✅ Done
+**% complete:** 100%
 **Type:** Visual polish — global token change.
+
+### Outcome (Phase 50, implemented after 2026-08-19 orchestrator session)
+`--accent` updated in `globals.css`: light `#D97757` → `#3b82f6`, dark `#D97757` → `#006FEE`.
+New `--accent-fg: #ffffff` companion token added. Send button glyph `#2A1710` → `var(--accent-fg)`
+in `NewHome.tsx` and `ConversationComposer.tsx`. Scrollbar thumbs updated to blue in
+`conversation-view.css`. Zero hardcoded orange/purple/indigo hits found in `components/NewUI/`.
+Standing rule added to `NEW_UI_WIKI_INSTRUCTIONS.md` §9 rule 18 locking blue as the accent color
+for all future sessions.
+
+**Type:** Visual polish — global token change (original description below).
 
 Currently `--accent: #D97757` (orange) in `globals.css` is used for interactive elements (send
 button, active nav highlights, badges, spinner, etc.) but several components use purple or indigo
@@ -1339,39 +1418,161 @@ Update NEW_UI_DOCS.md (Phase N note on the fix).
 
 ---
 
+## 20. Settings — Account, Storage, Connectors New-UI Redesign
+
+**Status:** ✅ Done
+**% complete:** 100%
+**Type:** Feature build — visual redesign of three settings sections.
+
+### Outcome (Phase 45, implemented after 2026-08-19 orchestrator session)
+Three new files created: `NewAccountSection.tsx` (self-loading accounts, MTD cost card, rate-limit
+banner, add/edit/delete, save wired), `NewStorageSection.tsx` (four styled radio cards, pending
+callout, progress bar, save with confirm), `NewConnectorsSection.tsx` (SegmentedControl tabs:
+Integrations + Tool API Keys; OAuth popup connect/disconnect, per-integration spinners, CSS
+overrides for Tool API Keys tab). `NewSettingsModal.tsx` updated to import and use all three.
+Zero changes outside `components/NewUI/` (One-Directory Rule observed).
+
+---
+
+## 21. Workflows View
+
+**Status:** ✅ Done
+**% complete:** 100%
+**Type:** Feature build — new full-pane view.
+
+### Outcome (Phase 49, implemented after 2026-08-19 orchestrator session)
+`NewWorkflowsView.tsx` created in `components/NewUI/views/`. Two-pane layout: 340px left list
+(search, template cards with step-count/base/public badges, hover edit/delete, delete confirm),
+right detail pane (read-only: name/desc, Inputs table, Steps list, "Edit Workflow" button).
+`AssistantWorkflowBuilder` reused unchanged inside a `.new-ui-workflow-editor-modal` wrapper div
+for CSS scoping. Sidebar nav entry added (`IconPuzzle`, gated by
+`featureFlags.createAssistantWorkflows`). `home.tsx` render case added.
+`conversation-view.css` builder overrides block added.
+
+---
+
+## Phase 51 — Hover Row Gap Root-Cause Fix (Task 2 final open issue)
+
+**Status:** ⬜ Not started
+**% complete:** 0%
+**Type:** Bug fix — spacing regression confirmed still present (2026-08-19).
+
+### What's wrong
+Three distinct issues (user-confirmed still present as of 2026-08-19 — not fixed by Phases 33–37):
+1. **Too much gap between end of AI response and its hover action row** — the row appears further
+   below the last line of prose than it should.
+2. **New gap between "Thought process" disclosure and AI prose response** — a visible blank space
+   has appeared between the "Thought process" dropdown button and the assistant response body
+   beneath it.
+3. **Hover row hangs so low it overlaps the next conversation turn** — when a turn is followed by
+   a user message, the action row overlays the top of that next turn.
+
+### Root cause hypothesis (from Task 2 notes)
+`chatHover.offsetHeight` for assistant messages may include invisible trailing DOM elements
+(`DataSourcesBlock`, `AgentLogBlock`, `RemovedDataSourcesBlock`, etc.) that have non-zero height
+even when empty, pushing the anchor bottom lower than the visible text bottom. Phase 35 set
+`assistant-message` `padding-bottom: 8px` then Phase 36 reduced it to `2px` — the row's `GAP`
+is `assistant: 1` — yet the gap persists. The overlap with the next turn suggests the combined
+in-flow `padding-bottom` reserve + GAP may exceed the reserved `padding-bottom` on
+`.enhanced-chat-message.assistant-message`.
+
+### Suggested prompt
+```
+(standard preamble)
+
+Bug fix: three persistent hover-row spacing issues in the chat pane. All three are confirmed still
+present as of 2026-08-19 despite the Phase 33–37 fix passes. This is a focused investigation-first
+task — read the current CSS and component state BEFORE writing any fix.
+
+**Issue 1 — gap between AI response end and hover action row.**
+Read the current values of:
+- `.enhanced-chat-message.assistant-message { padding-bottom }` in `conversation-view.css`
+- `GAP` constant for `assistant` role in `NewUIMessageActionsLayer.tsx`
+- Any trailing DOM blocks inside a typical assistant `.enhanced-chat-message` that have non-zero
+  height when empty: `DataSourcesBlock`, `AgentLogBlock`, `RemovedDataSourcesBlock` (all inside
+  `.enhanced-chat-message` but after `.assistantContentBlock`).
+If those trailing blocks have non-zero default height, add `conversation-view.css` rules to zero
+them out when empty: `[data-new-ui="true"] .enhanced-chat-message [class*="DataSources"]:empty,
+... { display: none }` (or `height: 0; overflow: hidden` if `:empty` doesn't match — read the
+actual rendered class names first). The action row's `computePosition()` uses `#chatHover.offsetHeight`
+as its anchor; every invisible pixel of height below the prose pushes the row down.
+
+**Issue 2 — gap between "Thought process" disclosure and AI prose.**
+The `.text-sm\!important.opacity-70` reasoning wrapper (which contains the "Thought process"
+`#expandComponent` button) has `margin-bottom` set in Phase 33 (`10px`). If a gap is appearing
+*below* the "Thought process" button and *above* the prose that follows it, the problem is likely
+that `margin-bottom` value on the reasoning wrapper — reduce it or zero it if the expanded block
+has its own padding. CSS-only fix in `conversation-view.css`.
+
+**Issue 3 — hover row overlaps the next conversation turn.**
+This happens when the row's vertical position (`top = anchorBottom + GAP`) plus the row's own
+height (~24px) exceeds the next `.enhanced-chat-message`'s `top`. The in-flow `padding-bottom`
+on `.enhanced-chat-message.assistant-message` is supposed to reserve that space. Check: is the
+current `padding-bottom` value (set in Phase 35/36) actually large enough to contain
+`GAP(1) + row_height(~24px)` = ~25px? If `padding-bottom` is `2px`, it clearly is not. Raise it
+to at least `28px` to reserve the row's footprint. Counter-check: does raising `padding-bottom`
+re-introduce the "too much gap" from Issue 1? It should not, because padding-bottom appears BELOW
+the row (not above it) — it's the next-turn clearance, not the "gap from prose to row" gap.
+
+**Fix approach:**
+- CSS-only where possible (`conversation-view.css`).
+- If adjusting GAP or anchor logic is needed, change `NewUIMessageActionsLayer.tsx`.
+- Do NOT touch any protected files.
+
+Verify by code-trace that after your changes:
+- A typical assistant message with no reasoning block: GAP from last prose line to row top ≤ 8px.
+- A message with "Thought process" showing: no extra blank space between the disclosure button
+  and the prose below it.
+- The hover row is fully contained within its message's padding-bottom reserve and does not
+  visually overlap the next turn.
+
+Update `NEW_UI_DOCS.md` (Phase 51, note the CSS values changed) and
+`NEW_UI_PORTING_STATUS.md` §2 (hover action row row → mark fully ✅ when all three resolved).
+```
+
+---
+
 ## Suggested Sequencing Summary
 
-**Immediate (chat view / input bar — batch these):**
-1. **Prompt A** (Phase 40) — Bug 3 + CSS polish: hide "Amplify Assistant is responding" text + old cursor, fix text size inconsistency in AI responses, add chat input border contrast, investigate "@amplify: " copy prefix
-2. **Prompt B** (Phase 41) — Scroll behavior + streaming animation: when user sends, scroll so their new prompt is at top (then freeze), add smooth text stream animation
-3. **Task 14b** — Pending upload UX: go to chat view immediately, delay API call until uploads done, ambient loading indicator
-4. **Task 17** — "Setting up Amplify" animation replacement ← clean new loading screen
-5. **Task 19** — Three-dot delete button disappears on hover ← quick bug fix in ConversationRow.tsx
-6. **Task 12** — User message edit UI (new UI styling) ← purely CSS, fast
-7. **Task 15** — Accent color to blue ← globals.css token swap + audit, fast
+> **Current state as of 2026-08-19 (updated by orchestrator):**
+> Phases 1–50 complete. The "prompts written, not yet run" block from the previous orchestrator
+> session is now fully executed. Tasks 11, 15, 20, 21 and Task 3 (Phases 46–48) are all ✅ Done.
 
-**Short-term features:**
-8. **Task 13** — Sidebar pin conversation ← small self-contained feature
-9. **Task 11** — Adjustable sidebar width ← medium complexity, high UX value
-10. **Task 18** — Library preview + filter/sort ← medium feature
-11. **Task 3** — Assistant creation overhaul ← investigation-first
-12. **Task 8** — Sharing overhaul ← UX design pass first
-13. **Task 10** — Standalone assistant page ← investigation-first
+**Immediate — open bugs:**
+1. **Phase 51** — Hover row gap root-cause fix (three spacing issues; user-confirmed still present)
+2. **Task 19** — Three-dot delete button disappears on hover (ConversationRow.tsx bug)
+
+**Next feature — ready now:**
+3. **Task 13** — Sidebar three-dot menu: Rename | Delete | Share | Pin + collapsible Pinned/Recents sections (prompt ready above)
+
+**Short-term features (in recommended order):**
+4. **Task 12** — User message edit UI (CSS-only, fast)
+5. **Task 14b** — Pending upload UX refinement
+6. **Task 17** — "Setting up Amplify" loading animation replacement
+7. **Task 18** — Library preview + filter/sort
+8. **Task 16** — Custom Instructions overhaul (multiple named sets + wire into new conversations)
 
 **Longer horizon:**
-14. **Task 16** (Custom Instructions overhaul — multiple named sets, active selection, wired into new conversations)
-15. **Task 4c** (Helper assistants) → **Task 7** (Learn page)
-16. **Task 6** (Model info page)
-17. **Task 9** (a11y pass 2 — after more features land)
-18. **Task 4a** (Memory — last, needs design doc first)
+- **Task 4c** (Helper assistants) → **Task 7** (Learn page) — natural pair
+- **Task 6** (Model info page)
+- **Task 8** (Sharing overhaul — UX design pass first)
+- **Task 10** (Standalone assistant page)
+- **Task 9** (a11y pass 2 — after more features land)
+- **Task 4a** (Memory — intentionally last; needs design doc first)
 
 **Backend prerequisites (do not start frontend work until backend is ready):**
 - Task 4b (Deep Research) — needs backend orchestration built first
 - Task 4d (Usage) — needs backend cost/token data API confirmed first
 
-**Recently completed:**
-- Task 2c ✅ — scroll jumping fixed (Phase 39): dual scrollIntoView fight resolved by moving composer clearance from `padding-bottom` to spacer height
-- Task 14 ✅ — attachment passing + chat history display fixed (Phase 40): S3 key correctly wired via direct `useSendService` call; pasted images now upload to S3; DataSourcesBlock restyled for thumbnails
+**Recently completed (since last orchestrator session, 2026-08-19):**
+- Phase 43 ✅ — Dual loading-dot fix + "Thinking…" animated text (ConversationViewShell + CSS)
+- Phase 44 ✅ — User-resizable sidebar width (Task 11, NewSidebar.tsx)
+- Phase 45 ✅ — Settings Account/Storage/Connectors new-UI redesign (Task 20)
+- Phase 46 ✅ — Assistant creation type selector + 5-tab assistants view overhaul (Task 3 Prompt A)
+- Phase 47 ✅ — AssistantModal CSS styling + team creation + all cards → modal (Task 3 cont.)
+- Phase 48 ✅ — Hover-preview info cards + Floating UI submenu positioning (Task 3 Prompt B)
+- Phase 49 ✅ — Workflow Templates full-pane view + sidebar nav entry (Task 21)
+- Phase 50 ✅ — Blue accent color pass (Task 15): `--accent` → `#3b82f6`/`#006FEE`, standing rule added
 
 ---
 
@@ -1381,59 +1582,24 @@ Update NEW_UI_DOCS.md (Phase N note on the fix).
   `NEW_UI_DOCS.md` (through Phase 23) and `NEW_UI_PORTING_STATUS.md`.
 - **2026-08-10** — Task 1 marked ✅ Done; spun out Task 1b (Web Search/RAG wiring bug) from its findings.
 - **2026-08-11** — Task 1b marked ✅ Done. Task 2 rescoped against chat-pane-migration-spec.md.
-- **2026-08-11 → 2026-08-13** — Task 2: Phases 26–37 completed across many sequential implementation
-  sessions. All 12 spec items addressed. One known open issue remains (assistant hover row spacing —
-  see Task 2 "Known open issue" above). Task 2 marked 🚧 90% complete.
-- **2026-08-13** — Orchestrator conversation ended. New orchestrator chat started from handoff prompt
-  (see bottom of this file). Recommended next tasks per original sequencing plan: Task 5 (a11y pass),
-  then Task 3 (assistant creation overhaul), then Tasks 4c/7/4d/8/6 in order.
-- **2026-08-14** — Task 5 (a11y pass 1) marked ✅ Done. 8 Critical + 6 Major issues fixed; 4 Major
-  findings deferred. New Task 2b added for two visual bugs reported post-a11y-session: (1) thinking
-  indicator misaligned horizontally on message send, (2) old-UI model selector briefly flashing
-  before first streaming response.
-- **2026-08-14** — Task 2b session 1: Bug 2 (model selector flash) ✅ fixed via
-  `#overflowScroll { display: none !important }`. Bug 1 (ChatLoader alignment) improved but still
-  slightly too far right — ChatLoader's column constraint was added but `margin-left: auto` may be
-  overriding the left-edge alignment. Residual fix prompt queued.
-- **2026-08-14** — Task 2b session 2: Bug 1 (ChatLoader alignment) ✅ fixed — avatar wrapper div
-  (`.min-w-[40px]` + 8px gap = 48px) was still alive as a flex item even though the Amplify avatar
-  inside was `display:none`. New rule hides the avatar wrapper div via triple child-combinator selector
-  specific to ChatLoader's DOM shape. Bug 3 discovered: old-UI loading animations (two of them) are
-  still visible alongside the new-UI ones during the pre-response window. Queued.
-- **2026-08-18** — Documentation updates from user review: responsive breakpoints marked ✅ done;
-  Notebook new-UI styling marked out of scope; Import/Export/Clear conversations moved to §8
-  Intentionally Removed; Usage (Task 4d) and Deep Research (Task 4b) both deferred as backend
-  prerequisites — no frontend work until backend is confirmed ready; Task 16 added (Custom
-  Instructions overhaul — multiple named sets, active selection, wired into handleNewConversation);
-  Custom Instructions row in porting status updated to 🚧 with full description of what's needed.
-- **2026-08-18** — New tasks added from user review session: Task 10 (standalone assistant page),
-  Task 11 (adjustable sidebar width), Task 12 (user message edit UI new-UI styling), Task 13
-  (sidebar pin conversation), Task 14 (attachment preview in chat + image passing bug — CRITICAL),
-  Task 15 (accent color → blue, matching Majk #3b82f6 light / #006FEE dark). Sequencing summary
-  rewritten to reflect new priorities. Items 8 (assistant creation) and 9 (sharing) in user's list
-  map to existing Tasks 3 and 8 respectively. Item 5 (hover row spacing) is the existing Task 2
-  known open issue.
-- **2026-08-18** — Phase 40b (CSS Polish + Four Bug Fixes) ✅ Done: hid "Amplify Assistant is
-  responding" text + `▍` cursor; fixed h1/h4-h6 heading size inconsistency; added chat input
-  border contrast; fixed "@amplify: " copy-paste prefix (CSS `user-select:none` + `extractMessageText`
-  now prefers markdown host).
-- **2026-08-18** — Phase 41 (Scroll Anchoring + Streaming Fade-in) ✅ Done: user's new prompt
-  scrolled to 80px from top on send and frozen; per-chunk fade-in via CSS `@keyframes` scoped to last
-  assistant message only. Phase 42 (Deferred Upload Send) ✅ Done: send button unblocked from uploads;
-  API call fires automatically when images finish uploading; `UploadPendingIndicator` shows progress.
-- **2026-08-18** — New outstanding issues from user review: (a) two orange pulsing circles sometimes
-  appear when response is almost done — likely ChatLoader + PromptStatus breathing dots overlapping
-  during the streaming→done transition; (b) loading text removed but no replacement — user wants
-  something nicer than bare dot (e.g. "Thinking…" with typed or shimmer animation); (c) hover row
-  gap issues: gap between AI response and hover row still too large, new gap between "Thought process"
-  dropdown and AI response body, and hover row hangs so low it overlaps next conversation turn.
-  Queuing as Phase 43 (loading indicator) and Phase 44 (hover row gap root cause fix).
-- **2026-08-18** — Task 2c (scroll jumping) ✅ Done — Phase 39 fix: dual scrollIntoView competition
-  resolved by moving composer clearance from chatcontainer `padding-bottom` into spacer height.
-  Task 14 (attachment passing + chat history display) ✅ Done — Phase 40 fixes: S3 path correctly
-  wired via direct `useSendService` call (PATH A); pasted images now upload via `handleFile`;
-  DataSourcesBlock restyled to show 88×88 thumbnails. New tasks added: Task 14b (pending upload UX
-  — go to chat view immediately, delay API call until uploads done), Task 17 ("Setting up Amplify"
-  animation replacement), Task 18 (Library preview + filter/sort), Task 19 (three-dot delete button
-  disappears on hover). Task 2b Bug 3 description expanded with detail: "Amplify Assistant is
-  responding" text + blinking cursor below it. Sequencing summary rewritten.
+- **2026-08-11 → 2026-08-13** — Task 2: Phases 26–37 completed. All 12 spec items addressed. One known
+  open issue remains (hover row spacing). Task 2 marked 🚧 90% complete.
+- **2026-08-13** — Orchestrator conversation ended. New orchestrator chat started.
+- **2026-08-14** — Task 5 (a11y pass 1) ✅ Done. 8 Critical + 6 Major issues fixed; 4 Major deferred.
+  Task 2b added for ChatLoader alignment + old-UI model selector flash bugs.
+- **2026-08-14** — Task 2b: Bug 2 (model flash) ✅ fixed. Bug 1 (ChatLoader alignment) ✅ fixed. Bug 3
+  (old-UI ldrs spinners during pre-response window) discovered and queued.
+- **2026-08-18** — Task 2c (scroll jumping) ✅ Phase 39. Task 14 (attachment passing + thumbnails) ✅
+  Phase 40. Phase 40b (CSS polish + 4 bug fixes) ✅. Phase 41 (scroll anchoring + streaming fade) ✅.
+  Phase 42 (deferred upload send + UploadPendingIndicator) ✅. New tasks added: 10, 11, 12, 13, 14, 14b,
+  15, 16, 17, 18, 19. Hover row gap + loading animation issues queued as Phase 43/44.
+- **2026-08-19** — Orchestrator session ended. Prompts written for Phase 43, Phase 44 (hover row gap),
+  Task 11, 15, 20, 21, Task 3 Prompt A/B. All queued as "not yet run".
+- **2026-08-19** — (New orchestrator session) Major tracker update: all "not yet run" prompts from
+  previous session were actually run and completed. Wiki audit confirms Phases 43–50 all ✅ Done.
+  Tasks 11, 15, 20, 21, Task 3 (all phases) marked ✅ Done. Phase 44 in the wiki is sidebar resize
+  (not hover row gap — those sessions ran in a different order than the tracker expected). Hover row
+  gap confirmed still present by user; queued as Phase 51 with new prompt. Task 13 description and
+  prompt fully updated with new requirements: Rename | Delete | Share | Pin menu items + collapsible
+  Pinned and Recents sections with chevron arrows + localStorage persistence for collapse state.
+  Sequencing summary rewritten to reflect current reality. Tasks 20 and 21 given proper sections.

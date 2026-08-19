@@ -17,6 +17,7 @@ import {
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
+import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 
 export const ConversationHeader: React.FC = () => {
   const {
@@ -27,6 +28,7 @@ export const ConversationHeader: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -80,6 +82,12 @@ export const ConversationHeader: React.FC = () => {
 
   const handleDelete = () => {
     setMenuOpen(false);
+    // Show confirmation before dispatching the irreversible delete event
+    setConfirmDeleteOpen(true);
+  };
+
+  const confirmDelete = () => {
+    setConfirmDeleteOpen(false);
     // Dispatch the existing clear/delete event that Chat.tsx listens to
     window.dispatchEvent(new Event('deleteConversation'));
   };
@@ -239,6 +247,24 @@ export const ConversationHeader: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        isOpen={confirmDeleteOpen}
+        title="Delete conversation?"
+        message={
+          <>
+            Are you sure you want to delete{' '}
+            <strong style={{ color: 'var(--text-primary)' }}>
+              {title}
+            </strong>
+            ? This cannot be undone.
+          </>
+        }
+        confirmLabel="Delete"
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmDeleteOpen(false)}
+      />
     </div>
   );
 };

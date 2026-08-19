@@ -181,7 +181,18 @@ components/NewUI/
     SidebarHeader.tsx        ← wordmark ✳ + collapse + search buttons (48px)
     SidebarNavItem.tsx       ← REUSABLE nav row (icon + label + rest/hover/active/focus states)
     SidebarSection.tsx       ← REUSABLE section heading ("Pinned", "Recents") with optional right slot
-    ConversationRow.tsx      ← REUSABLE recent chat row with hover ⋯ menu (rename/delete)
+                               Props: label, rightSlot?, className?, isCollapsible?, storageKey?, children?
+                               Collapsible (Phase 51): isCollapsible adds a chevron toggle on the heading row;
+                               storageKey persists collapsed state to localStorage ("true"=collapsed).
+                               Children rendered inside a collapsible body (max-height:0/2000px, 200ms ease-out,
+                               motion-safe: gated per wiki §9 rule 17). Non-collapsible usages with no children
+                               are backward-compatible — they render only the heading row as before.
+    ConversationRow.tsx      ← REUSABLE recent chat row with hover ⋯ menu (rename/pin/share/delete)
+                               Phase 51: added Pin/Unpin (IconPin/IconPinnedOff, toggles conversation.data.pinned
+                               via handleUpdateConversation; checks both data.pinned and legacy top-level cast)
+                               and Share (IconShare, clicks #shareChatUpper after onSelect() — identical to
+                               ConversationHeader.tsx share mechanism). Divider separates destructive Delete.
+                               TODO: add `pinned?: boolean` to Conversation type in types/chat.ts.
     AccountMenu.tsx          ← bottom account row + upward popover (settings, theme, logout, switch UI)
     SettingsModal.tsx        ← overlay wrapper for existing SettingDialog
   home/
@@ -401,6 +412,14 @@ components/NewUI/
     SegmentedControl.tsx     ← REUSABLE segmented tab control (size: sm=sidebar, xs=composer)
     IconButton.tsx           ← REUSABLE 28×28/32×32 icon button with hover ring
     Badge.tsx                ← REUSABLE "Labs"-style pill badge
+    ConfirmDialog.tsx        ← REUSABLE confirmation modal for destructive actions (Phase 52)
+                               Props: isOpen, title, message (ReactNode), confirmLabel?, cancelLabel?,
+                                      onConfirm, onCancel, variant? ('danger'|'warning'|'neutral')
+                               variant='danger' (default) → red confirm button.
+                               Portalled to document.body. Focus trap, Escape cancels, backdrop-click
+                               cancels. Cancel button is focused on open (user must intentionally confirm).
+                               Used by: ConversationRow (chat delete), ConversationHeader (header delete),
+                                        NewAssistantsView LayeredAssistantsTab (assistant delete).
     relativeTimestamp.ts     ← REUSABLE (Phase 28). `formatRelativeTime(iso, now?)` implements
                                chat-pane-migration-spec.md §2.4's ladder: <60s "just now", <60m "{n}m",
                                <24h "{n} hours ago", <7d weekday name, <1yr "Mon D", else "Mon D, YYYY".
@@ -708,8 +727,8 @@ Visual changes allowed:
 
 ### Phase 2 — New Sidebar ✅ COMPLETE
 - [x] `SidebarNavItem.tsx` — reusable nav row (icon + label, active/hover/focus states)
-- [x] `SidebarSection.tsx` — section heading (Pinned, Recents)
-- [x] `ConversationRow.tsx` — recent chat with hover ⋯ menu (rename/delete)
+- [x] `SidebarSection.tsx` — section heading (Pinned, Recents); Phase 51: collapsible with localStorage persistence
+- [x] `ConversationRow.tsx` — recent chat with hover ⋯ menu (rename/delete); Phase 51: +Pin/Unpin +Share
 - [x] `AccountMenu.tsx` — bottom row + upward popover (settings, theme toggle, logout)
 - [x] `SettingsModal.tsx` — wraps existing `SettingDialog` in a new overlay
 - [x] `NewSidebar.tsx` — full sidebar: header, nav, recents (time-bucketed: Today/Yesterday/Previous 30 days), account footer
@@ -2884,6 +2903,60 @@ Token-first change: every interactive accent in the new UI is now Majk blue. No 
 - [x] **`NEW_UI_DOCS.md` Section 4.2 token table** updated with new `--accent` values and `--accent-fg` row.
 - [x] **`NEW_UI_WIKI_INSTRUCTIONS.md` Section 9** — new standing rule added locking in blue as the accent color for all future sessions.
 - [x] **`NEW_UI_PORTING_STATUS.md`** — m1 contrast note updated (old orange/brown contrast issue is resolved with blue + white).
+
+### Phase 51 — Sidebar Three-Dot Menu Upgrade + Collapsible Pinned/Recents ✅ COMPLETE
+
+**Changed files:** `components/NewUI/sidebar/ConversationRow.tsx`, `components/NewUI/sidebar/SidebarSection.tsx`, `components/NewUI/sidebar/NewSidebar.tsx`
+
+- [x] **`ConversationRow.tsx` — upgraded three-dot menu:**
+  - Added **Pin/Unpin** item (between Rename and Share). Uses `IconPin` / `IconPinnedOff` (14px). Reads `isPinned` from `conversation.data?.pinned || (conversation as any).pinned` (dual check for backward compat). Writes to `conversation.data.pinned` via `handleUpdateConversation(conversation, { key: 'data', value: { ...conversation.data, pinned: !isPinned } })` — triggers remote sync pipeline. TODO comment left to add `pinned?: boolean` to `Conversation` type in `types/chat.ts`.
+  - Added **Share** item (between Pin/Unpin and Delete). Uses `IconShare` (14px). Calls `onSelect()` then `setTimeout(() => document.getElementById('shareChatUpper')?.click(), 50)` — identical to `ConversationHeader.tsx handleShare`. The 50ms delay lets the chat view mount before the share button is sought.
+  - Added a `<div className="h-px bg-[--border-subtle] mx-2 my-1" />` divider before Delete to visually separate the destructive action.
+  - Imported `handleUpdateConversation` from `HomeContext` (was missing before — context was imported but not destructured).
+  - Delete item now has red color (`text-red-400 hover:text-red-300`) for visual distinction.
+  - Rename stays conditionally rendered (only when `onRename` prop is provided).
+
+- [x] **`SidebarSection.tsx` — collapsible section support:**
+  - New props: `isCollapsible?: boolean`, `storageKey?: string`, `children?: React.ReactNode`.
+  - When `isCollapsible`: heading row gets `cursor-pointer`, `role="button"`, `aria-expanded`, `aria-label`, `tabIndex={0}`, keyboard handler (Enter/Space).
+  - Chevron: `IconChevronDown` when expanded, `IconChevronRight` when collapsed (14px, `--text-muted`).
+  - `rightSlot` container stops click propagation when collapsible (prevents sort/view icon clicks from toggling collapse).
+  - Children body: `overflow-hidden`, `max-height: 0px / 2000px`, transition via `motion-safe:transition-[max-height] motion-safe:duration-200 motion-safe:ease-out` (Tailwind JIT — maps to `@media (prefers-reduced-motion: no-preference)` per wiki §9 rule 17).
+  - Non-collapsible usages with no children are **fully backward-compatible**.
+
+- [x] **`NewSidebar.tsx` — Pinned section + collapsible Recents:**
+  - Pin filter updated: `isPinnedConv = (c) => !!(c.data?.pinned) || !!(c as any).pinned` — checks both new `data.pinned` storage and legacy top-level cast.
+  - Pinned section: replaced `<div className="group">` + manual `<SidebarSection label="Pinned" />` header with `<SidebarSection label="Pinned" isCollapsible storageKey="amplify_sidebar_pinned_collapsed">`. Children passed directly.
+  - Recents section: replaced custom `<div>` heading with `<SidebarSection label="Recents" isCollapsible storageKey="amplify_sidebar_recents_collapsed" rightSlot={...}>`. All recents content (skeleton, Today/Yesterday/Previous groups, empty state) is now passed as children — collapsed in one gesture.
+  - `rightSlot` for Recents wraps the sort + view-all `IconButton`s in a div; `SidebarSection`'s rightSlot handler stops propagation so these buttons don't accidentally toggle the section.
+
+### Phase 52 — Delete Confirmation Dialog + Hover Bug Fix ✅ COMPLETE
+
+**Changed files:** `components/NewUI/shared/ConfirmDialog.tsx` (new), `components/NewUI/sidebar/ConversationRow.tsx`, `components/NewUI/chat/ConversationHeader.tsx`, `components/NewUI/views/NewAssistantsView.tsx`
+
+- [x] **New `ConfirmDialog.tsx`** — reusable confirmation modal (registered in Component Registry §5):
+  - `variant='danger'` (default): red confirm button (`bg-red-500 hover:bg-red-600`)
+  - `variant='warning'`: amber; `variant='neutral'`: `--accent` blue
+  - Portalled to `document.body` via `ReactDOM.createPortal` (never clipped by overflow ancestors)
+  - Focus trap (Tab/Shift-Tab), Escape cancels (capture phase, won't conflict with other Escape handlers), backdrop mousedown cancels
+  - Cancel button receives focus on open — user must consciously move to the red button to confirm
+  - `aria-modal="true"`, `aria-labelledby` on the panel per wiki §9 rule 12
+
+- [x] **`ConversationRow.tsx` — delete now requires confirmation:**
+  - Clicking "Delete" in the three-dot menu sets `confirmDeleteOpen: true` instead of calling `onDelete()` immediately
+  - `ConfirmDialog` rendered inside the component; `onConfirm` calls `onDelete()` then closes
+
+- [x] **`ConversationRow.tsx` — hover highlight bug fixed:**
+  - Removed `hover:bg-[--bg-raised]` from the dots (⋯) button's className
+  - Root cause: when hovering an unselected row, the row button shows `--bg-hover` and the gradient overlay fades to `--bg-hover`. The dots button's `hover:bg-[--bg-raised]` added a THIRD, visually conflicting background on top of the gradient area. Removing it means only the icon color changes on hover (`text-[--text-muted]` → `text-[--text-primary]`), which is clean and sufficient affordance.
+
+- [x] **`ConversationHeader.tsx` — header title-dropdown Delete now requires confirmation:**
+  - `handleDelete` now sets `confirmDeleteOpen: true`; new `confirmDelete` fires the actual `window.dispatchEvent(new Event('deleteConversation'))`
+
+- [x] **`NewAssistantsView.tsx` (LayeredAssistantsTab) — layered-assistant delete now requires confirmation:**
+  - `confirmDeleteLA` state stores the `LayeredAssistant` pending deletion (null = dialog closed)
+  - `onDelete` in `AssistantRow` calls `setConfirmDeleteLA(la)` instead of `handleDelete(la)` directly
+  - `ConfirmDialog` `onConfirm` calls `handleDelete(confirmDeleteLA)` then clears state
 
 ### Phase 19 — Remaining Port Work (NEXT)
 - [x] Responsive: icon rail at 760-1099px ✅ resolved

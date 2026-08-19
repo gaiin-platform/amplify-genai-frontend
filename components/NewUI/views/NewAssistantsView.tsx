@@ -36,6 +36,7 @@ import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';
 import { NewAssistantTypeSelector } from './NewAssistantTypeSelector';
 import { AstPathData } from '@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor';
+import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1091,6 +1092,7 @@ const LayeredAssistantsTab: React.FC = () => {
 
     const [search, setSearch] = useState('');
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [confirmDeleteLA, setConfirmDeleteLA] = useState<LayeredAssistant | null>(null);
 
     const filtered = useMemo(() => {
         if (!search.trim()) return layeredAssistants;
@@ -1233,13 +1235,35 @@ const LayeredAssistantsTab: React.FC = () => {
                             }}
                             onDelete={(e) => {
                                 e.stopPropagation();
-                                handleDelete(la);
+                                setConfirmDeleteLA(la);
                             }}
                             isDeleting={deletingId === la.assistantId}
                         />
                     ))
                 )}
             </div>
+
+            {/* Delete confirmation dialog for layered assistants */}
+            <ConfirmDialog
+                isOpen={!!confirmDeleteLA}
+                title="Delete assistant?"
+                message={
+                    <>
+                        Are you sure you want to delete{' '}
+                        <strong style={{ color: 'var(--text-primary)' }}>
+                            {confirmDeleteLA?.name ?? 'this assistant'}
+                        </strong>
+                        ? This cannot be undone.
+                    </>
+                }
+                confirmLabel="Delete"
+                onConfirm={() => {
+                    const la = confirmDeleteLA;
+                    setConfirmDeleteLA(null);
+                    if (la) handleDelete(la);
+                }}
+                onCancel={() => setConfirmDeleteLA(null)}
+            />
         </div>
     );
 };
