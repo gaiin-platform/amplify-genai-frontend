@@ -108,6 +108,7 @@ import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
 import { UIPreferenceBanner, getUIPreference, type UIPreference } from '@/components/NewUI/UIPreferenceBanner';
 import { NewAssistantsView } from '@/components/NewUI/views/NewAssistantsView';
 import { NewScheduledTasksView } from '@/components/NewUI/views/NewScheduledTasksView';
+import { NewWorkflowsView } from '@/components/NewUI/views/NewWorkflowsView';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -1722,6 +1723,9 @@ const Home = ({
                                     )}
                                     {(page as any) === 'scheduledTasks' && featureFlags.scheduledTasks && (
                                         <NewScheduledTasksView />
+                                    )}
+                                    {(page as any) === 'workflows' && (
+                                        <NewWorkflowsView />
                                     )}
                                     {page === 'notebook' && featureFlags.notebook && (
                                         <NotebookApp />

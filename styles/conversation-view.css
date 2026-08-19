@@ -2436,3 +2436,102 @@
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Workflows view — inner builder overrides
+   Scope: [data-new-ui="true"] .new-ui-workflow-editor-modal
+   ───────────────────────────────────────────────────────────────────────────
+   AssistantWorkflowBuilder wraps its content in <Modal> from ReusableComponents.
+   That Modal renders a .modal-overlay (position:fixed, bg dark, z-50) and
+   a .modal-content panel inside it. We apply new-UI design tokens here so
+   the builder looks on-brand without touching the original component.
+
+   Light-mode gotcha (see NEW_UI_DOCS.md §13): old components often rely on
+   an inherited dark:text-white base. The wrapper div in NewWorkflowsView.tsx
+   has className="text-neutral-900 dark:text-white" to supply that inherited
+   base color — the rules below add extra coverage for specific patterns.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Root container — make sure text is readable in both modes */
+[data-new-ui="true"] .new-ui-workflow-editor-modal {
+  color: var(--text-primary);
+}
+
+/* Backdrop: use new-UI style (blurred, semi-opaque) */
+[data-new-ui="true"] .new-ui-workflow-editor-modal .modal-overlay {
+  background: rgba(0, 0, 0, 0.6) !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+/* Modal content panel: use new-UI surface tokens */
+[data-new-ui="true"] .new-ui-workflow-editor-modal .modal-content {
+  background: var(--bg-raised) !important;
+  border-color: var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+  border-radius: 16px !important;
+}
+
+/* Modal title */
+[data-new-ui="true"] .new-ui-workflow-editor-modal #modalTitle {
+  color: var(--text-primary) !important;
+  font-family: Inter, ui-sans-serif, sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+
+/* Scrollable body */
+[data-new-ui="true"] .new-ui-workflow-editor-modal #modalScroll {
+  color: var(--text-primary) !important;
+}
+
+/* Light-mode text fix — elements with only dark:text-* (no light fallback) */
+[data-new-ui="true"] .new-ui-workflow-editor-modal .text-black,
+[data-new-ui="true"] .new-ui-workflow-editor-modal .text-neutral-800 {
+  color: var(--text-primary) !important;
+}
+
+[data-new-ui="true"] .new-ui-workflow-editor-modal .text-neutral-600,
+[data-new-ui="true"] .new-ui-workflow-editor-modal .text-gray-600 {
+  color: var(--text-secondary) !important;
+}
+
+[data-new-ui="true"] .new-ui-workflow-editor-modal .text-neutral-500,
+[data-new-ui="true"] .new-ui-workflow-editor-modal .text-gray-500 {
+  color: var(--text-muted) !important;
+}
+
+/* Builder left sidebar border + bg */
+[data-new-ui="true"] .new-ui-workflow-editor-modal .border-neutral-300,
+[data-new-ui="true"] .new-ui-workflow-editor-modal .dark\:border-neutral-700 {
+  border-color: var(--border-subtle) !important;
+}
+
+/* Step rows */
+[data-new-ui="true"] .new-ui-workflow-editor-modal .bg-white,
+[data-new-ui="true"] .new-ui-workflow-editor-modal .dark\:bg-\[#343541\] {
+  background-color: var(--bg-app) !important;
+}
+
+/* Footer buttons */
+[data-new-ui="true"] .new-ui-workflow-editor-modal .modal-content #confirmationButton {
+  background-color: var(--bg-app) !important;
+  border-color: var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+  border-radius: 8px !important;
+  font-family: Inter, ui-sans-serif, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  box-shadow: none !important;
+}
+
+[data-new-ui="true"] .new-ui-workflow-editor-modal .modal-content #confirmationButton:hover:not(:disabled) {
+  background-color: var(--bg-hover) !important;
+  transform: none !important;
+}
+
+/* prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  [data-new-ui="true"] .new-ui-workflow-editor-modal .modal-content #confirmationButton {
+    transition: none !important;
+  }
+}
+

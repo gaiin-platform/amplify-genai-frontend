@@ -27,6 +27,7 @@ import {
   IconBooks,
   IconAdjustments,
   IconLayoutSidebarLeftExpand,
+  IconPuzzle,
 } from '@tabler/icons-react';
 
 import HomeContext from '@/pages/api/home/home.context';
@@ -391,6 +392,12 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
       // Opens settings modal to the Skills section (per spec)
       action: () => setSettingsSection('skills'),
     },
+    ...(featureFlags.createAssistantWorkflows ? [{
+      icon: <IconPuzzle size={18} />,
+      label: 'Workflows',
+      id: 'workflows',
+      action: () => dispatch({ field: 'page', value: 'workflows' as any }),
+    }] : []),
     ...(featureFlags.notebook ? [{
       icon: <IconLayoutGridAdd size={18} />,
       label: 'Notebook',
@@ -415,6 +422,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     : page === 'notebook' ? 'notebook'
     : (page as any) === 'chats' ? 'chats'
     : (page as any) === 'scheduledTasks' ? 'scheduled'
+    : (page as any) === 'workflows' ? 'workflows'
     : null; // home/chat view — nothing highlighted
 
   const renderConversationGroup = (convs: Conversation[], label?: string) => {
@@ -506,6 +514,14 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
             'Scheduled',
             <IconClock size={18} />,
             currentNavId === 'scheduled',
+          )}
+
+          {/* Workflows */}
+          {featureFlags.createAssistantWorkflows && iconBtn(
+            () => dispatch({ field: 'page', value: 'workflows' as any }),
+            'Workflows',
+            <IconPuzzle size={18} />,
+            currentNavId === 'workflows',
           )}
 
           {/* Spacer — pushes account to bottom */}

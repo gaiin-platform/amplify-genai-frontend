@@ -276,6 +276,27 @@ components/NewUI/
                                with no `message.timestamp` (older persisted history predating the field) rather
                                than fabricating a value. (Timestamp helper itself lives in shared/ — see below.)
   views/
+    NewWorkflowsView.tsx      ← full-pane new-UI view for Assistant Workflow Templates. page='workflows'
+                               (gated by featureFlags.createAssistantWorkflows for CRUD; read-only browse
+                               mode shown to all users when flag is false).
+                               Layout: 52px top bar (back + "Workflows" + "New Workflow" button) |
+                               340px left list pane (search, skeleton, template cards, empty states) |
+                               flex-1 right detail pane (template name/desc/inputs/steps OR empty state).
+                               Template cards: name, 1-line description, step-count badge, base-template +
+                               public badges. Hover shows edit (pencil) + delete (trash) icons (feature-
+                               flagged). Delete uses an inline confirm dialog before calling
+                               deleteAstWorkflowTemplate.
+                               Detail pane: read-only sections for Inputs (from inputSchema.properties)
+                               and Steps (numbered, collapsible, shows tool code badge + instructions).
+                               "Edit Workflow" button at bottom of detail pane triggers the builder.
+                               Editor: renders <AssistantWorkflowBuilder isOpen={showEditor} .../> wrapped
+                               in a <div className="new-ui-workflow-editor-modal text-neutral-900 dark:text-white">
+                               so conversation-view.css can style the inner Modal without touching the
+                               builder component. See CSS section "Workflows view — inner builder overrides".
+                               Services: listAstWorkflowTemplates(true), deleteAstWorkflowTemplate (same
+                               as AssistantWorkflowBuilder — no changes to service layer).
+                               Port note: AssistantWorkflowBuilder is reused UNCHANGED. TODO: dedicated
+                               new-UI visual pass on the builder's internals in a future phase.
     NewScheduledTasksView.tsx ← full-pane new-UI reimplementation of the old ScheduledTasks modal. page='scheduledTasks'
                                (gated by featureFlags.scheduledTasks). Replaces the lazy-loaded+portal
                                old ScheduledTasks modal that used to render from NewSidebar.
@@ -2784,6 +2805,49 @@ no DOM test environment (`vitest.config.ts` is `environment: 'node'`; no `jsdom`
 hover/flip behaviour was reasoned through against the Floating UI 0.19.2 source rather than observed. If
 you can run the app, the two things worth eyeballing are (a) the card flipping to the left of the
 submenu when the window is narrow, and (b) the Skills submenu checkboxes still not closing the menu.
+
+### Phase 49 — Workflow Templates Full-Pane View ✅ COMPLETE
+
+Surfaces Assistant Workflow Templates as a first-class sidebar section and full-pane view in the
+new UI. Previously only accessible via `ChatbarSettings.tsx` "Assistant Workflows" button in the
+classic UI.
+
+- [x] **`NewWorkflowsView.tsx`** (`components/NewUI/views/`) — new full-pane view. Follows the
+  exact two-pane layout of `NewScheduledTasksView.tsx`:
+  - 52px sticky top bar: back chevron (→ chat) + "Workflows" title + "New Workflow" button
+    (only shown when `featureFlags.createAssistantWorkflows` is true; read-only browse mode
+    when false)
+  - 340px left list pane: search bar (filters name/description), skeleton cards while loading
+    (`listAstWorkflowTemplates(true)`), template cards (name, 1-line desc, step-count badge,
+    base-template badge, public badge), hover edit/delete icons (feature-flagged), confirm
+    dialog before delete, empty states for filtered vs. no-templates vs. flag-off
+  - flex-1 right detail pane: empty state with `IconPuzzle` when nothing selected; read-only
+    detail view showing name, description, badge pills, Inputs table (from `inputSchema.properties`),
+    Steps list (numbered collapsible cards: description, `<code>` tool badge, expandable instructions);
+    "Edit Workflow" button at bottom (feature-flagged)
+  - AssistantWorkflowBuilder integration: `<div className="new-ui-workflow-editor-modal text-neutral-900 dark:text-white"><AssistantWorkflowBuilder isOpen={showEditor} .../></div>` —
+    the builder's own full-screen Modal is kept as-is; the wrapper class enables scoped CSS
+    overrides (see below). `onRegister` refreshes the list and selects the new template.
+- [x] **`NewSidebar.tsx`** — added `IconPuzzle` import; added Workflows nav entry gated by
+  `featureFlags.createAssistantWorkflows` (after Customize, before Notebook/Scheduled) in both
+  the expanded nav array and the collapsed icon rail; updated `currentNavId` mapping to highlight
+  'workflows' when `(page as any) === 'workflows'`.
+- [x] **`home.tsx`** — added `import { NewWorkflowsView }` and render case
+  `{(page as any) === 'workflows' && (<NewWorkflowsView />)}` matching the `scheduledTasks` precedent.
+- [x] **`conversation-view.css`** — added `/* Workflows view — inner builder overrides */` block
+  scoped to `[data-new-ui="true"] .new-ui-workflow-editor-modal`:
+  - backdrop: `background: rgba(0,0,0,0.6) + backdrop-filter: blur(4px)` (new-UI style)
+  - `.modal-content`: `background: var(--bg-raised)`, `border-color: var(--border-subtle)`,
+    `color: var(--text-primary)`, `border-radius: 16px`
+  - Text overrides for light-mode gotcha: `.text-black/.text-neutral-800/-.600/-.500` mapped to
+    respective `--text-*` vars; `.border-neutral-300` → `--border-subtle`; `.bg-white` → `--bg-app`
+  - Modal footer buttons: new-UI token styling
+  - `@media (prefers-reduced-motion: reduce)` gated for button transitions
+- [x] **`NEW_UI_DOCS.md`** registry updated (Section 5, `NewWorkflowsView.tsx`).
+- [x] **`NEW_UI_PORTING_STATUS.md`** — workflow builder row updated to ✅.
+- [ ] **TODO (future phase)**: dedicated new-UI visual pass on `AssistantWorkflowBuilder`'s internal
+  components (step cards, tool selector, visual builder, AI generator modal) — currently the builder
+  renders in its original old-UI styling inside the new-UI backdrop.
 
 ### Phase 19 — Remaining Port Work (NEXT)
 - [x] Responsive: icon rail at 760-1099px ✅ resolved

@@ -166,7 +166,7 @@
 | Clear all conversations | 🚫 | **Intentionally removed** — not included in new UI (see §8) |
 | User cost breakdown | ❌ | `UserCostBreakdownModal`; **requires backend work before UI can be built** — deferred as a backend TODO after the UI rework is complete (see §8) |
 | Python function modal | ❌ | `PythonFunctionModal`; not surfaced |
-| Workflow builder | ❌ | `AssistantWorkflowBuilder`; not surfaced |
+| Workflow builder | ✅ | `NewWorkflowsView.tsx` — full-pane view (`page='workflows'`) with left template list, right read-only detail, and `AssistantWorkflowBuilder` opened for create/edit (feature-gated by `featureFlags.createAssistantWorkflows`). Reuses original builder unchanged for CRUD logic. Sidebar nav entry (Workflows, `IconPuzzle`) added. CSS overrides in `conversation-view.css` (.new-ui-workflow-editor-modal) ensure readable text in both modes. TODO: dedicated new-UI styling pass on builder internals in a future phase. |
 | Market / template marketplace | ❌ | `Market` components; not reviewed |
 | Memory dialog | ❌ | `MemoryDialog`; not surfaced |
 | Share anything modal | 🚧 | Triggered by share button in `ConversationHeader`; modal is old UI |
