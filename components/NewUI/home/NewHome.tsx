@@ -17,7 +17,7 @@
  *   - Trigger shows "[Model] [Effort] ⌄"
  *   - Expanded state: Opus/Sonnet/Haiku + Effort › + More models ›
  *
- * Send button: 32×32, radius 8px, --accent bg, dark glyph #2A1710
+ * Send button: 32×32, radius 8px, --accent bg, white glyph var(--accent-fg)
  */
 import React, { useContext, useRef, useState, useCallback, useEffect } from 'react';
 import Image from 'next/image';
@@ -402,7 +402,7 @@ export const NewHome: React.FC = () => {
                   className="absolute inset-0 flex items-center justify-center rounded-[8px] transition-all duration-[120ms]"
                   style={{
                     background: 'var(--accent)',
-                    color: '#2A1710',
+                    color: 'var(--accent-fg)',
                     opacity: canSend ? 1 : 0,
                     pointerEvents: canSend ? 'auto' : 'none',
                     cursor: 'pointer',

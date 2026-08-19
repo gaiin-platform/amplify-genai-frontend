@@ -203,11 +203,11 @@
   background: transparent;
 }
 [data-new-ui="true"] .chatcontainer::-webkit-scrollbar-thumb {
-  background-color: var(--border-subtle);
+  background-color: #93c5fd; /* blue-300 — softened blue, clearly branded but unobtrusive */
   border-radius: 2px;
 }
 [data-new-ui="true"] .chatcontainer::-webkit-scrollbar-thumb:hover {
-  background-color: var(--text-muted);
+  background-color: #60a5fa; /* blue-400 — stronger on hover */
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -1040,7 +1040,7 @@
 }
 
 [data-new-ui="true"] ::-webkit-scrollbar-thumb {
-  background-color: var(--border-subtle) !important;
+  background-color: #93c5fd !important; /* blue-300 — matches chatcontainer thumb */
   border-radius: 2px !important;
 }
 

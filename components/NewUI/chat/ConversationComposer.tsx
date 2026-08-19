@@ -985,7 +985,7 @@ export const ConversationComposer: React.FC = () => {
                   className="absolute inset-0 flex items-center justify-center rounded-[8px] transition-all duration-[120ms]"
                   style={{
                     background: 'var(--accent)',
-                    color: '#2A1710',
+                    color: 'var(--accent-fg)',
                     opacity: (!messageIsStreaming && canSend) ? 1 : 0,
                     pointerEvents: (!messageIsStreaming && canSend) ? 'auto' : 'none',
                     cursor: 'pointer',

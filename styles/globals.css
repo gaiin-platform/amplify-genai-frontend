@@ -28,8 +28,10 @@
   --text-secondary: #555555;
   --text-muted:     #6E6E6E;
 
-  /* Accent — Amplify orange (appears sparingly: wordmark ✳, greeting ✳) */
-  --accent: #D97757;
+  /* Accent — Amplify blue — matches Majk primary (#3b82f6 light / #006FEE dark).
+     Use var(--accent-fg) for text/icons on accent backgrounds. */
+  --accent:    #3b82f6;
+  --accent-fg: #ffffff;
 
   /* Geometry */
   --radius-row:    8px;
@@ -55,7 +57,8 @@
   --text-secondary: #C2C0B6;
   --text-muted:     #9E9C96;
 
-  --accent: #D97757;
+  --accent:    #006FEE;
+  --accent-fg: #ffffff;
 }
 
 /* ── Attachment card: upload spinner ── */
@@ -748,4 +751,33 @@ pre:has(div.codeblock) {
 .dark .notebook-app ::-webkit-scrollbar-thumb:hover,
 [data-chat-palette].dark .notebook-app ::-webkit-scrollbar-thumb:hover {
   background-color: #6b7280;
+}
+
+/* ── New UI shell: override any chat-palette scrollbar color with Majk blue ──
+   [data-new-ui-shell] is set on the root new-UI layout div in home.tsx.
+   It covers the sidebar, chat container, settings panes, and all other new-UI
+   scrollable areas. Placed AFTER all [data-chat-palette] palette overrides so
+   it wins on source order AND uses !important to beat non-!important palette
+   rules at equal specificity. Both belts and suspenders — palette rule and
+   source-order cannot win simultaneously against this rule. */
+[data-new-ui-shell="true"] ::-webkit-scrollbar-thumb {
+  background-color: #93c5fd !important; /* blue-300 — branded but unobtrusive */
+  border-radius: 10px !important;
+}
+[data-new-ui-shell="true"] ::-webkit-scrollbar-thumb:hover {
+  background-color: #60a5fa !important; /* blue-400 — stronger on hover */
+}
+/* Dark mode: use a slightly richer blue (still readable on dark surfaces) */
+.dark [data-new-ui-shell="true"] ::-webkit-scrollbar-thumb {
+  background-color: #3b82f6 !important; /* blue-500 — visible on dark --bg-sidebar */
+}
+.dark [data-new-ui-shell="true"] ::-webkit-scrollbar-thumb:hover {
+  background-color: #60a5fa !important; /* blue-400 */
+}
+/* Firefox scrollbar-color support */
+[data-new-ui-shell="true"] * {
+  scrollbar-color: #93c5fd transparent;
+}
+.dark [data-new-ui-shell="true"] * {
+  scrollbar-color: #3b82f6 transparent;
 }

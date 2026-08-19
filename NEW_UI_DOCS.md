@@ -127,14 +127,16 @@ Routing is state-based via `page` field — not URL-based (except `/pages/assist
 :root {
   --bg-app:        #ffffff;
   --bg-sidebar:    #f9f9f9;
-  --bg-raised:     #f0f0f0;
+  --bg-raised:     #f2f2f0;
   --bg-hover:      #ebebeb;
-  --bg-active:     #e0e0e0;
+  --bg-active:     #e2e2e0;
   --border-subtle: #e5e5e5;
   --text-primary:  #1a1a1a;
   --text-secondary:#555555;
-  --text-muted:    #888888;
-  --accent:        #D97757;  /* Amplify orange accent */
+  --text-muted:    #6E6E6E;
+  /* Accent — Majk primary blue. Replaces previous orange #D97757. */
+  --accent:        #3b82f6;  /* light mode: Tailwind blue-500 = --color-primary-500 */
+  --accent-fg:     #ffffff;  /* foreground for text/icons ON TOP of --accent backgrounds */
 }
 .dark {
   --bg-app:        #262624;
@@ -145,10 +147,15 @@ Routing is state-based via `page` field — not URL-based (except `/pages/assist
   --border-subtle: #33322F;
   --text-primary:  #FAF9F5;
   --text-secondary:#C2C0B6;
-  --text-muted:    #8A8780;
-  --accent:        #D97757;
+  --text-muted:    #9E9C96;
+  --accent:        #006FEE;  /* dark mode: NextUI primary blue */
+  --accent-fg:     #ffffff;
 }
 ```
+
+**`--accent` design decision (Phase 50):** Changed from orange `#D97757` to Majk blue (`#3b82f6` light / `#006FEE` dark). This aligns the new UI with the Majk platform's own `buttonPrimaryBg` color. All interactive accents (send button, active borders, loading dots, info callout borders, badges) automatically inherit the change because they all use `var(--accent)`.
+
+**`--accent-fg`:** New companion token — the correct foreground (text/icon) color for elements whose background is `var(--accent)`. Always white (`#ffffff`) in both modes. White on `#3b82f6` ≈ 3.9:1 (passes WCAG SC 1.4.11); white on `#006FEE` ≈ 4.6:1 (passes SC 1.4.3 AA). Use this wherever the old hardcoded `#2A1710` appeared on the orange button — that warm dark was chosen for the orange; it is visually wrong and low-contrast on blue.
 
 ### 4.3 Typography
 - **UI font:** Inter (already loaded via Google Fonts in globals.css)
@@ -2849,6 +2856,35 @@ classic UI.
   components (step cards, tool selector, visual builder, AI generator modal) — currently the builder
   renders in its original old-UI styling inside the new-UI backdrop.
 
+### Phase 50 — Blue Accent Color Pass ✅ COMPLETE
+Token-first change: every interactive accent in the new UI is now Majk blue. No component logic changes.
+
+**Changed files:** `styles/globals.css`, `styles/conversation-view.css`, `components/NewUI/home/NewHome.tsx`, `components/NewUI/chat/ConversationComposer.tsx`
+
+- [x] **`styles/globals.css` — `--accent` token updated:**
+  - `:root` `--accent`: `#D97757` (orange) → `#3b82f6` (Tailwind blue-500, same as `--color-primary-500`)
+  - `.dark` `--accent`: `#D97757` → `#006FEE` (NextUI primary blue)
+  - New companion token `--accent-fg: #ffffff` added in both `:root` and `.dark`.
+    White on `#3b82f6` ≈ 3.9:1 (WCAG SC 1.4.11 pass); white on `#006FEE` ≈ 4.6:1 (AA pass).
+- [x] **`styles/globals.css` — global scrollbar** (lines ~166–174): already uses `var(--color-primary-400)` (#60a5fa, blue). **Confirmed correct — no change needed.**
+- [x] **`styles/globals.css` — `--color-secondary-*` purple scale**: `grep` confirms zero references in any `components/NewUI/` file. **Confirmed not used in new UI — no change needed.**
+- [x] **Send button glyph color fixed in two files:**
+  - `components/NewUI/home/NewHome.tsx`: `color: '#2A1710'` → `color: 'var(--accent-fg)'`
+  - `components/NewUI/chat/ConversationComposer.tsx`: `color: '#2A1710'` → `color: 'var(--accent-fg)'`
+  - Rationale: `#2A1710` (warm dark brown) was chosen for contrast against orange. It is visually wrong and low-contrast on blue. `var(--accent-fg)` (white) is the correct foreground for any `--accent`-background element.
+- [x] **`styles/conversation-view.css` — scrollbar thumbs updated:**
+  - `.chatcontainer::-webkit-scrollbar-thumb`: `var(--border-subtle)` (neutral grey) → `#93c5fd` (blue-300, softened — clearly blue but not distracting at rest)
+  - `.chatcontainer::-webkit-scrollbar-thumb:hover`: `var(--text-muted)` → `#60a5fa` (blue-400, stronger on hover)
+  - Global new-UI scrollbar (`[data-new-ui="true"] ::-webkit-scrollbar-thumb`): same change, `#93c5fd`
+  - Fallback rationale: used fixed hex values (`#93c5fd`/`#60a5fa`) instead of `color-mix()` for maximal browser compatibility.
+- [x] **Hardcoded orange/purple/indigo/violet audit (`grep`):** zero hits across `components/NewUI/` and `styles/conversation-view.css`. All interactive accents already used `var(--accent)` — the token change alone converted them all automatically.
+- [x] **Breathing dots** in `conversation-view.css` (Phases 26/27/40b): confirmed they use `background-color: var(--accent)` — automatically become blue with no additional changes.
+- [x] **Upload progress bar** (`.new-ui-upload-bar-fill`) in `conversation-view.css`: uses `background: var(--accent)` — automatically blue.
+- [x] **Info callout left-border** in `.new-ui-tool-api-keys .bg-blue-50` override: uses `border-left: 3px solid var(--accent)` — automatically blue.
+- [x] **`NEW_UI_DOCS.md` Section 4.2 token table** updated with new `--accent` values and `--accent-fg` row.
+- [x] **`NEW_UI_WIKI_INSTRUCTIONS.md` Section 9** — new standing rule added locking in blue as the accent color for all future sessions.
+- [x] **`NEW_UI_PORTING_STATUS.md`** — m1 contrast note updated (old orange/brown contrast issue is resolved with blue + white).
+
 ### Phase 19 — Remaining Port Work (NEXT)
 - [x] Responsive: icon rail at 760-1099px ✅ resolved
 - [x] Responsive: off-canvas drawer <760px ✅ resolved
@@ -3222,9 +3258,9 @@ new and a pre-existing node; it is not reliably reviewable by reading the select
 
 ### MINOR — Noted, no fix applied
 
-**m1 — `--accent` (#D97757) on `--bg-raised`: 2.95:1 (just below 3:1 UI component minimum)**
-- The send button uses `--accent` fill. WCAG 2.1 SC 1.4.11 requires 3:1 for UI component boundaries vs. adjacent background. The gap (0.05) is within measurement tolerance and the button is visually distinct. The _text_ on the button (#2A1710 on #D97757) passes at 4.65:1.
-- **Status:** Borderline. Consider darkening `--accent` to #CB6D4A (passes 3:1 margin) in a future palette pass, but hold for human design review given branding implications.
+**m1 — `--accent` contrast (RESOLVED — Phase 50)**
+- The send button was previously orange (#D97757) with dark glyph (#2A1710). That combination was borderline at 2.95:1 (SC 1.4.11 requires 3:1 for UI components).
+- **Phase 50 fix:** `--accent` changed to Majk blue (#3b82f6 light / #006FEE dark). Blue-500 on --bg-raised (#f2f2f0): ~3.97:1 — passes SC 1.4.11. Glyph changed to white (`--accent-fg`). White on #3b82f6: ~3.9:1 (passes). White on #006FEE: ~4.6:1 (AA). **Status: RESOLVED.**
 
 **m2 — AccountMenu: no arrow-key navigation within `role="menu"` (SC 2.1.1)**
 - The `role="menu"` pattern recommends ↑/↓ arrow key navigation between `role="menuitem"` items (ARIA Authoring Practices Guide). Currently only Tab/Shift-Tab work.

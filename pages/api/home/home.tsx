@@ -1654,7 +1654,7 @@ const Home = ({
 
                         {/* ── NEW UI LAYOUT ── */}
                         {uiPreference === 'new' ? (
-                            <div className="flex h-full w-full overflow-hidden" style={{ fontFamily: 'Inter, sans-serif' }}>
+                            <div className="flex h-full w-full overflow-hidden" style={{ fontFamily: 'Inter, sans-serif' }} data-new-ui-shell="true">
                                 {/* Unified new sidebar */}
                                 {page !== 'notebook' && (
                                     <NewSidebar

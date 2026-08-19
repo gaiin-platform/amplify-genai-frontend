@@ -205,6 +205,22 @@ These rules are standing requirements for all future sessions:
 
 17. **Every CSS transition or animation MUST have a `@media (prefers-reduced-motion: reduce)` override.** For new animations, add the override in the same CSS block. The `@keyframes attachMenuEnter` and `modelPickerEnter` are defined in component `<style>` blocks and overridden in `conversation-view.css` — follow this pattern for any future inline `@keyframes`.
 
+18. **Standing Rule — Accent Color is Blue, Always (established Phase 50, 2026-08-19)**
+
+    The accent color for the new UI is the Majk blue:
+    - Light mode: `#3b82f6` (`--accent`, same as `--color-primary-500`)
+    - Dark mode:  `#006FEE` (`--accent`)
+
+    **NEVER** use orange (`#D97757` or any similar warm orange), purple, indigo, or violet as an interactive accent. Do not hardcode these hex values. Always use `var(--accent)` for:
+    - Primary action buttons (send, save, create, connect)
+    - Active/selected state borders and indicators
+    - Loading dots and breathing animations
+    - Info callout left borders
+    - Badge/pill backgrounds for primary states
+    - Upload progress bar fill
+
+    For text or icons placed **ON TOP OF** an `--accent` background, always use `var(--accent-fg)` (white `#ffffff` in both modes). **Never** use `#2A1710` or other warm darks on a blue background — that combination was chosen for orange and has insufficient contrast on blue.
+
 ---
 
 ## 9a. The One-Directory Rule (Critical)
