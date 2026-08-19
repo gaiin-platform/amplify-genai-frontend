@@ -39,6 +39,7 @@
 | UI preference banner (new vs classic) | ✅ | `UIPreferenceBanner.tsx` |
 | Off-canvas drawer <760px | ✅ | Resolved |
 | Responsive icon rail 760–1099px | ✅ | Resolved |
+| User-resizable sidebar width | ✅ | Drag handle on right edge; min 220px, max 480px, default 310px; persisted to `localStorage` key `amplify_sidebar_width`; collapsed 52px rail unaffected. See `NewSidebar.tsx` + NEW_UI_DOCS.md Phase 44. |
 
 ---
 

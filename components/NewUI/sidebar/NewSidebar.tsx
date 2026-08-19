@@ -55,6 +55,15 @@ import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
 // Pending-Message Bridge Pattern used by NewHome → ConversationViewShell.
 const PENDING_SCHEDULED_TASK_KEY = 'amplify_pending_scheduled_task';
 
+// ── Sidebar resize constants ──────────────────────────────────────────────
+// Drag handle on right edge lets users resize the sidebar between MIN and MAX.
+// Width is persisted to localStorage so it survives reloads.
+// Collapsed icon-rail mode (52px) ignores these values entirely.
+const SIDEBAR_MIN_WIDTH = 220;
+const SIDEBAR_MAX_WIDTH = 480;
+const SIDEBAR_DEFAULT_WIDTH = 310;
+const SIDEBAR_WIDTH_KEY = 'amplify_sidebar_width';
+
 interface NewSidebarProps {
   email?: string | null;
   name?: string | null;
@@ -204,6 +213,59 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
 
   const conversationsRef = useRef(conversations);
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
+
+  // ── Sidebar drag-resize ───────────────────────────────────────────────────
+  // sidebarWidth: committed React state — read from localStorage on mount,
+  // persisted to localStorage on mouseup. Collapsed mode ignores this entirely.
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    if (typeof window === 'undefined') return SIDEBAR_DEFAULT_WIDTH;
+    const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+    if (stored) {
+      const parsed = parseInt(stored, 10);
+      if (!isNaN(parsed)) {
+        return Math.min(Math.max(parsed, SIDEBAR_MIN_WIDTH), SIDEBAR_MAX_WIDTH);
+      }
+    }
+    return SIDEBAR_DEFAULT_WIDTH;
+  });
+  // displayWidthRef tracks the "live" width so that any React re-render triggered
+  // by other state changes (e.g. conversation list polling) during a drag applies
+  // the correct in-progress width via style.width instead of snapping back to the
+  // stale sidebarWidth state value.
+  const displayWidthRef = useRef(sidebarWidth);
+  // sidebarRef: direct handle to the sidebar DOM element for imperative width
+  // updates during drag — bypasses React state to avoid re-render per pixel.
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  // isHandleHovered: drives the subtle hover highlight on the drag handle
+  const [isHandleHovered, setIsHandleHovered] = useState(false);
+
+  const handleDragMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = displayWidthRef.current;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const newWidth = Math.min(
+        Math.max(startWidth + (moveEvent.clientX - startX), SIDEBAR_MIN_WIDTH),
+        SIDEBAR_MAX_WIDTH,
+      );
+      displayWidthRef.current = newWidth;
+      if (sidebarRef.current) {
+        sidebarRef.current.style.width = newWidth + 'px';
+      }
+    };
+
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      const finalWidth = displayWidthRef.current;
+      setSidebarWidth(finalWidth);
+      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(finalWidth));
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, []);
 
   // Listen for admin panel open event (dispatched by AccountMenu admin button)
   useEffect(() => {
@@ -472,13 +534,9 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
   return (
     <>
       <div
-        className={`
-          relative flex flex-col w-[310px] flex-shrink-0
-          bg-[--bg-sidebar] border-r border-[--border-subtle]
-          h-screen
-          transition-all duration-200
-        `}
-        style={{ fontFamily: 'Inter, sans-serif' }}
+        ref={sidebarRef}
+        className="relative flex flex-col flex-shrink-0 bg-[--bg-sidebar] border-r border-[--border-subtle] h-screen transition-colors duration-200"
+        style={{ fontFamily: 'Inter, sans-serif', width: displayWidthRef.current + 'px' }}
       >
         {/* 1. Header */}
         <SidebarHeader
@@ -618,6 +676,29 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
           name={name}
           email={email}
           onOpenSettings={() => setSettingsSection('general')}
+        />
+
+        {/* Drag-resize handle — 5px strip on the right edge.
+            Only rendered in expanded mode. Collapsed rail uses a fixed 52px and
+            is a completely separate render path — this handle is never in that tree.
+            Uses direct DOM updates during drag (no React state per pixel); commits
+            to state + localStorage on mouseup only. */}
+        <div
+          onMouseDown={handleDragMouseDown}
+          onMouseEnter={() => setIsHandleHovered(true)}
+          onMouseLeave={() => setIsHandleHovered(false)}
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: 0,
+            bottom: 0,
+            width: '5px',
+            cursor: 'col-resize',
+            zIndex: 10,
+            backgroundColor: isHandleHovered ? 'var(--border-subtle)' : 'transparent',
+            transition: 'background-color 150ms ease',
+          }}
         />
       </div>
 

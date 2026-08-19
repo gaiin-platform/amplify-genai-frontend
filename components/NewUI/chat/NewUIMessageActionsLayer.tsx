@@ -601,8 +601,20 @@ export const NewUIMessageActionsLayer: React.FC = () => {
       const onResize = () => debouncedScan();
       window.addEventListener('resize', onResize, { passive: true });
 
+      // ResizeObserver on the container handles layout changes that DON'T fire
+      // window.resize — most importantly the user-resizable sidebar drag
+      // (NewSidebar.tsx sets style.width directly on the sidebar DOM element,
+      // which makes .chatcontainer grow/shrink via flex-1, but that never
+      // triggers a window.resize event). Without this observer, row positions
+      // computed from offsetTop/offsetLeft go stale the moment the sidebar moves.
+      // The existing 120ms debounce in debouncedScan means we call scan() once
+      // after the drag settles rather than on every pixel of movement.
+      const containerResizeObserver = new ResizeObserver(() => debouncedScan());
+      containerResizeObserver.observe(container);
+
       cleanupFn = () => {
         observer.disconnect();
+        containerResizeObserver.disconnect();
         window.removeEventListener('resize', onResize);
         if (debounceTimer) clearTimeout(debounceTimer);
         if (overlay && overlay.parentElement) overlay.parentElement.removeChild(overlay);

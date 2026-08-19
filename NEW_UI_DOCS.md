@@ -456,6 +456,17 @@ styles/conversation-view.css ← scoped overrides for [data-new-ui="true"] chat 
 styles/sidebar-enhancements.css ← existing sidebar CSS (do not modify)
 ```
 
+### 5.1a NewSidebar Drag-Resize Pattern
+`NewSidebar.tsx` implements a user-resizable width with these key notes for future sessions:
+- Width is controlled via **inline `style.width`** (not a Tailwind class) using `displayWidthRef.current + 'px'`.
+- During drag, `sidebarRef.current.style.width` is updated directly — **no React state updates per pixel**.
+- React state (`sidebarWidth`) is committed **only on mouseup**, triggering a single re-render.
+- `displayWidthRef` is the authoritative "live" width; `sidebarWidth` state is the "committed" width.
+  Both are equal at rest; they diverge only during an active drag.
+- `localStorage` key: `amplify_sidebar_width`. Clamped to [220, 480] on read. Default 310.
+- Collapsed mode (52px icon rail) is a separate `if (!isOpen)` return branch — completely immune.
+- `transition-colors` (not `transition-all`) prevents CSS from animating the width property.
+
 ### 5.2 NewSidebar Layout (3 flex regions)
 ```
 ┌─────────────────────────────┐
@@ -2262,6 +2273,56 @@ Recommend a human pass: (1) Send a message and confirm only ONE orange dot is vi
 the entire loading→streaming→done lifecycle; (2) confirm "Thinking…" text appears alongside the
 dot during the response, then disappears when done; (3) confirm no pulsing in a browser with
 `prefers-reduced-motion: reduce` set (System → Accessibility → Reduce Motion on macOS).
+
+### Phase 44 — User-Resizable Sidebar Width ✅ COMPLETE
+Single file change: `components/NewUI/sidebar/NewSidebar.tsx` only (no `home.tsx`, no CSS files).
+
+**Implementation:**
+- `SIDEBAR_MIN_WIDTH = 220`, `SIDEBAR_MAX_WIDTH = 480`, `SIDEBAR_DEFAULT_WIDTH = 310` — module-level
+  constants. localStorage key: `amplify_sidebar_width`.
+- `sidebarWidth` React state — initialized via lazy init reading and clamping the localStorage value.
+- `displayWidthRef` (useRef) — tracks the "live" width during drag so that mid-drag React re-renders
+  (from conversation list updates, etc.) re-apply the correct in-progress width via `style.width`
+  rather than snapping back to the stale `sidebarWidth` state value.
+- `sidebarRef` (useRef\<HTMLDivElement\>) — direct handle to the expanded sidebar's root div for
+  imperative `style.width` updates during drag (bypasses React state, zero re-renders per pixel).
+- `handleDragMouseDown` (useCallback []) — on mousedown: records `startX` + `startWidth`; attaches
+  `document`-level `mousemove`/`mouseup` listeners. `mousemove`: `newWidth = clamp(startX + delta,
+  220, 480)`, updates `displayWidthRef.current`, sets `sidebarRef.current.style.width` directly.
+  `mouseup`: removes both listeners, calls `setSidebarWidth(finalWidth)` +
+  `localStorage.setItem(SIDEBAR_WIDTH_KEY, ...)`.
+- Expanded sidebar root div: removed `w-[310px]` Tailwind class, replaced with
+  `style={{ width: displayWidthRef.current + 'px' }}`. Changed `transition-all` → `transition-colors`
+  (width was the only meaningful CSS property that would have been animated; keeping it would cause
+  a ~200ms lag on every drag pixel).
+- Drag handle: `position: absolute; right: 0; top: 0; bottom: 0; width: 5px; cursor: col-resize;
+  z-index: 10`. Hover highlight via `onMouseEnter`/`onMouseLeave` + inline style
+  (`--border-subtle` bg, 150ms transition). `aria-hidden="true"` (purely visual/interactive, no
+  semantic content).
+- **Collapsed mode completely unaffected**: the collapsed render path (`if (!isOpen)`) is a separate
+  React render tree that returns before any of the new code is reached. It retains its hardcoded
+  `w-[52px]`. `sidebarRef` is never attached to it. The drag handle never renders in that branch.
+- **Layout**: `home.tsx` main content div already has `flex-1 overflow-hidden`. `overflow-hidden`
+  implicitly sets `min-width: 0` in modern browsers, so the content area automatically flex-shrinks
+  as the sidebar grows. No change to `home.tsx` required.
+
+- [x] Drag handle added to expanded sidebar (`NewSidebar.tsx`)
+- [x] Width persisted to `localStorage` key `amplify_sidebar_width` on mouseup
+- [x] Width restored from localStorage on mount, clamped to [220, 480], default 310
+- [x] Direct DOM updates during drag — zero React re-renders per pixel
+- [x] Collapsed icon-rail (52px) completely unaffected
+- [x] Drag handle added to expanded sidebar (`NewSidebar.tsx`)
+- [x] Width persisted to `localStorage` key `amplify_sidebar_width` on mouseup
+- [x] Width restored from localStorage on mount, clamped to [220, 480], default 310
+- [x] Direct DOM updates during drag — zero React re-renders per pixel
+- [x] Collapsed icon-rail (52px) completely unaffected
+- [x] **Action row alignment fixed** (`NewUIMessageActionsLayer.tsx`): added a `ResizeObserver` on
+  `.chatcontainer` alongside the existing `window.resize` listener. Sidebar drag updates
+  `style.width` directly on the DOM (no window event fires), causing `.chatcontainer` to grow/shrink
+  via `flex-1` — the `ResizeObserver` detects this and calls `debouncedScan()`, recomputing all
+  `offsetTop`/`offsetLeft` row positions with the correct, post-drag geometry. The 120ms debounce
+  means one scan fires after the drag settles, not per pixel.
+- [x] `tsc --noEmit` — zero errors in `components/NewUI/` (pre-existing `__tests__/` errors unchanged)
 
 ### Phase 19 — Remaining Port Work (NEXT)
 - [x] Responsive: icon rail at 760-1099px ✅ resolved
