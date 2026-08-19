@@ -1753,6 +1753,516 @@ and styles/conversation-view.css).
     (docs reach the backend), message.data.dataSources is populated and the
     thumbnails appear automatically.
 
+### Phase 40b — CSS Polish + Four Bug Fixes ✅ COMPLETE
+Four targeted fixes; no new files, no new components. Files touched:
+`styles/conversation-view.css` (all four fixes) and
+`components/NewUI/chat/NewUIMessageActionsLayer.tsx` (Fix 4 only).
+One-Directory Rule observed.
+
+**Fix 1 — "Amplify Assistant is responding" text + old blinking cursor (highest priority)**
+
+Two separate elements were visible during the pre-response window as loading indicators
+alongside the new-UI breathing dot:
+
+1. **PromptStatus text** (`{status.summary || status.message}` in `.mt-0.pt-0` inside
+   `.rounded-xl.shadow-lg .mt-0.ml-3`). Root cause: Phase 26's `color:transparent` shimmer
+   only applied inside `@media (prefers-reduced-motion: no-preference)`. In reduced-motion
+   mode (and transiently on first render) the plain text "Amplify is responding" was visible
+   as readable prose. Fix: `[data-new-ui="true"] .rounded-xl.shadow-lg .mt-0.ml-3 .mt-0.pt-0
+   { display: none !important }`. The breathing dot (`::before` pseudo-element on `.mt-0.ml-3`)
+   is unaffected and remains as the sole loading indicator. The Phase 26 gradient shimmer on
+   this element is superseded — breathing dot only, which is cleaner and reduced-motion safe.
+
+2. **ChatContentBlock streaming `▍` cursor** (`ChatContentBlock.tsx` line 499-500 appends
+   `` `▍` `` to the markdown while `messageIsStreaming=true`; line 323-324 renders it as
+   `<span class="animate-pulse cursor-default mt-1">▍</span>` inside `.chatContentBlock .prose`).
+   This is NOT the same element as the ChatLoader dot (which is inside
+   `.group.border-b.border-black/10.bg-gray-50`, a different ancestor, already styled Phase 27).
+   Fix: `[data-new-ui="true"] .chatContentBlock .animate-pulse.cursor-default
+   { display: none !important }`.
+
+After these two rules, the only visible loading indicator is the breathing dot
+(`::before` on `.rounded-xl.shadow-lg .mt-0.ml-3`) from Phase 26.
+
+**Fix 2 — Text size inconsistency in AI responses**
+
+Root cause: `[data-new-ui="true"] .assistantContentBlock h1` (22px override) targets
+`StandAloneAssistant/AssistantContentBlock.tsx`'s class, NOT the `.prose` column in
+`ChatContentBlock.tsx`. In ChatMessage's `ChatContentBlock`, headings render inside
+`<MemoizedReactMarkdown className="prose dark:prose-invert ...">`. The h2/h3 rules already
+covered `.enhanced-chat-message.assistant-message .prose h2/h3`, but `h1` was missing —
+Tailwind Typography defaults h1 to ~2.25em (38px), which read as "randomly some text appears
+larger."
+
+Fixes added to `conversation-view.css`:
+- `[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose h1` → 20px, 700w
+- `[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose h4/h5/h6` → 1em, 600w
+  (h4-h6 were never overridden at all; Tailwind Typography still renders them noticeably large)
+- `[data-new-ui="true"] .text-sm\!important.opacity-70 .prose h1...h6` → 1.1em, 600w
+  (headings inside the "Thought process" reasoning block were also unguarded; using em units so
+  they stay relative to the block's 13.5px base)
+
+**Fix 3 — Chat input box border contrast**
+
+Root cause: the `.new-ui-composer-card` inline style uses `border: '1px solid var(--border-subtle)'`.
+In dark mode, `--border-subtle` (`#33322F`) is essentially the same shade as `--bg-raised` (`#30302E`)
+— the border was invisible. The existing `:focus-within` CSS rule already used `--bg-active` for the
+focus state but there was no rest-state override. Added:
+`[data-new-ui="true"] .new-ui-composer-card { border-color: var(--bg-active) !important }`.
+`--bg-active` (dark `#3A3A38` / light `#e0e0e0`) provides just enough contrast against `--bg-raised`
+to make the card edge visible without being heavy.
+
+**Fix 4 — "@amplify: " prefix prepended when copying user prompt text**
+
+Frontend root cause (two vectors):
+
+*(a) Manual browser selection copy:* `ChatMessage.tsx`'s `getAtBlock()` renders a
+`<span class="enhanced-at-block">@Amplify:</span>` inside `#userMessage`. Although
+`.enhanced-at-block { display: none }` hides it visually, some browsers include `display:none`
+element text in clipboard when the user manually selects text. Added `user-select: none;
+-webkit-user-select: none` to the existing `.enhanced-at-block` CSS rule — this prevents
+the hidden text from entering the clipboard via manual selection.
+
+*(b) Action-row copy button:* `extractMessageText` in `NewUIMessageActionsLayer.tsx` read
+`#userMessage.innerText`. When the markdown layer is active (`.new-ui-has-markdown #userMessage
+{ display:none }`), `#userMessage.innerText` returns "" (element is hidden), so the copy button
+was copying empty text. When the markdown layer is NOT active (e.g. `hasLargeText` messages),
+`innerText` excludes `display:none` children per spec, but the function needed to prefer the
+markdown-rendered content regardless. Fixed: `extractMessageText` now first checks for
+`.new-ui-user-markdown > div:first-child` (the ReactMarkdown inner div, present when the
+markdown layer is active). Its `innerText` is clean message text without `@Amplify:` prefix
+or Show-more/Show-less button text. Fallback to `#userMessage.innerText` for messages without
+the markdown layer.
+
+**Files changed:**
+- `styles/conversation-view.css` — all four fixes (CSS-only for Fixes 1, 2, 3; CSS part of Fix 4)
+- `components/NewUI/chat/NewUIMessageActionsLayer.tsx` — `extractMessageText` function updated (Fix 4b)
+
+### Phase 41 — Prompt-at-Top Scroll Anchoring + Streaming Chunk Fade-In ✅ COMPLETE
+Two behavioural fixes. Files touched: `components/NewUI/chat/ConversationViewShell.tsx`
+and `styles/conversation-view.css` only. Zero changes to `Chat.tsx`, `ChatMessage.tsx`,
+or any protected file (One-Directory Rule observed).
+
+**█ KEY ARCHITECTURAL FINDING — how to control chat scrolling without touching `Chat.tsx` █**
+
+Every auto-scroll in `Chat.tsx` (DO-NOT-CHANGE) is gated on
+`autoScrollEnabled && !isUserScrolling` — the 250ms throttled `scrollIntoView(true)`
+(L1035/L1067), the 100ms `setInterval` `scrollIntoView(false)` (L1090-1104), and
+`scrollToBottom` (L898-903). Both flags are **local `useState` in `Chat.tsx` and are NOT
+on `HomeContext`** (grep-verified across `pages/`, `hooks/`, `components/`, `types/`), so
+they cannot be set from new-UI code. The only lever is to make `Chat.tsx` switch itself
+off — but **`autoScrollEnabled` has TWO independent writers, and satisfying only one of
+them is useless:**
+
+```
+// (a) handleScroll — Chat.tsx L905-935
+isAtBottom = scrollTop + clientHeight >= scrollHeight - 30    // 30px tolerance
+setAutoScrollEnabled(isAtBottom)
+
+// (b) IntersectionObserver on the bottom sentinel — Chat.tsx L1185-1199
+setAutoScrollEnabled(entry.isIntersecting)                    // gated only on !isUserScrolling
+```
+
+⚠ **Two facts about (b) that are easy to get wrong, and cost this phase a regression:**
+
+1. **`threshold: 0.5` does NOT mean "intersecting only when ≥50% visible."** `isIntersecting`
+   is true for **any** overlap with the viewport; the threshold only controls *when the
+   callback fires*. Harness-measured: at 0.33 visible it still reported `true`. So the
+   sentinel must be **entirely** below the fold, not merely half.
+2. **The sentinel IS the bottom spacer** — one div carrying both `className="h-[300px]"`
+   and `ref={messagesEndRef}` (`Chat.tsx` L1743-1746). Anything that changes that
+   element's height changes the observer's geometry.
+
+Also note `isUserScrolling` self-clears 500ms after the user stops, so (b) keeps re-firing
+indefinitely — a wrong geometry does not fail once, it fails on a loop.
+
+**So the rule for `components/NewUI/`:** to freeze the viewport, keep the scroller >30px
+from the bottom **and** the sentinel fully off screen. Never resize the sentinel.
+
+**Fix 1 — new prompt anchored near the top, then frozen**
+
+- [x] **`conversation-view.css` — `data-anchor-freeze` reserves scroll room, as MARGIN.**
+  Rule: `[data-anchor-freeze="true"] .h-\[300px\] { margin-top: var(--new-ui-anchor-room, 0px) }`.
+  Reserved room is required for TWO independent reasons (both measured, not assumed):
+  1. **Reachability** — the anchor needs `scrollTop = promptTop − 80`, but `scrollTop`
+     cannot exceed `scrollHeight − clientHeight`. With only the resting bottom clearance a
+     short prompt on a tall window physically cannot reach the top.
+  2. **The freeze itself** — without the room, both of `Chat.tsx`'s gates read "at the
+     bottom", so it keeps dragging the viewport down as the response grows.
+
+  🛑 **The room MUST be added as `margin-top`, never by changing the element's `height`** —
+  see the Phase 41a regression below. The sentinel's own box must stay exactly as
+  `Chat.tsx` and Phase 39 expect it.
+
+  The room value is **dynamic**: sized to push the sentinel clear of the fold, then handed
+  back as real content arrives, reaching 0 once the answer alone is tall enough to hold the
+  anchor (harness: 731px → 0 by ~850px of answer). So the reserved blank space is
+  **transient, not permanent** — which is what the user actually approved ("blank,
+  shrinking as the response grows"); the first implementation shipped a fixed `100vh` that
+  never shrank. The `var()` fallback is `0px`, so a missing custom property degrades to
+  "no anchoring" rather than a broken layout.
+  The CSS fallback also keeps `Chat.tsx`'s `scrollIntoView(true)`/`(false)` convergence from
+  Phase 39 intact, because the spacer's height is never altered.
+- [x] **`.chatcontainer` `padding-top` 52px → 80px.** Two reasons: (a) the `mask-image`
+  only reaches full opacity at 80px, so content starting at 52px (flush with the header)
+  was rendered *inside the fade ramp* — a pre-existing bug where the first line near the
+  top was partially transparent; (b) it makes the anchor reachable for the **first message
+  of a conversation** (empty history ⇒ `promptTop` was 52 ⇒ negative target ⇒ clamped to
+  0 ⇒ prompt stuck at 54px, jammed under the header and faded). Net effect: a
+  conversation's first message now sits ~28px below the header, which is the breathing
+  room the spec asked for.
+- [x] **`ConversationViewShell.tsx` — anchor on the send transition.** Watches
+  `messageIsStreaming` false→true, then: sets `data-anchor-freeze`, forces a layout read,
+  measures `getBoundingClientRect` deltas (which absorb the container's own padding), and
+  sets `container.scrollTop`. `ANCHOR_TOP_OFFSET = 80` (52px header + 24px gap = 76, raised
+  to 80 to clear the mask ramp). Retries up to 20×50ms for the message element to mount.
+- [x] **Scroll is INSTANT, deliberately not `behavior:'smooth'`** (a documented deviation
+  from the original plan). A ~400ms smooth animation leaves a window in which
+  `autoScrollEnabled` is still true and `Chat.tsx`'s 100ms interval fights us for the
+  viewport — reintroducing the Phase 39 oscillation. Landing immediately lets
+  `handleScroll` flip `autoScrollEnabled` false before the next interval tick.
+- [x] **One jump-free invariant for every room change: `reduceRoomTo`.**
+  **Never let `scrollHeight` drop below `scrollTop + clientHeight`.** Removing room lowers
+  `scrollHeight`; the instant that pushes the scroll maximum above where the user sits, the
+  browser clamps `scrollTop` and the content visibly slides. So every reduction is capped at
+  `safe = max(0, scrollHeight − clientHeight − scrollTop)` — the current distance to the
+  bottom. Both the streaming tick and the scroll handler go through this one function, and
+  it covers all four situations without special-casing:
+  | Situation | Behaviour | Measured shift |
+  |---|---|---|
+  | Parked at the anchor | `safe` ≫ per-tick growth, so the room shrinks at full rate | prompt pinned at 80px for the whole stream |
+  | At the bottom, following | `safe` == whatever text just arrived, so the blank is **consumed by the incoming text** | 0px (431px of blank absorbed, nothing moved) |
+  | Scrolling **down** | room consumed by the user's own gesture until the real content bottom → `Chat.tsx` resumes following (**spec exception 3, no special-casing**) | 0px |
+  | Scrolling **up** | room handed back in full; safe because both gates already read "not at bottom" up there | 0px |
+
+  An earlier all-or-nothing release moved the content **431px** while the user sat at the
+  bottom. Growth is also forbidden (`target >= room` returns early) so content can never be
+  pushed down mid-stream.
+- [x] **No `userHasScrolled` ref** (deviation from the plan, deliberate). Its job was to
+  gate "suppress further programmatic scroll", but those scrolls are `Chat.tsx`'s and are
+  already gated on `autoScrollEnabled` (= `isAtBottom`), which *is* "user scrolled away
+  from the bottom", maintained by the component that acts on it. A local copy would have
+  been write-only state that could silently disagree with the value in force.
+- [x] Conversation-change effect clears the room so a switched conversation never inherits
+  a stale anchored state.
+
+**█ Phase 41a — REGRESSION AND FIX: "the prompt is too high, I can't see it, and it forces
+my scroll downwards over and over" █**
+
+The first cut of Fix 1 reserved scroll room with
+`[data-anchor-freeze="true"] .h-\[300px\] { height: 100vh }` — i.e. **by growing the bottom
+spacer itself.** That spacer is also `Chat.tsx`'s IntersectionObserver sentinel
+(`ref={messagesEndRef}` on the same div, L1743-1746). Consequences, harness-measured:
+
+| | shipped (`height: 100vh`) | fixed (`margin-top`) |
+|---|---|---|
+| prompt lands at | 80px ✅ | 80px ✅ |
+| gate (a) `handleScroll` `isAtBottom` | `false` ✅ | `false` ✅ |
+| sentinel visible fraction | **0.70** | **0.00** |
+| gate (b) observer `isIntersecting` | **`true` ❌ overrides (a)** | `false` ✅ |
+| net `autoScrollEnabled` | **`true`** | `false` |
+| prompt after one autoscroll tick | **−162px (above the viewport)** | stays 80px |
+
+So the anchor worked perfectly and was then immediately undone: gate (b) switched
+auto-scroll back on, the 100ms `scrollIntoView(false)` interval dragged the anchored prompt
+off the top of the screen, and because `isUserScrolling` self-clears 500ms after the user
+stops scrolling, the observer re-fired forever — the "over and over" in the report.
+
+**Fix:** put the room in a `margin-top` **above** the sentinel so its own box (and therefore
+the observer's geometry) is untouched, and size the room to push it **entirely** past the
+fold — `anchorTarget + clientHeight + sentinelHeight + FOLD_CLEARANCE − naturalHeight`.
+`FOLD_CLEARANCE = 60`; the sentinel's height is read live rather than hardcoded.
+
+**Why "entirely" and not "less than half":** `isIntersecting` is true for *any* overlap.
+`threshold: 0.5` only decides when the callback *fires*. A first attempt that merely got the
+sentinel under 50% visible (0.33) still reported `isIntersecting: true`.
+
+**Also corrected in the same pass:**
+- The fixed `100vh` room never shrank, so the blank space was permanent. It is now dynamic
+  and reaches 0 on its own (see `reduceRoomTo` above) — matching what was actually approved.
+- A comment claiming the all-or-nothing release was "movement-free" was **false**; the
+  harness measured a 431px content shift. Replaced with the capped-reduction invariant.
+- Removed two pieces of dead state found while reworking this (`RESTING_SPACER_H`,
+  `streamingRef`), on the same principle as the earlier `userHasScrolledRef` removal.
+
+**Verification harnesses** (headless Chrome, `/tmp`, outside the repo — the app needs Cognito
+login so the real flow can't be driven locally): `/tmp/io-harness.html` reproduces the
+observer geometry for both variants; `/tmp/stream-harness.html` runs a full streaming
+lifecycle plus four user-scroll scenarios and asserts *freeze held for whole stream*,
+*prompt never moved from 80px*, *room monotonically → 0*, and *all scrolls jump-free*.
+⚠ **Harness caveat:** under `--headless=new --virtual-time-budget`, `requestAnimationFrame`
+and IntersectionObserver callbacks **do not run** (verified: exactly 1 IO delivery, the
+initial one). Assert on *geometry* — rect positions, visible fractions — not on observer
+callbacks, which report stale values.
+
+**Fix 2 — soft per-chunk fade-in on streaming text (NOT a typing animation)**
+
+- [x] **`conversation-view.css` — `@keyframes new-ui-chunk-fade-in` (opacity 0→1, 100ms
+  ease-out)** applied to block-level nodes in the streaming assistant prose. CSS animations
+  start automatically on newly inserted elements, so each new paragraph / list item /
+  heading / code block / table row fades itself in exactly once, on arrival — **zero JS,
+  zero per-token cost, no DOM mutation.** No `forwards` fill, so an interrupted animation
+  can never leave content stuck faded.
+- [x] **Scoped to the LAST assistant message** via
+  `:not(:has(~ .enhanced-chat-message.assistant-message))`. This was a **bug caught by
+  harness testing, not by review**: a CSS animation starts whenever its selector *begins to
+  match*, not only on insertion — so the unscoped first draft made every paragraph of every
+  previous answer re-fade on every send (verified: a pre-existing `<p>` reported
+  `[new-ui-chunk-fade-in]` the instant `data-streaming` was set). Valid because
+  `.enhanced-chat-message` is each `ChatMessage`'s **root** element rendered in a flat
+  `.map()` (`Chat.tsx:1700-1736`), so all messages are true siblings.
+- [x] **Rejected the "container-level opacity refresh" suggested as the first thing to try:**
+  animating the whole `.assistantContentBlock` while streaming necessarily pulses every
+  character already on screen, which fails the "already-displayed text stays fully visible"
+  requirement *by construction* rather than by bad luck.
+- [x] **Rejected the MutationObserver text-node wrapping:** it would mutate DOM owned by
+  `ChatContentBlock.tsx` (DO-NOT-CHANGE), which re-renders its whole markdown tree per
+  token — injected spans would be fought by React reconciliation, and per-token DOM surgery
+  directly contradicts the ">20 tok/s must stay fluid" constraint.
+- [x] `prefers-reduced-motion: no-preference` gated (standing rule #17). User bubbles never
+  animate (harness-verified: `user bubble animations = []`).
+- [x] **KNOWN LIMITATION (documented, not glossed):** text appended *inside* an
+  already-rendered paragraph — the tail paragraph growing token by token — does not fade,
+  because no new element is inserted for it. The fade lands on block boundaries. Covering
+  intra-paragraph growth requires the text-node wrapping ruled out above.
+- [x] **Residual, accepted:** during the ~150-300ms ChatLoader gap before the new assistant
+  message mounts, the "last assistant message" is still the previous answer, so its blocks
+  may run one 100ms fade. Fix 1 has by then scrolled that answer out of view, so it isn't
+  visible in practice, and it self-corrects on mount.
+
+**Verification — behaviourally tested, not only code-traced**
+Since the app needs Cognito login and no Playwright/Puppeteer/jsdom is installed, the risky
+parts (scroll math + whether newly-inserted elements actually animate) were exercised in a
+**standalone headless-Chrome harness** (`/tmp/anchor-harness.html`, outside the repo)
+replicating the real geometry: 80px container padding, 268px↔100vh spacer, and messages as
+flat siblings. Results at 1400×900 (`clientHeight` 813):
+
+| Scenario | Result |
+|---|---|
+| A — short convo, freeze OFF (the bug) | prompt at **415px**, `isAtBottom=true` → Chat.tsx keeps dragging ❌ |
+| B — short convo, freeze ON | prompt at **exactly 80px**, `isAtBottom=false` → frozen ✅ |
+| C — **first message**, freeze ON | prompt at **exactly 80px**, frozen ✅ (was 54px before the padding fix) |
+| D — guarded release at stream end | judged unsafe → attribute kept → `scrollTop` 418→418, **no jump** ✅ |
+| E — chunk fade | new block fades ✅ · **previous answer NOT re-faded ✅** · user bubble never animates ✅ |
+
+Three bugs were found and fixed this way that code review had missed: the first-message
+clamp (C), the cross-message fade leak (E), and the false assumption that the reserved room
+tidies itself up at stream end (D — it usually *cannot* be released after a short answer, so
+the reserved space persists until the user scrolls up, at which point it releases silently).
+
+- [x] `npx tsc --noEmit` — zero errors in production source (all remaining errors are
+  pre-existing `__tests__/**` test-runner-globals issues).
+- [x] `npm run build` — `✓ Compiled successfully`. The 46 `NextRouter was not mounted`
+  prerender errors were confirmed **pre-existing** by stashing the changes and rebuilding a
+  clean baseline (identical count of 46), not merely assumed.
+- [x] `npx eslint` on the changed component — 0 errors; the single warning is the
+  pre-existing `[]`-deps pending-message-bridge effect.
+- [x] CSS braces balanced (191/191).
+
+**Not verified in the real app:** the harness proves the geometry and animation mechanics,
+not the integration. Recommend a human pass: (1) send in a long conversation → prompt jumps
+to just under the header, previous answer out of view, and the view then stays put for the
+whole response; (2) send in a brand-new chat → same, no fade at the top of the bubble;
+(3) scroll down mid-response → output-following resumes; (4) confirm new paragraphs/bullets
+fade in softly at >20 tok/s with no stutter and no flicker on settled text.
+
+### Phase 42 — Deferred-Send: Upload While Waiting ✅ COMPLETE
+Implements the two-phase send for image attachments in the in-conversation composer.
+Previously, `canSend` was `false` until all S3 uploads completed, blocking the send button.
+Now the user can click Send immediately; the API call fires automatically when uploads finish.
+Files touched: `ConversationComposer.tsx`, `UploadPendingIndicator.tsx` (new),
+`AttachmentCard.tsx`, `AttachmentRail.tsx`, `conversation-view.css`.
+Zero changes to `Chat.tsx`, `AttachFile.tsx`, `ConversationViewShell.tsx`, or any protected file.
+
+**Core mechanism (`ConversationComposer.tsx`):**
+- [x] **Removed `allImagesUploaded` gate from `canSend`** — send button now active whenever
+  there is text OR any non-failed attachment, regardless of upload progress.
+  New formula: `!messageIsStreaming && pendingUploadState === null && hasContent`.
+- [x] **`PendingUploadSend` interface** — captured at send time: `{ msgText, readyDocs,
+  newDocs (mutable), remainingCount, webSearchEnabled, selectedSkillIds }`.
+  Stored in `pendingUploadSendRef` (a ref, not state) so `handleDocSetKey` can mutate it
+  without triggering extra renders.
+- [x] **Three paths in `handleSend`** (was two):
+  - **DEFERRED** (new): when `uploadingImages.length > 0` → store `PendingUploadSend`,
+    call `setPendingUploadState({ done: 0, total: N })`, clear text, return early.
+  - **PATH A** (unchanged): all docs already have S3 keys → call `sendViaService` directly.
+  - **PATH B** (unchanged): text-only → DOM bridge into `#messageChatInputText` + `#sendMessage`.
+- [x] **`handleDocSetKey` extended** — when a pending deferred send exists, pushes the
+  newly-keyed doc to `pending.newDocs`, decrements `remainingCount`, and calls
+  `setPendingUploadState(prev => { done: prev.done + 1, total: prev.total })`.
+- [x] **Auto-fire `useEffect`** — deps: `[pendingUploadState, selectedConversation, ...]`.
+  When `done >= total`, reads the accumulated `newDocs`, builds the same `ChatRequest`
+  as PATH A (with `[...readyDocs, ...newDocs]`), and fires `sendViaServiceRef.current(request, ...)`.
+  Edge cases handled: all images failed → if text present, falls through to PATH B;
+  if no text either, silently aborts rather than sending an empty message.
+- [x] **`handleCancelPendingSend`** — clears `pendingUploadSendRef` + `pendingUploadState`,
+  **restores `msgText` to the textarea** so the user doesn't lose what they wrote. Uploads
+  continue in the background; user can re-click Send when they're ready.
+
+**Stall detection + Retry (`ConversationComposer.tsx`):**
+- [x] **`uploadTimeoutsRef`** — `Record<string, setTimeout>` keyed by doc id. Started in
+  `addImageToRail`'s `wrappedAttach` callback (after sentinel → real-id swap). Cleared in
+  `handleDocSetKey` on success, `handleRemoveAttachment` on remove.
+- [x] **90-second stall timeout** (`UPLOAD_STALL_TIMEOUT_MS = 90_000`) — if `onSetKey` never
+  fires, marks UIAttachment `status:'failed'` with `error:'Upload timed out. Tap Retry.'`.
+  Also decrements `pendingUploadSendRef.remainingCount` so the pending send doesn't hang.
+- [x] **`originalFilesRef`** — `Record<string, File>` keyed by doc id. Populated in
+  `wrappedAttach`; used by `handleRetryAttachment` to re-upload the original File.
+- [x] **`handleRetryAttachment(id)`** — calls `handleCancelPendingSend()` (restores text),
+  `handleRemoveAttachment(id)` (removes the failed card), then `addImageToRail(file)` (fresh
+  upload). A new card enters with upload-progress spinner.
+
+**New component `UploadPendingIndicator.tsx` (`components/NewUI/chat/`):**
+- [x] Props: `done: number`, `total: number`, `onCancel: () => void`.
+- [x] Thin 3px determinate progress bar (`--accent` fill, 300ms width transition, `min-width:4%`
+  so the bar is always visible even at `done=0`).
+- [x] Label: "Uploading image 1 of 2…" / "Uploads complete, sending…" (contextual text).
+- [x] Cancel button (muted text, hover `--bg-hover`). Calls `onCancel`.
+- [x] `aria-live="polite"` on the container for screen-reader announcement. `role="progressbar"`
+  with `aria-valuenow` on the bar track.
+
+**`AttachmentCard.tsx` changes (in `components/NewUI/shared/`):**
+- [x] Added `onRetry?: (id: string) => void` prop.
+- [x] When `status === 'failed'` and `onRetry` is provided, a "Retry" button appears at the
+  bottom-center of the card (warm-red text on dark bg, matching the FAILED badge palette).
+  Absolute sibling of the face button (valid HTML, no nesting).
+
+**`AttachmentRail.tsx` changes (in `components/NewUI/shared/`):**
+- [x] Added `onRetry?: (id: string) => void` prop; passed through to each `AttachmentCard`.
+
+**`conversation-view.css` additions (Phase 42 section):**
+- [x] **Asterisk pulse while upload pending**: `[data-upload-pending="true"] .h-[300px]::after`
+  — opacity 0.45, same `new-ui-asterisk-pulse` 3.2s animation as the streaming state but at
+  reduced opacity (calm "something is happening" vs. the full "actively responding" signal).
+  `prefers-reduced-motion` gated.
+- [x] **`.new-ui-upload-pending-indicator`** — `margin-bottom: 8px` container.
+- [x] **`.new-ui-upload-bar-track`** — `height: 3px`, `border-radius: 2px`, `var(--bg-active)` bg.
+- [x] **`.new-ui-upload-bar-fill`** — `var(--accent)` bg, `300ms ease-out` width transition,
+  `min-width: 4%`, gentle 2.2s opacity-breathing animation (0.55→1) via
+  `@keyframes new-ui-upload-bar-breathe`. `prefers-reduced-motion` gated.
+
+**TypeScript:** zero errors in `components/NewUI/` (`tsc --noEmit` confirmed).
+
+**Not runtime-verified:** Cognito login required. Recommend a human pass:
+(1) Paste an image into the in-conversation composer, click Send immediately.
+Confirm: text clears, upload-pending indicator appears, asterisk pulses, indicator
+disappears and API fires when upload completes.
+(2) Upload stalls for 90s → confirm the card shows FAILED + Retry button;
+clicking Retry restores text and starts a fresh upload.
+(3) Click Cancel while pending → confirm text is restored, indicator gone, uploads continue.
+
+### Phase 43 — Dual Loading-Dot Fix + Animated "Thinking…" Text ✅ COMPLETE
+Two related loading-state fixes. Zero changes to `Chat.tsx`, `PromptStatus.tsx`, `ChatLoader.tsx`,
+or any protected file (One-Directory Rule strictly observed). Files changed:
+`styles/conversation-view.css` and `components/NewUI/chat/ConversationViewShell.tsx` only.
+
+**Fix 1 — Multiple PromptStatus cards + ChatLoader overlap**
+
+**Root cause (discovered from screenshot):** `PromptingStatusDisplay.tsx` (DO-NOT-CHANGE)
+renders ONE `PromptStatus` card per active status ID in its `statusHistory` array. When the
+model produces multiple status updates simultaneously (e.g. one for "Amplify is responding" and
+one for a reasoning token stream), multiple `.rounded-xl.shadow-lg` cards are rendered as
+siblings inside a `.flex-col.mb-2` wrapper — producing two or more orange pulsing dots.
+
+**Second-card layout bug:** When the SECOND card has `status.summary !== status.message` (line
+152-156 of PromptStatus.tsx), it renders an inner `.ml-3` div containing `IconCaretDown`. This
+`.ml-3` div is `display:block`. Inside our `.mt-0.ml-3 { display:block !important }` override
+(Phase 12 CSS), block-level children interrupt the inline flow, splitting the card into three
+stacked rows:
+```
+Line 1: ● (::before inline-block, stranded above the block child)
+Line 2: ▽ (.ml-3 block div containing the caret SVG icon)
+Line 3: Thinking… (our injected .new-ui-loading-text span, after the block)
+```
+This is exactly the broken cluster visible in the screenshot.
+
+**Fix 1a — Hide all PromptStatus cards after the first** (`conversation-view.css`):
+```css
+[data-new-ui="true"] .rounded-xl.hover\:opacity-50.shadow-lg ~ .rounded-xl.hover\:opacity-50.shadow-lg {
+  display: none !important;
+}
+[data-new-ui="true"] .rounded-xl.hover\:opacity-50.shadow-lg ~ .rounded-xl.hover\:opacity-50.shadow-lg ~ .mx-2.mt-0.py-2.px-5 {
+  display: none !important;
+}
+```
+- Discriminating class: `hover:opacity-50` appears on PromptStatus.tsx line 131 with
+  `rounded-xl shadow-lg` AND on NO other component in the chat tree with those two classes
+  (grep-verified: `ChatSource`, `AutonomousBlock`, `InvokeBlock`, `AutoArtifactBlock` all have
+  `dark:bg-[#343541] rounded-xl shadow-lg` but NOT `hover:opacity-50`).
+- CSS escaping: Tailwind's `hover:opacity-50` class name contains a literal colon → escaped as
+  `hover\:opacity-50` in the CSS selector.
+- Second rule hides the details panel (Fragment sibling of the hidden card).
+- Result: only the FIRST PromptStatus card is shown; all subsequent cards and their details
+  panels are hidden.
+
+**Fix 1b — ChatLoader dot overlap during streaming** (`conversation-view.css`):
+```css
+[data-new-ui="true"][data-streaming="true"] .group.border-b.border-black\/10.bg-gray-50 .animate-pulse {
+  visibility: hidden !important;
+}
+```
+Addresses a separate but related window: when `messageIsStreaming=true` (→ `data-streaming=true`),
+ChatLoader may still be mounted alongside PromptStatus. `visibility: hidden` (not `display: none`)
+preserves Phase 38/39 layout footprint.
+
+**Fix 2 — Animated "Thinking…" text alongside the breathing dot**
+
+Phase 40b hid the PromptStatus status text (`.mt-0.pt-0 { display: none !important }`) leaving
+only the breathing orange dot as the loading indicator. The result is visually clean but provides
+no textual context for users.
+
+**Approach:** DOM injection via `useEffect` + `MutationObserver` in `ConversationViewShell.tsx`,
+using the same observer pattern established in Phase 5 (aria-live injection) and Phase 29 (user
+markdown layer). `PromptStatus.tsx` is DO-NOT-CHANGE — no modification needed.
+
+**ConversationViewShell.tsx changes:**
+- New `useEffect` with `MutationObserver` on `.chatcontainer`.
+- **`injectLoadingText()`**: finds `[data-new-ui="true"] .rounded-xl.shadow-lg .mt-0.ml-3` (the
+  breathing dot row inside PromptStatus). If no `.new-ui-loading-text` span already present,
+  appends `<span class="new-ui-loading-text" aria-hidden="true">` as a direct child. Idempotent.
+- `aria-hidden="true"`: screen readers use the existing `aria-live="polite"` region on the
+  `.rounded-xl.shadow-lg` container (injected by the A11y Pass 1 aria-live effect above this one),
+  not the CSS-generated text content of our span.
+- **`cleanupOrphanedText()`**: removes any `.new-ui-loading-text` spans whose
+  `.rounded-xl.shadow-lg` ancestor is no longer in the DOM (PromptStatus unmounted = response done).
+- Cleanup function on unmount removes all spans.
+
+**Layout:** `.mt-0.ml-3` is `display: block`. The `::before` dot is `display: inline-block` with
+`margin-right: 8px`. Our injected span is `display: inline` — so it flows on the same inline line
+immediately after the dot, producing: `● Thinking…` on one line within the block container.
+The `.mt-0.pt-0` element (PromptStatus's real text, `display: none`) has no layout effect.
+
+**CSS additions in `conversation-view.css` (Phase 43 section):**
+```css
+[data-new-ui="true"] .new-ui-loading-text { display: inline; color: var(--text-muted);
+  font-size: 13px; font-style: italic; ... }
+[data-new-ui="true"] .new-ui-loading-text::after { content: "Thinking\2026"; }
+@media (prefers-reduced-motion: no-preference) {
+  [data-new-ui="true"] .new-ui-loading-text { animation: new-ui-loading-pulse 2s ease-in-out infinite; }
+}
+@keyframes new-ui-loading-pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+```
+- `::after` generates "Thinking…" via CSS `content` (not DOM text) so no literal dots are in the
+  DOM for assistive technologies to read separately.
+- Animation: 2s ease-in-out opacity pulse (same family as the breathing dot's `new-ui-thinking-pulse`).
+- **`prefers-reduced-motion: reduce` override**: per standing wiki §9 rule 17, the animation is
+  scoped inside `@media (prefers-reduced-motion: no-preference)`. In reduced-motion mode the text
+  displays statically at full opacity ("Thinking…" with no pulse).
+- Selector uniqueness verified: `.mt-0.ml-3` inside `.rounded-xl.shadow-lg` is unique to
+  PromptStatus (ArtifactsBlock.tsx's `.rounded-xl.shadow-lg` does NOT have a `.mt-0.ml-3`
+  descendant — grep-verified; Phase 43 selector audit confirmed).
+
+- [x] CSS Fix 1: `visibility: hidden` on ChatLoader dot when `data-streaming="true"` (conversation-view.css)
+- [x] CSS Fix 2: `.new-ui-loading-text` style + `::after` + pulse animation + PRM override (conversation-view.css)
+- [x] JS Fix 2: `useEffect` with MutationObserver for loading text injection/cleanup (ConversationViewShell.tsx)
+- [x] `tsc --noEmit` — zero errors in `components/NewUI/` (all remaining errors are pre-existing `__tests__/` issues)
+
+**Not runtime-verified** (Cognito login required, no browser automation available):
+Recommend a human pass: (1) Send a message and confirm only ONE orange dot is visible throughout
+the entire loading→streaming→done lifecycle; (2) confirm "Thinking…" text appears alongside the
+dot during the response, then disappears when done; (3) confirm no pulsing in a browser with
+`prefers-reduced-motion: reduce` set (System → Accessibility → Reduce Motion on macOS).
+
 ### Phase 19 — Remaining Port Work (NEXT)
 - [x] Responsive: icon rail at 760-1099px ✅ resolved
 - [x] Responsive: off-canvas drawer <760px ✅ resolved
@@ -1910,8 +2420,10 @@ ExpansionComponent" section for the fix and the reasoning-only scoping class
 | Attribute | Value | Set by | Used by |
 |---|---|---|---|
 | `data-new-ui` | `"true"` | static | all `[data-new-ui="true"]` CSS rules in conversation-view.css |
-| `data-streaming` | `"true"` / absent | effect on `messageIsStreaming` | `[data-streaming="true"] .h-[300px]::after` (asterisk full-opacity + pulse) |
+| `data-streaming` | `"true"` / absent | effect on `messageIsStreaming` | `[data-streaming="true"] .h-[300px]::after` (asterisk full-opacity + pulse); Phase 43: `[data-streaming="true"] .group...bg-gray-50 .animate-pulse { visibility:hidden }` (hides ChatLoader dot once PromptStatus dot is active) |
 | `data-body-face` | `"serif"` / `"sans"` | effect on `amplify_chat_font` localStorage key, updated via `amplifyChatFontChanged` event | font-family selector blocks in conversation-view.css |
+| `data-anchor-freeze` | `"true"` / absent | Phase 41: set when a message is sent, cleared by `reduceRoomTo` as the room is handed back (capped so it never moves the view) | `[data-anchor-freeze="true"] .h-[300px] { margin-top: var(--new-ui-anchor-room, 0px) }` — reserves the scroll room that makes prompt-at-top anchoring reachable and keeps BOTH of Chat.tsx's auto-scroll gates reading "not at bottom". 🛑 Never set `height` here — that div is also Chat.tsx's IntersectionObserver sentinel; see Phase 41a |
+| `--new-ui-anchor-room` (CSS custom property, not an attribute) | px value, e.g. `"431px"` | Phase 41: written next to `data-anchor-freeze`, shrinks to 0 during streaming | consumed by the `margin-top` rule above. Set imperatively via `style.setProperty` on the shell; React's style diffing only writes changed keys so it survives re-render, and the `var()` fallback of `0px` degrades safely |
 
 Pattern: when you need CSS to respond to React state that lives in a protected component (like `messageIsStreaming` in Chat.tsx) or a user preference (like Chat font), set a data-attribute on the shell element from ConversationViewShell and write attribute-selector CSS. This avoids runtime inline style updates and keeps the CSS declarative.
 
@@ -1962,6 +2474,61 @@ touching Web Search further:
   but that still needs a design pass to confirm `ConversationViewShell` (or a new hook) can safely
   inject into `Chat.tsx`'s plugin state via a DOM/event mechanism without modifying `Chat.tsx` itself —
   not attempted in this session; see `NEW_UI_PORTING_STATUS.md` for the tracked follow-up.
+
+### Controlling chat scroll behaviour without touching `Chat.tsx` (Phase 41)
+`Chat.tsx` is DO-NOT-CHANGE, but its scrolling **is** controllable from
+`components/NewUI/` — not by fighting it with competing scrolls, but through the single
+input it derives all its behaviour from.
+
+Every auto-scroll in `Chat.tsx` is gated on `autoScrollEnabled && !isUserScrolling`, and
+its `onScroll` handler recomputes `setAutoScrollEnabled(isAtBottom)` where
+`isAtBottom = scrollTop + clientHeight >= scrollHeight - 30` (~L906-935). Both flags are
+local `useState` and are **not** exposed on `HomeContext` (grep-verified), so they can't be
+set directly.
+
+**But `handleScroll` is only ONE of two writers.** An `IntersectionObserver` (L1185-1199)
+also does `setAutoScrollEnabled(entry.isIntersecting)` on the bottom sentinel, gated only on
+`!isUserScrolling` (which self-clears 500ms after the user stops). **Both** must read "not at
+the bottom" or auto-scroll comes straight back on, repeatedly.
+
+**Therefore:** to stop auto-scroll, leave `.chatcontainer` more than 30px from the bottom
+**and** keep the sentinel entirely off screen; to allow it, return to the bottom. Express any
+"don't auto-scroll" requirement as a scroll-position outcome, never as an attempt to
+out-scroll `Chat.tsx`.
+
+Four traps found the hard way in Phase 41 / 41a:
+1. **The bottom spacer IS the observer sentinel.** One div, both `className="h-[300px]"` and
+   `ref={messagesEndRef}` (L1743-1746). 🛑 Never change its height to make layout room — that
+   silently re-enables auto-scroll. Add space *around* it (`margin-top`) instead.
+2. **`isIntersecting` is true for ANY overlap.** A `threshold` only controls when the callback
+   *fires*, never what counts as intersecting. "Mostly off screen" is not off screen.
+3. **Reachability.** `scrollTop` is capped at `scrollHeight - clientHeight`. Parking a short
+   message near the top needs roughly a viewport of content *below* it, or the browser clamps
+   and the scroll silently under-shoots.
+4. **Shrinking content jumps the view.** Removing reserved space lowers `scrollHeight`, which
+   clamps `scrollTop` if the user is near the bottom. The invariant: **never let
+   `scrollHeight` drop below `scrollTop + clientHeight`** — cap every reduction at
+   `scrollHeight - clientHeight - scrollTop`. All-or-nothing releases guarded only by a
+   boolean check still moved content 431px in testing.
+
+Also note `.chatcontainer`'s `mask-image` reaches full opacity only at **80px**, so anything
+positioned above that renders partially transparent — the container's `padding-top` is 80px
+to match (Phase 41).
+
+### CSS animations as a "new content arrived" signal (Phase 41)
+A CSS `animation` starts when its selector **begins to match**, not only when an element is
+inserted. This makes `animation` a free per-chunk arrival cue for streamed content (new
+elements animate themselves once, with no JS and no per-token cost) — but it also means a
+state-toggling ancestor selector like `[data-streaming="true"] … .prose > *` will
+**re-animate every already-rendered element the instant the state flips**. Phase 41's first
+draft did exactly that and would have re-faded every previous answer on every send.
+
+Scope such rules to the one subtree that is actually changing. For the streaming message
+that is `.enhanced-chat-message.assistant-message:not(:has(~ .enhanced-chat-message.assistant-message))`
+("no later assistant sibling"), which is valid because `.enhanced-chat-message` is each
+`ChatMessage`'s root element in a flat `.map()` (`Chat.tsx:1700-1736`) — all messages are
+true siblings. **Verify this class of rule by inspecting `element.getAnimations()` on both a
+new and a pre-existing node; it is not reliably reviewable by reading the selector.**
 
 ### Admin Panel in New UI
 `featureFlags.adminInterface` (fetched from admin API on load) gates all admin entry points:

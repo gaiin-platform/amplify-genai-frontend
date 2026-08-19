@@ -21,6 +21,8 @@ interface AttachmentRailProps {
   onRemove: (id: string) => void;
   /** Opens the preview overlay for the given attachment, anchoring the FLIP from originRect. */
   onPreview: (id: string, originRect: DOMRect) => void;
+  /** Called when the user clicks Retry on a failed card. Optional — omit to hide retry button. */
+  onRetry?: (id: string) => void;
 }
 
 const RAIL_HEIGHT = 176; // px — fixed single-row height (spec §3)
@@ -39,6 +41,7 @@ export const AttachmentRail: React.FC<AttachmentRailProps> = ({
   attachments,
   onRemove,
   onPreview,
+  onRetry,
 }) => {
   const railRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -175,6 +178,7 @@ export const AttachmentRail: React.FC<AttachmentRailProps> = ({
             attachment={a}
             onRemove={onRemove}
             onPreview={onPreview}
+            onRetry={onRetry}
             enterState={enteringIds.has(a.id) ? 'entering' : 'entered'}
           />
         ))}

@@ -109,9 +109,29 @@ function filterRenderedMessages(messages: Message[]): Message[] {
   );
 }
 
-/** Extract readable text from a message element for copy/read-aloud. */
+/** Extract readable text from a message element for copy/read-aloud.
+ *
+ * Fix 40 — user messages: when the markdown layer is active, #userMessage is
+ * hidden (display:none via .new-ui-has-markdown), so #userMessage.innerText
+ * returns "". Read from the markdown-rendered inner div instead, which has
+ * clean text without the @Amplify: prefix from getAtBlock().
+ *
+ * When the markdown layer is NOT active (e.g. hasLargeText messages), fall
+ * back to #userMessage. The .enhanced-at-block span (display:none via CSS)
+ * is excluded from innerText by modern browsers; user-select:none in CSS
+ * (Fix 40 CSS change) prevents manual-selection clipboard inclusion too.
+ */
 function extractMessageText(el: HTMLElement, role: Role): string {
   if (role === 'user') {
+    // Prefer the markdown-rendered content (present when NewUIUserMessageMarkdownLayer
+    // is active). The inner collapsible div contains the ReactMarkdown output only,
+    // without the Show-more/Show-less button text or the @Amplify: prefix.
+    const mdInner = el.querySelector<HTMLElement>('.new-ui-user-markdown > div:first-child');
+    if (mdInner) {
+      const text = mdInner.innerText ?? '';
+      if (text.trim()) return text;
+    }
+    // Fallback: read from the original #userMessage element (markdown layer inactive).
     const userMsgEl = el.querySelector<HTMLElement>('#userMessage');
     return (userMsgEl ?? el).innerText ?? '';
   }

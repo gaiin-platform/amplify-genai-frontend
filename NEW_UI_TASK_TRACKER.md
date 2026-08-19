@@ -260,9 +260,9 @@ blocks via new-UI CSS to collapse their DOM footprint.
 
 ---
 
-## 2b. Chat Pane — Two Targeted Fixes: Thinking Indicator Alignment + Old-UI Model Selector Flash
+## 2b. Chat Pane — Visual Defect Fixes (Loading Alignment, Model Selector Flash, Old Animations)
 
-**Status:** 🚧 In progress — Bug 2 ✅ done; Bug 1 ✅ done (alignment fixed); Bug 3 (duplicate old-UI loading animations) pending
+**Status:** 🚧 In progress — Bug 1 ✅, Bug 2 ✅, Bug 3 pending (queued for next session)
 **% complete:** 85%
 **Type:** Bug fix — visual defects reported 2026-08-14.
 
@@ -281,17 +281,20 @@ to) and verify that row's left position in the new-UI column CSS matches the `.a
 prose left edge exactly. Fix via `conversation-view.css` scoping rules only — do NOT touch
 `PromptStatus.tsx` (protected).
 
-**Bug 2 — Old-UI model selector briefly flashes after user sends a message**
-When a message is sent, before the AI response starts streaming in, the old-UI model selector
-(`ModelSelect` component — likely the `#modelSelectButton` or `.model-select` element that lives
-inside Chat.tsx's original toolbar/ChatInput) briefly becomes visible. This is the classic-UI
-element that `conversation-view.css` should be hiding. Root cause hypothesis: the hide rule for
-Chat's own header/toolbar is applied to `.sticky.top-0.z-10` and `.px-20.absolute.bottom-0` (Phase
-11 CSS), but the model selector element may live in a slightly different location or have a
-different class that's not captured by those rules — or the element briefly mounts into a DOM
-position not covered by the existing `display:none !important` rules during the initial streaming
-setup phase. Fix via `conversation-view.css` — inspect the exact class/structure of the flashing
-element and add a targeted `display:none !important` rule scoped to `[data-new-ui="true"]`.
+**Bug 2 — Old-UI model selector briefly flashes after user sends a message** ✅ Fixed (Phase 38)
+Root cause: `#overflowScroll` (Chat.tsx's empty-conversation panel) rendered when `messages.length === 0`
+during the 150–300ms window before the bridge injected the first message. Fix: `[data-new-ui="true"] #overflowScroll { display: none !important }`.
+
+**Bug 3 — "Amplify Assistant is responding" placeholder text + old blinking cursor visible during pre-response window** 🔴 Pending
+Two separate elements still showing before the AI response streams in:
+1. The text "the 'Amplify Assistant' is responding" — comes from `PromptStatus.tsx` (protected) which renders
+   this string in one of its status states. This text looks like a placeholder and should be hidden/replaced
+   by the new-UI shimmer animation instead.
+2. A blinking cursor or blinking-rectangle animation below it — this is an old-UI animated element (likely
+   a separate `div` or `span` in Chat.tsx or ChatMessage.tsx) that renders in the pre-streaming state. Must
+   be hidden via a `[data-new-ui="true"]` rule in `conversation-view.css`.
+Investigation needed: read `PromptStatus.tsx` (DO NOT CHANGE) to find the exact DOM structure and class
+names for both elements, then add targeted hide rules.
 
 ### Suggested prompt
 
@@ -939,16 +942,23 @@ NEW_UI_PORTING_STATUS.md §1 (add "Conversation pinning" row → ✅ when done).
 
 ## 14. Attachment Preview in Chat History + Image Passing Bug
 
-**Status:** ⬜ Not started
-**% complete:** 0%
+**Status:** ✅ Done (Sub-problems A and B)
+**% complete:** 100% (core fixes done; one pending UX enhancement — see Task 14b below)
 **Type:** Critical bug + feature build.
 
+### Outcome (session dated 2026-08-18)
+
+**Sub-problem A — images not reaching backend:** Root cause found: `doc.raw` is always `""` (empty string) — image content is stored in S3, never in `raw`. The real bug was that `ConversationViewShell.tsx` was calling `removeItem()` on `amplify_pending_docs` but never reading it — so all attached docs (with valid S3 `doc.key` references) were silently discarded. Fix: new PATH A in `ConversationViewShell.tsx` reads the pending docs, builds a full `ChatRequest`, and calls `useSendService().handleSend()` directly (same hook `Chat.tsx` uses), bypassing the `#sendMessage` DOM click for sends with attachments.
+
+**Sub-problem B — pasted images were cosmetic only:** `ConversationComposer.tsx`'s `addImageToRail` only created a visual `UIAttachment` with an object-URL thumbnail but never uploaded to S3. Fix: `addImageToRail` now also calls `handleFile` to start an S3 upload. A sentinel-ID pattern links the `UIAttachment` to the resulting `AttachedDocument`. `canSend` blocks send while uploads are in progress.
+
+**Sub-problem B display — image thumbnails in chat history:** `DataSourcesBlock` (which old UI already used to render attachment thumbnails in sent messages) is now restyled for the new UI: 200×200 cards → 88×88, `shadow-lg` removed, `--border-subtle` border added, "Included documents:" label hidden. No portal component needed — presigned S3 URL fetch mechanism was already working.
+
+**Remaining UX gap → Task 14b:** `canSend` blocks the entire send until upload completes. User wants a different UX: go to chat view immediately, but delay the actual API call until images finish uploading, with a visible loading indicator. See Task 14b below.
+
 Two related problems:
-1. **No attachment preview in chat history** — when a message is sent with images, only the text
-   appears in the chat history. No thumbnail/preview of the attached image is shown.
-2. **Images may not be passing through** — anecdotal evidence suggests images attached in the new
-   UI are not actually being sent to the backend. The old UI's attachment mechanism may have been
-   bypassed or broken.
+1. **No attachment preview in chat history** ✅ Fixed — thumbnails now shown via restyled DataSourcesBlock
+2. **Images not passing through** ✅ Fixed — S3 path correctly wired via direct useSendService call
 
 ### What exists
 - `AttachmentRail` + `AttachmentCard` handle pre-send display (wiki Phase 18) ✅
@@ -1012,6 +1022,51 @@ Fix / implement in `conversation-view.css` + `components/NewUI/` only. Do NOT mo
 
 Update NEW_UI_DOCS.md (new phase + registry if a new component is needed) and
 NEW_UI_PORTING_STATUS.md §2 (update "Image/SVG/HTML artifact rendering" row).
+```
+
+---
+
+## 14b. Pending Upload UX — Go to Chat View Immediately, Delay Send Until Images Ready
+
+**Status:** ⬜ Not started
+**% complete:** 0%
+**Type:** UX enhancement — continuation of Task 14.
+
+### What's needed
+Currently `canSend` blocks the entire send (and the transition to chat view) until image uploads complete. The desired UX is:
+- User hits Send → **immediately** navigate to the chat view (show their message in the pending state)
+- The actual API call does NOT go out until all uploads are finished
+- A subtle, unobtrusive loading indicator shows that uploads are in progress (not a blocking spinner — something ambient like a small progress bar or pulsing dots on the send button or inside the pending message bubble)
+- Once uploads complete, the API call fires automatically — no user action needed
+
+### Context
+- `ConversationComposer.tsx` has PATH A (direct `useSendService` call for sends with attachments) from Task 14
+- The "pending" message shown before a real API response is the asterisk-pulse animation from Phase 30
+- The `canSend` guard needs to be split: "can navigate to chat view" (immediate) vs "can fire API call" (when uploads done)
+
+### Suggested prompt
+```
+(standard preamble)
+
+Feature: change the pending-upload UX so that the user is taken to the chat view immediately when they hit Send, even while image uploads are still in progress. The actual API call should wait for all uploads to finish before firing.
+
+Read `components/NewUI/chat/ConversationComposer.tsx` (the Task 14 implementation of PATH A) and `components/NewUI/shared/` to understand the current upload state tracking. Then:
+
+Step 1 — decouple "navigate to chat view" from "fire API": split the `canSend` guard:
+  - "can navigate": always true once the user has typed text (or a text message + any attachments)
+  - "can fire API": true only when all uploads are complete
+  On Send: navigate to chat view immediately (existing bridge pattern), but queue the API call. If uploads are still pending, set a flag/state that triggers the API call automatically when the last upload resolves.
+
+Step 2 — pending upload indicator: while the API call is queued (waiting for uploads), show a subtle ambient loading state in the chat view. Options in order of preference:
+  (a) A small, pulsing progress indicator inside or below the pending message bubble (where the asterisk currently shows)
+  (b) A progress bar on the send button area  
+  The indicator should disappear the moment the API call fires. Use CSS animation; do NOT use a blocking full-screen spinner.
+
+Step 3 — error handling: if an upload fails, show a small inline error on the affected attachment card in the pending message bubble, with a "Retry upload" option. Do not automatically cancel the whole send.
+
+Changes allowed: `ConversationComposer.tsx`, `ConversationViewShell.tsx`, `conversation-view.css`, and any new helper component in `components/NewUI/chat/`. Do NOT modify `Chat.tsx` or `AttachFile.tsx`.
+
+Update NEW_UI_DOCS.md (extend the existing Task 14 phase entry) and NEW_UI_PORTING_STATUS.md §2.
 ```
 
 ---
@@ -1145,32 +1200,178 @@ Update NEW_UI_DOCS.md (new phase + updated registry entry for the settings secti
 
 ---
 
+## 17. "Setting Up Amplify" Loading Animation — Replace with New Design
+
+**Status:** ⬜ Not started
+**% complete:** 0%
+**Type:** Feature polish — animation replacement.
+
+The "Setting up Amplify" screen (shown on first load while home.tsx initialises, feature flags fetch,
+models load, etc.) displays an old-style loading animation that doesn't match the new UI's visual language.
+Needs to be replaced with a cleaner, more polished animation.
+
+### What exists
+Read `components/Spinner.tsx` and/or `components/Loading.tsx` (DO NOT CHANGE — read only) to find
+the current "Setting up Amplify" element. Check `pages/index.tsx` and `pages/api/home/home.tsx`
+to find exactly where this loading screen is gated (the `!isLoading` / `serverSideApiKeyIsSet` checks).
+
+### What to build
+A new loading screen component in `components/NewUI/` (e.g. `NewUILoadingScreen.tsx`) that renders
+when the app is in its loading state. Design goals:
+- Clean, minimal, brand-appropriate: show the Amplify icon (`/icon2.png`), the word "Amplify", and a
+  smooth subtle animation (breathing/pulse on the icon, or a thin progress bar, or a shimmer effect)
+- No spinning wheels or old-style loading bars
+- Match the new UI's color system (`--bg-app`, `--text-primary`, `--accent`)
+- Must be gated by the same condition as the current loading screen — should not be visible for more than
+  a few seconds on a normal connection
+
+### Suggested prompt
+```
+(standard preamble)
+
+Feature: replace the old "Setting up Amplify" loading animation with a new design that matches the new UI.
+
+Step 0 — investigate: read `components/Spinner.tsx`, `components/Loading.tsx` (DO NOT CHANGE), and
+`pages/api/home/home.tsx` to find exactly what renders during the loading state and under what condition.
+Look for the "Setting up Amplify..." text specifically — what component renders it and what state gates it.
+
+Step 1 — build: create `components/NewUI/NewUILoadingScreen.tsx` with a clean loading design:
+  - Center the Amplify logo (`/icon2.png`, ~48px) with a smooth breathing/pulse animation
+  - The word "Amplify" below in --text-primary, appropriate size
+  - A subtle, thin progress/shimmer bar below the logo in `--accent` color with a smooth indeterminate
+    animation (no spinning, no bouncing — calm and premium)
+  - Background: `--bg-app`. No borders, no cards. Just the mark + wordmark + progress indicator, centered.
+
+Step 2 — wire: in `pages/api/home/home.tsx` (layout section), when `uiPreference === 'new'` and the
+loading condition is true, render `<NewUILoadingScreen />` instead of the old loading component.
+
+Do NOT modify the old `Spinner.tsx` / `Loading.tsx` components — wrap at the page layout level only.
+
+Update NEW_UI_DOCS.md (new component in registry, new phase entry).
+```
+
+---
+
+## 18. Library — Image/File Preview + Filter + Sort
+
+**Status:** ⬜ Not started
+**% complete:** 0%
+**Type:** Feature build — enhancement of existing NewLibraryView.
+
+### What's needed
+1. **File preview** — when a user clicks a file/image in the library, show a preview (full-size image
+   or a document preview panel). Currently `NewLibraryView.tsx` shows file rows but no preview.
+2. **Filter** — allow filtering by file type (image, PDF, doc, etc.) or by date range.
+3. **Sort** — allow sorting by name, date uploaded, type, size.
+
+### Suggested prompt
+```
+(standard preamble)
+
+Feature: add file preview, filtering, and sorting to `components/NewUI/library/NewLibraryView.tsx`.
+
+Step 0 — investigate: read `NewLibraryView.tsx` (DO NOT CHANGE — read only to understand current structure)
+and the data model for library items (check what fields each item has: name, type, size, date, URL, etc.).
+Also check if `AttachmentPreview.tsx` (wiki §5, Phase 18) can be reused for in-library preview — it already
+handles images; check if it supports documents.
+
+Step 1 — file preview: wire up a click handler on each library row to open `AttachmentPreview.tsx` (if
+reusable) or a new `NewUILibraryPreview.tsx` component. For images: full-size with zoom. For documents
+(PDF, docx): show metadata (name, size, date, type) and a "Download" link if direct content preview is
+not available via the existing service.
+
+Step 2 — filter bar: add a filter row above the library list with type-based chips (All | Images | PDFs |
+Documents | Other) and a date-range picker (Today / Last 7 days / Last 30 days / All time). Filter state
+is local (not persisted). Use the existing `SegmentedControl.tsx` (wiki §5, Phase 11) for the type chips.
+
+Step 3 — sort control: a "Sort by" dropdown (Name ↑↓ / Date ↑↓ / Size ↑↓ / Type) using the existing
+`ModelPicker`-style popover pattern. Default: Date ↓ (newest first).
+
+All changes in `components/NewUI/library/` + `conversation-view.css` only.
+Update NEW_UI_DOCS.md (extend the NewLibraryView registry entry, new phase) and NEW_UI_PORTING_STATUS.md §5.
+```
+
+---
+
+## 19. Sidebar Three-Dot Menu — Delete Button Disappears on Hover
+
+**Status:** ⬜ Not started
+**% complete:** 0%
+**Type:** Bug fix — hover/UX regression.
+
+When the user clicks the ⋯ button on a conversation row, then moves their mouse toward the Delete option,
+the menu dismisses before they can click Delete. The delete button disappears mid-path as the mouse leaves
+the conversation row's hover area.
+
+### Root cause hypothesis
+`ConversationRow.tsx` shows the ⋯ button and possibly the dropdown on `:hover` state. When the user moves
+the mouse from the ⋯ button to the dropdown menu, they briefly exit the conversation row's hover area if
+the dropdown is positioned outside the row's bounding box. The `mouseLeave` event fires on the row,
+hiding both the ⋯ button and the dropdown together.
+
+### Suggested prompt
+```
+(standard preamble)
+
+Bug: in `components/NewUI/sidebar/ConversationRow.tsx`, when the user clicks the ⋯ button and then moves
+their mouse toward the dropdown menu (Rename / Delete), the menu disappears before they can click the
+delete button.
+
+Step 0 — investigate: read `ConversationRow.tsx` to understand exactly how the dropdown is shown/hidden.
+Is it controlled by hover state (`onMouseEnter`/`onMouseLeave` on the row element)? By a click toggle?
+By a CSS `:hover` rule in `conversation-view.css`? The fix depends on the mechanism.
+
+If hover-controlled: the fix is to keep the dropdown visible as long as the mouse is over EITHER the
+row OR the dropdown itself. The standard pattern is: when the dropdown is open (after a click on ⋯),
+lock visibility with a React `isMenuOpen` boolean state that only closes on (a) clicking an action,
+(b) pressing Escape, or (c) clicking outside. This decouples the menu from the row's hover state once
+it's been explicitly opened.
+
+If click-controlled but the menu is dismissing on mouse-out of the row: the dropdown is likely positioned
+absolutely outside the row element, so `onMouseLeave` on the row fires even when the mouse is still inside
+the dropdown. Fix: add `onMouseLeave` guard that checks `relatedTarget` to see if the mouse moved into
+the dropdown, not away from it. Or, use a `useClickOutside` / `FocusScope` approach so the menu only
+closes on a genuine outside click.
+
+Fix in `ConversationRow.tsx` only. Do NOT touch any other sidebar components.
+Update NEW_UI_DOCS.md (Phase N note on the fix).
+```
+
+---
+
 ## Suggested Sequencing Summary
 
-**Immediate (bug fixes, high visibility):**
-1. **Task 2b** — remaining: old-UI duplicate loading animations ← queued, run next
-2. **Task 2c** — scroll/layout jumping during response generation ← quick CSS/layout fix
-3. **Task 12** — user message edit UI (new UI styling) ← purely CSS, fast
-4. **Task 15** — accent color to blue ← globals.css token swap + audit, fast
-5. **Task 14** — attachment preview + image passing bug ← CRITICAL functional bug, do early
+**Immediate (chat view / input bar — batch these):**
+1. **Prompt A** (Phase 40) — Bug 3 + CSS polish: hide "Amplify Assistant is responding" text + old cursor, fix text size inconsistency in AI responses, add chat input border contrast, investigate "@amplify: " copy prefix
+2. **Prompt B** (Phase 41) — Scroll behavior + streaming animation: when user sends, scroll so their new prompt is at top (then freeze), add smooth text stream animation
+3. **Task 14b** — Pending upload UX: go to chat view immediately, delay API call until uploads done, ambient loading indicator
+4. **Task 17** — "Setting up Amplify" animation replacement ← clean new loading screen
+5. **Task 19** — Three-dot delete button disappears on hover ← quick bug fix in ConversationRow.tsx
+6. **Task 12** — User message edit UI (new UI styling) ← purely CSS, fast
+7. **Task 15** — Accent color to blue ← globals.css token swap + audit, fast
 
 **Short-term features:**
-6. **Task 13** — sidebar pin conversation ← small self-contained feature
-7. **Task 11** — adjustable sidebar width ← medium complexity, high UX value
-8. **Task 3** — assistant creation overhaul (= item 8 in user list) ← investigation-first
-9. **Task 8** — sharing overhaul (= item 9 in user list) ← UX design pass first
-10. **Task 10** — standalone assistant page ← investigation-first
+8. **Task 13** — Sidebar pin conversation ← small self-contained feature
+9. **Task 11** — Adjustable sidebar width ← medium complexity, high UX value
+10. **Task 18** — Library preview + filter/sort ← medium feature
+11. **Task 3** — Assistant creation overhaul ← investigation-first
+12. **Task 8** — Sharing overhaul ← UX design pass first
+13. **Task 10** — Standalone assistant page ← investigation-first
 
-**Longer horizon (unchanged from original plan):**
-11. **Task 16** (Custom Instructions overhaul — multiple named sets, active selection, wired into new conversations)
-12. **Task 4c** (Helper assistants) → **Task 7** (Learn page)
-13. **Task 6** (Model info page)
-14. **Task 9** (a11y pass 2 — after more features land)
-15. **Task 4a** (Memory — last, needs design doc first)
+**Longer horizon:**
+14. **Task 16** (Custom Instructions overhaul — multiple named sets, active selection, wired into new conversations)
+15. **Task 4c** (Helper assistants) → **Task 7** (Learn page)
+16. **Task 6** (Model info page)
+17. **Task 9** (a11y pass 2 — after more features land)
+18. **Task 4a** (Memory — last, needs design doc first)
 
 **Backend prerequisites (do not start frontend work until backend is ready):**
 - Task 4b (Deep Research) — needs backend orchestration built first
 - Task 4d (Usage) — needs backend cost/token data API confirmed first
+
+**Recently completed:**
+- Task 2c ✅ — scroll jumping fixed (Phase 39): dual scrollIntoView fight resolved by moving composer clearance from `padding-bottom` to spacer height
+- Task 14 ✅ — attachment passing + chat history display fixed (Phase 40): S3 key correctly wired via direct `useSendService` call; pasted images now upload to S3; DataSourcesBlock restyled for thumbnails
 
 ---
 
@@ -1212,3 +1413,27 @@ Update NEW_UI_DOCS.md (new phase + updated registry entry for the settings secti
   rewritten to reflect new priorities. Items 8 (assistant creation) and 9 (sharing) in user's list
   map to existing Tasks 3 and 8 respectively. Item 5 (hover row spacing) is the existing Task 2
   known open issue.
+- **2026-08-18** — Phase 40b (CSS Polish + Four Bug Fixes) ✅ Done: hid "Amplify Assistant is
+  responding" text + `▍` cursor; fixed h1/h4-h6 heading size inconsistency; added chat input
+  border contrast; fixed "@amplify: " copy-paste prefix (CSS `user-select:none` + `extractMessageText`
+  now prefers markdown host).
+- **2026-08-18** — Phase 41 (Scroll Anchoring + Streaming Fade-in) ✅ Done: user's new prompt
+  scrolled to 80px from top on send and frozen; per-chunk fade-in via CSS `@keyframes` scoped to last
+  assistant message only. Phase 42 (Deferred Upload Send) ✅ Done: send button unblocked from uploads;
+  API call fires automatically when images finish uploading; `UploadPendingIndicator` shows progress.
+- **2026-08-18** — New outstanding issues from user review: (a) two orange pulsing circles sometimes
+  appear when response is almost done — likely ChatLoader + PromptStatus breathing dots overlapping
+  during the streaming→done transition; (b) loading text removed but no replacement — user wants
+  something nicer than bare dot (e.g. "Thinking…" with typed or shimmer animation); (c) hover row
+  gap issues: gap between AI response and hover row still too large, new gap between "Thought process"
+  dropdown and AI response body, and hover row hangs so low it overlaps next conversation turn.
+  Queuing as Phase 43 (loading indicator) and Phase 44 (hover row gap root cause fix).
+- **2026-08-18** — Task 2c (scroll jumping) ✅ Done — Phase 39 fix: dual scrollIntoView competition
+  resolved by moving composer clearance from chatcontainer `padding-bottom` into spacer height.
+  Task 14 (attachment passing + chat history display) ✅ Done — Phase 40 fixes: S3 path correctly
+  wired via direct `useSendService` call (PATH A); pasted images now upload via `handleFile`;
+  DataSourcesBlock restyled to show 88×88 thumbnails. New tasks added: Task 14b (pending upload UX
+  — go to chat view immediately, delay API call until uploads done), Task 17 ("Setting up Amplify"
+  animation replacement), Task 18 (Library preview + filter/sort), Task 19 (three-dot delete button
+  disappears on hover). Task 2b Bug 3 description expanded with detail: "Amplify Assistant is
+  responding" text + blinking cursor below it. Sequencing summary rewritten.

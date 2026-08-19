@@ -18,6 +18,25 @@
  *
  * Toolbar left:   ⊕ AttachMenu  [active chips]
  * Toolbar right:  ModelPicker  mic  send/voice slot
+ *
+ * ── Two-phase send (Task 14) ─────────────────────────────────────────────────
+ * When images are still uploading at send time the composer immediately clears
+ * the text field (visual confirmation that Send was received) but defers the
+ * actual API call until every S3 upload resolves.  While waiting, an ambient
+ * UploadPendingIndicator appears inside the card, the bottom brand-mark pulses,
+ * and the user can cancel at any time (message text is restored on cancel).
+ *
+ * Three paths:
+ *   DEFERRED: uploading images present → store PendingUploadSend, show indicator
+ *             handleDocSetKey feeds newDocs, useEffect fires when remainingCount=0
+ *   PATH A:   all docs already have S3 keys → call useSendService directly
+ *   PATH B:   text only → inject into ChatInput + click #sendMessage
+ *
+ * Failure handling:
+ *   A 90-second stall timeout marks stuck uploads as status:'failed'.
+ *   AttachmentCard shows a Retry button (via onRetry prop) on failed cards.
+ *   Retry cancels the pending send (restoring message text), removes the failed
+ *   card, and re-uploads via addImageToRail.
  */
 import React, {
   useCallback,
@@ -41,6 +60,7 @@ import {
   createPasteAttachment,
   PASTE_AS_FILE_THRESHOLD,
 } from '@/components/NewUI/shared/attachmentTypes';
+import { UploadPendingIndicator } from './UploadPendingIndicator';
 import { PluginID, Plugin, Plugins } from '@/types/plugin';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
@@ -65,6 +85,27 @@ function setNativeValue(el: HTMLTextAreaElement, value: string) {
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 }
+
+/**
+ * State captured at send time when images are still uploading.
+ * Stored in a ref so handleDocSetKey callbacks can mutate it without
+ * triggering extra renders.  setPendingUploadState is the React-facing
+ * signal used to drive the indicator and the auto-fire useEffect.
+ */
+interface PendingUploadSend {
+  msgText: string;
+  /** Docs that already had S3 keys when Send was clicked. */
+  readyDocs: AttachedDocument[];
+  /** Docs whose uploads completed AFTER Send — accumulates as handleDocSetKey fires. */
+  newDocs: AttachedDocument[];
+  /** How many uploads are still in flight (decrements to 0, then fires). */
+  remainingCount: number;
+  webSearchEnabled: boolean;
+  selectedSkillIds: string[];
+}
+
+/** How long an upload may stall (no key callback) before we mark it failed. */
+const UPLOAD_STALL_TIMEOUT_MS = 90_000;
 
 export const ConversationComposer: React.FC = () => {
   const {
@@ -145,21 +186,8 @@ export const ConversationComposer: React.FC = () => {
   }, [text, adjustHeight]);
 
   // ── Helpers: update attachedDocs state from handleFile callbacks ──────────
-  // These mirror the NewHome.tsx pattern so pasted images go through the
-  // standard S3 upload pipeline while the thumbnail appears immediately.
   const addDocCallback = useCallback((doc: AttachedDocument) => {
     setAttachedDocs((prev) => [...prev, doc]);
-  }, []);
-  const handleDocSetKey = useCallback((doc: AttachedDocument, key: string) => {
-    setAttachedDocs((prev) =>
-      prev.map((d) => (d.id === doc.id ? { ...d, key } : d)),
-    );
-    // Also mark the UIAttachment as fully ready once the S3 key arrives
-    setUIAttachments((prev) =>
-      prev.map((a) =>
-        a.id === doc.id ? { ...a, status: 'ready' as const } : a,
-      ),
-    );
   }, []);
   const handleDocSetMetadata = useCallback(
     (doc: AttachedDocument, metadata: any) => {
@@ -185,18 +213,203 @@ export const ConversationComposer: React.FC = () => {
     [],
   );
 
+  // ── Attachment rail state (declared here so handleSend can read uiAttachments) ──
+  const [uiAttachments, setUIAttachments] = useState<UIAttachment[]>([]);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [previewOriginRect, setPreviewOriginRect] = useState<DOMRect | undefined>(undefined);
+  // object-URL store for image thumbnails (revoke on remove)
+  const thumbUrlsRef = useRef<Record<string, string>>({});
+
+  // ── Deferred-send state ────────────────────────────────────────────────────
+  // Mutable ref: mutated synchronously by handleDocSetKey without triggering renders.
+  // When remainingCount reaches 0 we update pendingUploadState, which triggers the
+  // auto-fire useEffect below.
+  const pendingUploadSendRef = useRef<PendingUploadSend | null>(null);
+  // React state for the UI indicator and the auto-fire useEffect.
+  // { done: N } = N of the originally-uploading images have completed.
+  const [pendingUploadState, setPendingUploadState] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+
+  // ── Stall-timeout tracking ─────────────────────────────────────────────────
+  // Timer IDs keyed by doc id. Cleared on success; fires after UPLOAD_STALL_TIMEOUT_MS
+  // to mark stuck uploads as 'failed' so the Retry button appears.
+  const uploadTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // Original File objects keyed by doc id — needed to re-upload on Retry.
+  const originalFilesRef = useRef<Record<string, File>>({});
+
+  // ── handleDocSetKey ─────────────────────────────────────────────────────────
+  // Called when a doc's S3 upload completes.  Marks UIAttachment ready,
+  // clears any stall timer, and feeds the deferred-send accumulator.
+  const handleDocSetKey = useCallback((doc: AttachedDocument, key: string) => {
+    // Clear stall timer for this doc
+    if (uploadTimeoutsRef.current[doc.id]) {
+      clearTimeout(uploadTimeoutsRef.current[doc.id]);
+      delete uploadTimeoutsRef.current[doc.id];
+    }
+
+    setAttachedDocs((prev) =>
+      prev.map((d) => (d.id === doc.id ? { ...d, key } : d)),
+    );
+    setUIAttachments((prev) =>
+      prev.map((a) =>
+        a.id === doc.id ? { ...a, status: 'ready' as const } : a,
+      ),
+    );
+
+    // ── Deferred-send accumulator ──────────────────────────────────────────
+    const pending = pendingUploadSendRef.current;
+    if (pending && pending.remainingCount > 0) {
+      // Guard: don't count a doc that was already in readyDocs at send time
+      const alreadyReady = pending.readyDocs.some((d) => d.id === doc.id);
+      if (!alreadyReady) {
+        pending.newDocs.push({ ...doc, key });
+        pending.remainingCount--;
+        // Trigger the auto-fire useEffect (and update the progress indicator)
+        setPendingUploadState((prev) =>
+          prev ? { done: prev.done + 1, total: prev.total } : null,
+        );
+      }
+    }
+  }, []);
+
+  // ── auto-fire useEffect ────────────────────────────────────────────────────
+  // Fires the deferred ChatRequest when all uploads have completed.
+  // Reads the freshest selectedConversation / selectedAssistant / featureFlags so
+  // any conversation switch that happened while waiting is picked up correctly.
+  useEffect(() => {
+    if (!pendingUploadState) return;
+    if (pendingUploadState.done < pendingUploadState.total) return;
+
+    const pending = pendingUploadSendRef.current;
+    if (!pending || !selectedConversation) return;
+
+    const allDocs = [...pending.readyDocs, ...pending.newDocs];
+    const { msgText, webSearchEnabled: pendingWebSearch, selectedSkillIds: pendingSkills } = pending;
+
+    // Clear before firing to prevent any double-fire
+    pendingUploadSendRef.current = null;
+    setPendingUploadState(null);
+    setAttachedDocs([]);
+    setUIAttachments([]);
+    Object.values(thumbUrlsRef.current).forEach((u) => URL.revokeObjectURL(u));
+    thumbUrlsRef.current = {};
+
+    // Edge case: all images failed (timeout) and there's no text either.
+    // Nothing to send — silently abort rather than fire an empty message.
+    if (allDocs.length === 0 && !msgText.trim()) {
+      return;
+    }
+
+    // Edge case: all images failed (timeout) but the user did write text.
+    // Fall through to PATH B (text-only DOM bridge) rather than PATH A.
+    if (allDocs.length === 0) {
+      const hiddenTextarea = document.getElementById(
+        'messageChatInputText',
+      ) as HTMLTextAreaElement | null;
+      const hiddenSend = document.getElementById('sendMessage') as HTMLButtonElement | null;
+      if (hiddenTextarea && hiddenSend) {
+        setTimeout(() => {
+          setNativeValue(hiddenTextarea, msgText);
+          setTimeout(() => hiddenSend.click(), 60);
+        }, 30);
+      }
+      return;
+    }
+
+    // Build and fire ChatRequest (same construction as PATH A in handleSend)
+    let msg = newMessage({
+      role: 'user',
+      content: msgText || ' ',
+      type: MessageType.PROMPT,
+      data: {
+        enableWebSearch: pendingWebSearch,
+        skills: pendingSkills,
+        skillSelectionMode: 'auto',
+        dataSources: allDocs.map((d) => ({
+          id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`,
+          type: d.type,
+          name: d.name || '',
+          metadata: d.metadata || {},
+        })),
+      },
+    });
+    msg = setAssistantInMsg(msg, selectedAssistant ?? DEFAULT_ASSISTANT);
+
+    let assistantOptions: Record<string, unknown> | undefined;
+    if (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id) {
+      assistantOptions = {
+        assistantName: selectedAssistant.definition?.name,
+        assistantId: selectedAssistant.definition?.assistantId,
+        groupId: selectedAssistant.definition?.groupId,
+        groupType: selectedConversation.groupType,
+      };
+    }
+
+    const settings = typeof window !== 'undefined' ? getSettings(featureFlags) : null;
+    const plugins = settings ? getActivePlugins(settings, featureFlags) : [];
+
+    const request: ChatRequest = {
+      message: msg,
+      deleteCount: 0,
+      documents: allDocs,
+      plugins,
+      conversationId: selectedConversation.id,
+      ...(assistantOptions ? { options: assistantOptions } : {}),
+    };
+
+    sendViaServiceRef.current(request, () => false);
+  }, [pendingUploadState, selectedConversation, selectedAssistant, featureFlags]);
+
+  // ── Set data-upload-pending on the shell ─────────────────────────────────
+  // Drives the asterisk pulse animation in conversation-view.css when a
+  // deferred send is waiting.  Targets the nearest .new-ui-chat-shell ancestor.
+  useEffect(() => {
+    const shell = document.querySelector(
+      '[data-new-ui="true"].new-ui-chat-shell',
+    ) as HTMLElement | null;
+    if (!shell) return;
+    if (pendingUploadState) {
+      shell.setAttribute('data-upload-pending', 'true');
+    } else {
+      shell.removeAttribute('data-upload-pending');
+    }
+  }, [pendingUploadState]);
+
+  // ── handleCancelPendingSend ───────────────────────────────────────────────
+  // Abandons the deferred send.  Restores message text so the user can edit
+  // and re-send once the images finish uploading (or remove them).
+  const handleCancelPendingSend = useCallback(() => {
+    const pending = pendingUploadSendRef.current;
+    if (pending?.msgText) {
+      setText(pending.msgText);
+    }
+    pendingUploadSendRef.current = null;
+    setPendingUploadState(null);
+    // Note: uiAttachments and attachedDocs are intentionally kept — uploads
+    // continue in the background; the user can re-click Send when ready.
+  }, []);
+
   // ── Send — bridge into Chat's hidden ChatInput ────────────────────────────
   //
-  // Two paths:
+  // Three paths:
+  //   DEFERRED: uploading images present → store pending state, return early
   //   A) attachedDocs have S3 keys → call useSendService directly with docs
   //   B) no docs with keys → inject text + click #sendMessage (existing path)
   //
   const handleSend = useCallback(() => {
     const hasText = text.trim().length > 0;
     const docsWithKeys = attachedDocs.filter((d) => !!d.key);
-    const canSendNow =
-      !messageIsStreaming && (hasText || docsWithKeys.length > 0);
-    if (!canSendNow) return;
+    const uploadingImages = uiAttachments.filter(
+      (a) => a.kind === 'image' && a.status === 'uploading',
+    );
+    const hasContentToSend =
+      hasText || docsWithKeys.length > 0 || uploadingImages.length > 0;
+
+    if (!hasContentToSend) return;
+    if (messageIsStreaming) return;
+    if (pendingUploadSendRef.current) return; // already waiting
 
     // ── Shared model + conversation prep ────────────────────────────────────
     if (
@@ -225,6 +438,22 @@ export const ConversationComposer: React.FC = () => {
     const msgText = text;
     setText('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
+
+    // ── DEFERRED SEND: images still uploading ──────────────────────────────
+    if (uploadingImages.length > 0) {
+      pendingUploadSendRef.current = {
+        msgText,
+        readyDocs: [...docsWithKeys],
+        newDocs: [],
+        remainingCount: uploadingImages.length,
+        webSearchEnabled,
+        selectedSkillIds,
+      };
+      // pendingUploadState.done tracks how many of the originally-uploading
+      // images have since completed (starts at 0).
+      setPendingUploadState({ done: 0, total: uploadingImages.length });
+      return;
+    }
 
     // ── PATH A: pasted images fully uploaded ─────────────────────────────────
     if (docsWithKeys.length > 0 && selectedConversation) {
@@ -299,6 +528,7 @@ export const ConversationComposer: React.FC = () => {
   }, [
     text,
     attachedDocs,
+    uiAttachments,
     messageIsStreaming,
     selectedConversation,
     selectedAssistant,
@@ -338,17 +568,20 @@ export const ConversationComposer: React.FC = () => {
   };
 
   // ── Attachment rail ────────────────────────────────────────────────────────
-  const [uiAttachments, setUIAttachments] = useState<UIAttachment[]>([]);
-  const [previewId, setPreviewId] = useState<string | null>(null);
-  const [previewOriginRect, setPreviewOriginRect] = useState<DOMRect | undefined>(undefined);
-  // object-URL store for image thumbnails (revoke on remove)
-  const thumbUrlsRef = useRef<Record<string, string>>({});
+  // (uiAttachments, previewId, previewOriginRect, thumbUrlsRef declared above
+  //  so handleSend can reference uiAttachments without a forward-reference error)
 
   const handleRemoveAttachment = (id: string) => {
     if (thumbUrlsRef.current[id]) {
       URL.revokeObjectURL(thumbUrlsRef.current[id]);
       delete thumbUrlsRef.current[id];
     }
+    // Clear stall timer if any
+    if (uploadTimeoutsRef.current[id]) {
+      clearTimeout(uploadTimeoutsRef.current[id]);
+      delete uploadTimeoutsRef.current[id];
+    }
+    // NOTE: keep originalFilesRef[id] for potential retry after failed removal
     setUIAttachments((prev) => prev.filter((a) => a.id !== id));
     // Also remove the backing AttachedDocument so it isn't sent
     setAttachedDocs((prev) => prev.filter((d) => d.id !== id));
@@ -364,7 +597,11 @@ export const ConversationComposer: React.FC = () => {
    *      callback links the generated doc.id to the UIAttachment id so that
    *      progress updates and the final doc.key can be tracked. Once
    *      handleDocSetKey fires, the UIAttachment is marked 'ready' and
-   *      handleSend's PATH A sends it with the message.
+   *      handleSend's PATH A (or the deferred auto-fire) sends it with the message.
+   *
+   * A UPLOAD_STALL_TIMEOUT_MS stall-timer is started once wrappedAttach fires.
+   * If onSetKey never arrives (network error, etc.) the timer marks the
+   * UIAttachment as 'failed' so the Retry button appears on the card.
    *
    * If featureFlags.uploadDocuments is false, the upload step is skipped and
    * the doc has no key — the image will not be sent to the backend, which
@@ -381,6 +618,7 @@ export const ConversationComposer: React.FC = () => {
         // the real id is known (by replacing the sentinel entry).
         const sentinelId = `img-pending-${Date.now()}`;
         thumbUrlsRef.current[sentinelId] = url;
+        originalFilesRef.current[sentinelId] = file;
 
         // Show placeholder card immediately
         setUIAttachments((prev) => [
@@ -404,9 +642,12 @@ export const ConversationComposer: React.FC = () => {
         const wrappedAttach = (doc: AttachedDocument) => {
           if (!intercepted) {
             intercepted = true;
-            // Transfer thumb URL from sentinel to real doc id
+            // Transfer thumb URL + original file ref from sentinel to real doc id
             thumbUrlsRef.current[doc.id] = url;
             delete thumbUrlsRef.current[sentinelId];
+            originalFilesRef.current[doc.id] = file;
+            delete originalFilesRef.current[sentinelId];
+
             // Replace the sentinel UIAttachment with the real one
             setUIAttachments((prev) =>
               prev.map((a) =>
@@ -421,6 +662,43 @@ export const ConversationComposer: React.FC = () => {
                   : a,
               ),
             );
+
+            // Start stall-timeout so failed uploads get surfaced.
+            // Only relevant when uploads are actually enabled.
+            if (featureFlags.uploadDocuments) {
+              if (uploadTimeoutsRef.current[sentinelId]) {
+                clearTimeout(uploadTimeoutsRef.current[sentinelId]);
+                delete uploadTimeoutsRef.current[sentinelId];
+              }
+              uploadTimeoutsRef.current[doc.id] = setTimeout(() => {
+                delete uploadTimeoutsRef.current[doc.id];
+                // Mark as failed with an actionable error message
+                setUIAttachments((prev) =>
+                  prev.map((a) =>
+                    a.id === doc.id && a.status === 'uploading'
+                      ? {
+                          ...a,
+                          status: 'failed' as const,
+                          error: 'Upload timed out. Tap Retry.',
+                        }
+                      : a,
+                  ),
+                );
+                // If a deferred send was waiting on this doc, treat it as done
+                // (without a key — the send will proceed with whatever completed).
+                const pending = pendingUploadSendRef.current;
+                if (pending && pending.remainingCount > 0) {
+                  const alreadyReady = pending.readyDocs.some((d) => d.id === doc.id);
+                  if (!alreadyReady) {
+                    // Don't push to newDocs (no key), just decrement counter
+                    pending.remainingCount--;
+                    setPendingUploadState((prev) =>
+                      prev ? { done: prev.done + 1, total: prev.total } : null,
+                    );
+                  }
+                }
+              }, UPLOAD_STALL_TIMEOUT_MS);
+            }
           }
           addDocCallback(doc);
         };
@@ -452,6 +730,24 @@ export const ConversationComposer: React.FC = () => {
     ],
   );
 
+  // ── handleRetryAttachment ─────────────────────────────────────────────────
+  // Cancels any pending deferred send (restoring message text), removes the
+  // failed card, and re-submits the original file via addImageToRail.
+  const handleRetryAttachment = useCallback(
+    (id: string) => {
+      const file = originalFilesRef.current[id];
+      if (!file) return;
+      // Restore message text before cancelling so the user doesn't lose their work
+      handleCancelPendingSend();
+      handleRemoveAttachment(id);
+      addImageToRail(file);
+    },
+    // handleCancelPendingSend and handleRemoveAttachment are defined above;
+    // addImageToRail is a stable useCallback. All three read refs, not captured state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [addImageToRail],
+  );
+
   // Large-paste interception in the plain textarea (spec §6)
   const handleTextareaPaste = useCallback(
     (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -476,15 +772,14 @@ export const ConversationComposer: React.FC = () => {
     [addImageToRail],
   );
 
-  // canSend: text present OR a fully-uploaded image is ready; blocked while
-  // any image is still uploading (so PATH A doesn't fire with incomplete docs).
-  const allImagesUploaded = uiAttachments
-    .filter((a) => a.kind === 'image')
-    .every((a) => a.status === 'ready');
+  // canSend:
+  //   — Send button visible when there's text OR any non-failed attachment
+  //   — Blocked while streaming or a deferred send is already in flight
+  //   — No longer blocked by uploading images (two-phase send handles that)
+  const hasContent =
+    text.trim().length > 0 || uiAttachments.some((a) => a.status !== 'failed');
   const canSend =
-    !messageIsStreaming &&
-    allImagesUploaded &&
-    (text.trim().length > 0 || uiAttachments.some((a) => a.status === 'ready'));
+    !messageIsStreaming && pendingUploadState === null && hasContent;
 
   return (
     <div
@@ -524,10 +819,20 @@ export const ConversationComposer: React.FC = () => {
           }}
           onClick={() => textareaRef.current?.focus()}
         >
+          {/* ── Upload progress indicator (shown while deferred send is waiting) ── */}
+          {pendingUploadState && (
+            <UploadPendingIndicator
+              done={pendingUploadState.done}
+              total={pendingUploadState.total}
+              onCancel={handleCancelPendingSend}
+            />
+          )}
+
           {/* ── Band 1: Attachment rail (collapses to 0 when empty) ── */}
           <AttachmentRail
             attachments={uiAttachments}
             onRemove={handleRemoveAttachment}
+            onRetry={handleRetryAttachment}
             onPreview={(id, rect) => {
               setPreviewId(id);
               setPreviewOriginRect(rect);
@@ -543,7 +848,7 @@ export const ConversationComposer: React.FC = () => {
             onKeyDown={handleKeyDown}
             onPaste={handleTextareaPaste}
             data-composer-textarea="true"
-            placeholder="Write a message…"
+            placeholder={pendingUploadState ? '' : 'Write a message…'}
             aria-label="Message input"
             aria-multiline="true"
             rows={1}
@@ -632,9 +937,10 @@ export const ConversationComposer: React.FC = () => {
                * §7 Send ↔ Voice ↔ Stop slot (32×32, zero layout shift).
                * One slot, three possible occupants — all absolutely positioned,
                * cross-fading via opacity+pointer-events over 120ms:
-               *   streaming    → Stop button  (--bg-active, PlayerStop icon)
-               *   idle + empty → Voice button (transparent, mic icon, 28×28)
-               *   idle + text  → Send button  (--accent, ArrowUp icon)
+               *   streaming         → Stop button  (--bg-active, PlayerStop icon)
+               *   pendingUpload     → Voice button (dimmed, non-interactive)
+               *   idle + empty      → Voice button (transparent, mic icon, 28×28)
+               *   idle + has content→ Send button  (--accent, ArrowUp icon)
                */}
               <div className="relative w-[32px] h-[32px]">
                 {/* Stop — when streaming */}
@@ -654,15 +960,16 @@ export const ConversationComposer: React.FC = () => {
                   <IconPlayerStop size={16} />
                 </button>
 
-                {/* Voice — idle + empty composer */}
+                {/* Voice — idle + empty composer (dimmed while upload pending) */}
                 <button
                   type="button"
                   className="absolute inset-0 flex items-center justify-center rounded-[8px] transition-all duration-[120ms]"
                   style={{
                     background: 'transparent',
                     color: 'var(--text-muted)',
-                    opacity: (!messageIsStreaming && !canSend) ? 1 : 0,
-                    pointerEvents: (!messageIsStreaming && !canSend) ? 'auto' : 'none',
+                    // Show when idle and nothing to send; dim if upload pending
+                    opacity: (!messageIsStreaming && !canSend) ? (pendingUploadState ? 0.35 : 1) : 0,
+                    pointerEvents: (!messageIsStreaming && !canSend && !pendingUploadState) ? 'auto' : 'none',
                   }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}

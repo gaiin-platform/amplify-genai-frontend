@@ -20,6 +20,8 @@ interface AttachmentCardProps {
   onRemove: (id: string) => void;
   /** Called when the user clicks the card face to open the preview overlay. */
   onPreview: (id: string, originRect: DOMRect) => void;
+  /** Called when the user clicks "Retry" on a failed card. */
+  onRetry?: (id: string) => void;
   /** Whether to make the remove × always visible (mobile, where no hover). */
   alwaysShowRemove?: boolean;
   /** Animation entry state — used by parent to control enter animation class. */
@@ -32,6 +34,7 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
   attachment,
   onRemove,
   onPreview,
+  onRetry,
   alwaysShowRemove = false,
   enterState = 'entered',
 }) => {
@@ -318,6 +321,49 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
         >
           ×
         </button>
+
+        {/* ── Retry button — shown on failed cards (absolute, bottom-center) ── */}
+        {isFailed && onRetry && (
+          <button
+            aria-label={`Retry uploading ${name}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRetry(id);
+            }}
+            style={{
+              position: 'absolute',
+              bottom: 10,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              height: 24,
+              borderRadius: 6,
+              background: '#3A2A28',
+              border: '1px solid #6E4540',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 10px',
+              fontSize: 11.5,
+              fontWeight: 600,
+              color: '#C4756B',
+              letterSpacing: '0.02em',
+              whiteSpace: 'nowrap',
+              zIndex: 3,
+              transition: 'background 120ms, border-color 120ms',
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background = '#4A3530';
+              (e.currentTarget as HTMLElement).style.borderColor = '#8E5550';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = '#3A2A28';
+              (e.currentTarget as HTMLElement).style.borderColor = '#6E4540';
+            }}
+          >
+            Retry
+          </button>
+        )}
       </div>
     </li>
   );

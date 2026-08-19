@@ -111,7 +111,23 @@
 [data-new-ui="true"] .chatcontainer {
   /* Layout */
   max-width: 100% !important;
-  padding-top: 52px !important;       /* header overlay height */
+  /* Phase 41 Fix 1: 52px → 80px. Two reasons, both verified in a headless
+     harness rather than assumed:
+       1. The mask-image below only reaches full opacity at 80px, so content
+          that started at 52px (flush with the header's bottom edge) was being
+          rendered inside the fade ramp — the first line of a message near the
+          top was partially transparent. Starting content at 80px makes the
+          content-start and mask-clear points coincide, so content is never
+          faded on arrival. (Pre-existing issue, fixed incidentally here.)
+       2. It makes the prompt-at-top anchor REACHABLE for the first message of
+          a conversation. The anchor wants `scrollTop = promptTop - 80`; with an
+          empty history promptTop was 52, giving a negative target that clamps
+          to 0 and left the prompt at 54px — jammed under the header and faded.
+          With 80px of top inset, scrollTop 0 already places it at exactly 80px.
+     Net visual effect: a conversation's first message now sits ~28px below the
+     header instead of flush against it — which is the breathing room the spec
+     asked for ("~24px from the top of the scroll area"). */
+  padding-top: 80px !important;       /* header overlay (52px) + 28px gap */
   /* Phase 39 (send→first-token scroll-jump fix): padding-bottom is now 0.
      Chat.tsx (DO-NOT-CHANGE) runs TWO competing auto-scroll effects while
      messageIsStreaming is true — a 250ms throttled `scrollIntoView(true)`
@@ -318,6 +334,67 @@
   padding-top: 20px !important;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   PHASE 41 FIX 1 — reserved scroll room for prompt-at-top anchoring
+
+   ConversationViewShell sets data-anchor-freeze="true" plus a
+   --new-ui-anchor-room px value on the shell while a just-sent prompt is
+   anchored to the top, and clears both once the room is no longer needed.
+
+   WHY reserved room is required, not cosmetic — two independent reasons:
+
+   1. REACHABILITY. To park a just-sent prompt ~24px below the header we need
+      `scrollTop = promptTop - 80`. scrollTop cannot exceed
+      `scrollHeight - clientHeight`, so with only the resting bottom clearance a
+      short prompt on a tall window simply CANNOT reach the top — the browser
+      clamps and the prompt stays mid-screen.
+
+   2. A LITTLE SLACK so that sitting at the anchor does not read as "at the
+      bottom" (Chat.tsx's tolerance is 30px, and the shell uses the same notion
+      to detect "the user scrolled down to follow"). ANCHOR_BOTTOM_MARGIN = 48px.
+
+   NOTE — this room is now much SMALLER than it used to be. The freeze itself no
+   longer depends on it. Earlier revisions had to push the bottom sentinel
+   entirely past the fold to stop Chat.tsx's IntersectionObserver re-enabling
+   auto-scroll; the shell now stubs out `scrollIntoView` on that sentinel
+   directly (see the mechanism comment in ConversationViewShell.tsx), so all
+   three of Chat.tsx's programmatic scrolls are inert no matter what its
+   `autoScrollEnabled` says. Room is therefore needed only to make the anchor
+   position physically reachable.
+
+   ⚠ WHY margin-top AND NOT height — THE BUG THIS RULE ONCE CAUSED:
+   Chat.tsx's bottom spacer and its IntersectionObserver sentinel are THE SAME
+   ELEMENT — `className="h-[300px]"` and `ref={messagesEndRef}` on one div
+   (L1743-1746). The first version of this rule reserved room with
+   `height: 100vh`, i.e. by growing the sentinel itself. That satisfied gate (a)
+   but left the sentinel ~70% visible, so gate (b) set autoScrollEnabled back to
+   true and the 100ms interval dragged the anchored prompt to -162px — above the
+   top of the viewport — re-firing every time isUserScrolling lapsed (500ms).
+   Reported as "the prompt is too high, I don't see it, and it forces my scroll
+   downwards over and over". Both figures measured in a headless harness.
+   So: NEVER change this element's height. Room goes ABOVE it as margin, leaving
+   its own box — and therefore the observer's geometry — exactly as Chat.tsx and
+   Phase 39 expect.
+
+   The room value is sized by ConversationViewShell to clear the sentinel past
+   the fold, and it SHRINKS as real response content arrives, reaching 0 once the
+   answer alone is tall enough to hold the anchor — at which point the attribute
+   is removed and the layout is exactly the Phase 39 resting state. The reserved
+   blank space is therefore transient, not permanent.
+
+   The requested exception comes for free: if the user scrolls to the bottom to
+   follow the output, the shell drops the room and Chat.tsx resumes following.
+
+   PHASE 39 INTERACTION: Phase 39 set padding-bottom to 0 and relies on the
+   spacer being SHORTER than the viewport so Chat.tsx's competing
+   `scrollIntoView(true)` / `scrollIntoView(false)` converge. This rule leaves
+   the spacer's height untouched, so that convergence is preserved; the margin
+   only matters while auto-scroll is off.
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"][data-anchor-freeze="true"] .h-\[300px\] {
+  margin-top: var(--new-ui-anchor-room, 0px) !important;
+}
+
 /*
  * §11 — Pending asterisk: flush with body text left edge.
  * The ✳ glyph has left side bearing so it appears to sit slightly inside
@@ -388,9 +465,14 @@
   padding: 0 !important;
 }
 
-/* Hide @Amplify: prefix labels */
+/* Hide @Amplify: prefix labels.
+   user-select: none ensures the text is also excluded from manual clipboard
+   selection in browsers that include display:none element text in selection
+   (Fix 40 — "@amplify: " prefix in copied user-message text). */
 [data-new-ui="true"] .enhanced-at-block {
   display: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -554,6 +636,19 @@
   color: var(--text-primary) !important;
 }
 
+/* Fix 40 — h1 inside .prose was missing a size override; h2/h3 were already
+   covered for .prose but h1 was not. Tailwind Typography defaults h1 to ~2.25em
+   (~38px) which causes "randomly some text appears larger" symptoms in AI
+   responses. Normalised to 20px — close to h2 (18px), clearly differentiated
+   from body text (17px), well below browser/Tailwind defaults. */
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose h1 {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  margin-top: 28px !important;
+  margin-bottom: 12px !important;
+  color: var(--text-primary) !important;
+}
+
 [data-new-ui="true"] .assistantContentBlock h2,
 [data-new-ui="true"] .enhanced-chat-message.assistant-message .prose h2 {
   font-size: 18px !important;
@@ -570,6 +665,40 @@
   margin-top: 20px !important;
   margin-bottom: 8px !important;
   color: var(--text-primary) !important;
+}
+
+/* Fix 40 — h4/h5/h6 were never overridden; Tailwind Typography renders them
+   at progressively smaller px values but still larger than needed in a chat
+   context. Keep them at body-text size, bold — readable hierarchy without
+   the "stray large text" symptom. */
+[data-new-ui="true"] .assistantContentBlock h4,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose h4,
+[data-new-ui="true"] .assistantContentBlock h5,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose h5,
+[data-new-ui="true"] .assistantContentBlock h6,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message .prose h6 {
+  font-size: 1em !important;
+  font-weight: 600 !important;
+  margin-top: 14px !important;
+  margin-bottom: 6px !important;
+  color: var(--text-primary) !important;
+}
+
+/* Fix 40 — Headings inside the "Thought process" reasoning block.
+   The block's base font-size is 13.5px. Any heading inside the block's
+   .prose column would otherwise render at Tailwind Typography default sizes
+   (~27px for h1) — larger than the surrounding text. Cap them at 1.1× the
+   block's base to stay clearly secondary. */
+[data-new-ui="true"] .text-sm\!important.opacity-70 .prose h1,
+[data-new-ui="true"] .text-sm\!important.opacity-70 .prose h2,
+[data-new-ui="true"] .text-sm\!important.opacity-70 .prose h3,
+[data-new-ui="true"] .text-sm\!important.opacity-70 .prose h4,
+[data-new-ui="true"] .text-sm\!important.opacity-70 .prose h5,
+[data-new-ui="true"] .text-sm\!important.opacity-70 .prose h6 {
+  font-size: 1.1em !important;
+  font-weight: 600 !important;
+  margin: 10px 0 4px !important;
+  color: var(--text-secondary) !important;
 }
 
 [data-new-ui="true"] .assistantContentBlock ul,
@@ -882,6 +1011,17 @@
   color: var(--text-primary) !important;
 }
 
+/* Fix 40 — Composer card border contrast.
+   The inline style uses --border-subtle which in dark mode (#33322F) is nearly
+   the same shade as --bg-raised (#30302E) — the border is essentially invisible.
+   --bg-active provides just enough contrast against --bg-raised to make the card
+   edge visible at rest (dark: #3A3A38 vs #30302E; light: #e0e0e0 vs #f0f0f0).
+   Focus-within keeps the same value so the transition is intentionally subtle;
+   the text cursor and keyboard focus indicators provide the primary focus signal. */
+[data-new-ui="true"] .new-ui-composer-card {
+  border-color: var(--bg-active) !important;
+}
+
 /* composer card focus border */
 [data-new-ui="true"] .new-ui-composer-card:focus-within {
   border-color: var(--bg-active) !important;
@@ -934,6 +1074,16 @@
   font-style: normal !important;
   padding: 20px 0 20px !important;
   display: block !important;
+}
+
+/* Fix 40 — Hide the literal status text (e.g. "Amplify is responding…").
+   The Phase 26 shimmer made this text transparent in no-preference mode, but
+   in prefers-reduced-motion:reduce mode (and transiently on first render) the
+   plain text was still visible as readable prose. Hiding the text node entirely
+   ensures only the breathing dot (::before pseudo-element on .mt-0.ml-3) is
+   visible as the loading indicator — clean, consistent in all modes. */
+[data-new-ui="true"] .rounded-xl.shadow-lg .mt-0.ml-3 .mt-0.pt-0 {
+  display: none !important;
 }
 
 /* Hide animated bg elements */
@@ -1466,6 +1616,22 @@
   }
 }
 
+/* Fix 40 — Hide the streaming ▍ cursor inside ChatContentBlock.
+   ChatContentBlock.tsx (DO-NOT-CHANGE) appends the character `▍` to the
+   rendered markdown when messageIsStreaming=true and the prompt highlighter is
+   not active (line 499-500). When the markdown parser encounters `▍` as a
+   code span (backtick-wrapped: `▍`), it renders a
+   <span class="animate-pulse cursor-default mt-1">▍</span> (line 323-324).
+   This span is inside .chatContentBlock (the prose wrapper), NOT inside
+   .group.border-b.border-black/10.bg-gray-50 (the ChatLoader outer element),
+   so the Phase 27 rule above does NOT match it.
+   Selector: .chatContentBlock is the outer div of ChatContentBlock.tsx (line 253).
+   Safe scope: .animate-pulse.cursor-default appears only in ChatLoader and here;
+   ChatLoader is already handled by the separate rule above. */
+[data-new-ui="true"] .chatContentBlock .animate-pulse.cursor-default {
+  display: none !important;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Phase 26 — Streaming / "thinking" shimmer animation
    Reference: NEW_UI_DOCS.md §12 Phase 26
@@ -1556,6 +1722,82 @@
 @keyframes new-ui-reasoning-settle-in {
   from { opacity: 0; transform: translateY(3px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PHASE 41 FIX 2 — soft fade-in for newly arriving response content
+
+   Goal: new text appears at its FINAL position and fades in over ~100ms.
+   Explicitly NOT a typing animation, and already-settled text must stay fully
+   visible.
+
+   HOW: CSS animations start automatically when an element is newly inserted
+   into the DOM. As the response streams, React inserts new block-level nodes
+   (paragraphs, list items, headings, code blocks, table rows) into the prose
+   column — each one therefore fades itself in exactly once, on arrival.
+   Elements that already existed are untouched and never re-animate.
+
+   WHY NOT the container-level variant suggested as "try first": animating
+   opacity on the whole `.assistantContentBlock` while streaming necessarily
+   pulses every character already on screen. That is the documented
+   disqualifier ("only the newest arriving chunk animates" / "already-displayed
+   text stays fully visible"), so it fails the requirement by construction
+   rather than by bad luck — no point shipping it to discover that.
+
+   WHY NOT a MutationObserver wrapping new text nodes: it would mean mutating
+   DOM owned by ChatContentBlock.tsx (DO-NOT-CHANGE), which re-renders its whole
+   markdown tree on every token. Injected wrapper spans would be fought by
+   React's reconciliation, and doing DOM surgery per token is directly at odds
+   with the "must not introduce noticeable latency at >20 tok/s" constraint.
+   Pure CSS costs nothing per token.
+
+   KNOWN LIMITATION (documented, not silently glossed): text appended INSIDE an
+   already-rendered paragraph — the tail paragraph growing token by token — does
+   not fade, because no new element is inserted for it. The fade therefore lands
+   on block boundaries (new paragraph / bullet / heading / code block / table
+   row), which is where the visually prominent "new content appeared" moments
+   are. Covering intra-paragraph growth needs the text-node wrapping ruled out
+   above, or a `reasoning.summary`-style change inside the protected component.
+
+   Scoped to `.assistant-message` so user bubbles are never animated, and to
+   `[data-streaming="true"]` so loading an existing conversation does not fade
+   the entire history in on mount.
+───────────────────────────────────────────────────────────────────────────── */
+@keyframes new-ui-chunk-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Scoping — MUST stay restricted to the message being streamed ───────────
+   A CSS animation starts whenever its selector BEGINS TO MATCH, not only when
+   an element is inserted. A headless-harness run of the first draft (which
+   selected `[data-streaming="true"] .assistant-message .prose > *`) showed a
+   pre-existing paragraph reporting `[new-ui-chunk-fade-in]` the instant
+   data-streaming was set — i.e. every paragraph of every previous answer in the
+   thread would re-fade on every send. That is precisely the "already-displayed
+   text must stay fully visible" violation, so the selector is narrowed to the
+   LAST assistant message via `:not(:has(~ .enhanced-chat-message.assistant-message))`
+   (an assistant message with no later assistant sibling). `:has()` is already
+   used elsewhere in this file (`.user-message:has(#editResponse)`, `pre:has(code)`).
+
+   Residual, deliberately accepted: between messageIsStreaming flipping true and
+   the new assistant message mounting (~150-300ms, the ChatLoader gap), the
+   "last assistant message" is still the PREVIOUS answer, so its blocks may run
+   one 100ms fade. Fix 1 has by then anchored the new prompt to the top, which
+   scrolls that previous answer out of view, so it is not visible in practice —
+   and it self-corrects the moment the new message mounts. Marking the streaming
+   message from JS would remove even that, at the cost of another DOM-mutation
+   effect racing the same mount; not worth it for an off-screen 100ms fade.
+─────────────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  [data-new-ui="true"][data-streaming="true"] .enhanced-chat-message.assistant-message:not(:has(~ .enhanced-chat-message.assistant-message)) .prose > *,
+  [data-new-ui="true"][data-streaming="true"] .enhanced-chat-message.assistant-message:not(:has(~ .enhanced-chat-message.assistant-message)) .assistantContentBlock > *,
+  [data-new-ui="true"][data-streaming="true"] .enhanced-chat-message.assistant-message:not(:has(~ .enhanced-chat-message.assistant-message)) .prose li,
+  [data-new-ui="true"][data-streaming="true"] .enhanced-chat-message.assistant-message:not(:has(~ .enhanced-chat-message.assistant-message)) .prose tr {
+    /* No `forwards` fill: the end state (opacity:1) is already the natural
+       state, so an interrupted animation can never leave content stuck faded. */
+    animation: new-ui-chunk-fade-in 100ms ease-out;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -1740,3 +1982,201 @@
 [data-new-ui="true"] .user-message .mt-5.text-gray-800 .relative.group .absolute.-top-10 {
   font-size: 11px !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Phase 43 Fix 1 — Multiple PromptStatus cards / broken second-card layout
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ROOT CAUSE (discovered from screenshot):
+   `PromptingStatusDisplay` renders ONE `PromptStatus` card per active status ID
+   in `statusHistory`. When the model produces multiple status updates (e.g. one
+   for "Amplify is responding" and one for streaming reasoning tokens), multiple
+   `.rounded-xl.shadow-lg` cards are rendered as siblings inside a `.flex-col.mb-2`
+   wrapper. This produces two (or more) orange pulsing dots on screen simultaneously.
+
+   THE SECOND-CARD LAYOUT BUG:
+   When `status.summary !== status.message` (line 152-156 of PromptStatus.tsx,
+   DO-NOT-CHANGE), the card renders an inner `.ml-3` div containing `IconCaretDown`
+   or `IconCaretRight`. This `.ml-3` div is a `display:block` element. Inside our
+   `.mt-0.ml-3` `display:block` override (Phase 12 CSS), block children create new
+   block-formatting lines — breaking the `::before` dot + injected text into three
+   separate vertically-stacked rows:
+     Line 1: ● (::before inline-block, alone before the block child)
+     Line 2: ▽ (.ml-3 block div containing the caret SVG)
+     Line 3: Thinking… (our injected .new-ui-loading-text span, after the block div)
+   This explains the exact broken layout in the reported screenshot.
+
+   FIX 1a — Hide all PromptStatus cards after the first.
+   In new UI we've replaced the entire PromptStatus visual with a breathing dot +
+   "Thinking…" text. Showing multiple cards adds visual noise with no new information.
+   Uses the CSS general-sibling combinator (~): the second (and any subsequent)
+   `.rounded-xl.dark\:bg-\[\#343541\].shadow-lg` that has a preceding sibling with
+   the same classes is hidden. Scoped through the PromptStatus-specific `dark:bg`
+   class so the selector cannot accidentally match ArtifactsBlock or other
+   `.rounded-xl.shadow-lg` elements.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Selector discriminator: `hover:opacity-50` appears ONLY on PromptStatus.tsx
+   line 131, NOT on ChatSource, AutonomousBlock, InvokeBlock, or AutoArtifactBlock
+   (all of which also use dark:bg-[#343541] rounded-xl shadow-lg but lack this
+   hover class — confirmed by direct grep of those components). Using
+   `hover\:opacity-50` as the discriminating class makes this selector specific
+   to PromptStatus cards and safe from accidentally hiding citation/tool blocks.
+
+   In CSS, Tailwind's `hover:opacity-50` class name contains a literal colon
+   which must be escaped as `hover\:opacity-50` in a CSS selector. */
+
+/* Hide any PromptStatus card after the first */
+[data-new-ui="true"] .rounded-xl.hover\:opacity-50.shadow-lg ~ .rounded-xl.hover\:opacity-50.shadow-lg {
+  display: none !important;
+}
+
+/* Also hide the expanded details panel (.mx-2.mt-0.py-2.px-5) that belongs to
+   a subsequent (hidden) card. The details panel is a Fragment sibling of its
+   card (not a child), so it needs its own hide rule. The three-sibling form
+   (card ~ card ~ panel) ensures only the SECOND card's panel is hidden, not
+   the first card's details panel (which the user may still find useful). */
+[data-new-ui="true"] .rounded-xl.hover\:opacity-50.shadow-lg ~ .rounded-xl.hover\:opacity-50.shadow-lg ~ .mx-2.mt-0.py-2.px-5 {
+  display: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   FIX 1b — Hide ChatLoader dot when PromptStatus dot is ALSO active
+   (the original ChatLoader overlap case — a separate but related issue).
+
+   During the streaming→done transition there is a brief window where
+   `messageIsStreaming=true` (→ data-streaming="true") AND ChatLoader is still
+   mounted, causing its .animate-pulse dot to appear alongside the PromptStatus
+   ::before dot. With Fix 1a now handling the multi-card case, Fix 1b covers the
+   ChatLoader/PromptStatus overlap window.
+
+   WHY visibility:hidden NOT display:none:
+   Phase 38 Bug 1 / Phase 39 established that the ChatLoader ELEMENT must stay in
+   the DOM with its layout footprint intact. `visibility:hidden` keeps the 6×6px
+   layout space; the container's `padding: 20px 0` also stays intact.
+   ─────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"][data-streaming="true"] .group.border-b.border-black\/10.bg-gray-50 .animate-pulse {
+  visibility: hidden !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Phase 43 Fix 2 — "Thinking…" animated text alongside the PromptStatus dot
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Phase 40b hid the PromptStatus status text (.mt-0.pt-0 { display:none }),
+   leaving only the breathing dot (::before on .mt-0.ml-3) as the sole visual
+   indicator during streaming. This is clean but gives no textual context.
+
+   ConversationViewShell.tsx injects a <span class="new-ui-loading-text"
+   aria-hidden="true"> into .mt-0.ml-3 when PromptStatus is active. The span
+   is aria-hidden so screen readers use the existing aria-live region (injected
+   by the aria-live effect in ConversationViewShell) rather than reading the
+   CSS-generated text.
+
+   Layout: .mt-0.ml-3 is display:block. The ::before dot is display:inline-block
+   (with margin-right:8px). Our injected span is display:inline, so it flows on
+   the same inline line immediately after the dot — producing "● Thinking…"
+   on one line.
+
+   Animation: calm opacity pulse, 2s ease-in-out (same family as the breathing
+   dot). The ::after generates the "Thinking…" text via CSS `content` so the
+   DOM node is empty (no visible-text concerns for any selection/copy path).
+
+   prefers-reduced-motion: reduce → static text "Thinking…" with no animation
+   (per wiki §9 standing rule 17: every animation must have a PRM override).
+   ─────────────────────────────────────────────────────────────────────────── */
+
+[data-new-ui="true"] .new-ui-loading-text {
+  display: inline;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-style: italic;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  vertical-align: middle;
+  /* opacity default: 1 in reduced-motion mode; animated below otherwise */
+}
+
+[data-new-ui="true"] .new-ui-loading-text::after {
+  content: "Thinking\2026"; /* U+2026 HORIZONTAL ELLIPSIS = … */
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-new-ui="true"] .new-ui-loading-text {
+    animation: new-ui-loading-pulse 2s ease-in-out infinite;
+  }
+}
+
+@keyframes new-ui-loading-pulse {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 1;   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Task 14 — Upload-Pending Deferred Send (Phase 42)
+   Ambient progress indicator inside the composer card + asterisk pulse state.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/*
+ * Asterisk pulse while a deferred send is waiting for uploads.
+ * ConversationComposer sets data-upload-pending="true" on .new-ui-chat-shell
+ * when pendingUploadState is non-null.  CSS drives the same keyframes used
+ * for data-streaming, at reduced opacity so it reads as "something quiet
+ * is happening" rather than an active response.
+ */
+[data-new-ui="true"][data-upload-pending="true"] .h-\[300px\]::after {
+  opacity: 0.45;
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-new-ui="true"][data-upload-pending="true"] .h-\[300px\]::after {
+    animation: new-ui-asterisk-pulse 3.2s ease-in-out infinite;
+  }
+}
+
+/* ── UploadPendingIndicator component styles ── */
+
+/*
+ * Container: sits above the attachment rail inside the composer card grid.
+ * No padding: the card's 16px 24px top/side padding already frames it.
+ * The 8px bottom gap (margin) separates it from the rail.
+ */
+.new-ui-upload-pending-indicator {
+  margin-bottom: 8px;
+}
+
+/*
+ * Progress bar track: 3px tall, full-width, rounded, low-contrast bg.
+ * The fill div animates width via inline style.
+ */
+.new-ui-upload-bar-track {
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--bg-active);
+  overflow: hidden;
+}
+
+.new-ui-upload-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width 300ms ease-out;
+  /* Ensure the bar is always visible even at 0% */
+  min-width: 4%;
+}
+
+/*
+ * Gentle opacity breathing so the bar signals activity even while waiting
+ * for the first upload-progress callback.  Kept subtle (0.55→1) so it
+ * doesn't read as "something is wrong".
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .new-ui-upload-bar-fill {
+    animation: new-ui-upload-bar-breathe 2.2s ease-in-out infinite;
+  }
+}
+
+@keyframes new-ui-upload-bar-breathe {
+  0%, 100% { opacity: 0.55; }
+  50%       { opacity: 1;    }
+}
+
