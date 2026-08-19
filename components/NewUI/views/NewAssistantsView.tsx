@@ -34,10 +34,12 @@ import { AssistantModal } from '@/components/Promptbar/components/AssistantModal
 import { PromptModal } from '@/components/Promptbar/components/PromptModal';
 import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';
+import { NewAssistantTypeSelector } from './NewAssistantTypeSelector';
+import { AstPathData } from '@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type MainTab = 'individual' | 'group' | 'templates' | 'layered';
+type MainTab = 'individual' | 'shared' | 'group' | 'templates' | 'layered';
 
 // ── Shared row component ──────────────────────────────────────────────────────
 
@@ -49,6 +51,8 @@ interface RowProps {
     onEdit?: (e: React.MouseEvent) => void;
     onDelete?: (e: React.MouseEvent) => void;
     isDeleting?: boolean;
+    /** Optional access-type pill badge (Private / Shared / URL) */
+    accessBadge?: { label: string; bg: string; color: string };
 }
 
 const AssistantRow: React.FC<RowProps> = ({
@@ -59,6 +63,7 @@ const AssistantRow: React.FC<RowProps> = ({
     onEdit,
     onDelete,
     isDeleting,
+    accessBadge,
 }) => {
     const [hovered, setHovered] = useState(false);
 
@@ -80,12 +85,22 @@ const AssistantRow: React.FC<RowProps> = ({
 
             {/* Name + description */}
             <div className="flex-1 min-w-0">
-                <p
-                    className="text-[14px] font-medium truncate"
-                    style={{ color: 'var(--text-primary)' }}
-                >
-                    {name}
-                </p>
+                <div className="flex items-center gap-1.5 min-w-0">
+                    <p
+                        className="text-[14px] font-medium truncate"
+                        style={{ color: 'var(--text-primary)' }}
+                    >
+                        {name}
+                    </p>
+                    {accessBadge && (
+                        <span
+                            className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full"
+                            style={{ background: accessBadge.bg, color: accessBadge.color }}
+                        >
+                            {accessBadge.label}
+                        </span>
+                    )}
+                </div>
                 {description && (
                     <p
                         className="text-[12px] truncate"
@@ -258,7 +273,7 @@ const SearchInput: React.FC<{ value: string; onChange: (v: string) => void; plac
 
 const MyAssistantsTab: React.FC = () => {
     const {
-        state: { prompts, statsService, availableModels, selectedAssistant, featureFlags },
+        state: { prompts, statsService, availableModels, selectedAssistant, featureFlags, groups },
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
@@ -266,10 +281,16 @@ const MyAssistantsTab: React.FC = () => {
     const promptsRef = useRef(prompts);
     useEffect(() => { promptsRef.current = prompts; }, [prompts]);
 
+    const groupsRef = useRef(groups);
+    useEffect(() => { groupsRef.current = groups; }, [groups]);
+
     const [search, setSearch] = useState('');
-    const [activeSubTab, setActiveSubTab] = useState<'your' | 'shared'>('your');
     const [showAssistantModal, setShowAssistantModal] = useState(false);
+    // Step 0 — type selector shown BEFORE AssistantModal opens for new assistants
+    const [showTypeSelector, setShowTypeSelector] = useState(false);
     const [selectedForEdit, setSelectedForEdit] = useState<Prompt | null>(null);
+    // Track which group (if any) the current creation is for, so we can update groups state on save
+    const [creatingForGroupId, setCreatingForGroupId] = useState<string | null>(null);
 
     const canEdit = (p: Prompt) => !p.data?.noEdit;
 
@@ -277,9 +298,11 @@ const MyAssistantsTab: React.FC = () => {
     // data.hidden unless featureFlags.overrideInvisiblePrompts is set.
     const isVisible = (p: Prompt) => featureFlags.overrideInvisiblePrompts || !p.data?.hidden;
 
+    // My Assistants = assistants I own/manage (canEdit=true), no groupId.
+    // Shared-with-me assistants (noEdit=true) are in the "Shared with Me" tab.
     const allAssistants = useMemo(() =>
         prompts
-            .filter((p: Prompt) => isAssistant(p) && !p.groupId && isVisible(p))
+            .filter((p: Prompt) => isAssistant(p) && !p.groupId && canEdit(p) && isVisible(p))
             .sort((a: Prompt, b: Prompt) => a.name.localeCompare(b.name)),
         [prompts, featureFlags.overrideInvisiblePrompts]
     );
@@ -293,10 +316,6 @@ const MyAssistantsTab: React.FC = () => {
         );
     }, [allAssistants, search]);
 
-    const yourAssistants = filtered.filter((p: Prompt) => canEdit(p));
-    const sharedAssistants = filtered.filter((p: Prompt) => !canEdit(p));
-    const activeList = activeSubTab === 'your' ? yourAssistants : sharedAssistants;
-
     const handleStartConversation = (p: Prompt) => {
         if (isAssistant(p) && p.data) {
             homeDispatch({ field: 'selectedAssistant', value: p.data.assistant });
@@ -306,10 +325,30 @@ const MyAssistantsTab: React.FC = () => {
         homeDispatch({ field: 'page', value: 'chat' });
     };
 
-    const handleCreateAssistant = () => {
+    // Show the Step 0 type selector instead of opening AssistantModal directly
+    const handleNewAssistantClick = () => {
+        setShowTypeSelector(true);
+    };
+
+    /**
+     * Called when the user confirms a type in the selector.
+     * astPath is non-null for "Managed" access types (pre-fills the slug field
+     * inside AssistantModal). groupId is non-null for team/collaborative assistants.
+     * Note: AssistantModal resets astPathData via its own lookupAssistant effect on mount —
+     * see NewAssistantTypeSelector.tsx header for the full explanation.
+     */
+    const handleTypeSelectorConfirm = (
+        astPath: string | null,
+        astPathData: AstPathData | null,
+        groupId?: string
+    ) => {
+        setShowTypeSelector(false);
+
         const promptName = `Assistant ${getAssistants(promptsRef.current).length + 1}`;
         const newPrompt = createEmptyPrompt(promptName, null);
         newPrompt.folderId = 'assistants';
+        // Set groupId for team assistants
+        if (groupId) newPrompt.groupId = groupId;
 
         const assistantDef: AssistantDefinition = {
             name: newPrompt.name,
@@ -321,12 +360,19 @@ const MyAssistantsTab: React.FC = () => {
             version: 1,
             fileKeys: [],
             provider: AssistantProviderID.AMPLIFY,
+            // Pre-set astPath when the user chose a "managed" access type;
+            // AssistantModal reads it from definition.astPath to pre-fill the path field.
+            ...(astPath ? { astPath } : {}),
+            // Also store astPathData on data for completeness (AssistantModal ignores it
+            // at init but future callers may find it useful as a hint).
+            ...(astPath && astPathData ? { data: { astPathData } } : {}),
         };
 
         if (!newPrompt.data) newPrompt.data = {};
         if (!newPrompt.data.assistant) newPrompt.data.assistant = {};
         newPrompt.data.assistant.definition = assistantDef;
 
+        setCreatingForGroupId(groupId ?? null);
         setSelectedForEdit(newPrompt);
         setShowAssistantModal(true);
     };
@@ -339,6 +385,35 @@ const MyAssistantsTab: React.FC = () => {
 
     const handleUpdateAssistant = (updatedPrompt: Prompt) => {
         handleUpdateAssistantPrompt(updatedPrompt, promptsRef.current, homeDispatch, selectedAssistant);
+        // When a group (team) assistant was just created, also add it to the groups state
+        // so it shows immediately in the Teams tab without requiring a page refresh.
+        if (creatingForGroupId) {
+            const updatedGroups = groupsRef.current.map((g: Group) =>
+                g.id === creatingForGroupId
+                    ? { ...g, assistants: [...(g.assistants || []), updatedPrompt] }
+                    : g
+            );
+            homeDispatch({ field: 'groups', value: updatedGroups });
+            setCreatingForGroupId(null);
+        }
+    };
+
+    // Derive the access-type badge for a row: Private / Shared / URL
+    const getAccessBadge = (p: Prompt): { label: string; bg: string; color: string } => {
+        const def = p.data?.assistant?.definition as AssistantDefinition | undefined;
+        const astPath = def?.astPath || (def?.data?.astPath as string | undefined);
+        const astPathData = def?.data?.astPathData as AstPathData | undefined;
+        if (!astPath) {
+            return { label: 'Private', bg: 'var(--bg-active)', color: 'var(--text-muted)' };
+        }
+        if (astPathData?.isPublic === false) {
+            return {
+                label: 'Shared',
+                bg: 'rgba(217,119,87,0.12)',
+                color: 'var(--accent)',
+            };
+        }
+        return { label: 'URL', bg: 'rgba(58,167,100,0.12)', color: '#3aa764' };
     };
 
     return (
@@ -350,7 +425,7 @@ const MyAssistantsTab: React.FC = () => {
             >
                 <SearchInput value={search} onChange={setSearch} placeholder="Search assistants…" />
                 <button
-                    onClick={handleCreateAssistant}
+                    onClick={handleNewAssistantClick}
                     className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium text-white transition-opacity hover:opacity-90"
                     style={{ backgroundColor: 'var(--accent)' }}
                 >
@@ -359,70 +434,40 @@ const MyAssistantsTab: React.FC = () => {
                 </button>
             </div>
 
-            {/* Sub-tabs */}
-            <div
-                className="flex items-center gap-0 px-6 flex-shrink-0 border-b"
-                style={{ borderColor: 'var(--border-subtle)', height: 40 }}
-            >
-                {(['your', 'shared'] as const).map((tab) => {
-                    const count = tab === 'your' ? yourAssistants.length : sharedAssistants.length;
-                    const label = tab === 'your' ? 'Your Assistants' : 'Shared Assistants';
-                    const isActive = activeSubTab === tab;
-                    return (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveSubTab(tab)}
-                            className="relative flex items-center gap-1.5 h-full px-4 text-[13px] transition-colors"
-                            style={{ color: isActive ? 'var(--text-primary)' : 'var(--text-muted)' }}
-                        >
-                            {label}
-                            <span
-                                className="text-[11px] px-1.5 py-0.5 rounded-full"
-                                style={{
-                                    backgroundColor: isActive ? 'var(--bg-raised)' : 'transparent',
-                                    color: isActive ? 'var(--text-secondary)' : 'var(--text-muted)',
-                                }}
-                            >
-                                {count}
-                            </span>
-                            {isActive && (
-                                <span
-                                    className="absolute bottom-0 left-0 right-0 h-[2px] rounded-t-full"
-                                    style={{ backgroundColor: 'var(--accent)' }}
-                                />
-                            )}
-                        </button>
-                    );
-                })}
-            </div>
-
             {/* List */}
             <div className="flex-1 overflow-y-auto px-3 py-2">
-                {activeList.length === 0 ? (
-                    activeSubTab === 'your' && !search ? (
+                {filtered.length === 0 ? (
+                    !search ? (
                         <EmptyState
                             message="No assistants yet"
                             subMessage="Create your first assistant to get started"
-                            onAction={handleCreateAssistant}
+                            onAction={handleNewAssistantClick}
                             actionLabel="Create your first assistant"
                         />
                     ) : (
-                        <EmptyState
-                            message={search ? 'No assistants match your search' : 'No shared assistants available'}
-                        />
+                        <EmptyState message="No assistants match your search" />
                     )
                 ) : (
-                    activeList.map((p: Prompt) => (
+                    filtered.map((p: Prompt) => (
                         <AssistantRow
                             key={p.id}
                             name={p.name}
                             description={p.description}
+                            accessBadge={getAccessBadge(p)}
                             onClick={() => handleStartConversation(p)}
-                            onEdit={canEdit(p) ? (e) => handleEditAssistant(e, p) : undefined}
+                            onEdit={(e) => handleEditAssistant(e, p)}
                         />
                     ))
                 )}
             </div>
+
+            {/* Step 0 — type selector (shown before AssistantModal for new assistants) */}
+            {showTypeSelector && (
+                <NewAssistantTypeSelector
+                    onClose={() => setShowTypeSelector(false)}
+                    onConfirm={handleTypeSelectorConfirm}
+                />
+            )}
 
             {/* Assistant Modal */}
             {showAssistantModal && selectedForEdit && (
@@ -439,9 +484,98 @@ const MyAssistantsTab: React.FC = () => {
                     onUpdateAssistant={handleUpdateAssistant}
                     loadingMessage="Saving assistant…"
                     loc=""
-                    disableEdit={selectedForEdit ? !canEdit(selectedForEdit) : false}
+                    disableEdit={false}
                 />
             )}
+        </div>
+    );
+};
+
+// ── Tab 1b: Shared with Me ────────────────────────────────────────────────────
+
+const SharedWithMeTab: React.FC = () => {
+    const {
+        state: { prompts, statsService, availableModels, featureFlags },
+        dispatch: homeDispatch,
+        handleNewConversation,
+    } = useContext(HomeContext);
+
+    const promptsRef = useRef(prompts);
+    useEffect(() => { promptsRef.current = prompts; }, [prompts]);
+
+    const [search, setSearch] = useState('');
+
+    // Shared assistants = those with noEdit=true (read-only access), no groupId.
+    // Group assistants (including those I can only read) are in the Teams tab.
+    const isVisible = (p: Prompt) => featureFlags.overrideInvisiblePrompts || !p.data?.hidden;
+
+    const allShared = useMemo(() =>
+        prompts
+            .filter((p: Prompt) =>
+                isAssistant(p) &&
+                !p.groupId &&
+                p.data?.noEdit === true &&
+                isVisible(p)
+            )
+            .sort((a: Prompt, b: Prompt) => a.name.localeCompare(b.name)),
+        [prompts, featureFlags.overrideInvisiblePrompts]
+    );
+
+    const filtered = useMemo(() => {
+        if (!search.trim()) return allShared;
+        const q = search.toLowerCase();
+        return allShared.filter((p: Prompt) =>
+            p.name.toLowerCase().includes(q) ||
+            (p.description && p.description.toLowerCase().includes(q))
+        );
+    }, [allShared, search]);
+
+    const handleStartConversation = (p: Prompt) => {
+        if (isAssistant(p) && p.data) {
+            homeDispatch({ field: 'selectedAssistant', value: p.data.assistant });
+        }
+        statsService.startConversationEvent(p);
+        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, p, availableModels);
+        homeDispatch({ field: 'page', value: 'chat' });
+    };
+
+    return (
+        <div className="flex flex-col h-full overflow-hidden">
+            {/* Header row */}
+            <div
+                className="flex items-center justify-between px-6 py-3 flex-shrink-0 border-b"
+                style={{ borderColor: 'var(--border-subtle)' }}
+            >
+                <SearchInput
+                    value={search}
+                    onChange={setSearch}
+                    placeholder="Search shared assistants…"
+                />
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto px-3 py-2">
+                {filtered.length === 0 ? (
+                    !search ? (
+                        <EmptyState
+                            message="No shared assistants"
+                            subMessage="Assistants that others share with you will appear here"
+                        />
+                    ) : (
+                        <EmptyState message="No shared assistants match your search" />
+                    )
+                ) : (
+                    filtered.map((p: Prompt) => (
+                        <AssistantRow
+                            key={p.id}
+                            name={p.name}
+                            description={p.description}
+                            onClick={() => handleStartConversation(p)}
+                            // Read-only: no edit button
+                        />
+                    ))
+                )}
+            </div>
         </div>
     );
 };
@@ -450,13 +584,22 @@ const MyAssistantsTab: React.FC = () => {
 
 const GroupAssistantsTab: React.FC = () => {
     const {
-        state: { groups, prompts, statsService, featureFlags, availableModels },
+        state: { groups, prompts, statsService, featureFlags, availableModels, selectedAssistant },
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
 
     const promptsRef = useRef(prompts);
     useEffect(() => { promptsRef.current = prompts; }, [prompts]);
+
+    const groupsRef = useRef(groups);
+    useEffect(() => { groupsRef.current = groups; }, [groups]);
+
+    // ── Type selector + AssistantModal state for new group assistant creation ──
+    const [showGroupTypeSelector, setShowGroupTypeSelector] = useState(false);
+    const [showGroupAssistantModal, setShowGroupAssistantModal] = useState(false);
+    const [groupAssistantForEdit, setGroupAssistantForEdit] = useState<Prompt | null>(null);
+    const [creatingForGroupId, setCreatingForGroupId] = useState<string | null>(null);
 
     const { data: session } = useSession();
     const userIdentifier = getUserIdentifier(session?.user);
@@ -470,6 +613,59 @@ const GroupAssistantsTab: React.FC = () => {
     };
 
     const anyAdminAccess = groups.some((g: Group) => hasAdminAccess(g));
+
+    // ── New group assistant creation handlers ──
+    const handleGroupTypeSelectorConfirm = (
+        astPath: string | null,
+        _astPathData: AstPathData | null,
+        groupId?: string
+    ) => {
+        setShowGroupTypeSelector(false);
+        if (!groupId) {
+            // User chose private/managed from Teams tab — create a personal assistant
+            // (unusual flow but still valid)
+        }
+
+        const promptName = `Assistant ${getAssistants(promptsRef.current).length + 1}`;
+        const newPrompt = createEmptyPrompt(promptName, null);
+        newPrompt.folderId = 'assistants';
+        if (groupId) newPrompt.groupId = groupId;
+
+        const assistantDef: AssistantDefinition = {
+            name: newPrompt.name,
+            description: '',
+            instructions: '',
+            tools: [],
+            tags: [],
+            dataSources: [],
+            version: 1,
+            fileKeys: [],
+            provider: AssistantProviderID.AMPLIFY,
+            ...(astPath ? { astPath } : {}),
+        };
+
+        if (!newPrompt.data) newPrompt.data = {};
+        if (!newPrompt.data.assistant) newPrompt.data.assistant = {};
+        newPrompt.data.assistant.definition = assistantDef;
+
+        setCreatingForGroupId(groupId ?? null);
+        setGroupAssistantForEdit(newPrompt);
+        setShowGroupAssistantModal(true);
+    };
+
+    const handleUpdateGroupNewAssistant = (updatedPrompt: Prompt) => {
+        handleUpdateAssistantPrompt(updatedPrompt, promptsRef.current, homeDispatch, selectedAssistant);
+        // Immediately show the new assistant in the Teams tab
+        if (creatingForGroupId) {
+            const updatedGroups = groupsRef.current.map((g: Group) =>
+                g.id === creatingForGroupId
+                    ? { ...g, assistants: [...(g.assistants || []), updatedPrompt] }
+                    : g
+            );
+            homeDispatch({ field: 'groups', value: updatedGroups });
+            setCreatingForGroupId(null);
+        }
+    };
 
     const handleStartConversation = (p: Prompt) => {
         if (isAssistant(p) && p.data) {
@@ -557,11 +753,7 @@ const GroupAssistantsTab: React.FC = () => {
                 <SearchInput value={search} onChange={setSearch} placeholder="Search groups…" />
                 {anyAdminAccess && (
                     <button
-                        onClick={() =>
-                            window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', {
-                                detail: { isOpen: true, data: {} },
-                            }))
-                        }
+                        onClick={() => setShowGroupTypeSelector(true)}
                         className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium text-white transition-opacity hover:opacity-90"
                         style={{ backgroundColor: 'var(--accent)' }}
                     >
@@ -676,6 +868,34 @@ const GroupAssistantsTab: React.FC = () => {
                     })
                 )}
             </div>
+
+            {/* Type selector — Step 0 for new group assistant creation */}
+            {showGroupTypeSelector && (
+                <NewAssistantTypeSelector
+                    onClose={() => setShowGroupTypeSelector(false)}
+                    onConfirm={handleGroupTypeSelectorConfirm}
+                />
+            )}
+
+            {/* AssistantModal — opened after type selector confirms */}
+            {showGroupAssistantModal && groupAssistantForEdit && (
+                <AssistantModal
+                    assistant={groupAssistantForEdit}
+                    onCancel={() => {
+                        setShowGroupAssistantModal(false);
+                        setGroupAssistantForEdit(null);
+                        setCreatingForGroupId(null);
+                    }}
+                    onSave={() => {
+                        setShowGroupAssistantModal(false);
+                        setGroupAssistantForEdit(null);
+                    }}
+                    onUpdateAssistant={handleUpdateGroupNewAssistant}
+                    loadingMessage="Saving assistant…"
+                    loc=""
+                    disableEdit={false}
+                />
+            )}
         </div>
     );
 };
@@ -1035,7 +1255,7 @@ export const NewAssistantsView: React.FC = () => {
     // Mirror the existing persisted tab preference
     const [activeTab, setActiveTab] = useState<MainTab>(() => {
         const saved = localStorage.getItem('activeAssistantGalleryTab') as MainTab | null;
-        const valid: MainTab[] = ['individual', 'group', 'templates', 'layered'];
+        const valid: MainTab[] = ['individual', 'shared', 'group', 'templates', 'layered'];
         return saved && valid.includes(saved) ? saved : 'individual';
     });
 
@@ -1046,7 +1266,7 @@ export const NewAssistantsView: React.FC = () => {
     useEffect(() => {
         if (activeTab === 'group' && !shouldShowGroupTab) setActiveTab('individual');
         if (activeTab === 'layered' && !shouldShowLayeredTab) setActiveTab('individual');
-    }, [shouldShowGroupTab, shouldShowLayeredTab]);
+    }, [shouldShowGroupTab, shouldShowLayeredTab, activeTab]);
 
     const changeTab = (tab: MainTab) => {
         setActiveTab(tab);
@@ -1063,18 +1283,18 @@ export const NewAssistantsView: React.FC = () => {
             visible: true,
         },
         {
+            id: 'shared',
+            label: 'Shared with Me',
+            icon: <IconUsers size={15} />,
+            visible: true,
+        },
+        {
             id: 'group',
-            label: syncingPrompts ? 'Loading Groups…' : 'Group Assistants',
+            label: syncingPrompts ? 'Loading Teams…' : 'Teams',
             icon: syncingPrompts
                 ? <IconLoader2 size={15} className="animate-spin" />
                 : <IconUsers size={15} />,
             visible: shouldShowGroupTab,
-        },
-        {
-            id: 'templates',
-            label: 'Prompt Templates',
-            icon: <IconTemplate size={15} />,
-            visible: true,
         },
         {
             id: 'layered',
@@ -1084,10 +1304,17 @@ export const NewAssistantsView: React.FC = () => {
                 : <IconGitBranch size={15} />,
             visible: shouldShowLayeredTab,
         },
+        {
+            id: 'templates',
+            label: 'Prompt Templates',
+            icon: <IconTemplate size={15} />,
+            visible: true,
+        },
     ];
 
     return (
         <div
+            data-new-ui-assistants="true"
             className="flex flex-col h-full w-full overflow-hidden"
             style={{ backgroundColor: 'var(--bg-app)', fontFamily: 'Inter, sans-serif' }}
         >
@@ -1158,9 +1385,10 @@ export const NewAssistantsView: React.FC = () => {
             {/* ── Tab content ── */}
             <div className="flex-1 overflow-hidden">
                 {activeTab === 'individual' && <MyAssistantsTab />}
+                {activeTab === 'shared' && <SharedWithMeTab />}
                 {activeTab === 'group' && shouldShowGroupTab && <GroupAssistantsTab />}
-                {activeTab === 'templates' && <PromptTemplatesTab />}
                 {activeTab === 'layered' && shouldShowLayeredTab && <LayeredAssistantsTab />}
+                {activeTab === 'templates' && <PromptTemplatesTab />}
             </div>
         </div>
     );

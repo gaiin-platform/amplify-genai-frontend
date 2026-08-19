@@ -2286,3 +2286,153 @@
   margin-top: 16px !important;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   AssistantModal new-UI styling (Phase 47)
+   Scoped via [data-new-ui-assistants="true"] on NewAssistantsView root div.
+   Modal.tsx does NOT use createPortal — the modal DOM is a real descendant
+   of the scoping ancestor, so these rules reach it.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Backdrop ── */
+[data-new-ui-assistants="true"] .modal-overlay {
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+}
+
+/* ── Modal panel ── */
+[data-new-ui-assistants="true"] .modal-content {
+  background-color: var(--bg-raised) !important;
+  border-color: var(--border-subtle) !important;
+  border-radius: 16px !important;
+  font-family: Inter, ui-sans-serif, sans-serif !important;
+}
+
+/* ── Title row ── */
+[data-new-ui-assistants="true"] #modalTitle {
+  color: var(--text-primary) !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  font-family: Inter, ui-sans-serif, sans-serif !important;
+}
+
+/* Title bar divider */
+[data-new-ui-assistants="true"] .modal-content > div:first-child {
+  border-bottom: 1px solid var(--border-subtle) !important;
+  padding-bottom: 12px !important;
+}
+
+/* ── Scroll area ── */
+[data-new-ui-assistants="true"] #modalScroll {
+  color: var(--text-primary) !important;
+}
+
+/* ── Form section: inline title label ("Assistants") ── */
+[data-new-ui-assistants="true"] #assistantModalScroll .text-xl.text-center {
+  color: var(--text-primary) !important;
+  font-family: Inter, ui-sans-serif, sans-serif !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+}
+
+/* ── Form labels ── */
+[data-new-ui-assistants="true"] #assistantModalScroll .font-bold,
+[data-new-ui-assistants="true"] #assistantModalScroll .text-sm.font-bold {
+  color: var(--text-primary) !important;
+}
+
+/* ── Text inputs, textareas, selects ── */
+[data-new-ui-assistants="true"] #assistantModalScroll input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+[data-new-ui-assistants="true"] #assistantModalScroll textarea,
+[data-new-ui-assistants="true"] #assistantModalScroll select {
+  background-color: var(--bg-app) !important;
+  border-color: var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+  border-radius: 8px !important;
+  font-family: Inter, ui-sans-serif, sans-serif !important;
+}
+
+[data-new-ui-assistants="true"] #assistantModalScroll input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
+[data-new-ui-assistants="true"] #assistantModalScroll textarea:focus,
+[data-new-ui-assistants="true"] #assistantModalScroll select:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 1px var(--accent) !important;
+  outline: none !important;
+}
+
+/* ── Input placeholders ── */
+[data-new-ui-assistants="true"] #assistantModalScroll input::placeholder,
+[data-new-ui-assistants="true"] #assistantModalScroll textarea::placeholder {
+  color: var(--text-muted) !important;
+}
+
+/* ── Section dividers ── */
+[data-new-ui-assistants="true"] #assistantModalScroll .border-t {
+  border-color: var(--border-subtle) !important;
+}
+
+/* ── Info/helper text ── */
+[data-new-ui-assistants="true"] #assistantModalScroll .text-gray-500,
+[data-new-ui-assistants="true"] #assistantModalScroll .text-neutral-500,
+[data-new-ui-assistants="true"] #assistantModalScroll p.text-xs {
+  color: var(--text-muted) !important;
+}
+
+/* ── Info banners (blue tinted boxes) ── */
+[data-new-ui-assistants="true"] #assistantModalScroll .text-blue-700,
+[data-new-ui-assistants="true"] #assistantModalScroll .dark\:text-blue-500 {
+  color: var(--accent) !important;
+}
+
+/* ── White/neutral sub-panels (e.g. DataSourceSelector, code editor) ── */
+[data-new-ui-assistants="true"] #assistantModalScroll .bg-white,
+[data-new-ui-assistants="true"] #assistantModalScroll .dark\:bg-\[#343541\],
+[data-new-ui-assistants="true"] #assistantModalScroll .dark\:bg-\[#40414F\] {
+  background-color: var(--bg-app) !important;
+}
+
+/* ── Footer divider ── */
+[data-new-ui-assistants="true"] .modal-content .border-t {
+  border-color: var(--border-subtle) !important;
+}
+
+/* ── Footer buttons — base style ── */
+[data-new-ui-assistants="true"] .modal-content #confirmationButton {
+  background-color: var(--bg-app) !important;
+  border-color: var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+  border-radius: 8px !important;
+  font-family: Inter, ui-sans-serif, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  padding: 6px 16px !important;
+  box-shadow: none !important;
+}
+
+[data-new-ui-assistants="true"] .modal-content #confirmationButton:hover:not(:disabled) {
+  background-color: var(--bg-hover) !important;
+  transform: none !important;
+}
+
+/* ── Save / Submit button (last #confirmationButton in the footer) ──
+   The footer renders: [...additionalOptions, Cancel, Save] in order.
+   Save is the last button in the footer flex row.                     */
+[data-new-ui-assistants="true"] .modal-content .flex.flex-row.gap-3.justify-end button:last-child:not(:disabled) {
+  background-color: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+}
+
+[data-new-ui-assistants="true"] .modal-content .flex.flex-row.gap-3.justify-end button:last-child:disabled {
+  background-color: var(--bg-active) !important;
+  border-color: var(--bg-active) !important;
+  color: var(--text-muted) !important;
+  cursor: not-allowed !important;
+}
+
+/* ── prefers-reduced-motion: skip transform hover on buttons ── */
+@media (prefers-reduced-motion: reduce) {
+  [data-new-ui-assistants="true"] .modal-content #confirmationButton {
+    transition: none !important;
+  }
+}
+

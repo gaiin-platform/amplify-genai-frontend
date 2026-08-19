@@ -311,11 +311,27 @@ components/NewUI/
                                Pagination: "Previous / Next" load-page buttons; skeleton rows while loading.
                                Embedding status fetched in 25-key chunks via embeddingDocumentStatus (same as DataSourcesTable).
     NewAssistantsView.tsx    ← new-UI reimplementation of AssistantGallery. page='assistantGallery' (new UI path only)
-                               Four tabs: My Assistants | Group Assistants | Prompt Templates | Layered Assistants
-                               Each tab has: search, "+ New" creation button, list rows (not old gradient card grid)
-                               All creation flows use AssistantModal / PromptModal / openLayeredBuilderTrigger
+                               Five tabs: My Assistants | Shared with Me | Teams | Layered Assistants | Prompt Templates
+                               My Assistants: canEdit=true individual assistants, access-type badges (Private/Shared/URL),
+                               opens NewAssistantTypeSelector before AssistantModal for new creation.
+                               Shared with Me: canEdit=false individual assistants (noEdit=true).
+                               Teams: existing GroupAssistantsTab content (unchanged, renamed from "Group Assistants").
+                               Layered / Prompt Templates: same as before.
+                               All creation flows use NewAssistantTypeSelector → AssistantModal / PromptModal / openLayeredBuilderTrigger
                                Group admin actions gate on featureFlags.assistantAdminInterface + GroupAccessType
                                Old AssistantGallery still renders in the classic-UI path — untouched.
+    NewAssistantTypeSelector.tsx ← SPECIFIC Step 0 wizard modal for new assistant creation.
+                               Props: onClose, onConfirm(astPath, astPathData, groupId?)
+                               Three cards: Private (no path) / Managed (path + sub-options) / Collaborative (team).
+                               Card 2 gated by featureFlags.assistantPathPublishing; Card 3 gated by
+                               featureFlags.assistantAdminInterface + group ADMIN/WRITE access.
+                               Card 3 NO LONGER dispatches openAstAdminInterfaceTrigger — it calls onConfirm with
+                               groupId so ALL three cards lead to AssistantModal (Phase 47).
+                               Card 3 expanded: "Use existing team" (dropdown/auto-select) OR "Create new team"
+                               (team name + member emails → async createAstAdminGroup + updateGroupMembers).
+                               Focus trap + Escape + keyboard card selection. Blurred backdrop overlay.
+                               NOTE: only astPath reliably pre-fills AssistantModal (AssistantModal resets astPathData
+                               via its own lookupAssistant effect on mount — see file header for full explanation).
   settings/
     NewSettingsModal.tsx     ← two-column settings modal. Props: onClose, openToSection?:string
     NewAdminModal.tsx        ← two-column admin panel (same shell as NewSettingsModal). Props: onClose, openToTab?:AdminTab
@@ -427,13 +443,43 @@ components/NewUI/
                                Group 3: Web search toggle (stays open on activate)
                                Trigger rotates 45° → × while open; badge dot when any toggle active
                                Dispatches openNewUISettingsSection event for "Manage skills…" / "Browse connectors…"
+                               Phase 48: assistant rows show a hover-preview card (InfoFloatCard);
+                                         all submenus positioned by Floating UI (menuPositioning)
     ModelPicker.tsx          ← REUSABLE spec-compliant model+effort picker (model-picker-spec.md)
                                Props: selectedModelId, selectedEffort: EffortLevel, onModelChange, onEffortChange, composerRef?
                                Three surfaces: trigger → primary menu → effort|more-models submenu
                                Effort levels: 'low'|'medium'|'high'|'off' (maps to REASONING_LEVELS)
-                               Uses Floating UI (useFloating) for primary menu, absolute for submenus
+                               Uses Floating UI (useFloating) for the primary menu AND both submenus
+                                 (Phase 48 — submenus were absolute+measured-top before)
+                               Phase 48: "More models" rows show a hover-preview card (InfoFloatCard)
                                Used by: NewHome
                                Enter → sends, Escape inside block → exits to line after
+    InfoFloatCard.tsx        ← SHARED hover-preview card shell + hover-intent hook (Phase 48)
+                               Exports: useInfoCardHover<T>() → { item, anchor, show, hide, hideNow }
+                                        InfoFloatCard (portalled shell: 240px max, --bg-raised,
+                                          --border-subtle, 10px radius, 14px pad, 0 4px 16px shadow)
+                                        Content primitives: InfoCardTitle / InfoCardText
+                                          / InfoCardItalic / InfoCardMeta / InfoCardPills / InfoCardPill
+                               Timers: 250ms hover-in, 200ms hover-out (instant swap between rows)
+                               Positioning: shares submenuMiddleware() from menuPositioning.ts (gap 12)
+                                 → right-start, flip side only, shift for vertical fit
+                               strategy 'fixed' + FloatingPortal (submenu panels clip their contents)
+                               pointer-events: none — can never eat a row click or trip useDismiss
+                               Used by: AttachMenu (assistant rows), ModelPicker (BOTH the recommended
+                                 primary-panel rows and the more-models submenu rows)
+                               NOT a general tooltip system — menu-row previews only
+    menuPositioning.ts       ← SHARED Floating UI config for NESTED submenu panels (Phase 48)
+                               Exports: SUBMENU_PLACEMENT ('right-start'), submenuMiddleware(gap=4), submenuStyle()
+                               Middleware: offset(gap) + flip({crossAxis: false, fallbackPlacements:
+                                 ['left-start','bottom-start','top-start']}) + shift({padding: 8})
+                               ⚠️ crossAxis:false is load-bearing — with flip's default, TALL panels
+                                 (More models, 420px) pick a horizontally-clipped side because vertical
+                                 overflow poisons the fit test. Read the file header before touching it.
+                               strategy stays 'absolute' ON PURPOSE — panels remain DOM children of the
+                                 primary panel so useDismiss reads clicks inside them as "inside"
+                                 (Skills checkbox rows depend on the menu NOT closing)
+                               submenuStyle() hides the panel until the first computePosition resolves
+                               Used by: AttachMenu (skills/connectors/assistant), ModelPicker (effort/models)
 ```
 
 ### 5.2 CSS Files
@@ -2411,6 +2457,333 @@ Zero changes to any file outside `components/NewUI/` and `styles/conversation-vi
 - Spacing: 16px between sections, 20px card padding
 
 **TypeScript:** `tsc --noEmit` — zero errors in new files or modified files.
+
+### Phase 46 — Assistant Creation Access-Model Selector + Assistants View Layout Overhaul ✅ COMPLETE
+
+Two-part session. Zero changes outside `components/NewUI/` (One-Directory Rule observed). No changes to `AssistantModal.tsx`, `Chat.tsx`, or any protected file.
+
+**Part 1 — `NewAssistantTypeSelector.tsx` (Step 0 wizard before AssistantModal)**
+
+- [x] **`components/NewUI/views/NewAssistantTypeSelector.tsx`** — new modal that intercepts the
+  "New Assistant" flow in `MyAssistantsTab`, runs before `AssistantModal` opens.
+  Layout: centered panel, max 520px, `--bg-raised` bg, 24px radius, blurred overlay backdrop.
+  Header: "Create an Assistant" (18px/500) + "Choose who can access this assistant" (14px secondary).
+  Three access-model cards (stacked vertically, `--bg-app` bg, `1px --border-subtle` border, 12px radius,
+  `--accent` 4px left border when selected/hovered).
+
+  **Card 1 — Private** (`IconLock`): "Just for me / Only you can see and use this assistant".
+  Maps to: no astPath, no astPathData → `onConfirm(null, null)`.
+
+  **Card 2 — Managed** (`IconShare`): "I manage it, others can use it / You control it. Choose how
+  others access it." Only shown when `featureFlags.assistantPathPublishing` is true. When selected,
+  expands inline (CSS `max-height` 0→520 transition) to two sub-options:
+  - **"Specific people" sub-option** — expands further to show email textarea (comma-separated);
+    maps to `astPathData = { isPublic: false, accessTo: { users: [emails], amplifyGroups: [] } }`.
+  - **"Anyone with the link" sub-option** — maps to `{ isPublic: true, accessTo: ... }`.
+  - **URL slug input** — shown for both sub-options; auto-sanitises to lowercase alphanumeric +
+    hyphens, max 40 chars; live validation with red error text; `/assistants/{slug}` preview.
+  When feature flag off: card shown disabled (greyed-out + tooltip) + note below: "To share
+  assistants with others, contact your admin to enable assistant path publishing."
+
+  **Card 3 — Collaborative** (`IconUsers`): "Team assistant / Multiple people can edit and manage
+  this assistant." Only shown when user has ADMIN or WRITE access to at least one group (gated by
+  `featureFlags.assistantAdminInterface`). Single group: clicking card immediately dispatches
+  `openAstAdminInterfaceTrigger` and closes the selector (no Continue needed). Multiple groups:
+  clicking card expands an inline `<select>` to choose the target group; Continue button dispatches
+  the event with the selected group. Card 3 does NOT call `onConfirm` — it dispatches the group
+  admin event and closes via `onClose()`.
+
+  **Continue button**: right-aligned, filled `--accent`, disabled until a valid selection is made
+  (Private always valid once selected; Managed requires sub-option + non-empty valid slug;
+  Collaborative with multiple groups requires group selection). Cancel button dismisses.
+
+  **Keyboard**: `Escape` closes, `Tab`/`Shift+Tab` focus-trapped within panel, `Space`/`Enter`
+  activates cards/sub-options. Cards have `role="button"` `aria-pressed`. Panel has `role="dialog"`
+  `aria-modal="true"` `aria-labelledby="new-ast-type-title"`. `tabIndex={-1}` + focus on mount.
+
+  **KNOWN LIMITATION (documented inline)**: `AssistantModal` always initialises its `astPathData`
+  state to `null` and runs a `lookupAssistant()` effect on mount; for a brand-new slug (never
+  registered) this resets to `emptyAstPathData` (isPublic: true). Consequence: only `astPath` is
+  reliably pre-filled in AssistantModal (read from `definition.astPath`); the `isPublic: false`
+  intent from "Specific people" is lost — the user must manually uncheck "Publish to all users"
+  inside AssistantModal's AssistantPathEditor. This is an inherent constraint of not modifying
+  `AssistantModal.tsx`. Documented in the file header and inline comments.
+
+- [x] **`components/NewUI/views/NewAssistantsView.tsx` — Part 1 wiring:**
+  - `MyAssistantsTab`: replaced the two `setShowAssistantModal(true)` paths (header button +
+    EmptyState CTA) with `setShowTypeSelector(true)`.
+  - Added `showTypeSelector` state + `handleTypeSelectorConfirm(astPath, astPathData)` handler that
+    creates a blank `Prompt` / `AssistantDefinition` with `astPath` pre-set, then opens
+    `AssistantModal`.
+  - Added `<NewAssistantTypeSelector>` render (portals naturally as it uses `position:fixed`).
+  - Removed the old "Your Assistants" / "Shared Assistants" sub-tabs from `MyAssistantsTab` (shared
+    assistants now have their own top-level tab — see Part 2).
+  - Added `getAccessBadge(p)` helper: returns `{ label, bg, color }` based on whether the prompt's
+    definition has `astPath` + `isPublic`. Three states: Private (gray `--bg-active` pill) / Shared
+    (soft orange, `--accent` color) / URL (soft green `#3aa764`).
+  - `AssistantRow` got an optional `accessBadge` prop — renders a small UPPERCASE pill next to the
+    name when provided. Used only in `MyAssistantsTab`.
+
+**Part 2 — Assistants View Layout Overhaul (5 tabs)**
+
+- [x] **`MainTab` type** extended: `'individual' | 'shared' | 'group' | 'templates' | 'layered'`
+  (was: `'individual' | 'group' | 'templates' | 'layered'`). Persisted `activeAssistantGalleryTab`
+  localStorage value still honoured; `'shared'` added to the `valid` array.
+
+- [x] **New `SharedWithMeTab` component** (inside `NewAssistantsView.tsx`):
+  Shows individual assistants where `p.data?.noEdit === true` (= `canEdit=false`, shared read-only).
+  These were previously in the "Shared Assistants" sub-tab inside "My Assistants". Now a first-class
+  top-level tab with search, empty state. Group assistants (even read-only ones) stay in the Teams tab.
+  No "source" attribution column — `p.data?.noEdit` prompts carry no "shared by" metadata in the
+  current data model.
+
+- [x] **`MyAssistantsTab` simplified**: now shows ONLY assistants where `canEdit=true` (your own,
+  editable assistants). The "Shared Assistants" sub-tab is gone. Access-type badge makes the
+  Private/Shared/URL distinction visible without any sub-tab.
+
+- [x] **Tab list restructured** (5 tabs in order):
+  1. My Assistants (`individual`) — yours + canEdit=true
+  2. Shared with Me (`shared`) — canEdit=false individual assistants — always visible
+  3. Teams (`group`, label changed from "Group Assistants") — GroupAssistantsTab, unchanged
+  4. Layered Assistants (`layered`) — conditional on data
+  5. Prompt Templates (`templates`) — always visible (moved from 3rd to 5th position)
+
+- [x] **CONFLICT NOTE AND RESOLUTION**: The spec proposed that "Shared with Me" also includes
+  "layered assistants from groups the user is a member of but doesn't admin." This would create
+  duplicate display since the Teams tab (unchanged GroupAssistantsTab) already shows all group
+  content including layered assistants. Rather than duplicate rows or remove content from Teams,
+  "Shared with Me" is scoped to ONLY individual (non-group) prompts with `noEdit=true`. Group
+  layered assistants remain exclusively in Teams. This avoids the duplication issue and the
+  implementation is clean with the existing data model.
+
+**TypeScript:** `tsc --noEmit` — zero errors in modified files (`NewAssistantsView.tsx`,
+`NewAssistantTypeSelector.tsx`). Pre-existing test-file errors in `__tests__/` unrelated to this session.
+
+### Phase 47 — AssistantModal New-UI Styling + Team Creation + All Paths to Modal ✅ COMPLETE
+
+Three-part follow-up to Phase 46. Zero changes outside `components/NewUI/` + `styles/conversation-view.css`
+(One-Directory Rule observed). No changes to `AssistantModal.tsx`, `Modal.tsx`, or any protected file.
+
+**Part A — CSS: new-UI styling for AssistantModal**
+
+- [x] `styles/conversation-view.css` — appended `[data-new-ui-assistants="true"]` CSS block.
+  `Modal.tsx` does NOT use `createPortal` — its `position:fixed` panel is a real DOM descendant of
+  `NewAssistantsView`'s root, so ancestor-scoped CSS reaches it.
+  Overrides:
+  - `.modal-overlay` → `backdrop-filter: blur(4px)` (matches other new-UI overlays)
+  - `.modal-content` → `--bg-raised` bg, `--border-subtle` border, `16px` radius
+  - `#modalTitle` → `--text-primary`, Inter 16px/600
+  - `#modalScroll` / `#assistantModalScroll` → `--text-primary` color
+  - Inputs/textareas/selects in `#assistantModalScroll` → `--bg-app` bg, `--border-subtle` border, `--text-primary` text, 8px radius; focus ring uses `--accent`
+  - Form labels (`.font-bold`) → `--text-primary`
+  - Footer `#confirmationButton` base → `--bg-app` bg, `--border-subtle` border, 8px radius
+  - Footer last button (Save/Submit) → `--accent` bg, white text; disabled state → `--bg-active` muted
+  - Footer divider `.border-t` → `--border-subtle`
+  - `prefers-reduced-motion` override block
+
+- [x] `components/NewUI/views/NewAssistantsView.tsx` — added `data-new-ui-assistants="true"` to
+  `NewAssistantsView`'s root div (the scoping ancestor for the CSS block above).
+
+**Part B — NewAssistantTypeSelector: Card 3 overhaul**
+
+- [x] `onConfirm` signature updated: `(astPath: string | null, astPathData: AstPathData | null, groupId?: string)`
+  Card 3 now always calls `onConfirm(null, null, groupId)` — NEVER dispatches `openAstAdminInterfaceTrigger`.
+  This ensures ALL three cards lead to AssistantModal.
+
+- [x] Card 3 expanded content — two modes via toggle ("Use existing team" / "Create new team"):
+
+  **Use existing team** (default):
+  - 1 admin group: auto-shows group name, Continue immediately enabled
+  - Multiple admin groups: dropdown to pick target group
+  
+  **Create new team**:
+  - Team name input (required, validated)
+  - Member emails textarea (comma-separated, optional) — emails reverse-looked-up in `amplifyUsers`
+    to find usernames; current user added as `GroupAccessType.ADMIN`, members as `GroupAccessType.WRITE`
+  - On Continue: async `createAstAdminGroup` + optional `updateGroupMembers` → `onConfirm(null, null, result.id)`
+  - Loading state: Continue button shows spinner + "Creating team…" text while async runs
+  - Error state: red error message if creation fails
+
+- [x] `handleContinue` made async (team creation requires await)
+- [x] `isContinueEnabled` updated: collaborative enabled when teamMode='existing' + group selected,
+  OR teamMode='new' + team name filled + not currently creating
+- [x] Single-group auto-dispatch removed — clicking Card 3 now always selects it; user still clicks Continue
+- [x] Added imports: `createAstAdminGroup`, `updateGroupMembers` from `@/services/groupsService`; `IconLoader2`
+
+**Part C — NewAssistantsView: GroupAssistantsTab modal flow + MyAssistantsTab groupId**
+
+- [x] `GroupAssistantsTab` "New Assistant" button: changed from `openAstAdminInterfaceTrigger` dispatch to
+  `setShowGroupTypeSelector(true)`. Added `showGroupTypeSelector` / `showGroupAssistantModal` /
+  `groupAssistantForEdit` / `creatingForGroupId` state. Renders `<NewAssistantTypeSelector>` +
+  `<AssistantModal>` at the end of the tab's return. `handleGroupTypeSelectorConfirm` creates a blank
+  prompt with `newPrompt.groupId = groupId` and opens AssistantModal.
+  Note: the existing settings-gear icons on individual group rows STILL open `openAstAdminInterfaceTrigger`
+  for editing existing assistants — that path is intentionally preserved.
+
+- [x] `GroupAssistantsTab.handleUpdateGroupNewAssistant`: calls `handleUpdateAssistantPrompt` (updates
+  `prompts` state) AND immediately updates `groups` state (adds the new prompt to `group.assistants`) so
+  the new assistant appears in the Teams tab without requiring a page refresh.
+
+- [x] `MyAssistantsTab.handleTypeSelectorConfirm`: updated to accept `groupId?: string`; when groupId
+  provided, sets `newPrompt.groupId = groupId` on the blank prompt.
+
+- [x] `MyAssistantsTab.handleUpdateAssistant`: when `creatingForGroupId` is set (user created a group
+  assistant via My Assistants' type selector Card 3), also updates `groups` state immediately (same
+  pattern as GroupAssistantsTab).
+
+**TypeScript:** `tsc --noEmit` — zero errors. Pre-existing `__tests__/` errors unrelated.
+
+### Phase 48 — Menu Hover-Preview Cards + Viewport-Aware Submenu Positioning ✅ COMPLETE
+
+Three improvements to existing menus/popups. Two new shared files; no file outside
+`components/NewUI/shared/` was touched (One-Directory Rule §9a clean, DO NOT CHANGE list §9 clean —
+`types/`, `utils/`, `services/` were read only).
+
+**New shared files**
+
+- [x] **`components/NewUI/shared/InfoFloatCard.tsx`** (new) — the hover-preview card *shell* plus the
+  `useInfoCardHover<T>()` hover-intent hook, and the content primitives both cards are built from
+  (`InfoCardTitle`, `InfoCardText`, `InfoCardItalic`, `InfoCardMeta`, `InfoCardPills`,
+  `InfoCardPill`). The two cards turned out to share the whole visual shell and all of the positioning
+  logic — only the field list differs — so the shell was factored out and each menu keeps just its own
+  ~40-line body component. Shell spec: 240px max-width, `--bg-raised`, 1px `--border-subtle`, 10px
+  radius, 14px padding, `0 4px 16px rgba(0,0,0,0.2)`.
+- [x] **`components/NewUI/shared/menuPositioning.ts`** (new) — one place defining the Floating UI
+  middleware stack for *nested* submenu panels: `offset(4)` +
+  `flip({ fallbackPlacements: ['left-start','bottom-start','top-start'] })` + `shift({ padding: 8 })`,
+  plus `submenuStyle()` for the wrapper's inline style.
+
+**Fix 1 — assistant hover card in `AttachMenu.tsx`**
+
+- [x] Hovering an assistant row in the "Add assistant ›" submenu shows a card with: name (15px/600,
+  `--text-primary`) → access pill (`Private` / `Shared` / `Group`) → description (2-line clamp, 13px
+  `--text-secondary`) → `Instructions: …` (italic, 12px `--text-muted`, 1 line, first 120 chars,
+  whitespace-collapsed) → up to 3 tag pills → `Uses: <model name>` → `N tools`.
+- [x] Access is derived, not stored: `groupId` → **Group**, else `astPath` → **Shared**, else
+  **Private** (`accessLabel()`). Matches the badge semantics already used in `NewAssistantsView`.
+- [x] `data.model` is a model **id**; `resolveModelName()` maps it through `availableModels` for a human
+  name, falling back to the raw id so a hidden/unavailable enforced model still reads sensibly.
+- [x] Layered assistants get the same card via `layeredCardInfo()` (extra `Layered` pill; instructions
+  preview comes from `rootNode.instructions`), so the two row types don't diverge visually.
+- [x] Suppressed where there's nothing to preview: the "Standard conversation" row calls `hideNow()` on
+  enter, and the empty/loading states have no handlers at all. Also `hideNow()` on select and whenever
+  the search term changes (rows move under the cursor as the list filters).
+
+**Fix 2 — model hover card in `ModelPicker.tsx`**
+
+- [x] Hovering a row in the "More models ›" submenu shows: name → description (2-line clamp) →
+  capability pills → `Context: 200K tokens`.
+- [x] **Model id and provider are deliberately NOT shown** (product decision, Phase 48b — they were in the
+  first cut and were cut). The display name carries enough and both extras made the card read as debug
+  output. The `providerLabel()` / `PROVIDER_LABELS` id-sniffing helpers and the `InfoCardIdent` primitive
+  were deleted rather than left dangling. Don't re-add without asking.
+- [x] Capability pills from real `Model` fields: **Vision** (`supportsImages`), **Reasoning**
+  (`supportsReasoning`), **Large context** (`inputContextWindow >= 128_000`). These are the only pills on
+  the card now that the provider pill is gone.
+- [x] Context line uses `inputContextWindow` and is **omitted entirely** when it's 0/absent.
+  `formatTokenCount()` renders 200000 → `200K`, 1000000 → `1M`.
+- [x] **Investigated and confirmed: there is no static model-metadata table to read from.** `utils/app/const.ts`
+  holds no per-model descriptions or capability flags — everything shown comes off the `Model` object
+  from the API (`types/model.ts`). Note the field is `inputContextWindow`, NOT the `maxLength`/`tokenLimit`
+  named in the task; those don't exist on this codebase's `Model` type.
+
+**Fix 3 — submenu positioning audit (both files)**
+
+- [x] `ModelPicker.tsx`: effort + more-models submenus converted from `position: absolute` +
+  `getBoundingClientRect`-measured `top` + `left: calc(100% + 6px)` to their own `useFloating`
+  instances. Deleted `effortTopOffset`/`modelsTopOffset` state and the measuring effect.
+- [x] `AttachMenu.tsx`: same conversion for all three panels that actually render (skills, connectors,
+  assistant). Deleted `libraryTop`/`skillsTop`/`connectorsTop`/`assistantTop` state and the measuring
+  effect. **Audit result: "Add from library" has no panel** — its row fires an action and closes the
+  menu, so it keeps a plain ref and needs no Floating UI instance. No other absolutely-positioned
+  nested panels exist in either file.
+- [x] Zero visual change: panel dimensions, colours, radii, shadows, content, and each menu's own enter
+  keyframe (`attachMenuEnter` / `modelPickerEnter`) are all preserved. Only the positioning mechanism moved.
+
+**Two non-obvious decisions worth keeping (see the header comments in both new files)**
+
+- [x] **Submenus keep `strategy: 'absolute'` and stay DOM children of the primary panel.** This is
+  load-bearing, not laziness: `useDismiss` decides "outside press" by DOM containment, so portalling a
+  submenu out would make every click inside it dismiss the whole menu — which would break the Skills
+  submenu's checkbox rows (they toggle and are *supposed* to keep the menu open). The primary panel is
+  `position: fixed`, so it is the offsetParent and absolute offsets resolve against it, while flip/shift
+  still measure against the viewport. Best of both.
+- [x] **The hover card is the opposite case:** it must escape `overflow: hidden` / `overflowY: auto` on
+  the submenu panels, so it uses `strategy: 'fixed'` + `FloatingPortal`. To keep that from re-introducing
+  the dismiss problem it is `pointer-events: none`, which also guarantees it can never swallow a click
+  meant for the row underneath it. Show/hide is therefore driven purely by row mouse enter/leave.
+
+**Phase 48b — follow-up fixes (same session)**
+
+- [x] **Recommended models now get the card too.** The hover card was only wired to the "More models ›"
+  submenu rows; the Opus/Sonnet/Haiku rows in the *primary* panel had none. Added a second
+  `useInfoCardHover<Model>()` in the `ModelPicker` body reusing the same `ModelCardBody`. Because this
+  hook lives in the component (not in a submenu that unmounts), it needs explicit dismissal — `hideNow()`
+  on panel close (`onOpenChange`), in `closeAll()`, and in `openSubmenu()` (a submenu panel opens over the
+  space the card occupies). Without the `onOpenChange` call, `item` stays set and the card reappears the
+  next time the menu opens.
+
+- [x] **"More models" no longer clips — root cause was `flip`'s `crossAxis` default, not the fallback list.**
+  Symptom: "Effort" flipped sides perfectly while "More models" got cut off, despite both using the
+  identical middleware stack. Traced through `@floating-ui/core`'s `flip` implementation: with
+  `crossAxis: true` (the default) the *alignment*-side overflows (top/bottom for a right/left placement)
+  are pushed into the same `overflows` array as the side-axis overflow, and any entry `> 0` disqualifies
+  the placement. "More models" is up to 420px tall, so anchored near the bottom of the window it overflows
+  the bottom edge at right-start **and** left-start **and** every fallback. flip then falls through to its
+  tie-break (`overflows[0] <= 0` sorted by cross-axis overflow, else `bestFit` = smallest *total* overflow),
+  where a large vertical overflow dominates and a horizontally-clipped placement wins. The ~230px "Effort"
+  panel fits vertically, so it only ever had the left/right question to answer — hence the difference.
+  Fix: `flip({ crossAxis: false, … })` in `submenuMiddleware()`, so flip decides *only* which side, and
+  `shift()` — the middleware actually built for it — handles the vertical fit. `MoreModelsMenu`'s
+  `min(420px, 60dvh)` cap guarantees shift can always fit it. No dimensions or styling changed.
+- [x] Same flaw fixed in the hover cards, which had their own copy of the stack: a card near the bottom
+  edge would flip to the left of the row (overlapping the menu) even with ample room on the right. The
+  cards now share `submenuMiddleware()` — parameterised with a gap argument (`submenuMiddleware(12)` for
+  cards, default `4` for submenu panels) — so the crossAxis reasoning only has to be right in one place.
+
+- [x] **Effort ⓘ tooltip no longer truncated.** It was `position: absolute; bottom: calc(100% + 6px)`
+  inside the row, and `EffortMenu`'s container sets `overflow: hidden` — so any text that hung outside the
+  320px panel was clipped. Converted to `FloatingPortal` + `useFloating` (`placement: 'top'`, fallbacks
+  `['bottom','right','left']`, `shift({ padding: 8 })`, `strategy: 'fixed'`, `zIndex: 10002` to sit above
+  both submenu panels and hover cards). Kept `pointer-events: none` and the identical 220px / `--bg-raised`
+  / 8px-radius look, plus the existing `aria-describedby` wiring.
+
+**Other details**
+
+- [x] Submenu references are bound in an effect keyed on `submenu`, **not** via an inline callback ref —
+  an inline `ref={(n) => {...}}` is invoked with `(null, node)` on every render and would thrash
+  `setReference`'s internal state.
+- [x] Passing a fresh `submenuMiddleware()` array each render is safe: Floating UI deep-compares
+  middleware and compares functions by `toString()`, so no update loop (verified in
+  `@floating-ui/react-dom@1.3.0`'s `deepEqual`).
+- [x] Both submenu wrappers and the card are hidden (`visibility: hidden`) until the first
+  `computePosition` resolves, so nothing flashes at 0,0 on open.
+- [x] Hover intent: 250ms in / 200ms out, matching the task spec. Moving between rows while a card is
+  already open swaps its contents instantly rather than waiting another 250ms.
+- [x] `infoFloatCardEnter` (opacity-only, 120ms) is applied via a class, not inline style, specifically
+  so the `@media (prefers-reduced-motion: reduce)` rule can override it — consistent with the Phase 19
+  reduced-motion audit's treatment of `attachMenuEnter`/`modelPickerEnter`.
+
+**Verification:** `tsc --noEmit` — zero errors in `components/NewUI/` (only the pre-existing
+`__tests__/` "Cannot find name 'it'/'expect'" errors remain). `eslint` on all four touched/new files —
+clean, zero warnings. `npm run build` — **✓ Compiled successfully**, zero warnings from the four files.
+
+⚠️ **Pre-existing build failure, unrelated to this phase (worth knowing about):** `npm run build`
+compiles fine but then **exits 1** during "Generating static pages" — `pages/mcp-oauth-callback.tsx`
+calls `useRouter()` during render, which throws `NextRouter was not mounted` when Next tries to
+statically prerender it (46 failures = that one page × each i18n locale). **Confirmed pre-existing by
+building with this phase's changes removed** (stashed the two modified files, moved the two new files
+aside): baseline is byte-for-byte the same failure — `exit=1`, 46 × `NextRouter was not mounted`. That
+page imports nothing from `components/NewUI/`. Fixing it means giving it a `getStaticProps`/`dynamic`
+opt-out or moving the `useRouter()` call into an effect, but it lives outside `components/NewUI/` so it
+is out of scope here — flagging it because it makes `npm run build` look broken to the next person.
+
+**Not browser-verified:** this repo has
+no DOM test environment (`vitest.config.ts` is `environment: 'node'`; no `jsdom`, no
+`@testing-library/react`) and the app requires a live authenticated session to reach the composer, so
+hover/flip behaviour was reasoned through against the Floating UI 0.19.2 source rather than observed. If
+you can run the app, the two things worth eyeballing are (a) the card flipping to the left of the
+submenu when the window is narrow, and (b) the Skills submenu checkboxes still not closing the menu.
 
 ### Phase 19 — Remaining Port Work (NEXT)
 - [x] Responsive: icon rail at 760-1099px ✅ resolved

@@ -236,6 +236,14 @@ And add an entry to `NEW_UI_PORTING_STATUS.md` under "Partially ported" with a �
 **Case 4 — The old component fires custom events (e.g. `openLayeredBuilderTrigger`)**
 → Dispatch those events from your new-UI code. That's the correct pattern — the old modal listens and opens. No modification needed.
 
+**Case 5 — You want to add a Step 0 wizard before an old modal (e.g. type selector before AssistantModal)**
+→ Create a new `components/NewUI/views/SomethingSelector.tsx` that renders as `position:fixed` with
+`role="dialog" aria-modal="true"`, focus trap, and Escape handling. Call the old modal's entry point
+from the selector's `onConfirm`. Do NOT modify the old modal. See `NewAssistantTypeSelector.tsx`
+as the reference implementation. Key constraint: the old modal's internal state runs its own
+initialization effects on mount — you can pre-set props (e.g. `definition.astPath`) but cannot
+pre-set state that the old modal resets via its own effects. Document any such limitations inline.
+
 ### Why this matters
 If we start editing `IndividualAssistantsGallery.tsx` or `GroupAssistantsGallery.tsx` to add new-UI features, then:
 - Classic UI users see those changes (may break their experience)

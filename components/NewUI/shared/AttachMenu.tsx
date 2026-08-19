@@ -58,6 +58,17 @@ import { Assistant, DEFAULT_ASSISTANT } from '@/types/assistant';
 import { LayeredAssistant } from '@/types/layeredAssistant';
 import { Prompt } from '@/types/prompt';
 import { isAssistant } from '@/utils/app/assistants';
+import {
+  InfoCardItalic,
+  InfoCardMeta,
+  InfoCardPill,
+  InfoCardPills,
+  InfoCardText,
+  InfoCardTitle,
+  InfoFloatCard,
+  useInfoCardHover,
+} from './InfoFloatCard';
+import { SUBMENU_PLACEMENT, submenuMiddleware, submenuStyle } from './menuPositioning';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -413,6 +424,102 @@ const ConnectorsSubmenu: React.FC<{ onBrowse: () => void }> = ({ onBrowse }) => 
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Assistant hover-preview card (Phase 48 / Fix 1)
+//
+// Normalised so regular assistants and layered assistants render one card shape.
+// Card shell + positioning live in ./InfoFloatCard — this is only the content.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const INSTRUCTIONS_PREVIEW_CHARS = 120;
+const MAX_TAG_PILLS = 3;
+
+interface AssistantCardInfo {
+  name: string;
+  /** Derived from astPath / groupId — see assistantCardInfo() */
+  access: 'Private' | 'Shared' | 'Group';
+  /** Extra kind pill, e.g. "Layered" */
+  kind?: string;
+  description?: string;
+  instructions?: string;
+  tags: string[];
+  toolCount: number;
+  modelName?: string;
+}
+
+/** astPath = published at a URL → "Shared"; groupId = team-owned → "Group". */
+const accessLabel = (astPath?: string, groupId?: string): AssistantCardInfo['access'] =>
+  groupId ? 'Group' : astPath ? 'Shared' : 'Private';
+
+const trimPreview = (raw?: string): string | undefined => {
+  const flat = (raw ?? '').replace(/\s+/g, ' ').trim();
+  if (!flat) return undefined;
+  return flat.length > INSTRUCTIONS_PREVIEW_CHARS
+    ? `${flat.slice(0, INSTRUCTIONS_PREVIEW_CHARS).trimEnd()}…`
+    : flat;
+};
+
+const assistantCardInfo = (
+  a: Assistant,
+  resolveModelName: (id?: string) => string | undefined,
+): AssistantCardInfo => {
+  const def = a.definition ?? ({} as Assistant['definition']);
+  return {
+    name: def.name || 'Untitled assistant',
+    access: accessLabel(def.astPath, def.groupId),
+    description: (def.description ?? '').trim() || undefined,
+    instructions: trimPreview(def.instructions),
+    tags: (def.tags ?? []).filter(Boolean),
+    toolCount: (def.tools ?? []).length,
+    modelName: resolveModelName(def.data?.model),
+  };
+};
+
+const layeredCardInfo = (
+  la: LayeredAssistant,
+  resolveModelName: (id?: string) => string | undefined,
+): AssistantCardInfo => ({
+  name: la.name || 'Untitled assistant',
+  access: accessLabel(la.astPath, la.groupId),
+  kind: 'Layered',
+  description: (la.description ?? '').trim() || undefined,
+  instructions: trimPreview(la.rootNode?.instructions),
+  tags: [],
+  toolCount: 0,
+  modelName: resolveModelName(la.model),
+});
+
+const AssistantCardBody: React.FC<{ info: AssistantCardInfo }> = ({ info }) => (
+  <>
+    <InfoCardTitle>{info.name}</InfoCardTitle>
+
+    <InfoCardPills>
+      <InfoCardPill>{info.access}</InfoCardPill>
+      {info.kind && <InfoCardPill>{info.kind}</InfoCardPill>}
+    </InfoCardPills>
+
+    {info.description && <InfoCardText lines={2}>{info.description}</InfoCardText>}
+
+    {info.instructions && <InfoCardItalic>Instructions: {info.instructions}</InfoCardItalic>}
+
+    {info.tags.length > 0 && (
+      <InfoCardPills>
+        {info.tags.slice(0, MAX_TAG_PILLS).map((t) => (
+          <InfoCardPill key={t} muted>
+            {t}
+          </InfoCardPill>
+        ))}
+      </InfoCardPills>
+    )}
+
+    {info.modelName && <InfoCardMeta>Uses: {info.modelName}</InfoCardMeta>}
+
+    {info.toolCount > 0 && (
+      <InfoCardMeta>{info.toolCount === 1 ? '1 tool' : `${info.toolCount} tools`}</InfoCardMeta>
+    )}
+  </>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // AssistantSubmenu — searchable list of available assistants
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -423,9 +530,24 @@ const AssistantSubmenu: React.FC<{
   onSelect: (assistant: Assistant) => void;
   onSelectLayered: (la: LayeredAssistant) => void;
   onClear: () => void;
-}> = ({ assistants, layeredAssistants, selectedAssistant, onSelect, onSelectLayered, onClear }) => {
+  /** Maps an enforced model id → display name for the hover card */
+  resolveModelName: (id?: string) => string | undefined;
+}> = ({
+  assistants,
+  layeredAssistants,
+  selectedAssistant,
+  onSelect,
+  onSelectLayered,
+  onClear,
+  resolveModelName,
+}) => {
   const [search, setSearch] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Hover-preview card — 250ms in / 200ms out, positioned right of the row
+  // (auto-flips left near the viewport edge). Never shown for the
+  // "Standard conversation" row or the empty state.
+  const card = useInfoCardHover<AssistantCardInfo>();
 
   useEffect(() => {
     // Focus search on open
@@ -433,6 +555,9 @@ const AssistantSubmenu: React.FC<{
   }, []);
 
   const term = search.toLowerCase();
+
+  // Rows move as the list filters — drop any open preview immediately.
+  useEffect(() => { card.hideNow(); }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredAssistants = assistants.filter(
     (a) =>
@@ -522,7 +647,10 @@ const AssistantSubmenu: React.FC<{
           aria-checked={isDefaultSelected}
           onClick={(e) => { e.stopPropagation(); onClear(); }}
           style={rowStyle(isDefaultSelected)}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+            card.hideNow(); // no preview for the "no assistant" row
+          }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = isDefaultSelected ? 'var(--bg-hover)' : 'transparent'; }}
         >
           <IconRobot size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
@@ -542,10 +670,16 @@ const AssistantSubmenu: React.FC<{
               key={a.id}
               role="menuitemradio"
               aria-checked={isActive}
-              onClick={(e) => { e.stopPropagation(); onSelect(a); }}
+              onClick={(e) => { e.stopPropagation(); card.hideNow(); onSelect(a); }}
               style={rowStyle(isActive)}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = isActive ? 'var(--bg-hover)' : 'transparent'; }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+                card.show(assistantCardInfo(a, resolveModelName), e.currentTarget);
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = isActive ? 'var(--bg-hover)' : 'transparent';
+                card.hide();
+              }}
             >
               <IconRobot size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -573,10 +707,16 @@ const AssistantSubmenu: React.FC<{
               key={la.assistantId ?? la.name}
               role="menuitemradio"
               aria-checked={isActive}
-              onClick={(e) => { e.stopPropagation(); onSelectLayered(la); }}
+              onClick={(e) => { e.stopPropagation(); card.hideNow(); onSelectLayered(la); }}
               style={rowStyle(isActive)}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = isActive ? 'var(--bg-hover)' : 'transparent'; }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+                card.show(layeredCardInfo(la, resolveModelName), e.currentTarget);
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = isActive ? 'var(--bg-hover)' : 'transparent';
+                card.hide();
+              }}
             >
               <IconRobot size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -602,6 +742,13 @@ const AssistantSubmenu: React.FC<{
           </div>
         )}
       </div>
+
+      {/* Hover-preview card — portalled out so the panel's overflow can't clip it */}
+      {card.item && (
+        <InfoFloatCard anchor={card.anchor}>
+          <AssistantCardBody info={card.item} />
+        </InfoFloatCard>
+      )}
     </div>
   );
 };
@@ -764,6 +911,18 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
 
   const isDefaultAssistant = !selectedAssistant || selectedAssistant.id === DEFAULT_ASSISTANT.id;
 
+  /**
+   * Enforced-model id → human name, for the assistant hover card.
+   * Falls back to the raw id so an unavailable/hidden model still reads sensibly.
+   */
+  const resolveModelName = useCallback(
+    (modelId?: string): string | undefined => {
+      if (!modelId) return undefined;
+      return availableModels?.[modelId]?.name ?? modelId;
+    },
+    [availableModels],
+  );
+
   const handleAssistantSelect = (assistant: Assistant) => {
     dispatch({ field: 'selectedAssistant', value: assistant });
     // If assistant enforces a model, update the default for the next conversation
@@ -856,29 +1015,50 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   }, []);
   useEffect(() => () => { if (submenuTimerRef.current) clearTimeout(submenuTimerRef.current); }, []);
 
-  // Submenu position tracking
+  // ── Submenu trigger rows ──────────────────────────────────────────────────
+  // NOTE: "Add from library" has no panel — its row fires an action and closes
+  // the menu — so it needs a ref only, no Floating UI instance.
   const libraryRowRef = useRef<HTMLButtonElement>(null);
   const skillsRowRef = useRef<HTMLButtonElement>(null);
   const connectorsRowRef = useRef<HTMLButtonElement>(null);
   const assistantRowRef = useRef<HTMLButtonElement>(null);
   const primaryPanelRef = useRef<HTMLDivElement | null>(null);
 
-  const [libraryTop, setLibraryTop] = useState(0);
-  const [skillsTop, setSkillsTop] = useState(0);
-  const [connectorsTop, setConnectorsTop] = useState(0);
-  const [assistantTop, setAssistantTop] = useState(0);
+  // ── Submenu positioning (Phase 48 / Fix 3) ────────────────────────────────
+  // Was: `position: absolute` + a measured `top` offset + `left: calc(100% + 6px)`,
+  // which had no idea where the viewport edges were and clipped on small windows.
+  // Now: one Floating UI instance per panel with flip + shift.
+  // See ./menuPositioning for the middleware stack and why strategy stays
+  // 'absolute' (useDismiss containment — the Skills checkboxes depend on it).
+  const skillsFloating = useFloating({
+    open: submenu === 'skills',
+    placement: SUBMENU_PLACEMENT,
+    middleware: submenuMiddleware(),
+    whileElementsMounted: autoUpdate,
+  } as any);
 
+  const connectorsFloating = useFloating({
+    open: submenu === 'connectors',
+    placement: SUBMENU_PLACEMENT,
+    middleware: submenuMiddleware(),
+    whileElementsMounted: autoUpdate,
+  } as any);
+
+  const assistantFloating = useFloating({
+    open: submenu === 'assistant',
+    placement: SUBMENU_PLACEMENT,
+    middleware: submenuMiddleware(),
+    whileElementsMounted: autoUpdate,
+  } as any);
+
+  // Bind each submenu's reference to its trigger row when that submenu opens.
+  // Done in an effect rather than an inline callback ref: an inline ref would be
+  // invoked with (null, node) on every render and thrash setReference's state.
   useEffect(() => {
-    const getOffset = (rowRef: React.RefObject<HTMLButtonElement>) => {
-      if (!rowRef.current || !primaryPanelRef.current) return 0;
-      const panelRect = primaryPanelRef.current.getBoundingClientRect();
-      const rowRect = rowRef.current.getBoundingClientRect();
-      return rowRect.top - panelRect.top;
-    };
-    if (submenu === 'library') setLibraryTop(getOffset(libraryRowRef));
-    if (submenu === 'skills') setSkillsTop(getOffset(skillsRowRef));
-    if (submenu === 'connectors') setConnectorsTop(getOffset(connectorsRowRef));
-    if (submenu === 'assistant') setAssistantTop(getOffset(assistantRowRef));
+    if (submenu === 'skills') skillsFloating.refs.setReference(skillsRowRef.current);
+    if (submenu === 'connectors') connectorsFloating.refs.setReference(connectorsRowRef.current);
+    if (submenu === 'assistant') assistantFloating.refs.setReference(assistantRowRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submenu]);
 
   const closeAll = useCallback(() => {
@@ -1064,14 +1244,8 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
             {/* ── Skills submenu ── */}
             {submenu === 'skills' && chatEndpoint && (
               <div
-                style={{
-                  position: 'absolute',
-                  top: skillsTop,
-                  left: 'calc(100% + 6px)',
-                  zIndex: 10000,
-                  animation: 'attachMenuEnter 120ms ease forwards',
-                  transformOrigin: 'left top',
-                }}
+                ref={skillsFloating.refs.setFloating}
+                style={submenuStyle(skillsFloating, 'attachMenuEnter')}
                 onMouseEnter={cancelClose}
                 onMouseLeave={scheduleClose}
               >
@@ -1087,14 +1261,8 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
             {/* ── Connectors submenu ── */}
             {submenu === 'connectors' && (
               <div
-                style={{
-                  position: 'absolute',
-                  top: connectorsTop,
-                  left: 'calc(100% + 6px)',
-                  zIndex: 10000,
-                  animation: 'attachMenuEnter 120ms ease forwards',
-                  transformOrigin: 'left top',
-                }}
+                ref={connectorsFloating.refs.setFloating}
+                style={submenuStyle(connectorsFloating, 'attachMenuEnter')}
                 onMouseEnter={cancelClose}
                 onMouseLeave={scheduleClose}
               >
@@ -1105,14 +1273,8 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
             {/* ── Assistant submenu ── */}
             {submenu === 'assistant' && (
               <div
-                style={{
-                  position: 'absolute',
-                  top: assistantTop,
-                  left: 'calc(100% + 6px)',
-                  zIndex: 10000,
-                  animation: 'attachMenuEnter 120ms ease forwards',
-                  transformOrigin: 'left top',
-                }}
+                ref={assistantFloating.refs.setFloating}
+                style={submenuStyle(assistantFloating, 'attachMenuEnter')}
                 onMouseEnter={cancelClose}
                 onMouseLeave={scheduleClose}
               >
@@ -1123,6 +1285,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                   onSelect={handleAssistantSelect}
                   onSelectLayered={handleLayeredAssistantSelect}
                   onClear={handleClearAssistant}
+                  resolveModelName={resolveModelName}
                 />
               </div>
             )}
