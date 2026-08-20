@@ -227,6 +227,26 @@ These rules are standing requirements for all future sessions:
     both by hand instead, say so explicitly in the phase entry so the next session knows the
     duplication is deliberate rather than an oversight.
 
+21. **Standing Rule — One modal at a time: a modal that opens another must not render it as a child of its own overlay (established Phase 53 Fix 4, 2026-08-20)**
+
+    When modal A opens modal B, **early-return B in place of A's own frame** (below all hooks):
+
+    ```jsx
+    if (showB) return <ModalB onClose={onClose} />;   // NOT: <Overlay>…<ModalB/></Overlay>
+    ```
+
+    Rendering B *inside* A's overlay div leaves A's backdrop and panel painted behind B, which reads
+    as a stacking bug (this is exactly what happened with `NewAdminModal` inside `NewSettingsModal`).
+    Two consequences to get right:
+    - **Keyboard ownership:** A's focus-trap/Escape `useEffect` MUST early-return while B is open
+      (and take the `showB` flag in its dep array). Both listeners live on `document`, so otherwise
+      both fire on Escape — and if A's handler calls `onClose()` unconditionally it will tear down
+      the tree *regardless of B's confirm dialog*, silently discarding B's unsaved work. The inner
+      modal must be the only one with a live `document` Escape listener.
+    - **Who owns `onClose`:** pass A's `onClose` straight through to B when B is a peer destination
+      that should close everything. Only wire B's `onClose` back to `setShowB(false)` if you
+      genuinely want a drill-in/back flow — decide deliberately and write it in the phase entry.
+
 ---
 
 ## 9a. The One-Directory Rule (Critical)

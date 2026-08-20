@@ -595,6 +595,12 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
 
   // Focus trap + Escape to close
   useEffect(() => {
+    // While the admin panel is open this modal is not rendered at all — NewAdminModal
+    // owns focus and the keyboard. Registering our Escape handler here would double-fire
+    // alongside admin's own handler and close BOTH modals, silently discarding admin's
+    // unsaved-changes confirm (its "Cancel" would be ignored).
+    if (showAdminUI) return;
+
     // Move focus into the modal on open
     panelRef.current?.focus();
 
@@ -629,7 +635,7 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
     };
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  }, [onClose]);
+  }, [onClose, showAdminUI]);
 
   // Scroll content pane to top when section changes
   useEffect(() => {
@@ -657,6 +663,23 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
 
   // Active item label for the heading
   const activeItem = allNavItems.find((i) => i.id === activeSection);
+
+  // ---------------------------------------------------------------------------
+  // Admin panel REPLACES the settings modal (it is not stacked on top of it).
+  //
+  // This early return must stay below every hook above. Rendering NewAdminModal
+  // *instead of* the settings frame means there is no settings overlay/panel left
+  // visible behind the admin panel. `onClose` is handed straight through to the
+  // parent (NewSidebar / home.tsx), all of which unmount NewSettingsModal — so
+  // closing the admin panel returns you to the app, not to the settings modal.
+  //
+  // This also covers the direct entry points (sidebar "Admin", AccountMenu
+  // "Admin Panel"), which mount this component with openToSection='admin' and so
+  // hit this branch on first render, never painting the settings frame at all.
+  // ---------------------------------------------------------------------------
+  if (showAdminUI && featureFlags.adminInterface) {
+    return <NewAdminModal onClose={onClose} />;
+  }
 
   return (
     /* Overlay */
@@ -877,16 +900,6 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
           </div>
         </div>
       </div>
-
-      {/* Admin Panel — new-UI two-column panel, rendered above the settings modal */}
-      {showAdminUI && featureFlags.adminInterface && (
-        <NewAdminModal
-          onClose={() => {
-            setShowAdminUI(false);
-            setActiveSection('general');
-          }}
-        />
-      )}
     </div>
   );
 };

@@ -133,7 +133,7 @@
 | Skills | ✅ | Wraps existing `SkillsLibrary` |
 | Connectors / Integrations | ✅ | `NewConnectorsSection.tsx` (Phase 45) — full new-UI redesign: `SegmentedControl` tabs (Integrations / Tool API Keys), integration cards with OAuth connect/disconnect, skeleton/empty states, per-integration spinners, token-sharing shortcut. Tool API Keys tab wraps `<ToolApiKeysTab>` with CSS overrides in `conversation-view.css`. |
 | MCP Servers | ✅ | Wraps existing `MCPServersTab` |
-| Admin Panel | ✅ | `NewAdminModal.tsx` — same two-column shell as settings, all tabs as left-rail nav items; light-mode text inheritance fixed (Phase 22). A11y Pass 1: focus trap added, `aria-labelledby` wired. Phase 53: same × / section-title header-row alignment fix as settings; keeps its inline "● unsaved" badge and unsaved-changes confirm on close. |
+| Admin Panel | ✅ | `NewAdminModal.tsx` — same two-column shell as settings, all tabs as left-rail nav items; light-mode text inheritance fixed (Phase 22). A11y Pass 1: focus trap added, `aria-labelledby` wired. Phase 53: same × / section-title header-row alignment fix as settings; keeps its inline "● unsaved" badge and unsaved-changes confirm on close. Phase 53 Fix 4: now REPLACES the settings modal instead of rendering inside its overlay — the settings panel no longer shows behind it, and closing admin returns to the app. Also fixed a double-Escape bug that let Escape discard admin's unsaved changes even when the confirm was cancelled. |
 | Capabilities section | ❌ | Placeholder |
 | Code section | ❌ | Placeholder |
 

@@ -388,13 +388,22 @@ components/NewUI/
                                Right pane is a flex COLUMN: fixed header row (flexShrink:0,
                                padding 20px 24px 16px) holding [h2#settings-modal-heading ...... ×]
                                above a flex:1/minHeight:0/overflowY:auto content div (contentRef).
+                               Phase 53 Fix 4: when showAdminUI is true this component EARLY-RETURNS
+                               <NewAdminModal onClose={onClose}/> instead of its own frame — admin
+                               replaces settings, never stacks over it. Its focus-trap/Escape effect
+                               also early-returns while admin is open so the two modals don't both
+                               handle Escape. Do NOT reintroduce a nested <NewAdminModal> render.
     NewAdminModal.tsx        ← two-column admin panel (same shell as NewSettingsModal). Props: onClose, openToTab?:AdminTab
                                Panel: maxWidth 1100px, height min(820px, 90dvh). Left rail 220px.
                                Same flex-column right pane + header row as NewSettingsModal (Phase 53);
                                its h2 additionally renders the inline "● unsaved" badge, and the ×
                                runs the unsaved-changes confirm before onClose.
+                               Rendered STANDALONE via NewSettingsModal's early return (Phase 53
+                               Fix 4) — it is no longer a child of the settings overlay, so nothing
+                               shows behind it. Its onClose is the parent's onClose (unmounts the
+                               whole settings tree).
                                NOTE: outer frame is deliberately NOT extracted into a shared shell —
-                               see Phase 53 for the rationale (admin's Escape guard + 5-6 extra props).
+                               see Phase 53 for the rationale (admin's Escape guard + 5 extra props).
     NewAccountSection.tsx    ← SPECIFIC account settings section (Phase 45). No props.
                                Self-loads accounts via getAccounts(). MTD cost card + rate-limit
                                warning banner + add/edit/delete accounts + default selector + save.
@@ -2567,8 +2576,10 @@ Token-first change: every interactive accent in the new UI is now Majk blue. No 
   1. `escapeDisabled` — admin's Escape is guarded by `hasChildModalOpen`, where Escape must be a
      **no-op while the × still works**. That is not expressible through `onClose` alone, so the
      shell would have to special-case the Escape flow. This alone is a documented stop condition.
-  2. `zIndex` — 9999 (settings) vs 10000 (admin); admin renders *inside* settings' overlay, so
-     the stacking difference is load-bearing.
+  2. `zIndex` — 9999 (settings) vs 10000 (admin). **Superseded by Fix 4:** admin no longer renders
+     inside settings' overlay, so this difference is now cosmetic rather than load-bearing and would
+     no longer *require* a prop. That drops the count to 5 extra props — still over the ≤4 threshold,
+     and reason 1 (the Escape special-case) is independently disqualifying, so the deferral stands.
   3. `leftRailWidth` — 210px vs 220px.
   4. `ariaLabelledBy` — settings' labelling element is the shell's own header `<h2>`; admin's is
      the `Admin Panel` span in its **left rail**. The shell owns the header, so it needs an override.
@@ -2580,6 +2591,31 @@ Token-first change: every interactive accent in the new UI is now Majk blue. No 
   structurally different too (settings = one scrolling column; admin = fixed header + scrolling
   nav + fixed footer). Per instruction, work stopped at Fix 2 rather than forcing a shell that
   would make both modals harder to read. Fixes 1 and 2 were applied twice, by hand, identically.
+
+- [x] **Fix 4 — admin panel REPLACES the settings modal instead of stacking on top of it.**
+  Reported symptom: opening the admin panel left the settings modal visible behind it.
+  Root cause: `NewSettingsModal` rendered `<NewAdminModal>` as a **child of its own overlay div**,
+  so the settings backdrop + panel stayed mounted and painted underneath.
+  Fix: an early return placed below all hooks — `if (showAdminUI && featureFlags.adminInterface)
+  return <NewAdminModal onClose={onClose} />;` — and the nested render removed. The settings frame
+  is simply not rendered while admin is open.
+  - `onClose` is passed **straight through** to the parent. All three render sites
+    (`NewSidebar` ×2, `home.tsx`) unmount `NewSettingsModal` on `onClose`, so closing the admin
+    panel returns you to the app rather than back to the settings modal — admin is a peer
+    destination, not a drill-in. (If a back-to-settings flow is ever wanted instead, admin's
+    `onClose` would go back to `setShowAdminUI(false)` and the early return would stay as-is.)
+  - `NewAdminModal` has exactly ONE render site, so this fix covers every entry point: the settings
+    nav-rail "Admin Panel" item, the sidebar "Admin" item, and the `AccountMenu` "Admin Panel"
+    button. The latter two mount the component with `openToSection='admin'`, which makes
+    `showAdminUI` true on the very first render — the settings frame is never painted at all.
+
+- [x] **Fix 4b — fixed a related double-Escape bug (pre-existing).** Both modals register a
+  `document` keydown listener. While admin was open, BOTH fired on Escape: admin's ran its
+  unsaved-changes `confirm()`, and settings' then called `onClose()` **unconditionally** — which
+  unmounted the whole tree and discarded admin's unsaved changes *even if the user clicked Cancel*.
+  The settings effect now early-returns when `showAdminUI` is true (with `showAdminUI` added to its
+  dep array), so it never registers a competing listener. **Standing pattern: when one modal renders
+  another, the inner modal must be the only one with a live `document` Escape listener.**
 
 ### Phase 54 — Accent-Brand Teal Border on Composer Card ✅ COMPLETE
 
