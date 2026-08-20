@@ -20,6 +20,8 @@ import {
   IconShield,
   IconServer,
   IconNotes,
+  IconTemplate,
+  IconLayoutSidebar,
 } from '@tabler/icons-react';
 
 import HomeContext from '@/pages/api/home/home.context';
@@ -34,6 +36,8 @@ import { NewAdminModal } from '@/components/NewUI/settings/NewAdminModal';
 import { NewAccountSection } from '@/components/NewUI/settings/NewAccountSection';
 import { NewStorageSection } from '@/components/NewUI/settings/NewStorageSection';
 import { NewConnectorsSection } from '@/components/NewUI/settings/NewConnectorsSection';
+import { PromptTemplatesSection } from '@/components/NewUI/settings/PromptTemplatesSection';
+import { SidebarItemsSection } from '@/components/NewUI/settings/SidebarItemsSection';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -74,10 +78,12 @@ const BASE_NAV_GROUPS: NavGroup[] = [
   {
     heading: 'Customize',
     items: [
+      { id: 'promptTemplates', label: 'Prompt Templates', Icon: IconTemplate },
       { id: 'customInstructions', label: 'Custom Instructions', Icon: IconNotes },
       { id: 'skills', label: 'Skills', Icon: IconPuzzle },
       { id: 'connectors', label: 'Connectors', Icon: IconPlug },
       { id: 'mcp', label: 'MCP Servers', Icon: IconServer },
+      { id: 'sidebarItems', label: 'Sidebar Items', Icon: IconLayoutSidebar },
     ],
   },
 ];
@@ -496,6 +502,8 @@ const SectionContent: FC<{ sectionId: string }> = ({ sectionId }) => {
       return <StorageSection active={true} />;
     case 'apikeys':
       return <ApiKeysSection active={true} />;
+    case 'promptTemplates':
+      return <PromptTemplatesSection />;
     case 'customInstructions':
       return <CustomInstructionsSection />;
     case 'skills':
@@ -504,6 +512,8 @@ const SectionContent: FC<{ sectionId: string }> = ({ sectionId }) => {
       return <NewConnectorsSection />;
     case 'mcp':
       return <MCPServersTab open={true} />;
+    case 'sidebarItems':
+      return <SidebarItemsSection />;
     case 'admin':
       return <AdminSection />;
     default:

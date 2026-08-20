@@ -188,6 +188,11 @@ All new UI components live in:
 components/NewUI/
   sidebar/
     NewSidebar.tsx           ← MAIN unified sidebar shell (replaces TabSidebar)
+                               Phase 56: sidebarVisibility state (from sidebarVisibility.ts) controls which
+                               nav items are shown. navItems array gains visible field + .filter(item=>item.visible).
+                               Recents + Pinned sections wrapped in {sidebarVisibility.recents && ...}.
+                               Collapsed rail items individually gated by sidebarVisibility.*.
+                               Listens for 'amplifySidebarVisibilityChanged' event (re-reads localStorage).
     SidebarHeader.tsx        ← wordmark ✳ + collapse + search buttons (48px)
     SidebarNavItem.tsx       ← REUSABLE nav row (icon + label + rest/hover/active/focus states)
     SidebarSection.tsx       ← REUSABLE section heading ("Pinned", "Recents") with optional right slot
@@ -360,7 +365,8 @@ components/NewUI/
                                Pagination: "Previous / Next" load-page buttons; skeleton rows while loading.
                                Embedding status fetched in 25-key chunks via embeddingDocumentStatus (same as DataSourcesTable).
     NewAssistantsView.tsx    ← new-UI reimplementation of AssistantGallery. page='assistantGallery' (new UI path only)
-                               Five tabs: My Assistants | Shared with Me | Teams | Layered Assistants | Prompt Templates
+                               Four tabs: My Assistants | Shared with Me | Teams | Layered Assistants
+                               (Prompt Templates tab removed in Phase 56 — moved to Settings → Customize)
                                My Assistants: canEdit=true individual assistants, access-type badges (Private/Shared/URL),
                                opens NewAssistantTypeSelector before AssistantModal for new creation.
                                Shared with Me: canEdit=false individual assistants (noEdit=true).
@@ -420,6 +426,22 @@ components/NewUI/
                                token-sharing shortcut. Tool API Keys: wraps <ToolApiKeysTab> in
                                [data-new-ui="true"] .new-ui-tool-api-keys for CSS scoping.
                                Used by NewSettingsModal SectionContent case 'connectors'.
+    PromptTemplatesSection.tsx ← SPECIFIC prompt templates settings section (Phase 56). No props.
+                               Extracted from PromptTemplatesTab in NewAssistantsView.tsx — same three-section
+                               layout (Quick Actions / System Instructions / Your Templates), same search, same
+                               PromptModal open/close flow, same create/edit/cancel handlers.
+                               Uses useContext(HomeContext) for prompts, featureFlags, statsService,
+                               availableModels, handleNewConversation, dispatch.
+                               className="text-neutral-900 dark:text-white" on outermost div (wiki rule 9).
+                               Entry: Settings → Customize → Prompt Templates (first item in Customize group).
+    SidebarItemsSection.tsx   ← SPECIFIC sidebar visibility settings section (Phase 56). No props.
+                               Self-contained — reads/writes localStorage directly (key: amplify_sidebar_items_visible).
+                               Toggle rows: Chats list, Assistants, Library, Workflows (featureFlag-gated),
+                               Scheduled Tasks (featureFlag-gated), Notebook (featureFlag-gated),
+                               Recent conversations. Auto-saves on each toggle change.
+                               Dispatches window event `amplifySidebarVisibilityChanged` on change so NewSidebar
+                               re-reads state without a page reload.
+                               Entry: Settings → Customize → Sidebar Items (last item in Customize group).
                                Left rail: Configurations | Supported Models | Application Variables | OpenAI Endpoints
                                           Feature Flags | Feature Data | Ops | Embeddings
                                           Integrations (conditional) | Critical Errors (conditional)
@@ -433,11 +455,14 @@ components/NewUI/
                                LIGHT MODE: right content pane has className="text-neutral-900 dark:text-white" — this
                                is the inherited base color for all admin tab child components (mirrors old AdminUI wrapper).
                                Without it, components that only set dark:text-* have no light-mode fallback.
-                               Sections: general|account|usage|storage|apikeys|customInstructions|
-                                         skills|connectors|mcp|admin
+                               Sections: general|account|usage|storage|apikeys|promptTemplates|
+                                         customInstructions|skills|connectors|mcp|sidebarItems|admin
                                Entry points: sidebar Customize (→skills), AccountMenu (→general), ⌘, (→general)
                                "Custom Instructions" is the rebrand of the system prompt / custom instructions
                                concept from the old UI. Stored in localStorage key: amplify_custom_instructions
+                               Phase 56: added promptTemplates (first in Customize — PromptTemplatesSection)
+                               and sidebarItems (last in Customize — SidebarItemsSection). New icons:
+                               IconTemplate (for Prompt Templates), IconLayoutSidebar (for Sidebar Items).
   shared/
     SegmentedControl.tsx     ← REUSABLE segmented tab control (size: sm=sidebar, xs=composer)
     IconButton.tsx           ← REUSABLE 28×28/32×32 icon button with hover ring
@@ -545,6 +570,21 @@ components/NewUI/
                                Used by: AttachMenu (assistant rows), ModelPicker (BOTH the recommended
                                  primary-panel rows and the more-models submenu rows)
                                NOT a general tooltip system — menu-row previews only
+    sidebarVisibility.ts     ← SHARED type + defaults for sidebar item visibility (Phase 56).
+                               Exports: SidebarVisibility interface (6 keys: chats|assistants|library|
+                               workflows|notebook|scheduled — Recents is always shown, not toggleable),
+                               DEFAULT_SIDEBAR_VISIBILITY (all true), SIDEBAR_VISIBILITY_KEY.
+                               Consumed by: SidebarItemsSection.tsx (writer), NewSidebar.tsx (reader).
+                               Event bridge: 'amplifySidebarVisibilityChanged' custom event.
+    ToggleSwitch.tsx         ← REUSABLE pill-shaped on/off switch (Phase 56).
+                               Props: checked, onChange(bool), id?, disabled?, aria-label?, aria-labelledby?
+                               Design: 44×24px fully-rounded track; off=--text-muted gray, on=--accent;
+                               18px white knob with 3px inset, translateX(20px) when on; 150ms ease
+                               transition on both track color and knob position simultaneously.
+                               Keyboard: Space/Enter toggles; role="switch" + aria-checked semantics.
+                               Focus: focus-visible ring (2px --accent, offset-1).
+                               Click: calls e.stopPropagation() so parent row onClick doesn't double-fire.
+                               Used by: SidebarItemsSection.tsx toggle rows.
     menuPositioning.ts       ← SHARED Floating UI config for NESTED submenu panels (Phase 48)
                                Exports: SUBMENU_PLACEMENT ('right-start'), submenuMiddleware(gap=4), submenuStyle()
                                Middleware: offset(gap) + flip({crossAxis: false, fallbackPlacements:
@@ -2674,6 +2714,56 @@ Complete surface color replacement with a precisely specified palette.
 
 - [x] **`components/NewUI/chat/ConversationComposer.tsx`** — inline style:
   - `background: 'var(--bg-raised)'` → `background: 'var(--bg-composer)'`
+
+### Phase 56 — Prompt Templates in Settings + Sidebar Items Visibility ✅ COMPLETE
+
+Two related sidebar/settings changes: Prompt Templates extracted out of the Assistants view into Settings,
+and a new "Sidebar Items" settings section that lets users show/hide individual nav items.
+
+**Step 1 — Prompt Templates moved to Settings → Customize:**
+
+- [x] **`components/NewUI/settings/PromptTemplatesSection.tsx`** (NEW) — extracted from `PromptTemplatesTab`
+  in `NewAssistantsView.tsx`. Identical logic: same `useContext(HomeContext)`, same three-section layout
+  (Quick Actions / System Instructions / Your Templates), same search, same PromptModal open/close flow,
+  same create/edit/cancel handlers. Local helpers (SectionHeading, SearchInput, EmptyState, TemplateRow)
+  copied from NewAssistantsView. `className="text-neutral-900 dark:text-white"` on outermost div per wiki §9.
+- [x] **`components/NewUI/views/NewAssistantsView.tsx`** — removed `'templates'` from `MainTab` type and
+  valid array; added fallback: stored `'templates'` value defaults to `'individual'`. Removed templates entry
+  from tabs array. Removed `{activeTab === 'templates' && <PromptTemplatesTab />}` render. Deleted the entire
+  `PromptTemplatesTab` component definition (~180 lines). Cleaned up now-unused imports: `IconTemplate`,
+  `PromptModal`, `savePrompts`.
+- [x] **`NewSettingsModal.tsx`** — added `{ id: 'promptTemplates', label: 'Prompt Templates', Icon: IconTemplate }`
+  as **first item** in the Customize nav group (before customInstructions). Added `case 'promptTemplates'`
+  to SectionContent. Added `IconTemplate` and `IconLayoutSidebar` to icon imports.
+
+**Step 2 — Sidebar Items visibility settings:**
+
+- [x] **`components/NewUI/shared/sidebarVisibility.ts`** (NEW) — `SidebarVisibility` interface + `DEFAULT_SIDEBAR_VISIBILITY`
+  constant + `SIDEBAR_VISIBILITY_KEY` constant. Shared between `SidebarItemsSection` (writer) and `NewSidebar` (reader).
+  Keys: `chats | assistants | library | workflows | notebook | scheduled`, all default `true`.
+  Recents is always shown — not included in the interface (cannot be hidden by design).
+- [x] **`components/NewUI/shared/ToggleSwitch.tsx`** (NEW) — Reusable pill switch. 44×24px track; off=`--text-muted`,
+  on=`--accent`; 18px white knob, 150ms ease transition; `role="switch"` + `aria-checked`; `e.stopPropagation()`
+  so row `onClick` doesn't double-fire. Used by `SidebarItemsSection`.
+- [x] **`components/NewUI/settings/SidebarItemsSection.tsx`** (NEW) — toggle rows using `ToggleSwitch` for all
+  toggleable sidebar items. Auto-saves on each change. Feature-flagged items only rendered when their flag is on.
+  New Chat, Customize, and Recent conversations are always visible (never shown as toggles).
+  Clicking the full row label area also fires the toggle (row `onClick` + `e.stopPropagation()` in switch).
+- [x] **`NewSettingsModal.tsx`** — added `{ id: 'sidebarItems', label: 'Sidebar Items', Icon: IconLayoutSidebar }`
+  as **last item** in the Customize nav group (after mcp). Added `case 'sidebarItems'` to SectionContent.
+- [x] **`components/NewUI/sidebar/NewSidebar.tsx`** — imports `SidebarVisibility`, `DEFAULT_SIDEBAR_VISIBILITY`,
+  `SIDEBAR_VISIBILITY_KEY`. Adds `sidebarVisibility` state (initialized from localStorage with spread-merge
+  for forward-compatibility). Adds `amplifySidebarVisibilityChanged` event listener that re-reads localStorage.
+  `navItems` array: each item gains a `visible` field; array ends with `.filter(item => item.visible)`.
+  Recents always rendered (no visibility guard — it is always shown per product decision).
+  Collapsed icon-rail: `chats`, `assistants`, `scheduled`, `workflows` individually gated by `sidebarVisibility.*`;
+  Customize always shown.
+
+**localStorage keys introduced:**
+- `amplify_sidebar_items_visible` — JSON SidebarVisibility object
+
+**Event bridges introduced:**
+- `amplifySidebarVisibilityChanged` — dispatched by `SidebarItemsSection`, consumed by `NewSidebar`
 
 ### Phase 19 — Remaining Port Work (NEXT)
 - [x] Responsive: icon rail at 760-1099px ✅ resolved

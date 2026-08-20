@@ -1,6 +1,7 @@
 /**
  * NewAssistantsView — New UI replacement for AssistantGallery.
- * Four tabs: My Assistants | Group Assistants | Prompt Templates | Layered Assistants
+ * Four tabs: My Assistants | Shared with Me | Teams | Layered Assistants
+ * (Prompt Templates moved to Settings → Customize → Prompt Templates)
  *
  * Design tokens from styles/globals.css:
  *   --bg-app, --bg-sidebar, --bg-raised, --bg-hover, --bg-active
@@ -12,7 +13,6 @@ import {
     IconX,
     IconRobot,
     IconUsers,
-    IconTemplate,
     IconGitBranch,
     IconLoader2,
     IconSearch,
@@ -27,11 +27,10 @@ import { Prompt } from '@/types/prompt';
 import { Group, GroupAccessType } from '@/types/groups';
 import { LayeredAssistant, createLayeredAssistant } from '@/types/layeredAssistant';
 import { Assistant, AssistantDefinition, AssistantProviderID } from '@/types/assistant';
-import { handleStartConversationWithPrompt, createEmptyPrompt, savePrompts } from '@/utils/app/prompts';
+import { handleStartConversationWithPrompt, createEmptyPrompt } from '@/utils/app/prompts';
 import { isAssistant, getAssistants, handleUpdateAssistantPrompt } from '@/utils/app/assistants';
 import { deleteLayeredAssistant, saveLayeredAssistant } from '@/services/assistantService';
 import { AssistantModal } from '@/components/Promptbar/components/AssistantModal';
-import { PromptModal } from '@/components/Promptbar/components/PromptModal';
 import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';
 import { NewAssistantTypeSelector } from './NewAssistantTypeSelector';
@@ -40,7 +39,7 @@ import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type MainTab = 'individual' | 'shared' | 'group' | 'templates' | 'layered';
+type MainTab = 'individual' | 'shared' | 'group' | 'layered';
 
 // ── Shared row component ──────────────────────────────────────────────────────
 
@@ -901,186 +900,9 @@ const GroupAssistantsTab: React.FC = () => {
     );
 };
 
-// ── Tab 3: Prompt Templates ───────────────────────────────────────────────────
-
-const PromptTemplatesTab: React.FC = () => {
-    const {
-        state: { prompts, statsService, availableModels, featureFlags },
-        dispatch: homeDispatch,
-        handleNewConversation,
-    } = useContext(HomeContext);
-
-    const promptsRef = useRef(prompts);
-    useEffect(() => { promptsRef.current = prompts; }, [prompts]);
-
-    const [search, setSearch] = useState('');
-    const [showModal, setShowModal] = useState(false);
-    const [selectedTemplate, setSelectedTemplate] = useState<Prompt | null>(null);
-
-    // Mirrors Promptbar.tsx's visiblePrompts filter: hide prompts marked data.hidden
-    // unless featureFlags.overrideInvisiblePrompts is set.
-    const isVisible = (p: Prompt) => featureFlags.overrideInvisiblePrompts || !p.data?.hidden;
-
-    const allTemplates = useMemo(
-        () => prompts.filter((p: Prompt) => !isAssistant(p) && isVisible(p)),
-        [prompts, featureFlags.overrideInvisiblePrompts]
-    );
-
-    const grouped = useMemo(() => {
-        const q = search.trim().toLowerCase();
-        const match = (p: Prompt) =>
-            !q ||
-            p.name.toLowerCase().includes(q) ||
-            (p.description && p.description.toLowerCase().includes(q));
-
-        const quickActions = allTemplates
-            .filter((p: Prompt) => p.folderId === 'amplify_helpers' && match(p))
-            .sort((a: Prompt, b: Prompt) => a.name.localeCompare(b.name));
-
-        const systemInstructions = allTemplates
-            .filter(
-                (p: Prompt) =>
-                    p.type === 'root_prompt' &&
-                    p.folderId !== 'amplify_helpers' &&
-                    match(p)
-            )
-            .sort((a: Prompt, b: Prompt) => a.name.localeCompare(b.name));
-
-        const yourTemplates = allTemplates
-            .filter(
-                (p: Prompt) =>
-                    p.folderId !== 'amplify_helpers' &&
-                    p.type !== 'root_prompt' &&
-                    match(p)
-            )
-            .sort((a: Prompt, b: Prompt) => a.name.localeCompare(b.name));
-
-        return { quickActions, systemInstructions, yourTemplates };
-    }, [allTemplates, search]);
-
-    const hasResults =
-        grouped.quickActions.length > 0 ||
-        grouped.systemInstructions.length > 0 ||
-        grouped.yourTemplates.length > 0;
-
-    const handleStartConversation = (p: Prompt) => {
-        statsService.startConversationEvent(p);
-        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, p, availableModels);
-        homeDispatch({ field: 'page', value: 'chat' });
-    };
-
-    const handleCreateTemplate = () => {
-        const newPrompt = createEmptyPrompt(`Template ${promptsRef.current.filter((p: Prompt) => !isAssistant(p)).length + 1}`, null);
-        const updatedPrompts = [...promptsRef.current, newPrompt];
-        homeDispatch({ field: 'prompts', value: updatedPrompts });
-        savePrompts(updatedPrompts);
-        setSelectedTemplate(newPrompt);
-        setShowModal(true);
-    };
-
-    const handleEditTemplate = (e: React.MouseEvent, p: Prompt) => {
-        e.stopPropagation();
-        setSelectedTemplate(p);
-        setShowModal(true);
-    };
-
-    const handleUpdatePrompt = (updated: Prompt) => {
-        homeDispatch({
-            field: 'prompts',
-            value: prompts.map((p: Prompt) => p.id === updated.id ? updated : p),
-        });
-    };
-
-    const handleCancelModal = () => {
-        // Remove if it was a brand-new template
-        if (selectedTemplate) {
-            const wasNew = !prompts.find((p: Prompt) => p.id === selectedTemplate.id)
-                || promptsRef.current.find((p: Prompt) => p.id === selectedTemplate.id)?.name.startsWith('Template ');
-            // Only remove if it was just created (no description or content)
-            const existing = promptsRef.current.find((p: Prompt) => p.id === selectedTemplate.id);
-            if (existing && !existing.description && !existing.content) {
-                const updatedPrompts = promptsRef.current.filter((p: Prompt) => p.id !== selectedTemplate.id);
-                homeDispatch({ field: 'prompts', value: updatedPrompts });
-                savePrompts(updatedPrompts);
-            }
-        }
-        setShowModal(false);
-        setSelectedTemplate(null);
-    };
-
-    const canEditTemplate = (p: Prompt) => !p.data?.noEdit;
-
-    const renderSection = (label: string, items: Prompt[]) => {
-        if (items.length === 0) return null;
-        return (
-            <div key={label}>
-                <SectionHeading label={label} count={items.length} />
-                {items.map((p: Prompt) => (
-                    <AssistantRow
-                        key={p.id}
-                        icon={<IconTemplate size={18} style={{ color: 'var(--text-muted)' }} />}
-                        name={p.name}
-                        description={p.description}
-                        onClick={() => handleStartConversation(p)}
-                        onEdit={canEditTemplate(p) ? (e) => handleEditTemplate(e, p) : undefined}
-                    />
-                ))}
-            </div>
-        );
-    };
-
-    return (
-        <div className="flex flex-col h-full overflow-hidden">
-            {/* Header */}
-            <div
-                className="flex items-center justify-between px-6 py-3 flex-shrink-0 border-b"
-                style={{ borderColor: 'var(--border-subtle)' }}
-            >
-                <SearchInput value={search} onChange={setSearch} placeholder="Search templates…" />
-                <button
-                    onClick={handleCreateTemplate}
-                    className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium text-white transition-opacity hover:opacity-90"
-                    style={{ backgroundColor: 'var(--accent)' }}
-                >
-                    <IconPlus size={14} />
-                    New Template
-                </button>
-            </div>
-
-            {/* List */}
-            <div className="flex-1 overflow-y-auto px-3 py-2">
-                {!hasResults ? (
-                    <EmptyState
-                        message={search ? 'No templates match your search' : 'No templates available'}
-                        onAction={!search ? handleCreateTemplate : undefined}
-                        actionLabel="Create your first template"
-                    />
-                ) : (
-                    <>
-                        {renderSection('Quick Actions', grouped.quickActions)}
-                        {renderSection('System Instructions', grouped.systemInstructions)}
-                        {renderSection('Your Templates', grouped.yourTemplates)}
-                    </>
-                )}
-            </div>
-
-            {/* Prompt Modal */}
-            {showModal && selectedTemplate && (
-                <PromptModal
-                    prompt={selectedTemplate}
-                    onCancel={handleCancelModal}
-                    onSave={() => {
-                        setShowModal(false);
-                        setSelectedTemplate(null);
-                    }}
-                    onUpdatePrompt={handleUpdatePrompt}
-                />
-            )}
-        </div>
-    );
-};
-
-// ── Tab 4: Layered Assistants ─────────────────────────────────────────────────
+// ── Tab 3 (was Tab 4): Layered Assistants ────────────────────────────────────
+// NOTE: Prompt Templates tab was removed from this view (Phase N).
+// It now lives in Settings → Customize → Prompt Templates (PromptTemplatesSection.tsx).
 
 const LayeredAssistantsTab: React.FC = () => {
     const {
@@ -1279,7 +1101,8 @@ export const NewAssistantsView: React.FC = () => {
     // Mirror the existing persisted tab preference
     const [activeTab, setActiveTab] = useState<MainTab>(() => {
         const saved = localStorage.getItem('activeAssistantGalleryTab') as MainTab | null;
-        const valid: MainTab[] = ['individual', 'shared', 'group', 'templates', 'layered'];
+        const valid: MainTab[] = ['individual', 'shared', 'group', 'layered'];
+        // 'templates' was removed — users with that stored value fall back to 'individual'
         return saved && valid.includes(saved) ? saved : 'individual';
     });
 
@@ -1328,12 +1151,7 @@ export const NewAssistantsView: React.FC = () => {
                 : <IconGitBranch size={15} />,
             visible: shouldShowLayeredTab,
         },
-        {
-            id: 'templates',
-            label: 'Prompt Templates',
-            icon: <IconTemplate size={15} />,
-            visible: true,
-        },
+        // 'templates' tab removed — Prompt Templates moved to Settings → Customize
     ];
 
     return (
@@ -1412,7 +1230,6 @@ export const NewAssistantsView: React.FC = () => {
                 {activeTab === 'shared' && <SharedWithMeTab />}
                 {activeTab === 'group' && shouldShowGroupTab && <GroupAssistantsTab />}
                 {activeTab === 'layered' && shouldShowLayeredTab && <LayeredAssistantsTab />}
-                {activeTab === 'templates' && <PromptTemplatesTab />}
             </div>
         </div>
     );

@@ -50,6 +50,11 @@ import { ConversationRow } from './ConversationRow';
 import { AccountMenu } from './AccountMenu';
 import { IconButton } from '@/components/NewUI/shared/IconButton';
 import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
+import {
+  SidebarVisibility,
+  DEFAULT_SIDEBAR_VISIBILITY,
+  SIDEBAR_VISIBILITY_KEY,
+} from '@/components/NewUI/shared/sidebarVisibility';
 
 // sessionStorage key used to hand off an initial ScheduledTask (from ScheduledTaskButton
 // elsewhere in the old UI) into the freshly-mounted NewScheduledTasksView — mirrors the
@@ -212,6 +217,20 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
   const [settingsSection, setSettingsSection] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
+  // ── Sidebar item visibility ───────────────────────────────────────────────
+  // Reads from localStorage on mount. Spread over DEFAULT_SIDEBAR_VISIBILITY so
+  // any newly-added keys default to true even for users with an older stored value.
+  const [sidebarVisibility, setSidebarVisibility] = useState<SidebarVisibility>(() => {
+    try {
+      const stored = localStorage.getItem(SIDEBAR_VISIBILITY_KEY);
+      return stored
+        ? { ...DEFAULT_SIDEBAR_VISIBILITY, ...JSON.parse(stored) }
+        : DEFAULT_SIDEBAR_VISIBILITY;
+    } catch {
+      return DEFAULT_SIDEBAR_VISIBILITY;
+    }
+  });
+
   const conversationsRef = useRef(conversations);
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
 
@@ -273,6 +292,24 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     const handler = () => setSettingsSection('admin');
     window.addEventListener('openNewUIAdminPanel', handler);
     return () => window.removeEventListener('openNewUIAdminPanel', handler);
+  }, []);
+
+  // Listen for sidebar visibility changes (dispatched by SidebarItemsSection in settings)
+  useEffect(() => {
+    const handler = () => {
+      try {
+        const stored = localStorage.getItem(SIDEBAR_VISIBILITY_KEY);
+        setSidebarVisibility(
+          stored
+            ? { ...DEFAULT_SIDEBAR_VISIBILITY, ...JSON.parse(stored) }
+            : DEFAULT_SIDEBAR_VISIBILITY,
+        );
+      } catch {
+        setSidebarVisibility(DEFAULT_SIDEBAR_VISIBILITY);
+      }
+    };
+    window.addEventListener('amplifySidebarVisibilityChanged', handler);
+    return () => window.removeEventListener('amplifySidebarVisibilityChanged', handler);
   }, []);
 
   // Listen for settings section open event (dispatched by AttachMenu submenus)
@@ -373,49 +410,55 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
       icon: <IconMessage2 size={18} />,
       label: 'Chats',
       id: 'chats',
+      visible: sidebarVisibility.chats,
       action: () => dispatch({ field: 'page', value: 'chats' as any }),
     },
     {
       icon: <IconSparkles size={18} />,
       label: 'Assistants',
       id: 'assistants',
+      visible: sidebarVisibility.assistants,
       action: () => dispatch({ field: 'page', value: 'assistantGallery' }),
     },
     {
       icon: <IconBooks size={18} />,
       label: 'Library',
       id: 'library',
+      visible: sidebarVisibility.library,
       action: () => dispatch({ field: 'page', value: 'library' as any }),
     },
     {
       icon: <IconAdjustments size={18} />,
       label: 'Customize',
       id: 'customize',
-      // Opens settings modal to the Skills section (per spec)
+      visible: true, // always shown — removing it would lock users out of settings
       action: () => setSettingsSection('skills'),
     },
     ...(featureFlags.createAssistantWorkflows ? [{
       icon: <IconPuzzle size={18} />,
       label: 'Workflows',
       id: 'workflows',
+      visible: sidebarVisibility.workflows,
       action: () => dispatch({ field: 'page', value: 'workflows' as any }),
     }] : []),
     ...(featureFlags.notebook ? [{
       icon: <IconLayoutGridAdd size={18} />,
       label: 'Notebook',
       id: 'notebook',
+      visible: sidebarVisibility.notebook,
       action: () => dispatch({ field: 'page', value: 'notebook' }),
     }] : []),
     ...(featureFlags.scheduledTasks ? [{
       icon: <IconClock size={18} />,
       label: 'Scheduled',
       id: 'scheduled',
+      visible: sidebarVisibility.scheduled,
       action: () => {
         if (typeof window !== 'undefined') sessionStorage.removeItem(PENDING_SCHEDULED_TASK_KEY);
         dispatch({ field: 'page', value: 'scheduledTasks' as any });
       },
     }] : []),
-  ];
+  ].filter(item => item.visible);
 
   const currentNavId: string | null =
     settingsSection !== null ? 'customize'
@@ -484,7 +527,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
           )}
 
           {/* Chats and tasks */}
-          {iconBtn(
+          {sidebarVisibility.chats && iconBtn(
             () => dispatch({ field: 'page', value: 'chats' as any }),
             'Chats and tasks',
             <IconMessage2 size={18} />,
@@ -492,14 +535,14 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
           )}
 
           {/* Assistants */}
-          {iconBtn(
+          {sidebarVisibility.assistants && iconBtn(
             () => dispatch({ field: 'page', value: 'assistantGallery' }),
             'Assistants',
             <IconSparkles size={18} />,
             currentNavId === 'assistants',
           )}
 
-          {/* Customize */}
+          {/* Customize — always shown */}
           {iconBtn(
             () => setSettingsSection('skills'),
             'Customize',
@@ -508,7 +551,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
           )}
 
           {/* Scheduled tasks */}
-          {featureFlags.scheduledTasks && iconBtn(
+          {featureFlags.scheduledTasks && sidebarVisibility.scheduled && iconBtn(
             () => {
               if (typeof window !== 'undefined') sessionStorage.removeItem(PENDING_SCHEDULED_TASK_KEY);
               dispatch({ field: 'page', value: 'scheduledTasks' as any });
@@ -519,7 +562,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
           )}
 
           {/* Workflows */}
-          {featureFlags.createAssistantWorkflows && iconBtn(
+          {featureFlags.createAssistantWorkflows && sidebarVisibility.workflows && iconBtn(
             () => dispatch({ field: 'page', value: 'workflows' as any }),
             'Workflows',
             <IconPuzzle size={18} />,
@@ -631,7 +674,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
             </SidebarSection>
           )}
 
-          {/* Recents section — collapsible, persisted to localStorage */}
+          {/* Recents section — always visible, collapsible, persisted to localStorage */}
           <SidebarSection
             label="Recents"
             isCollapsible

@@ -104,8 +104,8 @@
 | Group Assistants list (Teams tab) | ✅ | Grouped by group name, renamed "Teams" in tab bar |
 | Group admin access (settings gear) | ✅ | Settings gear on existing row still opens `openAstAdminInterfaceTrigger` for editing; gated by `featureFlags.assistantAdminInterface` + access check |
 | Create group assistant (Teams "New Assistant" button) | ✅ | Phase 47: button opens `NewAssistantTypeSelector`. Confirmed team → AssistantModal with `groupId` set. On save: both `prompts` + `groups` state updated so assistant appears in Teams tab immediately. |
-| Prompt Templates list | ✅ | Three sections: Quick Actions / System Instructions / Your Templates |
-| Create new prompt template | ✅ | `PromptModal` from new view |
+| Prompt Templates list | ✅ | **Phase 56:** moved from Assistants view tab → Settings → Customize → Prompt Templates (`PromptTemplatesSection.tsx`). Same three-section layout (Quick Actions / System Instructions / Your Templates). `'templates'` tab removed from `NewAssistantsView.tsx`. |
+| Create new prompt template | ✅ | `PromptModal` opened from `PromptTemplatesSection` |
 | Layered Assistants list | ✅ | Cards with edit/delete |
 | Create new layered assistant | ✅ | Dispatches `openLayeredBuilderTrigger` with blank LA |
 | Layered assistant builder | 🚧 | Builder is old UI (`LayeredAssistantBuilder`); opens via event |
@@ -133,6 +133,7 @@
 | Skills | ✅ | Wraps existing `SkillsLibrary` |
 | Connectors / Integrations | ✅ | `NewConnectorsSection.tsx` (Phase 45) — full new-UI redesign: `SegmentedControl` tabs (Integrations / Tool API Keys), integration cards with OAuth connect/disconnect, skeleton/empty states, per-integration spinners, token-sharing shortcut. Tool API Keys tab wraps `<ToolApiKeysTab>` with CSS overrides in `conversation-view.css`. |
 | MCP Servers | ✅ | Wraps existing `MCPServersTab` |
+| Sidebar Items | ✅ | **Phase 56:** `SidebarItemsSection.tsx` in Settings → Customize → Sidebar Items. Toggle rows (using `ToggleSwitch.tsx`, a new reusable pill switch) for Chats, Assistants, Library, Workflows (ff-gated), Scheduled (ff-gated), Notebook (ff-gated). Auto-saves to `amplify_sidebar_items_visible` via `sidebarVisibility.ts` shared type. Always-visible (no toggle): New Chat, Customize, Recent conversations. `NewSidebar.tsx` listens for `amplifySidebarVisibilityChanged` event and re-renders without page reload. |
 | Admin Panel | ✅ | `NewAdminModal.tsx` — same two-column shell as settings, all tabs as left-rail nav items; light-mode text inheritance fixed (Phase 22). A11y Pass 1: focus trap added, `aria-labelledby` wired. Phase 53: same × / section-title header-row alignment fix as settings; keeps its inline "● unsaved" badge and unsaved-changes confirm on close. Phase 53 Fix 4: now REPLACES the settings modal instead of rendering inside its overlay — the settings panel no longer shows behind it, and closing admin returns to the app. Also fixed a double-Escape bug that let Escape discard admin's unsaved changes even when the confirm was cancelled. |
 | Capabilities section | ❌ | Placeholder |
 | Code section | ❌ | Placeholder |
