@@ -14,12 +14,18 @@
    ============================================================ */
 :root {
   /* Surface hierarchy */
-  --bg-app:        #ffffff;
-  --bg-sidebar:    #f9f9f9;
+  --bg-app:        #fcfcfb;
+  --bg-sidebar:    #fbfbf9;
   --bg-raised:     #f2f2f0;
   --bg-hover:      #ebebeb;
   --bg-active:     #e2e2e0;
-  --border-subtle: #e5e5e5;
+  --border-subtle: #e5e5e4;
+  /* Composer-specific surfaces (chat input card) */
+  --bg-composer:             #ffffff;
+  /* Spec value was #e4e4e3 — only 1/255 from --border-subtle (~0.4 ΔE, below the
+     ~2 ΔE perception threshold), so hover/focus was invisible. Widened to a
+     visible step. Resting --border-subtle above is unchanged. */
+  --border-composer-active:  #d4d4d1;
 
   /* Text hierarchy */
   /* Note: --text-muted was #888888 (3.41:1 on white — WCAG AA fail).
@@ -44,12 +50,16 @@
 }
 
 .dark {
-  --bg-app:        #262624;
-  --bg-sidebar:    #1F1E1D;
+  --bg-app:        #151515;
+  --bg-sidebar:    #111111;
   --bg-raised:     #30302E;
   --bg-hover:      #2F2E2C;
   --bg-active:     #3A3A38;
-  --border-subtle: #33322F;
+  --border-subtle: #363635;
+  /* Composer-specific surfaces (chat input card) */
+  --bg-composer:             #20201f;
+  /* Spec value was #373736 — see the :root note above. Widened to a visible step. */
+  --border-composer-active:  #4a4a48;
 
   /* Note: --text-muted was #8A8780 (3.84:1 on --bg-raised — WCAG AA fail).
      Updated to #9E9C96 which passes 4.5:1 on all dark surfaces (A11y Pass 1). */

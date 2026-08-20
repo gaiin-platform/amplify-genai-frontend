@@ -286,9 +286,10 @@ export const NewHome: React.FC = () => {
         {/* Composer box — 3-band grid: rail | textarea | toolbar */}
         <div
           className="
-            w-full bg-[--bg-raised] rounded-[14px]
+            new-ui-composer-card
+            w-full bg-[--bg-composer] rounded-[14px]
             border border-[--border-subtle]
-            focus-within:border-[--bg-active]
+            focus-within:border-[--border-composer-active]
             transition-colors duration-150
             p-4 pb-3
           "

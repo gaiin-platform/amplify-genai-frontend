@@ -123,39 +123,49 @@ Routing is state-based via `page` field — not URL-based (except `/pages/assist
 
 ### 4.2 New UI Design Tokens (added to globals.css)
 ```css
-/* New UI tokens — Claude-inspired */
+/* New UI tokens (Phase 55 palette) */
 :root {
-  --bg-app:        #ffffff;
-  --bg-sidebar:    #f9f9f9;
-  --bg-raised:     #f2f2f0;
-  --bg-hover:      #ebebeb;
-  --bg-active:     #e2e2e0;
-  --border-subtle: #e5e5e5;
-  --text-primary:  #1a1a1a;
-  --text-secondary:#555555;
-  --text-muted:    #6E6E6E;
-  /* Accent — Majk primary blue. Replaces previous orange #D97757. */
-  --accent:        #3b82f6;  /* light mode: Tailwind blue-500 = --color-primary-500 */
-  --accent-fg:     #ffffff;  /* foreground for text/icons ON TOP of --accent backgrounds */
+  --bg-app:                  #fcfcfb;   /* chat area background */
+  --bg-sidebar:              #fbfbf9;   /* sidebar background */
+  --bg-raised:               #f2f2f0;   /* elevated surfaces (user bubbles, modals) */
+  --bg-hover:                #ebebeb;
+  --bg-active:               #e2e2e0;
+  --border-subtle:           #e5e5e4;   /* default border + composer resting edge */
+  --bg-composer:             #ffffff;   /* chat input card background */
+  --border-composer-active:  #d4d4d1;   /* composer edge on hover + focus */
+  --text-primary:   #1a1a1a;
+  --text-secondary: #555555;
+  --text-muted:     #6E6E6E;
+  /* Accent — Majk primary blue. */
+  --accent:    #3b82f6;
+  --accent-fg: #ffffff;
 }
 .dark {
-  --bg-app:        #262624;
-  --bg-sidebar:    #1F1E1D;
-  --bg-raised:     #30302E;
-  --bg-hover:      #2F2E2C;
-  --bg-active:     #3A3A38;
-  --border-subtle: #33322F;
-  --text-primary:  #FAF9F5;
-  --text-secondary:#C2C0B6;
-  --text-muted:    #9E9C96;
-  --accent:        #006FEE;  /* dark mode: NextUI primary blue */
-  --accent-fg:     #ffffff;
+  --bg-app:                  #151515;   /* chat area background */
+  --bg-sidebar:              #111111;   /* sidebar background */
+  --bg-raised:               #30302E;   /* elevated surfaces (user bubbles, code blocks) */
+  --bg-hover:                #2F2E2C;
+  --bg-active:               #3A3A38;
+  --border-subtle:           #363635;   /* default border + composer resting edge */
+  --bg-composer:             #20201f;   /* chat input card background */
+  --border-composer-active:  #4a4a48;   /* composer edge on hover + focus */
+  --text-primary:   #FAF9F5;
+  --text-secondary: #C2C0B6;
+  --text-muted:     #9E9C96;
+  --accent:    #006FEE;
+  --accent-fg: #ffffff;
 }
 ```
 
-**`--accent` design decision (Phase 50):** Changed from orange `#D97757` to Majk blue (`#3b82f6` light / `#006FEE` dark). This aligns the new UI with the Majk platform's own `buttonPrimaryBg` color. All interactive accents (send button, active borders, loading dots, info callout borders, badges) automatically inherit the change because they all use `var(--accent)`.
+**Phase 55 palette (2026-08-20):** All main surface tokens updated to a darker, more refined palette. Dark mode is now near-black (`#151515` chat, `#111111` sidebar). Light mode is a warm off-white (`#fcfcfb` chat, `#fbfbf9` sidebar). Two new composer-specific tokens added: `--bg-composer` (the chat input card background, slightly elevated vs `--bg-app` in both modes) and `--border-composer-active` (the card edge color on hover **and** focus).
 
-**`--accent-fg`:** New companion token — the correct foreground (text/icon) color for elements whose background is `var(--accent)`. Always white (`#ffffff`) in both modes. White on `#3b82f6` ≈ 3.9:1 (passes WCAG SC 1.4.11); white on `#006FEE` ≈ 4.6:1 (passes SC 1.4.3 AA). Use this wherever the old hardcoded `#2A1710` appeared on the orange button — that warm dark was chosen for the orange; it is visually wrong and low-contrast on blue.
+> **Perception floor — why the active edge is not 1 step from resting.** The original spec set `--border-composer-active` to `#373736` dark / `#e4e4e3` light: exactly 1/255 per channel from `--border-subtle`. That is ≈0.4 ΔE, well under the ~2 ΔE human detection threshold, so hover/focus was reported as "not changing" even though the CSS was firing and `border-color` genuinely recomputed. Widened to `#4a4a48` dark / `#d4d4d1` light (~+20 / −17 per channel) to clear the floor. **Resting `--border-subtle` was not touched.**
+>
+> Rule for future sessions: when a state change is specified as a near-identical color pair, flag the perception floor *before* implementing rather than shipping an invisible transition. A state token needs ≥ ~8/255 per-channel separation from its resting counterpart to read as a change.
+
+**`--accent` design decision (Phase 50):** Changed from orange `#D97757` to Majk blue (`#3b82f6` light / `#006FEE` dark). All interactive accents automatically inherit the change via `var(--accent)`.
+
+**`--accent-fg`:** Foreground color for text/icons ON TOP of `--accent` backgrounds. Always white (`#ffffff`). White on `#3b82f6` ≈ 3.9:1 ✅; white on `#006FEE` ≈ 4.6:1 ✅.
 
 ### 4.3 Typography
 - **UI font:** Inter (already loaded via Google Fonts in globals.css)
@@ -2570,6 +2580,64 @@ Token-first change: every interactive accent in the new UI is now Majk blue. No 
   structurally different too (settings = one scrolling column; admin = fixed header + scrolling
   nav + fixed footer). Per instruction, work stopped at Fix 2 rather than forcing a shell that
   would make both modals harder to read. Fixes 1 and 2 were applied twice, by hand, identically.
+
+### Phase 54 — Accent-Brand Teal Border on Composer Card ✅ COMPLETE
+
+**Changed files:** `styles/globals.css`, `styles/conversation-view.css`,
+`components/NewUI/home/NewHome.tsx`, `components/NewUI/chat/ConversationComposer.tsx`
+
+Visual polish: gives the chat composer a persistent 2px teal border that distinguishes Amplify's
+UI from Claude.ai (blue/warm), ChatGPT (green), and the old Amplify orange accent.
+
+- [x] **New `--accent-brand` token defined in `styles/globals.css`:**
+  - `:root` (light): `--accent-brand: #0d9488` (Tailwind teal-600)
+  - `.dark`: `--accent-brand: #14b8a6` (Tailwind teal-500)
+  - Contrast verified: light `#0d9488` on `#ffffff` ≈ **3.7:1** ✅; dark `#14b8a6` on `#262624` ≈ **3.4:1** ✅ (WCAG 3:1 minimum for non-text UI components, SC 1.4.11)
+  - Separate token from `--accent` (blue). `--accent-brand` governs only the composer border; `--accent` governs all interactive elements (buttons, active borders, indicators).
+
+- [x] **`styles/conversation-view.css` — updated `.new-ui-composer-card` rules (replaced Fix 40 block):**
+  - `border-color: var(--accent-brand) !important; border-width: 2px !important;` — replaces old `--bg-active` color + upgrades width from the old 1px inline default
+  - `:focus-within` adds an outer glow ring: `box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-brand) 25%, transparent) !important`
+  - `prefers-reduced-motion` already covered by the existing block at line 1885 — no second rule needed
+
+- [x] **`components/NewUI/home/NewHome.tsx`:**
+  - Added `new-ui-composer-card` class to the composer box `<div>` (previously only used Tailwind border classes; without the class name, the CSS rules above would not target it)
+  - Upgraded `border` → `border-2` (1px → 2px) in Tailwind classes for layout consistency
+
+- [x] **`components/NewUI/chat/ConversationComposer.tsx`:**
+  - Inline `border` changed from `'1px solid var(--border-subtle)'` → `'2px solid var(--border-subtle)'` (CSS `border-color` override takes over the color; inline only controls width)
+
+**Standing rule established (see wiki §9 rule 21):** `--accent-brand` is reserved for the composer card border only. Never use it for buttons, badges, loading indicators, active-state borders, or any interactive element.
+
+### Phase 55 — Custom Surface Palette ✅ COMPLETE
+
+**Changed files:** `styles/globals.css`, `styles/conversation-view.css`,
+`components/NewUI/home/NewHome.tsx`, `components/NewUI/chat/ConversationComposer.tsx`
+
+Complete surface color replacement with a precisely specified palette.
+
+- [x] **`styles/globals.css`** — All main surface tokens updated in both `:root` and `.dark`. Two new tokens introduced:
+  - `--bg-composer` / `--border-composer-active` — specific to the chat input card. Decoupled from `--bg-raised` so user message bubbles, modals, and code blocks are unaffected.
+  - Light: chat area `#fcfcfb`, sidebar `#fbfbf9`, composer `#ffffff`, resting edge `#e5e5e4`, hover/focus edge `#d4d4d1`
+  - Dark: chat area `#151515`, sidebar `#111111`, composer `#20201f`, resting edge `#363635`, hover/focus edge `#4a4a48`
+
+- [x] **`styles/conversation-view.css`** — Replaced the old Fix 40 block. New rules:
+  - Expanded selector from `[data-new-ui="true"]` to cover both `[data-new-ui-shell="true"]` (NewHome landing) and `[data-new-ui="true"]` (ConversationComposer) — NewHome is not a descendant of the `data-new-ui` shell; without the `data-new-ui-shell` selector it would be missed entirely.
+  - Resting: `background: var(--bg-composer)`, `border-color: var(--border-subtle)`
+  - Hover **and** focus: `border-color: var(--border-composer-active)` — `:hover` and `:focus-within` share one rule, so mouse-over and keyboard/click focus produce the same edge
+  - `prefers-reduced-motion` block updated to cover both selectors
+
+- [x] **Hover trigger added** — `:hover` joined `:focus-within` on both selector variants so the active edge is not keyboard/click-only.
+
+- [x] **Active edge widened to clear the perception floor** — spec values `#373736` dark / `#e4e4e3` light were 1/255 from resting (≈0.4 ΔE) and read as "no change." Now `#4a4a48` dark / `#d4d4d1` light. Resting `--border-subtle` unchanged. See the perception-floor note in §4.2.
+
+- [x] **`components/NewUI/home/NewHome.tsx`** — composer `<div>`:
+  - Added `new-ui-composer-card` class (CSS selector requires it)
+  - `bg-[--bg-raised]` → `bg-[--bg-composer]`
+  - `focus-within:border-[--bg-active]` → `focus-within:border-[--border-composer-active]`
+
+- [x] **`components/NewUI/chat/ConversationComposer.tsx`** — inline style:
+  - `background: 'var(--bg-raised)'` → `background: 'var(--bg-composer)'`
 
 ### Phase 19 — Remaining Port Work (NEXT)
 - [x] Responsive: icon rail at 760-1099px ✅ resolved

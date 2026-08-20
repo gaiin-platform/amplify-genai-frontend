@@ -807,7 +807,7 @@ export const ConversationComposer: React.FC = () => {
         <div
           className="new-ui-composer-card"
           style={{
-            background: 'var(--bg-raised)',
+            background: 'var(--bg-composer)',
             border: '1px solid var(--border-subtle)',
             borderRadius: 14,
             padding: '16px 24px 12px',

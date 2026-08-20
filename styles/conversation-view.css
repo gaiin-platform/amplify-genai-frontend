@@ -1011,20 +1011,27 @@
   color: var(--text-primary) !important;
 }
 
-/* Fix 40 — Composer card border contrast.
-   The inline style uses --border-subtle which in dark mode (#33322F) is nearly
-   the same shade as --bg-raised (#30302E) — the border is essentially invisible.
-   --bg-active provides just enough contrast against --bg-raised to make the card
-   edge visible at rest (dark: #3A3A38 vs #30302E; light: #e0e0e0 vs #f0f0f0).
-   Focus-within keeps the same value so the transition is intentionally subtle;
-   the text cursor and keyboard focus indicators provide the primary focus signal. */
+/* Composer card — background + border (Phase 55 palette)
+   --bg-composer and --border-subtle are set in globals.css per mode.
+   The selector covers both contexts:
+     [data-new-ui-shell] → NewHome.tsx (home landing composer)
+     [data-new-ui]       → ConversationComposer.tsx (in-conversation composer)
+   background uses !important to override the inline var(--bg-raised) in
+   ConversationComposer and the Tailwind bg-[--bg-raised] class in NewHome.
+   border-color !important overrides the inline 'border:1px solid var(--border-subtle)'
+   (same token, so redundant at rest — ensures the :focus-within override wins). */
+[data-new-ui-shell="true"] .new-ui-composer-card,
 [data-new-ui="true"] .new-ui-composer-card {
-  border-color: var(--bg-active) !important;
+  background: var(--bg-composer) !important;
+  border-color: var(--border-subtle) !important;
 }
 
-/* composer card focus border */
+/* Elevated border on hover or focus (keyboard or click) */
+[data-new-ui-shell="true"] .new-ui-composer-card:hover,
+[data-new-ui-shell="true"] .new-ui-composer-card:focus-within,
+[data-new-ui="true"] .new-ui-composer-card:hover,
 [data-new-ui="true"] .new-ui-composer-card:focus-within {
-  border-color: var(--bg-active) !important;
+  border-color: var(--border-composer-active) !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -1882,6 +1889,7 @@
   }
 
   /* 6. Composer card focus border */
+  [data-new-ui-shell="true"] .new-ui-composer-card,
   [data-new-ui="true"] .new-ui-composer-card {
     transition: none !important;
   }

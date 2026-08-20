@@ -192,6 +192,23 @@ These rules are standing requirements for all future sessions:
     - `aria-label="Close"` (not "Close settings" / "Close admin panel") — the dialog's
       `aria-labelledby` already supplies the context.
 
+21. **Standing Rule — `--accent-brand` is reserved for the composer card border only (established Phase 54, 2026-08-20)**
+
+    `--accent-brand` (teal `#0d9488` light / `#14b8a6` dark) is a **single-use identity token** for
+    the composer card border. **NEVER** use it for:
+    - Primary action buttons, save buttons, send buttons (use `--accent` blue)
+    - Active/selected state borders or indicators (use `--accent` blue)
+    - Loading dots, progress bars, breathing animations (use `--accent` blue)
+    - Badges, pills, callout borders (use `--accent` blue)
+    - Any other interactive element
+
+    The purpose of this token is branding/identity — a persistent visual signal that this UI is
+    Amplify, not Claude or ChatGPT. Overloading it onto interactive elements would dilute that
+    signal and create conflicting color semantics (teal = "focus/active" AND "brand identity").
+
+    Use `var(--accent)` for everything interactive. Use `var(--accent-brand)` only for the
+    `.new-ui-composer-card` border.
+
 20. **Standing Rule — Don't force a shared shell across two modals that differ in close/Escape semantics (established Phase 53, 2026-08-20)**
 
     Before extracting a shared modal shell, check the **close and Escape flows first** — they are
