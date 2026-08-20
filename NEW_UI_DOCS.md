@@ -2804,6 +2804,80 @@ Single-file change: `components/NewUI/sidebar/NewSidebar.tsx` only.
 | User manually expands while < 768px | `wasAutoCollapsedRef` cleared; stays open until next resize event fires |
 | Rapid resize back and forth | No thrashing — guards prevent toggling already-correct state |
 
+### Phase 58 — Scrollbar Visibility Fixes (CSS-only) ✅ COMPLETE
+
+**Changed files:** `styles/conversation-view.css`, `components/NewUI/sidebar/NewSidebar.tsx`
+
+CSS-only fixes for three independently rooted scrollbar visibility bugs in the chat view, plus removal
+of the sidebar recents fade mask. Required three revisions to converge; the §13 pattern note records all
+the wrong turns so they aren't repeated.
+
+#### Fix 1 — Chat view: mask-image was fading the scroll thumb (conversation-view.css)
+
+**Root cause:** `mask-image` on `[data-new-ui="true"] .chatcontainer` applies the gradient
+(transparent 0 → #000 80px → #000 100%) to the element's **entire box**, including the scrollbar
+track on the right edge. The thumb is faded in the top 80px, making it appear absent or clipped.
+
+**Wrong approach (1st attempt, reverted):** `mask-size: calc(100% - 4px) 100%` + `mask-repeat: no-repeat`.
+This is backwards: CSS treats any area NOT covered by a mask layer (due to `mask-size` + `no-repeat`) as
+**transparent-black** (alpha = 0, fully hidden) — not "no mask = visible." The scrollbar column became
+completely invisible.
+
+**Wrong approach (2nd attempt, reverted):** Used the same two-layer mask with `4px` — the declared
+`::-webkit-scrollbar { width: 4px }` — in the gradient. When the real rendered scrollbar is wider
+(Firefox ignores the webkit rule; cascade fallback for globals.css can set 12px; fractional widths
+snap differently on high-DPI), a 4px clearance only exposes the right portion of the thumb — exactly
+the "left half covered" report. The fix must not be coupled to any specific scrollbar pixel width.
+
+**Correct fix (3rd attempt, shipped):** A CSS custom property `--nui-sb-clear: 16px` is defined on
+`[data-new-ui="true"]` and consumed in exactly three places. 16px is provably safe because:
+- The message column is `min(74ch, 100% - 48px)` centred, leaving ≥24px of guaranteed-empty margin at
+  the right edge INSIDE the content box.
+- `scrollbar-gutter: stable` adds the scrollbar gutter on top of that.
+- Total guaranteed-empty strip at the right edge: ≥28px.  16px < 28px — the strip never contains any
+  content, so widening the clearance from 4px to 16px is visually free.
+
+Two-layer mask replaces the single gradient. `mask-composite` defaults to `add` = `min(1, L1 + L2)`:
+- **Layer 1** (`to left`): opaque `#000` in rightmost `--nui-sb-clear`, transparent elsewhere.
+- **Layer 2**: original vertical fade transparent 0 → `#000` 80px → `#000` 100%.
+- Clearance column: `min(1, 1 + fade) = 1` → thumb always fully visible.
+- Content 0–80px: `min(1, 0 + fade) = fade` → normal fade.
+- Content 80px+: `min(1, 0 + 1) = 1` → fully visible.
+
+No `mask-size`, `mask-repeat`, or `mask-position` needed.
+
+#### Fix 2 — Chat view: header and composer overlays physically covered the scrollbar gutter
+
+**Root cause:** Both `ConversationHeader` and `ConversationComposer` are `position:absolute` overlays
+with `right: 0`, extending to the shell's right edge. An opaque background at higher `zIndex` paints
+*over* the scrollbar; no mask trick can fix a z-index overlap.
+
+- `ConversationHeader` (`new-ui-header`): `top:0; height:52px; zIndex:30; background:var(--bg-app)`
+- `ConversationComposer` (`.new-ui-composer-dock`): `bottom:0; zIndex:25; background:linear-gradient(transparent → var(--bg-app))`
+
+**Fix:** Both overlays now use `right: var(--nui-sb-clear) !important`. The inset is paired with a
+compensating `padding-right: calc(originalPad - var(--nui-sb-clear)) !important` so every child element
+stays at exactly the same pixel position as before — only the overlay's background box shrinks. Verified
+in a headless Chrome harness: the header's Share button and the dock's centred card land on identical
+pixel coordinates before and after the change.
+
+**Phase 39 scroll-anchor invariant:** unaffected. `.chatcontainer`'s `padding-bottom: 0 !important` and
+the `.h-[300px]` clearance spacer are not touched.
+
+#### Fix 3 — Sidebar recents: removed top/bottom fade masks (NewSidebar.tsx)
+
+**Root cause:** The Scrollable Recents `<div>` carried an inline `maskImage` with an 8px top + 16px
+bottom fade, clipping the scroll thumb at both ends of the recents list.
+
+**Fix:** Removed the `style` prop entirely from the Scrollable Recents `<div>`. All other attributes
+(`SidebarSection` props, `storageKey`s) are untouched.
+
+- [x] `styles/conversation-view.css` — `--nui-sb-clear: 16px` on `[data-new-ui="true"]`
+- [x] `styles/conversation-view.css` — two-layer `mask-image` on `.chatcontainer` using `var(--nui-sb-clear)`
+- [x] `styles/conversation-view.css` — `.new-ui-header { right: var(--nui-sb-clear); padding-right: calc(20px - var(--nui-sb-clear)) }` — inset + compensation
+- [x] `styles/conversation-view.css` — `.new-ui-composer-dock { right: var(--nui-sb-clear); padding-right: calc(24px - var(--nui-sb-clear)) }` — inset + compensation
+- [x] `components/NewUI/sidebar/NewSidebar.tsx` — `maskImage` removed from recents scroll div `style` prop
+
 ### Phase 19 — Remaining Port Work (NEXT)
 - [x] Responsive: icon rail at 760-1099px ✅ resolved
 - [x] Responsive: off-canvas drawer <760px ✅ resolved
@@ -3076,6 +3150,66 @@ wasAutoCollapsedRef.current = false; // user owns this state now
 - The stale-closure problem for the primary state variable (`isOpen`) is solved separately with an `isOpenRef` that mirrors the state in a `useEffect([isOpen])` — the resize handler reads the ref, never the state directly.
 
 **Used by:** `NewSidebar.tsx` `SIDEBAR_AUTO_COLLAPSE_THRESHOLD = 768` resize logic (Phase 57).
+
+### mask-image on a scroll container with a custom-width scrollbar (Phase 58)
+
+When you apply `mask-image` to a scroll container that has a custom-width scrollbar, the mask also
+applies to the scrollbar track, causing the thumb to appear faded or invisible when it sits in the
+masked region.
+
+**⚠️ Anti-pattern — DO NOT use `mask-size: calc(100% - Npx)`:** It is backwards. CSS treats any area
+NOT covered by a mask layer (due to `mask-size` + `mask-repeat: no-repeat`) as **transparent-black**
+(alpha = 0, fully hidden) — not "no mask = visible." This hides the scrollbar column completely.
+
+**⚠️ Anti-pattern — DO NOT hard-code the scrollbar pixel width in the gradient:** If you write
+`linear-gradient(to left, #000 4px, transparent 4px)`, the clearance is only as correct as the
+assumption that the scrollbar is exactly 4px wide. In practice it can be wider due to: Firefox ignoring
+`::-webkit-scrollbar` entirely and using its own ~15px scrollbar; a cascade fallback landing on the
+12px globals.css rule instead of the 4px scoped rule; fractional layout widths snapping paint edges
+differently on high-DPI displays. The symptom is "the left half of the thumb is covered" — exactly
+the right portion is visible because only N of the actual M pixels are clear.
+
+**Correct pattern — CSS custom property + generous clearance, verified safe:**
+
+Use a custom property set to a clearance that is provably inside a guaranteed-empty strip:
+
+```css
+/* 1. Define the clearance where you control the layout invariants */
+[data-new-ui="true"] {
+  --nui-sb-clear: 16px;  /* < guaranteed-empty strip (≥28px in the chat column layout) */
+}
+
+/* 2. Two-layer mask on the scroll container */
+[data-new-ui="true"] .my-scroll-container {
+  mask-image:
+    linear-gradient(to left, #000 var(--nui-sb-clear), transparent var(--nui-sb-clear)),
+    linear-gradient(to bottom, transparent 0, #000 80px, #000 100%) !important;
+  -webkit-mask-image:
+    linear-gradient(to left, #000 var(--nui-sb-clear), transparent var(--nui-sb-clear)),
+    linear-gradient(to bottom, transparent 0, #000 80px, #000 100%) !important;
+  /* No mask-size/mask-repeat/mask-position — layers default to 100% 100%. */
+}
+```
+
+`mask-composite` defaults to `add` = `min(1, L1 + L2)`: clearance column = 1 always; content 0–80px =
+fade; content 80px+ = 1.
+
+**Corollary — absolutely positioned overlays and scrollbar gutters:** Any `position:absolute; right:0`
+overlay with an opaque background physically covers the scrollbar gutter — no mask trick fixes a
+z-index overlap. The overlay itself must stop short of the scrollbar column:
+
+```css
+[data-new-ui="true"] .my-overlay {
+  right: var(--nui-sb-clear) !important;
+  /* Compensate so children don't shift: subtract the inset from the existing padding-right */
+  padding-right: calc(originalPaddingRight - var(--nui-sb-clear)) !important;
+}
+```
+
+In the new-UI chat view, BOTH `.new-ui-header` (zIndex:30) and `.new-ui-composer-dock` (zIndex:25)
+required this treatment — see Phase 58 Fix 2. Both had `padding-right` > `--nui-sb-clear` so the
+compensating `calc()` stays positive (16px < 20px header / 24px dock), keeping all children at their
+original pixel positions.
 
 ---
 

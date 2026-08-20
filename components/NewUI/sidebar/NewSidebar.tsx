@@ -694,9 +694,6 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
         {/* 3. Scrollable Recents */}
         <div
           className="flex-1 overflow-y-auto overflow-x-hidden"
-          style={{
-            maskImage: 'linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 16px), transparent 100%)',
-          }}
         >
           {/* Pinned section — only rendered when at least one conversation is pinned */}
           {pinned.length > 0 && (

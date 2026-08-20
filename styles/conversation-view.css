@@ -108,6 +108,43 @@
    covered. Bumped to 220px (comfortably covers the composer without the
    rail) and the bottom fade start point adjusted to match.
 ───────────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────────
+   --nui-sb-clear — scrollbar clearance column (Phase 58, 3rd revision)
+   ─────────────────────────────────────────────────────────────────────────────
+   The width of the strip along .chatcontainer's right edge that (a) the top-fade
+   mask must NOT fade, and (b) the header / composer overlays must NOT paint over.
+   Consumed in exactly three places: the .chatcontainer mask below, .new-ui-header,
+   and .new-ui-composer-dock.
+
+   Why 16px and not 4px (the ::-webkit-scrollbar width)?
+   The first two attempts used exactly 4px and the thumb was still partly covered in
+   the real app — only the right portion showed. A 4px exposure on a scrollbar column
+   that renders wider than 4px (Firefox ignores ::-webkit-scrollbar entirely and uses
+   its own ~15px scrollbar; a stale/lost cascade for the 4px rule falls back to the
+   12px rule in globals.css; fractional layout widths let paint edges snap to
+   different device pixels than the scrollbar) reads exactly as "the left half of the
+   bar is covered". Pinning the clearance to the *expected* scrollbar width makes the
+   fix only as correct as that assumption. A generous clearance removes the
+   assumption entirely.
+
+   Why widening it is visually free (verified in a headless Chrome harness):
+     • .chatcontainer sets scrollbar-gutter: stable, so the gutter column NEVER
+       contains content.
+     • The message column is `min(74ch, 100% - 48px)` centred, so there is always
+       ≥24px of empty margin inside the content box, plus the gutter itself.
+     → ≥28px of guaranteed-empty space at the right edge. A 16px strip therefore
+       never contains content, so exempting it from the fade and from the overlay
+       backgrounds cannot change anything a user can see — except that the scroll
+       thumb is now never clipped.
+   Bounds: keep it ≤ 20px — the two overlay rules below subtract it from their own
+   padding-right (20px header / 24px dock) to keep their children in place, and a
+   negative padding is an invalid declaration that would silently drop the
+   compensation. 16px sits comfortably inside both bounds (≤20px, <28px).
+   Do not "optimise" it back down to the ::-webkit-scrollbar width. */
+[data-new-ui="true"] {
+  --nui-sb-clear: 16px;
+}
+
 [data-new-ui="true"] .chatcontainer {
   /* Layout */
   max-width: 100% !important;
@@ -166,18 +203,28 @@
      the faded band read visually as a bar covering the response text. The top
      fade (clearing the 52px header overlay) is still needed and kept; only the
      bottom fade is removed. */
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 80px,          /* top fade clears the 52px header */
-    #000 100%
-  ) !important;
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 80px,
-    #000 100%
-  ) !important;
+  /* Phase 58 (revised twice): Two-layer mask exempts the scrollbar column.
+     NOTE: mask-size alone cannot exempt the scrollbar — when a mask layer doesn't cover an
+     area (due to mask-size + no-repeat), CSS treats that gap as transparent-black (hidden),
+     not as "no mask applied". The mask-size approach from the first Phase 58 attempt made the
+     scrollbar INVISIBLE, not visible.
+
+     CORRECT approach: two mask layers composited with mask-composite:add (the default):
+       Layer 1 — horizontal strip: opaque (#000) in the rightmost --nui-sb-clear px
+                 (the scrollbar clearance column), transparent everywhere else.
+       Layer 2 — the original vertical fade: transparent 0 → #000 80px → #000 100%.
+     Combined result (add = min(1, L1_alpha + L2_alpha)):
+       • Clearance column: min(1, 1 + fade) = 1 → scrollbar always fully visible.
+       • Content top (0–80px): min(1, 0 + fade) = fade → normal top fade.
+       • Content body (80px–100%): min(1, 0 + 1) = 1 → fully visible.
+     The clearance is deliberately WIDER than the 4px ::-webkit-scrollbar width — see the
+     --nui-sb-clear definition above for why that is both necessary and visually free. */
+  mask-image:
+    linear-gradient(to left, #000 var(--nui-sb-clear), transparent var(--nui-sb-clear)),
+    linear-gradient(to bottom, transparent 0, #000 80px, #000 100%) !important;
+  -webkit-mask-image:
+    linear-gradient(to left, #000 var(--nui-sb-clear), transparent var(--nui-sb-clear)),
+    linear-gradient(to bottom, transparent 0, #000 80px, #000 100%) !important;
 }
 
 /* Fix 1 (Phase 34): The .new-ui-actions-overlay is a direct child of
@@ -208,6 +255,33 @@
 }
 [data-new-ui="true"] .chatcontainer::-webkit-scrollbar-thumb:hover {
   background-color: #60a5fa; /* blue-400 — stronger on hover */
+}
+/* Phase 58 Fix 2: Both the ConversationHeader and the ConversationComposer are
+   position:absolute overlays with right:0 that physically paint over the scrollbar
+   column. The mask trick (Layer 1 above) stops the *fade* on the scrollbar, but it
+   cannot overcome a solid opaque background painted on top of it by another element
+   with a higher z-index — the overlay boxes themselves have to stop short of the
+   scrollbar. Both are inset by --nui-sb-clear.
+
+   The inset is paired with a compensating padding-right reduction of the SAME amount,
+   so every child stays at exactly the pixel position it had before. Only the overlay's
+   background box shrinks; nothing moves. (Verified in a headless Chrome harness: the
+   header's rightmost button lands on the identical x with and without the pair.)
+
+   Header: position:absolute, top:0, left:0, right:0, height:52px, zIndex:30,
+           background:var(--bg-app), padding '0 20px 0 24px'.
+           20px pad − 16px inset = 4px → content right edge unchanged at (shell − 20px). */
+[data-new-ui="true"] .new-ui-header {
+  right: var(--nui-sb-clear) !important;
+  padding-right: calc(20px - var(--nui-sb-clear)) !important;
+}
+/* Composer dock: position:absolute, bottom:0, left:0, right:0, zIndex:25,
+   background: linear-gradient(transparent → var(--bg-app)), padding '0 24px 20px'.
+   24px pad − 16px inset = 8px → content box stays [24px, shell − 24px], so the
+   centred dock column (margin:0 auto) is centred exactly where it was before. */
+[data-new-ui="true"] .new-ui-composer-dock {
+  right: var(--nui-sb-clear) !important;
+  padding-right: calc(24px - var(--nui-sb-clear)) !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
