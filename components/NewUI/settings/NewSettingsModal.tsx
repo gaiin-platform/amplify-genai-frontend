@@ -22,11 +22,20 @@ import {
   IconNotes,
   IconTemplate,
   IconLayoutSidebar,
+  IconDeviceDesktop,
+  IconSun,
+  IconMoon,
+  IconChevronDown,
 } from '@tabler/icons-react';
 
 import HomeContext from '@/pages/api/home/home.context';
 import { getSettings, saveSettings, featureOptionFlags } from '@/utils/app/settings';
-import { FlagsMap, Flag } from '@/components/ReusableComponents/FlagsMap';
+import { Flag } from '@/components/ReusableComponents/FlagsMap';
+import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
+import { handleStorageSelection, saveStorageSettings } from '@/utils/app/conversationStorage';
+import { ConversationStorage } from '@/types/conversationStorage';
+import { saveConversations } from '@/utils/app/conversation';
+import toast from 'react-hot-toast';
 import { SkillsLibrary } from '@/components/Skills/SkillsLibrary';
 import { MCPServersTab } from '@/components/Settings/MCPServersTab';
 import { ApiKeys } from '@/components/Settings/AccountComponents/ApiKeys';
@@ -71,7 +80,6 @@ const BASE_NAV_GROUPS: NavGroup[] = [
       { id: 'general', label: 'General', Icon: IconSettings },
       { id: 'account', label: 'Account', Icon: IconUser },
       { id: 'usage', label: 'Usage', Icon: IconChartBar },
-      { id: 'storage', label: 'Storage', Icon: IconDatabase },
       { id: 'apikeys', label: 'API Access', Icon: IconKey },
     ],
   },
@@ -96,10 +104,41 @@ const BASE_NAV_GROUPS: NavGroup[] = [
 // General Section
 // ---------------------------------------------------------------------------
 
+// ── Appearance option data ────────────────────────────────────────────────
+type AppearanceMode = 'system' | 'light' | 'dark';
+
+const APPEARANCE_OPTIONS: { value: AppearanceMode; Icon: React.FC<{ size?: number; stroke?: number }>; title: string }[] = [
+  { value: 'system', Icon: IconDeviceDesktop, title: 'System' },
+  { value: 'light',  Icon: IconSun,           title: 'Light'  },
+  { value: 'dark',   Icon: IconMoon,          title: 'Dark'   },
+];
+
+// ── Chat font option data ─────────────────────────────────────────────────
+const FONT_OPTIONS = [
+  { value: 'serif' as const, label: 'Newsreader', fontFamily: 'Newsreader, Georgia, serif' },
+  { value: 'sans'  as const, label: 'Inter',      fontFamily: 'Inter, sans-serif'           },
+];
+
+// ── Storage option data ───────────────────────────────────────────────────
+const STORAGE_OPTIONS: { id: ConversationStorage; label: string; description: string }[] = [
+  { id: 'local-only',    label: 'Local only',             description: 'All conversations stored in your browser. No cloud sync.' },
+  { id: 'future-local',  label: 'Local going forward',    description: 'New conversations saved locally. Existing stay where they are.' },
+  { id: 'cloud-only',    label: 'Cloud only',             description: 'All conversations synced to cloud. Access from any device.' },
+  { id: 'future-cloud',  label: 'Cloud going forward',    description: 'New conversations synced to cloud. Existing stay where they are.' },
+];
+
+const STORAGE_CONFIRM: Record<ConversationStorage, string> = {
+  'local-only':   'Any conversations stored in the cloud will be moved locally. All future conversations will be stored locally.',
+  'cloud-only':   'Any conversations stored locally will be moved to the cloud. All future conversations will be uploaded to the cloud.',
+  'future-local': 'Only new conversations will be stored locally. Existing conversations remain where they are.',
+  'future-cloud': 'Only new conversations will be uploaded to the cloud. Existing conversations remain where they are.',
+};
+
+// ── GeneralSection ────────────────────────────────────────────────────────
 const GeneralSection: FC = () => {
   const {
     dispatch: homeDispatch,
-    state: { featureFlags, lightMode },
+    state: { featureFlags, storageSelection, storageProcessing, conversations, selectedConversation, folders, statsService },
   } = useContext(HomeContext);
 
   const settings = getSettings(featureFlags);
@@ -107,36 +146,104 @@ const GeneralSection: FC = () => {
     settings.featureOptions,
   );
 
-  // Chat font preference (§6)
-  const [chatFont, setChatFont] = useState<'serif' | 'sans'>(() => {
-    if (typeof window === 'undefined') return 'serif';
-    return (localStorage.getItem('amplify_chat_font') as 'serif' | 'sans') ?? 'serif';
+  // ── Appearance (system / light / dark) ───────────────────────────────
+  const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(() => {
+    if (typeof window === 'undefined') return 'dark';
+    const stored = localStorage.getItem('amplify_appearance_mode') as AppearanceMode | null;
+    if (stored === 'system' || stored === 'light' || stored === 'dark') return stored;
+    const lm = localStorage.getItem('lightMode');
+    return lm === 'light' ? 'light' : 'dark';
   });
 
-  const handleChatFontChange = (value: 'serif' | 'sans') => {
-    setChatFont(value);
-    localStorage.setItem('amplify_chat_font', value);
-    // Notify ConversationViewShell to update data-body-face
-    window.dispatchEvent(new Event('amplifyChatFontChanged'));
-  };
-
-  const handleThemeChange = (value: 'light' | 'dark') => {
-    homeDispatch({ field: 'lightMode', value });
-    localStorage.setItem('lightMode', value);
-    if (value === 'dark') {
+  const applyTheme = (resolved: 'light' | 'dark') => {
+    homeDispatch({ field: 'lightMode', value: resolved });
+    localStorage.setItem('lightMode', resolved);
+    if (resolved === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
-    const current = getSettings(featureFlags);
-    saveSettings({ ...current, theme: value });
+    saveSettings({ ...getSettings(featureFlags), theme: resolved });
   };
 
+  const handleAppearanceChange = (value: AppearanceMode) => {
+    setAppearanceMode(value);
+    localStorage.setItem('amplify_appearance_mode', value);
+    if (value === 'system') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      applyTheme(prefersDark ? 'dark' : 'light');
+    } else {
+      applyTheme(value);
+    }
+  };
+
+  // ── Chat font (serif / sans) ──────────────────────────────────────────
+  const [chatFont, setChatFont] = useState<'serif' | 'sans'>(() => {
+    if (typeof window === 'undefined') return 'serif';
+    return (localStorage.getItem('amplify_chat_font') as 'serif' | 'sans') ?? 'serif';
+  });
+  const [fontDropdownOpen, setFontDropdownOpen] = useState(false);
+  const [storageDropdownOpen, setStorageDropdownOpen] = useState(false);
+  const [storageSaving, setStorageSaving] = useState(false);
+
+  // Refs for storage async closures (same pattern as NewStorageSection)
+  const conversationsRef = useRef(conversations);
+  useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
+  const foldersRef = useRef(folders);
+  useEffect(() => { foldersRef.current = folders; }, [folders]);
+
+  const handleStorageChange = async (selection: ConversationStorage) => {
+    setStorageDropdownOpen(false);
+    if (selection === storageSelection) return;
+    const confirmed = window.confirm(STORAGE_CONFIRM[selection]);
+    if (!confirmed) return;
+
+    setStorageSaving(true);
+    const isAllOption = selection === 'local-only' || selection === 'cloud-only';
+    if (isAllOption) {
+      homeDispatch({
+        field: 'storageProcessing',
+        value: { isProcessing: true, message: selection === 'local-only' ? 'Moving conversations to local storage…' : 'Moving conversations to cloud…', progress: 0, total: 0 },
+      });
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    try {
+      saveStorageSettings(selection);
+      homeDispatch({ field: 'storageSelection', value: selection });
+      const updated = await handleStorageSelection(
+        selection,
+        conversationsRef.current,
+        foldersRef.current,
+        statsService,
+        (current, total) => homeDispatch({ field: 'storageProcessing', value: { isProcessing: true, message: selection === 'local-only' ? 'Moving conversations to local storage…' : 'Moving conversations to cloud…', progress: current, total } }),
+      );
+      if (updated) {
+        homeDispatch({ field: 'conversations', value: updated });
+        saveConversations(updated);
+        if (selectedConversation) {
+          homeDispatch({ field: 'selectedConversation', value: updated.find((c) => c.id === selectedConversation.id) });
+        }
+      }
+      toast('Storage settings saved');
+    } catch {
+      toast.error('Failed to save storage settings');
+    } finally {
+      homeDispatch({ field: 'storageProcessing', value: { isProcessing: false, message: '', progress: 0, total: 0 } });
+      setStorageSaving(false);
+    }
+  };
+
+  const handleChatFontChange = (value: 'serif' | 'sans') => {
+    setChatFont(value);
+    localStorage.setItem('amplify_chat_font', value);
+    window.dispatchEvent(new Event('amplifyChatFontChanged'));
+  };
+
+  // ── Feature flags ─────────────────────────────────────────────────────
   const handleFlagChange = (key: string, value: boolean) => {
     const updated = { ...featureOptions, [key]: value };
     setFeatureOptions(updated);
-    const current = getSettings(featureFlags);
-    saveSettings({ ...current, featureOptions: updated });
+    saveSettings({ ...getSettings(featureFlags), featureOptions: updated });
     window.dispatchEvent(new Event('updateFeatureSettings'));
   };
 
@@ -144,58 +251,12 @@ const GeneralSection: FC = () => {
     Object.prototype.hasOwnProperty.call(featureOptions, f.key),
   );
 
+  const currentFontOpt = FONT_OPTIONS.find((f) => f.value === chatFont) ?? FONT_OPTIONS[0];
+
   return (
     <div className="flex flex-col gap-6">
-      {/* Theme */}
-      <div
-        style={{
-          background: 'var(--bg-raised)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-panel, 12px)',
-          padding: '20px',
-        }}
-      >
-        <h3
-          style={{
-            color: 'var(--text-primary)',
-            fontSize: '15px',
-            fontWeight: 600,
-            marginBottom: '4px',
-          }}
-        >
-          Theme
-        </h3>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '16px' }}>
-          Choose your preferred visual theme
-        </p>
-        <div className="flex gap-3">
-          {(['dark', 'light'] as const).map((t) => (
-            <label
-              key={t}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                cursor: 'pointer',
-                color: 'var(--text-primary)',
-                fontSize: '14px',
-              }}
-            >
-              <input
-                type="radio"
-                name="theme"
-                value={t}
-                checked={lightMode === t}
-                onChange={() => handleThemeChange(t)}
-                style={{ accentColor: 'var(--accent)' }}
-              />
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </label>
-          ))}
-        </div>
-      </div>
 
-      {/* Chat font (§6 — Preferences) */}
+      {/* ── Appearance + Chat font card ──────────────────────────────────── */}
       <div
         style={{
           background: 'var(--bg-raised)',
@@ -204,55 +265,294 @@ const GeneralSection: FC = () => {
           padding: '20px',
         }}
       >
-        <h3
+        {/* Appearance row */}
+        <div
           style={{
-            color: 'var(--text-primary)',
-            fontSize: '15px',
-            fontWeight: 600,
-            marginBottom: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingBottom: '14px',
+            borderBottom: '1px solid var(--border-subtle)',
+            marginBottom: '14px',
           }}
         >
-          Chat font
-        </h3>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '16px' }}>
-          Choose the typeface for assistant responses
-        </p>
-        <div className="flex gap-4">
-          {([
-            { value: 'serif', label: 'Serif', desc: 'Newsreader (default)' },
-            { value: 'sans', label: 'Sans', desc: 'Inter' },
-          ] as const).map((opt) => (
-            <label
-              key={opt.value}
+          <span style={{ fontSize: '14px', color: 'var(--text-primary)' }}>Appearance</span>
+
+          {/* Icon segmented control — system / light / dark */}
+          <div
+            style={{
+              display: 'flex',
+              gap: '2px',
+              padding: '3px',
+              background: 'var(--bg-app)',
+              borderRadius: '9px',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
+            {APPEARANCE_OPTIONS.map(({ value, Icon, title }) => {
+              const isSelected = appearanceMode === value;
+              return (
+                <button
+                  key={value}
+                  onClick={() => handleAppearanceChange(value)}
+                  title={title}
+                  aria-label={title}
+                  aria-pressed={isSelected}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '34px',
+                    height: '28px',
+                    borderRadius: '6px',
+                    border: isSelected ? '1px solid var(--border-subtle)' : '1px solid transparent',
+                    background: isSelected ? 'var(--bg-raised)' : 'transparent',
+                    color: isSelected ? 'var(--text-primary)' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                    transition: 'background 100ms ease, color 100ms ease, border-color 100ms ease',
+                    padding: 0,
+                  }}
+                >
+                  <Icon size={16} stroke={1.5} />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Chat font row */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingBottom: '14px',
+            borderBottom: '1px solid var(--border-subtle)',
+            marginBottom: '14px',
+          }}
+        >
+          <span style={{ fontSize: '14px', color: 'var(--text-primary)' }}>Chat font</span>
+
+          {/* Chromeless dropdown trigger */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setFontDropdownOpen((o) => !o)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
+                gap: '5px',
+                background: 'none',
+                border: 'none',
                 cursor: 'pointer',
+                padding: '2px 0',
                 color: 'var(--text-primary)',
-                fontSize: '14px',
               }}
             >
-              <input
-                type="radio"
-                name="chatFont"
-                value={opt.value}
-                checked={chatFont === opt.value}
-                onChange={() => handleChatFontChange(opt.value)}
-                style={{ accentColor: 'var(--accent)' }}
-              />
-              <span>
-                {opt.label}
-                <span style={{ color: 'var(--text-muted)', fontSize: '12px', marginLeft: '4px' }}>
-                  {opt.desc}
-                </span>
+              <span
+                style={{
+                  fontFamily: currentFontOpt.fontFamily,
+                  fontSize: '14px',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                {currentFontOpt.label}
               </span>
-            </label>
-          ))}
+              <IconChevronDown
+                size={12}
+                stroke={2}
+                style={{ color: 'var(--text-muted)', flexShrink: 0 }}
+              />
+            </button>
+
+            {fontDropdownOpen && (
+              <>
+                {/* Click-away backdrop */}
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                  onClick={() => setFontDropdownOpen(false)}
+                />
+                {/* Dropdown panel */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    right: 0,
+                    zIndex: 100,
+                    background: 'var(--bg-raised)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: '10px',
+                    padding: '4px',
+                    minWidth: '160px',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  }}
+                >
+                  {FONT_OPTIONS.map((opt) => {
+                    const isActive = chatFont === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          handleChatFontChange(opt.value);
+                          setFontDropdownOpen(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: '7px',
+                          border: 'none',
+                          background: isActive ? 'var(--bg-active)' : 'transparent',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          color: 'var(--text-primary)',
+                          transition: 'background 80ms ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent';
+                        }}
+                      >
+                        <span style={{ fontFamily: opt.fontFamily, fontSize: '14px' }}>
+                          {opt.label}
+                        </span>
+                        {isActive && (
+                          <span style={{ color: 'var(--accent)', fontSize: '14px', lineHeight: 1 }}>✓</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
         </div>
+
+        {/* Storage row */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span style={{ fontSize: '14px', color: 'var(--text-primary)' }}>
+            Conversation storage
+          </span>
+
+          {/* Chromeless storage dropdown — same pattern as chat font */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setStorageDropdownOpen((o) => !o)}
+              disabled={storageSaving}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                background: 'none',
+                border: 'none',
+                cursor: storageSaving ? 'not-allowed' : 'pointer',
+                padding: '2px 0',
+                color: 'var(--text-primary)',
+                opacity: storageSaving ? 0.5 : 1,
+              }}
+            >
+              <span style={{ fontSize: '14px', color: 'var(--text-primary)' }}>
+                {storageSaving
+                  ? 'Saving…'
+                  : STORAGE_OPTIONS.find((o) => o.id === storageSelection)?.label ?? 'Select…'}
+              </span>
+              <IconChevronDown size={12} stroke={2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+            </button>
+
+            {storageDropdownOpen && (
+              <>
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                  onClick={() => setStorageDropdownOpen(false)}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    right: 0,
+                    zIndex: 100,
+                    background: 'var(--bg-raised)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: '10px',
+                    padding: '4px',
+                    minWidth: '240px',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  }}
+                >
+                  {STORAGE_OPTIONS.map((opt) => {
+                    const isActive = storageSelection === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        onClick={() => handleStorageChange(opt.id)}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: '7px',
+                          border: 'none',
+                          background: isActive ? 'var(--bg-active)' : 'transparent',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'background 80ms ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent';
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                          <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: isActive ? 500 : 400 }}>
+                            {opt.label}
+                          </span>
+                          {isActive && <span style={{ color: 'var(--accent)', fontSize: '14px', lineHeight: 1 }}>✓</span>}
+                        </div>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          {opt.description}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Migration progress (only visible during a bulk move) */}
+        {storageProcessing?.isProcessing && (
+          <div style={{ marginTop: '10px' }}>
+            <div style={{ height: '3px', background: 'var(--bg-active)', borderRadius: '2px', overflow: 'hidden', marginBottom: '5px' }}>
+              <div style={{
+                height: '100%',
+                background: 'var(--accent)',
+                width: storageProcessing.total > 0
+                  ? `${Math.min(100, (storageProcessing.progress / storageProcessing.total) * 100)}%`
+                  : '60%',
+                transition: 'width 0.3s ease',
+              }} />
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
+              {storageProcessing.message}
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* Feature flags */}
+      {/* ── Feature flags card ────────────────────────────────────────────── */}
       {visibleFlags.length > 0 && (
         <div
           style={{
@@ -267,20 +567,61 @@ const GeneralSection: FC = () => {
               color: 'var(--text-primary)',
               fontSize: '15px',
               fontWeight: 600,
-              marginBottom: '4px',
+              marginBottom: '16px',
             }}
           >
             Features
           </h3>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '16px' }}>
-            Enable or disable features
-          </p>
-          <FlagsMap
-            id="new-settings-features"
-            flags={visibleFlags}
-            state={featureOptions}
-            flagChanged={handleFlagChange}
-          />
+
+          {visibleFlags.map((flag, index) => {
+            const isLast = index === visibleFlags.length - 1;
+            return (
+              <div
+                key={flag.key}
+                style={{
+                  paddingTop: index === 0 ? 0 : '12px',
+                  paddingBottom: isLast ? 0 : '12px',
+                  borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)',
+                }}
+              >
+                {/* Label + toggle row — clicking label also toggles */}
+                <div
+                  onClick={() => handleFlagChange(flag.key, !featureOptions[flag.key])}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '16px',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                  }}
+                >
+                  <span style={{ fontSize: '14px', color: 'var(--text-primary)' }}>
+                    {flag.label}
+                  </span>
+                  <ToggleSwitch
+                    checked={!!featureOptions[flag.key]}
+                    onChange={(val) => handleFlagChange(flag.key, val)}
+                    aria-label={flag.label}
+                  />
+                </div>
+
+                {/* Optional description */}
+                {flag.description && (
+                  <p
+                    style={{
+                      margin: '6px 0 0',
+                      fontSize: '12px',
+                      color: 'var(--text-muted)',
+                      lineHeight: '1.55',
+                    }}
+                  >
+                    {flag.description}
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -498,8 +839,6 @@ const SectionContent: FC<{ sectionId: string }> = ({ sectionId }) => {
       return <AccountSection active={true} />;
     case 'usage':
       return <PlaceholderSection title="Usage" />;
-    case 'storage':
-      return <StorageSection active={true} />;
     case 'apikeys':
       return <ApiKeysSection active={true} />;
     case 'promptTemplates':
@@ -507,11 +846,11 @@ const SectionContent: FC<{ sectionId: string }> = ({ sectionId }) => {
     case 'customInstructions':
       return <CustomInstructionsSection />;
     case 'skills':
-      return <SkillsSection />;
+      return <div className="new-ui-skills-override"><SkillsSection /></div>;
     case 'connectors':
       return <NewConnectorsSection />;
     case 'mcp':
-      return <MCPServersTab open={true} />;
+      return <div className="new-ui-skills-override"><MCPServersTab open={true} /></div>;
     case 'sidebarItems':
       return <SidebarItemsSection />;
     case 'admin':

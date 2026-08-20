@@ -404,8 +404,8 @@ export const NewConnectorsSection: FC = () => {
                           gap: '4px',
                           fontSize: '11px',
                           fontWeight: 600,
-                          color: 'var(--accent)',
-                          background: 'rgba(217,119,87,0.12)',
+                          color: '#16a34a',
+                          background: 'rgba(34,197,94,0.12)',
                           borderRadius: '4px',
                           padding: '1px 7px',
                         }}>
@@ -442,11 +442,9 @@ export const NewConnectorsSection: FC = () => {
                       height: '32px',
                       padding: '0 14px',
                       borderRadius: '6px',
-                      border: isConnected
-                        ? '1px solid rgba(239,68,68,0.4)'
-                        : 'none',
-                      background: isConnected ? 'transparent' : 'var(--bg-active)',
-                      color: isConnected ? '#ef4444' : 'var(--text-primary)',
+                      border: isConnected ? '1px solid rgba(239,68,68,0.4)' : 'none',
+                      background: isConnected ? 'transparent' : 'var(--accent)',
+                      color: isConnected ? '#ef4444' : '#ffffff',
                       fontSize: '13px',
                       fontWeight: 500,
                       cursor: isLoading ? 'not-allowed' : 'pointer',
@@ -456,16 +454,22 @@ export const NewConnectorsSection: FC = () => {
                       gap: '6px',
                       flexShrink: 0,
                       whiteSpace: 'nowrap',
-                      transition: 'background 0.1s, color 0.1s',
+                      transition: 'background 0.1s, color 0.1s, opacity 0.1s',
                     }}
                     onMouseEnter={(e) => {
-                      if (!isLoading && isConnected) {
-                        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.08)';
+                      if (!isLoading) {
+                        if (isConnected) {
+                          (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.08)';
+                        } else {
+                          (e.currentTarget as HTMLButtonElement).style.opacity = '0.85';
+                        }
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (isConnected) {
                         (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                      } else {
+                        (e.currentTarget as HTMLButtonElement).style.opacity = isLoading ? '0.6' : '1';
                       }
                     }}
                   >

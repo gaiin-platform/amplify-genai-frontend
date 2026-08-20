@@ -2543,3 +2543,86 @@
   }
 }
 
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Skills + MCP: remap purple-* Tailwind classes to --accent blue
+   Scope: .new-ui-skills-override wrapper (set on Skills and MCP sections in
+   NewSettingsModal.tsx). Does NOT require [data-new-ui="true"] — the settings
+   modal is never inside the chat shell.
+───────────────────────────────────────────────────────────────────────────── */
+
+/* Text colors */
+.new-ui-skills-override .text-purple-500,
+.new-ui-skills-override .hover\:text-purple-600:hover,
+.new-ui-skills-override .text-purple-600,
+.new-ui-skills-override .text-purple-700,
+.new-ui-skills-override .dark\:text-purple-300,
+.new-ui-skills-override .dark\:text-purple-400,
+.new-ui-skills-override .dark\:text-purple-100 {
+  color: var(--accent) !important;
+}
+
+/* Solid accent backgrounds (buttons, badges) */
+.new-ui-skills-override .bg-purple-500,
+.new-ui-skills-override .hover\:bg-purple-600:hover {
+  background-color: var(--accent) !important;
+}
+
+/* Subtle tinted backgrounds */
+.new-ui-skills-override .bg-purple-50,
+.new-ui-skills-override .bg-purple-100,
+.new-ui-skills-override .dark\:bg-purple-900\/10,
+.new-ui-skills-override .dark\:bg-purple-900\/20,
+.new-ui-skills-override .dark\:bg-purple-900\/40,
+.new-ui-skills-override .dark\:bg-purple-900,
+.new-ui-skills-override .bg-purple-50\/50 {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+}
+.dark .new-ui-skills-override .bg-purple-50,
+.dark .new-ui-skills-override .bg-purple-100,
+.dark .new-ui-skills-override .dark\:bg-purple-900\/10,
+.dark .new-ui-skills-override .dark\:bg-purple-900\/20,
+.dark .new-ui-skills-override .dark\:bg-purple-900\/40,
+.dark .new-ui-skills-override .dark\:bg-purple-900 {
+  background-color: rgba(0, 111, 238, 0.10) !important;
+}
+
+/* Borders */
+.new-ui-skills-override .border-purple-500,
+.new-ui-skills-override .border-purple-200,
+.new-ui-skills-override .border-purple-300,
+.new-ui-skills-override .dark\:border-purple-700,
+.new-ui-skills-override .dark\:border-purple-800 {
+  border-color: rgba(59, 130, 246, 0.35) !important;
+}
+.dark .new-ui-skills-override .border-purple-500,
+.dark .new-ui-skills-override .dark\:border-purple-700,
+.dark .new-ui-skills-override .dark\:border-purple-800 {
+  border-color: rgba(0, 111, 238, 0.35) !important;
+}
+
+/* Focus rings */
+.new-ui-skills-override .focus\:ring-purple-500:focus {
+  --tw-ring-color: var(--accent) !important;
+  box-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--accent) !important;
+}
+
+/* Hover tinted backgrounds on non-purple-500 rows */
+.new-ui-skills-override .hover\:bg-purple-50:hover,
+.new-ui-skills-override .dark\:hover\:bg-purple-900\/20:hover,
+.new-ui-skills-override .dark\:hover\:bg-purple-900\/60:hover {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+}
+
+/* Selected / checked state rows */
+.new-ui-skills-override .bg-purple-50.dark\:bg-purple-900\/10,
+.new-ui-skills-override .bg-purple-50.dark\:bg-purple-900\/20 {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+}
+
+/* prefers-reduced-motion: no transitions on override elements */
+@media (prefers-reduced-motion: reduce) {
+  .new-ui-skills-override * {
+    transition: none !important;
+  }
+}

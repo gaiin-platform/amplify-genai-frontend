@@ -432,7 +432,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
       label: 'Customize',
       id: 'customize',
       visible: true, // always shown — removing it would lock users out of settings
-      action: () => setSettingsSection('skills'),
+      action: () => setSettingsSection('promptTemplates'),
     },
     ...(featureFlags.createAssistantWorkflows ? [{
       icon: <IconPuzzle size={18} />,
@@ -542,9 +542,9 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
             currentNavId === 'assistants',
           )}
 
-          {/* Customize — always shown */}
+          {/* Customize — always shown, opens to Prompt Templates (first item in Customize group) */}
           {iconBtn(
-            () => setSettingsSection('skills'),
+            () => setSettingsSection('promptTemplates'),
             'Customize',
             <IconAdjustments size={18} />,
             currentNavId === 'customize',

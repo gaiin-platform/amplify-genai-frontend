@@ -463,6 +463,12 @@ components/NewUI/
                                Phase 56: added promptTemplates (first in Customize — PromptTemplatesSection)
                                and sidebarItems (last in Customize — SidebarItemsSection). New icons:
                                IconTemplate (for Prompt Templates), IconLayoutSidebar (for Sidebar Items).
+                               Phase 56 follow-up: GeneralSection redesigned — appearance icon segmented
+                               control (system/light/dark, stores 'amplify_appearance_mode' localStorage key),
+                               chat font chromeless dropdown (renders font name in its own face), feature flags
+                               use ToggleSwitch rows replacing FlagsMap. FlagsMap component removed as import;
+                               Flag type interface kept for typing. Customize sidebar button now opens to
+                               'promptTemplates' (was 'skills') in both expanded nav and collapsed rail.
   shared/
     SegmentedControl.tsx     ← REUSABLE segmented tab control (size: sm=sidebar, xs=composer)
     IconButton.tsx           ← REUSABLE 28×28/32×32 icon button with hover ring

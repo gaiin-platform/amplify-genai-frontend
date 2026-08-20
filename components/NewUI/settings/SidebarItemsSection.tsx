@@ -228,39 +228,6 @@ const SidebarItemsSection: React.FC = () => {
         </div>
       </div>
 
-      {/* Info card */}
-      <div
-        style={{
-          background: 'var(--bg-raised)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-panel, 12px)',
-          padding: '20px',
-        }}
-      >
-        <h3
-          style={{
-            color: 'var(--text-primary)',
-            fontSize: '15px',
-            fontWeight: 600,
-            marginBottom: '4px',
-          }}
-        >
-          About this setting
-        </h3>
-        <ul
-          style={{
-            margin: '8px 0 0',
-            paddingLeft: '20px',
-            color: 'var(--text-secondary)',
-            fontSize: '13px',
-            lineHeight: '1.8',
-          }}
-        >
-          <li>Changes take effect immediately — no page reload needed</li>
-          <li>Hidden items are still accessible via keyboard shortcuts and other entry points</li>
-          <li>Your preference is stored locally in this browser</li>
-        </ul>
-      </div>
     </div>
   );
 };
