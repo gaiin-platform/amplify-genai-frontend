@@ -2700,3 +2700,27 @@
     transition: none !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   CreationModalShell entrance animation
+   Panel fades in and slides up 8px over 150ms. Skipped when the user prefers
+   reduced motion (wiki §9 rule 17 — every animation needs a reduced-motion gate).
+   Used by: CreationModalShell.tsx (class "new-ui-creation-modal-panel").
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+@keyframes creationModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .new-ui-creation-modal-panel {
+    animation: creationModalIn 150ms ease-out both;
+  }
+}

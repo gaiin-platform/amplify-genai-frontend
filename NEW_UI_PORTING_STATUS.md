@@ -98,14 +98,14 @@
 | Assistants view (5 tabs) | ✅ | `NewAssistantsView.tsx` — Phase 46 layout overhaul: My Assistants \| Shared with Me \| Teams \| Layered \| Templates |
 | My Assistants list | ✅ | Flat list (canEdit=true only) with Private/Shared/URL access-type badge per row |
 | Shared with Me list | ✅ | New top-level tab: canEdit=false individual assistants (was buried as sub-tab) |
-| Create new assistant — Step 0 wizard | ✅ | `NewAssistantTypeSelector.tsx` — intercepts "New Assistant" in both My Assistants + Teams tabs. Three cards: Private / Managed (URL slug + access options) / Team (use existing OR create new team with member emails). ALL cards now lead to AssistantModal — Card 3 calls onConfirm(null, null, groupId) instead of dispatching admin interface. |
-| Create new assistant | ✅ | `AssistantModal` opened after type selector confirms; restyled with new-UI CSS tokens via `[data-new-ui-assistants]` scope |
+| Create new assistant — Step 0 wizard | ✅ | **Phase 60:** `NewAssistantTypeSelector.tsx` superseded by `NewUIAssistantCreationModal.tsx`. The two-step flow (type selector → AssistantModal) is now a single unified modal with Section A (access type cards) + Section B (form fields). `NewAssistantTypeSelector.tsx` marked deprecated; safe to delete after verification. |
+| Create new assistant | ✅ | **Phase 60 (updated):** `NewUIAssistantCreationModal` — Section A (access type cards) + Section B: Name, Description, Instructions, Disclaimer, Upload Data Sources (AttachFile+DataSourceSelector+FileList), Website Data Sources (WebsiteURLInput, ff-gated), Drive Data Sources (AssistantDriveDataSources, ff-gated), Skills (SkillsSection, ff-gated), Tools/APIs (ApiIntegrationsPanel, ff-gated), Enforce Model. Tags moved to inline "Advanced Settings ▾" accordion (also contains Conversation Tags). No longer opens old `AssistantModal`. TODO: port email events, workflow templates, data source options, feature options flags in a future phase. |
 | Edit assistant | ✅ | Edit icon on hover → `AssistantModal` |
 | Group Assistants list (Teams tab) | ✅ | Grouped by group name, renamed "Teams" in tab bar |
 | Group admin access (settings gear) | ✅ | Settings gear on existing row still opens `openAstAdminInterfaceTrigger` for editing; gated by `featureFlags.assistantAdminInterface` + access check |
 | Create group assistant (Teams "New Assistant" button) | ✅ | Phase 47: button opens `NewAssistantTypeSelector`. Confirmed team → AssistantModal with `groupId` set. On save: both `prompts` + `groups` state updated so assistant appears in Teams tab immediately. |
 | Prompt Templates list | ✅ | **Phase 56:** moved from Assistants view tab → Settings → Customize → Prompt Templates (`PromptTemplatesSection.tsx`). Same three-section layout (Quick Actions / System Instructions / Your Templates). `'templates'` tab removed from `NewAssistantsView.tsx`. |
-| Create new prompt template | ✅ | `PromptModal` opened from `PromptTemplatesSection` |
+| Create new prompt template | 🚧 | **Phase 60:** `NewUIPromptCreationModal.tsx` wraps essential fields (Name, Description, Prompt body) in `CreationModalShell`. "Full editor →" opens old `PromptModal` pre-populated. TODO: port advanced fields (type selector, variables, tags, code block, custom instructions selector) in future phase. |
 | Layered Assistants list | ✅ | Cards with edit/delete |
 | Create new layered assistant | ✅ | Dispatches `openLayeredBuilderTrigger` with blank LA |
 | Layered assistant builder | 🚧 | Builder is old UI (`LayeredAssistantBuilder`); opens via event |

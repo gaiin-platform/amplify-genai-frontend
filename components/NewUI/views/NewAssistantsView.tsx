@@ -27,13 +27,13 @@ import { Prompt } from '@/types/prompt';
 import { Group, GroupAccessType } from '@/types/groups';
 import { LayeredAssistant, createLayeredAssistant } from '@/types/layeredAssistant';
 import { Assistant, AssistantDefinition, AssistantProviderID } from '@/types/assistant';
-import { handleStartConversationWithPrompt, createEmptyPrompt } from '@/utils/app/prompts';
+import { handleStartConversationWithPrompt } from '@/utils/app/prompts';
 import { isAssistant, getAssistants, handleUpdateAssistantPrompt } from '@/utils/app/assistants';
 import { deleteLayeredAssistant, saveLayeredAssistant } from '@/services/assistantService';
 import { AssistantModal } from '@/components/Promptbar/components/AssistantModal';
 import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';
-import { NewAssistantTypeSelector } from './NewAssistantTypeSelector';
+import { NewUIAssistantCreationModal } from './NewUIAssistantCreationModal';
 import { AstPathData } from '@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 
@@ -286,11 +286,9 @@ const MyAssistantsTab: React.FC = () => {
 
     const [search, setSearch] = useState('');
     const [showAssistantModal, setShowAssistantModal] = useState(false);
-    // Step 0 — type selector shown BEFORE AssistantModal opens for new assistants
-    const [showTypeSelector, setShowTypeSelector] = useState(false);
+    // Unified creation modal (replaces two-step NewAssistantTypeSelector + AssistantModal flow)
+    const [showCreationModal, setShowCreationModal] = useState(false);
     const [selectedForEdit, setSelectedForEdit] = useState<Prompt | null>(null);
-    // Track which group (if any) the current creation is for, so we can update groups state on save
-    const [creatingForGroupId, setCreatingForGroupId] = useState<string | null>(null);
 
     const canEdit = (p: Prompt) => !p.data?.noEdit;
 
@@ -325,56 +323,9 @@ const MyAssistantsTab: React.FC = () => {
         homeDispatch({ field: 'page', value: 'chat' });
     };
 
-    // Show the Step 0 type selector instead of opening AssistantModal directly
+    // Open the unified creation modal (replaced two-step selector + AssistantModal flow)
     const handleNewAssistantClick = () => {
-        setShowTypeSelector(true);
-    };
-
-    /**
-     * Called when the user confirms a type in the selector.
-     * astPath is non-null for "Managed" access types (pre-fills the slug field
-     * inside AssistantModal). groupId is non-null for team/collaborative assistants.
-     * Note: AssistantModal resets astPathData via its own lookupAssistant effect on mount —
-     * see NewAssistantTypeSelector.tsx header for the full explanation.
-     */
-    const handleTypeSelectorConfirm = (
-        astPath: string | null,
-        astPathData: AstPathData | null,
-        groupId?: string
-    ) => {
-        setShowTypeSelector(false);
-
-        const promptName = `Assistant ${getAssistants(promptsRef.current).length + 1}`;
-        const newPrompt = createEmptyPrompt(promptName, null);
-        newPrompt.folderId = 'assistants';
-        // Set groupId for team assistants
-        if (groupId) newPrompt.groupId = groupId;
-
-        const assistantDef: AssistantDefinition = {
-            name: newPrompt.name,
-            description: '',
-            instructions: '',
-            tools: [],
-            tags: [],
-            dataSources: [],
-            version: 1,
-            fileKeys: [],
-            provider: AssistantProviderID.AMPLIFY,
-            // Pre-set astPath when the user chose a "managed" access type;
-            // AssistantModal reads it from definition.astPath to pre-fill the path field.
-            ...(astPath ? { astPath } : {}),
-            // Also store astPathData on data for completeness (AssistantModal ignores it
-            // at init but future callers may find it useful as a hint).
-            ...(astPath && astPathData ? { data: { astPathData } } : {}),
-        };
-
-        if (!newPrompt.data) newPrompt.data = {};
-        if (!newPrompt.data.assistant) newPrompt.data.assistant = {};
-        newPrompt.data.assistant.definition = assistantDef;
-
-        setCreatingForGroupId(groupId ?? null);
-        setSelectedForEdit(newPrompt);
-        setShowAssistantModal(true);
+        setShowCreationModal(true);
     };
 
     const handleEditAssistant = (e: React.MouseEvent, p: Prompt) => {
@@ -383,19 +334,10 @@ const MyAssistantsTab: React.FC = () => {
         setShowAssistantModal(true);
     };
 
+    // Used only for the EDIT path (edit icon on existing rows).
+    // Creation is now handled internally by NewUIAssistantCreationModal.
     const handleUpdateAssistant = (updatedPrompt: Prompt) => {
         handleUpdateAssistantPrompt(updatedPrompt, promptsRef.current, homeDispatch, selectedAssistant);
-        // When a group (team) assistant was just created, also add it to the groups state
-        // so it shows immediately in the Teams tab without requiring a page refresh.
-        if (creatingForGroupId) {
-            const updatedGroups = groupsRef.current.map((g: Group) =>
-                g.id === creatingForGroupId
-                    ? { ...g, assistants: [...(g.assistants || []), updatedPrompt] }
-                    : g
-            );
-            homeDispatch({ field: 'groups', value: updatedGroups });
-            setCreatingForGroupId(null);
-        }
     };
 
     // Derive the access-type badge for a row: Private / Shared / URL
@@ -461,15 +403,14 @@ const MyAssistantsTab: React.FC = () => {
                 )}
             </div>
 
-            {/* Step 0 — type selector (shown before AssistantModal for new assistants) */}
-            {showTypeSelector && (
-                <NewAssistantTypeSelector
-                    onClose={() => setShowTypeSelector(false)}
-                    onConfirm={handleTypeSelectorConfirm}
+            {/* Unified creation modal — replaces NewAssistantTypeSelector + AssistantModal create flow */}
+            {showCreationModal && (
+                <NewUIAssistantCreationModal
+                    onClose={() => setShowCreationModal(false)}
                 />
             )}
 
-            {/* Assistant Modal */}
+            {/* AssistantModal — EDIT path only (edit icon on existing rows) */}
             {showAssistantModal && selectedForEdit && (
                 <AssistantModal
                     assistant={selectedForEdit}
@@ -595,11 +536,11 @@ const GroupAssistantsTab: React.FC = () => {
     const groupsRef = useRef(groups);
     useEffect(() => { groupsRef.current = groups; }, [groups]);
 
-    // ── Type selector + AssistantModal state for new group assistant creation ──
-    const [showGroupTypeSelector, setShowGroupTypeSelector] = useState(false);
+    // Unified creation modal for new group assistants
+    const [showGroupCreationModal, setShowGroupCreationModal] = useState(false);
+    // AssistantModal still used for the edit path (edit icon → admin interface)
     const [showGroupAssistantModal, setShowGroupAssistantModal] = useState(false);
     const [groupAssistantForEdit, setGroupAssistantForEdit] = useState<Prompt | null>(null);
-    const [creatingForGroupId, setCreatingForGroupId] = useState<string | null>(null);
 
     const { data: session } = useSession();
     const userIdentifier = getUserIdentifier(session?.user);
@@ -614,57 +555,9 @@ const GroupAssistantsTab: React.FC = () => {
 
     const anyAdminAccess = groups.some((g: Group) => hasAdminAccess(g));
 
-    // ── New group assistant creation handlers ──
-    const handleGroupTypeSelectorConfirm = (
-        astPath: string | null,
-        _astPathData: AstPathData | null,
-        groupId?: string
-    ) => {
-        setShowGroupTypeSelector(false);
-        if (!groupId) {
-            // User chose private/managed from Teams tab — create a personal assistant
-            // (unusual flow but still valid)
-        }
-
-        const promptName = `Assistant ${getAssistants(promptsRef.current).length + 1}`;
-        const newPrompt = createEmptyPrompt(promptName, null);
-        newPrompt.folderId = 'assistants';
-        if (groupId) newPrompt.groupId = groupId;
-
-        const assistantDef: AssistantDefinition = {
-            name: newPrompt.name,
-            description: '',
-            instructions: '',
-            tools: [],
-            tags: [],
-            dataSources: [],
-            version: 1,
-            fileKeys: [],
-            provider: AssistantProviderID.AMPLIFY,
-            ...(astPath ? { astPath } : {}),
-        };
-
-        if (!newPrompt.data) newPrompt.data = {};
-        if (!newPrompt.data.assistant) newPrompt.data.assistant = {};
-        newPrompt.data.assistant.definition = assistantDef;
-
-        setCreatingForGroupId(groupId ?? null);
-        setGroupAssistantForEdit(newPrompt);
-        setShowGroupAssistantModal(true);
-    };
-
-    const handleUpdateGroupNewAssistant = (updatedPrompt: Prompt) => {
+    // EDIT path only — used when admin opens AssistantModal from the admin interface
+    const handleUpdateGroupAssistant = (updatedPrompt: Prompt) => {
         handleUpdateAssistantPrompt(updatedPrompt, promptsRef.current, homeDispatch, selectedAssistant);
-        // Immediately show the new assistant in the Teams tab
-        if (creatingForGroupId) {
-            const updatedGroups = groupsRef.current.map((g: Group) =>
-                g.id === creatingForGroupId
-                    ? { ...g, assistants: [...(g.assistants || []), updatedPrompt] }
-                    : g
-            );
-            homeDispatch({ field: 'groups', value: updatedGroups });
-            setCreatingForGroupId(null);
-        }
     };
 
     const handleStartConversation = (p: Prompt) => {
@@ -753,7 +646,7 @@ const GroupAssistantsTab: React.FC = () => {
                 <SearchInput value={search} onChange={setSearch} placeholder="Search groups…" />
                 {anyAdminAccess && (
                     <button
-                        onClick={() => setShowGroupTypeSelector(true)}
+                        onClick={() => setShowGroupCreationModal(true)}
                         className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium text-white transition-opacity hover:opacity-90"
                         style={{ backgroundColor: 'var(--accent)' }}
                     >
@@ -869,28 +762,26 @@ const GroupAssistantsTab: React.FC = () => {
                 )}
             </div>
 
-            {/* Type selector — Step 0 for new group assistant creation */}
-            {showGroupTypeSelector && (
-                <NewAssistantTypeSelector
-                    onClose={() => setShowGroupTypeSelector(false)}
-                    onConfirm={handleGroupTypeSelectorConfirm}
+            {/* Unified creation modal for new group assistants */}
+            {showGroupCreationModal && (
+                <NewUIAssistantCreationModal
+                    onClose={() => setShowGroupCreationModal(false)}
                 />
             )}
 
-            {/* AssistantModal — opened after type selector confirms */}
+            {/* AssistantModal — EDIT path (opens from admin interface) */}
             {showGroupAssistantModal && groupAssistantForEdit && (
                 <AssistantModal
                     assistant={groupAssistantForEdit}
                     onCancel={() => {
                         setShowGroupAssistantModal(false);
                         setGroupAssistantForEdit(null);
-                        setCreatingForGroupId(null);
                     }}
                     onSave={() => {
                         setShowGroupAssistantModal(false);
                         setGroupAssistantForEdit(null);
                     }}
-                    onUpdateAssistant={handleUpdateGroupNewAssistant}
+                    onUpdateAssistant={handleUpdateGroupAssistant}
                     loadingMessage="Saving assistant…"
                     loc=""
                     disableEdit={false}

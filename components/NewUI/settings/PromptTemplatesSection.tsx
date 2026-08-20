@@ -22,7 +22,7 @@ import HomeContext from '@/pages/api/home/home.context';
 import { Prompt } from '@/types/prompt';
 import { handleStartConversationWithPrompt, createEmptyPrompt, savePrompts } from '@/utils/app/prompts';
 import { isAssistant } from '@/utils/app/assistants';
-import { PromptModal } from '@/components/Promptbar/components/PromptModal';
+import { NewUIPromptCreationModal } from '@/components/NewUI/views/NewUIPromptCreationModal';
 
 // ── Local helper components ──────────────────────────────────────────────────
 
@@ -343,9 +343,9 @@ const PromptTemplatesSection: React.FC = () => {
         )}
       </div>
 
-      {/* Prompt Modal */}
+      {/* Prompt creation/edit modal (new-UI shell) */}
       {showModal && selectedTemplate && (
-        <PromptModal
+        <NewUIPromptCreationModal
           prompt={selectedTemplate}
           onCancel={handleCancelModal}
           onSave={() => {

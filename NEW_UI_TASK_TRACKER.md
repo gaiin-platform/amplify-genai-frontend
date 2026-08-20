@@ -554,9 +554,26 @@ Update NEW_UI_DOCS.md (add to Phase 38 or a new Phase 39) and NEW_UI_PORTING_STA
 
 ## 13. Sidebar Conversation Three-Dot Menu: Pin + Share + Collapsible Sections
 
-**Status:** ⬜ Not started
-**% complete:** ~50% (rename ✅ already exists; pin / share / collapse ❌ not yet)
+**Status:** ✅ Done
+**% complete:** 100%
 **Type:** Small feature — UX enhancement.
+
+### Outcome (Phases 51–52, implemented after 2026-08-19 orchestrator session)
+
+**Phase 51 — Sidebar Three-Dot Menu Upgrade + Collapsible Pinned/Recents:**
+- `ConversationRow.tsx`: Added Pin/Unpin (reads `conversation.data?.pinned`, writes via `handleUpdateConversation`), Share (calls `document.getElementById('shareChatUpper')?.click()` with 50ms delay), divider before Delete, red styling on Delete, `handleUpdateConversation` properly imported from context.
+- `SidebarSection.tsx`: New `isCollapsible?` + `storageKey?` props — chevron toggle, `max-height` animation (`prefers-reduced-motion` gated via Tailwind JIT), keyboard accessible (Enter/Space), `aria-expanded`, `rightSlot` propagation-stopped.
+- `NewSidebar.tsx`: Pinned section (rendered only when `pinnedConversations.length > 0`) using collapsible `SidebarSection` with `storageKey="amplify_sidebar_pinned_collapsed"`; Recents section also collapsible with `storageKey="amplify_sidebar_recents_collapsed"`. TODO comment left to add `pinned?: boolean` to `Conversation` type.
+
+**Phase 52 — Delete Confirmation Dialog + Hover Highlight Fix:**
+- New `components/NewUI/shared/ConfirmDialog.tsx`: reusable portalled confirmation modal with `variant='danger'|'warning'|'neutral'`, focus trap (Cancel focused on open), Escape cancels, backdrop cancels, `aria-modal`, `aria-labelledby`.
+- `ConversationRow.tsx`: delete now shows `ConfirmDialog` before calling `onDelete()`. Visual hover-highlight bug also fixed: removed `hover:bg-[--bg-raised]` from the ⋯ button's className (it was creating a third conflicting background layer).
+- `ConversationHeader.tsx`: header title-dropdown Delete also goes through `ConfirmDialog`.
+- `NewAssistantsView.tsx` (LayeredAssistantsTab): layered-assistant delete also goes through `ConfirmDialog`.
+
+**Note:** `ConfirmDialog.tsx` is now in the Component Registry (wiki §5) as a reusable shared component.
+
+---
 
 The `ConversationRow.tsx` hover ⋯ menu currently has Rename and Delete (wiki Phase 2).
 
@@ -900,9 +917,15 @@ Update NEW_UI_DOCS.md (extend the NewLibraryView registry entry, new phase) and 
 
 ## 19. Sidebar Three-Dot Menu — Delete Button Disappears on Hover
 
-**Status:** ⬜ Not started
-**% complete:** 0%
+**Status:** 🚧 Needs verification — Phase 52 may have resolved this
+**% complete:** ~50%
 **Type:** Bug fix — hover/UX regression.
+
+> **Note (2026-08-20):** Phase 52 fixed a related hover issue in `ConversationRow.tsx` (removed
+> `hover:bg-[--bg-raised]` from the ⋯ button — a competing background layer). It is unknown
+> whether Phase 52 also incidentally resolved the menu-dismissal-on-mouse-out described below.
+> **Verify in the running app before running the prompt below.** If the menu now stays open while
+> mousing to Delete, this task is ✅ Done. If not, run the prompt as written.
 
 When the user clicks the ⋯ button on a conversation row, then moves their mouse toward the Delete option,
 the menu dismisses before they can click Delete. The delete button disappears mid-path as the mouse leaves
@@ -977,11 +1000,86 @@ for CSS scoping. Sidebar nav entry added (`IconPuzzle`, gated by
 
 ---
 
-## Phase 51 — Hover Row Gap Root-Cause Fix (Task 2 final open issue)
+## 22. Modal Header Row Alignment + Dimension Standardization + Admin Stacking Fix
+
+**Status:** ✅ Done
+**% complete:** 100%
+**Type:** Visual polish + bug fix.
+
+### Outcome (Phase 53, 2026-08-20)
+
+From the "Settings modal × button alignment + TwoColumnModalShell" prompt in the previous orchestrator session.
+
+- **× button fix (both modals):** `×` moved out of the `overflow-y:auto` scroll container into a proper flex header row (`display:flex; align-items:center; justify-content:space-between; padding:20px 24px 16px 24px`). Button is now a sibling **above** the scroll container — shares a baseline with the section title for the first time.
+- **Dimensions standardized:** `NewSettingsModal` panel `maxWidth: 1040→1100px`, `height: min(780px, 88dvh) → min(820px, 90dvh)`. Admin was already the larger and is unchanged. Left-rail widths (210px settings vs 220px admin) intentionally left as-is.
+- **`TwoColumnModalShell` extraction deferred (deliberate):** failed the ≤4-extra-props + no-Escape-special-case threshold — admin needs `escapeDisabled` (for `hasChildModalOpen` guard), `zIndex` differs, rail widths differ, `ariaLabelledBy` differs, `contentClassName` differs, and `title` would need to widen to `ReactNode` for admin's "● unsaved" badge. Two readable files with a duplicated 30-line frame beat a shell with six escape hatches.
+- **Admin stacking fix:** admin no longer renders inside the settings overlay — an early return `if (showAdminUI) return <NewAdminModal onClose={onClose} />;` replaces the nested render. Settings frame is not painted while admin is open. Also fixed a related double-Escape bug where both modals' `document` keydown handlers fired simultaneously.
+
+Standing rules added to wiki §9: rules 19 (modal close button in header row) and 20 (one modal at a time — early-return not nested render) and 21 (× label is `"Close"` only).
+
+---
+
+## 23. UI Polish Batch — Phases 54–59
+
+**Status:** ✅ Done
+**% complete:** 100%
+**Type:** Visual polish + CSS bug fixes — all from prompts written in previous orchestrator session.
+
+### Phase 54 — Accent-Brand Teal Border on Composer Card ✅ (2026-08-20)
+From the "Accent brand border on composer" prompt.
+- New `--accent-brand` token (`#0d9488` light / `#14b8a6` dark) in `globals.css` — single-use identity token for the composer card border.
+- `conversation-view.css`: `.new-ui-composer-card` uses `border-color: var(--accent-brand) !important; border-width: 2px !important`. `:focus-within` adds a 3px outer glow ring.
+- `NewHome.tsx` + `ConversationComposer.tsx`: `new-ui-composer-card` class added; border widened to 2px.
+- Standing rule added (wiki §9 rule 21): `--accent-brand` is reserved exclusively for the composer card border. Never use for buttons, active-state borders, loading indicators, or any interactive element. Use `var(--accent)` (blue) for everything interactive.
+
+### Phase 55 — Custom Surface Palette ✅ (2026-08-20)
+- `globals.css`: Full surface token replacement. Two new tokens: `--bg-composer` / `--border-composer-active` (decoupled from `--bg-raised`).
+  - Light: chat area `#fcfcfb`, sidebar `#fbfbf9`, composer `#ffffff`, resting edge `#e5e5e4`, hover/focus edge `#d4d4d1`
+  - Dark: chat area `#151515`, sidebar `#111111`, composer `#20201f`, resting edge `#363635`, hover/focus edge `#4a4a48`
+- `conversation-view.css`: Expanded selector covers both `[data-new-ui-shell="true"]` (NewHome) and `[data-new-ui="true"]` (ConversationComposer). Hover joined focus-within on active edge trigger.
+- `NewHome.tsx` + `ConversationComposer.tsx`: `bg-[--bg-raised]` → `bg-[--bg-composer]`, active-edge Tailwind class updated.
+
+### Phase 56 — Prompt Templates in Settings + Sidebar Items Visibility ✅ (2026-08-20)
+From the "Sidebar item show/hide + Prompt Templates → Customize" prompt.
+- New `components/NewUI/settings/PromptTemplatesSection.tsx` — extracted from `PromptTemplatesTab` in `NewAssistantsView.tsx`. Added to Settings → Customize → Prompt Templates.
+- `NewAssistantsView.tsx`: `'templates'` tab removed; ~180-line `PromptTemplatesTab` definition deleted.
+- New `components/NewUI/shared/sidebarVisibility.ts` — `SidebarVisibility` interface + `SIDEBAR_VISIBILITY_KEY = 'amplify_sidebar_items_visible'`.
+- New `components/NewUI/shared/ToggleSwitch.tsx` — reusable 44×24px pill switch (`role="switch"`, `aria-checked`, 150ms ease transition).
+- New `components/NewUI/settings/SidebarItemsSection.tsx` — toggle rows for chats, assistants, library, workflows (ff-gated), scheduled (ff-gated), notebook (ff-gated). Always-visible: New Chat, Customize, Recents.
+- `NewSettingsModal.tsx`: Prompt Templates and Sidebar Items added to Customize nav group.
+- `NewSidebar.tsx`: `sidebarVisibility` state from localStorage; `amplifySidebarVisibilityChanged` event listener; nav items filtered by `.visible`; icon-rail individually gated.
+
+### Phase 57 — Auto-Collapse Sidebar on Narrow Viewports ✅ (2026-08-20)
+From the "Auto-collapse sidebar on window resize" prompt. Single-file change: `NewSidebar.tsx` only.
+- `SIDEBAR_AUTO_COLLAPSE_THRESHOLD = 768` constant added.
+- `wasAutoCollapsedRef` (useRef<boolean>) distinguishes programmatic from user-initiated collapse.
+- `isOpenRef` always-fresh mirror of `isOpen` state (avoids stale closure in resize handler).
+- Resize effect (empty deps, passive): collapses at < 768px (sets flag, no localStorage write); expands at ≥ 768px only if flag is set (preserves user's manual preference). `handleToggle` clears the flag on user-initiated toggle.
+
+### Phase 58 — Scrollbar Visibility Fixes (CSS-only) ✅ (2026-08-20)
+From the "Scrollbar clipping by mask-image" prompt. Three independent bugs fixed; took 3 revisions per fix.
+- **Chat view mask fix:** `--nui-sb-clear: 16px` custom property on `[data-new-ui="true"]`. Two-layer `mask-image` on `.chatcontainer` — Layer 1 clears the right 16px column (scrollbar track); Layer 2 is the original vertical top-fade. `mask-composite: add` makes the clearance column fully opaque regardless of the fade.
+- **Header/composer overlay fix:** `.new-ui-header` and `.new-ui-composer-dock` get `right: var(--nui-sb-clear)` with compensating `padding-right: calc(originalPad - var(--nui-sb-clear))`. Overlays no longer paint over the scrollbar gutter; child positions unchanged.
+- **Scroll-activity-gated visibility:** `ConversationViewShell.tsx` adds `data-scrolling="true"` on `.chatcontainer` during scroll, clears after 700ms idle. CSS keys thumb color off that attribute: `transparent !important` at rest, `#93c5fd !important` while scrolling, `#60a5fa` on `:hover`.
+- **Sidebar recents:** `maskImage` inline style removed from recents scroll div entirely.
+
+### Phase 59 — Scrollbar Always-Visible Bug (CSS Cascade Fix) ✅ (2026-08-20)
+From the "Scrollbar auto-hide CSS cascade bug" prompt. Single CSS line change.
+- **Root cause:** Chrome resolves conflicting `!important` rules on `::-webkit-scrollbar-*` by source order (not specificity). The global `[data-new-ui="true"] ::-webkit-scrollbar-thumb { background-color: #93c5fd !important }` rule (~line 1145) appeared AFTER the `.chatcontainer`-specific `transparent !important` rule (~line 269) — Chrome always picked line 1145, making the thumb permanently blue regardless of `data-scrolling`.
+- **Fix:** Removed `!important` from `background-color` on the global rule at ~line 1145 only. Block A (chat-specific) now correctly wins for `.chatcontainer`; all other scrollbars still use Block B's `#93c5fd`.
+- Wiki §9 updated with new Standing Rule §13 documenting the Chrome source-order gotcha.
+
+---
+
+## Phase 60 — Hover Row Gap Root-Cause Fix (Task 2 final open issue)
 
 **Status:** ⬜ Not started
 **% complete:** 0%
 **Type:** Bug fix — spacing regression confirmed still present (2026-08-19).
+
+> **Phase number note:** The previous orchestrator session labeled this "Phase 51" in this tracker,
+> but the wiki independently used Phase 51 for the Sidebar Three-Dot Menu (Task 13). Renaming
+> to Phase 60 to match the wiki's actual numbering (Phases 51–59 are all complete as of 2026-08-20).
 
 ### What's wrong
 Three distinct issues (user-confirmed still present as of 2026-08-19 — not fixed by Phases 33–37):
@@ -1052,7 +1150,7 @@ Verify by code-trace that after your changes:
 - The hover row is fully contained within its message's padding-bottom reserve and does not
   visually overlap the next turn.
 
-Update `NEW_UI_DOCS.md` (Phase 51, note the CSS values changed) and
+Update `NEW_UI_DOCS.md` (Phase 60, note the CSS values changed) and
 `NEW_UI_PORTING_STATUS.md` §2 (hover action row row → mark fully ✅ when all three resolved).
 ```
 
@@ -1060,45 +1158,44 @@ Update `NEW_UI_DOCS.md` (Phase 51, note the CSS values changed) and
 
 ## Suggested Sequencing Summary
 
-> **Current state as of 2026-08-19 (updated by orchestrator):**
-> Phases 1–50 complete. The "prompts written, not yet run" block from the previous orchestrator
-> session is now fully executed. Tasks 11, 15, 20, 21 and Task 3 (Phases 46–48) are all ✅ Done.
+> **Current state as of 2026-08-20 (updated by orchestrator):**
+> Phases 1–59 complete. Wiki is 9 phases ahead of where the previous orchestrator left the tracker.
+> Tasks 13, 22, 23 (Phases 51–59) are all ✅ Done.
+> The 6 prompts written-but-not-tracked in the previous session all landed successfully.
 
-**Immediate — open bugs:**
-1. **Phase 51** — Hover row gap root-cause fix (three spacing issues; user-confirmed still present)
-2. **Task 19** — Three-dot delete button disappears on hover (ConversationRow.tsx bug)
-
-**Next feature — ready now:**
-3. **Task 13** — Sidebar three-dot menu: Rename | Delete | Share | Pin + collapsible Pinned/Recents sections (prompt ready above)
+**Immediate — open bugs (highest priority):**
+1. **Phase 60** — Hover row gap root-cause fix (three spacing issues; confirmed still present as of 2026-08-19; prompt ready above). This is the longest-standing open defect.
+2. **Task 19** — Three-dot delete button disappears on hover. **Verify in-app first** — Phase 52 fixed a related hover-background issue; confirm if the menu-dismiss problem is also resolved before running the prompt.
 
 **Short-term features (in recommended order):**
-4. **Task 12** — User message edit UI (CSS-only, fast)
-5. **Task 14b** — Pending upload UX refinement
-6. **Task 17** — "Setting up Amplify" loading animation replacement
-7. **Task 18** — Library preview + filter/sort
-8. **Task 16** — Custom Instructions overhaul (multiple named sets + wire into new conversations)
+3. **Task 12** — User message edit UI (CSS-only, fast — single `conversation-view.css` session)
+4. **Task 14b** — Pending upload UX refinement (navigate to chat immediately; fire API when uploads done)
+5. **Task 17** — "Setting up Amplify" loading animation replacement
+6. **Task 18** — Library preview + filter/sort
+7. **Task 16** — Custom Instructions overhaul (multiple named sets + wire into new conversations)
 
 **Longer horizon:**
-- **Task 4c** (Helper assistants) → **Task 7** (Learn page) — natural pair
+- **Task 4c** (Helper assistants) → **Task 7** (Learn page) — natural pair, Learn page depends on Helper
 - **Task 6** (Model info page)
-- **Task 8** (Sharing overhaul — UX design pass first)
-- **Task 10** (Standalone assistant page)
-- **Task 9** (a11y pass 2 — after more features land)
-- **Task 4a** (Memory — intentionally last; needs design doc first)
+- **Task 8** (Sharing overhaul — UX design pass first, no existing new-UI reference pattern for "receive")
+- **Task 10** (Standalone assistant page — `/assistants/[slug]`)
+- **Task 9** (a11y pass 2 — after more features land; don't run until Tasks 12/14b/17/18 are done)
+- **Task 4a** (Memory — intentionally last; needs design doc first before any code)
 
 **Backend prerequisites (do not start frontend work until backend is ready):**
 - Task 4b (Deep Research) — needs backend orchestration built first
 - Task 4d (Usage) — needs backend cost/token data API confirmed first
 
-**Recently completed (since last orchestrator session, 2026-08-19):**
-- Phase 43 ✅ — Dual loading-dot fix + "Thinking…" animated text (ConversationViewShell + CSS)
-- Phase 44 ✅ — User-resizable sidebar width (Task 11, NewSidebar.tsx)
-- Phase 45 ✅ — Settings Account/Storage/Connectors new-UI redesign (Task 20)
-- Phase 46 ✅ — Assistant creation type selector + 5-tab assistants view overhaul (Task 3 Prompt A)
-- Phase 47 ✅ — AssistantModal CSS styling + team creation + all cards → modal (Task 3 cont.)
-- Phase 48 ✅ — Hover-preview info cards + Floating UI submenu positioning (Task 3 Prompt B)
-- Phase 49 ✅ — Workflow Templates full-pane view + sidebar nav entry (Task 21)
-- Phase 50 ✅ — Blue accent color pass (Task 15): `--accent` → `#3b82f6`/`#006FEE`, standing rule added
+**Recently completed (since last orchestrator session, 2026-08-19 → 2026-08-20):**
+- Phase 51 ✅ — Sidebar three-dot menu: Pin/Unpin/Share + collapsible Pinned & Recents sections (Task 13)
+- Phase 52 ✅ — ConfirmDialog shared component + ConversationRow/Header/AssistantsView delete confirmation + hover highlight fix (Task 13 cont. / Task 22)
+- Phase 53 ✅ — Modal × header-row alignment + dimension standardization + admin-stacking fix + double-Escape fix (Task 22)
+- Phase 54 ✅ — `--accent-brand` teal composer border token (Task 23 batch)
+- Phase 55 ✅ — Custom surface palette (`--bg-composer`, `--border-composer-active`, full surface token set) (Task 23 batch)
+- Phase 56 ✅ — Prompt Templates → Settings + Sidebar Items visibility section + ToggleSwitch + sidebarVisibility.ts (Task 23 batch)
+- Phase 57 ✅ — Auto-collapse sidebar at < 768px with `wasAutoCollapsedRef` memory (Task 23 batch)
+- Phase 58 ✅ — Scrollbar mask-image fix (two-layer + `--nui-sb-clear`) + scroll-activity-gated visibility + sidebar recents mask removed (Task 23 batch)
+- Phase 59 ✅ — Chrome `!important` source-order cascade bug fixed (single `!important` removal on global scrollbar rule) (Task 23 batch)
 
 ---
 
@@ -1129,3 +1226,10 @@ Update `NEW_UI_DOCS.md` (Phase 51, note the CSS values changed) and
   prompt fully updated with new requirements: Rename | Delete | Share | Pin menu items + collapsible
   Pinned and Recents sections with chevron arrows + localStorage persistence for collapse state.
   Sequencing summary rewritten to reflect current reality. Tasks 20 and 21 given proper sections.
+- **2026-08-20** — (New orchestrator session) Major tracker update: wiki audit confirms Phases 51–59
+  all ✅ Done — tracker was 9 phases behind. All 6 "prompts written in previous session" from the
+  handoff note confirmed landed. Task 13 ✅ Done (Phases 51+52). New Tasks 22 (Phase 53 modal
+  alignment) and 23 (Phases 54–59 UI polish batch) added and marked ✅ Done. Tracker's old "Phase 51"
+  hover row gap section renamed to Phase 60 (avoid collision with wiki Phase 51 = sidebar menu). Task
+  19 (delete disappears on hover) marked 🚧 needs verification — Phase 52 fixed a related hover
+  issue; in-app verify before running the prompt. Sequencing summary fully rewritten.

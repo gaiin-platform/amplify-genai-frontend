@@ -382,6 +382,34 @@ components/NewUI/
                                All creation flows use NewAssistantTypeSelector → AssistantModal / PromptModal / openLayeredBuilderTrigger
                                Group admin actions gate on featureFlags.assistantAdminInterface + GroupAccessType
                                Old AssistantGallery still renders in the classic-UI path — untouched.
+    NewUIAssistantCreationModal.tsx ← SPECIFIC unified assistant creation form (Phase 58).
+                               Replaces the two-step NewAssistantTypeSelector → AssistantModal flow
+                               with a single CreationModalShell containing:
+                               Section A — "Who can access?" (three access-type cards: Private /
+                               Managed URL / Team). Same logic as NewAssistantTypeSelector Card 1/2/3
+                               (slug validation, createAstAdminGroup + updateGroupMembers for new teams).
+                               Section B — essential form fields (Name, Description, Instructions,
+                               Enforce Model toggle + ModelPicker, Tags).
+                               "Advanced settings →" escape hatch closes this modal and opens old
+                               AssistantModal pre-populated with values so far (wiki §9 rule 21).
+                               // TODO: Port advanced fields (data sources, APIs, skills, email events,
+                               // workflows) in a future phase.
+                               Props: onClose, initialGroupId?
+                               Save: calls createAssistant() from assistantService, then addAssistantPath()
+                               for Managed URL, then handleUpdateAssistantPrompt() + groups dispatch
+                               (mirrors NewAssistantsView.handleUpdateAssistant behavior).
+                               Option A rationale: AssistantModal initializes state once from props — making
+                               access type + form simultaneously editable requires owning the form state.
+                               Used by: MyAssistantsTab + GroupAssistantsTab in NewAssistantsView.tsx.
+    NewUIPromptCreationModal.tsx ← SPECIFIC unified prompt template creation/edit form (Phase 58).
+                               Wraps essential fields in CreationModalShell to match assistant creation
+                               modal dimensions and chrome. Props mirror PromptModal for 1:1 swap.
+                               Fields: Name, Description, Prompt body (content).
+                               "Full editor →" escape hatch opens old PromptModal pre-populated (§9 rule 21).
+                               // TODO: Port advanced fields (type selector, variables, tags, code block)
+                               // in a future phase.
+                               Props: prompt, onSave, onCancel, onUpdatePrompt — identical to PromptModal.
+                               Used by: PromptTemplatesSection.tsx (drop-in replacement of PromptModal).
     NewAssistantTypeSelector.tsx ← SPECIFIC Step 0 wizard modal for new assistant creation.
                                Props: onClose, onConfirm(astPath, astPathData, groupId?)
                                Three cards: Private (no path) / Managed (path + sub-options) / Collaborative (team).
@@ -598,6 +626,20 @@ components/NewUI/
                                Focus: focus-visible ring (2px --accent, offset-1).
                                Click: calls e.stopPropagation() so parent row onClick doesn't double-fire.
                                Used by: SidebarItemsSection.tsx toggle rows.
+    CreationModalShell.tsx   ← REUSABLE single-column creation modal shell (Phase 58)
+                               Props: title, onClose, onSave?, saveLabel?, isSaving?, saveDisabled?, children
+                               Dimensions: maxWidth:1100px, height:min(820px,90dvh) — matches
+                               NewSettingsModal / NewAdminModal. Single-column (no left rail).
+                               Layout: fixed overlay → flex-column panel → header row
+                               (title h2 + borderless × button, wiki §9 rule 19) → scrollable body
+                               (flex:1 minHeight:0) → optional footer (Cancel + accent Save button).
+                               Accessibility: role=dialog aria-modal aria-labelledby=creation-modal-title,
+                               tabIndex=-1 + panelRef.focus() on open, Tab/Shift-Tab focus trap,
+                               Escape → onClose, backdrop click → onClose.
+                               Entrance animation: class "new-ui-creation-modal-panel" defined in
+                               conversation-view.css → creationModalIn @keyframes (opacity + translateY(8px→0),
+                               150ms ease-out, prefers-reduced-motion gated).
+                               Used by: NewUIAssistantCreationModal.tsx, NewUIPromptCreationModal.tsx
     menuPositioning.ts       ← SHARED Floating UI config for NESTED submenu panels (Phase 48)
                                Exports: SUBMENU_PLACEMENT ('right-start'), submenuMiddleware(gap=4), submenuStyle()
                                Middleware: offset(gap) + flip({crossAxis: false, fallbackPlacements:
@@ -2876,7 +2918,192 @@ bottom fade, clipping the scroll thumb at both ends of the recents list.
 - [x] `styles/conversation-view.css` — two-layer `mask-image` on `.chatcontainer` using `var(--nui-sb-clear)`
 - [x] `styles/conversation-view.css` — `.new-ui-header { right: var(--nui-sb-clear); padding-right: calc(20px - var(--nui-sb-clear)) }` — inset + compensation
 - [x] `styles/conversation-view.css` — `.new-ui-composer-dock { right: var(--nui-sb-clear); padding-right: calc(24px - var(--nui-sb-clear)) }` — inset + compensation
+- [x] `styles/conversation-view.css` — `.chatcontainer::-webkit-scrollbar-thumb` set to `transparent !important`; revealed by `[data-scrolling="true"]` (and by `::-webkit-scrollbar-thumb:hover` so it stays grabbable). `!important` required to override the `[data-new-ui-shell]` shell rule in `globals.css`.
+- [x] `components/NewUI/chat/ConversationViewShell.tsx` — `SCROLLBAR_IDLE_MS = 700`; effect toggles `data-scrolling` on `.chatcontainer` during scroll, clears it after idle
 - [x] `components/NewUI/sidebar/NewSidebar.tsx` — `maskImage` removed from recents scroll div `style` prop
+
+#### Fix 4 — Scrollbar visible only while actively scrolling (addendum)
+
+**Requirement:** the chat scrollbar should appear only while the user is scrolling, not permanently.
+
+**Wrong approach (1st attempt, reverted):** `.chatcontainer:hover::-webkit-scrollbar-thumb`. In a
+full-height chat view the pointer rests over `.chatcontainer` essentially all the time, so `:hover`
+never released and the thumb stayed visible — indistinguishable from the original bug.
+
+**Shipped fix:** scroll activity drives the state, not pointer presence.
+- `ConversationViewShell.tsx` adds an effect that sets `data-scrolling="true"` on `.chatcontainer` on
+  each scroll event and removes it `SCROLLBAR_IDLE_MS` (700ms) after the last one. The write is
+  idempotent-guarded (`isMarked` flag) so a 60fps scroll doesn't trigger a style recalc per event.
+- `conversation-view.css` keys the thumb colour off that attribute: `transparent !important` by
+  default, `#93c5fd !important` when `[data-scrolling="true"]`, plus a `::-webkit-scrollbar-thumb:hover`
+  rule so the thumb is still visible/grabbable for click-drag when idle.
+
+**Verified in a headless Chrome harness (paint level, not just computed style):** the scrollbar column
+contains 0 blue pixels with the attribute absent and 78 with it present — confirming Chrome does
+repaint `::-webkit-scrollbar-thumb` in response to an attribute change on the scroll container.
+
+**Gotcha:** Chrome does not animate `transition` on `::-webkit-scrollbar-thumb` — scrollbar
+pseudo-elements are painted outside the transition pipeline. The show/hide is a hard cut by design;
+adding a `transition` there is inert. Don't re-add one expecting a fade.
+
+**Not applied to the sidebar recents scrollbar** — that one is already correct per user confirmation
+and uses a different element/selector path; left untouched deliberately.
+
+### Phase 59 — Chat Scrollbar Always-Visible Bug (CSS cascade fix) ✅ COMPLETE
+
+**Changed files:** `styles/conversation-view.css` only. Zero JS changes.
+
+**Bug:** The chat-view scroll thumb was permanently blue even though the scroll-activity-gated
+visibility mechanism (set `data-scrolling="true"` on `.chatcontainer` while scrolling, clear after
+`SCROLLBAR_IDLE_MS = 700ms`) was already fully implemented and correct in both CSS and JS.
+
+**Root cause — Chrome source-order tie-break for `::-webkit-scrollbar` `!important` conflicts:**
+
+Standard CSS specificity says the higher-specificity selector wins when rules at equal specificity
+both carry `!important`. **Chrome's scrollbar paint path does not honour this for
+`::-webkit-scrollbar-*` pseudo-elements.** When two matching rules both carry `!important`, Chrome
+picks the *later-in-file* one regardless of selector specificity.
+
+Two conflicting rules existed in `conversation-view.css`:
+
+| Block | Line | Rule | `!important`? |
+|---|---|---|---|
+| **Block A** | ~269 | `.chatcontainer::-webkit-scrollbar-thumb { background-color: transparent }` | ✅ yes |
+| **Block B** | ~1145 | `[data-new-ui="true"] ::-webkit-scrollbar-thumb { background-color: #93c5fd }` | ✅ yes |
+
+Block B is later → Chrome always used Block B's blue → thumb was permanently visible.
+Block A's `data-scrolling` override was silently dead — it could never win.
+
+**Fix:** Removed `!important` from `background-color` on Block B only. `border-radius: 2px !important`
+was left unchanged because it has no competing rule.
+
+Without `!important` on Block B's `background-color`:
+- For `.chatcontainer`: Block A's `!important` declarations win (transparent idle; blue when
+  `[data-scrolling="true"]`; `#60a5fa` on `:hover`) — exactly the intended behaviour.
+- For all other scroll areas (reasoning blocks, settings panels, lists): Block B is the only matching
+  rule — no competition, blue `#93c5fd` as before.
+- Block B still beats the base `globals.css` rule (specificity `(0,1,0)` vs `(0,0,0)`) without
+  needing `!important` — no regression elsewhere.
+
+Block B's comment was updated to explain why `!important` is intentionally absent.
+
+**Cascade verification table:**
+
+| State | Winning rule | Expected colour |
+|---|---|---|
+| Idle (no `data-scrolling`) | Block A `transparent !important` beats Block B `#93c5fd` (no `!important`) | transparent ✓ |
+| Scrolling (`data-scrolling="true"`) | `.chatcontainer[data-scrolling="true"] !important` beats Block B (no `!important`) | `#93c5fd` blue ✓ |
+| Hover directly on thumb | `::-webkit-scrollbar-thumb:hover !important` wins | `#60a5fa` blue ✓ |
+| Other scroll areas | Block B `#93c5fd` (only matching rule) | `#93c5fd` blue ✓ — unchanged |
+
+- [x] `styles/conversation-view.css` — removed `!important` from `background-color` on global
+  `[data-new-ui="true"] ::-webkit-scrollbar-thumb` rule (~line 1145); updated comment explaining why
+- [x] `NEW_UI_WIKI_INSTRUCTIONS.md` §9 — new Standing Rule §13 added (see §13 below)
+
+---
+
+### Phase 60 — Unified Assistant Creation Modal + CreationModalShell ✅ COMPLETE
+
+**Goal:** Merge the two-step "Step 0 type selector → AssistantModal" flow into a single unified creation
+form. Apply the same visual shell to the prompt-template creation flow.
+
+**Changed files:**
+- `components/NewUI/shared/CreationModalShell.tsx` — NEW (reusable modal shell)
+- `components/NewUI/views/NewUIAssistantCreationModal.tsx` — NEW (unified assistant creation)
+- `components/NewUI/views/NewUIPromptCreationModal.tsx` — NEW (prompt template creation wrapper)
+- `components/NewUI/views/NewAssistantsView.tsx` — wired new modals, removed type selector
+- `components/NewUI/settings/PromptTemplatesSection.tsx` — swapped PromptModal → NewUIPromptCreationModal
+- `components/NewUI/views/NewAssistantTypeSelector.tsx` — marked deprecated (keep for verification)
+- `styles/conversation-view.css` — added `creationModalIn` @keyframes + `.new-ui-creation-modal-panel`
+
+#### Investigation findings (Step 0)
+
+**AssistantModal:** Uses `<Modal>` from `ReusableComponents/Modal.tsx`. Modal renders inline (no
+`createPortal`). Has `embed=true` prop that removes the Modal wrapper. **Option B (CSS-suppression)
+was NOT chosen despite inline rendering** because AssistantModal initialises `astPath`/`groupId` state
+once from props via `useState`. With Section A and Section B simultaneously visible (user can change
+access type at any time), re-mounting on access-type change would reset all form state.
+→ **Option A chosen**: port essential fields, own form state here, call `createAssistant()` directly.
+
+**PromptModal:** Also uses `<Modal>` inline. Same situation — Option A chosen for consistency.
+
+#### CreationModalShell (shared/)
+
+- `maxWidth: 1100px`, `height: min(820px, 90dvh)` — matches NewSettingsModal / NewAdminModal
+- Single-column (no left rail). Flex-column: header row (§9 rule 19) → scroll body → optional footer
+- Focus trap (Tab/Shift-Tab), Escape → onClose, backdrop-click → onClose
+- Entrance animation: `creationModalIn` @keyframes in `conversation-view.css` (150ms ease-out,
+  `prefers-reduced-motion` gated via class `new-ui-creation-modal-panel`)
+- Footer only rendered when `onSave` is provided; Cancel is ghost/text, Save is filled `--accent`
+
+#### NewUIAssistantCreationModal (views/)
+
+**Section A — "Who can access?"**
+- Three AccessCard rows: Private (IconLock) / Managed URL (IconShare, ff-gated) / Team (IconUsers)
+- Selected card: `border-color: var(--accent)`, `background: color-mix(in srgb, var(--accent) 8%, ...)`
+- Managed URL: reveals slug input + sub-option radio cards (Specific people / Anyone with link)
+- Team: "Use existing team" vs. "Create new team" toggle; new team logic ported verbatim from
+  NewAssistantTypeSelector.tsx Card 3 (`createAstAdminGroup` + `updateGroupMembers`)
+
+**Section B — Form fields (always visible)**
+- Name (required), Description, Instructions/System Prompt, Disclaimer to Append to Responses
+- Enforce Model checkbox + ModelPicker
+- **Data Sources (unified single section):** Three method-selector buttons — "From your computer" (always), "Website URL" (`featureFlags.websiteUrls`-gated), "OneDrive / SharePoint" (`featureFlags.integrations && accessType !== 'collaborative'`-gated). Clicking a button toggles the corresponding input panel (only one panel open at a time). Panels: upload uses `AttachFile` + "Browse library" toggle → `DataSourceSelector`; website uses `WebsiteURLInput`; drive uses `AssistantDriveDataSources`. A unified `FileList` below the panels shows all attached items with an `Attached (N)` count header. Drive files remain managed by `AssistantDriveDataSources` internally and are not merged into the `FileList`.
+- Skills: `SkillsSection` (gated by `featureFlags.skills && chatEndpoint`)
+- Tools / APIs: `ApiIntegrationsPanel` with lazy `getOpsForUser` + `getAgentTools` load (gated by `featureFlags.integrations`)
+- All fields own their own `useState` — independent of access type selection
+
+**Advanced Settings ▾ inline accordion (bottom of form)**  
+Uses CSS Grid `grid-template-rows: 0fr → 1fr` animation (no max-height guessing). Contains **all** options from the old AssistantModal Advanced section:
+- **Tags** — comma-separated
+- **Conversation Tags** — auto-applied to every conversation
+- **Assistant Type** (`opsLanguageVersion` select: Standard/Custom/Agent) — gated by `featureFlags.integrations`; locked to Agent (v4) when workflow template is selected
+- **Allow Request Access** — `availableOnRequest` checkbox (always shown)
+- **Data Source Options** — `FlagsMap` using `VISIBLE_DATA_SOURCE_FLAGS` (only `includeDownloadLinks` shown; others kept at defaults)
+- **Message Options** — `FlagsMap` using `MESSAGE_OPTION_FLAGS`
+- **Feature Options** — `FlagsMap` using `FEATURE_OPTION_FLAGS`; shown only when `featureOptions` has keys (gated by `featureFlags.artifacts`)
+- **API Options** — `FlagsMap` using `API_OPTION_FLAGS`; gated by `featureFlags.assistantApis`
+- **Email Events** — `AssistantEmailEvents` component; gated by `featureFlags.assistantEmailEvents && accessType !== 'collaborative'`; email event template registered post-creation (after assistantId is known)
+
+Flag constants (`DATA_SOURCE_FLAGS`, `MESSAGE_OPTION_FLAGS`, `FEATURE_OPTION_FLAGS`, `API_OPTION_FLAGS`) are defined at module scope in the file (copied from AssistantModal — not exported from there).
+
+**On Save:**
+1. Validate name + file upload completion check (blocks save if uploads in-flight)
+2. Resolve groupId (may create new team via `createAstAdminGroup` + `updateGroupMembers`)
+3. Process `dataSources` with S3 key formatting (mirrors AssistantModal logic)
+4. Build `AssistantDefinition` including all advanced fields (`availableOnRequest`, `dataSourceOptions`, `messageOptions`, `featureOptions`, `apiOptions`, `opsLanguageVersion`)
+5. Call `createAssistant(def)` from `assistantService.ts`
+6a. If email events enabled: call `addEventTemplate()` with resolved tag + template (non-blocking on failure)
+6b. If Managed URL: call `addAssistantPath()`
+7. Call `handleUpdateAssistantPrompt()` + groups `homeDispatch` for teams
+8. `onClose()`
+
+#### NewUIPromptCreationModal (views/)
+
+- Props mirror PromptModal for 1:1 drop-in swap in PromptTemplatesSection
+- Ports: Name, Description, Prompt body (content)
+- "Full editor →" opens old PromptModal pre-populated (§9 rule 21)
+// TODO: Port advanced fields (type selector, variables, tags, code block) in a future phase.
+
+#### Wire-up in NewAssistantsView
+
+**MyAssistantsTab:**
+- Removed: `showTypeSelector`, `handleTypeSelectorConfirm`, `creatingForGroupId`
+- Added: `showCreationModal` → `<NewUIAssistantCreationModal onClose={...} />`
+- `handleNewAssistantClick()` → `setShowCreationModal(true)` (was `setShowTypeSelector(true)`)
+- `handleUpdateAssistant` simplified — creation logic moved into new component
+- Edit path (`handleEditAssistant` → `AssistantModal`) unchanged
+
+**GroupAssistantsTab:**
+- Removed: `showGroupTypeSelector`, `handleGroupTypeSelectorConfirm`, `creatingForGroupId`,
+  `handleUpdateGroupNewAssistant`
+- Added: `showGroupCreationModal` → `<NewUIAssistantCreationModal onClose={...} />`
+- Edit path unchanged
+
+**NewAssistantTypeSelector.tsx:** Marked with deprecation header comment; safe to delete after
+verification in next session.
+
+---
 
 ### Phase 19 — Remaining Port Work (NEXT)
 - [x] Responsive: icon rail at 760-1099px ✅ resolved
@@ -3210,6 +3437,37 @@ In the new-UI chat view, BOTH `.new-ui-header` (zIndex:30) and `.new-ui-composer
 required this treatment — see Phase 58 Fix 2. Both had `padding-right` > `--nui-sb-clear` so the
 compensating `calc()` stays positive (16px < 20px header / 24px dock), keeping all children at their
 original pixel positions.
+
+### ::-webkit-scrollbar `!important` cascade rule (Phase 59)
+
+**Chrome resolves `::-webkit-scrollbar-*` `!important` conflicts by source order, not specificity.**
+When two matching rules both carry `!important`, Chrome's scrollbar paint path picks the
+*later-in-file* rule regardless of selector specificity. This is the opposite of standard CSS
+tie-breaking (which says the higher-specificity rule wins).
+
+**Standing rule:** When writing `::webkit-scrollbar` rules, **never use `!important` on the
+global/fallback rule if a more-specific override rule also uses `!important`**. One of two
+approaches must be used:
+
+- **Preferred (this project's approach):** Drop `!important` from the global/fallback rule.
+  The more-specific override keeps its `!important` and wins for the targeted scroll container.
+  The global rule still beats any lower-specificity base rule without needing `!important` (as
+  long as its attribute-selector specificity is higher than the base rule).
+- **Alternative:** Place the override rule *later* in the file than the global rule. Then
+  source-order works for you — but this makes the file order load-bearing, which is fragile.
+  The preferred approach is safer.
+
+**Symptom when this rule is violated:** A scroll thumb that should be hidden (or a different
+colour) by a more-specific data-attribute selector is permanently the global colour instead.
+The JS attribute toggle fires correctly and DevTools shows the attribute present on the element,
+but the colour never changes. This is the tell-tale sign that the `!important` source-order
+quirk is in play, not a selector bug.
+
+**Example (this project):**
+- Block A (~line 269): `.chatcontainer::-webkit-scrollbar-thumb { background-color: transparent !important }`
+- Block B (~line 1145): `[data-new-ui="true"] ::-webkit-scrollbar-thumb { background-color: #93c5fd }` ← **no `!important`**
+- Block A is earlier AND more specific → Block A's `!important` wins for `.chatcontainer`. ✓
+- Block B still wins over the base `globals.css` rule (specificity `(0,1,0)` > `(0,0,0)`). ✓
 
 ---
 

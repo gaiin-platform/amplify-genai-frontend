@@ -1,3 +1,7 @@
+// REPLACED BY NewUIAssistantCreationModal.tsx — safe to delete after verification.
+// NewUIAssistantCreationModal merges the access-type selection (previously this
+// component) with the creation form into a single unified modal. This file is
+// kept for one session as a fallback reference only.
 /**
  * NewAssistantTypeSelector — "Step 0" wizard modal shown before AssistantModal
  * opens. Lets the user pick an access model (private / managed-by-me / team)
