@@ -373,7 +373,18 @@ components/NewUI/
                                via its own lookupAssistant effect on mount — see file header for full explanation).
   settings/
     NewSettingsModal.tsx     ← two-column settings modal. Props: onClose, openToSection?:string
+                               Panel: maxWidth 1100px, height min(820px, 90dvh) — STANDARDIZED with
+                               NewAdminModal (Phase 53). Left rail 210px.
+                               Right pane is a flex COLUMN: fixed header row (flexShrink:0,
+                               padding 20px 24px 16px) holding [h2#settings-modal-heading ...... ×]
+                               above a flex:1/minHeight:0/overflowY:auto content div (contentRef).
     NewAdminModal.tsx        ← two-column admin panel (same shell as NewSettingsModal). Props: onClose, openToTab?:AdminTab
+                               Panel: maxWidth 1100px, height min(820px, 90dvh). Left rail 220px.
+                               Same flex-column right pane + header row as NewSettingsModal (Phase 53);
+                               its h2 additionally renders the inline "● unsaved" badge, and the ×
+                               runs the unsaved-changes confirm before onClose.
+                               NOTE: outer frame is deliberately NOT extracted into a shared shell —
+                               see Phase 53 for the rationale (admin's Escape guard + 5-6 extra props).
     NewAccountSection.tsx    ← SPECIFIC account settings section (Phase 45). No props.
                                Self-loads accounts via getAccounts(). MTD cost card + rate-limit
                                warning banner + add/edit/delete accounts + default selector + save.
@@ -1470,72 +1481,16 @@ CSS-only except Bugs 2 and 3 (TypeScript). Zero changes outside the two permitte
     message rather than floating chrome.
 
 ### Phase 33 — Action Row Positioning Rewrite (fixed → absolute-in-scroller) ✅ COMPLETE
-Rewrote the positioning model in `NewUIMessageActionsLayer.tsx` and made two CSS fixes in
-`styles/conversation-view.css`. Zero changes outside those two files (One-Directory Rule observed).
 
-**Part 1 — `position: fixed` → `position: absolute` inside the scroll container:**
-- [x] **Root cause of the scroll "lag/detach":** `position: fixed` rows were positioned from
-  `getBoundingClientRect()` into React state and re-computed on every scroll frame via `rAF`. There
-  is always ≥1 paint frame where the fixed row's viewport position doesn't match the message's new
-  scroll position — intrinsic to reading DOM position into React state; no listener/rAF tuning can
-  close it.
-- [x] **The fix:** rows are now `position: absolute` children of an overlay div (`.new-ui-actions-overlay`,
-  `position:absolute; inset:0; pointer-events:none; overflow:visible`) that is `createPortal`'d
-  **directly into `.chatcontainer`** (the scroller) as its last child — the same proven portal
-  pattern as `NewUIUserMessageMarkdownLayer` (which portals into each `#chatHover`). Because the rows
-  live *inside* the scroller, they scroll with the content automatically — **zero scroll listeners,
-  zero rAF, no per-frame position state anywhere in the component.**
-- [x] `computePosition()` fully replaced. New `offsetWithin(el, container)` helper walks the
-  `offsetParent` chain from the anchor (`#chatHover`) up to `.chatcontainer`, summing
-  `offsetTop`/`offsetLeft` to get the element's edge in container scroll coordinates. Row `top` =
-  `anchorTop + anchor.offsetHeight + GAP(6px)`. Assistant `left` = anchor's `offsetLeft`. User
-  `right` = `container.clientWidth - (offsetLeft + offsetWidth)`. **No `getBoundingClientRect()`
-  anywhere** — these are pure layout values, stable regardless of scroll position.
-- [x] `.chatcontainer` made `position: relative !important` in `conversation-view.css` so it is the
-  offsetParent / containing block for the overlay and its rows. (`.enhanced-chat-message` are direct
-  children of `.chatcontainer`; `#chatHover` sits inside a `position:relative`
-  `.enhanced-message-content` — the offsetParent walk terminates cleanly at `.chatcontainer`.)
-- [x] Removed the `position` React state from `ActionRow`; position is passed on the `Slot` and set as
-  an inline `top`/`left`/`right` on the absolute row. Recompute happens only in `scan()` — triggered
-  by the existing `MutationObserver` (subtree, 120ms debounce; now ignores mutations inside our own
-  overlay to avoid a rescan loop) + the message-count/streaming effect + a debounced `window` **resize**
-  listener (resize changes column width → row edges; this is a layout change, deliberately NOT a scroll
-  listener). Overlay is created on attach and removed on cleanup.
+**Root cause:** `position: fixed` rows were positioned via `getBoundingClientRect()` into React state on every scroll frame — always ≥1 paint frame behind, unfixable with tuning.
 
-**Part 2 — Removed the always-visible last-assistant row (per user request):**
-- [x] `scan()` no longer computes `isLastAssistant`; the field was removed from `Slot` entirely.
-- [x] `data-last-assistant` attribute assignment removed from the row div.
-- [x] `.new-ui-msg-action-row[data-last-assistant="true"]:not(:hover):not(:focus-within){opacity:.6}`
-  rule removed from `conversation-view.css` (replaced with a note). Rows now appear on hover/focus
-  only, for every message including the last.
-- [x] `ActionRow` visibility simplified to `const visible = hovered || focused;`.
+**Fix:** rows are `position: absolute` children of `.new-ui-actions-overlay` (inset:0, pointer-events:none) `createPortal`'d directly into `.chatcontainer`. They scroll with content for free — no scroll listeners, no rAF, no per-frame state.
 
-**Part 3 — Hover-disappear fix + removed `pointermove` keep-alive:**
-- [x] Removed the Phase 32 `pointermove` keep-alive `useEffect` (and its 60px proximity-zone logic) —
-  it was a workaround for the fixed-position gap and is unnecessary now the row is in-flow, 6px below
-  the content inside the same scroll container (tiny pointer travel).
-- [x] Hide grace timer reduced from 600ms → **200ms** in both `onMouseOut` and `handleRowHoverChange`
-  — the disappear-on-move issue resolves because the row is now adjacent in the DOM (portal child of
-  `.chatcontainer`) rather than a floating fixed overlay outside the message. `hideTimerRef` cancel on
-  row-enter retained.
-
-**Part 4 — CSS spacing fixes (`conversation-view.css`):**
-- [x] **(a)** `.text-sm\!important.opacity-70` (reasoning block outer wrapper) `margin-bottom`
-  `26px → 10px` — user reported too much space between "Thought process" and the response below.
-- [x] **(b)** Added `padding-bottom: 36px` to `.enhanced-chat-message` (longhand after the existing
-  `padding: 0 !important` shorthand — both `!important`, longhand wins for the bottom edge only) to
-  reserve space for the now-in-flow absolute action row (6px GAP + ~24px row height + breathing room).
-
-**Verified:** `tsc --noEmit` shows zero errors in `NewUIMessageActionsLayer.tsx` (the only remaining
-errors are pre-existing `__tests__/**` + `utils/**/__tests__/**` test-runner-globals errors, unrelated
-and predating this session). No scroll/resize-on-scroll/rAF/getBoundingClientRect references remain in
-the component (grep-verified — all remaining "scroll" hits are in comments/docstrings).
-
-**Not runtime-verified:** no browser automation available in this sandbox + Cognito login required, so
-scroll lock-step and hover behaviour were verified by code-trace, not a rendered screenshot. Recommend
-a human/future-session visual pass: (1) scroll a long conversation and confirm rows move in perfect
-lock-step with messages (zero lag), (2) confirm rows appear on hover for every message incl. the last,
-(3) confirm moving from a message toward its row keeps the row visible.
+- [x] `.chatcontainer` made `position: relative` (its offsetParent). `offsetWithin()` helper walks offsetParent chain from `#chatHover` to `.chatcontainer` for row position. No `getBoundingClientRect` anywhere.
+- [x] Rescans via MutationObserver (120ms debounce, ignores own overlay) + message-count/streaming effect + debounced `window` resize.
+- [x] Always-visible last-assistant row removed per user request. All rows hover/`:focus-within` only.
+- [x] `pointermove` keep-alive removed. Hide timer 600ms→200ms.
+- [x] CSS: reasoning wrapper `margin-bottom` 26px→10px; `.enhanced-chat-message { padding-bottom: 36px }` reserves in-flow row space.
 
 ### Phase 34 — Three Targeted CSS / Spacing Fixes ✅ COMPLETE
 Three small targeted fixes; no new files, no new components.
@@ -1562,56 +1517,11 @@ Three small targeted fixes; no new files, no new components.
   unrelated to the Phase 34 changes.
 
 ### Phase 35 — Four Targeted Chat-Pane Fixes ✅ COMPLETE
-Four small targeted fixes; no new files, no new components. Only `styles/conversation-view.css`
-and `components/NewUI/chat/NewUIMessageActionsLayer.tsx` touched (One-Directory Rule observed).
 
-- [x] **Fix 1 — Content covered by the scroll-to-bottom button area** (`styles/conversation-view.css`)
-  Root cause (user inspect-element): the `.chatcontainer` `mask-image` bottom transition band (from
-  `#000` to `transparent` over the last ~200px) made content in that region semi-transparent; because
-  the jump-button's outer wrapper div (`position:absolute; bottom:190px; left:0; right:0` in
-  `ConversationViewShell.tsx`) spans the full width at exactly that scroll position, the faded band read
-  visually as a bar covering the response text. Fix: removed the **bottom** fade from both `mask-image`
-  and `-webkit-mask-image` on `[data-new-ui="true"] .chatcontainer` — now `transparent 0 → #000 80px →
-  #000 100%` (top fade clearing the 52px header kept; bottom fade gone). This supersedes Phase 34 Fix 1's
-  approach (which only exempted the overlay from the mask); the underlying content is no longer faded at
-  the bottom at all, so no bar appears regardless of the overlay. The Phase 34 overlay-exemption rule is
-  now harmless/redundant and left in place.
-- [x] **Fix 2 — Still too much vertical space below AI responses** (`styles/conversation-view.css`)
-  `.enhanced-chat-message.assistant-message` `padding-bottom` reduced `20px → 8px` (Phase 34 had reduced
-  it 36px→20px; still too large per user). User-message value unchanged (36px, confirmed good).
-- [x] **Fix 3 — Hover options disappear when moving between buttons** (`NewUIMessageActionsLayer.tsx`)
-  Root cause: the action rows are portaled into `.new-ui-actions-overlay`, a real DOM child of
-  `.chatcontainer`, so `mouseout` events fired while the pointer moves button→gap→button INSIDE a row
-  bubble up to the container-level `onMouseOut` delegation and arm the 200ms hide timer — and nothing
-  cancels it, because the row's own `onMouseEnter`/`onMouseLeave` don't re-fire for child-to-child
-  transitions within the same element. Two-part fix:
-  (a) `handleRowHoverChange`'s leave branch no longer starts a grace timer — it clears immediately
-  (`setHoveredKey(prev => prev===key ? null : prev)`), because it is now driven by the row container's
-  `mouseleave`, which does NOT bubble and only fires on genuine exit of the whole row.
-  (b) the container-level `onMouseOut` now early-returns when the event's `target` OR `relatedTarget` is
-  inside `.new-ui-actions-overlay` — intra-row movement and message→row travel no longer arm the hide
-  timer at all. Row exit is handled authoritatively by the row's `mouseleave`. `ActionRow`'s
-  `onMouseEnter`/`onMouseLeave` (→ `onHoverChange`) kept as-is. (Note: the instruction specified only
-  part (a); part (b) was required in addition because the container delegation — not just
-  `handleRowHoverChange` — was arming the timer, since the portal makes the overlay a real DOM descendant
-  of the scroller. Verified by tracing the event path.)
-- [x] **Fix 4 — "Thought process" label slightly too far left** (`styles/conversation-view.css`)
-  Investigated the real offset chain (`AssistantReasoningMessage.tsx` + `ExpansionComponent.tsx`, both
-  DO-NOT-CHANGE): the reasoning wrapper `.text-sm!important.opacity-70` has ONLY `mb-4` (no left
-  padding/margin — nothing to zero on the wrapper). The rightward offset of the label "T" comes from
-  INSIDE `#expandComponent`: it is `display:inline-flex; gap:6px`, and its children are the (now
-  `display:none`, 0-width) caret icon then `<span class="font-medium" style="margin-left:8px">`. So "T"
-  sat flex-gap(6) + span-margin(8) = ~14px right of the button content-left. The prior `margin-left:-18px`
-  (derived from the `.border-l` block's border+padding, not the button's flex layout) overshot: -18+14 =
-  -4px → label ~4px LEFT of the prose (the reported symptom). The literal `-4px` suggestion would land at
-  +10px right. Exact fix: `#expandComponent { margin-left:0; gap:0 }` + new rule
-  `#expandComponent .font-medium { margin-left:0 }` → "T" lands at exactly x=0 = the prose left edge,
-  independent of the (0-width) hidden icon. (Deviated from the instruction's literal `-4px` because the
-  DOM investigation it asked for revealed the true offset was the button's internal flex layout, making
-  x=0 the exact target rather than any magic negative margin.)
-- [x] **`tsc --noEmit` confirmed clean** — zero errors outside `__tests__/`; the 59 remaining errors are
-  all pre-existing test-runner-globals / missing-dev-dep issues in `__tests__/**` + `utils/**/__tests__/**`,
-  unrelated to and predating this session.
+- [x] **Fix 1** — `.chatcontainer` mask changed to top-fade only (`transparent 0 → #000 80px → #000 100%`). Bottom fade removed — it read as a bar covering text near the jump button.
+- [x] **Fix 2** — `.enhanced-chat-message.assistant-message` `padding-bottom` 20px→8px.
+- [x] **Fix 3** — Hover row disappear-on-move: `onMouseOut` delegation now early-returns when target/relatedTarget is inside `.new-ui-actions-overlay`; row exit driven by non-bubbling `mouseleave` on row container (clears immediately, no timer).
+- [x] **Fix 4** — `#expandComponent { margin-left:0; gap:0 }` + `#expandComponent .font-medium { margin-left:0 }` — "Thought process" label now lands exactly at prose left edge.
 
 ### Phase 36 — Two Targeted Chat-Pane Fixes ✅ COMPLETE
 Two small fixes; no new files, no new components. `ConversationViewShell.tsx` and
@@ -1959,342 +1869,38 @@ the markdown layer.
 - `components/NewUI/chat/NewUIMessageActionsLayer.tsx` — `extractMessageText` function updated (Fix 4b)
 
 ### Phase 41 — Prompt-at-Top Scroll Anchoring + Streaming Chunk Fade-In ✅ COMPLETE
-Two behavioural fixes. Files touched: `components/NewUI/chat/ConversationViewShell.tsx`
-and `styles/conversation-view.css` only. Zero changes to `Chat.tsx`, `ChatMessage.tsx`,
-or any protected file (One-Directory Rule observed).
+Files: `ConversationViewShell.tsx` + `conversation-view.css`. Zero changes to `Chat.tsx`. See §13 "Controlling chat scroll without touching Chat.tsx" for the full rules — key constraints summarised below.
 
-**█ KEY ARCHITECTURAL FINDING — how to control chat scrolling without touching `Chat.tsx` █**
+**Critical constraint (scroll room must be `margin-top`, never `height`):**
+The `.h-[300px]` bottom spacer is BOTH the layout spacer AND Chat.tsx's `IntersectionObserver` sentinel (`ref={messagesEndRef}`). 🛑 Never change its `height` — that re-enables the observer's auto-scroll gate. Scroll room must be added as `margin-top` above it so the sentinel's own box is untouched. `isIntersecting` is true for ANY overlap, so the sentinel must be **entirely** off screen.
 
-Every auto-scroll in `Chat.tsx` (DO-NOT-CHANGE) is gated on
-`autoScrollEnabled && !isUserScrolling` — the 250ms throttled `scrollIntoView(true)`
-(L1035/L1067), the 100ms `setInterval` `scrollIntoView(false)` (L1090-1104), and
-`scrollToBottom` (L898-903). Both flags are **local `useState` in `Chat.tsx` and are NOT
-on `HomeContext`** (grep-verified across `pages/`, `hooks/`, `components/`, `types/`), so
-they cannot be set from new-UI code. The only lever is to make `Chat.tsx` switch itself
-off — but **`autoScrollEnabled` has TWO independent writers, and satisfying only one of
-them is useless:**
+**Fix 1 — new prompt anchored near top, then frozen:**
+- [x] `conversation-view.css`: `[data-anchor-freeze="true"] .h-\[300px\] { margin-top: var(--new-ui-anchor-room, 0px) }`. Room is dynamic — sized to push sentinel off screen, handed back as response grows via `reduceRoomTo` invariant (never let `scrollHeight` drop below `scrollTop + clientHeight`).
+- [x] `ConversationViewShell.tsx`: watches `messageIsStreaming` false→true; sets `data-anchor-freeze`, measures rects, sets `container.scrollTop` **instantly** (not smooth — smooth scroll reintroduces Phase 39 oscillation). `ANCHOR_TOP_OFFSET = 80`. Retries 20×50ms for message element to mount.
+- [x] `.chatcontainer` `padding-top` 52px→80px (content starts above mask ramp; first message is reachable).
 
-```
-// (a) handleScroll — Chat.tsx L905-935
-isAtBottom = scrollTop + clientHeight >= scrollHeight - 30    // 30px tolerance
-setAutoScrollEnabled(isAtBottom)
+**Fix 2 — per-chunk fade-in on streaming text:**
+- [x] `@keyframes new-ui-chunk-fade-in` (opacity 0→1, 100ms ease-out) on block-level nodes in streaming assistant prose. Scoped to LAST assistant message via `:not(:has(~ .enhanced-chat-message.assistant-message))` — prevents re-fading previous answers on each send. `prefers-reduced-motion` gated. Known limitation: tail paragraph growing token-by-token does not fade (no new element inserted).
 
-// (b) IntersectionObserver on the bottom sentinel — Chat.tsx L1185-1199
-setAutoScrollEnabled(entry.isIntersecting)                    // gated only on !isUserScrolling
-```
-
-⚠ **Two facts about (b) that are easy to get wrong, and cost this phase a regression:**
-
-1. **`threshold: 0.5` does NOT mean "intersecting only when ≥50% visible."** `isIntersecting`
-   is true for **any** overlap with the viewport; the threshold only controls *when the
-   callback fires*. Harness-measured: at 0.33 visible it still reported `true`. So the
-   sentinel must be **entirely** below the fold, not merely half.
-2. **The sentinel IS the bottom spacer** — one div carrying both `className="h-[300px]"`
-   and `ref={messagesEndRef}` (`Chat.tsx` L1743-1746). Anything that changes that
-   element's height changes the observer's geometry.
-
-Also note `isUserScrolling` self-clears 500ms after the user stops, so (b) keeps re-firing
-indefinitely — a wrong geometry does not fail once, it fails on a loop.
-
-**So the rule for `components/NewUI/`:** to freeze the viewport, keep the scroller >30px
-from the bottom **and** the sentinel fully off screen. Never resize the sentinel.
-
-**Fix 1 — new prompt anchored near the top, then frozen**
-
-- [x] **`conversation-view.css` — `data-anchor-freeze` reserves scroll room, as MARGIN.**
-  Rule: `[data-anchor-freeze="true"] .h-\[300px\] { margin-top: var(--new-ui-anchor-room, 0px) }`.
-  Reserved room is required for TWO independent reasons (both measured, not assumed):
-  1. **Reachability** — the anchor needs `scrollTop = promptTop − 80`, but `scrollTop`
-     cannot exceed `scrollHeight − clientHeight`. With only the resting bottom clearance a
-     short prompt on a tall window physically cannot reach the top.
-  2. **The freeze itself** — without the room, both of `Chat.tsx`'s gates read "at the
-     bottom", so it keeps dragging the viewport down as the response grows.
-
-  🛑 **The room MUST be added as `margin-top`, never by changing the element's `height`** —
-  see the Phase 41a regression below. The sentinel's own box must stay exactly as
-  `Chat.tsx` and Phase 39 expect it.
-
-  The room value is **dynamic**: sized to push the sentinel clear of the fold, then handed
-  back as real content arrives, reaching 0 once the answer alone is tall enough to hold the
-  anchor (harness: 731px → 0 by ~850px of answer). So the reserved blank space is
-  **transient, not permanent** — which is what the user actually approved ("blank,
-  shrinking as the response grows"); the first implementation shipped a fixed `100vh` that
-  never shrank. The `var()` fallback is `0px`, so a missing custom property degrades to
-  "no anchoring" rather than a broken layout.
-  The CSS fallback also keeps `Chat.tsx`'s `scrollIntoView(true)`/`(false)` convergence from
-  Phase 39 intact, because the spacer's height is never altered.
-- [x] **`.chatcontainer` `padding-top` 52px → 80px.** Two reasons: (a) the `mask-image`
-  only reaches full opacity at 80px, so content starting at 52px (flush with the header)
-  was rendered *inside the fade ramp* — a pre-existing bug where the first line near the
-  top was partially transparent; (b) it makes the anchor reachable for the **first message
-  of a conversation** (empty history ⇒ `promptTop` was 52 ⇒ negative target ⇒ clamped to
-  0 ⇒ prompt stuck at 54px, jammed under the header and faded). Net effect: a
-  conversation's first message now sits ~28px below the header, which is the breathing
-  room the spec asked for.
-- [x] **`ConversationViewShell.tsx` — anchor on the send transition.** Watches
-  `messageIsStreaming` false→true, then: sets `data-anchor-freeze`, forces a layout read,
-  measures `getBoundingClientRect` deltas (which absorb the container's own padding), and
-  sets `container.scrollTop`. `ANCHOR_TOP_OFFSET = 80` (52px header + 24px gap = 76, raised
-  to 80 to clear the mask ramp). Retries up to 20×50ms for the message element to mount.
-- [x] **Scroll is INSTANT, deliberately not `behavior:'smooth'`** (a documented deviation
-  from the original plan). A ~400ms smooth animation leaves a window in which
-  `autoScrollEnabled` is still true and `Chat.tsx`'s 100ms interval fights us for the
-  viewport — reintroducing the Phase 39 oscillation. Landing immediately lets
-  `handleScroll` flip `autoScrollEnabled` false before the next interval tick.
-- [x] **One jump-free invariant for every room change: `reduceRoomTo`.**
-  **Never let `scrollHeight` drop below `scrollTop + clientHeight`.** Removing room lowers
-  `scrollHeight`; the instant that pushes the scroll maximum above where the user sits, the
-  browser clamps `scrollTop` and the content visibly slides. So every reduction is capped at
-  `safe = max(0, scrollHeight − clientHeight − scrollTop)` — the current distance to the
-  bottom. Both the streaming tick and the scroll handler go through this one function, and
-  it covers all four situations without special-casing:
-  | Situation | Behaviour | Measured shift |
-  |---|---|---|
-  | Parked at the anchor | `safe` ≫ per-tick growth, so the room shrinks at full rate | prompt pinned at 80px for the whole stream |
-  | At the bottom, following | `safe` == whatever text just arrived, so the blank is **consumed by the incoming text** | 0px (431px of blank absorbed, nothing moved) |
-  | Scrolling **down** | room consumed by the user's own gesture until the real content bottom → `Chat.tsx` resumes following (**spec exception 3, no special-casing**) | 0px |
-  | Scrolling **up** | room handed back in full; safe because both gates already read "not at bottom" up there | 0px |
-
-  An earlier all-or-nothing release moved the content **431px** while the user sat at the
-  bottom. Growth is also forbidden (`target >= room` returns early) so content can never be
-  pushed down mid-stream.
-- [x] **No `userHasScrolled` ref** (deviation from the plan, deliberate). Its job was to
-  gate "suppress further programmatic scroll", but those scrolls are `Chat.tsx`'s and are
-  already gated on `autoScrollEnabled` (= `isAtBottom`), which *is* "user scrolled away
-  from the bottom", maintained by the component that acts on it. A local copy would have
-  been write-only state that could silently disagree with the value in force.
-- [x] Conversation-change effect clears the room so a switched conversation never inherits
-  a stale anchored state.
-
-**█ Phase 41a — REGRESSION AND FIX: "the prompt is too high, I can't see it, and it forces
-my scroll downwards over and over" █**
-
-The first cut of Fix 1 reserved scroll room with
-`[data-anchor-freeze="true"] .h-\[300px\] { height: 100vh }` — i.e. **by growing the bottom
-spacer itself.** That spacer is also `Chat.tsx`'s IntersectionObserver sentinel
-(`ref={messagesEndRef}` on the same div, L1743-1746). Consequences, harness-measured:
-
-| | shipped (`height: 100vh`) | fixed (`margin-top`) |
-|---|---|---|
-| prompt lands at | 80px ✅ | 80px ✅ |
-| gate (a) `handleScroll` `isAtBottom` | `false` ✅ | `false` ✅ |
-| sentinel visible fraction | **0.70** | **0.00** |
-| gate (b) observer `isIntersecting` | **`true` ❌ overrides (a)** | `false` ✅ |
-| net `autoScrollEnabled` | **`true`** | `false` |
-| prompt after one autoscroll tick | **−162px (above the viewport)** | stays 80px |
-
-So the anchor worked perfectly and was then immediately undone: gate (b) switched
-auto-scroll back on, the 100ms `scrollIntoView(false)` interval dragged the anchored prompt
-off the top of the screen, and because `isUserScrolling` self-clears 500ms after the user
-stops scrolling, the observer re-fired forever — the "over and over" in the report.
-
-**Fix:** put the room in a `margin-top` **above** the sentinel so its own box (and therefore
-the observer's geometry) is untouched, and size the room to push it **entirely** past the
-fold — `anchorTarget + clientHeight + sentinelHeight + FOLD_CLEARANCE − naturalHeight`.
-`FOLD_CLEARANCE = 60`; the sentinel's height is read live rather than hardcoded.
-
-**Why "entirely" and not "less than half":** `isIntersecting` is true for *any* overlap.
-`threshold: 0.5` only decides when the callback *fires*. A first attempt that merely got the
-sentinel under 50% visible (0.33) still reported `isIntersecting: true`.
-
-**Also corrected in the same pass:**
-- The fixed `100vh` room never shrank, so the blank space was permanent. It is now dynamic
-  and reaches 0 on its own (see `reduceRoomTo` above) — matching what was actually approved.
-- A comment claiming the all-or-nothing release was "movement-free" was **false**; the
-  harness measured a 431px content shift. Replaced with the capped-reduction invariant.
-- Removed two pieces of dead state found while reworking this (`RESTING_SPACER_H`,
-  `streamingRef`), on the same principle as the earlier `userHasScrolledRef` removal.
-
-**Verification harnesses** (headless Chrome, `/tmp`, outside the repo — the app needs Cognito
-login so the real flow can't be driven locally): `/tmp/io-harness.html` reproduces the
-observer geometry for both variants; `/tmp/stream-harness.html` runs a full streaming
-lifecycle plus four user-scroll scenarios and asserts *freeze held for whole stream*,
-*prompt never moved from 80px*, *room monotonically → 0*, and *all scrolls jump-free*.
-⚠ **Harness caveat:** under `--headless=new --virtual-time-budget`, `requestAnimationFrame`
-and IntersectionObserver callbacks **do not run** (verified: exactly 1 IO delivery, the
-initial one). Assert on *geometry* — rect positions, visible fractions — not on observer
-callbacks, which report stale values.
-
-**Fix 2 — soft per-chunk fade-in on streaming text (NOT a typing animation)**
-
-- [x] **`conversation-view.css` — `@keyframes new-ui-chunk-fade-in` (opacity 0→1, 100ms
-  ease-out)** applied to block-level nodes in the streaming assistant prose. CSS animations
-  start automatically on newly inserted elements, so each new paragraph / list item /
-  heading / code block / table row fades itself in exactly once, on arrival — **zero JS,
-  zero per-token cost, no DOM mutation.** No `forwards` fill, so an interrupted animation
-  can never leave content stuck faded.
-- [x] **Scoped to the LAST assistant message** via
-  `:not(:has(~ .enhanced-chat-message.assistant-message))`. This was a **bug caught by
-  harness testing, not by review**: a CSS animation starts whenever its selector *begins to
-  match*, not only on insertion — so the unscoped first draft made every paragraph of every
-  previous answer re-fade on every send (verified: a pre-existing `<p>` reported
-  `[new-ui-chunk-fade-in]` the instant `data-streaming` was set). Valid because
-  `.enhanced-chat-message` is each `ChatMessage`'s **root** element rendered in a flat
-  `.map()` (`Chat.tsx:1700-1736`), so all messages are true siblings.
-- [x] **Rejected the "container-level opacity refresh" suggested as the first thing to try:**
-  animating the whole `.assistantContentBlock` while streaming necessarily pulses every
-  character already on screen, which fails the "already-displayed text stays fully visible"
-  requirement *by construction* rather than by bad luck.
-- [x] **Rejected the MutationObserver text-node wrapping:** it would mutate DOM owned by
-  `ChatContentBlock.tsx` (DO-NOT-CHANGE), which re-renders its whole markdown tree per
-  token — injected spans would be fought by React reconciliation, and per-token DOM surgery
-  directly contradicts the ">20 tok/s must stay fluid" constraint.
-- [x] `prefers-reduced-motion: no-preference` gated (standing rule #17). User bubbles never
-  animate (harness-verified: `user bubble animations = []`).
-- [x] **KNOWN LIMITATION (documented, not glossed):** text appended *inside* an
-  already-rendered paragraph — the tail paragraph growing token by token — does not fade,
-  because no new element is inserted for it. The fade lands on block boundaries. Covering
-  intra-paragraph growth requires the text-node wrapping ruled out above.
-- [x] **Residual, accepted:** during the ~150-300ms ChatLoader gap before the new assistant
-  message mounts, the "last assistant message" is still the previous answer, so its blocks
-  may run one 100ms fade. Fix 1 has by then scrolled that answer out of view, so it isn't
-  visible in practice, and it self-corrects on mount.
-
-**Verification — behaviourally tested, not only code-traced**
-Since the app needs Cognito login and no Playwright/Puppeteer/jsdom is installed, the risky
-parts (scroll math + whether newly-inserted elements actually animate) were exercised in a
-**standalone headless-Chrome harness** (`/tmp/anchor-harness.html`, outside the repo)
-replicating the real geometry: 80px container padding, 268px↔100vh spacer, and messages as
-flat siblings. Results at 1400×900 (`clientHeight` 813):
-
-| Scenario | Result |
-|---|---|
-| A — short convo, freeze OFF (the bug) | prompt at **415px**, `isAtBottom=true` → Chat.tsx keeps dragging ❌ |
-| B — short convo, freeze ON | prompt at **exactly 80px**, `isAtBottom=false` → frozen ✅ |
-| C — **first message**, freeze ON | prompt at **exactly 80px**, frozen ✅ (was 54px before the padding fix) |
-| D — guarded release at stream end | judged unsafe → attribute kept → `scrollTop` 418→418, **no jump** ✅ |
-| E — chunk fade | new block fades ✅ · **previous answer NOT re-faded ✅** · user bubble never animates ✅ |
-
-Three bugs were found and fixed this way that code review had missed: the first-message
-clamp (C), the cross-message fade leak (E), and the false assumption that the reserved room
-tidies itself up at stream end (D — it usually *cannot* be released after a short answer, so
-the reserved space persists until the user scrolls up, at which point it releases silently).
-
-- [x] `npx tsc --noEmit` — zero errors in production source (all remaining errors are
-  pre-existing `__tests__/**` test-runner-globals issues).
-- [x] `npm run build` — `✓ Compiled successfully`. The 46 `NextRouter was not mounted`
-  prerender errors were confirmed **pre-existing** by stashing the changes and rebuilding a
-  clean baseline (identical count of 46), not merely assumed.
-- [x] `npx eslint` on the changed component — 0 errors; the single warning is the
-  pre-existing `[]`-deps pending-message-bridge effect.
-- [x] CSS braces balanced (191/191).
-
-**Not verified in the real app:** the harness proves the geometry and animation mechanics,
-not the integration. Recommend a human pass: (1) send in a long conversation → prompt jumps
-to just under the header, previous answer out of view, and the view then stays put for the
-whole response; (2) send in a brand-new chat → same, no fade at the top of the bubble;
-(3) scroll down mid-response → output-following resumes; (4) confirm new paragraphs/bullets
-fade in softly at >20 tok/s with no stutter and no flicker on settled text.
+**Note:** Phase 41a regression (scroll room added as `height` instead of `margin-top`) found and fixed in same session — see §13 for explanation.
 
 ### Phase 42 — Deferred-Send: Upload While Waiting ✅ COMPLETE
-Implements the two-phase send for image attachments in the in-conversation composer.
-Previously, `canSend` was `false` until all S3 uploads completed, blocking the send button.
-Now the user can click Send immediately; the API call fires automatically when uploads finish.
-Files touched: `ConversationComposer.tsx`, `UploadPendingIndicator.tsx` (new),
-`AttachmentCard.tsx`, `AttachmentRail.tsx`, `conversation-view.css`.
-Zero changes to `Chat.tsx`, `AttachFile.tsx`, `ConversationViewShell.tsx`, or any protected file.
+Files: `ConversationComposer.tsx`, `UploadPendingIndicator.tsx` (new), `AttachmentCard.tsx`, `AttachmentRail.tsx`, `conversation-view.css`.
 
-**Core mechanism (`ConversationComposer.tsx`):**
-- [x] **Removed `allImagesUploaded` gate from `canSend`** — send button now active whenever
-  there is text OR any non-failed attachment, regardless of upload progress.
-  New formula: `!messageIsStreaming && pendingUploadState === null && hasContent`.
-- [x] **`PendingUploadSend` interface** — captured at send time: `{ msgText, readyDocs,
-  newDocs (mutable), remainingCount, webSearchEnabled, selectedSkillIds }`.
-  Stored in `pendingUploadSendRef` (a ref, not state) so `handleDocSetKey` can mutate it
-  without triggering extra renders.
-- [x] **Three paths in `handleSend`** (was two):
-  - **DEFERRED** (new): when `uploadingImages.length > 0` → store `PendingUploadSend`,
-    call `setPendingUploadState({ done: 0, total: N })`, clear text, return early.
-  - **PATH A** (unchanged): all docs already have S3 keys → call `sendViaService` directly.
-  - **PATH B** (unchanged): text-only → DOM bridge into `#messageChatInputText` + `#sendMessage`.
-- [x] **`handleDocSetKey` extended** — when a pending deferred send exists, pushes the
-  newly-keyed doc to `pending.newDocs`, decrements `remainingCount`, and calls
-  `setPendingUploadState(prev => { done: prev.done + 1, total: prev.total })`.
-- [x] **Auto-fire `useEffect`** — deps: `[pendingUploadState, selectedConversation, ...]`.
-  When `done >= total`, reads the accumulated `newDocs`, builds the same `ChatRequest`
-  as PATH A (with `[...readyDocs, ...newDocs]`), and fires `sendViaServiceRef.current(request, ...)`.
-  Edge cases handled: all images failed → if text present, falls through to PATH B;
-  if no text either, silently aborts rather than sending an empty message.
-- [x] **`handleCancelPendingSend`** — clears `pendingUploadSendRef` + `pendingUploadState`,
-  **restores `msgText` to the textarea** so the user doesn't lose what they wrote. Uploads
-  continue in the background; user can re-click Send when they're ready.
-
-**Stall detection + Retry (`ConversationComposer.tsx`):**
-- [x] **`uploadTimeoutsRef`** — `Record<string, setTimeout>` keyed by doc id. Started in
-  `addImageToRail`'s `wrappedAttach` callback (after sentinel → real-id swap). Cleared in
-  `handleDocSetKey` on success, `handleRemoveAttachment` on remove.
-- [x] **90-second stall timeout** (`UPLOAD_STALL_TIMEOUT_MS = 90_000`) — if `onSetKey` never
-  fires, marks UIAttachment `status:'failed'` with `error:'Upload timed out. Tap Retry.'`.
-  Also decrements `pendingUploadSendRef.remainingCount` so the pending send doesn't hang.
-- [x] **`originalFilesRef`** — `Record<string, File>` keyed by doc id. Populated in
-  `wrappedAttach`; used by `handleRetryAttachment` to re-upload the original File.
-- [x] **`handleRetryAttachment(id)`** — calls `handleCancelPendingSend()` (restores text),
-  `handleRemoveAttachment(id)` (removes the failed card), then `addImageToRail(file)` (fresh
-  upload). A new card enters with upload-progress spinner.
-
-**New component `UploadPendingIndicator.tsx` (`components/NewUI/chat/`):**
-- [x] Props: `done: number`, `total: number`, `onCancel: () => void`.
-- [x] Thin 3px determinate progress bar (`--accent` fill, 300ms width transition, `min-width:4%`
-  so the bar is always visible even at `done=0`).
-- [x] Label: "Uploading image 1 of 2…" / "Uploads complete, sending…" (contextual text).
-- [x] Cancel button (muted text, hover `--bg-hover`). Calls `onCancel`.
-- [x] `aria-live="polite"` on the container for screen-reader announcement. `role="progressbar"`
-  with `aria-valuenow` on the bar track.
-
-**`AttachmentCard.tsx` changes (in `components/NewUI/shared/`):**
-- [x] Added `onRetry?: (id: string) => void` prop.
-- [x] When `status === 'failed'` and `onRetry` is provided, a "Retry" button appears at the
-  bottom-center of the card (warm-red text on dark bg, matching the FAILED badge palette).
-  Absolute sibling of the face button (valid HTML, no nesting).
-
-**`AttachmentRail.tsx` changes (in `components/NewUI/shared/`):**
-- [x] Added `onRetry?: (id: string) => void` prop; passed through to each `AttachmentCard`.
-
-**`conversation-view.css` additions (Phase 42 section):**
-- [x] **Asterisk pulse while upload pending**: `[data-upload-pending="true"] .h-[300px]::after`
-  — opacity 0.45, same `new-ui-asterisk-pulse` 3.2s animation as the streaming state but at
-  reduced opacity (calm "something is happening" vs. the full "actively responding" signal).
-  `prefers-reduced-motion` gated.
-- [x] **`.new-ui-upload-pending-indicator`** — `margin-bottom: 8px` container.
-- [x] **`.new-ui-upload-bar-track`** — `height: 3px`, `border-radius: 2px`, `var(--bg-active)` bg.
-- [x] **`.new-ui-upload-bar-fill`** — `var(--accent)` bg, `300ms ease-out` width transition,
-  `min-width: 4%`, gentle 2.2s opacity-breathing animation (0.55→1) via
-  `@keyframes new-ui-upload-bar-breathe`. `prefers-reduced-motion` gated.
-
-**TypeScript:** zero errors in `components/NewUI/` (`tsc --noEmit` confirmed).
-
-**Not runtime-verified:** Cognito login required. Recommend a human pass:
-(1) Paste an image into the in-conversation composer, click Send immediately.
-Confirm: text clears, upload-pending indicator appears, asterisk pulses, indicator
-disappears and API fires when upload completes.
-(2) Upload stalls for 90s → confirm the card shows FAILED + Retry button;
-clicking Retry restores text and starts a fresh upload.
-(3) Click Cancel while pending → confirm text is restored, indicator gone, uploads continue.
+- [x] **Three send paths in `handleSend`**: DEFERRED (uploads in progress → store `PendingUploadSend` ref, show indicator, clear text) | PATH A (docs have S3 keys → `sendViaService`) | PATH B (text-only → DOM bridge).
+- [x] **Auto-fire effect**: when `pendingUploadState.done >= total`, builds `ChatRequest` from accumulated docs and fires `sendViaServiceRef.current`. Edge: all failed → falls through to PATH B if text present.
+- [x] **`handleCancelPendingSend`**: clears pending send, restores message text to textarea.
+- [x] **90s stall detection**: marks attachment `status:'failed'`, decrements `remainingCount`. `handleRetryAttachment` cancels send, removes failed card, restarts upload.
+- [x] **`UploadPendingIndicator.tsx`**: thin 3px `--accent` progress bar + contextual label + Cancel. `aria-live="polite"`, `role="progressbar"`.
+- [x] **`AttachmentCard.tsx`**: `onRetry` prop; Retry button shown on failed cards.
+- [x] **CSS**: asterisk pulse at 0.45 opacity while `[data-upload-pending]`; `.new-ui-upload-bar-fill` with `--accent` bg + breathing animation.
 
 ### Phase 43 — Dual Loading-Dot Fix + Animated "Thinking…" Text ✅ COMPLETE
-Two related loading-state fixes. Zero changes to `Chat.tsx`, `PromptStatus.tsx`, `ChatLoader.tsx`,
-or any protected file (One-Directory Rule strictly observed). Files changed:
-`styles/conversation-view.css` and `components/NewUI/chat/ConversationViewShell.tsx` only.
+Files: `conversation-view.css` + `ConversationViewShell.tsx` only.
 
 **Fix 1 — Multiple PromptStatus cards + ChatLoader overlap**
 
-**Root cause (discovered from screenshot):** `PromptingStatusDisplay.tsx` (DO-NOT-CHANGE)
-renders ONE `PromptStatus` card per active status ID in its `statusHistory` array. When the
-model produces multiple status updates simultaneously (e.g. one for "Amplify is responding" and
-one for a reasoning token stream), multiple `.rounded-xl.shadow-lg` cards are rendered as
-siblings inside a `.flex-col.mb-2` wrapper — producing two or more orange pulsing dots.
-
-**Second-card layout bug:** When the SECOND card has `status.summary !== status.message` (line
-152-156 of PromptStatus.tsx), it renders an inner `.ml-3` div containing `IconCaretDown`. This
-`.ml-3` div is `display:block`. Inside our `.mt-0.ml-3 { display:block !important }` override
-(Phase 12 CSS), block-level children interrupt the inline flow, splitting the card into three
-stacked rows:
-```
-Line 1: ● (::before inline-block, stranded above the block child)
-Line 2: ▽ (.ml-3 block div containing the caret SVG icon)
-Line 3: Thinking… (our injected .new-ui-loading-text span, after the block)
-```
-This is exactly the broken cluster visible in the screenshot.
+Root cause: `PromptingStatusDisplay` renders one `.rounded-xl.shadow-lg` card per active status ID — multiple simultaneous statuses produce multiple pulsing dots. Also, when `messageIsStreaming=true`, ChatLoader may still be mounted alongside PromptStatus.
 
 **Fix 1a — Hide all PromptStatus cards after the first** (`conversation-view.css`):
 ```css
@@ -2305,15 +1911,7 @@ This is exactly the broken cluster visible in the screenshot.
   display: none !important;
 }
 ```
-- Discriminating class: `hover:opacity-50` appears on PromptStatus.tsx line 131 with
-  `rounded-xl shadow-lg` AND on NO other component in the chat tree with those two classes
-  (grep-verified: `ChatSource`, `AutonomousBlock`, `InvokeBlock`, `AutoArtifactBlock` all have
-  `dark:bg-[#343541] rounded-xl shadow-lg` but NOT `hover:opacity-50`).
-- CSS escaping: Tailwind's `hover:opacity-50` class name contains a literal colon → escaped as
-  `hover\:opacity-50` in the CSS selector.
-- Second rule hides the details panel (Fragment sibling of the hidden card).
-- Result: only the FIRST PromptStatus card is shown; all subsequent cards and their details
-  panels are hidden.
+- Discriminating class: `hover:opacity-50` is unique to PromptStatus among `.rounded-xl.shadow-lg` elements (grep-verified). Escaped as `hover\:opacity-50` in CSS. Second rule hides the sibling details panel.
 
 **Fix 1b — ChatLoader dot overlap during streaming** (`conversation-view.css`):
 ```css
@@ -2327,30 +1925,7 @@ preserves Phase 38/39 layout footprint.
 
 **Fix 2 — Animated "Thinking…" text alongside the breathing dot**
 
-Phase 40b hid the PromptStatus status text (`.mt-0.pt-0 { display: none !important }`) leaving
-only the breathing orange dot as the loading indicator. The result is visually clean but provides
-no textual context for users.
-
-**Approach:** DOM injection via `useEffect` + `MutationObserver` in `ConversationViewShell.tsx`,
-using the same observer pattern established in Phase 5 (aria-live injection) and Phase 29 (user
-markdown layer). `PromptStatus.tsx` is DO-NOT-CHANGE — no modification needed.
-
-**ConversationViewShell.tsx changes:**
-- New `useEffect` with `MutationObserver` on `.chatcontainer`.
-- **`injectLoadingText()`**: finds `[data-new-ui="true"] .rounded-xl.shadow-lg .mt-0.ml-3` (the
-  breathing dot row inside PromptStatus). If no `.new-ui-loading-text` span already present,
-  appends `<span class="new-ui-loading-text" aria-hidden="true">` as a direct child. Idempotent.
-- `aria-hidden="true"`: screen readers use the existing `aria-live="polite"` region on the
-  `.rounded-xl.shadow-lg` container (injected by the A11y Pass 1 aria-live effect above this one),
-  not the CSS-generated text content of our span.
-- **`cleanupOrphanedText()`**: removes any `.new-ui-loading-text` spans whose
-  `.rounded-xl.shadow-lg` ancestor is no longer in the DOM (PromptStatus unmounted = response done).
-- Cleanup function on unmount removes all spans.
-
-**Layout:** `.mt-0.ml-3` is `display: block`. The `::before` dot is `display: inline-block` with
-`margin-right: 8px`. Our injected span is `display: inline` — so it flows on the same inline line
-immediately after the dot, producing: `● Thinking…` on one line within the block container.
-The `.mt-0.pt-0` element (PromptStatus's real text, `display: none`) has no layout effect.
+`ConversationViewShell.tsx`: `useEffect` + `MutationObserver` on `.chatcontainer`. `injectLoadingText()` finds `.rounded-xl.shadow-lg .mt-0.ml-3` (PromptStatus's dot row) and appends `<span class="new-ui-loading-text" aria-hidden="true">` — idempotent. `cleanupOrphanedText()` removes spans when PromptStatus unmounts. Screen readers use the existing `aria-live="polite"` region, not the CSS-generated text.
 
 **CSS additions in `conversation-view.css` (Phase 43 section):**
 ```css
@@ -2362,26 +1937,10 @@ The `.mt-0.pt-0` element (PromptStatus's real text, `display: none`) has no layo
 }
 @keyframes new-ui-loading-pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
 ```
-- `::after` generates "Thinking…" via CSS `content` (not DOM text) so no literal dots are in the
-  DOM for assistive technologies to read separately.
-- Animation: 2s ease-in-out opacity pulse (same family as the breathing dot's `new-ui-thinking-pulse`).
-- **`prefers-reduced-motion: reduce` override**: per standing wiki §9 rule 17, the animation is
-  scoped inside `@media (prefers-reduced-motion: no-preference)`. In reduced-motion mode the text
-  displays statically at full opacity ("Thinking…" with no pulse).
-- Selector uniqueness verified: `.mt-0.ml-3` inside `.rounded-xl.shadow-lg` is unique to
-  PromptStatus (ArtifactsBlock.tsx's `.rounded-xl.shadow-lg` does NOT have a `.mt-0.ml-3`
-  descendant — grep-verified; Phase 43 selector audit confirmed).
+- `::after` generates "Thinking…" via CSS `content`. `prefers-reduced-motion: no-preference` gated. Selector uniqueness verified: `.mt-0.ml-3` inside `.rounded-xl.shadow-lg` is unique to PromptStatus (grep-verified).
 
-- [x] CSS Fix 1: `visibility: hidden` on ChatLoader dot when `data-streaming="true"` (conversation-view.css)
-- [x] CSS Fix 2: `.new-ui-loading-text` style + `::after` + pulse animation + PRM override (conversation-view.css)
-- [x] JS Fix 2: `useEffect` with MutationObserver for loading text injection/cleanup (ConversationViewShell.tsx)
-- [x] `tsc --noEmit` — zero errors in `components/NewUI/` (all remaining errors are pre-existing `__tests__/` issues)
-
-**Not runtime-verified** (Cognito login required, no browser automation available):
-Recommend a human pass: (1) Send a message and confirm only ONE orange dot is visible throughout
-the entire loading→streaming→done lifecycle; (2) confirm "Thinking…" text appears alongside the
-dot during the response, then disappears when done; (3) confirm no pulsing in a browser with
-`prefers-reduced-motion: reduce` set (System → Accessibility → Reduce Motion on macOS).
+- [x] CSS Fix 1: ChatLoader dot hidden when `data-streaming="true"` via `visibility:hidden`
+- [x] CSS Fix 2 + JS: `.new-ui-loading-text` span injected via MutationObserver; styled with `::after`, pulse animation, PRM override
 
 ### Phase 44 — User-Resizable Sidebar Width ✅ COMPLETE
 Single file change: `components/NewUI/sidebar/NewSidebar.tsx` only (no `home.tsx`, no CSS files).
@@ -2958,6 +2517,60 @@ Token-first change: every interactive accent in the new UI is now Majk blue. No 
   - `onDelete` in `AssistantRow` calls `setConfirmDeleteLA(la)` instead of `handleDelete(la)` directly
   - `ConfirmDialog` `onConfirm` calls `handleDelete(confirmDeleteLA)` then clears state
 
+### Phase 53 — Modal Header Row Alignment + Dimension Standardization ✅ COMPLETE
+
+**Changed files:** `components/NewUI/settings/NewSettingsModal.tsx`, `components/NewUI/settings/NewAdminModal.tsx`
+
+- [x] **Fix 1 — × button aligned with the section title (both modals).**
+  Before: the × lived in a `position:sticky; top:20px` wrapper (`marginBottom:-20px`,
+  `pointerEvents:none`) that was a **sibling of the `<h2>` *inside* the `overflow-y:auto`
+  scroll container**. It floated over scrolling content and never shared a baseline with the
+  title, which is why it read as misaligned. The `<h2>` carried `paddingRight:'44px'` purely
+  to dodge it.
+  After: the right pane is a flex COLUMN containing a real header row —
+  `display:flex; align-items:center; justify-content:space-between; padding:20px 24px 16px 24px; flexShrink:0`
+  — with the heading on the left and the × on the right, rendered **above** (not inside) the
+  scroll container. Header stays put while content scrolls.
+- [x] Close button restyled for the header-row context: borderless/transparent, 32×32 hit area,
+  `IconX size={20}`, `--text-secondary` → hover `--text-primary` + `--bg-hover`.
+  `aria-label="Close"` on both (was "Close settings" / "Close admin panel").
+  The bordered `--bg-raised` box was dropped — it only existed to keep the floating button
+  legible above scrolling content, which no longer happens.
+- [x] Heading font size/weight untouched (18px / 700); only `marginBottom:20px` +
+  `paddingRight:44px` removed in favor of `margin:0` (the row owns the spacing now).
+- [x] Scroll container horizontal padding changed `32px` → `24px` to match the header row, so the
+  title is left-aligned with the content beneath it. `contentRef` moved onto this inner div —
+  it is the actual scroll container now, so the scroll-to-top-on-section-change effect still works.
+- [x] `NewAdminModal`'s `text-neutral-900 dark:text-white` class moved to the outer flex-column
+  wrapper so **both** the header row and the tab content still inherit it (the old AdminUI tab
+  components depend on this for light-mode text — see Phase 22).
+
+- [x] **Fix 2 — standardized outer dimensions.** `NewSettingsModal` panel
+  `maxWidth: 1040px → 1100px`, `height: min(780px, 88dvh) → min(820px, 90dvh)`.
+  `NewAdminModal` unchanged (it was already the larger, and is the source of truth).
+  Remaining intentional delta: left-rail width is still 210px (settings) vs 220px (admin) —
+  not part of the outer-dimension standardization and left alone to avoid scope creep.
+
+- [x] **Fix 3 — shared `TwoColumnModalShell` DEFERRED (not created).** The extraction was
+  evaluated against the stated threshold (≤4 props beyond the base 5, and no `onClose`/Escape
+  special-casing inside the shell) and **fails both**:
+  1. `escapeDisabled` — admin's Escape is guarded by `hasChildModalOpen`, where Escape must be a
+     **no-op while the × still works**. That is not expressible through `onClose` alone, so the
+     shell would have to special-case the Escape flow. This alone is a documented stop condition.
+  2. `zIndex` — 9999 (settings) vs 10000 (admin); admin renders *inside* settings' overlay, so
+     the stacking difference is load-bearing.
+  3. `leftRailWidth` — 210px vs 220px.
+  4. `ariaLabelledBy` — settings' labelling element is the shell's own header `<h2>`; admin's is
+     the `Admin Panel` span in its **left rail**. The shell owns the header, so it needs an override.
+  5. `contentClassName` — admin's `text-neutral-900 dark:text-white` inheritance requirement.
+  6. `title` would have to widen from `string` to `ReactNode` for admin's inline "● unsaved" badge.
+
+  Also genuinely admin-only and non-extractable: unsaved dots on nav rows, the unsaved-count
+  badge, the save/reload footer, and the unsaved-confirm on ×/overlay/Escape. The left rails are
+  structurally different too (settings = one scrolling column; admin = fixed header + scrolling
+  nav + fixed footer). Per instruction, work stopped at Fix 2 rather than forcing a shell that
+  would make both modals harder to read. Fixes 1 and 2 were applied twice, by hand, identically.
+
 ### Phase 19 — Remaining Port Work (NEXT)
 - [x] Responsive: icon rail at 760-1099px ✅ resolved
 - [x] Responsive: off-canvas drawer <760px ✅ resolved
@@ -3129,46 +2742,11 @@ Pattern: when you need CSS to respond to React state that lives in a protected c
 - **TODO Phase 16:** Wire this into `handleNewConversation` in `home.tsx` so new conversations use it as the system prompt instead of (or prepended to) `DEFAULT_SYSTEM_PROMPT`
 - Key: `amplify_custom_instructions`, max 4000 chars
 
-### Load-Time State Consumption Audit — RAG / Web Search Wiring Gap (Phase 24; Web Search resolved in Phase 25)
-A static audit comparing classic-UI vs new-UI consumption of `home.tsx`'s on-mount state (see Phase 24
-above) found that the new UI's plugin-driven request behavior (RAG, and likely Web Search) is not
-actually wired into the outgoing chat request, despite UI controls existing for it. **Update (Phase 25,
-2026-08-11): the Web Search half of this gap is now fixed** — see `components/NewUI/shared/webSearchPreference.ts`
-and Phase 25 above. RAG remains unfixed because, on re-investigation, no RAG toggle exists anywhere in
-`components/NewUI/` to fix — building one is new feature work, deliberately out of scope for that
-bug-fix session. Record of the underlying mechanism kept below for anyone building the RAG toggle or
-touching Web Search further:
+### RAG / Web Search Wiring Gap (Phase 24 investigation; Web Search fixed Phase 25)
 
-- **How classic UI turns a toggle into request behavior:** classic `ChatInput.tsx` maintains a `plugins`
-  array (of `Plugin` objects, keyed by `PluginID`) that IS what gets sent in the `ChatRequest` — see
-  `Chat.tsx:199` (`const [plugins, setPlugins] = useState<Plugin[] | null>(null)`) and
-  `Chat.tsx:512-517` (`createChatRequest`: `plugins: plugins ?? []`). Checking a plugin checkbox in
-  `PluginSelector.tsx` mutates this array directly. `hooks/useChatSendService.ts:585-595` then reads
-  `pluginIds.includes(PluginID.RAG)` from that array (combined with `featureFlags.ragEnabled`) to decide
-  whether to skip RAG server-side. Separately, `ChatInput.tsx:1354-1366` keeps the *ambient*
-  `HomeContext.state.ragOn` boolean in sync with whether `PluginID.RAG` is in that array — `ragOn` is
-  consumed independently by `utils/fileHandler.ts`'s `resolveRagConfiguration` for upload-time
-  embedding/caching behavior.
-- **What the new UI does instead:** `ConversationComposer.tsx` and `NewHome.tsx` each keep their own
-  local `webSearchEnabled` (and `selectedSkillIds`) React state, and on send persist it only to
-  `conversation.data.webSearchEnabled`/`data.skills` (`ConversationComposer.tsx` `handleSend`,
-  `handleUpdateConversation(... { key: 'data', value: {...} })`). **Nothing reads `conversation.data`
-  back out into `Chat.tsx`'s local `plugins` state** — there is no effect anywhere that constructs a
-  `plugins` array from `conversation.data` and feeds it to `Chat.tsx`. Since new UI reuses `Chat.tsx`
-  unmodified (by design — see §10), and `Chat.tsx`'s `plugins` state is what actually reaches
-  `createChatRequest`, the web-search toggle in new UI likely has no effect on the actual request.
-  The same gap applies to RAG: nothing in `components/NewUI/` ever adds `PluginID.RAG` to any plugins
-  array, and nothing ever dispatches `homeDispatch({field: 'ragOn', ...})`, so `state.ragOn` stays at
-  its `home.state.tsx` default (`false`) forever in the new-UI path.
-- **Two dead-write sessionStorage keys discovered:** `amplify_pending_web_search` and
-  `amplify_pending_skills` are written by `NewHome.tsx` (lines ~195-198) but never read anywhere —
-  `ConversationViewShell.tsx` only `removeItem`s them as part of its pending-message cleanup. They look
-  like an intended-but-never-finished bridge (parallel to the working `amplify_pending_message`/
-  `amplify_pending_docs`/`amplify_pending_model_id` bridge pattern documented above). A fix for the
-  web-search/RAG gap could plausibly extend this exact bridge pattern instead of touching `Chat.tsx`,
-  but that still needs a design pass to confirm `ConversationViewShell` (or a new hook) can safely
-  inject into `Chat.tsx`'s plugin state via a DOM/event mechanism without modifying `Chat.tsx` itself —
-  not attempted in this session; see `NEW_UI_PORTING_STATUS.md` for the tracked follow-up.
+**Web Search** — fixed via `components/NewUI/shared/webSearchPreference.ts`. `getActivePlugins()` in Chat.tsx always overrides `WEB_SEARCH` from `settings.featureOptions.includeWebSearch` (not from `conversation.data`). Fix: `persistWebSearchPluginPreference()` forces that localStorage value on when the toggle is enabled. Known limitation: first message in an already-open conversation immediately after first-ever toggle may miss the plugin; all subsequent/new/reloaded conversations work.
+
+**RAG** — no RAG toggle exists in `components/NewUI/`. "Add from library" is a document picker only. To build a toggle: replicate `webSearchPreference.ts` pattern + dispatch `ragOn` to HomeContext. Deliberately out of scope — see porting status §2 for tracking.
 
 ### Controlling chat scroll behaviour without touching `Chat.tsx` (Phase 41)
 `Chat.tsx` is DO-NOT-CHANGE, but its scrolling **is** controllable from

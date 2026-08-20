@@ -45,23 +45,25 @@ These two files together are the schema layer — equivalent to a `CLAUDE.md` or
 
 ## 4. What Goes in the Wiki (NEW_UI_DOCS.md)
 
-The wiki has these sections. Keep them in order and keep them current:
+| Section | Purpose — update when… |
+|---|---|
+| 1 — Project Overview | Repo path, branch, stack — update if branch/stack changes |
+| 2 — Core Architecture (DO NOT CHANGE) | Backend boundaries, entry points, global state — add new boundaries here |
+| 3 — Current Layout Architecture | Old vs new layout target |
+| 4 — Theme System | CSS tokens, dark/light — update when new tokens added to `globals.css` |
+| **5 — Component Registry** | **Every component in `components/NewUI/` — path, purpose, props, consumers. Most important section.** |
+| 6 — CSS Files | All CSS files affecting new UI |
+| 7 — New UI / Old UI Toggle | Preference banner, localStorage key, cookie, `uiPreference` gating |
+| 8 — Files Safe to Modify | Explicit allowlist |
+| 9 — Files DO NOT CHANGE | Explicit blocklist |
+| 10 — Chat Component Notes | What in Chat.tsx can be styled vs. not |
+| 11 — Responsive Breakpoints | Three viewport tiers |
+| 12 — Implementation Progress | Phases with checkboxes. `[x]` = done. Never delete phases. |
+| 13 — Key Patterns and Conventions | Always/never rules, gotchas — update when new pattern established |
+| 14 — Sidebar Spec Reference | Path to design spec |
+| 15 — UI Preference and Load Balancer Notes | Cookie mechanism |
 
-### Section 1 — Project Overview
-Repo path, branch, stack. Update if the branch or stack changes.
-
-### Section 2 — Core Architecture (DO NOT CHANGE)
-The backend-facing code that must never be modified. Entry points, global state shape, context handlers, auth, services, in-app routing, feature flag system. **This section is a constraint boundary.** If you discover a new boundary, add it here. If a previously listed boundary turns out to be safe to modify, update the note.
-
-### Section 3 — Current Layout Architecture
-The old layout (TabSidebar) and the new target layout (NewSidebar). Update if the layout strategy changes.
-
-### Section 4 — Theme System
-How dark/light mode works, the CSS variable tokens, where they live. Update whenever new design tokens are added to `globals.css`.
-
-### Section 5 — New UI Components (The Registry)
-**This is the most important ongoing section.** Lists every component in `components/NewUI/`, what it does, what props it accepts, and what it is reusable for. Format:
-
+**Registry format (Section 5):**
 ```
 ComponentName.tsx  ← REUSABLE / SPECIFIC
   Purpose: one sentence
@@ -69,45 +71,7 @@ ComponentName.tsx  ← REUSABLE / SPECIFIC
   Used by: list consumers
   Notes: any gotchas
 ```
-
-**Rule: before building any new component, check this registry.** If something similar already exists, extend it. Only create new files for genuinely new patterns.
-
-### Section 6 — CSS Files
-Lists all CSS files that affect the new UI and what each one does. Update when new CSS files are created.
-
-### Section 7 — New UI / Old UI Toggle
-How the preference banner works, what the `amplify_new_ui_preference` localStorage key means, how the cookie works for future load-balancer routing, how `uiPreference` state in `home.tsx` gates the two layouts.
-
-### Section 8 — Files Safe to Modify
-The explicit allowlist of files that can be edited for UI changes.
-
-### Section 9 — Files DO NOT CHANGE
-The explicit blocklist of backend/service files.
-
-### Section 10 — Chat Component Notes
-What in `Chat.tsx` can be styled vs. what must not be touched.
-
-### Section 11 — Responsive Breakpoints
-The three viewport tiers and expected sidebar behavior at each.
-
-### Section 12 — Implementation Progress
-**Chronological phases with checkboxes.** Completed items get `[x]`. New phases are appended. Never delete old phases — they are a record of what was built and when.
-
-Format:
-```
-### Phase N — Title ✅ COMPLETE / (IN PROGRESS) / (NEXT)
-- [x] Done thing — brief description
-- [ ] Pending thing
-```
-
-### Section 13 — Key Patterns and Conventions
-The "always do / never do" rules. Coding patterns, dark mode conventions, event bus usage. Update whenever a new pattern is established or an old one is revised.
-
-### Section 14 — Sidebar Spec Reference
-Pointer to the design spec file. Update the path if the spec moves.
-
-### Section 15 — UI Preference and Load Balancer Notes
-Technical details on the cookie mechanism for future LB routing.
+Before building any new component, check this registry. Only create new files for genuinely new patterns.
 
 ---
 
@@ -133,34 +97,9 @@ Technical details on the cookie mechanism for future LB routing.
 
 ---
 
-## 6. The Ingest Pattern (Adding New Features)
+*(Sections 6 and 7 removed — covered by Section 9 rules and the standard session preamble.)*
 
-When a new feature is requested:
-
-1. **Read the wiki first** — does this overlap with anything already built?
-2. **Check the Component Registry** — can an existing component be extended?
-3. **Check the spec files** — is there a design spec for this?
-4. **Build the feature** — following the patterns in Section 13
-5. **Update the wiki** — registry, progress, any new patterns or constraints
-
-For large features, add a new phase to Section 12 before starting, with `[ ]` items. Check them off as each piece lands.
-
----
-
-## 7. The Query Pattern (Understanding Existing Code)
-
-When you need to understand how something works before changing it:
-
-1. Check Section 5 (Component Registry) for the component
-2. Check Section 2 (Core Architecture) for state/context details
-3. Check Section 8/9 (Safe / Do Not Change) to confirm the file is safe to modify
-4. **Then** look at the actual file
-
-The wiki should answer "where is X" and "how does Y work" for everything in the new UI. If it doesn't, that's a gap — fill it after you've found the answer.
-
----
-
-## 8. The Lint Pattern (Keeping the Wiki Healthy)
+## 6. The Lint Pattern (Keeping the Wiki Healthy)
 
 Periodically (every 3-5 sessions), check the wiki for:
 
@@ -220,6 +159,56 @@ These rules are standing requirements for all future sessions:
     - Upload progress bar fill
 
     For text or icons placed **ON TOP OF** an `--accent` background, always use `var(--accent-fg)` (white `#ffffff` in both modes). **Never** use `#2A1710` or other warm darks on a blue background — that combination was chosen for orange and has insufficient contrast on blue.
+
+19. **Standing Rule — Modal close buttons belong in a header row, never inside the scroll container (established Phase 53, 2026-08-20)**
+
+    A modal's `×` button MUST live in a flex header row that is a **sibling above** the scrollable
+    content, not a `position: sticky` element inside it:
+
+    ```
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0, overflow:'hidden' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+                    padding:'20px 24px 16px 24px', flexShrink:0 }}>
+        <h2 id="<heading-id>" style={{ fontSize:'18px', fontWeight:700, margin:0 }}>{title}</h2>
+        <button aria-label="Close" …><IconX size={20} stroke={2} /></button>
+      </div>
+      <div ref={contentRef} style={{ flex:1, minHeight:0, overflowY:'auto', padding:'0 24px 40px' }}>
+        {content}
+      </div>
+    </div>
+    ```
+
+    - The header row's horizontal padding MUST match the content div's, or the title will not
+      align with the content beneath it.
+    - `minHeight: 0` on both the column and the scroll child is required — without it the flex
+      child refuses to shrink and the scroll container overflows the panel.
+    - Attach the scroll-position ref (`contentRef`) to the **inner** div; it is the scroll container.
+    - The old anti-pattern (`position:sticky; top:20px` + `marginBottom:-20px` +
+      `pointerEvents:none` wrapper, with `paddingRight:'44px'` on the heading to dodge the button)
+      is retired. It made the × float over scrolling content and never share a baseline with the title.
+    - Close buttons in a header row are borderless/transparent (`--text-secondary` → hover
+      `--text-primary` + `--bg-hover`). The bordered `--bg-raised` treatment existed only to keep a
+      *floating* button legible over scrolling content — don't carry it into a header row.
+    - `aria-label="Close"` (not "Close settings" / "Close admin panel") — the dialog's
+      `aria-labelledby` already supplies the context.
+
+20. **Standing Rule — Don't force a shared shell across two modals that differ in close/Escape semantics (established Phase 53, 2026-08-20)**
+
+    Before extracting a shared modal shell, check the **close and Escape flows first** — they are
+    the thing that most often makes extraction unclean. Concretely, stop and keep the duplication if:
+    - Either modal needs Escape to be a **no-op while its `×` still works** (e.g. a
+      `hasChildModalOpen` guard). This cannot be expressed through an `onClose` prop, so the shell
+      would have to special-case the flow.
+    - Either modal runs a confirm/interstitial on close that the other doesn't.
+    - The shell would need more than ~4 props beyond `title / onClose / leftRail / children /
+      onOverlayClick` (differing `zIndex`, rail width, `aria-labelledby` target, content
+      className, or a `title` that must widen from `string` to `ReactNode` all count).
+
+    `NewSettingsModal` + `NewAdminModal` were evaluated against exactly this and the extraction was
+    **deferred** — see NEW_UI_DOCS.md Phase 53 Fix 3 for the itemized reasoning. Two readable files
+    with a duplicated 30-line frame beat one shell with six escape hatches. When you apply a fix to
+    both by hand instead, say so explicitly in the phase entry so the next session knows the
+    duplication is deliberate rather than an oversight.
 
 ---
 

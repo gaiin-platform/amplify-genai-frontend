@@ -680,8 +680,8 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
         tabIndex={-1}
         style={{
           width: '100%',
-          maxWidth: '1040px',
-          height: 'min(780px, 88dvh)',   /* fixed, not max-height, so children can fill and scroll */
+          maxWidth: '1100px',            /* standardized with NewAdminModal */
+          height: 'min(820px, 90dvh)',   /* fixed, not max-height, so children can fill and scroll */
           background: 'var(--bg-app)',
           border: '1px solid var(--border-subtle)',
           borderRadius: '16px',
@@ -787,44 +787,55 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
         </div>
 
         {/* ----------------------------------------------------------------
-            Right Content Pane — overflowY:auto + height:100% lets it scroll
+            Right Pane — flex column: fixed header row + scrollable content
         ---------------------------------------------------------------- */}
         <div
-          ref={contentRef}
           style={{
-            padding: '20px 32px 40px',
-            overflowY: 'auto',
-            overscrollBehavior: 'contain',
-            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
             height: '100%',
+            minHeight: 0,
+            overflow: 'hidden',
             boxSizing: 'border-box',
           }}
         >
-          {/* Close button — sticky top-right */}
+          {/* Header row — [Section Title .............. ×]
+              flexShrink:0 keeps it fixed while the content below scrolls. */}
           <div
             style={{
-              position: 'sticky',
-              top: '20px',
               display: 'flex',
-              justifyContent: 'flex-end',
-              zIndex: 10,
-              marginBottom: '-20px',
-              pointerEvents: 'none',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '20px 24px 16px 24px',
+              flexShrink: 0,
             }}
           >
+            {/* Section heading — id used by aria-labelledby on the dialog panel */}
+            <h2
+              id="settings-modal-heading"
+              style={{
+                fontSize: '18px',
+                fontWeight: 700,
+                color: 'var(--text-primary)',
+                margin: 0,
+              }}
+            >
+              {activeItem?.label ?? activeSection}
+            </h2>
+
             <button
               onClick={onClose}
-              aria-label="Close settings"
+              aria-label="Close"
               style={{
-                pointerEvents: 'auto',
+                flexShrink: 0,
                 width: '32px',
                 height: '32px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 borderRadius: '8px',
-                border: '1px solid var(--border-subtle)',
-                background: 'var(--bg-raised)',
+                border: 'none',
+                background: 'transparent',
                 color: 'var(--text-secondary)',
                 cursor: 'pointer',
                 transition: 'background 0.1s, color 0.1s',
@@ -834,37 +845,36 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
                 (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)';
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-raised)';
+                (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
                 (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)';
               }}
             >
-              <IconX size={16} stroke={2} />
+              <IconX size={20} stroke={2} />
             </button>
           </div>
 
-          {/* Section heading — id used by aria-labelledby on the dialog panel */}
-          <h2
-            id="settings-modal-heading"
+          {/* Scrollable content area — sits below the fixed header row */}
+          <div
+            ref={contentRef}
             style={{
-              fontSize: '18px',
-              fontWeight: 700,
-              color: 'var(--text-primary)',
-              marginBottom: '20px',
-              marginTop: '0',
-              paddingRight: '44px',
+              flex: 1,
+              minHeight: 0,
+              padding: '0 24px 40px',
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
+              position: 'relative',
+              boxSizing: 'border-box',
             }}
           >
-            {activeItem?.label ?? activeSection}
-          </h2>
-
-          {/* Section content — error boundary per section */}
-          <React.Suspense
-            fallback={
-              <div style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Loading…</div>
-            }
-          >
-            <SectionContent sectionId={activeSection} />
-          </React.Suspense>
+            {/* Section content — error boundary per section */}
+            <React.Suspense
+              fallback={
+                <div style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Loading…</div>
+              }
+            >
+              <SectionContent sectionId={activeSection} />
+            </React.Suspense>
+          </div>
         </div>
       </div>
 

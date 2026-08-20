@@ -1179,25 +1179,43 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         {/* text-neutral-900 dark:text-white establishes the default inherited text color for all
             admin tab components — matching the old AdminUI wrapper so they all render correctly. */}
         <div
-          ref={contentRef}
           className="text-neutral-900 dark:text-white"
           style={{
-            padding: '20px 32px 40px',
-            overflowY: 'auto',
-            overscrollBehavior: 'contain',
-            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
             height: '100%',
+            minHeight: 0,
+            overflow: 'hidden',
             boxSizing: 'border-box',
           }}
         >
-          {/* Close button — sticky top-right */}
+          {/* Header row — [Section Title .............. ×]
+              flexShrink:0 keeps it fixed while the content below scrolls. */}
           <div
             style={{
-              position: 'sticky', top: '20px',
-              display: 'flex', justifyContent: 'flex-end',
-              zIndex: 10, marginBottom: '-20px', pointerEvents: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '20px 24px 16px 24px',
+              flexShrink: 0,
             }}
           >
+            {/* Section heading */}
+            <h2
+              style={{
+                fontSize: '18px', fontWeight: 700,
+                color: 'var(--text-primary)',
+                margin: 0,
+              }}
+            >
+              {activeTabItem?.label ?? activeTab}
+              {tabHasChanges(activeTab) && (
+                <span style={{ fontSize: '13px', color: 'var(--accent)', marginLeft: '8px', fontWeight: 500 }}>
+                  ● unsaved
+                </span>
+              )}
+            </h2>
+
             <button
               onClick={() => {
                 if (unsavedConfigs.size === 0 ||
@@ -1205,14 +1223,14 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
                   onClose();
                 }
               }}
-              aria-label="Close admin panel"
+              aria-label="Close"
               style={{
-                pointerEvents: 'auto',
+                flexShrink: 0,
                 width: '32px', height: '32px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 borderRadius: '8px',
-                border: '1px solid var(--border-subtle)',
-                background: 'var(--bg-raised)',
+                border: 'none',
+                background: 'transparent',
                 color: 'var(--text-secondary)',
                 cursor: 'pointer',
                 transition: 'background 0.1s, color 0.1s',
@@ -1222,35 +1240,32 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
                 (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)';
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-raised)';
+                (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
                 (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)';
               }}
             >
-              <IconX size={16} stroke={2} />
+              <IconX size={20} stroke={2} />
             </button>
           </div>
 
-          {/* Section heading */}
-          <h2
+          {/* Scrollable content area — sits below the fixed header row */}
+          <div
+            ref={contentRef}
             style={{
-              fontSize: '18px', fontWeight: 700,
-              color: 'var(--text-primary)',
-              marginBottom: '20px', marginTop: '0',
-              paddingRight: '44px',
+              flex: 1,
+              minHeight: 0,
+              padding: '0 24px 40px',
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
+              position: 'relative',
+              boxSizing: 'border-box',
             }}
           >
-            {activeTabItem?.label ?? activeTab}
-            {tabHasChanges(activeTab) && (
-              <span style={{ fontSize: '13px', color: 'var(--accent)', marginLeft: '8px', fontWeight: 500 }}>
-                ● unsaved
-              </span>
-            )}
-          </h2>
-
-          {/* Tab content */}
-          <React.Suspense fallback={<div style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Loading…</div>}>
-            {renderContent()}
-          </React.Suspense>
+            {/* Tab content */}
+            <React.Suspense fallback={<div style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Loading…</div>}>
+              {renderContent()}
+            </React.Suspense>
+          </div>
         </div>
       </div>
     </div>

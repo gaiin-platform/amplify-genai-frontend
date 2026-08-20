@@ -120,107 +120,6 @@ Docs updated: `NEW_UI_DOCS.md` (new component registry entry, new Phase 25, §13
 resolved for Web Search), `NEW_UI_PORTING_STATUS.md` (Web Search row updated, RAG row corrected).
 `tsc --noEmit` / `eslint` clean.
 
-### Why this jumps the queue
-This was discovered during Task 1, not on the original 9-item list. It's a **real functional bug in
-an already-shipped, user-facing feature** (Web Search toggle in `AttachMenu.tsx` — wiki Phase 9,
-marked ✅ in `NEW_UI_PORTING_STATUS.md`): the toggle saves state and shows as "on" in the UI, but the
-setting never reaches the backend request, so the feature silently does nothing. The RAG toggle has
-the identical defect. Because this actively misleads users (UI says a feature is active when it
-isn't), it's being prioritized ahead of Task 2's cosmetic work — recommended, not mandatory; see
-sequencing note.
-
-### The core problem (per audit findings)
-`Chat.tsx` (DO-NOT-CHANGE) holds its own local `plugins` state that actually gets sent with the
-request. New-UI toggles (Web Search, RAG) currently only write to `conversation.data` — a
-side-channel `Chat.tsx` never reads for this purpose. Needs a bridge pattern (similar in spirit to
-the existing Pending-Message Bridge / sessionStorage handoff patterns already documented in wiki
-§13) that gets the toggle state into whatever `Chat.tsx` already reads to build its request-time
-plugin list — without editing `Chat.tsx` itself.
-
-### Suggested prompt
-```
-(standard preamble)
-
-This is a bug-fix task, not new feature work. Read
-/Users/maxmoundas/Amplify/amplify-genai-frontend/NEW_UI_LOAD_STATE_AUDIT_2026-08-10.md in full first
-— it documents the exact root cause of this bug and why it wasn't fixed in the session that found it.
-
-Bug: the Web Search toggle in AttachMenu.tsx (and the RAG/"Add from library" data-source toggle,
-same defect) persists its on/off state to conversation.data, but Chat.tsx (a DO-NOT-CHANGE file)
-builds its actual outgoing request from its own local `plugins` state, which never reads
-conversation.data for this purpose. Result: the UI shows the toggle as active, but the backend
-request never actually includes the web-search or RAG plugin. This is a silent functional failure,
-not a visual bug — users believe a feature is active when it is doing nothing.
-
-Goal: find the mechanism Chat.tsx already uses to seed its local `plugins` state (check how it
-reads from `selectedConversation` / conversation.data on mount or on conversation switch — there may
-already be a read path that just isn't populated correctly, rather than a total absence of one).
-Determine the correct way to get the new-UI toggle state into that mechanism WITHOUT editing
-Chat.tsx — options to investigate: whether plugins are already read from conversation.data under a
-different key/shape than what the new-UI toggles write, whether there's an existing event/handler
-(e.g. handleUpdateConversation) that Chat.tsx reacts to, or whether the pending-message
-sessionStorage bridge pattern (documented in wiki §13) needs to be extended to carry plugin state
-for NEW conversations specifically (vs. toggling on an existing conversation, which may be a
-different code path).
-
-Fix both the Web Search toggle (AttachMenu.tsx / ConversationComposer.tsx / NewHome.tsx as
-applicable) and the RAG toggle using the same mechanism once found. Do not modify Chat.tsx.
-
-If, after investigation, there is truly no way to make this work without touching Chat.tsx, stop and
-report back precisely what minimal read-only addition to Chat.tsx would be required (e.g. "read an
-additional key from conversation.data on mount") — do NOT make the edit yourself; flag it for a
-human decision since it would be the first exception to the DO-NOT-CHANGE list.
-
-Update NEW_UI_DOCS.md (mark the §13 technical note resolved, add to Phase 24 or a new phase) and
-NEW_UI_PORTING_STATUS.md (remove the warning flag on the Web Search row; update RAG row).
-```
-
----
-
-### What this covers
-Verify the new UI hasn't silently broken any of the load-time logic that lives in `home.tsx` /
-`home.context.tsx` (both DO-NOT-CHANGE per wiki Section 2/9):
-- Conversations load correctly on boot (sync, folders, ordering)
-- Admin check (`featureFlags.adminInterface` gate + actual admin API call) resolves correctly
-- Correct models load into `availableModels` / `defaultModelId`
-- Feature flags fetch completes and gates the right components
-- Any other on-load fetches in `home.tsx` (groups, prompts, settings)
-
-### Why it matters
-This is pure regression-testing of Section 2 (Core Architecture) — the new UI reads all of this
-state but never should have altered how it's fetched. A silent break here (e.g. a race condition
-introduced by new-UI mount timing) would be invisible visually but would corrupt behavior.
-
-### Dependencies / blockers
-None — can run anytime, ideally now since a lot has been built on top of this state already.
-
-### Suggested prompt (send as new implementation session)
-```
-(standard preamble)
-
-This is a verification/QA task, not a feature build. Do NOT write new UI components for this.
-
-Goal: confirm that all pre-existing load-time logic in home.tsx / home.context.tsx still behaves
-correctly when the new UI (uiPreference === 'new') is active. Specifically verify:
-
-1. Conversations load on boot — correct list, correct ordering, folders resolve, no duplicate or
-   missing conversations vs. classic UI.
-2. Admin check — featureFlags.adminInterface is fetched and gates admin entry points correctly;
-   the actual AdminUI/NewAdminModal tab data loads without errors for an admin user.
-3. Model loading — availableModels / defaultModelId populate correctly; ModelPicker and NewHome's
-   model selection reflect the right list, hiddenModelIds filtering still works.
-4. Feature flags — full featureFlags fetch resolves before dependent new-UI components render
-   (or that they handle the flags-not-yet-loaded state gracefully); spot check 3-4 flag-gated
-   features (e.g. scheduledTasks, uploadDocuments, webSearch) actually toggle their UI correctly
-   when flipped in the admin panel.
-5. Any other on-load state (groups, prompts, settings) that new-UI components consume.
-
-Use the `verify` skill/pattern: actually run the app and exercise these flows, don't just read code.
-Report findings as a list: what works, what's broken, what's suspicious but unconfirmed. Do not fix
-bugs found unless they are trivial one-line issues — instead report them clearly so they can be
-triaged into their own task.
-```
-
 ---
 
 ## 2. Inside Chat View Improvement — chat-pane-migration-spec.md work (2026-08-11 → 2026-08-13)
@@ -262,223 +161,26 @@ blocks via new-UI CSS to collapse their DOM footprint.
 
 ## 2b. Chat Pane — Visual Defect Fixes (Loading Alignment, Model Selector Flash, Old Animations)
 
-**Status:** 🚧 In progress — Bug 1 ✅, Bug 2 ✅, Bug 3 pending (queued for next session)
-**% complete:** 85%
+**Status:** ✅ Done
+**% complete:** 100%
 **Type:** Bug fix — visual defects reported 2026-08-14.
 
-### Issues to fix
-
-**Bug 1 — Thinking/loading circle misaligned when message is first sent**
-When the user sends a prompt, the spinning/animating "AI is thinking" indicator (the PromptStatus
-element rendered while the response is generating) appears at the wrong horizontal position —
-not vertically/horizontally in line with where the "Thought process" disclosure and AI prose
-response will ultimately appear (the message column left edge). Root cause hypothesis: the
-PromptStatus container (`.rounded-xl.shadow-lg` or `.mt-0.ml-3`) may be affected by the column
-constraint rules in `conversation-view.css` but its internal layout (the spinner/dot + step-line
-row) may have a left offset that doesn't match the prose left edge. Check how `PromptStatus.tsx`
-renders its "thinking" state (the `.mt-0.ml-3` row, which is what the Phase 26 shimmer-dot attaches
-to) and verify that row's left position in the new-UI column CSS matches the `.assistantContentBlock`
-prose left edge exactly. Fix via `conversation-view.css` scoping rules only — do NOT touch
-`PromptStatus.tsx` (protected).
-
-**Bug 2 — Old-UI model selector briefly flashes after user sends a message** ✅ Fixed (Phase 38)
-Root cause: `#overflowScroll` (Chat.tsx's empty-conversation panel) rendered when `messages.length === 0`
-during the 150–300ms window before the bridge injected the first message. Fix: `[data-new-ui="true"] #overflowScroll { display: none !important }`.
-
-**Bug 3 — "Amplify Assistant is responding" placeholder text + old blinking cursor visible during pre-response window** 🔴 Pending
-Two separate elements still showing before the AI response streams in:
-1. The text "the 'Amplify Assistant' is responding" — comes from `PromptStatus.tsx` (protected) which renders
-   this string in one of its status states. This text looks like a placeholder and should be hidden/replaced
-   by the new-UI shimmer animation instead.
-2. A blinking cursor or blinking-rectangle animation below it — this is an old-UI animated element (likely
-   a separate `div` or `span` in Chat.tsx or ChatMessage.tsx) that renders in the pre-streaming state. Must
-   be hidden via a `[data-new-ui="true"]` rule in `conversation-view.css`.
-Investigation needed: read `PromptStatus.tsx` (DO NOT CHANGE) to find the exact DOM structure and class
-names for both elements, then add targeted hide rules.
-
-### Suggested prompt
-
-<details>
-<summary>Original (superseded) framing — kept for history</summary>
-
-### Sub-items
-| Item | Status | Notes |
-|---|---|---|
-| Loading/reasoning animation | ✅ Done (Phase 26/27, small slice) | Calm shimmer added to PromptStatus + ChatLoader; reasoning block itself still needs the full spec §3 rework (prose summary, chevron logic) |
-| Remove old logos/things | 🚧 Partial (Phase 26/27) | ChatLoader avatar + ArtifactsBlock logo swatch hidden; spec's other branding/typography items (§6, §9) still open |
-
-</details>
-
-### Why it matters
-Chat view is the core surface; this spec is the highest-fidelity design reference we have for it.
-
-### Dependencies / blockers
-None — but **strongly recommend running these as 3 separate sessions**, checking in between each,
-rather than one combined prompt. The spec's own "Build order" note (top of the doc) already
-recommends this sequencing.
-
-### Suggested prompts (run sequentially, verify between each) — historical archive; all batches completed
-
-**Batch 1 — Hover action rows + reasoning block (spec §1, §2, §3 — "the ones you'll feel"):**
-```
-(standard preamble)
-
-Read /Users/maxmoundas/Downloads/chat-pane-migration-spec.md in full — it is the authoritative source
-for this task. Implement ONLY sections 1, 2, and 3 of that spec in this session (hover action rows
-for user + assistant messages, and the reasoning block redesign). Do not start on sections 4+ even if
-time/context remains — those are separate follow-up sessions by design, to avoid an unscoped,
-runaway session.
-
-Existing partial implementation to build on/replace: components/NewUI/chat/NewUIMessageActionsLayer.tsx
-(event-delegation pattern, do not touch ChatMessage.tsx/Chat.tsx) and
-components/NewUI/chat/ChatContentBlocks equivalents for reasoning
-(components/Chat/ChatContentBlocks/AssistantReasoningMessage.tsx is DO-NOT-CHANGE — read only;
-style via components/NewUI/ + conversation-view.css CSS-scoping as already established in Phase 12/26).
-
-Key acceptance checks to self-verify before finishing (spec's own "Acceptance checks" §1-8):
-- Hovering a user message reveals a right-aligned row: timestamp · retry · edit · copy, right edge on
-  the bubble's right edge.
-- Hovering an assistant message reveals a left-aligned bare-icon row (no bordered box) ending in the
-  timestamp.
-- Last assistant turn's row is always visible; other turns are hover/focus-only.
-- Tabbing (:focus-within) reveals the row with NO layout shift (reserve height via `visibility`, not
-  `display`).
-- No assistant turn shows the literal word "Reasoning" anywhere.
-- A turn with no reasoning and no tool use shows no summary line at all.
-- A turn whose reasoning has no expandable body shows summary text with no chevron, not focusable.
-
-Note: reasoning.summary as a per-turn field must come from the orchestration/backend layer per the
-spec (§3.1) — if that field genuinely does not exist yet on the message/turn payload, STOP and report
-this precisely rather than fabricating a client-side summary; this may need a backend companion task.
-Check message.data.state (and any reasoning-related fields already present) thoroughly before
-concluding it's missing.
-
-Update NEW_UI_DOCS.md (new phase, be specific about what shipped vs what's stubbed/blocked) and
-NEW_UI_PORTING_STATUS.md. Do NOT write a large end-of-session investigation report in place of
-progress — checkpoint the wiki incrementally if the session runs long.
-```
-
-**Batch 2 — Markdown + collapse in user messages (spec §4, §5):**
-```
-(standard preamble)
-
-Read /Users/maxmoundas/Downloads/chat-pane-migration-spec.md in full. Implement ONLY sections 4 and 5
-of that spec in this session (markdown rendering in user messages with fenced code as an inset panel;
-collapsing long user messages past ~380px with a "Show more" control). Do not start on other sections.
-
-User message content currently renders as raw whitespace-pre-wrap text — see
-components/Chat/ChatMessage.tsx line ~708 (id="userMessage", DO NOT CHANGE — read only). Render
-markdown via new-UI-side wrapping/CSS per the One-Directory Rule; scope deliberately per spec §4 —
-paragraphs, line breaks, fenced code, inline code, lists, bold, italic ONLY (no headings/tables/images
-in a user bubble). Bubble text must stay sans face regardless of any serif "Chat font" setting from a
-later batch.
-
-For collapse (§5): measure via scrollHeight on rendered content, not character count. Match the exact
-target values: 380px threshold, mask-image fade, left-aligned plain-text "Show more"/"Show less"
-toggle (not a styled button), 240ms ease-out expand animation, per-message non-persisted state.
-
-Acceptance checks to self-verify (spec's Acceptance checks §8-9):
-- A user message with a fenced code block renders an inset panel; no literal backticks visible.
-- A 60-line pasted user message collapses to ~380px with a fade and a left-aligned "Show more".
-
-Update NEW_UI_DOCS.md and NEW_UI_PORTING_STATUS.md.
-```
-
-**Batch 3 — Everything else (spec §6-12, the "one-line changes"):**
-```
-(standard preamble)
-
-Read /Users/maxmoundas/Downloads/chat-pane-migration-spec.md in full. Implement sections 6 through 12
-in this session — assistant body typography (serif "Chat font" setting), send button/voice-mode
-cross-fade slot, composer text alignment (pixel-exact per the CSS variables given in spec §8), share
-button restyle, user bubble max-width (72%→85%), pending-asterisk position + two-state animation, and
-the dark token palette swap (spec §12, using merged-shell-spec.md §3 if that file is available in the
-same Downloads location — check for it; if absent, use the token values already given inline in spec
-§12 and existing globals.css tokens as the base to extend, do not invent new ones ad hoc).
-
-These are individually small (S/XS sized per the spec's own summary table) — do them one at a time,
-verify each against its acceptance check before moving to the next, rather than batch-editing
-everything then debugging at the end.
-
-Acceptance checks to self-verify (spec's Acceptance checks §10-12):
-- Composer placeholder and assistant prose paragraph share the same left x-coordinate (verify by
-  overlay/screenshot comparison, not by eye).
-- Empty composer shows a voice button in the send slot; typing cross-fades to accent-filled send with
-  zero layout shift.
-- Timestamps render in the specified relative ladder and sub-hour ones update without reload (this
-  depends on Batch 1's timestamp work already being in place — sequence after Batch 1).
-
-Update NEW_UI_DOCS.md and NEW_UI_PORTING_STATUS.md.
-```
-
-*Explicitly out of scope per the spec itself (do not let any of the 3 sessions touch these):
-attachment cards/preview overlay, model picker's two states, attach menu groups/toggles, sidebar,
-settings modal, landing page, header title control, disclaimer copy, jump-to-latest button.*
+- **Bug 1 ✅** (Phase 38) — ChatLoader alignment: avatar wrapper div (40px + 8px gap) hidden via child-combinator selector specific to ChatLoader's DOM shape; dot now at prose left edge.
+- **Bug 2 ✅** (Phase 38) — Model selector flash: `[data-new-ui="true"] #overflowScroll { display: none !important }`.
+- **Bug 3 ✅** (Phase 40b + Phase 43) — Loading text + old spinners: PromptStatus text hidden; `l-ping` and `l-quantum` elements hidden via element-type selectors in `conversation-view.css`.
 
 ---
 
 ## 3. Assistant Creation Interface Overhaul
 
-**Status:** ⬜ Not started (current creation flow is Phase 16/17's basic AssistantModal port)
-**% complete:** ~15% (creation exists and works — Porting Status §3 shows assistant CRUD ✅ — but the *access-model* UX described here does not exist yet)
-**Type:** Feature build — UX design + implementation.
+**Status:** ✅ Done
+**% complete:** 100%
+**Type:** Feature build.
 
-### What's being asked for
-1. When creating an assistant, ask the user to choose an access model:
-   - **Shared assistant** — multiple people can access AND edit
-   - **Managed-by-me, usable-by-others** — owner manages; others get access via individual emails,
-     a group, or a public URL
-   - **Private** — only the creator has access
-2. When an assistant is attached to a chat, give the user a way to see more info about it on hover
-   (e.g. owner, access level, description, tools/data sources it uses).
-
-### Current state to build on
-- `NewAssistantsView.tsx` (wiki Section 5, Porting Status §3) already has 4 tabs and creation flows
-  via `AssistantModal` / `PromptModal` / `openLayeredBuilderTrigger`.
-- Group-assistant admin access already exists (`featureFlags.assistantAdminInterface` + `GroupAccessType`),
-  so some backend plumbing for "group access" likely already exists — needs investigation, not
-  necessarily a new backend feature.
-- `AttachMenu.tsx` "Add assistant ›" submenu (Phase 9) is the existing hover point for assistant chips
-  in the composer — that's the natural place to add the hover-info affordance.
-
-### Dependencies / blockers
-Needs investigation into whether the backend `AssistantDefinition` / group-access model already
-supports "individual emails" and "public URL" sharing, or if this requires backend changes (which
-would be out of scope for a frontend-only new-UI session — flag if so).
-
-### Suggested prompt
-```
-(standard preamble)
-
-Feature: rework the assistant creation flow's access-control UX, and add a hover info-card for
-assistant chips.
-
-Step 0 — investigate before building: read AssistantModal (old UI, safe to import/reference but not
-modify), assistantService.ts (DO NOT CHANGE, read-only), and types/ related to AssistantDefinition
-and GroupAccessType to determine what access-control primitives the backend ALREADY supports
-(individual email sharing? group-based access? public URL access?). Report back what exists vs.
-what would need backend work before writing any UI code — if backend work is required, stop and
-flag it rather than half-implementing a UI for a capability the backend can't fulfill.
-
-Step 1 — creation flow: inside components/NewUI/ (new component, or extend AssistantModal's *wrapper*
-if one already exists in NewUI — check registry first), add a step to the assistant creation flow
-that asks the user to choose one of three access models:
-  (a) Shared — multiple people can access AND edit
-  (b) Managed by me, usable by others — list individual emails OR select/create a group OR generate
-      a public URL
-  (c) Private — only the creator has access
-This must not modify AssistantModal.tsx itself (One-Directory Rule) — wrap or extend via a new-UI
-component that sits in front of / around the existing modal, following the same pattern used for
-other old-modal wrapping in the wiki.
-
-Step 2 — hover info card: wherever an assistant is shown as an attached chip in the composer
-(AttachMenu.tsx's active-chip rendering, ConversationHeader's assistant chip), add a hover
-tooltip/popover showing: assistant name, owner, access level (from step 1), short description,
-and any tools/data sources attached. Use Floating UI (already a dependency per ModelPicker/AttachMenu)
-for positioning.
-
-Update NEW_UI_DOCS.md (new phase + registry entries) and NEW_UI_PORTING_STATUS.md Section 3.
-```
+### Outcome (Phases 46–48, implemented after 2026-08-19 orchestrator session)
+- **Phase 46:** `NewAssistantTypeSelector.tsx` step-0 wizard (Private / Managed / Collaborative cards, Card 2 gated by `assistantPathPublishing`, Card 3 by `assistantAdminInterface`). 5-tab assistants view overhaul: "Shared with Me" tab added as first-class top-level tab; "My Assistants" simplified to canEdit=true only; "Teams" renamed from "Group Assistants". Access-type badges (Private/Shared/URL) on My Assistants rows.
+- **Phase 47:** AssistantModal new-UI CSS styling via `[data-new-ui-assistants="true"]` scope. Card 3 overhauled: "Use existing team" / "Create new team" flow (async `createAstAdminGroup` + `updateGroupMembers`). All three cards now call `onConfirm` → all paths lead to AssistantModal.
+- **Phase 48:** `InfoFloatCard.tsx` hover-preview cards on assistant rows (name, access pill, description, instructions preview, tags, model, tool count) and model rows (name, description, capability pills, context window). `menuPositioning.ts` Floating UI config for nested submenus. Submenu positioning converted from measured-top to `useFloating` in both `AttachMenu.tsx` and `ModelPicker.tsx`.
 
 ---
 
@@ -600,42 +302,15 @@ view inside the existing placeholder section using the same `NewLibraryView`-sty
 **Type:** Audit + remediation.
 
 ### Outcome (session dated 2026-08-14)
-8 Critical issues fixed, 6 Major issues fixed, 4 Major findings deferred (documented in
-NEW_UI_DOCS.md §13b). Specifically:
+8 Critical + 5 Major issues fixed; 4 Major deferred (see wiki §13b for full list).
 
-**Critical fixes applied:**
-1. `--text-muted` contrast — light `#888888` → `#6E6E6E` (5.02:1 ✅), dark `#8A8780` → `#9E9C96`
-   (5.04:1+ ✅). Applied in `globals.css`.
-2. NewSettingsModal — no focus trap — Added `panelRef`, Tab/Shift-Tab cycling, focus on open,
-   `aria-labelledby="settings-modal-heading"`.
-3. NewAdminModal — no focus trap — Same pattern.
-4. AttachmentPreview — Tab not cycling inside modal — Fixed.
-5. ConversationComposer textarea — no label — Added `aria-label="Message input"` +
-   `aria-multiline="true"`.
-6. AccountMenu — popover opened without moving focus — First `[role="menuitem"]` now focused on open.
-7. PromptStatus — no aria-live for streaming — `ConversationViewShell.tsx` injects
-   `aria-live="polite"` via MutationObserver DOM effect on `.rounded-xl.shadow-lg` (no protected
-   file touched).
-8. IconButton — no aria-label prop — Added `aria-label` prop with `title` fallback.
+Critical: `--text-muted` contrast raised (`#6E6E6E` / `#9E9C96`); focus traps added to NewSettingsModal + NewAdminModal + AttachmentPreview; ConversationComposer textarea `aria-label` added; AccountMenu focus-on-open fixed; PromptStatus `aria-live` injected via MutationObserver in ConversationViewShell; IconButton `aria-label` prop added.
 
-**Major fixes applied:**
-- `prefers-reduced-motion` comprehensive block added to `conversation-view.css` covering
-  AttachmentRail, menus, action rows, composer cross-fade, message collapse, hover transitions,
-  spinner rotation.
-- ModelPicker primary panel `aria-label="Select model"` added.
-- SegmentedControl `aria-label` prop added.
-- AttachMenu badge dot `aria-hidden="true"` added.
-- Skills submenu loading state `aria-live="polite"` + `aria-busy` added.
+Major: `prefers-reduced-motion` block added to `conversation-view.css`; ModelPicker/SegmentedControl `aria-label` props added; AttachMenu badge `aria-hidden`; Skills submenu `aria-live` added.
 
-**Deferred findings (documented in NEW_UI_DOCS.md §13b):**
-- "Reasoning" → "Thought process" CSS substitution still announced incorrectly by screen readers
-  (needs touching protected component to fix properly).
-- AttachmentRail roving tabindex not fully implemented (current behavior is accessible).
-- Old-UI wrapped components inside settings (SkillsLibrary, IntegrationTabs, etc.).
-- NewScheduledTasksView/NewLibraryView/NewAssistantsView full keyboard audit deferred to Pass 2.
+Deferred: screen-reader "Reasoning" announcement; AttachmentRail roving tabindex; old-UI wrapped components in settings; NewScheduledTasksView/NewLibraryView/NewAssistantsView keyboard audit.
 
-Docs updated: `NEW_UI_DOCS.md` (new §13b "Accessibility Findings — Pass 1" subsection;
-`NEW_UI_WIKI_INSTRUCTIONS.md` Section 9 updated with aria-label standing rule for IconButton).
+Docs updated: `NEW_UI_DOCS.md` §13b added; `NEW_UI_WIKI_INSTRUCTIONS.md` §9 aria-label rule added.
 
 ---
 
@@ -772,8 +447,6 @@ earlier just produces a stale report.
 
 ---
 
----
-
 ## 10. Standalone Assistant Page
 
 **Status:** ⬜ Not started
@@ -826,36 +499,6 @@ drag); `sidebarWidth` state committed only on mouseup. Persisted to `localStorag
 `amplify_sidebar_width`. Collapsed 52px icon-rail completely unaffected (separate code path).
 A `ResizeObserver` on `.chatcontainer` was also added to `NewUIMessageActionsLayer.tsx` so
 action row positions recompute after a sidebar drag (flex-1 content area changes width).
-
-Currently `NewSidebar` has a fixed 310px width. Users should be able to drag the right edge to
-resize it within a sensible min/max range.
-
-### Suggested prompt
-```
-(standard preamble)
-
-Feature: user-resizable sidebar width via drag handle on the right edge of `NewSidebar.tsx`.
-
-Requirements:
-- Drag handle: 4–6px wide, positioned on the right edge of the sidebar (inside NewSidebar.tsx,
-  per the One-Directory Rule). On hover: cursor `col-resize`, subtle highlight.
-- Resize range: min 220px, max 480px. Default 310px (current fixed width).
-- Persistence: save to `localStorage` key `amplify_sidebar_width` so it survives reload.
-- On mount: read from localStorage, fall back to 310px.
-- Collapsed state (the existing icon-rail mode) is not affected by drag-resize — it has its own
-  fixed 52px collapsed width. The drag handle is only active when the sidebar is expanded.
-- Smooth: no jank. Use `document` mousemove/mouseup listeners during the drag (not React state
-  per-pixel — just update a CSS variable or inline style directly on the sidebar element until
-  mouseup, then commit to React state + localStorage). This avoids React re-rendering on every
-  pixel of mouse movement.
-- The main content area must flex to fill the remaining space as the sidebar resizes.
-
-Implement entirely within `components/NewUI/sidebar/NewSidebar.tsx` (and its CSS in
-`conversation-view.css` or a new `sidebar-resize.css` if the rule count warrants it). Do NOT
-modify `home.tsx` layout structure unless strictly necessary.
-
-Update NEW_UI_DOCS.md (registry entry for the drag-handle behavior) and NEW_UI_PORTING_STATUS.md.
-```
 
 ---
 
@@ -1026,72 +669,8 @@ update "Conversation sharing" row to note sidebar entry point added).
 **Remaining UX gap → Task 14b:** `canSend` blocks the entire send until upload completes. User wants a different UX: go to chat view immediately, but delay the actual API call until images finish uploading, with a visible loading indicator. See Task 14b below.
 
 Two related problems:
-1. **No attachment preview in chat history** ✅ Fixed — thumbnails now shown via restyled DataSourcesBlock
+1. **No attachment preview in chat history** ✅ Fixed — thumbnails shown via restyled DataSourcesBlock
 2. **Images not passing through** ✅ Fixed — S3 path correctly wired via direct useSendService call
-
-### What exists
-- `AttachmentRail` + `AttachmentCard` handle pre-send display (wiki Phase 18) ✅
-- `AttachmentPreview` handles pre-send preview overlay ✅
-- The issue is the *post-send* display: once a message is in the chat history, there's no
-  rendering of attached images in the message bubble.
-- The wiki notes `Image/SVG/HTML artifact rendering 🚧` and `Attachment rail (pre-send cards) ✅`
-  but these are separate concerns.
-- The pending-message bridge (`ConversationViewShell.tsx`) hands off docs via sessionStorage to
-  `Chat.tsx`'s hidden input. The question is whether image binary data is correctly preserved
-  through that bridge.
-
-### Suggested prompt
-```
-(standard preamble)
-
-Critical bug + feature: images attached in the new UI are not shown in chat history after sending,
-and may not be reaching the backend at all. Fix both the functional bug (images not passing through)
-and the missing display (no thumbnails in sent messages).
-
-This is an investigation-first task. Two sub-problems:
-
----
-
-Sub-problem A — are images actually reaching the backend?
-
-Read (DO NOT CHANGE) in order:
-1. `components/Chat/AttachFile.tsx` — understand exactly what an `AttachedDocument` looks like
-   when it has image data. Specifically: after `handleFile`, is the image binary stored in
-   `doc.raw`? Or somewhere else? Check the `raw` field wipe issue documented in wiki §13
-   "Image Thumbnail Gotcha".
-2. `ConversationViewShell.tsx` — the pending-message bridge. Check how `amplify_pending_docs`
-   is serialized into sessionStorage (JSON.stringify) and deserialized. JSON cannot encode binary
-   data (ArrayBuffer, Uint8Array, base64 strings can survive but raw binary cannot). If `doc.raw`
-   for an image is binary, it will be silently lost in the JSON round-trip.
-3. `hooks/useChatSendService.ts` — check how `AttachedDocument.raw` is used when building the
-   request. Does it expect base64-encoded image data? Raw bytes? A URL?
-4. The old UI's path: check how classic `ChatInput.tsx` / `AttachFile.tsx` handles images in the
-   EXISTING (non-new-UI) flow — what shape does image data take by the time `handleSend` is
-   called? That is the ground truth for what the new UI must replicate.
-
-Report findings before writing any fix. If the bridge is silently dropping image binary data,
-propose a fix that correctly preserves it (e.g. base64-encoding before sessionStorage, or finding
-an alternative hand-off path that doesn't serialize through JSON).
-
----
-
-Sub-problem B — show image thumbnails in chat history (post-send).
-
-Once a message containing an image is in the chat history, the user bubble should show a thumbnail.
-Read `ChatMessage.tsx` (DO NOT CHANGE) to find where `message.attachedDocuments` or similar is
-rendered inside the user bubble. If the old UI already renders something here, it may just need
-CSS styling. If nothing is rendered at all, you'll need a portal-based approach like
-`NewUIUserMessageMarkdownLayer` — a new component in `components/NewUI/chat/` that scans user
-messages for attached image documents and injects thumbnails into the bubble.
-
-Fix / implement in `conversation-view.css` + `components/NewUI/` only. Do NOT modify
-`ChatMessage.tsx`.
-
----
-
-Update NEW_UI_DOCS.md (new phase + registry if a new component is needed) and
-NEW_UI_PORTING_STATUS.md §2 (update "Image/SVG/HTML artifact rendering" row).
-```
 
 ---
 
@@ -1154,60 +733,7 @@ in `NewHome.tsx` and `ConversationComposer.tsx`. Scrollbar thumbs updated to blu
 Standing rule added to `NEW_UI_WIKI_INSTRUCTIONS.md` §9 rule 18 locking blue as the accent color
 for all future sessions.
 
-**Type:** Visual polish — global token change (original description below).
-
-Currently `--accent: #D97757` (orange) in `globals.css` is used for interactive elements (send
-button, active nav highlights, badges, spinner, etc.) but several components use purple or indigo
-independently. The app should use a single consistent blue accent everywhere.
-
-### The target blue (from Majk repo, `/Users/maxmoundas/majk`)
-Confirmed by reading `/Users/maxmoundas/majk/renderer/config/themes.ts` (the `buttonPrimaryBg`
-value, which sets `--nextui-primary` — the color used for sidebar selected-state active items):
-- **Dark mode:** `#006FEE` (NextUI primary blue)
-- **Light mode:** `#3b82f6` (Tailwind blue-500)
-
-### What needs to change
-1. `styles/globals.css` — change `--accent` in both `:root` (light) and `.dark` to the new blues
-   above. The `--accent` token is what drives the send button, active-state indicators,
-   accent-colored badges, and the spinner.
-2. Audit every hardcoded purple/indigo/orange value in `components/NewUI/**` that should be accent
-   and replace with `var(--accent)`.
-3. The inline code color `#D9776A` / `--code-fg` in `conversation-view.css` is intentionally
-   warm (it's a syntax-highlight color, not an interactive accent) — leave it alone.
-
-### Suggested prompt
-```
-(standard preamble)
-
-Task: make the accent color consistent across the new UI. Replace the current orange `#D97757`
-with blue, matching the Majk app's primary interactive color.
-
-Target values (verified by reading `/Users/maxmoundas/majk/renderer/config/themes.ts`):
-- Light mode `--accent`: `#3b82f6`  (Tailwind blue-500; used in Majk light theme `buttonPrimaryBg`)
-- Dark mode `--accent`:  `#006FEE`  (NextUI primary blue; used in Majk dark-obsidian `buttonPrimaryBg`,
-  which ThemeContext sets as `--nextui-primary` for sidebar selected states)
-
-Step 1 — update `styles/globals.css`: change `--accent` in `:root` to `#3b82f6` and in `.dark`
-to `#006FEE`. Also update the `--accent`-derived glyph color used on the send button (dark ink on
-the blue background — check if `#2A1710` still has sufficient contrast against `#3b82f6` / `#006FEE`;
-if not, switch to white `#ffffff` which will definitely pass).
-
-Step 2 — audit `components/NewUI/**` for hardcoded purple/indigo/orange accent colors that should
-be `var(--accent)` instead. Common offenders: `bg-indigo-*`, `bg-purple-*`, `text-indigo-*`,
-`text-purple-*`, any hardcoded `#` values that are clearly interactive-state highlights rather than
-semantic/informational colors. Replace with `bg-[var(--accent)]` / `text-[var(--accent)]` etc.
-Do NOT change colors that are intentionally semantic (error=red, success=green, warning=amber).
-
-Step 3 — spot-check in `conversation-view.css`: the `--accent` var is used in the pending asterisk
-(`content: url('/icon2.png')` — actually image-based now, no color change needed there) and in the
-thinking-shimmer animation. Confirm both still look reasonable with the new blue.
-
-Do NOT change `--code-fg` (`#D9776A`) — that is an intentional warm syntax-highlight color,
-not an interactive accent.
-
-Update NEW_UI_DOCS.md §4 (update the design token table with new --accent values) and note the
-change in Phase N. Update NEW_UI_PORTING_STATUS.md if any rows are affected.
-```
+**Type:** Visual polish — global token change.
 
 ---
 
