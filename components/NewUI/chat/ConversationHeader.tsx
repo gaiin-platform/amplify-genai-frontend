@@ -18,6 +18,7 @@ import {
 import HomeContext from '@/pages/api/home/home.context';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 
 export const ConversationHeader: React.FC = () => {
   const {
@@ -29,6 +30,7 @@ export const ConversationHeader: React.FC = () => {
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -94,9 +96,7 @@ export const ConversationHeader: React.FC = () => {
 
   const handleShare = () => {
     setMenuOpen(false);
-    // Trigger the existing Share dialog in Chat.tsx
-    const shareBtn = document.getElementById('shareChatUpper') as HTMLButtonElement | null;
-    shareBtn?.click();
+    setShowShareModal(true);
   };
 
   // Menu item style
@@ -105,6 +105,7 @@ export const ConversationHeader: React.FC = () => {
     'text-[--text-secondary] hover:bg-[--bg-hover] hover:text-[--text-primary] transition-colors text-left';
 
   return (
+    <>
     <div
       className="new-ui-header"
       style={{
@@ -266,6 +267,16 @@ export const ConversationHeader: React.FC = () => {
         onCancel={() => setConfirmDeleteOpen(false)}
       />
     </div>
+
+    {/* Share modal — rendered outside the header div so it isn't clipped */}
+    {showShareModal && selectedConversation && (
+      <NewUIShareModal
+        conversationId={selectedConversation.id}
+        conversationTitle={selectedConversation.name}
+        onClose={() => setShowShareModal(false)}
+      />
+    )}
+    </>
   );
 };
 

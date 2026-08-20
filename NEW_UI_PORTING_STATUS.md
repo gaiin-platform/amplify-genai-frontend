@@ -83,7 +83,7 @@
 | Code interpreter block | 🚧 | Renders via old components; no new-UI styling pass yet |
 | Agent log block | 🚧 | Renders via old components; no new-UI styling pass yet |
 | RAG document context manager | ❌ | Old `ConversationContextManager` not surfaced in new UI |
-| Conversation sharing (share button) | 🚧 | Share button in `ConversationHeader`; Phase 51: also added to sidebar three-dot menu (clicks same `#shareChatUpper` DOM button). Underlying `ShareAnythingModal` remains old UI. |
+| Conversation sharing (share button) | ✅ | **Phase 61 (send side ✅, receive side ✅):** `NewUIShareModal.tsx` — send-side modal with recipient email chips, optional message, Share → button, success/error states. Wired to both `ConversationHeader` (Share button + title-menu Share item) and `ConversationRow` (sidebar three-dot menu Share item). No longer clicks `#shareChatUpper` in new-UI path. Receive side: "Shared with Me" tab in `ChatsListView` using `getSharedItems()` + `loadSharedItem()` (Case A — service exists). `ShareItem.note` shown as title; "Open →" imports bundle via `importData()` + navigates. |
 | Context window / focused messages | ✅ | Feature flag wired in General settings |
 | Prompt highlighter | 🚧 | Feature flag wired; component not new-UI styled |
 | Memory presenter | ❌ | Not yet surfaced in new UI |
@@ -172,7 +172,7 @@
 | Workflow builder | ✅ | `NewWorkflowsView.tsx` — full-pane view (`page='workflows'`) with left template list, right read-only detail, and `AssistantWorkflowBuilder` opened for create/edit (feature-gated by `featureFlags.createAssistantWorkflows`). Reuses original builder unchanged for CRUD logic. Sidebar nav entry (Workflows, `IconPuzzle`) added. CSS overrides in `conversation-view.css` (.new-ui-workflow-editor-modal) ensure readable text in both modes. TODO: dedicated new-UI styling pass on builder internals in a future phase. |
 | Market / template marketplace | ❌ | `Market` components; not reviewed |
 | Memory dialog | ❌ | `MemoryDialog`; not surfaced |
-| Share anything modal | 🚧 | Triggered by share button in `ConversationHeader`; modal is old UI |
+| Share anything modal | ✅ | **Phase 61:** `NewUIShareModal.tsx` replaces the old `ShareAnythingModal` for the new-UI conversation share entry points. Old `ShareAnythingModal` + `#shareChatUpper` remain untouched (classic-UI path). New modal: 600 px panel, recipient chips, optional message, service call identical to old modal (`shareItems` from `shareService.ts`). |
 | Data disclosure viewer | ❌ | `DataDisclosureViewer`; not reviewed |
 | Pricing modal | ❌ | `Pricing`; not reviewed |
 

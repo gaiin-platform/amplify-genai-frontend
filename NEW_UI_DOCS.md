@@ -212,8 +212,9 @@ components/NewUI/
     ConversationRow.tsx      ← REUSABLE recent chat row with hover ⋯ menu (rename/pin/share/delete)
                                Phase 51: added Pin/Unpin (IconPin/IconPinnedOff, toggles conversation.data.pinned
                                via handleUpdateConversation; checks both data.pinned and legacy top-level cast)
-                               and Share (IconShare, clicks #shareChatUpper after onSelect() — identical to
-                               ConversationHeader.tsx share mechanism). Divider separates destructive Delete.
+                               and Share (IconShare — Phase 61: now opens NewUIShareModal via showShareModal
+                               state; no longer clicks #shareChatUpper). Divider separates destructive Delete.
+                               Phase 61: showShareModal state + NewUIShareModal portalled to document.body.
                                TODO: add `pinned?: boolean` to Conversation type in types/chat.ts.
     AccountMenu.tsx          ← bottom account row + upward popover (settings, theme, logout, switch UI)
     SettingsModal.tsx        ← overlay wrapper for existing SettingDialog
@@ -230,6 +231,23 @@ components/NewUI/
                                Also handles pending-message bridge: reads sessionStorage on mount,
                                injects text into #messageChatInputText via native setter, clicks #sendMessage.
     ConversationHeader.tsx    ← spec §3 compliant 52px sticky header (title menu, share button, assistant chip)
+                               Phase 61: Share button + menu Share item now open NewUIShareModal via
+                               showShareModal state instead of clicking #shareChatUpper. Returns a
+                               Fragment wrapping the header div + conditionally rendered NewUIShareModal.
+    NewUIShareModal.tsx       ← SPECIFIC send-side share modal (Phase 61)
+                               Props: conversationId, conversationTitle?, onClose
+                               UX: recipient email chips (Enter/comma/Tab to confirm, × to remove,
+                               Backspace removes last), optional message textarea (500 char counter),
+                               Share → button (--accent blue, disabled until ≥1 recipient).
+                               Submit: createExport([conversation], [], [], 'share', false) →
+                               shareItems(sharedBy, sharedWith, message, sharedData) from shareService.
+                               Success: replaces body with ✓ + "Conversation shared", auto-closes 1.5 s.
+                               Error: inline error banner (modal stays open).
+                               Chrome: 600px / min(480px, 90dvh) panel — narrower than creation modals.
+                               Focus trap, Escape, backdrop-click close. role=dialog aria-modal aria-labelledby.
+                               Dark mode: all colours via CSS vars. Reduced motion: animate-spin suppressed
+                               via motion-reduce:animate-none.
+                               Used by: ConversationHeader.tsx, ConversationRow.tsx
     ConversationComposer.tsx  ← spec §7 docked composer (AttachMenu + ModelPicker + send/stop bridge into Chat's hidden textarea)
                                AttachmentRail above textarea (3-band grid: rail|textarea|toolbar)
                                Image paste: textarea onPaste checks clipboardData.items for image/* first → addImageToRail()
@@ -361,6 +379,15 @@ components/NewUI/
                                NewScheduledTasksView reads+consumes that key on mount via useMemo.
     ChatsListView.tsx        ← full-pane "Chats and tasks" table (search, filter, relative dates). page='chats'
                                Auto-focuses search input on mount (80ms delay).
+                               Phase 61: SegmentedControl tab strip added below title row:
+                               "My Chats" (existing list) | "Shared with Me" (received shares).
+                               Shared tab calls getSharedItems() lazily on first activation.
+                               ShareItem.note shown as title, amplifyUsers[sharedBy] as secondary,
+                               sharedAt formatted as relative date. "Open →" loads the bundle via
+                               loadSharedItem(key) → importData() → dispatch → handleSelectConversation
+                               → navigate to 'chat'. Skeleton loading, error + retry, empty states.
+                               Tab selection NOT persisted (resets to My Chats on navigation).
+                               MyChatRow sub-component extracted to avoid hooks-in-map rule violation.
     LibraryView.tsx          ← (SUPERSEDED) thin wrapper around DataSourcesTable. No longer used in new-UI path.
     NewLibraryView.tsx       ← full-pane new-UI document library. page='library'
                                Design matches NewAssistantsView: clean list rows, design tokens, no MantineReactTable.
@@ -3102,6 +3129,59 @@ Flag constants (`DATA_SOURCE_FLAGS`, `MESSAGE_OPTION_FLAGS`, `FEATURE_OPTION_FLA
 
 **NewAssistantTypeSelector.tsx:** Marked with deprecation header comment; safe to delete after
 verification in next session.
+
+---
+
+### Phase 61 — New-UI Sharing Redesign ✅ COMPLETE
+
+**New file: `components/NewUI/chat/NewUIShareModal.tsx`**
+- Send-side share modal: 600 px / min(480 px, 90 dvh) panel (narrower than 1100 px creation modals).
+- Recipient chips: Enter/comma/Tab confirms a typed email address into a pill chip; Backspace removes
+  last chip; × removes a specific chip. Inline validation: requires `@` in address.
+- Optional personal message textarea with 500-char counter.
+- Share → button: `--accent` blue, disabled until ≥ 1 recipient chip.
+- Submit: `createExport([conversation], [], [], 'share', false)` → `shareItems(sharedBy, sharedWith,
+  message, sharedData)` from `services/shareService.ts`. Emails mapped to usernames via `amplifyUsers`.
+- Success: body replaced with ✓ circle + "Conversation shared" text, modal auto-closes after 1.5 s.
+- Error: inline banner below form (modal stays open).
+- Dark mode: all CSS vars. Reduced motion: `animate-spin motion-reduce:animate-none` on spinner.
+- Focus trap, Escape closes, backdrop click closes. `role="dialog" aria-modal aria-labelledby`.
+
+**Updated: `components/NewUI/chat/ConversationHeader.tsx`**
+- Added `showShareModal` state.
+- `handleShare()` now sets `showShareModal(true)` instead of clicking `#shareChatUpper`.
+- Returns `<>…header…{showShareModal && <NewUIShareModal …>}</>` Fragment.
+- Old `document.getElementById('shareChatUpper')?.click()` mechanism removed from new-UI path.
+  The `#shareChatUpper` button in `Chat.tsx` remains mounted (classic-UI path untouched).
+
+**Updated: `components/NewUI/sidebar/ConversationRow.tsx`**
+- Added `showShareModal` state.
+- Share menu item: closes menu → `setShowShareModal(true)` (no more `#shareChatUpper` click).
+- `NewUIShareModal` rendered as `ReactDOM.createPortal(…, document.body)` so it isn't clipped
+  by the sidebar's overflow:hidden.
+
+**Updated: `components/NewUI/views/ChatsListView.tsx`**
+- SegmentedControl tab strip added below the title row: My Chats | Shared with Me.
+- My Chats: existing list (unchanged; `MyChatRow` sub-component extracted to respect hooks rule).
+- Shared with Me (Case A — `getSharedItems()` exists in `services/shareService.ts`):
+  - `getSharedItems()` called lazily on first tab activation.
+  - `ShareItem = { sharedBy, sharedAt, key, note }` — no conversation title at list level.
+    `note` shown as title, `amplifyUsers[sharedBy]` as secondary, `sharedAt` as relative date.
+  - "Open →": `loadSharedItem(key)` → `JSON.parse(result.item)` → `importData()` → dispatch
+    conversations/folders/prompts to HomeContext → `handleSelectConversation(first conversation)` →
+    navigate to 'chat'.
+  - Skeleton loading (3 rows), error + Retry button, empty state.
+- Search bar queries the active tab's data; placeholder text updates accordingly.
+- Tab selection NOT persisted (resets to "My Chats" on navigation).
+
+**Constraint confirmation (Step 4):** `NewAssistantsView.tsx` "Shared with Me" tab for assistants
+(`canEdit=false` prompts, `noEdit=true` flag) is unchanged and correct — no edits made.
+
+**Changed files:**
+- `components/NewUI/chat/NewUIShareModal.tsx` (new)
+- `components/NewUI/chat/ConversationHeader.tsx` (showShareModal state + Fragment wrapper)
+- `components/NewUI/sidebar/ConversationRow.tsx` (showShareModal state + portal)
+- `components/NewUI/views/ChatsListView.tsx` (SegmentedControl + Shared with Me tab)
 
 ---
 

@@ -31,6 +31,7 @@ import {
 import HomeContext from '@/pages/api/home/home.context';
 import { Conversation } from '@/types/chat';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 
 interface ConversationRowProps {
   conversation: Conversation;
@@ -50,6 +51,7 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   // ── Inline rename state ─────────────────────────────────────────────────────
   const [isRenaming, setIsRenaming] = useState(false);
@@ -166,15 +168,10 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
   // ── Share ───────────────────────────────────────────────────────────────────
   const handleShare = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Close the three-dot menu first (wiki §9 rule 20 — one modal at a time),
+    // then open the new-UI share modal.
     setIsMenuOpen(false);
-    // Select this conversation first (in case it is not currently open),
-    // then click the share button that Chat.tsx renders — identical mechanism
-    // to ConversationHeader.tsx handleShare.
-    onSelect();
-    setTimeout(() => {
-      const shareBtn = document.getElementById('shareChatUpper') as HTMLButtonElement | null;
-      shareBtn?.click();
-    }, 50);
+    setShowShareModal(true);
   };
 
   const menuItemCls =
@@ -316,6 +313,18 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
         onConfirm={() => { setConfirmDeleteOpen(false); onDelete(); }}
         onCancel={() => setConfirmDeleteOpen(false)}
       />
+
+      {/* Share modal — portalled to document.body so it sits above the sidebar */}
+      {showShareModal && typeof document !== 'undefined'
+        ? ReactDOM.createPortal(
+            <NewUIShareModal
+              conversationId={conversation.id}
+              conversationTitle={conversation.name}
+              onClose={() => setShowShareModal(false)}
+            />,
+            document.body
+          )
+        : null}
     </div>
   );
 };
