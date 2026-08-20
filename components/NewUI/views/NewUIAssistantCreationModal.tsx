@@ -95,6 +95,14 @@ export interface NewUIAssistantCreationModalProps {
      * that card 3 is pre-selected and the group is already chosen.
      */
     initialGroupId?: string;
+    /**
+     * When provided, the modal opens in **edit mode**:
+     *  - All form fields are pre-populated from the existing assistant's definition.
+     *  - Title changes to "Edit Assistant", save button to "Save Changes".
+     *  - Save calls createAssistant() with the existing assistantId so the backend
+     *    treats the call as an update rather than a create.
+     */
+    editingAssistant?: Prompt;
 }
 
 // ── Shared field styles ────────────────────────────────────────────────────────
@@ -444,7 +452,9 @@ const SectionDivider: React.FC<{ label?: string }> = ({ label }) => (
 export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalProps> = ({
     onClose,
     initialGroupId,
+    editingAssistant,
 }) => {
+    const isEditMode = !!editingAssistant;
     const {
         state: {
             featureFlags,
@@ -463,8 +473,17 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     const userIdentifier = getUserIdentifier(session?.user);
 
     // ── Section A: access type ─────────────────────────────────────────────
-    const initialAccessType: AccessModel = initialGroupId ? 'collaborative' : 'private';
-    const [accessType, setAccessType] = useState<AccessModel>(initialAccessType);
+    // In edit mode, derive initial access type from the existing assistant.
+    const deriveInitialAccessType = (): AccessModel => {
+        if (editingAssistant) {
+            if (editingAssistant.groupId) return 'collaborative';
+            const def = editingAssistant.data?.assistant?.definition as AssistantDefinition | undefined;
+            if (def?.astPath || (def?.data?.astPath as string | undefined)) return 'managed';
+            return 'private';
+        }
+        return initialGroupId ? 'collaborative' : 'private';
+    };
+    const [accessType, setAccessType] = useState<AccessModel>(deriveInitialAccessType);
 
     // Managed URL sub-state
     const [subOption, setSubOption] = useState<ManagedSubOption>('public');
@@ -562,6 +581,94 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     // ── Save / loading state ──────────────────────────────────────────────
     const [isSaving, setIsSaving] = useState(false);
     const [saveError, setSaveError] = useState('');
+
+    // ── Pre-populate form from editing assistant (edit mode only) ─────────
+    useEffect(() => {
+        if (!editingAssistant) return;
+
+        const def = editingAssistant.data?.assistant?.definition as AssistantDefinition | undefined;
+        if (!def) return;
+
+        // Section B — core fields
+        setName(def.name ?? '');
+        setDescription(def.description ?? '');
+        setInstructions(def.instructions ?? '');
+        setDisclaimer(def.disclaimer ?? '');
+
+        // Tags
+        if (Array.isArray(def.tags)) setTags(def.tags.join(', '));
+        const convTags = (def.data as any)?.conversationTags;
+        if (Array.isArray(convTags)) setConversationTags(convTags.join(', '));
+
+        // Enforce model
+        const enforcedModel = (def.data as any)?.model as string | undefined;
+        if (enforcedModel) {
+            setEnforceModel(true);
+            setEnforcedModelId(enforcedModel);
+        }
+
+        // Data sources (existing S3 keys — pre-loaded; new uploads handled by upload UI)
+        if (Array.isArray(def.dataSources)) setDataSources(def.dataSources as AttachedDocument[]);
+
+        // Website URLs
+        const wUrls = (def.data as any)?.websiteUrls;
+        if (Array.isArray(wUrls)) setWebsiteUrls(wUrls);
+
+        // Skills
+        const skills = (def.data as any)?.skills;
+        if (Array.isArray(skills)) setSelectedSkills(skills);
+        const skillMode = (def.data as any)?.skillSelectionMode;
+        if (skillMode) setSkillSelectionMode(skillMode);
+
+        // Tools / APIs
+        if (Array.isArray(def.tools)) setSelectedApis(def.tools);
+        const opInfo = (def.data as any)?.operations;
+        if (Array.isArray(opInfo)) setApiInfo(opInfo);
+        const builtIn = (def.data as any)?.builtInOperations;
+        if (Array.isArray(builtIn)) setBuiltInAgentTools(builtIn);
+
+        // Advanced
+        const opsVersion = (def.data as any)?.opsLanguageVersion as string | undefined;
+        if (opsVersion) setOpsLanguageVersion(opsVersion);
+        if ((def.data as any)?.availableOnRequest) setAvailableOnRequest(true);
+
+        // Option flags — merge over defaults
+        const dsOpts = (def.data as any)?.dataSourceOptions;
+        if (dsOpts) setDataSourceOptions((prev) => ({ ...prev, ...dsOpts }));
+        const msgOpts = (def.data as any)?.messageOptions;
+        if (msgOpts) setMessageOptions((prev) => ({ ...prev, ...msgOpts }));
+        const featOpts = (def.data as any)?.featureOptions;
+        if (featOpts) setFeatureOptions((prev) => ({ ...prev, ...featOpts }));
+        const apiOpts = (def.data as any)?.apiOptions;
+        if (apiOpts) setApiOptions((prev) => ({ ...prev, ...apiOpts }));
+
+        // Section A — access type sub-config
+        if (editingAssistant.groupId) {
+            setSelectedGroupId(editingAssistant.groupId);
+        }
+        const astPath = def.astPath ?? ((def.data as any)?.astPath as string | undefined);
+        if (astPath) {
+            setSlug(astPath);
+            const astPathData = (def.data as any)?.astPathData;
+            if (astPathData?.isPublic === false) {
+                setSubOption('specific');
+                const accessToUsers = astPathData?.accessTo?.users;
+                if (Array.isArray(accessToUsers)) setEmails(accessToUsers.join(', '));
+            } else {
+                setSubOption('public');
+            }
+        }
+
+        // Email events
+        const emailEvents = (def.data as any)?.emailEvents;
+        if (emailEvents?.tag) {
+            setEnableEmailEvents(true);
+            setEmailEventTag(emailEvents.tag);
+            setEmailEventTemplate(emailEvents.template);
+            setIsEmailTagAvailable(true); // assume existing tag is still valid
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // run once on mount — editingAssistant is stable (passed as prop, not expected to change)
 
     // ── Lazy load APIs and agent tools ────────────────────────────────────
     const filterOps = async (data: any[]) => {
@@ -713,18 +820,24 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         }
 
         setIsSaving(true);
-        setLoadingMessage('Creating assistant…');
+        setLoadingMessage(isEditMode ? 'Saving assistant…' : 'Creating assistant…');
 
         try {
-            // 1. Resolve groupId (may create a new team first)
+            // 1. Resolve groupId
+            // In edit mode: reuse the existing groupId (don't create a new team).
+            // In create mode: may create a new team first.
             let groupId: string | null = null;
-            try {
-                groupId = await resolveGroupId();
-            } catch (err: any) {
-                setSaveError(err.message || 'Failed to create team. Please try again.');
-                setIsSaving(false);
-                setLoadingMessage('');
-                return;
+            if (isEditMode) {
+                groupId = editingAssistant!.groupId ?? null;
+            } else {
+                try {
+                    groupId = await resolveGroupId();
+                } catch (err: any) {
+                    setSaveError(err.message || 'Failed to create team. Please try again.');
+                    setIsSaving(false);
+                    setLoadingMessage('');
+                    return;
+                }
             }
 
             // 2. Process tags
@@ -744,6 +857,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             });
 
             // 4. Build the AssistantDefinition
+            // In edit mode, carry forward the existing id/assistantId so the
+            // backend treats the createAssistant call as an update.
+            const existingDef = isEditMode
+                ? (editingAssistant!.data?.assistant?.definition as AssistantDefinition | undefined)
+                : undefined;
+
             const def: AssistantDefinition = {
                 name: name.trim(),
                 description: description.trim(),
@@ -752,9 +871,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 tools: selectedApis || [],
                 tags: tagList,
                 dataSources: processedDataSources as any,
-                version: 1,
-                fileKeys: [],
+                version: existingDef?.version ?? 1,
+                fileKeys: existingDef?.fileKeys ?? [],
                 provider: AssistantProviderID.AMPLIFY,
+                // Carry forward existing IDs in edit mode
+                ...(isEditMode && existingDef?.id ? { id: existingDef.id } : {}),
+                ...(isEditMode && existingDef?.assistantId ? { assistantId: existingDef.assistantId } : {}),
                 data: {
                     access: { read: true, write: true },
                     tags: tagList,
@@ -854,6 +976,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
 
             // 7. Build the Prompt and update HomeContext state
             const aPrompt = createAssistantPrompt(def);
+            // Carry forward the original prompt ID in edit mode so the
+            // state update replaces the right entry (handleUpdateAssistantPrompt
+            // matches by p.id, not by assistantId).
+            if (isEditMode && editingAssistant!.id) {
+                aPrompt.id = editingAssistant!.id;
+            }
             if (groupId) {
                 aPrompt.groupId = groupId;
                 aPrompt.folderId = 'assistants';
@@ -862,19 +990,29 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             await handleUpdateAssistantPrompt(aPrompt, prompts, homeDispatch, selectedAssistant);
 
             if (groupId) {
-                const updatedGroups = groups.map((g: Group) =>
-                    g.id === groupId
-                        ? { ...g, assistants: [...(g.assistants || []), aPrompt] }
-                        : g
-                );
+                const updatedGroups = groups.map((g: Group) => {
+                    if (g.id !== groupId) return g;
+                    if (isEditMode) {
+                        // Replace the existing assistant entry
+                        const already = g.assistants?.some((a: Prompt) => a.id === aPrompt.id);
+                        return {
+                            ...g,
+                            assistants: already
+                                ? g.assistants!.map((a: Prompt) => a.id === aPrompt.id ? aPrompt : a)
+                                : [...(g.assistants || []), aPrompt],
+                        };
+                    }
+                    // Create mode — append
+                    return { ...g, assistants: [...(g.assistants || []), aPrompt] };
+                });
                 homeDispatch({ field: 'groups', value: updatedGroups });
             }
 
             setLoadingMessage('');
             onClose();
         } catch (err) {
-            console.error('Error creating assistant:', err);
-            setSaveError('An error occurred while creating the assistant. Please try again.');
+            console.error(isEditMode ? 'Error updating assistant:' : 'Error creating assistant:', err);
+            setSaveError(`An error occurred while ${isEditMode ? 'updating' : 'creating'} the assistant. Please try again.`);
             setIsSaving(false);
             setLoadingMessage('');
         }
@@ -898,10 +1036,10 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     // ── Render ─────────────────────────────────────────────────────────────
     return (
         <CreationModalShell
-            title="New Assistant"
+            title={isEditMode ? 'Edit Assistant' : 'New Assistant'}
             onClose={onClose}
             onSave={handleSave}
-            saveLabel="Create"
+            saveLabel={isEditMode ? 'Save Changes' : 'Create'}
             isSaving={isSaving}
             saveDisabled={!canSave()}
         >

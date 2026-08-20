@@ -83,7 +83,9 @@
 | Code interpreter block | 🚧 | Renders via old components; no new-UI styling pass yet |
 | Agent log block | 🚧 | Renders via old components; no new-UI styling pass yet |
 | RAG document context manager | ❌ | Old `ConversationContextManager` not surfaced in new UI |
-| Conversation sharing (share button) | ✅ | **Phase 61 (send side ✅, receive side ✅):** `NewUIShareModal.tsx` — send-side modal with recipient email chips, optional message, Share → button, success/error states. Wired to both `ConversationHeader` (Share button + title-menu Share item) and `ConversationRow` (sidebar three-dot menu Share item). No longer clicks `#shareChatUpper` in new-UI path. Receive side: "Shared with Me" tab in `ChatsListView` using `getSharedItems()` + `loadSharedItem()` (Case A — service exists). `ShareItem.note` shown as title; "Open →" imports bundle via `importData()` + navigates. |
+| Conversation sharing (share button) | ✅ | **Phase 61 (send side ✅, receive side ✅):** `NewUIShareModal.tsx` — send-side modal with recipient email chips, optional message, Share → button, success/error states. Wired to both `ConversationHeader` (Share button + title-menu Share item) and `ConversationRow` (sidebar three-dot menu Share item). No longer clicks `#shareChatUpper` in new-UI path. Receive side: "Shared with Me" tab in `ChatsListView` using `getSharedItems()` + `loadSharedItem()` (Case A — service exists). `ShareItem.note` shown as title; "Open →" imports bundle via `importData()` + navigates. **Phase 62:** Share icon also added to `MyChatRow` hover strip in `ChatsListView`. |
+| Conversation rename (in Chats & Tasks view) | ✅ | **Phase 62:** Inline rename on hover in `ChatsListView.MyChatRow`. Same pattern as `ConversationRow.tsx` — `isRenaming` state + input, Enter/Blur commits, Escape cancels. Calls `handleUpdateConversation(c, {key:'name', value})`. |
+| Conversation delete (in Chats & Tasks view) | ✅ | **Phase 62:** Delete icon on hover in `ChatsListView.MyChatRow`. `ConfirmDialog` → `handleDeleteConversation` (same pattern as sidebar). |
 | Context window / focused messages | ✅ | Feature flag wired in General settings |
 | Prompt highlighter | 🚧 | Feature flag wired; component not new-UI styled |
 | Memory presenter | ❌ | Not yet surfaced in new UI |
@@ -95,12 +97,14 @@
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Assistants view (5 tabs) | ✅ | `NewAssistantsView.tsx` — Phase 46 layout overhaul: My Assistants \| Shared with Me \| Teams \| Layered \| Templates |
-| My Assistants list | ✅ | Flat list (canEdit=true only) with Private/Shared/URL access-type badge per row |
-| Shared with Me list | ✅ | New top-level tab: canEdit=false individual assistants (was buried as sub-tab) |
+| Assistants view (5 tabs) | ✅ | `NewAssistantsView.tsx` — Phase 46 layout overhaul: My Assistants \| Shared with Me \| Teams \| Layered \| Templates. **Phase 62:** My Assistants rows now show Edit + Share + Delete hover buttons. |
+| My Assistants list | ✅ | Flat list (canEdit=true only) with Private/Shared/URL access-type badge per row. **Phase 62:** hover strip shows Edit / Share / Delete icons. |
+| Shared with Me list | ✅ | New top-level tab: canEdit=false individual assistants (was buried as sub-tab). No edit/share/delete (read-only). |
+| Assistant share (from row) | ✅ | **Phase 62:** Share icon in My Assistants hover strip → `NewUIShareModal` with `assistantId` prop. Builds export bundle via `createExport([], [], [prompt], 'share', false)`. |
+| Assistant delete (from row) | ✅ | **Phase 62:** Delete icon in My Assistants hover strip → `ConfirmDialog` → removes from `prompts` state + `savePrompts()`. Same pattern as Promptbar `handleDeletePrompt` (no backend deleteAssistant call). |
 | Create new assistant — Step 0 wizard | ✅ | **Phase 60:** `NewAssistantTypeSelector.tsx` superseded by `NewUIAssistantCreationModal.tsx`. The two-step flow (type selector → AssistantModal) is now a single unified modal with Section A (access type cards) + Section B (form fields). `NewAssistantTypeSelector.tsx` marked deprecated; safe to delete after verification. |
 | Create new assistant | ✅ | **Phase 60 (updated):** `NewUIAssistantCreationModal` — Section A (access type cards) + Section B: Name, Description, Instructions, Disclaimer, Upload Data Sources (AttachFile+DataSourceSelector+FileList), Website Data Sources (WebsiteURLInput, ff-gated), Drive Data Sources (AssistantDriveDataSources, ff-gated), Skills (SkillsSection, ff-gated), Tools/APIs (ApiIntegrationsPanel, ff-gated), Enforce Model. Tags moved to inline "Advanced Settings ▾" accordion (also contains Conversation Tags). No longer opens old `AssistantModal`. TODO: port email events, workflow templates, data source options, feature options flags in a future phase. |
-| Edit assistant | ✅ | Edit icon on hover → `AssistantModal` |
+| Edit assistant | ✅ | **Phase 62:** Edit icon on hover → `NewUIAssistantCreationModal` (edit mode via `editingAssistant` prop). Pre-populates all form fields from existing definition. `AssistantModal` removed from MyAssistantsTab edit path. |
 | Group Assistants list (Teams tab) | ✅ | Grouped by group name, renamed "Teams" in tab bar |
 | Group admin access (settings gear) | ✅ | Settings gear on existing row still opens `openAstAdminInterfaceTrigger` for editing; gated by `featureFlags.assistantAdminInterface` + access check |
 | Create group assistant (Teams "New Assistant" button) | ✅ | Phase 47: button opens `NewAssistantTypeSelector`. Confirmed team → AssistantModal with `groupId` set. On save: both `prompts` + `groups` state updated so assistant appears in Teams tab immediately. |

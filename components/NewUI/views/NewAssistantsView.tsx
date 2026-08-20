@@ -19,6 +19,7 @@ import {
     IconPlus,
     IconPencil,
     IconTrash,
+    IconShare,
     IconSettings,
     IconChevronRight,
 } from '@tabler/icons-react';
@@ -36,6 +37,9 @@ import { getUserIdentifier } from '@/utils/app/data';
 import { NewUIAssistantCreationModal } from './NewUIAssistantCreationModal';
 import { AstPathData } from '@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
+import ReactDOM from 'react-dom';
+import { savePrompts } from '@/utils/app/prompts';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -49,6 +53,7 @@ interface RowProps {
     description?: string;
     onClick: () => void;
     onEdit?: (e: React.MouseEvent) => void;
+    onShare?: (e: React.MouseEvent) => void;
     onDelete?: (e: React.MouseEvent) => void;
     isDeleting?: boolean;
     /** Optional access-type pill badge (Private / Shared / URL) */
@@ -61,6 +66,7 @@ const AssistantRow: React.FC<RowProps> = ({
     description,
     onClick,
     onEdit,
+    onShare,
     onDelete,
     isDeleting,
     accessBadge,
@@ -153,9 +159,30 @@ const AssistantRow: React.FC<RowProps> = ({
                             (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
                         }}
                         onClick={onEdit}
+                        aria-label={`Edit ${name}`}
                         title="Edit"
                     >
                         <IconPencil size={14} />
+                    </button>
+                )}
+
+                {onShare && (
+                    <button
+                        className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
+                        style={{ color: 'var(--text-muted)' }}
+                        onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
+                            (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+                        }}
+                        onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                        }}
+                        onClick={onShare}
+                        aria-label={`Share ${name}`}
+                        title="Share"
+                    >
+                        <IconShare size={14} />
                     </button>
                 )}
 
@@ -285,10 +312,14 @@ const MyAssistantsTab: React.FC = () => {
     useEffect(() => { groupsRef.current = groups; }, [groups]);
 
     const [search, setSearch] = useState('');
-    const [showAssistantModal, setShowAssistantModal] = useState(false);
     // Unified creation modal (replaces two-step NewAssistantTypeSelector + AssistantModal flow)
     const [showCreationModal, setShowCreationModal] = useState(false);
-    const [selectedForEdit, setSelectedForEdit] = useState<Prompt | null>(null);
+    // Edit mode: open creation modal pre-populated with the selected assistant
+    const [editingAssistant, setEditingAssistant] = useState<Prompt | null>(null);
+    // Share modal
+    const [assistantForShare, setAssistantForShare] = useState<Prompt | null>(null);
+    // Delete confirm dialog
+    const [confirmDeleteAssistant, setConfirmDeleteAssistant] = useState<Prompt | null>(null);
 
     const canEdit = (p: Prompt) => !p.data?.noEdit;
 
@@ -330,14 +361,19 @@ const MyAssistantsTab: React.FC = () => {
 
     const handleEditAssistant = (e: React.MouseEvent, p: Prompt) => {
         e.stopPropagation();
-        setSelectedForEdit(p);
-        setShowAssistantModal(true);
+        setEditingAssistant(p);
     };
 
-    // Used only for the EDIT path (edit icon on existing rows).
-    // Creation is now handled internally by NewUIAssistantCreationModal.
-    const handleUpdateAssistant = (updatedPrompt: Prompt) => {
-        handleUpdateAssistantPrompt(updatedPrompt, promptsRef.current, homeDispatch, selectedAssistant);
+    const handleShareAssistant = (e: React.MouseEvent, p: Prompt) => {
+        e.stopPropagation();
+        setAssistantForShare(p);
+    };
+
+    const handleDeleteAssistant = (p: Prompt) => {
+        const updatedPrompts = promptsRef.current.filter((x: Prompt) => x.id !== p.id);
+        homeDispatch({ field: 'prompts', value: updatedPrompts });
+        savePrompts(updatedPrompts);
+        setConfirmDeleteAssistant(null);
     };
 
     // Derive the access-type badge for a row: Private / Shared / URL
@@ -398,36 +434,62 @@ const MyAssistantsTab: React.FC = () => {
                             accessBadge={getAccessBadge(p)}
                             onClick={() => handleStartConversation(p)}
                             onEdit={(e) => handleEditAssistant(e, p)}
+                            onShare={(e) => handleShareAssistant(e, p)}
+                            onDelete={(e) => {
+                                e.stopPropagation();
+                                setConfirmDeleteAssistant(p);
+                            }}
                         />
                     ))
                 )}
             </div>
 
-            {/* Unified creation modal — replaces NewAssistantTypeSelector + AssistantModal create flow */}
+            {/* Create new assistant modal */}
             {showCreationModal && (
                 <NewUIAssistantCreationModal
                     onClose={() => setShowCreationModal(false)}
                 />
             )}
 
-            {/* AssistantModal — EDIT path only (edit icon on existing rows) */}
-            {showAssistantModal && selectedForEdit && (
-                <AssistantModal
-                    assistant={selectedForEdit}
-                    onCancel={() => {
-                        setShowAssistantModal(false);
-                        setSelectedForEdit(null);
-                    }}
-                    onSave={() => {
-                        setShowAssistantModal(false);
-                        setSelectedForEdit(null);
-                    }}
-                    onUpdateAssistant={handleUpdateAssistant}
-                    loadingMessage="Saving assistant…"
-                    loc=""
-                    disableEdit={false}
+            {/* Edit existing assistant — new-UI creation modal in edit mode */}
+            {editingAssistant && (
+                <NewUIAssistantCreationModal
+                    editingAssistant={editingAssistant}
+                    onClose={() => setEditingAssistant(null)}
                 />
             )}
+
+            {/* Share assistant modal */}
+            {assistantForShare && typeof document !== 'undefined' && ReactDOM.createPortal(
+                <NewUIShareModal
+                    assistantId={assistantForShare.data?.assistant?.definition?.assistantId}
+                    assistantName={assistantForShare.name}
+                    onClose={() => setAssistantForShare(null)}
+                />,
+                document.body
+            )}
+
+            {/* Delete confirmation dialog */}
+            <ConfirmDialog
+                isOpen={!!confirmDeleteAssistant}
+                title="Delete assistant?"
+                message={
+                    <>
+                        Are you sure you want to delete{' '}
+                        <strong style={{ color: 'var(--text-primary)' }}>
+                            {confirmDeleteAssistant?.name ?? 'this assistant'}
+                        </strong>
+                        ? This cannot be undone.
+                    </>
+                }
+                confirmLabel="Delete"
+                onConfirm={() => {
+                    const p = confirmDeleteAssistant;
+                    if (p) handleDeleteAssistant(p);
+                    else setConfirmDeleteAssistant(null);
+                }}
+                onCancel={() => setConfirmDeleteAssistant(null)}
+            />
         </div>
     );
 };

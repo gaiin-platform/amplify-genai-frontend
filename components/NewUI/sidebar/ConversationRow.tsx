@@ -254,12 +254,16 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
           onClick={onSelect}
           title={conversation.name}
           className={`
-            w-full flex items-center gap-[8px] h-[32px] pl-[10px] pr-[8px] rounded-[8px] text-left
+            w-full flex items-center gap-[8px] h-[32px] pl-[10px] rounded-[8px] text-left
+            ${isHovered || isMenuOpen ? 'pr-[34px]' : 'pr-[8px]'}
             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]
             ${isSelected || isHovered || isMenuOpen ? 'text-[--text-primary]' : 'text-[--text-secondary]'}
           `}
         >
-          <span className="flex-1 text-[14px] font-normal leading-[20px] overflow-hidden whitespace-nowrap">
+          {/* min-w-0 is required: without it a flex-1 item cannot shrink below its
+              content width, so overflow/truncate never fires. truncate = overflow-hidden
+              + whitespace-nowrap + text-overflow:ellipsis (all three must be co-located). */}
+          <span className="flex-1 min-w-0 text-[14px] font-normal leading-[20px] truncate">
             {conversation.name || 'New Conversation'}
           </span>
         </button>

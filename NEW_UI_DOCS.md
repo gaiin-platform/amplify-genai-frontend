@@ -234,20 +234,23 @@ components/NewUI/
                                Phase 61: Share button + menu Share item now open NewUIShareModal via
                                showShareModal state instead of clicking #shareChatUpper. Returns a
                                Fragment wrapping the header div + conditionally rendered NewUIShareModal.
-    NewUIShareModal.tsx       ← SPECIFIC send-side share modal (Phase 61)
-                               Props: conversationId, conversationTitle?, onClose
+    NewUIShareModal.tsx       ← SPECIFIC send-side share modal (Phase 61; extended Phase 62)
+                               Props: conversationId?, conversationTitle?, assistantId?, assistantName?, onClose
                                UX: recipient email chips (Enter/comma/Tab to confirm, × to remove,
                                Backspace removes last), optional message textarea (500 char counter),
                                Share → button (--accent blue, disabled until ≥1 recipient).
-                               Submit: createExport([conversation], [], [], 'share', false) →
-                               shareItems(sharedBy, sharedWith, message, sharedData) from shareService.
-                               Success: replaces body with ✓ + "Conversation shared", auto-closes 1.5 s.
+                               Submit:
+                                 Conversation: createExport([conversation], [], [], 'share', false) →
+                                               shareItems(sharedBy, sharedWith, message, sharedData)
+                                 Assistant:    createExport([], [], [assistantPrompt], 'share', false) →
+                                               shareItems(sharedBy, sharedWith, message, sharedData)
+                               Success: replaces body with ✓ + "Conversation/Assistant shared", auto-closes 1.5 s.
                                Error: inline error banner (modal stays open).
                                Chrome: 600px / min(480px, 90dvh) panel — narrower than creation modals.
                                Focus trap, Escape, backdrop-click close. role=dialog aria-modal aria-labelledby.
                                Dark mode: all colours via CSS vars. Reduced motion: animate-spin suppressed
                                via motion-reduce:animate-none.
-                               Used by: ConversationHeader.tsx, ConversationRow.tsx
+                               Used by: ConversationHeader.tsx, ConversationRow.tsx, NewAssistantsView.tsx
     ConversationComposer.tsx  ← spec §7 docked composer (AttachMenu + ModelPicker + send/stop bridge into Chat's hidden textarea)
                                AttachmentRail above textarea (3-band grid: rail|textarea|toolbar)
                                Image paste: textarea onPaste checks clipboardData.items for image/* first → addImageToRail()
@@ -379,14 +382,18 @@ components/NewUI/
                                NewScheduledTasksView reads+consumes that key on mount via useMemo.
     ChatsListView.tsx        ← full-pane "Chats and tasks" table (search, filter, relative dates). page='chats'
                                Auto-focuses search input on mount (80ms delay).
-                               Phase 61: SegmentedControl tab strip added below title row:
-                               "My Chats" (existing list) | "Shared with Me" (received shares).
-                               Shared tab calls getSharedItems() lazily on first activation.
-                               ShareItem.note shown as title, amplifyUsers[sharedBy] as secondary,
-                               sharedAt formatted as relative date. "Open →" loads the bundle via
-                               loadSharedItem(key) → importData() → dispatch → handleSelectConversation
-                               → navigate to 'chat'. Skeleton loading, error + retry, empty states.
-                               Tab selection NOT persisted (resets to My Chats on navigation).
+                               Phase 61: SegmentedControl tab strip: "My Chats" | "Shared with Me".
+                               Shared tab calls getSharedItems() lazily; ShareItem.note as title;
+                               "Open →" loads bundle via loadSharedItem → importData → navigate.
+                               Tab selection NOT persisted.
+                               Phase 62: MyChatRow rewritten with full hover actions:
+                               Hover reveals three 28×28 icon buttons (right side): Rename / Share / Delete.
+                               Rename — inline (isRenaming replaces title span with input, same ConversationRow pattern;
+                               calls onRename → handleUpdateConversation(c, {key:'name', value})).
+                               Share — portals NewUIShareModal with conversationId.
+                               Delete — ConfirmDialog → onDelete → handleDeleteConversation (deleteConversationCleanUp
+                               + saveConversations + statsService.deleteConversationEvent).
+                               keepHighlight: hover lock while modal/rename active.
                                MyChatRow sub-component extracted to avoid hooks-in-map rule violation.
     LibraryView.tsx          ← (SUPERSEDED) thin wrapper around DataSourcesTable. No longer used in new-UI path.
     NewLibraryView.tsx       ← full-pane new-UI document library. page='library'
@@ -409,25 +416,26 @@ components/NewUI/
                                All creation flows use NewAssistantTypeSelector → AssistantModal / PromptModal / openLayeredBuilderTrigger
                                Group admin actions gate on featureFlags.assistantAdminInterface + GroupAccessType
                                Old AssistantGallery still renders in the classic-UI path — untouched.
-    NewUIAssistantCreationModal.tsx ← SPECIFIC unified assistant creation form (Phase 58).
-                               Replaces the two-step NewAssistantTypeSelector → AssistantModal flow
-                               with a single CreationModalShell containing:
-                               Section A — "Who can access?" (three access-type cards: Private /
-                               Managed URL / Team). Same logic as NewAssistantTypeSelector Card 1/2/3
-                               (slug validation, createAstAdminGroup + updateGroupMembers for new teams).
-                               Section B — essential form fields (Name, Description, Instructions,
-                               Enforce Model toggle + ModelPicker, Tags).
-                               "Advanced settings →" escape hatch closes this modal and opens old
-                               AssistantModal pre-populated with values so far (wiki §9 rule 21).
-                               // TODO: Port advanced fields (data sources, APIs, skills, email events,
-                               // workflows) in a future phase.
-                               Props: onClose, initialGroupId?
-                               Save: calls createAssistant() from assistantService, then addAssistantPath()
-                               for Managed URL, then handleUpdateAssistantPrompt() + groups dispatch
-                               (mirrors NewAssistantsView.handleUpdateAssistant behavior).
-                               Option A rationale: AssistantModal initializes state once from props — making
-                               access type + form simultaneously editable requires owning the form state.
-                               Used by: MyAssistantsTab + GroupAssistantsTab in NewAssistantsView.tsx.
+    NewUIAssistantCreationModal.tsx ← SPECIFIC unified assistant creation + edit form (Phase 58; Phase 62 edit mode).
+                               Props: onClose, initialGroupId?, editingAssistant?
+                               Two modes:
+                                 CREATE (editingAssistant absent) — title "New Assistant", save "Create".
+                                   Section A: access-type radio cards (Private/Managed URL/Team).
+                                   Section B: Name, Description, Instructions, Disclaimer, Data Sources,
+                                   Website URLs (ff-gated), Drive (ff-gated), Skills (ff-gated),
+                                   Tools/APIs (ff-gated), Enforce Model, Advanced Settings accordion
+                                   (Tags, Conversation Tags, Ops Language, Allow Request Access,
+                                   Data Source/Message/Feature/API option flags, Email Events ff-gated).
+                                   Save: createAssistant(def) → addAssistantPath() for Managed URL →
+                                   handleUpdateAssistantPrompt() + groups dispatch.
+                                 EDIT (editingAssistant provided) — title "Edit Assistant", save "Save Changes".
+                                   Same form but pre-populated via useEffect on mount from the existing
+                                   assistant's definition. Access type derived from groupId/astPath.
+                                   Save: carries existing id/assistantId in definition → createAssistant()
+                                   acts as an update. Prompt.id preserved so state replacement is correct.
+                                   Groups update replaces existing entry instead of appending.
+                               Shared by MyAssistantsTab (create + edit), GroupAssistantsTab (create).
+                               "Advanced settings →" accordion inline (no longer an escape hatch to old modal).
     NewUIPromptCreationModal.tsx ← SPECIFIC unified prompt template creation/edit form (Phase 58).
                                Wraps essential fields in CreationModalShell to match assistant creation
                                modal dimensions and chrome. Props mirror PromptModal for 1:1 swap.
@@ -3182,6 +3190,114 @@ verification in next session.
 - `components/NewUI/chat/ConversationHeader.tsx` (showShareModal state + Fragment wrapper)
 - `components/NewUI/sidebar/ConversationRow.tsx` (showShareModal state + portal)
 - `components/NewUI/views/ChatsListView.tsx` (SegmentedControl + Shared with Me tab)
+
+---
+
+### Phase 62 — Assistant Row Hover Actions + Conversation Row Actions in ChatsListView ✅ COMPLETE
+
+**Goal:** Wire the assistant edit button to the new-UI creation modal (edit mode); add Share + Delete
+hover buttons to assistant rows in "My Assistants" tab; add Rename/Share/Delete hover actions to
+conversation rows in the Chats & Tasks view.
+
+**`NewUIAssistantCreationModal.tsx` — edit mode support added**
+- New optional prop `editingAssistant?: Prompt` added to `NewUIAssistantCreationModalProps`.
+- When provided: `isEditMode = true`, form fields pre-populated via `useEffect` on mount from
+  `editingAssistant.data.assistant.definition`. Fields populated: name, description, instructions,
+  disclaimer, tags, conversationTags, enforceModel + enforcedModelId, dataSources, websiteUrls,
+  skills, skillSelectionMode, tools, operations, builtInOperations, opsLanguageVersion,
+  availableOnRequest, all option flag groups, access type (private/managed/collaborative) with
+  slug/subOption/emails/selectedGroupId, emailEvents.
+- Title changes to "Edit Assistant"; save button to "Save Changes".
+- `handleSave` skips `resolveGroupId()` in edit mode (reuses `editingAssistant.groupId`).
+- AssistantDefinition built with existing `id` and `assistantId` so `createAssistant()` call is
+  treated as an update by the backend.
+- Prompt `id` preserved via `aPrompt.id = editingAssistant.id` so `handleUpdateAssistantPrompt`
+  replaces the correct state entry.
+- Groups state update: edit mode replaces the existing assistant entry (not appends).
+
+**`NewUIShareModal.tsx` — extended to support assistants**
+- New optional props: `assistantId?: string`, `assistantName?: string`.
+- `isAssistantShare = !!assistantId` — controls title, success message, and export bundle.
+- When `assistantId` provided: finds the `Prompt` in `prompts` state by matching
+  `p.data.assistant.definition.assistantId === assistantId`.
+- Export bundle: `createExport([], [], [assistantPrompt], 'share', false)` (same `shareItems()` service).
+- Title: "Share this assistant" / success: "Assistant shared".
+- `isAssistant` import added from `utils/app/assistants`.
+- Used by: `ConversationHeader.tsx` (unchanged), `ConversationRow.tsx` (unchanged), `NewAssistantsView.tsx` (new).
+
+**`NewAssistantsView.tsx` — `MyAssistantsTab` wiring**
+- `AssistantRow` now accepts `onShare?: (e) => void` — Share icon (14px) between Edit and Delete.
+- `MyAssistantsTab` state added: `editingAssistant`, `assistantForShare`, `confirmDeleteAssistant`.
+- Edit button: now sets `editingAssistant(p)` → opens `<NewUIAssistantCreationModal editingAssistant={p} …>`.
+  Old `showAssistantModal + selectedForEdit` states removed; old `AssistantModal` edit path removed from this tab.
+- Share button: sets `assistantForShare(p)` → portals `<NewUIShareModal assistantId={…} assistantName={…} …>`.
+- Delete button: sets `confirmDeleteAssistant(p)` → renders `<ConfirmDialog …>`. On confirm: removes
+  prompt from `prompts` state + `savePrompts()`. No backend `deleteAssistant()` call (matches Promptbar pattern).
+- "Shared with Me" tab: unchanged — no edit/share/delete (read-only).
+- Imports added: `IconShare`, `NewUIShareModal`, `ReactDOM`, `savePrompts`.
+
+**`ChatsListView.tsx` — `MyChatRow` hover actions**
+- `MyChatRow` completely rewritten as a proper hover-state row component.
+- Props added: `onDelete(c: Conversation)`, `onRename(c, { key, value })`.
+- Hover state: `isHovered` + `keepHighlight` (stays highlighted while modal/rename is open).
+- **Inline rename**: same `ConversationRow.tsx` pattern — `isRenaming` state, `renameValue`,
+  `renameInputRef`, `commitRename()` calls `onRename(c, { key: 'name', value: trimmed })`, Enter
+  commits, Escape cancels, `onBlur` commits.
+- **Share**: icon button → `setShowShareModal(true)` → portals `<NewUIShareModal conversationId …>`.
+- **Delete**: icon button → `setConfirmDeleteOpen(true)` → `<ConfirmDialog …>` → calls `onDelete(c)`.
+- Icon buttons: 28×28, `--text-muted` → `--text-primary` hover; delete gets `#f87171` (red-400) hover.
+- All icon buttons have `aria-label` per wiki rule 11.
+- `ChatsListView` context expanded to include `selectedConversation`, `statsService`, `handleUpdateConversation`.
+- `handleDeleteConversation` callback added (mirrors `NewSidebar.handleDeleteConversation`): calls
+  `deleteConversationCleanUp`, updates `conversations` state, calls `statsService.deleteConversationEvent`.
+- Imports added: `ReactDOM`, `IconPencil`, `IconTrash`, `deleteConversationCleanUp`, `ConfirmDialog`, `NewUIShareModal`.
+
+**Changed files (this phase):**
+- `components/NewUI/views/NewUIAssistantCreationModal.tsx`
+- `components/NewUI/chat/NewUIShareModal.tsx`
+- `components/NewUI/views/NewAssistantsView.tsx`
+- `components/NewUI/views/ChatsListView.tsx`
+
+---
+
+### Phase 63 — ConversationRow Title Truncation + ⋯ Overlap Bug Fix ✅ COMPLETE
+
+**Goal:** Fix two related bugs in `ConversationRow.tsx`: (1) long titles hard-clipped at the container
+edge with no "…" character; (2) on hover the ⋯ button appears at `position:absolute right-0` but the
+title text extended all the way to `pr-[8px]` from the right edge — directly under the button.
+
+**Root cause — two issues:**
+
+1. **Missing `text-overflow: ellipsis`**: the title `<span>` had `overflow-hidden whitespace-nowrap`
+   but NOT `text-ellipsis`, producing a hard clip instead of "…".
+2. **Missing `min-width: 0`**: without `min-w-0` on a `flex-1` flex item, its `min-width: auto`
+   default (= content width) prevents the item from shrinking below its text, so `overflow-hidden`
+   never triggers correctly in a flex layout.
+3. **No reserved space for the button**: the ⋯ button is `position:absolute right-0` (not a flex
+   sibling) — it occupies zero normal flow. The title button had a static `pr-[8px]`, placing the
+   text within 8px of the right edge, 22px under the button's 30px footprint (24px `w-6` + 6px
+   `pr-[6px]` on the overlay wrapper).
+
+**Fix applied — `ConversationRow.tsx` only:**
+
+- Title `<span>`: replaced `overflow-hidden whitespace-nowrap` with `truncate` (shorthand for all
+  three required properties) and added `min-w-0`. Comment added explaining why `min-w-0` is needed.
+- Title `<button>`: changed static `pr-[8px]` to conditional:
+  - `pr-[34px]` when `isHovered || isMenuOpen` — reserves the button's 30px footprint + 4px gap
+  - `pr-[8px]` otherwise — tight padding when the button is not in the DOM
+- The 32px gradient sweep (`before:w-[32px]`) on the dots overlay is unchanged; its visual fade
+  begins at the truncation point and smoothly transitions to the button.
+- No CSS file changes needed (purely a Tailwind class fix). No `prefers-reduced-motion` override
+  needed (padding switches via React state, not a CSS animation).
+
+**Layout model (for reference):**
+- Dots overlay: `absolute right-0`, footprint = right:0–30px (button 24px + wrapper `pr-[6px]`)
+- Gradient `::before`: right:30px–62px (`before:right-full before:w-[32px]`)
+- With `pr-[34px]` on hover: text ends at right:34px → 4px gap before button's left edge ✓
+- Non-hover: `pr-[8px]` → "…" in clear space at right:8px ✓
+
+**Changed files (this phase):**
+- `components/NewUI/sidebar/ConversationRow.tsx`
 
 ---
 

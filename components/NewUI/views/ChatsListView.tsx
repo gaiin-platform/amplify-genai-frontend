@@ -27,6 +27,7 @@ import React, {
     useEffect,
     useCallback,
 } from 'react';
+import ReactDOM from 'react-dom';
 import {
     IconSearch,
     IconFilter,
@@ -35,10 +36,12 @@ import {
     IconShare,
     IconLoader2,
     IconAlertCircle,
+    IconPencil,
+    IconTrash,
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { Conversation } from '@/types/chat';
-import { isLocalConversation, saveConversations } from '@/utils/app/conversation';
+import { isLocalConversation, saveConversations, deleteConversationCleanUp } from '@/utils/app/conversation';
 import { uncompressMessages } from '@/utils/app/messages';
 import { ShareItem, ExportFormatV4 } from '@/types/export';
 import { getSharedItems, loadSharedItem } from '@/services/shareService';
@@ -49,6 +52,8 @@ import { getUserIdentifier } from '@/utils/app/data';
 import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
 import { saveFolders } from '@/utils/app/folders';
 import { savePrompts } from '@/utils/app/prompts';
+import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -96,12 +101,19 @@ const SkeletonRow: React.FC = () => (
 
 export const ChatsListView: React.FC = () => {
     const {
-        state: { conversations, prompts, folders, amplifyUsers },
+        state: { conversations, prompts, folders, amplifyUsers, selectedConversation, statsService },
         dispatch,
         handleSelectConversation,
+        handleUpdateConversation,
         handleNewConversation,
         getDefaultModel,
     } = useContext(HomeContext);
+
+    // ── Refs so callbacks don't become stale ──────────────────────────────
+    const conversationsRef = useRef(conversations);
+    useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
+    const selectedConversationRef = useRef(selectedConversation);
+    useEffect(() => { selectedConversationRef.current = selectedConversation; }, [selectedConversation]);
 
     const { data: session } = useSession();
     const user = getUserIdentifier(session?.user) ?? '';
@@ -250,6 +262,24 @@ export const ChatsListView: React.FC = () => {
         dispatch({ field: 'page', value: 'chat' });
     };
 
+    // ── Delete a conversation (mirrors NewSidebar.handleDeleteConversation) ─
+    const handleDeleteConversation = useCallback((conversation: Conversation) => {
+        deleteConversationCleanUp(conversation);
+        const updated = conversationsRef.current.filter((c) => c.id !== conversation.id);
+
+        statsService.deleteConversationEvent(conversation);
+
+        if (updated.length === 0) {
+            // Keep at least one conversation (same as sidebar logic)
+            // Let handleNewConversation handle the empty state when navigating
+        } else if (selectedConversationRef.current?.id === conversation.id) {
+            dispatch({ field: 'selectedConversation', value: updated[updated.length - 1] });
+        }
+
+        saveConversations(updated);
+        dispatch({ field: 'conversations', value: updated });
+    }, [dispatch, statsService]);
+
     // ── Helpers for display ────────────────────────────────────────────────
     const senderDisplayName = (sharedBy: string) =>
         amplifyUsers?.[sharedBy] ?? sharedBy;
@@ -345,6 +375,8 @@ export const ChatsListView: React.FC = () => {
                                     key={c.id}
                                     conversation={c}
                                     onOpen={handleOpen}
+                                    onDelete={handleDeleteConversation}
+                                    onRename={handleUpdateConversation}
                                 />
                             ))}
                         </div>
@@ -479,37 +511,215 @@ export const ChatsListView: React.FC = () => {
 
 // ── Sub-component: single My Chats row ────────────────────────────────────────
 // Extracted to avoid calling useContext in a .map() callback (hooks rule).
+// Supports inline Rename, Share (NewUIShareModal), and Delete (ConfirmDialog).
 
 interface MyChatRowProps {
     conversation: Conversation;
     onOpen: (c: Conversation) => void;
+    onDelete: (c: Conversation) => void;
+    onRename: (conversation: Conversation, data: { key: string; value: any }) => void;
 }
 
-const MyChatRow: React.FC<MyChatRowProps> = ({ conversation, onOpen }) => {
+const MyChatRow: React.FC<MyChatRowProps> = ({
+    conversation,
+    onOpen,
+    onDelete,
+    onRename,
+}) => {
     const { state: { selectedConversation } } = useContext(HomeContext);
     const isSelected = selectedConversation?.id === conversation.id;
 
+    // ── Hover state ──────────────────────────────────────────────────────
+    const [isHovered, setIsHovered] = useState(false);
+
+    // ── Inline rename state ──────────────────────────────────────────────
+    const [isRenaming, setIsRenaming] = useState(false);
+    const [renameValue, setRenameValue] = useState('');
+    const renameInputRef = useRef<HTMLInputElement>(null);
+
+    // ── Share modal state ────────────────────────────────────────────────
+    const [showShareModal, setShowShareModal] = useState(false);
+
+    // ── Delete confirm state ─────────────────────────────────────────────
+    const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+
+    // Focus + select all when rename input appears
+    useEffect(() => {
+        if (isRenaming && renameInputRef.current) {
+            renameInputRef.current.focus();
+            renameInputRef.current.select();
+        }
+    }, [isRenaming]);
+
+    // ── Rename handlers ──────────────────────────────────────────────────
+    const startRename = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setRenameValue(conversation.name || '');
+        setIsRenaming(true);
+    };
+
+    const commitRename = () => {
+        const trimmed = renameValue.trim();
+        if (trimmed && trimmed !== conversation.name) {
+            onRename(conversation, { key: 'name', value: trimmed });
+        }
+        setIsRenaming(false);
+    };
+
+    const handleRenameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
+        if (e.key === 'Escape') { e.preventDefault(); setIsRenaming(false); }
+    };
+
+    // While renaming or a modal is open, keep the hover highlight even if pointer leaves
+    const keepHighlight = isRenaming || showShareModal || confirmDeleteOpen;
+
+    // Row background class
+    const rowBg = isSelected ? 'bg-[--bg-active]'
+        : (isHovered || keepHighlight) ? 'bg-[--bg-hover]'
+        : '';
+
+    const showActions = !isRenaming && (isHovered || keepHighlight);
+
     return (
-        <button
-            onClick={() => onOpen(conversation)}
-            className={`
-        w-full flex items-center gap-3 px-3 h-[48px] rounded-[8px]
-        text-left transition-colors duration-100
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]
-        ${isSelected ? 'bg-[--bg-active]' : 'hover:bg-[--bg-hover]'}
-      `}
+        <div
+            className={`w-full flex items-center gap-3 px-3 h-[48px] rounded-[8px] ${rowBg} transition-colors duration-100`}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => { if (!keepHighlight) setIsHovered(false); }}
         >
-            <IconMessage2
-                size={16}
-                className="flex-shrink-0 text-[--text-muted]"
+            {/* ── Inline rename input replaces the row while active ── */}
+            {isRenaming ? (
+                <input
+                    ref={renameInputRef}
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={handleRenameKeyDown}
+                    onBlur={commitRename}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex-1 min-w-0 h-[34px] px-2 text-[14px] text-[--text-primary] bg-transparent rounded-[6px] outline-none border border-[--accent]"
+                    spellCheck={false}
+                />
+            ) : (
+                /* Clickable title area — flex-1 so it never reaches under the right slot */
+                <button
+                    onClick={() => onOpen(conversation)}
+                    className="flex items-center gap-3 flex-1 min-w-0 h-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary] rounded-[8px]"
+                >
+                    <IconMessage2
+                        size={16}
+                        className="flex-shrink-0 text-[--text-muted]"
+                    />
+                    <span className="flex-1 min-w-0 text-[14px] text-[--text-primary] truncate">
+                        {conversation.name || 'New Conversation'}
+                    </span>
+                </button>
+            )}
+
+            {/* ── Right slot: timestamp at rest, action icons on hover ──
+                  Both live in the same flex slot so they never overlap.          */}
+            <div
+                className="flex-shrink-0 flex items-center gap-1"
+                onClick={(e) => e.stopPropagation()}
+            >
+                {showActions ? (
+                    <>
+                    {/* Rename */}
+                    <button
+                        aria-label={`Rename ${conversation.name || 'conversation'}`}
+                        title="Rename"
+                        onClick={startRename}
+                        className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
+                        style={{ color: 'var(--text-muted)' }}
+                        onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
+                            (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+                        }}
+                        onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                        }}
+                    >
+                        <IconPencil size={14} />
+                    </button>
+
+                    {/* Share */}
+                    <button
+                        aria-label={`Share ${conversation.name || 'conversation'}`}
+                        title="Share"
+                        onClick={(e) => { e.stopPropagation(); setShowShareModal(true); }}
+                        className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
+                        style={{ color: 'var(--text-muted)' }}
+                        onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
+                            (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+                        }}
+                        onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                        }}
+                    >
+                        <IconShare size={14} />
+                    </button>
+
+                    {/* Delete */}
+                    <button
+                        aria-label={`Delete ${conversation.name || 'conversation'}`}
+                        title="Delete"
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteOpen(true); }}
+                        className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
+                        style={{ color: 'var(--text-muted)' }}
+                        onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
+                            (e.currentTarget as HTMLElement).style.color = '#f87171'; // red-400
+                        }}
+                        onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                        }}
+                    >
+                        <IconTrash size={14} />
+                    </button>
+                    </>
+                ) : (
+                    /* Timestamp — shown when not hovered */
+                    <span className="text-[13px] text-[--text-muted] select-none">
+                        {relativeDate(conversation.date)}
+                    </span>
+                )}
+            </div>
+
+            {/* Share modal — portalled to document.body */}
+            {showShareModal && typeof document !== 'undefined' && ReactDOM.createPortal(
+                <NewUIShareModal
+                    conversationId={conversation.id}
+                    conversationTitle={conversation.name}
+                    onClose={() => { setShowShareModal(false); setIsHovered(false); }}
+                />,
+                document.body
+            )}
+
+            {/* Delete confirmation dialog */}
+            <ConfirmDialog
+                isOpen={confirmDeleteOpen}
+                title="Delete conversation?"
+                message={
+                    <>
+                        Are you sure you want to delete{' '}
+                        <strong style={{ color: 'var(--text-primary)' }}>
+                            {conversation.name || 'this conversation'}
+                        </strong>
+                        ? This cannot be undone.
+                    </>
+                }
+                confirmLabel="Delete"
+                onConfirm={() => {
+                    setConfirmDeleteOpen(false);
+                    setIsHovered(false);
+                    onDelete(conversation);
+                }}
+                onCancel={() => setConfirmDeleteOpen(false)}
             />
-            <span className="flex-1 text-[14px] text-[--text-primary] truncate">
-                {conversation.name || 'New Conversation'}
-            </span>
-            <span className="flex-shrink-0 text-[13px] text-[--text-muted]">
-                {relativeDate(conversation.date)}
-            </span>
-        </button>
+        </div>
     );
 };
 

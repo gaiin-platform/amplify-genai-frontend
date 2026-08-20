@@ -32,6 +32,7 @@ import { shareItems } from '@/services/shareService';
 import { createExport } from '@/utils/app/importExport';
 import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';
+import { isAssistant } from '@/utils/app/assistants';
 
 // ── Focus-trap selector ───────────────────────────────────────────────────────
 const FOCUSABLE_SEL = [
@@ -43,8 +44,18 @@ const FOCUSABLE_SEL = [
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 interface NewUIShareModalProps {
-    conversationId: string;
+    /** Share a conversation — provide conversationId. */
+    conversationId?: string;
     conversationTitle?: string;
+    /**
+     * Share an assistant (Prompt) — provide assistantId.
+     * assistantId is `prompt.data.assistant.definition.assistantId` (the backend ID).
+     * When provided, the modal title changes to "Share this assistant" and the
+     * export bundle is built from the Prompt record instead of a Conversation.
+     */
+    assistantId?: string;
+    /** Display name shown in the success message ("Assistant shared"). */
+    assistantName?: string;
     onClose: () => void;
 }
 
@@ -52,10 +63,13 @@ interface NewUIShareModalProps {
 export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
     conversationId,
     conversationTitle,
+    assistantId,
+    assistantName,
     onClose,
 }) => {
+    const isAssistantShare = !!assistantId;
     const {
-        state: { conversations, amplifyUsers },
+        state: { conversations, prompts, amplifyUsers },
     } = useContext(HomeContext);
 
     const { data: session } = useSession();
@@ -178,17 +192,47 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
 
         if (finalRecipients.length === 0) return;
 
-        const conversation = conversations.find((c) => c.id === conversationId);
-        if (!conversation) {
-            setShareError('Conversation not found. Please try again.');
-            return;
+        // Locate the entity to share
+        let sharedData;
+        if (isAssistantShare) {
+            // Find the Prompt whose backend assistantId matches
+            const assistantPrompt = prompts.find((p: any) => {
+                const def = p.data?.assistant?.definition;
+                return isAssistant(p) && def?.assistantId === assistantId;
+            });
+            if (!assistantPrompt) {
+                setShareError('Assistant not found. Please try again.');
+                return;
+            }
+            setIsSharing(true);
+            setShareError('');
+            try {
+                sharedData = await createExport([], [], [assistantPrompt], 'share', false);
+            } catch {
+                setIsSharing(false);
+                setShareError('An unexpected error occurred. Please try again.');
+                return;
+            }
+        } else {
+            const conversation = conversationId
+                ? conversations.find((c) => c.id === conversationId)
+                : undefined;
+            if (!conversation) {
+                setShareError('Conversation not found. Please try again.');
+                return;
+            }
+            setIsSharing(true);
+            setShareError('');
+            try {
+                sharedData = await createExport([conversation], [], [], 'share', false);
+            } catch {
+                setIsSharing(false);
+                setShareError('An unexpected error occurred. Please try again.');
+                return;
+            }
         }
 
-        setIsSharing(true);
-        setShareError('');
-
         try {
-            const sharedData = await createExport([conversation], [], [], 'share', false);
 
             // Convert display emails back to usernames via the amplifyUsers map
             const sharedWith = finalRecipients.map((email) => {
@@ -320,7 +364,7 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
                 {/* ── Header row (wiki §9 rule 19) ─────────────────────── */}
                 <div style={s.headerRow}>
                     <h2 id="share-modal-heading" style={s.heading}>
-                        Share this conversation
+                        {isAssistantShare ? 'Share this assistant' : 'Share this conversation'}
                     </h2>
                     <button
                         aria-label="Close"
@@ -378,7 +422,7 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
                                     margin: 0,
                                 }}
                             >
-                                Conversation shared
+                                {isAssistantShare ? 'Assistant shared' : 'Conversation shared'}
                             </p>
                         </div>
                     ) : (
@@ -627,7 +671,7 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
                         <button
                             onClick={canShare && !isSharing ? handleShare : undefined}
                             disabled={!canShare || isSharing}
-                            aria-label="Share conversation"
+                            aria-label={isAssistantShare ? 'Share assistant' : 'Share conversation'}
                             style={{
                                 height: 36,
                                 padding: '0 20px',
