@@ -38,8 +38,8 @@
 | Library view (data sources) | ✅ | `NewLibraryView.tsx` — new-UI reimplementation with list rows, file icons, status badges, search, upload, batch delete |
 | Home landing page | ✅ | `NewHome.tsx` |
 | UI preference banner (new vs classic) | ✅ | `UIPreferenceBanner.tsx` |
-| Off-canvas drawer <760px | ✅ | Resolved |
-| Responsive icon rail 760–1099px | ✅ | Resolved |
+| Off-canvas drawer <760px | ✅ | Resolved — sidebar auto-collapses to 52px rail at <768px (Phase 57 JS breakpoint) |
+| Responsive icon rail 760–1099px | ✅ | Resolved — single 768px JS cut-point via `SIDEBAR_AUTO_COLLAPSE_THRESHOLD` in `NewSidebar.tsx` |
 | User-resizable sidebar width | ✅ | Drag handle on right edge; min 220px, max 480px, default 310px; persisted to `localStorage` key `amplify_sidebar_width`; collapsed 52px rail unaffected. See `NewSidebar.tsx` + NEW_UI_DOCS.md Phase 44. |
 
 ---

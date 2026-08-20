@@ -193,6 +193,13 @@ components/NewUI/
                                Recents + Pinned sections wrapped in {sidebarVisibility.recents && ...}.
                                Collapsed rail items individually gated by sidebarVisibility.*.
                                Listens for 'amplifySidebarVisibilityChanged' event (re-reads localStorage).
+                               Phase 57: auto-collapse at SIDEBAR_AUTO_COLLAPSE_THRESHOLD = 768px.
+                               On mount + window resize: if innerWidth < 768 AND sidebar is open → auto-collapse
+                               (sets isOpen false, dispatches showChatbar:false, does NOT write localStorage).
+                               If innerWidth >= 768 AND sidebar is closed AND wasAutoCollapsedRef is true →
+                               auto-expand (restores open state, does NOT write localStorage).
+                               wasAutoCollapsedRef distinguishes programmatic from user-initiated state changes:
+                               handleToggle sets it to false so user collapses are never auto-undone.
     SidebarHeader.tsx        ← wordmark ✳ + collapse + search buttons (48px)
     SidebarNavItem.tsx       ← REUSABLE nav row (icon + label + rest/hover/active/focus states)
     SidebarSection.tsx       ← REUSABLE section heading ("Pinned", "Recents") with optional right slot
@@ -786,9 +793,10 @@ Visual changes allowed:
 
 | Viewport | Sidebar behavior |
 |---|---|
-| ≥1100px | Fixed 310px sidebar |
-| 760-1099px | Collapses to 60px icon rail (labels in tooltips) |
-| <760px | Off-canvas drawer behind hamburger |
+| ≥768px | Sidebar open (user's persisted preference respected) |
+| <768px | Auto-collapses to 52px icon rail — **JS-enforced** via `SIDEBAR_AUTO_COLLAPSE_THRESHOLD = 768` in `NewSidebar.tsx` (Phase 57). No localStorage write on auto-collapse or auto-expand. |
+
+> **Phase 57 JS breakpoint:** `NewSidebar.tsx` listens to `window resize` (passive) and checks `window.innerWidth` against `SIDEBAR_AUTO_COLLAPSE_THRESHOLD = 768` on mount and on every resize event. This replaces the old CSS-only TODO for the 760px breakpoint. The prior "760–1099px icon rail / <760px off-canvas drawer" tiers were the CSS spec target; the implemented behavior is a single 768px cut-point with the existing 52px collapsed rail (the off-canvas drawer tier was not implemented).
 
 ---
 
@@ -2771,6 +2779,31 @@ and a new "Sidebar Items" settings section that lets users show/hide individual 
 **Event bridges introduced:**
 - `amplifySidebarVisibilityChanged` — dispatched by `SidebarItemsSection`, consumed by `NewSidebar`
 
+### Phase 57 — Auto-Collapse Sidebar on Narrow Viewports ✅ COMPLETE
+Single-file change: `components/NewUI/sidebar/NewSidebar.tsx` only.
+
+- [x] **`SIDEBAR_AUTO_COLLAPSE_THRESHOLD = 768`** constant added to the sidebar constants block (alongside `SIDEBAR_MIN_WIDTH`, `SIDEBAR_MAX_WIDTH`, `SIDEBAR_DEFAULT_WIDTH`, `SIDEBAR_WIDTH_KEY`). Value chosen so the chat area retains at least ~500px at the default sidebar width.
+- [x] **`isOpenRef`** (useRef) — always-fresh mirror of `isOpen` state, updated in a dedicated `useEffect([isOpen])`. Prevents stale-closure issues in the resize handler's empty-deps useEffect.
+- [x] **`wasAutoCollapsedRef`** (useRef\<boolean\>) — tracks whether the sidebar was collapsed programmatically (by the resize handler) rather than by user action. Key invariant: only auto-expand when this is true; never auto-expand after a user-initiated collapse.
+- [x] **Resize effect** (empty deps, runs once on mount): calls `window.addEventListener('resize', handleResize, { passive: true })`. Also calls `handleResize()` synchronously on mount to handle windows that open at a narrow width. The handler:
+  - If `innerWidth < 768 && isOpenRef.current` → sets `wasAutoCollapsedRef.current = true`, calls `setIsOpen(false)`, dispatches `showChatbar: false`. **Does NOT write localStorage.**
+  - If `innerWidth >= 768 && !isOpenRef.current && wasAutoCollapsedRef.current` → clears the flag, calls `setIsOpen(true)`, dispatches `showChatbar: true`. **Does NOT write localStorage.**
+  - Condition guards prevent repeated toggling of an already-correct state (no thrashing on rapid resize).
+- [x] **`handleToggle` updated**: sets `wasAutoCollapsedRef.current = false` before toggling. Ensures any user-initiated collapse/expand is not mistaken for an auto-collapse, preventing unwanted auto-expand when the window later widens.
+- [x] **localStorage NOT touched during auto-collapse/expand** — preserves user's stored preference. When the window narrows and widens back, the sidebar returns to the user's last manual preference, not some transient state.
+
+**Behaviour table (code-traced):**
+
+| Scenario | Result |
+|---|---|
+| Window starts < 768px | Sidebar auto-collapses on mount |
+| Window starts ≥ 768px | No change |
+| Wide → drag below 768px | Auto-collapses |
+| Auto-collapsed → drag above 768px | Auto-expands |
+| User manually collapses → narrow → wide | Stays collapsed (user's choice) |
+| User manually expands while < 768px | `wasAutoCollapsedRef` cleared; stays open until next resize event fires |
+| Rapid resize back and forth | No thrashing — guards prevent toggling already-correct state |
+
 ### Phase 19 — Remaining Port Work (NEXT)
 - [x] Responsive: icon rail at 760-1099px ✅ resolved
 - [x] Responsive: off-canvas drawer <760px ✅ resolved
@@ -3009,6 +3042,40 @@ new and a pre-existing node; it is not reliably reviewable by reading the select
 - AccountMenu → "Admin Panel" → dispatches `openNewUIAdminPanel` event → sidebar listener sets section
 - Settings modal nav "Admin" group → clicking opens `AdminUI` as a **peer modal** (not embedded in settings content)
 - `AdminUI` is rendered as a sibling element inside `NewSettingsModal`'s return, z-stacked on top
+
+### Auto-Collapse with User-Override Preservation (Phase 57)
+
+When a `useEffect` auto-changes a state value that the user can also change manually, you need a way to distinguish "the system changed this" from "the user changed this" so you can avoid silently undoing the user's choice.
+
+**Pattern: `wasAutoChangedRef` boolean flag**
+
+```ts
+// Tracks whether the state was changed programmatically (not by user).
+const wasAutoCollapsedRef = useRef(false);
+
+// In the programmatic handler:
+wasAutoCollapsedRef.current = true;
+setIsOpen(false);
+// NOT writing to localStorage — transient, not a preference
+
+// In the "undo" condition:
+if (shouldRestore && wasAutoCollapsedRef.current) {
+  wasAutoCollapsedRef.current = false;
+  setIsOpen(true);
+  // NOT writing to localStorage — restoring prior preference
+}
+
+// In any user-initiated handler (e.g. handleToggle):
+wasAutoCollapsedRef.current = false; // user owns this state now
+```
+
+**Rules:**
+- **Never write to localStorage during auto-collapse/expand** — the user's stored preference should survive transient viewport changes.
+- **Clear the flag on any user action** — once the user explicitly toggles, they own the state and the auto-logic should not override them.
+- Use a `ref` (not state) for the flag so it updates synchronously without causing re-renders or stale closures in the resize handler.
+- The stale-closure problem for the primary state variable (`isOpen`) is solved separately with an `isOpenRef` that mirrors the state in a `useEffect([isOpen])` — the resize handler reads the ref, never the state directly.
+
+**Used by:** `NewSidebar.tsx` `SIDEBAR_AUTO_COLLAPSE_THRESHOLD = 768` resize logic (Phase 57).
 
 ---
 

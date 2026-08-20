@@ -69,6 +69,9 @@ const SIDEBAR_MIN_WIDTH = 220;
 const SIDEBAR_MAX_WIDTH = 480;
 const SIDEBAR_DEFAULT_WIDTH = 310;
 const SIDEBAR_WIDTH_KEY = 'amplify_sidebar_width';
+// Below this viewport width the sidebar auto-collapses to the icon rail.
+// Chosen so the chat content area has at least ~500px at the default sidebar width.
+const SIDEBAR_AUTO_COLLAPSE_THRESHOLD = 768; // px
 
 interface NewSidebarProps {
   email?: string | null;
@@ -259,6 +262,14 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
   // isHandleHovered: drives the subtle hover highlight on the drag handle
   const [isHandleHovered, setIsHandleHovered] = useState(false);
 
+  // Tracks the current isOpen value without creating a stale closure in the resize effect.
+  const isOpenRef = useRef(isOpen);
+  useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
+
+  // True when the sidebar was collapsed automatically (not by user action).
+  // Used to distinguish "auto-collapse → auto-expand" from "user collapsed → should stay closed".
+  const wasAutoCollapsedRef = useRef(false);
+
   const handleDragMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     const startX = e.clientX;
@@ -347,7 +358,41 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     return () => window.removeEventListener('updateArchiveThreshold', handler as EventListener);
   }, []);
 
+  // Auto-collapse when the window is too narrow; auto-expand when it's wide enough again.
+  // Runs once on mount (checks the initial window size) and re-registers whenever the
+  // threshold or collapse function changes — in practice this is effectively "once".
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleResize = () => {
+      const w = window.innerWidth;
+
+      if (w < SIDEBAR_AUTO_COLLAPSE_THRESHOLD && isOpenRef.current) {
+        // Window became too narrow — auto-collapse.
+        wasAutoCollapsedRef.current = true;
+        setIsOpen(false);
+        dispatch({ field: 'showChatbar', value: false });
+        // Deliberately NOT writing to localStorage — this is transient, not a user preference change.
+      } else if (w >= SIDEBAR_AUTO_COLLAPSE_THRESHOLD && !isOpenRef.current && wasAutoCollapsedRef.current) {
+        // Window is wide enough again AND we were the ones who collapsed it — auto-expand.
+        wasAutoCollapsedRef.current = false;
+        setIsOpen(true);
+        dispatch({ field: 'showChatbar', value: true });
+        // Deliberately NOT writing to localStorage — restoring to the user's prior preference.
+      }
+    };
+
+    // Check the initial window size immediately on mount.
+    handleResize();
+
+    window.addEventListener('resize', handleResize, { passive: true });
+    return () => window.removeEventListener('resize', handleResize);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Empty deps is correct: the handler reads isOpen via isOpenRef (always fresh)
+  // and the collapse/expand logic only fires when crossing the threshold.
+
   const handleToggle = () => {
+    wasAutoCollapsedRef.current = false; // user-initiated toggle — clear the auto-collapse flag
     const next = !isOpen;
     setIsOpen(next);
     dispatch({ field: 'showChatbar', value: next });
