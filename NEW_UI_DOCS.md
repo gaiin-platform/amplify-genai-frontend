@@ -3301,6 +3301,136 @@ title text extended all the way to `pr-[8px]` from the right edge — directly u
 
 ---
 
+### Phase 64 — Four Chat-View Layout and Animation Fixes ✅ COMPLETE
+
+Four independent bug fixes. Files changed:
+- `components/NewUI/chat/ConversationViewShell.tsx` — Fixes 1, 2 (pending indicator + host mounting)
+- `components/NewUI/chat/NewUIMessageActionsLayer.tsx` — Fix 3A (GAP constant)
+- `styles/conversation-view.css` — All four fixes
+
+#### Fix 1 — Blank gap between user message and loading indicator (pre-streaming window)
+
+**Symptom:** After user sends, there is a blank empty space below their bubble while waiting for the first streaming token (the API call latency window). The old breathing dot only appeared once `messageIsStreaming` became true.
+
+**Root cause:** No loading indicator existed for the pre-streaming window.
+
+**Fix:**
+- `ConversationViewShell.tsx`: Added `sentThisTurnRef` (set when message count grows with a new user message, cleared when `messageIsStreaming` starts) to guard against false positives on historical conversations where the last message is from the user. Added `pendingIndicatorEl` state and a `useEffect` that creates a `.new-ui-pending-host` div inside `.chatcontainer` before the `.h-[300px]` spacer. Portals a three-dot loader into that host when `showPendingIndicator = sentThisTurnRef.current && isAwaitingResponse` is true.
+- `conversation-view.css`: Added `.new-ui-pending-dot` class (6px circle, `var(--accent)` bg, `nui-breathe` animation) and `@keyframes nui-breathe` (opacity 0.25→1, scale 0.8→1 at 1.2s). `prefers-reduced-motion: reduce` disables animation (static 50% opacity).
+
+#### Fix 2 — Left edge of circular loading animation clipped
+
+**Symptom:** The breathing dot (CSS `::before` on `.rounded-xl.shadow-lg .mt-0.ml-3`) had its left edge obscured.
+
+**Root cause:** The broad CSS rule `[data-new-ui="true"] .relative.overflow-hidden { overflow: hidden !important; height: 100% !important }` matched PromptStatus's inner flex row (`className="flex flex-row relative overflow-hidden"`). With `overflow: hidden` and `height: 100%` of an auto-height parent, the inner row could collapse or clip content extending to its edges.
+
+**Fix:** `conversation-view.css`: Added `[data-new-ui="true"] .rounded-xl.shadow-lg .flex.flex-row.relative.overflow-hidden { overflow: visible !important; height: auto !important }` to restore natural dimensions for the PromptStatus inner row specifically.
+
+#### Fix 3 — Too much vertical whitespace between AI response end and hover action row
+
+Three sub-issues addressed:
+
+**Fix 3A — GAP and last-child prose margin:**
+- Root cause: Inside `#chatHover`'s flex container, the last prose `<p>` had `margin-bottom: 16px` (from Tailwind Typography). Flex containers don't participate in margin collapsing, so this margin was counted in `#chatHover.offsetHeight`, pushing the action row 16px below the visible text.
+- `conversation-view.css`: Added `[data-new-ui="true"] .enhanced-chat-message.assistant-message #chatHover .prose > *:last-child { margin-bottom: 0 !important }` to zero the trailing margin.
+- `NewUIMessageActionsLayer.tsx`: GAP for assistant role changed from `1` → `4`. With the trailing margin zeroed, `offsetHeight` now accurately reflects the visible text height and GAP=4 provides a clean 4px gap from the last text line to the row.
+
+**Fix 3B — Reasoning wrapper `margin-bottom` reduced:**
+- `conversation-view.css`: `.text-sm\!important.opacity-70 { margin-bottom }` changed from `10px` → `4px`. This reduces the gap between the "Thought process" disclosure and the response prose below it.
+
+**Fix 3C — Assistant message `padding-bottom` raised to contain action row:**
+- `conversation-view.css`: `.enhanced-chat-message.assistant-message { padding-bottom }` changed from `2px` → `28px`. This reserves enough space below the message content for the action row footprint (GAP=4 + row_height≈24px = 28px), preventing the row from overlapping the next conversation turn. This value does NOT increase the visible gap between prose and row — padding-bottom is below the row, not above it.
+
+#### Fix 4 — Amplify logo appearing below the last AI response
+
+**Symptom:** The `icon2.png` brand mark was visible underneath the last AI response.
+
+**Root cause:** CSS `[data-new-ui="true"] .h-[300px]::after` rendered `icon2.png` as a background-image in the bottom spacer div (added Phase 37 Fix 2c). The user does not want this element to appear there.
+
+**Fix:** `conversation-view.css`: Added `[data-new-ui="true"] .h-\[300px\]::after { content: none !important }` to remove the brand mark. The streaming-state rules (opacity + pulse animation) are preserved but inert. To restore the mark in future, remove this override.
+
+> ⚠️ **Phase 64 Fix 1 was WRONG and is superseded by Phase 65 Fix 1.** It gated the
+> indicator on `!messageIsStreaming`, which can never be true in that window — see
+> Phase 65 for the corrected root cause. The `.new-ui-pending-dot` / `nui-breathe`
+> CSS it added has been removed.
+
+---
+
+### Phase 65 — Pre-Response Loading Animation + Hover Rows During Streaming ✅ COMPLETE
+
+Two bug fixes, both from **incorrect assumptions in earlier phases that were only caught by reading the protected source rather than inferring behaviour from names.**
+
+**Changed files:**
+- `components/NewUI/chat/ConversationViewShell.tsx` — Fix 1
+- `components/NewUI/chat/NewUIMessageActionsLayer.tsx` — Fix 2
+- `styles/conversation-view.css` — Fix 1 (reveal rule + removal of Phase 64's dead CSS)
+
+#### Fix 1 — Long blank period below the user prompt after sending
+
+**The load-bearing fact (`hooks/useChatSendService.ts`, read directly):**
+
+| Line | Dispatch | When |
+|---|---|---|
+| `:294` | `loading: true` | at SEND, before fetch |
+| `:295` | `messageIsStreaming: true` | at SEND, before fetch — batched with `selectedConversation` at `:289` |
+| `:801` | `loading: false` | when the HTTP **response body** is received |
+
+**`messageIsStreaming` does NOT mean "tokens are arriving" — it is true from the moment Send is pressed.** Phase 64 assumed the opposite and gated its indicator on `!messageIsStreaming`, so the condition could never hold and no dots ever rendered.
+
+**Actual root cause of the blank:** during send → first-token, `messageIsStreaming` is true and the assistant message has not been appended yet, so:
+- ChatLoader **is** mounted (`Chat.tsx:1741` renders it on `loading`) — but its dot was hidden by our own **Phase 43 Fix 1b** rule (`[data-streaming="true"] … .animate-pulse { visibility: hidden }`), which exists to prevent a *double* dot once PromptStatus is up.
+- PromptStatus has **not** mounted — it renders inside the last message's `assistant-message` wrapper, which doesn't exist yet.
+
+So our own de-duplication rule was hiding the only indicator present.
+
+**Fix — reveal, don't inject:**
+- `ConversationViewShell.tsx`: sets `data-awaiting-first-token="true"` on the shell while `messageIsStreaming && lastMessage?.role === 'user'` (streaming begun, no assistant turn yet). The Phase 64 `sentThisTurn` state, `prevMessageCountRef`, DOM-host effect, portal, and `ReactDOM` import were all removed.
+- `conversation-view.css`: `[data-new-ui="true"][data-streaming="true"][data-awaiting-first-token="true"] … .animate-pulse { visibility: visible !important }`. One extra attribute selector on the same element ⇒ strictly higher specificity than Fix 1b, so it wins **order-independently**. (Phase 59's source-order caveat applies only to `::-webkit-scrollbar` pseudo-elements, which paint outside the normal cascade.)
+
+**Why this beats the Phase 64 approach:** no DOM injected into `.chatcontainer` (whose children React owns), and ChatLoader's dot is *already* column-aligned (Phase 38/39), *already* an accent breathing dot (Phase 27), and *already* `prefers-reduced-motion` gated. Nothing new to keep in sync, and it is visually identical to the "Thinking…" dot that follows — one continuous animation from send through first token.
+
+**Handoff chain (no gap, no double dot):**
+`send` → ChatLoader dot revealed → assistant message appended → `lastMessage.role` becomes `'assistant'` → attribute clears → Fix 1b hides ChatLoader dot again → PromptStatus "Thinking…" dot takes over.
+
+**Guard analysis (why no `sentThisTurn` equivalent is needed):** historical conversations ending in a user message have `messageIsStreaming === false`; and the five other sites that dispatch `messageIsStreaming: true` for automatic follow-up work (`PromptHighlightedText`, `AutoArtifactBlock`, `AutonomousBlock` ×2, `InvokeBlock` ×2) all run with an assistant message already present, so `lastMessage.role === 'assistant'`. Neither can trigger a false positive.
+
+#### Fix 2 — Hover action row unavailable on the user's prompt until the response completes
+
+**Root cause:** `NewUIMessageActionsLayer.tsx`'s hover delegation handler opened with a blanket `if (messageIsStreaming) return;`, suppressing the row for **every** message while any response streamed — including the user's own just-sent prompt, so copy/edit/retry were unreachable for the whole response.
+
+Verified this was the *only* blocker: `scan()` has no streaming gate, and `.new-ui-msg-action-row` CSS has no `data-streaming` rule — rows exist and are positioned during streaming; only the hover trigger was suppressed.
+
+**Fix:** narrowed the guard to the single message where the actions aren't meaningful yet — the assistant turn **currently being written** (last `.enhanced-chat-message` in the container AND `.assistant-message` AND streaming). Every completed message, and the user's prompt, is now hoverable mid-stream. This preserves the guard's real intent (don't copy/rate a half-written answer or read it aloud while it grows) without the collateral damage.
+
+---
+
+### Phase 66 — "Sending…" Label Beside the Pre-Response Dot ✅ COMPLETE
+
+**Changed files:** `styles/conversation-view.css`, `components/NewUI/chat/ConversationViewShell.tsx`
+
+Phase 65 restored a *dot* for the send → first-token window, but it had no text, whereas the state that follows it reads "● Thinking…". This adds a matching label so the two states read as one system:
+
+```
+●  Sending…        (request in flight, no response body yet)
+        ↓
+●  Thinking…       (assistant message exists, PromptStatus active)
+```
+
+**Copy rationale — deliberately NOT "Thinking":** this window is `loading: true` → response body received (`useChatSendService.ts:294`→`:801`). The request has been dispatched but the model has not necessarily begun work, so "Sending…" is the honest description. Claiming "Thinking" here would be fabricating status — the same principle behind the neutral "Thought process" placeholder decision in Phase 28.
+
+**Implementation — CSS `::after`, no DOM injection:**
+- Rule: `[data-new-ui="true"][data-streaming="true"][data-awaiting-first-token="true"] .group.border-b.border-black\/10.bg-gray-50 > div::after { content: "Sending\2026" }`
+- That inner row is *already* `display:flex; align-items:center; gap:8px` from the Phase 38/39 alignment work, so the pseudo-element lands as a flex item immediately after the 6px dot with the **same 8px gap PromptStatus uses** — zero new alignment work.
+- The avatar wrapper preceding the dot is `display:none`, and `display:none` flex items generate no gap, so the dot stays flush at the prose left edge.
+- Gated on the same three attributes as the Phase 65 dot-reveal, so label and dot appear/disappear together and can never desync.
+- Styling copied verbatim from `.new-ui-loading-text` (Phase 43) — 13px italic Inter, `--text-muted`, same `new-ui-loading-pulse` 2s opacity pulse — so it is pixel-identical to "Thinking…". `prefers-reduced-motion` gated per wiki §9 rule 17.
+
+**Accessibility (wiki §9 rule 15):** CSS `content` is decorative and not reliably announced, and PromptStatus's injected `aria-live` host does not exist yet in this window — so screen-reader users previously got nothing. `ConversationViewShell.tsx` now renders a `<span className="sr-only" aria-live="polite">` containing *"Message sent, waiting for a response"* while `showPendingIndicator` is true, and an empty string otherwise (emptying prevents re-announcement when the window ends).
+
+**To change the wording:** edit the `content:` value at the Phase 66 rule in `conversation-view.css` **and** the live-region string in `ConversationViewShell.tsx` — keep the two in sync.
+
+---
+
 ### Phase 19 — Remaining Port Work (NEXT)
 - [x] Responsive: icon rail at 760-1099px ✅ resolved
 - [x] Responsive: off-canvas drawer <760px ✅ resolved
@@ -3435,6 +3565,33 @@ const localDate = new Date(y, m - 1, d); // local midnight — correct
 ```
 Full ISO timestamps (`2026-08-06T18:23:00.000Z`) are fine to parse normally — they have an explicit UTC offset.
 The `parseDateForBucket()` helper in `NewSidebar.tsx` implements this correctly.
+
+### 🛑 `messageIsStreaming` does NOT mean "tokens are arriving" (Phase 65)
+
+`messageIsStreaming` is dispatched **true at SEND time** — `hooks/useChatSendService.ts:295`,
+batched with the `selectedConversation` update at `:289`, **before the fetch is even issued**.
+It means "a request is in flight", not "text is streaming in".
+
+Consequences for anything gating UI on it:
+- `!messageIsStreaming` is **never** true during the send → first-token window. Any
+  "show something while we wait" condition written that way is dead code. Phase 64 Fix 1
+  shipped exactly that bug and rendered nothing.
+- To detect "request in flight but no answer yet", use
+  `messageIsStreaming && lastMessage?.role === 'user'` — the assistant message has not been
+  appended yet. This is also self-guarding: historical conversations have
+  `messageIsStreaming === false`, and the five other dispatch sites
+  (`PromptHighlightedText`, `AutoArtifactBlock`, `AutonomousBlock`, `InvokeBlock`) all run
+  with an assistant message present.
+- The related `loading` flag is the tighter signal for the API-latency window specifically:
+  true at `:294` (send) → false at `:801` (HTTP response body received). `Chat.tsx:1741`
+  renders `{loading && <ChatLoader/>}`, so **ChatLoader is mounted for that whole window** —
+  check whether it already covers your case before injecting a new indicator.
+
+Related trap: our own de-duplication rules can hide the only visible indicator. Phase 43
+Fix 1b hides ChatLoader's dot whenever `data-streaming="true"` (to avoid doubling up with
+PromptStatus) — but PromptStatus doesn't mount until an assistant message exists, so that
+rule created the blank window Phase 65 had to fix. **When adding a "hide the duplicate"
+rule, verify the element you're deferring to is actually mounted at that moment.**
 
 ### Shared-id/shared-class CSS scoping gotcha (Phase 28)
 Several protected components under `components/Chat/ChatContentBlocks/` reuse the SAME id or class

@@ -65,7 +65,7 @@
 | Conversation header (title + share) | ✅ | `ConversationHeader.tsx`. §9: Share button is label-only (no icon), 30px, `--bg-active`, hover `#45443F`. |
 | Stop generating button | ✅ | In `ConversationComposer.tsx` |
 | Scroll-to-latest button | ✅ | |
-| Hover action row (full spec §1/§2) | ✅ | `NewUIMessageActionsLayer.tsx`. Phase 33: rows are `position:absolute` in `.chatcontainer` portal — scroll lock-step, no rAF. Phase 35: hover-disappear fixed. Phase 51 spacing fix pending (gap still too large — see tracker). See wiki §12 Phases 28–37. |
+| Hover action row (full spec §1/§2) | ✅ | `NewUIMessageActionsLayer.tsx`. Phase 33: rows are `position:absolute` in `.chatcontainer` portal — scroll lock-step, no rAF. Phase 35: hover-disappear fixed. Phase 64: spacing fully resolved — GAP=4 (was 1), last-child prose margin zeroed in CSS, assistant `padding-bottom` 2px→28px. See wiki §12 Phases 28–37, 64. |
 | Attachment rail (pre-send cards) | ✅ | `AttachmentRail` + `AttachmentCard` — 160×160 cards above textarea, image/file/paste variants; circular spinner overlay during upload |
 | Attachment preview overlay | ✅ | `AttachmentPreview` — centered FLIP animation (separate centering wrapper), image/CSV/text panels, unavailable states, ← / → nav. A11y Pass 1: focus trap Tab-cycling completed. |
 | Large-paste capture (≥4k chars) | ✅ | `RichComposer.onLargePaste` + `ConversationComposer` `onPaste` — paste becomes attachment card |

@@ -127,6 +127,63 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
   const [showJumpBtn, setShowJumpBtn] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
 
+  // ── Issue 1: "Waiting for response" pending indicator ─────────────────────
+  //
+  // ROOT CAUSE (verified by reading hooks/useChatSendService.ts):
+  // `messageIsStreaming` is dispatched TRUE at line 295 — at SEND time, batched
+  // with the `selectedConversation` update at line 289, BEFORE the API call is
+  // even made. It does NOT mean "tokens are arriving".
+  //
+  // So the blank window is precisely: messageIsStreaming === true, but the
+  // assistant message has not been appended yet (last message is still the
+  // user's). During that window:
+  //   - ChatLoader IS mounted (Chat.tsx renders it on `loading`), but its dot is
+  //     hidden by our own Phase 43 Fix 1b CSS ([data-streaming="true"] …
+  //     .animate-pulse { visibility: hidden }).
+  //   - PromptStatus has NOT mounted — it renders inside the last message's
+  //     assistant-message wrapper, which doesn't exist yet, and needs status
+  //     events that haven't arrived.
+  // Result: nothing visible. That is the bug.
+  //
+  // CORRECT CONDITION: streaming has begun AND no assistant turn exists yet.
+  // `lastMessage.role === 'user'` is exactly that test, and it also makes the
+  // `sentThisTurn` guard from the previous attempt unnecessary:
+  //   - Historical conversations ending in a user message: messageIsStreaming is
+  //     false → no indicator. No false positive.
+  //   - The 5 other places that dispatch messageIsStreaming true for automatic
+  //     follow-up work (PromptHighlightedText, AutoArtifactBlock, AutonomousBlock,
+  //     InvokeBlock) all run with an assistant message already present, so
+  //     lastMessage.role is 'assistant' → no indicator.
+  //
+  // Handoff: the moment the assistant message is appended, lastMessage.role
+  // becomes 'assistant', this attribute clears, and PromptStatus's breathing dot
+  // takes over. Both use var(--accent), so the transition is seamless.
+  //
+  // IMPLEMENTATION: rather than injecting a new DOM node into `.chatcontainer`
+  // (whose children React owns), we re-reveal the dot on the ChatLoader element
+  // that Chat.tsx ALREADY mounts for exactly this window — verified:
+  // `loading` is dispatched true at useChatSendService.ts:294 (send) and false at
+  // :801 (HTTP response body received), and Chat.tsx renders
+  // `{loading && <ChatLoader/>}` at :1741. That element is already column-aligned
+  // (Phase 38/39) and its dot is already styled as an accent breathing dot
+  // (Phase 27), reduced-motion gated. Our Phase 43 Fix 1b rule was the only thing
+  // hiding it. So this is a one-attribute CSS unhide — no DOM injection, no
+  // alignment work, nothing to keep in sync.
+  const messages = selectedConversation?.messages ?? [];
+  const lastMessage = messages[messages.length - 1];
+
+  const showPendingIndicator =
+    messageIsStreaming && lastMessage?.role === 'user';
+
+  useEffect(() => {
+    if (!shellRef.current) return;
+    if (showPendingIndicator) {
+      shellRef.current.setAttribute('data-awaiting-first-token', 'true');
+    } else {
+      shellRef.current.removeAttribute('data-awaiting-first-token');
+    }
+  }, [showPendingIndicator]);
+
   // ── Pending-message bridge ──────────────────────────────────────────────
   //
   // Two paths:
@@ -933,6 +990,16 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Phase 66 — accessible announcement for the pre-response window.
+          The visible "Sending…" label is CSS ::after content on ChatLoader, which
+          screen readers do not announce; and PromptStatus's aria-live host (injected
+          by the effect above) does not exist yet during this window. This polite
+          live region covers the gap per wiki §9 standing rule 15. Emptying it when
+          the window ends stops the message being re-announced. */}
+      <span className="sr-only" aria-live="polite">
+        {showPendingIndicator ? 'Message sent, waiting for a response' : ''}
+      </span>
 
       {/* Floating action row (Copy / Edit / Read Aloud) */}
       <NewUIMessageActionsLayer />

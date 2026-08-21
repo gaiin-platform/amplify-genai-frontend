@@ -354,8 +354,12 @@
   background: transparent !important;
   /* Phase 34: assistant messages reduced to 20px — 36px was too much per user feedback.
      Phase 35 Fix 2: reduced further to 8px — 20px was still too large per user feedback.
-     Phase 36 Fix 2: reduced to 2px — 8px was still too much vertical space below AI responses. */
-  padding-bottom: 2px !important;
+     Phase 36 Fix 2: reduced to 2px — 8px was still too much vertical space below AI responses.
+     Phase 64 Fix 3C: raised from 2px to 28px so the reserved space below the message
+     is large enough to contain the action row footprint (GAP=4 + row_height~24px = 28px).
+     padding-bottom reserves space BELOW the action row for the next turn's content; it does
+     NOT add visible gap between the last prose line and the row. */
+  padding-bottom: 28px !important;
 }
 
 [data-new-ui="true"] .enhanced-chat-message::before {
@@ -483,22 +487,26 @@
  * we can't easily read messageIsStreaming here, so we use a body class
  * `new-ui-streaming` toggled by ConversationViewShell (see the effect below).
  */
+/* Phase 64 Fix 4 — Remove the Amplify brand logo from below the last AI response.
+   The user does not want the icon2.png brand mark to appear here. The idle and
+   streaming-state rules below are left in place but inert (content:none takes
+   precedence), so they can be re-enabled by removing this override if needed.
+   Original mark added Phase 37 Fix 2c; removed Phase 64. */
 [data-new-ui="true"] .h-\[300px\]::after {
-  content: "";
-  display: block;
-  width: 28px;
-  height: 28px;
-  background-image: url('/icon2.png');
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  opacity: 0.55;                  /* idle state: 55% opacity */
-  border-radius: 4px;
-  margin-left: 0;
-  transition: opacity 0.3s ease;
+  content: none !important;
 }
 
-/* Streaming state: animate to full opacity */
+/* Original brand-mark rules preserved below for reference (now inert):
+[data-new-ui="true"] .h-\[300px\]::after {
+  content: "";
+  display: block; width: 28px; height: 28px;
+  background-image: url('/icon2.png'); background-size: contain;
+  background-repeat: no-repeat; background-position: center;
+  opacity: 0.55; border-radius: 4px; margin-left: 0; transition: opacity 0.3s ease;
+}
+*/
+
+/* Streaming state: these selectors are now inert because ::after has content:none */
 .new-ui-is-streaming [data-new-ui="true"] .h-\[300px\]::after,
 [data-new-ui="true"][data-streaming="true"] .h-\[300px\]::after {
   opacity: 1;
@@ -700,6 +708,19 @@
 [data-new-ui="true"] .enhanced-chat-message.assistant-message .prose p {
   margin-bottom: 16px !important;
   color: var(--text-primary) !important;
+}
+
+/* Phase 64 Fix 3A — Remove trailing margin on the last prose child.
+   The Tailwind Typography .prose class adds margin-bottom to every block element
+   (p, ul, ol, h1-h6, etc.). Inside the flex container of #chatHover, the last
+   element's margin-bottom IS counted in offsetHeight (flex containers don't
+   participate in block margin collapsing). This makes #chatHover.offsetHeight
+   larger than the visible text area by ~16-21px, pushing the action row down by
+   that amount. By zeroing the last child's margin, offsetHeight tracks the
+   actual text height, and GAP=4 provides the desired 4px visual gap. */
+[data-new-ui="true"] .enhanced-chat-message.assistant-message #chatHover .prose > *:last-child,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message #chatHover .assistantContentBlock > *:last-child {
+  margin-bottom: 0 !important;
 }
 
 [data-new-ui="true"] .assistantContentBlock h1 {
@@ -1141,6 +1162,18 @@
   overflow: visible !important;
 }
 
+/* Phase 64 Fix 2 — PromptStatus inner flex row: un-clip the breathing dot.
+   The broad [data-new-ui="true"] .relative.overflow-hidden rule (~line 78)
+   gives any element with those two Tailwind classes overflow:hidden + height:100%.
+   PromptStatus's inner row is `className="flex flex-row relative overflow-hidden"`,
+   so it picks up those rules. With height:100% of an auto-height parent the row
+   can collapse, and with overflow:hidden it clips the ::before breathing dot.
+   Fix: restore natural dimensions specifically for the PromptStatus inner row. */
+[data-new-ui="true"] .rounded-xl.shadow-lg .flex.flex-row.relative.overflow-hidden {
+  overflow: visible !important;
+  height: auto !important;
+}
+
 /* The cover image column */
 [data-new-ui="true"] .rounded-xl.shadow-lg .w-14 {
   display: none !important;
@@ -1237,8 +1270,10 @@
 [data-new-ui="true"] .text-sm\!important.opacity-70 {
   opacity: 1 !important;
   /* Phase 33 §4a: reduced from 26px → 10px — user reported too much space
-     between "Thought process" and the response below it. */
-  margin-bottom: 10px !important;
+     between "Thought process" and the response below it.
+     Phase 64 Fix 3B: reduced further to 4px — 10px was still creating excessive
+     gap between the reasoning disclosure and the prose below it. */
+  margin-bottom: 4px !important;
 }
 
 /* SCOPING NOTE (bug caught + fixed during this session): #expandComponent is
@@ -2142,6 +2177,90 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   Phase 65 Fix 1 — ALWAYS show a loading animation once the prompt is sent
+   ═══════════════════════════════════════════════════════════════════════════
+
+   BUG: a long blank period below the user's prompt right after sending.
+
+   ROOT CAUSE (verified in hooks/useChatSendService.ts):
+     - `messageIsStreaming` is dispatched TRUE at :295 — at SEND time, batched with
+       the selectedConversation update at :289, BEFORE the fetch is issued. It does
+       NOT mean "tokens are arriving".
+     - `loading` is TRUE from :294 (send) until :801 (HTTP response body received).
+       Chat.tsx renders `{loading && <ChatLoader/>}` (:1741), so ChatLoader IS
+       mounted for that whole API-latency window.
+     - PromptStatus does NOT exist yet: it renders inside the LAST message's
+       assistant-message wrapper, and no assistant message has been appended.
+   So Fix 1b above (which exists to prevent a DOUBLE dot once PromptStatus is up)
+   was hiding the ONLY indicator present during the pre-assistant-message window.
+
+   FIX: ConversationViewShell sets `data-awaiting-first-token="true"` on the shell
+   while `messageIsStreaming && lastMessage.role === 'user'` — i.e. streaming has
+   begun but no assistant turn exists yet. That re-reveals the ChatLoader dot for
+   exactly that window and no longer.
+
+   Why this rule wins over Fix 1b: it carries one extra attribute selector on the
+   same element, so it has strictly higher specificity — order-independent. (The
+   Phase 59 source-order caveat applies only to ::-webkit-scrollbar pseudo-elements,
+   which are painted outside the normal cascade; `visibility` on a real span
+   honours specificity normally.)
+
+   No new element is introduced: ChatLoader's dot is already column-aligned
+   (Phase 38/39), already an accent breathing dot (Phase 27), and already
+   prefers-reduced-motion gated — so this stays visually identical to the
+   "Thinking…" dot that follows it, giving one continuous animation from send
+   through to first token.
+   ─────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"][data-streaming="true"][data-awaiting-first-token="true"] .group.border-b.border-black\/10.bg-gray-50 .animate-pulse {
+  visibility: visible !important;
+}
+
+/* ── Phase 66 — "Sending…" label beside the pre-response dot ─────────────────
+   The awaiting-first-token dot had no text, while the state that follows it
+   (PromptStatus, once the assistant message exists) reads "● Thinking…". This
+   adds a matching label so the two states read as one system with an honest
+   progression:  ● Sending…   →   ● Thinking…
+
+   Copy rationale: this window is "request dispatched, no response body yet"
+   (useChatSendService.ts :294→:801), so "Sending…" is accurate. It deliberately
+   does NOT say "Thinking" — the model has not necessarily started work yet, and
+   claiming otherwise would be fabricating status (same principle as the
+   "Thought process" placeholder decision in Phase 28).
+
+   Implementation: a CSS ::after on ChatLoader's inner row. That row is already
+   `display:flex; align-items:center; gap:8px` (Phase 38/39 alignment work), so the
+   pseudo-element lands as a flex item immediately after the 6px dot with the same
+   8px gap PromptStatus uses — no DOM injection, no JS, no alignment work.
+   (The avatar wrapper before the dot is `display:none`, and display:none flex
+   items produce no gap, so the dot stays flush at the prose left edge.)
+
+   Styling is copied from `.new-ui-loading-text` (Phase 43) so the label is
+   pixel-identical to "Thinking…": 13px italic Inter, --text-muted, and the same
+   `new-ui-loading-pulse` 2s opacity pulse, prefers-reduced-motion gated per
+   wiki §9 standing rule 17.
+
+   Screen readers: this text is decorative CSS content and is NOT announced.
+   The accessible announcement for this window comes from the polite live region
+   rendered in ConversationViewShell.tsx (wiki §9 standing rule 15) — PromptStatus's
+   own aria-live host does not exist yet during this window.
+   ─────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"][data-streaming="true"][data-awaiting-first-token="true"] .group.border-b.border-black\/10.bg-gray-50 > div::after {
+  content: "Sending\2026"; /* U+2026 HORIZONTAL ELLIPSIS = … */
+  color: var(--text-muted);
+  font-size: 13px;
+  font-style: italic;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  line-height: 1;
+  /* opacity default: 1 in reduced-motion mode; animated below otherwise */
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-new-ui="true"][data-streaming="true"][data-awaiting-first-token="true"] .group.border-b.border-black\/10.bg-gray-50 > div::after {
+    animation: new-ui-loading-pulse 2s ease-in-out infinite;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    Phase 43 Fix 2 — "Thinking…" animated text alongside the PromptStatus dot
    ═══════════════════════════════════════════════════════════════════════════
 
@@ -2724,3 +2843,11 @@
     animation: creationModalIn 150ms ease-out both;
   }
 }
+
+/* Phase 64 Fix 1's injected three-dot loader (.new-ui-pending-dot / nui-breathe)
+   was REMOVED in Phase 65. It never rendered, because its gating condition
+   included `!messageIsStreaming` — and messageIsStreaming is true from send time
+   (useChatSendService.ts:295), so the condition could never hold. Replaced by the
+   Phase 65 Fix 1 rule above, which re-reveals the ChatLoader dot that Chat.tsx
+   already mounts for precisely that window. Do not re-add an injected loader here
+   without first checking whether ChatLoader already covers the window. */

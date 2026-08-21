@@ -180,7 +180,11 @@ function computePosition(
   role: Role,
   container: HTMLElement,
 ): Pick<Slot, 'top' | 'align' | 'left' | 'right'> {
-  const GAP = role === 'user' ? 2 : 1;
+  /* Phase 64 Fix 3A: assistant GAP increased from 1 to 4.
+     The last-child prose margin is now zeroed in CSS (conversation-view.css Phase 64
+     Fix 3A), so #chatHover.offsetHeight accurately reflects the visible text height.
+     GAP=4 provides the desired 4px visual gap between the last prose line and the row. */
+  const GAP = role === 'user' ? 2 : 4;
   const anchor = el.querySelector<HTMLElement>('#chatHover') ?? el;
   const { top: anchorTop, left: anchorLeft } = offsetWithin(anchor, container);
   const top = anchorTop + anchor.offsetHeight + GAP;
@@ -651,10 +655,25 @@ export const NewUIMessageActionsLayer: React.FC = () => {
     if (!container) return;
 
     const onMouseOver = (e: MouseEvent) => {
-      if (messageIsStreaming) return;
       const el = (e.target as HTMLElement | null)?.closest<HTMLElement>('.enhanced-chat-message');
       const key = el?.getAttribute('data-new-ui-msg-key');
       if (!key) return;
+
+      // Phase 65 Fix 2 — previously this handler began with a blanket
+      // `if (messageIsStreaming) return;`, which suppressed hover rows on EVERY
+      // message while a response was generating. That made the user's own prompt
+      // un-actionable (no copy/edit/retry) until the answer finished — the reported
+      // bug. Completed messages are perfectly safe to act on mid-stream, so the
+      // guard is now narrowed to the one message where the actions genuinely
+      // aren't meaningful yet: the assistant turn currently being written. Copying
+      // or rating a half-written answer, or reading it aloud while it grows, are
+      // the cases the original guard was really protecting against.
+      if (messageIsStreaming && el && el.classList.contains('assistant-message')) {
+        const allMessages = container.querySelectorAll<HTMLElement>('.enhanced-chat-message');
+        const isLast = allMessages[allMessages.length - 1] === el;
+        if (isLast) return;
+      }
+
       if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
       setHoveredKey(key);
     };
