@@ -109,40 +109,23 @@
    rail) and the bottom fade start point adjusted to match.
 ───────────────────────────────────────────────────────────────────────────── */
 /* ─────────────────────────────────────────────────────────────────────────────
-   --nui-sb-clear — scrollbar clearance column (Phase 58, 3rd revision)
+   --nui-sb-clear — scrollbar clearance column
    ─────────────────────────────────────────────────────────────────────────────
-   The width of the strip along .chatcontainer's right edge that (a) the top-fade
-   mask must NOT fade, and (b) the header / composer overlays must NOT paint over.
-   Consumed in exactly three places: the .chatcontainer mask below, .new-ui-header,
-   and .new-ui-composer-dock.
+   Phase 58 (original): set to 16px. Required because the ::webkit-scrollbar
+   { width: 4px } declaration forced classic-mode scrollbars, which reserve a
+   permanent gutter in the layout. The mask and header/composer overlays all
+   needed to leave that gutter exposed.
 
-   Why 16px and not 4px (the ::-webkit-scrollbar width)?
-   The first two attempts used exactly 4px and the thumb was still partly covered in
-   the real app — only the right portion showed. A 4px exposure on a scrollbar column
-   that renders wider than 4px (Firefox ignores ::-webkit-scrollbar entirely and uses
-   its own ~15px scrollbar; a stale/lost cascade for the 4px rule falls back to the
-   12px rule in globals.css; fractional layout widths let paint edges snap to
-   different device pixels than the scrollbar) reads exactly as "the left half of the
-   bar is covered". Pinning the clearance to the *expected* scrollbar width makes the
-   fix only as correct as that assumption. A generous clearance removes the
-   assumption entirely.
-
-   Why widening it is visually free (verified in a headless Chrome harness):
-     • .chatcontainer sets scrollbar-gutter: stable, so the gutter column NEVER
-       contains content.
-     • The message column is `min(74ch, 100% - 48px)` centred, so there is always
-       ≥24px of empty margin inside the content box, plus the gutter itself.
-     → ≥28px of guaranteed-empty space at the right edge. A 16px strip therefore
-       never contains content, so exempting it from the fade and from the overlay
-       backgrounds cannot change anything a user can see — except that the scroll
-       thumb is now never clipped.
-   Bounds: keep it ≤ 20px — the two overlay rules below subtract it from their own
-   padding-right (20px header / 24px dock) to keep their children in place, and a
-   negative padding is an invalid declaration that would silently drop the
-   compensation. 16px sits comfortably inside both bounds (≤20px, <28px).
-   Do not "optimise" it back down to the ::-webkit-scrollbar width. */
+   Phase (overlay fix): reset to 0px. Removing all ::webkit-scrollbar { width }
+   declarations restores OS overlay scrollbar behaviour on macOS — overlay
+   scrollbars float above content and reserve NO layout width. With 0px the
+   existing `right: var(--nui-sb-clear)` and
+   `padding-right: calc(Xpx - var(--nui-sb-clear))` rules on .new-ui-header
+   and .new-ui-composer-dock evaluate to their original un-compensated values
+   (right: 0, padding-right: 20px / 24px), so those rules remain syntactically
+   correct without being touched. */
 [data-new-ui="true"] {
-  --nui-sb-clear: 16px;
+  --nui-sb-clear: 0px;  /* overlay scrollbars — no gutter reservation needed */
 }
 
 [data-new-ui="true"] .chatcontainer {
@@ -187,7 +170,7 @@
   overflow-y: auto !important;
   overflow-x: hidden !important;
   overflow-anchor: auto;
-  scrollbar-gutter: stable;          /* prevents column shift on scroll (defect #6) */
+  /* scrollbar-gutter: stable was removed — overlay scrollbars reserve no layout width */
 
   /* Phase 33: make .chatcontainer the positioned containing block / offsetParent
      for NewUIMessageActionsLayer's absolute overlay + rows. The rows live inside
@@ -203,28 +186,14 @@
      the faded band read visually as a bar covering the response text. The top
      fade (clearing the 52px header overlay) is still needed and kept; only the
      bottom fade is removed. */
-  /* Phase 58 (revised twice): Two-layer mask exempts the scrollbar column.
-     NOTE: mask-size alone cannot exempt the scrollbar — when a mask layer doesn't cover an
-     area (due to mask-size + no-repeat), CSS treats that gap as transparent-black (hidden),
-     not as "no mask applied". The mask-size approach from the first Phase 58 attempt made the
-     scrollbar INVISIBLE, not visible.
-
-     CORRECT approach: two mask layers composited with mask-composite:add (the default):
-       Layer 1 — horizontal strip: opaque (#000) in the rightmost --nui-sb-clear px
-                 (the scrollbar clearance column), transparent everywhere else.
-       Layer 2 — the original vertical fade: transparent 0 → #000 80px → #000 100%.
-     Combined result (add = min(1, L1_alpha + L2_alpha)):
-       • Clearance column: min(1, 1 + fade) = 1 → scrollbar always fully visible.
-       • Content top (0–80px): min(1, 0 + fade) = fade → normal top fade.
-       • Content body (80px–100%): min(1, 0 + 1) = 1 → fully visible.
-     The clearance is deliberately WIDER than the 4px ::-webkit-scrollbar width — see the
-     --nui-sb-clear definition above for why that is both necessary and visually free. */
-  mask-image:
-    linear-gradient(to left, #000 var(--nui-sb-clear), transparent var(--nui-sb-clear)),
-    linear-gradient(to bottom, transparent 0, #000 80px, #000 100%) !important;
-  -webkit-mask-image:
-    linear-gradient(to left, #000 var(--nui-sb-clear), transparent var(--nui-sb-clear)),
-    linear-gradient(to bottom, transparent 0, #000 80px, #000 100%) !important;
+  /* Single-layer top-fade mask (spec §2).
+     Phase 58 used a two-layer mask to exempt the scrollbar gutter column from the
+     fade — necessary because a classic-mode scrollbar sat inside the layout and would
+     be clipped by a simple vertical gradient. With overlay scrollbars the thumb
+     floats ABOVE the mask-image in the compositing stack and is unaffected by it,
+     so the horizontal clearance layer is no longer needed. */
+  mask-image: linear-gradient(to bottom, transparent 0, #000 80px, #000 100%) !important;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 80px, #000 100%) !important;
 }
 
 /* Fix 1 (Phase 34): The .new-ui-actions-overlay is a direct child of
@@ -241,44 +210,42 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Scrollbar — thin, overlay-style (defect #6)
+   Scrollbar — overlay-style auto-hide (chat pane)
+   No ::webkit-scrollbar { width } declaration — this intentionally omits the
+   property so macOS Chrome uses OS overlay scrollbars (auto-hide, no gutter).
+   On Windows/Linux (always classic), the thumb is transparent at rest and shows
+   only while the user is actively scrolling, via the data-scrolling attribute
+   set by ConversationViewShell.tsx's SCROLLBAR_IDLE_MS idle timer.
 ───────────────────────────────────────────────────────────────────────────── */
-[data-new-ui="true"] .chatcontainer::-webkit-scrollbar {
-  width: 4px;
-}
+/* Intentionally no ::webkit-scrollbar { width } rule — see comment above */
 [data-new-ui="true"] .chatcontainer::-webkit-scrollbar-track {
   background: transparent;
 }
+/* At rest: invisible thumb (macOS overlay auto-hides; Windows/Linux hidden by CSS) */
 [data-new-ui="true"] .chatcontainer::-webkit-scrollbar-thumb {
-  background-color: #93c5fd; /* blue-300 — softened blue, clearly branded but unobtrusive */
+  background-color: transparent !important;
+}
+/* While scrolling — data-scrolling="true" set by ConversationViewShell.tsx idle timer */
+[data-new-ui="true"] .chatcontainer[data-scrolling="true"]::-webkit-scrollbar-thumb {
+  background-color: #93c5fd !important;  /* blue-300 */
   border-radius: 2px;
 }
+/* Grabbable even at rest (finger already on the thumb) */
 [data-new-ui="true"] .chatcontainer::-webkit-scrollbar-thumb:hover {
-  background-color: #60a5fa; /* blue-400 — stronger on hover */
+  background-color: #60a5fa !important;  /* blue-400 */
 }
-/* Phase 58 Fix 2: Both the ConversationHeader and the ConversationComposer are
-   position:absolute overlays with right:0 that physically paint over the scrollbar
-   column. The mask trick (Layer 1 above) stops the *fade* on the scrollbar, but it
-   cannot overcome a solid opaque background painted on top of it by another element
-   with a higher z-index — the overlay boxes themselves have to stop short of the
-   scrollbar. Both are inset by --nui-sb-clear.
-
-   The inset is paired with a compensating padding-right reduction of the SAME amount,
-   so every child stays at exactly the pixel position it had before. Only the overlay's
-   background box shrinks; nothing moves. (Verified in a headless Chrome harness: the
-   header's rightmost button lands on the identical x with and without the pair.)
-
-   Header: position:absolute, top:0, left:0, right:0, height:52px, zIndex:30,
-           background:var(--bg-app), padding '0 20px 0 24px'.
-           20px pad − 16px inset = 4px → content right edge unchanged at (shell − 20px). */
+/* Phase 58 Fix 2 (retained with --nui-sb-clear now 0px):
+   These rules were originally needed when a classic-mode scrollbar reserved a
+   permanent gutter column — the header and composer had to stop short of that
+   gutter so they didn't paint over the visible thumb.
+   With overlay scrollbars (--nui-sb-clear = 0px) the gutter no longer exists,
+   so both `right: 0px` and `padding-right: calc(20px - 0px) = 20px` evaluate
+   to the original un-compensated values, and the rules are effectively no-ops
+   but remain syntactically correct and cause no harm. */
 [data-new-ui="true"] .new-ui-header {
   right: var(--nui-sb-clear) !important;
   padding-right: calc(20px - var(--nui-sb-clear)) !important;
 }
-/* Composer dock: position:absolute, bottom:0, left:0, right:0, zIndex:25,
-   background: linear-gradient(transparent → var(--bg-app)), padding '0 24px 20px'.
-   24px pad − 16px inset = 8px → content box stays [24px, shell − 24px], so the
-   centred dock column (margin:0 auto) is centred exactly where it was before. */
 [data-new-ui="true"] .new-ui-composer-dock {
   right: var(--nui-sb-clear) !important;
   padding-right: calc(24px - var(--nui-sb-clear)) !important;
@@ -1130,20 +1097,40 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Global thin scrollbar (non-chatcontainer, e.g. expanded reasoning blocks)
+   Global scrollbar for elements inside [data-new-ui="true"] (chat shell)
+   No ::webkit-scrollbar { width } rule — intentionally omitted so macOS uses
+   overlay scrollbars. Thumb colour is progressive enhancement for Windows/Linux.
+   No !important on thumb colour — the .chatcontainer-specific transparent rule
+   above (which HAS !important) overrides this for the main scroll pane.
+   (Phase 59: Chrome breaks !important ties on ::webkit-scrollbar by source order;
+   the .chatcontainer transparent rule comes before this block → this would win
+   on source order if it also carried !important, which would be wrong. Removing
+   !important here lets specificity decide, and the .chatcontainer rule's compound
+   selector wins correctly.)
 ───────────────────────────────────────────────────────────────────────────── */
-[data-new-ui="true"] ::-webkit-scrollbar {
-  width: 4px !important;
-  height: 4px !important;
-}
-
 [data-new-ui="true"] ::-webkit-scrollbar-track {
-  background: transparent !important;
+  background: transparent;
 }
 
 [data-new-ui="true"] ::-webkit-scrollbar-thumb {
-  background-color: #93c5fd !important; /* blue-300 — matches chatcontainer thumb */
-  border-radius: 2px !important;
+  background-color: #93c5fd; /* blue-300 — non-chatcontainer elements on Windows */
+  border-radius: 2px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Sidebar recents scrollbar — overlay-style auto-hide
+   Compound selector (2 parts) beats the 1-part [data-new-ui-shell] thumb rule
+   in globals.css, so these rules win by specificity without needing !important.
+   data-scrolling="true" is set by handleRecentsScroll in NewSidebar.tsx.
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui-shell="true"] .new-ui-sidebar-recents::-webkit-scrollbar-thumb {
+  background-color: transparent;  /* invisible at rest */
+}
+[data-new-ui-shell="true"] .new-ui-sidebar-recents[data-scrolling="true"]::-webkit-scrollbar-thumb {
+  background-color: var(--border-subtle);  /* subtle — low-prominence sidebar thumb */
+}
+[data-new-ui-shell="true"] .new-ui-sidebar-recents::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-muted);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

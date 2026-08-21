@@ -270,6 +270,26 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
   // Used to distinguish "auto-collapse → auto-expand" from "user collapsed → should stay closed".
   const wasAutoCollapsedRef = useRef(false);
 
+  // ── Recents scrollbar idle-timer ─────────────────────────────────────────
+  // Sets data-scrolling="true" on the recents div while the user is actively
+  // scrolling, then removes it after RECENTS_SCROLLBAR_IDLE_MS of inactivity.
+  // CSS uses this to show the thumb only while scrolling (overlay-style behaviour
+  // on Windows/Linux where classic scrollbars can't auto-hide).
+  const recentsScrollRef = useRef<HTMLDivElement>(null);
+  const recentsScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const RECENTS_SCROLLBAR_IDLE_MS = 700;
+
+  const handleRecentsScroll = useCallback(() => {
+    const el = recentsScrollRef.current;
+    if (!el) return;
+    if (!el.dataset.scrolling) el.dataset.scrolling = 'true';
+    if (recentsScrollTimerRef.current) clearTimeout(recentsScrollTimerRef.current);
+    recentsScrollTimerRef.current = setTimeout(() => {
+      if (el) delete el.dataset.scrolling;
+    }, RECENTS_SCROLLBAR_IDLE_MS);
+  }, []);
+  // ─────────────────────────────────────────────────────────────────────────
+
   const handleDragMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     const startX = e.clientX;
@@ -693,7 +713,9 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
 
         {/* 3. Scrollable Recents */}
         <div
-          className="flex-1 overflow-y-auto overflow-x-hidden"
+          ref={recentsScrollRef}
+          onScroll={handleRecentsScroll}
+          className="new-ui-sidebar-recents flex-1 overflow-y-auto overflow-x-hidden"
         >
           {/* Pinned section — only rendered when at least one conversation is pinned */}
           {pinned.length > 0 && (

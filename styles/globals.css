@@ -329,7 +329,12 @@
   scrollbar-color: #2D2D32 transparent;
 }
 
-::-webkit-scrollbar {
+/* Classic scrollbars for the old UI / non-new-UI pages.
+   Scoped away from [data-new-ui-shell] so the new UI's ::webkit-scrollbar
+   pseudo-elements have no width declaration → macOS Chrome uses OS overlay
+   scrollbars (auto-hide, no layout gutter) instead of classic mode.
+   Uses :has() — supported Chrome 105+, Safari 15.4+, Firefox 121+. */
+body:not(:has([data-new-ui-shell])) ::-webkit-scrollbar {
   width: 12px;
   height: 12px;
 }
@@ -767,22 +772,25 @@ pre:has(div.codeblock) {
    [data-new-ui-shell] is set on the root new-UI layout div in home.tsx.
    It covers the sidebar, chat container, settings panes, and all other new-UI
    scrollable areas. Placed AFTER all [data-chat-palette] palette overrides so
-   it wins on source order AND uses !important to beat non-!important palette
-   rules at equal specificity. Both belts and suspenders — palette rule and
-   source-order cannot win simultaneously against this rule. */
+   it wins on source order at equal specificity.
+   !important removed (overlay scrollbar fix): element-specific rules in
+   conversation-view.css (e.g. .new-ui-sidebar-recents, .chatcontainer) use
+   compound selectors with higher specificity OR their own !important. Those
+   rules must be able to override this fallback colour without a source-order
+   fight. Removing !important here means specificity decides normally. */
 [data-new-ui-shell="true"] ::-webkit-scrollbar-thumb {
-  background-color: #93c5fd !important; /* blue-300 — branded but unobtrusive */
-  border-radius: 10px !important;
+  background-color: #93c5fd; /* blue-300 — branded but unobtrusive */
+  border-radius: 10px;
 }
 [data-new-ui-shell="true"] ::-webkit-scrollbar-thumb:hover {
-  background-color: #60a5fa !important; /* blue-400 — stronger on hover */
+  background-color: #60a5fa; /* blue-400 — stronger on hover */
 }
 /* Dark mode: use a slightly richer blue (still readable on dark surfaces) */
 .dark [data-new-ui-shell="true"] ::-webkit-scrollbar-thumb {
-  background-color: #3b82f6 !important; /* blue-500 — visible on dark --bg-sidebar */
+  background-color: #3b82f6; /* blue-500 — visible on dark --bg-sidebar */
 }
 .dark [data-new-ui-shell="true"] ::-webkit-scrollbar-thumb:hover {
-  background-color: #60a5fa !important; /* blue-400 */
+  background-color: #60a5fa; /* blue-400 */
 }
 /* Firefox scrollbar-color support */
 [data-new-ui-shell="true"] * {

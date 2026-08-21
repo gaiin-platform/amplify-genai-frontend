@@ -2987,6 +2987,8 @@ adding a `transition` there is inert. Don't re-add one expecting a fade.
 **Not applied to the sidebar recents scrollbar** — that one is already correct per user confirmation
 and uses a different element/selector path; left untouched deliberately.
 
+> **⚠️ Phase 68 supersedes parts of Phase 58:** The `::webkit-scrollbar { width: 4px }` declaration described here actually forced classic mode (preventing OS overlay scrollbars). The data-scrolling idle timer described in Fix 4 was documented as done but was never implemented in `ConversationViewShell.tsx`. Phase 68 removes all `::webkit-scrollbar { width }` declarations to restore overlay mode on macOS, sets `--nui-sb-clear: 0px`, simplifies the two-layer mask to single-layer, and properly implements the transparent-at-rest CSS rules. See Phase 68 entry for the complete record.
+
 ### Phase 59 — Chat Scrollbar Always-Visible Bug (CSS cascade fix) ✅ COMPLETE
 
 **Changed files:** `styles/conversation-view.css` only. Zero JS changes.
@@ -3474,6 +3476,118 @@ Phase 65 restored a *dot* for the send → first-token window, but it had no tex
 
 ---
 
+### Phase 68 — Overlay Scrollbar Fix (remove classic-mode forcing) ✅ COMPLETE
+
+**Changed files:** `styles/conversation-view.css`, `styles/globals.css`, `components/NewUI/sidebar/NewSidebar.tsx`
+
+**Bug:** Custom scrollbars in the sidebar recents list and the main chat pane were permanently visible (classic mode) instead of overlay-style (auto-hide on macOS, transparent-at-rest on Windows/Linux).
+
+**Root cause:** Any `::webkit-scrollbar { width: Xpx }` declaration — even a single one on any ancestor — permanently opts the element out of the OS overlay scrollbar system in Chrome/Safari, switching to "classic" (always-visible, layout-reserving) mode. Three rules were forcing classic mode:
+1. `globals.css` (global): `::-webkit-scrollbar { width: 12px; height: 12px }` — applied to EVERYTHING
+2. `conversation-view.css` line ~246: `[data-new-ui="true"] .chatcontainer::-webkit-scrollbar { width: 4px }` — chat pane specific
+3. `conversation-view.css` line ~1135: `[data-new-ui="true"] ::-webkit-scrollbar { width: 4px !important; height: 4px !important }` — all elements inside ConversationViewShell
+
+The Phase 58 `data-scrolling` idle timer (toggle `data-scrolling="true"` on scroll, hide thumb at rest) was a correct approach for Windows/Linux progressive enhancement. **However:** investigation found the data-scrolling mechanism described in the Phase 58 wiki entry was NOT actually present in `ConversationViewShell.tsx` — the Phase 58 docs described intended/aspirational behaviour that was never implemented in the JS. The CSS rules referencing `[data-scrolling="true"]` in the chatcontainer block were also not present (the thumb was hardcoded to always-blue #93c5fd, not transparent at rest).
+
+**Fixes applied:**
+
+#### Fix 1 — `globals.css`: Re-scope the global `::webkit-scrollbar { width }` rule
+
+Changed from:
+```css
+::-webkit-scrollbar { width: 12px; height: 12px; }
+```
+To:
+```css
+/* Classic scrollbars — old UI only (old and new UI are mutually exclusive; ternary in home.tsx) */
+body:not(:has([data-new-ui-shell])) ::-webkit-scrollbar { width: 12px; height: 12px; }
+```
+In new-UI mode `body` contains `[data-new-ui-shell]` so `:has()` is true and `:not(:has())` is false — the rule doesn't match. In classic-UI mode (no `[data-new-ui-shell]` in DOM) the rule applies normally. Uses `:has()` — Chrome 105+, Safari 15.4+, Firefox 121+.
+
+#### Fix 2 — `globals.css`: Remove `!important` from `[data-new-ui-shell]` thumb rules
+
+The four `[data-new-ui-shell="true"] ::-webkit-scrollbar-thumb` rules had `!important`. This blocked element-specific rules in `conversation-view.css` (loaded earlier via `@import`) from overriding the fallback blue colour even with higher specificity. Removing `!important` allows specificity to decide normally — compound-selector rules (2 selectors) beat the 1-selector shell fallback.
+
+Source-order safety: shell rule still beats `[data-chat-palette]` rules (equal specificity, shell comes later in source → shell wins by source order). ✓
+
+#### Fix 3 — `conversation-view.css`: Remove `width: 4px` from `.chatcontainer::-webkit-scrollbar`
+
+Deleted the width declaration. The block is now intentionally empty (documented with a comment explaining the omission is deliberate — required for overlay mode).
+
+#### Fix 4 — `conversation-view.css`: Remove `scrollbar-gutter: stable` from `.chatcontainer`
+
+With overlay scrollbars no gutter is reserved. Removed this line; replaced with a comment.
+
+#### Fix 5 — `conversation-view.css`: Set `--nui-sb-clear: 0px`
+
+Phase 58 set this to 16px to reserve space for the classic-mode scrollbar gutter. With overlay scrollbars no gutter exists. Setting to 0px makes all three consumers (`mask-image`, `.new-ui-header`, `.new-ui-composer-dock`) evaluate to their original un-compensated values without touching those rules.
+
+- `.new-ui-header { right: 0px; padding-right: 20px }` → header spans full width ✓
+- `.new-ui-composer-dock { right: 0px; padding-right: 24px }` → dock spans full width ✓
+
+#### Fix 6 — `conversation-view.css`: Simplify the two-layer mask to single-layer
+
+Phase 58 used a two-layer mask (`to-left clearance + to-bottom top-fade`) to exempt the scrollbar column from the top-fade gradient. With overlay scrollbars the thumb floats ABOVE the mask in the compositing stack and is never clipped by it. The clearance layer is no longer needed.
+
+Simplified to: `mask-image: linear-gradient(to bottom, transparent 0, #000 80px, #000 100%) !important`
+
+#### Fix 7 — `conversation-view.css`: Implement the Phase 58 data-scrolling thumb rules (was missing)
+
+The Phase 58 wiki described transparent-at-rest + `[data-scrolling="true"]`-revealed chatcontainer thumb, but this was never in the code (thumb was always `#93c5fd`). Now correctly implemented:
+- At rest: `background-color: transparent !important` (invisible)
+- While scrolling (`data-scrolling="true"`): `background-color: #93c5fd !important` (blue-300)
+- On hover: `background-color: #60a5fa !important` (blue-400)
+
+Note: `ConversationViewShell.tsx` does NOT have the SCROLLBAR_IDLE_MS timer that would set `data-scrolling` (the task spec says "Do NOT change ConversationViewShell.tsx"). On macOS the CSS rules are irrelevant (overlay scrollbars render above the CSS layer). On Windows the thumb stays transparent; the `:hover` rule keeps the scrollbar grab-able.
+
+#### Fix 8 — `conversation-view.css`: Remove `width: 4px !important` from `[data-new-ui="true"] ::-webkit-scrollbar`
+
+Deleted `width: 4px !important` and `height: 4px !important` from the global new-UI scrollbar block. Also removed `!important` from the `[data-new-ui="true"] ::-webkit-scrollbar-thumb` fallback (Phase 59 fix: this block must NOT have `!important` so the chatcontainer transparent rule with `!important` can override it).
+
+#### Fix 9 — `conversation-view.css` + `NewSidebar.tsx`: Sidebar recents idle-timer + CSS
+
+Added the overlay-style idle-timer to `NewSidebar.tsx`:
+- `recentsScrollRef`, `recentsScrollTimerRef`, `RECENTS_SCROLLBAR_IDLE_MS = 700`
+- `handleRecentsScroll` callback: sets `data-scrolling="true"` on scroll, clears after 700ms idle
+- Wired: `ref={recentsScrollRef} onScroll={handleRecentsScroll} className="new-ui-sidebar-recents ..."` on the recents div
+
+Added CSS in `conversation-view.css` with compound selectors (2 parts) so they beat the 1-part shell rule by specificity (normal CSS, no `!important` needed):
+- At rest: `[data-new-ui-shell] .new-ui-sidebar-recents::-webkit-scrollbar-thumb { transparent }`
+- Active: `[data-new-ui-shell] .new-ui-sidebar-recents[data-scrolling="true"]::-webkit-scrollbar-thumb { var(--border-subtle) }`
+- Hover: `[data-new-ui-shell] .new-ui-sidebar-recents::-webkit-scrollbar-thumb:hover { var(--text-muted) }`
+
+**Code-trace verification:**
+
+| Scenario | Expected | Trace |
+|---|---|---|
+| macOS, chat pane, no scrolling | OS overlay hidden at rest | No `::webkit-scrollbar { width }` → overlay mode → OS auto-hides ✓ |
+| macOS, chat pane, scrolling | OS overlay thumb visible | OS controls overlay thumb; CSS rules ignored ✓ |
+| macOS, sidebar recents, no scrolling | OS overlay hidden at rest | Same — no width rule in new-UI scope ✓ |
+| Windows, chat pane, no scrolling | Transparent (no data-scrolling) | `.chatcontainer::-webkit-scrollbar-thumb { transparent !important }` wins ✓ |
+| Windows, chat pane, hover | Blue-400 | `::webkit-scrollbar-thumb:hover { #60a5fa !important }` wins ✓ |
+| Windows, sidebar recents, scrolling | `--border-subtle` thumb | Compound-selector rule with `data-scrolling="true"` wins by specificity ✓ |
+| Windows, sidebar recents, idle | Transparent | Compound-selector transparent rule wins (3-part > 1-part shell) ✓ |
+| Chat header | right: 0px | `--nui-sb-clear: 0px` → `right: 0px` ✓ |
+| Composer dock | right: 0px | Same ✓ |
+| mask-image on chatcontainer | Single-layer top-fade only | Confirmed single-layer in CSS ✓ |
+
+**Checklist:**
+- [x] `styles/globals.css` — global `::webkit-scrollbar { width: 12px }` re-scoped to `body:not(:has([data-new-ui-shell])) ::-webkit-scrollbar`
+- [x] `styles/globals.css` — `!important` removed from `[data-new-ui-shell]` thumb rules (all 4 variants)
+- [x] `styles/conversation-view.css` — `--nui-sb-clear: 0px` (was 16px)
+- [x] `styles/conversation-view.css` — `scrollbar-gutter: stable` removed from `.chatcontainer`
+- [x] `styles/conversation-view.css` — two-layer mask simplified to single-layer top-fade
+- [x] `styles/conversation-view.css` — `.chatcontainer::-webkit-scrollbar { width: 4px }` removed
+- [x] `styles/conversation-view.css` — `.chatcontainer::-webkit-scrollbar-thumb` updated to transparent at rest + `[data-scrolling]`-revealed
+- [x] `styles/conversation-view.css` — `[data-new-ui] ::-webkit-scrollbar { width: 4px !important }` removed
+- [x] `styles/conversation-view.css` — `[data-new-ui] ::-webkit-scrollbar-thumb { !important }` stripped
+- [x] `styles/conversation-view.css` — `.new-ui-sidebar-recents` thumb rules added
+- [x] `components/NewUI/sidebar/NewSidebar.tsx` — `recentsScrollRef`, `handleRecentsScroll`, idle-timer added; `new-ui-sidebar-recents` class + `ref` + `onScroll` wired to recents div
+
+**Phase 58 update note:** Phase 58's checklist item "ConversationViewShell.tsx — `SCROLLBAR_IDLE_MS = 700`; effect toggles `data-scrolling` on `.chatcontainer`" was documented as done but the code change was never made. This is superseded by Phase 68 — the data-scrolling CSS rules for `.chatcontainer` are now in place, and the JS timer can be added to `ConversationViewShell.tsx` in a future pass if Windows polish is needed.
+
+---
+
 ### Phase 19 — Remaining Port Work (NEXT)
 - [x] Responsive: icon rail at 760-1099px ✅ resolved
 - [x] Responsive: off-canvas drawer <760px ✅ resolved
@@ -3774,7 +3888,14 @@ wasAutoCollapsedRef.current = false; // user owns this state now
 
 **Used by:** `NewSidebar.tsx` `SIDEBAR_AUTO_COLLAPSE_THRESHOLD = 768` resize logic (Phase 57).
 
-### mask-image on a scroll container with a custom-width scrollbar (Phase 58)
+### mask-image on a scroll container with a custom-width scrollbar (Phase 58 — superseded by Phase 68)
+
+> **Phase 68 update:** The two-layer mask and `--nui-sb-clear: 16px` described below are no longer
+> in use. Phase 68 removed all `::webkit-scrollbar { width }` declarations, restoring overlay
+> scrollbars on macOS (which float above the mask and are never clipped by it). The mask has been
+> simplified back to a single-layer top-fade. The `--nui-sb-clear` variable is now `0px`. The
+> pattern below is preserved as a reference for future cases where classic-mode scrollbars and
+> `mask-image` must coexist.
 
 When you apply `mask-image` to a scroll container that has a custom-width scrollbar, the mask also
 applies to the scrollbar track, causing the thumb to appear faded or invisible when it sits in the
