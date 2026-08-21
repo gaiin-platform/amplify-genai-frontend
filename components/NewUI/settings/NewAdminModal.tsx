@@ -58,6 +58,7 @@ import { OpenAIEndpointsTab } from '@/components/Admin/AdminComponents/OpenAIEnd
 import { FeatureFlagsTab } from '@/components/Admin/AdminComponents/FeatureFlags';
 import { emptySupportedModel, SupportedModelsTab } from '@/components/Admin/AdminComponents/SupportedModels';
 import { ConfigurationsTab } from '@/components/Admin/AdminComponents/Configurations';
+import { AdminsCard } from '@/components/NewUI/settings/admin/AdminsCard';
 import {
   Integration, IntegrationProviders, integrationProviders, integrationProvidersList,
   IntegrationSecretsMap, IntegrationsMap, ProviderSettingsMap, AdminWebSearchConfig,
@@ -746,34 +747,48 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
     switch (activeTab) {
       case 'Configurations':
         return (
-          <ConfigurationsTab
-            admins={admins}
-            setAdmins={setAdmins}
-            ampGroups={ampGroups}
-            setAmpGroups={setAmpGroups}
-            amplifyUsers={amplifyUsers}
-            rateLimits={rateLimits}
-            setRateLimits={setRateLimits}
-            honorPersonalRateLimit={honorPersonalRateLimit}
-            setHonorPersonalRateLimit={setHonorPersonalRateLimit}
-            promptCostAlert={promptCostAlert}
-            setPromptCostAlert={setPromptCostAlert}
-            defaultConversationStorage={defaultConversationStorage}
-            setDefaultConversationStorage={setDefaultConversationStorage}
-            emailSupport={emailSupport}
-            setEmailSupport={setEmailSupport}
-            aiEmailDomain={aiEmailDomain}
-            setAiEmailDomain={featureFlags.assistantEmailEvents ? setAiEmailDomain : undefined}
-            defaultTimezone={defaultTimezone}
-            setDefaultTimezone={setDefaultTimezone}
-            smartMessagesEnabled={smartMessagesEnabled}
-            setSmartMessagesEnabled={setSmartMessagesEnabled}
-            features={features}
-            allEmails={allEmails}
-            admin_text={admin_text}
-            updateUnsavedConfigs={updateUnsavedConfigs}
-            onModalStateChange={setHasChildModalOpen}
-          />
+          /* AdminsCard renders the new-UI admins section above ConfigurationsTab.
+             The original admins card inside ConfigurationsTab is hidden via CSS:
+               [data-new-ui-admin-content="true"] .admin-style-settings-card:has(#csvUploadButton)
+             so both never show at the same time. */
+          <>
+            <AdminsCard
+              admins={admins}
+              setAdmins={setAdmins}
+              amplifyUsers={amplifyUsers}
+              allEmails={allEmails}
+              updateUnsavedConfigs={updateUnsavedConfigs}
+              onModalStateChange={setHasChildModalOpen}
+            />
+            <ConfigurationsTab
+              admins={admins}
+              setAdmins={setAdmins}
+              ampGroups={ampGroups}
+              setAmpGroups={setAmpGroups}
+              amplifyUsers={amplifyUsers}
+              rateLimits={rateLimits}
+              setRateLimits={setRateLimits}
+              honorPersonalRateLimit={honorPersonalRateLimit}
+              setHonorPersonalRateLimit={setHonorPersonalRateLimit}
+              promptCostAlert={promptCostAlert}
+              setPromptCostAlert={setPromptCostAlert}
+              defaultConversationStorage={defaultConversationStorage}
+              setDefaultConversationStorage={setDefaultConversationStorage}
+              emailSupport={emailSupport}
+              setEmailSupport={setEmailSupport}
+              aiEmailDomain={aiEmailDomain}
+              setAiEmailDomain={featureFlags.assistantEmailEvents ? setAiEmailDomain : undefined}
+              defaultTimezone={defaultTimezone}
+              setDefaultTimezone={setDefaultTimezone}
+              smartMessagesEnabled={smartMessagesEnabled}
+              setSmartMessagesEnabled={setSmartMessagesEnabled}
+              features={features}
+              allEmails={allEmails}
+              admin_text={admin_text}
+              updateUnsavedConfigs={updateUnsavedConfigs}
+              onModalStateChange={setHasChildModalOpen}
+            />
+          </>
         );
       case 'Supported Models':
         return stillLoadingData ? loadingState : (
@@ -1251,6 +1266,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
           {/* Scrollable content area — sits below the fixed header row */}
           <div
             ref={contentRef}
+            data-new-ui-admin-content="true"
             style={{
               flex: 1,
               minHeight: 0,

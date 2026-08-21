@@ -480,6 +480,9 @@ components/NewUI/
                                whole settings tree).
                                NOTE: outer frame is deliberately NOT extracted into a shared shell —
                                see Phase 53 for the rationale (admin's Escape guard + 5 extra props).
+                               Phase 67: scrollable content div has data-new-ui-admin-content="true"
+                               for CSS scoping of all admin tab component overrides (same pattern as
+                               data-new-ui-assistants="true" from Phase 47). One attribute addition only.
     NewAccountSection.tsx    ← SPECIFIC account settings section (Phase 45). No props.
                                Self-loads accounts via getAccounts(). MTD cost card + rate-limit
                                warning banner + add/edit/delete accounts + default selector + save.
@@ -3428,6 +3431,46 @@ Phase 65 restored a *dot* for the send → first-token window, but it had no tex
 **Accessibility (wiki §9 rule 15):** CSS `content` is decorative and not reliably announced, and PromptStatus's injected `aria-live` host does not exist yet in this window — so screen-reader users previously got nothing. `ConversationViewShell.tsx` now renders a `<span className="sr-only" aria-live="polite">` containing *"Message sent, waiting for a response"* while `showPendingIndicator` is true, and an empty string otherwise (emptying prevents re-announcement when the window ends).
 
 **To change the wording:** edit the `content:` value at the Phase 66 rule in `conversation-view.css` **and** the live-region string in `ConversationViewShell.tsx` — keep the two in sync.
+
+---
+
+### Phase 67 — Admin Panel Content New-UI Restyle ✅ COMPLETE
+
+**Changed files:** `components/NewUI/settings/NewAdminModal.tsx`, `styles/conversation-view.css`
+
+**Goal:** Restyle all admin panel tab content sections so they look like they belong to the same design system as the rest of the new UI. Cut nothing — purely visual. All underlying components (`ConfigurationsTab`, `FeatureFlagsTab`, etc.) are untouched.
+
+**Technique:** `data-new-ui-admin-content="true"` added to the scrollable content `<div>` in `NewAdminModal.tsx` (the `ref={contentRef}` div, one attribute addition only). A single CSS block in `conversation-view.css` provides all overrides under this scope. This mirrors the Phase 47 `[data-new-ui-assistants="true"]` pattern for `AssistantModal`.
+
+**Sections restyled (10 total):**
+- `Configurations` — admin-style-settings-cards, rate-limit chips, Amplify Groups table, storage radio-cards (settings-theme-option), CSV upload trigger
+- `Supported Models` — editable table (modern-table), gradient-header replaced with flat `--bg-active`, all input fields  
+- `Application Variables` — card sections, InputsMap (obscured inputs), Documentation URL field
+- `OpenAI Endpoints` — card + model list with endpoint sub-rows, delete buttons
+- `Feature Flags` — modern-table + gradient-header override; toggle buttons preserve green/red semantic colors
+- `Feature Data` — mixed card content, templates table, assistant sub-panels
+- `Ops` — search/filter toggle, ops list
+- `Embeddings` — monitoring card, retrieve/terminate buttons
+- `Integrations` (conditional) — card + provider sections, secret inputs (via WebSearchIntegration)
+- `Critical Errors` (conditional) — error list with code/pre stack-traces, input fields, status badges
+
+**CSS highlights:**
+- `gradient-header` animated gradient → flat `var(--bg-active)` + `animation: none`  
+- `admin-style-settings-card` hardcoded `rgba(255,255,255,0.8)` → `var(--bg-raised)`, hover → `var(--bg-hover)`
+- All inputs/textareas/selects → `var(--bg-app)` background, `var(--border-subtle)` border, `var(--accent)` focus ring
+- `input:not([type=checkbox]):not([type=radio])…` broad selector covers `InputsMap` inputs that have no explicit `type` attribute
+- `settings-theme-option-content` radio cards → `var(--bg-raised)` / hover `var(--bg-hover)` / checked `var(--accent)` border
+- `bg-white` → `var(--bg-raised)` via `[class~="bg-white"]` word-boundary match (avoids false-positive on `bg-white/50`)
+- `bg-gray-50/100/200` overridden to raised/active surface tokens via `[class~=]` word match
+- `[class~="bg-gray-800/900"]` for Critical Errors dark-panel backgrounds
+- Text color classes `text-gray-700/800/900` → `--text-primary`; `text-gray-400/500/600` → `--text-secondary`
+- Green/red semantic toggle text (`text-green-500`, `text-red-600`) kept with accessible hex values in light/dark
+- `bg-blue-500` primary buttons (Manage Members modal "Done") → `var(--accent)` + `var(--accent-fg)`
+- Pre/code blocks → `var(--bg-raised)` surface, `var(--border-subtle)` border, monospace font
+
+**Known gap:** Manage Members and CSV Upload modals are portaled to `document.body` and render outside the `data-new-ui-admin-content` scope. They have Tailwind `dark:*` coverage and are readable. A future pass could add a thin wrapper with a matching CSS class if pixel-perfect alignment is needed.
+
+**InfoBox note:** `InfoBox` uses `style={{ borderLeft: '3px solid #60A5FA' }}` inline — CSS cannot override inline styles. The blue left-border callout accent is retained as-is (acceptable; it reads as an info indicator in both modes).
 
 ---
 

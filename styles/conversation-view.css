@@ -2851,3 +2851,955 @@
    Phase 65 Fix 1 rule above, which re-reveals the ChatLoader dot that Chat.tsx
    already mounts for precisely that window. Do not re-add an injected loader here
    without first checking whether ChatLoader already covers the window. */
+
+/* ════════════════════════════════════════════════════════════════════════════════
+   Admin Panel Content — New UI Restyle (Phase 66)
+   Scope:   [data-new-ui-admin-content="true"]
+   Added:   NewAdminModal.tsx scrollable-content div (single attribute, line ~1252)
+   Purpose: Override old-UI admin component hardcoded Tailwind classes so every
+            section reads the new-UI design tokens for surfaces, text, borders,
+            inputs, buttons, and tables.
+   Rules:   DO NOT remove admin component logic — this is visual-only.
+            All !important declarations here override hardcoded Tailwind utilities;
+            the comment after each explains the exact class being overridden.
+   Portals: Manage Members and CSV Upload modals use createPortal(…, document.body)
+            and render outside this scope. They have adequate dark: Tailwind coverage
+            and are left as-is. TODO: add a thin wrapper if alignment is required.
+   ════════════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Base scope — typography + surface ──────────────────────────────────── */
+[data-new-ui-admin-content="true"] {
+  color: var(--text-primary);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+[data-new-ui-admin-content="true"] h1,
+[data-new-ui-admin-content="true"] h2,
+[data-new-ui-admin-content="true"] h3 {
+  color: var(--text-primary) !important; /* override #1f2937 (light) and #f9fafb (dark) hardcoded in card-title */
+  font-weight: 600;
+}
+
+/* Primary text — override neutral-900, gray-900, gray-800 that appear on labels/body */
+[data-new-ui-admin-content="true"] [class~="text-gray-700"],
+[data-new-ui-admin-content="true"] [class~="text-gray-800"],
+[data-new-ui-admin-content="true"] [class~="text-gray-900"],
+[data-new-ui-admin-content="true"] [class~="text-neutral-700"],
+[data-new-ui-admin-content="true"] [class~="text-neutral-900"] {
+  color: var(--text-primary) !important; /* override hardcoded near-black body text */
+}
+
+/* Secondary/muted label text — override neutral-5xx / gray-4xx Tailwind grays */
+[data-new-ui-admin-content="true"] [class~="text-gray-600"],
+[data-new-ui-admin-content="true"] [class~="text-neutral-500"],
+[data-new-ui-admin-content="true"] [class~="text-neutral-600"],
+[data-new-ui-admin-content="true"] [class~="text-gray-400"],
+[data-new-ui-admin-content="true"] [class~="text-gray-500"] {
+  color: var(--text-secondary) !important;
+}
+
+[data-new-ui-admin-content="true"] [class~="text-neutral-400"],
+[data-new-ui-admin-content="true"] [class~="text-gray-300"] {
+  color: var(--text-muted) !important;
+}
+
+/* ── 2. Admin-style settings cards ─────────────────────────────────────────── */
+/* sidebar-enhancements.css: .admin-style-settings-card → bg rgba(255,255,255,0.8)
+   and .dark .admin-style-settings-card → rgba(31,41,55,0.8)               */
+[data-new-ui-admin-content="true"] .admin-style-settings-card {
+  background-color: var(--bg-raised) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+[data-new-ui-admin-content="true"] .admin-style-settings-card:hover {
+  background-color: var(--bg-hover) !important;
+  border-color: var(--border-subtle) !important;
+  box-shadow: none !important; /* new UI uses flat surfaces; override the old box-shadow */
+}
+
+[data-new-ui-admin-content="true"] .admin-style-settings-card-header {
+  border-bottom-color: var(--border-subtle) !important; /* override rgba(229,231,235,0.5) */
+}
+
+[data-new-ui-admin-content="true"] .admin-style-settings-card-title {
+  color: var(--text-primary) !important; /* override #1f2937 light / #f9fafb dark */
+}
+
+[data-new-ui-admin-content="true"] .admin-style-settings-card-description {
+  color: var(--text-secondary) !important; /* override #6b7280 light / #d1d5db dark */
+}
+
+/* ── 3. Tables: modern-table and gradient-header ────────────────────────────── */
+/* table-enhancements.css: .gradient-header → animated light-blue gradient.
+   Replace with flat token surface; animation is out-of-place in the new UI. */
+[data-new-ui-admin-content="true"] .gradient-header,
+[data-new-ui-admin-content="true"] .gradient-header th {
+  background: var(--bg-active) !important; /* override animated linear-gradient */
+  animation: none !important;              /* kill the @keyframes pulse on the header */
+}
+
+[data-new-ui-admin-content="true"] .modern-table {
+  box-shadow: none !important; /* new UI surfaces are flat; override box-shadow: 0 1px 3px */
+}
+
+[data-new-ui-admin-content="true"] .modern-table:hover {
+  box-shadow: none !important;
+}
+
+/* Table header cells */
+[data-new-ui-admin-content="true"] th {
+  color: var(--text-secondary) !important; /* override text-neutral-600 dark:text-neutral-300 */
+  background-color: var(--bg-active) !important; /* match gradient-header flat surface */
+  border-color: var(--border-subtle) !important; /* override border-gray-500, border-neutral-500 */
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+}
+
+/* Table body cells */
+[data-new-ui-admin-content="true"] td {
+  color: var(--text-primary) !important;
+  border-color: var(--border-subtle) !important; /* override border-neutral-500, border-gray-500 */
+}
+
+/* Table row hover: override hover:bg-gray-200, dark:hover:bg-[#40414f] */
+[data-new-ui-admin-content="true"] tbody tr:hover > td {
+  background-color: var(--bg-hover) !important;
+}
+
+/* ── 4. Form inputs ─────────────────────────────────────────────────────────── */
+/* Overrides the "admin_text" prop pattern:
+   bg-gray-200 dark:bg-[#40414F] text-neutral-900 dark:text-neutral-100 border-neutral-500
+   as well as bg-white dark:bg-gray-800/dark:bg-gray-900 in Critical Errors.
+   NOTE: InputsMap and Search render <input> without an explicit type attribute, so we
+   cannot rely only on input[type="text"]. The :not() selector below covers all text-like
+   inputs regardless of whether type is explicitly set (higher specificity beats bg-* class rules). */
+[data-new-ui-admin-content="true"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="hidden"]):not([type="image"]),
+[data-new-ui-admin-content="true"] textarea {
+  background-color: var(--bg-app) !important;   /* override bg-gray-200, dark:bg-[#40414F], bg-white, dark:bg-gray-900 */
+  color: var(--text-primary) !important;        /* override text-neutral-900, dark:text-neutral-100, text-gray-900 */
+  border-color: var(--border-subtle) !important; /* override border-neutral-500, border-gray-200, dark:border-gray-700 */
+  border-radius: 6px !important;
+  font-family: inherit !important;
+}
+
+[data-new-ui-admin-content="true"] select {
+  background-color: var(--bg-app) !important;   /* override bg-white dark:bg-neutral-800 */
+  color: var(--text-primary) !important;        /* override text-neutral-900 dark:text-neutral-100 */
+  border-color: var(--border-subtle) !important;
+  border-radius: 6px !important;
+}
+
+[data-new-ui-admin-content="true"] select option {
+  background-color: var(--bg-app) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-new-ui-admin-content="true"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="hidden"]):not([type="image"]):focus,
+[data-new-ui-admin-content="true"] textarea:focus,
+[data-new-ui-admin-content="true"] select:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent) !important;
+  outline: none !important;
+}
+
+[data-new-ui-admin-content="true"] input::placeholder,
+[data-new-ui-admin-content="true"] textarea::placeholder {
+  color: var(--text-muted) !important;
+}
+
+[data-new-ui-admin-content="true"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):disabled,
+[data-new-ui-admin-content="true"] textarea:disabled,
+[data-new-ui-admin-content="true"] select:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+/* Checkbox and radio accent color */
+[data-new-ui-admin-content="true"] input[type="checkbox"] {
+  accent-color: var(--accent) !important;
+  width: 15px !important;
+  height: 15px !important;
+  cursor: pointer !important;
+}
+
+[data-new-ui-admin-content="true"] input[type="radio"] {
+  accent-color: var(--accent) !important;
+}
+
+/* ── 5. Tailwind bg-white override ─────────────────────────────────────────── */
+/* bg-white is used for panel surfaces, input fields, and modal areas.
+   Using [class~=] word-boundary match to avoid false-positives like bg-white/50. */
+[data-new-ui-admin-content="true"] [class~="bg-white"] {
+  background-color: var(--bg-raised) !important; /* override bg-white → raised surface */
+}
+
+/* ── 6. Light-gray surface overrides ───────────────────────────────────────── */
+/* bg-gray-50, bg-gray-100 → raised surface token.
+   [class~=] word-boundary avoids matching bg-gray-500, bg-gray-600, etc.     */
+[data-new-ui-admin-content="true"] [class~="bg-gray-50"],
+[data-new-ui-admin-content="true"] [class~="bg-gray-100"],
+[data-new-ui-admin-content="true"] [class~="bg-neutral-100"] {
+  background-color: var(--bg-raised) !important;
+}
+
+/* bg-gray-200 → active surface (was used as "input fill" in admin_text pattern) */
+[data-new-ui-admin-content="true"] [class~="bg-gray-200"],
+[data-new-ui-admin-content="true"] [class~="bg-neutral-200"] {
+  background-color: var(--bg-active) !important; /* override bg-gray-200 input fill */
+}
+
+/* ── 7. Dark-surface overrides (Critical Errors terminal code blocks) ────────── */
+/* bg-gray-800, bg-gray-900 — used as dark code block / panel backgrounds.
+   Override to app surface so they read correctly in both light and dark modes. */
+[data-new-ui-admin-content="true"] [class~="bg-gray-800"] {
+  background-color: var(--bg-raised) !important; /* override dark input surfaces */
+}
+
+[data-new-ui-admin-content="true"] [class~="bg-gray-900"] {
+  background-color: var(--bg-app) !important; /* override very-dark panel backgrounds */
+}
+
+/* ── 8. Border overrides ────────────────────────────────────────────────────── */
+/* Override border-neutral-300, border-gray-200, border-gray-700, border-neutral-500
+   Also covers InputsMap label border: border-neutral-400 dark:border-[#40414F]  */
+[data-new-ui-admin-content="true"] [class~="border-gray-200"],
+[data-new-ui-admin-content="true"] [class~="border-gray-300"],
+[data-new-ui-admin-content="true"] [class~="border-gray-500"],
+[data-new-ui-admin-content="true"] [class~="border-gray-700"],
+[data-new-ui-admin-content="true"] [class~="border-neutral-300"],
+[data-new-ui-admin-content="true"] [class~="border-neutral-400"],
+[data-new-ui-admin-content="true"] [class~="border-neutral-500"],
+[data-new-ui-admin-content="true"] [class~="border-neutral-600"],
+[data-new-ui-admin-content="true"] [class~="border-neutral-800"] {
+  border-color: var(--border-subtle) !important;
+}
+
+/* ── 9. Buttons ─────────────────────────────────────────────────────────────── */
+/* Small icon-action delete/terminate buttons: bg-neutral-400 dark:bg-neutral-500 */
+[data-new-ui-admin-content="true"] button[class~="bg-neutral-400"],
+[data-new-ui-admin-content="true"] button[class~="bg-neutral-500"] {
+  background-color: var(--bg-active) !important; /* override bg-neutral-400/500 gray blob */
+  color: var(--text-secondary) !important;
+}
+
+/* Keep red hover intent on destructive icon buttons */
+[data-new-ui-admin-content="true"] button[class~="bg-neutral-400"]:hover,
+[data-new-ui-admin-content="true"] button[class~="bg-neutral-500"]:hover {
+  /* Tailwind's .hover:bg-red-600 / .hover:bg-red-700 wins via :hover specificity;
+     no override needed — red destructive hover is intentional and correct. */
+  color: #ffffff !important;
+}
+
+/* Ghost/border action buttons: border-neutral-300 dark:border-white/20 hover:bg-neutral-200 */
+[data-new-ui-admin-content="true"] button[class~="border-neutral-300"],
+[data-new-ui-admin-content="true"] button[class~="border-white"] {
+  border-color: var(--border-subtle) !important; /* override border-neutral-300, dark:border-white/20 */
+  color: var(--text-secondary) !important;
+}
+
+/* Hover on ghost buttons — bg-neutral-200 and dark:hover:bg-gray-500/10 */
+[data-new-ui-admin-content="true"] button[class~="hover:bg-neutral-200"]:hover {
+  background-color: var(--bg-hover) !important; /* override hover:bg-neutral-200 */
+  color: var(--text-primary) !important;
+}
+
+/* Small copy/icon buttons: hover:bg-gray-200 dark:hover:bg-gray-700 */
+[data-new-ui-admin-content="true"] button[class~="hover:bg-gray-200"]:hover {
+  background-color: var(--bg-hover) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Blue accent text buttons (Add Exceptions, Add limit links) */
+[data-new-ui-admin-content="true"] button[class~="text-blue-500"],
+[data-new-ui-admin-content="true"] button[class~="text-blue-600"] {
+  color: var(--accent) !important; /* override hardcoded Tailwind blue */
+}
+
+/* Manage Members button: text-blue-600 dark:text-blue-400 hover:bg-blue-50 */
+[data-new-ui-admin-content="true"] button[class~="text-blue-600"] {
+  color: var(--accent) !important;
+}
+
+[data-new-ui-admin-content="true"] button[class~="hover:bg-blue-50"]:hover {
+  background-color: color-mix(in srgb, var(--accent) 10%, transparent) !important;
+}
+
+/* Manage Members "Done" + "Add" primary buttons: bg-blue-500 hover:bg-blue-600
+   These are fully filled buttons with white text — map to accent color.        */
+[data-new-ui-admin-content="true"] button[class~="bg-blue-500"],
+[data-new-ui-admin-content="true"] button[class~="bg-blue-600"] {
+  background-color: var(--accent) !important;
+  color: var(--accent-fg) !important;
+}
+
+[data-new-ui-admin-content="true"] button[class~="bg-blue-500"]:hover,
+[data-new-ui-admin-content="true"] button[class~="bg-blue-600"]:hover {
+  opacity: 0.88 !important;
+}
+
+/* ── 10. Status/semantic toggle colors ──────────────────────────────────────── */
+/* text-green-500 / text-green-600 (Enabled status, confirm icons) — keep semantic */
+[data-new-ui-admin-content="true"] [class~="text-green-500"] {
+  color: #16a34a !important; /* accessible green: light */
+}
+.dark [data-new-ui-admin-content="true"] [class~="text-green-500"] {
+  color: #4ade80 !important; /* accessible green: dark */
+}
+
+/* text-red-600 / text-red-400 (Disabled status, cancel icons) — keep semantic */
+[data-new-ui-admin-content="true"] [class~="text-red-600"] {
+  color: #dc2626 !important;
+}
+.dark [data-new-ui-admin-content="true"] [class~="text-red-400"] {
+  color: #f87171 !important;
+}
+
+/* ── 11. ON/OFF and segmented toggle containers ─────────────────────────────── */
+/* Smart-messages toggle + Ops search toggle: bg-neutral-200 dark:bg-[#39394a]
+   We can only target the light-mode class here; dark class is inline.         */
+[data-new-ui-admin-content="true"] [class~="bg-neutral-200"] {
+  background-color: var(--bg-active) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+/* Active segment in the toggle: bg-white dark:bg-[#1f1f29] */
+/* [class~="bg-white"] already covered by Section 5 above — bg-white → var(--bg-raised) */
+
+/* ── 12. Settings theme-option radio cards (storage selection) ──────────────── */
+/* sidebar-enhancements.css: .settings-theme-option-content → rgba(255,255,255,0.5) */
+[data-new-ui-admin-content="true"] .settings-theme-option-content {
+  background-color: var(--bg-raised) !important; /* override rgba(255,255,255,0.5) light */
+  border-color: var(--border-subtle) !important;
+}
+
+[data-new-ui-admin-content="true"] .settings-theme-option:hover .settings-theme-option-content {
+  background-color: var(--bg-hover) !important;
+  border-color: var(--border-subtle) !important;
+  transform: none !important;  /* no lift effect in new UI; override translateY(-1px) */
+  box-shadow: none !important;
+}
+
+[data-new-ui-admin-content="true"] .settings-theme-radio:checked + .settings-theme-option-content {
+  border-color: var(--accent) !important;
+  background-color: color-mix(in srgb, var(--accent) 8%, var(--bg-raised)) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent) !important;
+}
+
+[data-new-ui-admin-content="true"] .settings-theme-option-label {
+  color: var(--text-primary) !important; /* override #374151 hardcoded */
+}
+
+/* ── 13. Rate-limit pill chips ──────────────────────────────────────────────── */
+/* Configurations tab rate-limit pills: bg-neutral-100 dark:bg-neutral-700 rounded-full */
+[data-new-ui-admin-content="true"] [class~="bg-neutral-100"] {
+  background-color: var(--bg-raised) !important; /* override bg-neutral-100 */
+}
+
+/* ── 14. Member avatar pills (Amplify Groups members cell) ──────────────────── */
+/* bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700 */
+[data-new-ui-admin-content="true"] [class~="bg-blue-50"] {
+  background-color: color-mix(in srgb, var(--accent) 10%, var(--bg-raised)) !important;
+}
+
+[data-new-ui-admin-content="true"] [class~="border-blue-200"] {
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent) !important;
+}
+
+[data-new-ui-admin-content="true"] [class~="text-blue-800"] {
+  color: var(--accent) !important;
+}
+
+/* ── 15. Code blocks and stack traces (Critical Errors) ─────────────────────── */
+[data-new-ui-admin-content="true"] code {
+  background-color: var(--bg-active) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 4px !important;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Courier New', monospace !important;
+  font-size: 13px !important;
+  padding: 2px 6px !important;
+}
+
+[data-new-ui-admin-content="true"] pre {
+  background-color: var(--bg-raised) !important; /* override bg-white dark:bg-gray-900 */
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 6px !important;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Courier New', monospace !important;
+  font-size: 13px !important;
+  padding: 12px 16px !important;
+  overflow-x: auto !important;
+}
+
+/* Stack trace pre: bg-gray-900 dark:bg-black text-green-400 — preserve terminal feel
+   with token-aware background (keeps readable in both modes).                 */
+[data-new-ui-admin-content="true"] pre[class~="bg-gray-900"] {
+  background-color: var(--bg-app) !important;
+  color: #22c55e !important; /* retain terminal green for monospace output */
+  border-color: var(--border-subtle) !important;
+}
+
+/* ── 16. Critical Errors row and card overrides ─────────────────────────────── */
+/* Row item hover: hover:bg-gray-50 dark:hover:bg-gray-800/50 */
+[data-new-ui-admin-content="true"] [class~="hover:bg-gray-50"]:hover {
+  background-color: var(--bg-hover) !important; /* override hover:bg-gray-50 */
+}
+
+/* Expanded detail panels: bg-white dark:bg-gray-900/50 and bg-white dark:bg-gray-900 */
+/* Handled by [class~="bg-white"] → var(--bg-raised) in Section 5 above. */
+
+/* Resolution form border: border-2 border-blue-500 / border-gray-300 */
+[data-new-ui-admin-content="true"] textarea[class~="border-gray-300"] {
+  border-color: var(--border-subtle) !important;
+}
+[data-new-ui-admin-content="true"] textarea:focus[class~="border-blue-500"] {
+  border-color: var(--accent) !important;
+}
+
+/* ── 17. InfoBox callouts ────────────────────────────────────────────────────── */
+/* InfoBox uses inline style={{ borderLeft: `3px solid ${color}` }} with color
+   prop #60A5FA. CSS cannot override inline styles, so InfoBox retains its blue
+   left-border accent — this is acceptable as a semantic info callout.
+   TODO: if full alignment needed, create AdminInfoBox wrapper in components/NewUI/ */
+
+/* ── 18. Amber warning text (smart-messages feature flag gate) ──────────────── */
+[data-new-ui-admin-content="true"] [class~="text-amber-500"] {
+  color: #d97706 !important; /* warning amber — light mode */
+}
+.dark [data-new-ui-admin-content="true"] [class~="text-amber-400"] {
+  color: #fbbf24 !important; /* warning amber — dark mode */
+}
+
+/* ── 19. ExpansionComponent title + content ─────────────────────────────────── */
+/* ExpansionComponent (shared across Configurations + FeatureData + Ops + Integrations)
+   renders a toggle header with chevron. Its text inherits from the parent scope.
+   The #expandComponent target MUST remain unscoped — see wiki §9 rule 10 about
+   shared-id scoping gotcha. We rely on color inheritance here.                 */
+
+/* ── 20. Dividers ───────────────────────────────────────────────────────────── */
+[data-new-ui-admin-content="true"] hr {
+  border-color: var(--border-subtle) !important;
+  margin: 16px 0 !important;
+}
+
+/* ── 21. Scrollbars within admin content ────────────────────────────────────── */
+[data-new-ui-admin-content="true"] ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+[data-new-ui-admin-content="true"] ::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 3px;
+}
+[data-new-ui-admin-content="true"] ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── 22. Transitions — reduced-motion gate ──────────────────────────────────── */
+/* Rule 17 (wiki §9): every transition needs a prefers-reduced-motion override.
+   The CSS rules above do not add new animations, so no gate needed here.
+   The gradient-header animation is REMOVED (animation: none !important above).  */
+
+/* ── 23. Feature-toggle checkboxes → ToggleSwitch visual (Phase 67 follow-up) ── */
+/*
+   The Checkbox component (CheckBox.tsx) renders:
+     <div class="checkbox-wrapper">
+       <input class="inp-cbx" id="..." type="checkbox">   ← state source (hidden)
+       <label class="cbx" for="...">
+         <span>...</span>                                  ← becomes the pill track
+         <span class="mt-[1px]...">{label text}</span>
+       </label>
+     </div>
+
+   We target only the 5 checkboxes that carry feature on/off semantics
+   (static IDs). Multi-select bulk-delete checkboxes (dynamic IDs) are left
+   as native checkboxes — converting them to toggles would be semantically wrong.
+
+   Technique: override span:first-child to be a 44×24px pill track, add a white
+   knob via ::after, and remove the SVG stroke animation. The <label htmlFor={id}>
+   already provides click-to-toggle natively — no JS needed.
+
+   ToggleSwitch spec (ToggleSwitch.tsx):
+     - Track: 44×24px, border-radius 9999px
+     - Off: background = var(--text-muted)
+     - On:  background = var(--accent)
+     - Knob: 18px white circle, top:3px left:3px, slides translateX(20px) when on
+     - Transition: 150ms ease on both track + knob
+*/
+
+/* ─── IDs that become toggles ─── */
+/* (Using #id selectors gives specificity 1,x,x which beats the scoped jsx
+    styles from CheckBox.tsx at 0,3,1 — so !important is a safety net only.)
+   NOTE: the .inp-cbx input is already hidden (position:absolute;visibility:hidden)
+   by CheckBox.tsx's own <style jsx> block — no additional hide rule needed here. */
+
+/* ── Track: restyle span:first-child into the 44×24 pill ─── */
+[data-new-ui-admin-content="true"] #supportEmail + .cbx > span:first-child,
+[data-new-ui-admin-content="true"] #honorPersonalRateLimit + .cbx > span:first-child,
+[data-new-ui-admin-content="true"] #promptCostAlert + .cbx > span:first-child,
+[data-new-ui-admin-content="true"] #criticalErrorNotifications + .cbx > span:first-child,
+[data-new-ui-admin-content="true"] #allowUserWebSearchKeys + .cbx > span:first-child {
+  /* Override the 15×15px box from CheckBox.tsx */
+  width: 44px !important;
+  height: 24px !important;
+  border-radius: 9999px !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  position: relative !important;
+  flex-shrink: 0 !important;
+  /* Off state: neutral gray matching ToggleSwitch off color */
+  background-color: var(--text-muted) !important;
+  background: var(--text-muted) !important; /* override scoped-jsx `background:` shorthand */
+  /* Stop the wave-4 animation from CheckBox.tsx checked state */
+  animation: none !important;
+  transform: none !important;
+  /* Transition matching ToggleSwitch.tsx */
+  transition: background-color 150ms ease !important;
+  /* Reset float + vertical-align to work in the label flex/inline layout */
+  float: left !important;
+  vertical-align: middle !important;
+  /* No overflow-hidden — needed so ::after (knob) is fully visible */
+  overflow: visible !important;
+}
+
+/* ── Hide the SVG stroke-animation inside the track ─── */
+[data-new-ui-admin-content="true"] #supportEmail + .cbx > span:first-child svg,
+[data-new-ui-admin-content="true"] #honorPersonalRateLimit + .cbx > span:first-child svg,
+[data-new-ui-admin-content="true"] #promptCostAlert + .cbx > span:first-child svg,
+[data-new-ui-admin-content="true"] #criticalErrorNotifications + .cbx > span:first-child svg,
+[data-new-ui-admin-content="true"] #allowUserWebSearchKeys + .cbx > span:first-child svg {
+  display: none !important; /* no SVG checkmark in a toggle */
+}
+
+/* ── Knob: ::after pseudo-element on the track ─── */
+[data-new-ui-admin-content="true"] #supportEmail + .cbx > span:first-child::after,
+[data-new-ui-admin-content="true"] #honorPersonalRateLimit + .cbx > span:first-child::after,
+[data-new-ui-admin-content="true"] #promptCostAlert + .cbx > span:first-child::after,
+[data-new-ui-admin-content="true"] #criticalErrorNotifications + .cbx > span:first-child::after,
+[data-new-ui-admin-content="true"] #allowUserWebSearchKeys + .cbx > span:first-child::after {
+  content: '' !important;
+  position: absolute !important;
+  top: 3px !important;
+  left: 3px !important;
+  width: 18px !important;
+  height: 18px !important;
+  border-radius: 9999px !important;
+  background-color: #ffffff !important; /* flat white knob — matches ToggleSwitch.tsx */
+  /* Knob rests at translateX(0) in off state */
+  transform: translateX(0) !important;
+  transition: transform 150ms ease !important;
+  pointer-events: none !important;
+  box-shadow: none !important; /* ToggleSwitch uses no shadow on knob */
+}
+
+/* ── Checked/ON state: accent track + knob slides right ─── */
+[data-new-ui-admin-content="true"] #supportEmail:checked + .cbx > span:first-child,
+[data-new-ui-admin-content="true"] #honorPersonalRateLimit:checked + .cbx > span:first-child,
+[data-new-ui-admin-content="true"] #promptCostAlert:checked + .cbx > span:first-child,
+[data-new-ui-admin-content="true"] #criticalErrorNotifications:checked + .cbx > span:first-child,
+[data-new-ui-admin-content="true"] #allowUserWebSearchKeys:checked + .cbx > span:first-child {
+  background-color: var(--accent) !important;
+  background: var(--accent) !important; /* override scoped-jsx shorthand */
+  animation: none !important; /* suppress wave-4 from CheckBox.tsx */
+}
+
+[data-new-ui-admin-content="true"] #supportEmail:checked + .cbx > span:first-child::after,
+[data-new-ui-admin-content="true"] #honorPersonalRateLimit:checked + .cbx > span:first-child::after,
+[data-new-ui-admin-content="true"] #promptCostAlert:checked + .cbx > span:first-child::after,
+[data-new-ui-admin-content="true"] #criticalErrorNotifications:checked + .cbx > span:first-child::after,
+[data-new-ui-admin-content="true"] #allowUserWebSearchKeys:checked + .cbx > span:first-child::after {
+  /* translateX(20) = track(44) - knob(18) - leftInset(3) - rightInset(3) */
+  transform: translateX(20px) !important;
+}
+
+/* ── Disabled state ─── */
+[data-new-ui-admin-content="true"] #supportEmail + .cbx-disabled > span:first-child,
+[data-new-ui-admin-content="true"] #honorPersonalRateLimit + .cbx-disabled > span:first-child,
+[data-new-ui-admin-content="true"] #promptCostAlert + .cbx-disabled > span:first-child,
+[data-new-ui-admin-content="true"] #criticalErrorNotifications + .cbx-disabled > span:first-child,
+[data-new-ui-admin-content="true"] #allowUserWebSearchKeys + .cbx-disabled > span:first-child {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+/* ── Label row layout: make the .cbx wrapper flex so track + text sit inline ─── */
+/* CheckBox.tsx uses float-based layout inside .cbx. Override for toggle rows to
+   ensure the track and label text always appear side by side cleanly.           */
+[data-new-ui-admin-content="true"] #supportEmail + .cbx,
+[data-new-ui-admin-content="true"] #honorPersonalRateLimit + .cbx,
+[data-new-ui-admin-content="true"] #promptCostAlert + .cbx,
+[data-new-ui-admin-content="true"] #criticalErrorNotifications + .cbx,
+[data-new-ui-admin-content="true"] #allowUserWebSearchKeys + .cbx {
+  display: flex !important;
+  align-items: flex-start !important; /* top-align so multi-line label doesn't push track down */
+  gap: 10px !important;               /* replaces the padding-left:8px on span:last-child */
+  padding: 2px 0 !important;          /* reduce the 5px vertical padding from CheckBox.tsx */
+  overflow: visible !important;       /* needed so knob ::after isn't clipped */
+}
+
+/* Reset the float on the track span (we switched .cbx to flex above) */
+[data-new-ui-admin-content="true"] #supportEmail + .cbx > span:first-child,
+[data-new-ui-admin-content="true"] #honorPersonalRateLimit + .cbx > span:first-child,
+[data-new-ui-admin-content="true"] #promptCostAlert + .cbx > span:first-child,
+[data-new-ui-admin-content="true"] #criticalErrorNotifications + .cbx > span:first-child,
+[data-new-ui-admin-content="true"] #allowUserWebSearchKeys + .cbx > span:first-child {
+  float: none !important; /* already set above — redundant but explicit */
+  flex-shrink: 0 !important;
+  /* Nudge track down so knob center aligns with first text baseline */
+  margin-top: 2px !important;
+}
+
+/* Reset span:last-child text padding (gap on flex parent handles spacing now) */
+[data-new-ui-admin-content="true"] #supportEmail + .cbx > span:last-child,
+[data-new-ui-admin-content="true"] #honorPersonalRateLimit + .cbx > span:last-child,
+[data-new-ui-admin-content="true"] #promptCostAlert + .cbx > span:last-child,
+[data-new-ui-admin-content="true"] #criticalErrorNotifications + .cbx > span:last-child,
+[data-new-ui-admin-content="true"] #allowUserWebSearchKeys + .cbx > span:last-child {
+  padding-left: 0 !important; /* gap on flex parent replaces this */
+  float: none !important;
+  line-height: 1.5 !important;
+  color: var(--text-primary) !important; /* override text-gray-900 dark:text-white */
+}
+
+/* ── Cursor: make the label row appear clickable ─── */
+[data-new-ui-admin-content="true"] #supportEmail + .cbx,
+[data-new-ui-admin-content="true"] #honorPersonalRateLimit + .cbx,
+[data-new-ui-admin-content="true"] #promptCostAlert + .cbx,
+[data-new-ui-admin-content="true"] #criticalErrorNotifications + .cbx,
+[data-new-ui-admin-content="true"] #allowUserWebSearchKeys + .cbx {
+  cursor: pointer !important;
+}
+
+/* ── prefers-reduced-motion: disable knob slide animation ─── */
+@media (prefers-reduced-motion: reduce) {
+  [data-new-ui-admin-content="true"] #supportEmail + .cbx > span:first-child,
+  [data-new-ui-admin-content="true"] #honorPersonalRateLimit + .cbx > span:first-child,
+  [data-new-ui-admin-content="true"] #promptCostAlert + .cbx > span:first-child,
+  [data-new-ui-admin-content="true"] #criticalErrorNotifications + .cbx > span:first-child,
+  [data-new-ui-admin-content="true"] #allowUserWebSearchKeys + .cbx > span:first-child {
+    transition: none !important;
+  }
+  [data-new-ui-admin-content="true"] #supportEmail + .cbx > span:first-child::after,
+  [data-new-ui-admin-content="true"] #honorPersonalRateLimit + .cbx > span:first-child::after,
+  [data-new-ui-admin-content="true"] #promptCostAlert + .cbx > span:first-child::after,
+  [data-new-ui-admin-content="true"] #criticalErrorNotifications + .cbx > span:first-child::after,
+  [data-new-ui-admin-content="true"] #allowUserWebSearchKeys + .cbx > span:first-child::after {
+    transition: none !important;
+  }
+}
+
+/* ── 24. Admin chips — AdminsCard new-UI component (Phase 67 follow-up) ────────
+   AdminsCard.tsx (components/NewUI/settings/admin/AdminsCard.tsx) replaces the
+   original admins section from ConfigurationsTab. The original card is hidden:
+     .admin-style-settings-card:has(#csvUploadButton) { display: none }
+   All chip styles live here so the component file stays logic-only.
+   ─────────────────────────────────────────────────────────────────────────────── */
+
+/* ── Hide the original ConfigurationsTab admins card (replaced by AdminsCard) ── */
+/* #csvUploadButton is unique to the original admins card header — it does not
+   appear in any other card, so this selector is precise.                       */
+[data-new-ui-admin-content="true"] .admin-style-settings-card:has(#csvUploadButton) {
+  display: none !important;
+}
+
+/* ── Action buttons (Add Admins / Remove Admins) ── */
+[data-new-ui-admin-content="true"] .new-ui-admin-action-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 5px 12px !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  color: var(--text-secondary) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: background-color 150ms ease, color 150ms ease !important;
+  user-select: none !important;
+}
+
+[data-new-ui-admin-content="true"] .new-ui-admin-action-btn:hover {
+  background-color: var(--bg-hover) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Destructive variant — "Remove Admins" */
+[data-new-ui-admin-content="true"] .new-ui-admin-action-btn--danger {
+  color: #dc2626 !important;
+  border-color: color-mix(in srgb, #ef4444 35%, var(--border-subtle)) !important;
+}
+
+[data-new-ui-admin-content="true"] .new-ui-admin-action-btn--danger:hover {
+  background-color: color-mix(in srgb, #ef4444 10%, transparent) !important;
+  color: #dc2626 !important;
+}
+
+/* Active state (remove mode engaged) */
+[data-new-ui-admin-content="true"] .new-ui-admin-action-btn--active {
+  background-color: color-mix(in srgb, #ef4444 12%, transparent) !important;
+  border-color: color-mix(in srgb, #ef4444 40%, var(--border-subtle)) !important;
+}
+
+/* ── Admin chip ── */
+[data-new-ui-admin-content="true"] .new-ui-admin-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+  /* Left padding gives text breathing room; right padding accommodates the
+     always-reserved 22px delete button so the chip width never shifts on hover */
+  padding: 4px 4px 4px 10px !important;
+  background-color: var(--bg-active) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 20px !important;
+  max-width: 260px !important;
+  transition: background-color 150ms ease !important;
+  cursor: default !important;
+}
+
+/* Hover: darken slightly — stays as a chip, not a raw box */
+[data-new-ui-admin-content="true"] .new-ui-admin-chip:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+/* Unknown-identity chip: amber accent border + tinted background */
+[data-new-ui-admin-content="true"] .new-ui-admin-chip--unknown {
+  border-color: #d97706 !important;
+  background-color: color-mix(in srgb, #d97706 8%, var(--bg-active)) !important;
+}
+
+[data-new-ui-admin-content="true"] .new-ui-admin-chip--unknown:hover {
+  background-color: color-mix(in srgb, #d97706 12%, var(--bg-hover)) !important;
+}
+
+/* Warning icon inside unknown chips */
+[data-new-ui-admin-content="true"] .new-ui-admin-chip-warn {
+  color: #d97706 !important;
+  flex-shrink: 0 !important;
+}
+
+/* Chip label — truncate with ellipsis; title tooltip shows full value */
+[data-new-ui-admin-content="true"] .new-ui-admin-chip-label {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--text-primary) !important;  /* WCAG AA: --text-primary on --bg-active passes */
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 200px !important;
+  line-height: 1.3 !important;
+}
+
+/* ── Delete button — always in DOM, opacity-hidden until hover / remove mode ── */
+/* KEY FIX: because the button is always rendered (not conditionally mounted), the
+   chip's flex layout never shifts — the 22px circle is always part of the row.
+   opacity:0 hides it without removing it from flow; pointer-events:none prevents
+   accidental keyboard/click while invisible.                                    */
+[data-new-ui-admin-content="true"] .new-ui-admin-chip-delete {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 50% !important;
+  border: none !important;
+  background: transparent !important;
+  color: var(--text-muted) !important;
+  cursor: pointer !important;
+  /* Hidden by default — space always reserved so chip width never changes */
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 150ms ease, background-color 150ms ease, color 150ms ease !important;
+}
+
+/* Reveal on chip hover or keyboard focus-within */
+[data-new-ui-admin-content="true"] .new-ui-admin-chip:hover .new-ui-admin-chip-delete,
+[data-new-ui-admin-content="true"] .new-ui-admin-chip:focus-within .new-ui-admin-chip-delete {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+/* Red fill on direct hover of the button */
+[data-new-ui-admin-content="true"] .new-ui-admin-chip-delete:hover {
+  background-color: #ef4444 !important;
+  color: #ffffff !important;
+}
+
+/* ── Remove mode: all delete buttons visible simultaneously ── */
+/* When the chip list has .new-ui-admin-chips--removing, all buttons become
+   visible so the user can quickly find and tap the chips to remove.           */
+[data-new-ui-admin-content="true"] .new-ui-admin-chips--removing .new-ui-admin-chip-delete {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  color: #dc2626 !important;
+}
+
+[data-new-ui-admin-content="true"] .new-ui-admin-chips--removing .new-ui-admin-chip {
+  background-color: color-mix(in srgb, #ef4444 6%, var(--bg-active)) !important;
+  border-color: color-mix(in srgb, #ef4444 25%, var(--border-subtle)) !important;
+}
+
+[data-new-ui-admin-content="true"] .new-ui-admin-chips--removing .new-ui-admin-chip-delete:hover {
+  background-color: #ef4444 !important;
+  color: #ffffff !important;
+}
+
+/* ── prefers-reduced-motion: skip opacity fade on chip delete reveal ── */
+@media (prefers-reduced-motion: reduce) {
+  [data-new-ui-admin-content="true"] .new-ui-admin-chip-delete {
+    transition: background-color 150ms ease, color 150ms ease !important;
+    /* opacity transition removed — button still snaps visible on hover */
+  }
+}
+
+/* ── 25. Default Model selector cards (Supported Models tab) ────────────────── */
+/*
+   ModelDefaultSelect renders (per model slot):
+     <div class="flex flex-col gap-2 text-center text-[14px]" title="...">
+       <label id="{Key}Model" class="font-bold text-[#0284c7] dark:text-[#38bdf8]">...</label>
+       <select id="modelSelect" class="...">...</select>
+     </div>
+
+   Target the label by id suffix "Model" (UserModel, CheapestModel, AdvancedModel,
+   DocumentCachingModel, AgentModel, EmbeddingsModel) to fix color tokens.
+   Use :has() to target the wrapper div and give it a card appearance.
+*/
+
+/* Card wrapper — only divs that directly contain a "*Model"-id label */
+[data-new-ui-admin-content="true"] div:has(> label[id$="Model"]) {
+  background-color: var(--bg-raised) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 8px !important;
+  padding: 12px 10px !important;
+  min-width: 120px !important;
+  flex: 1 !important;
+  margin: 0 4px !important;
+  transition: border-color 150ms ease !important;
+}
+
+[data-new-ui-admin-content="true"] div:has(> label[id$="Model"]):hover {
+  border-color: var(--accent) !important;
+}
+
+/* Label — replace hardcoded sky-blue with accent token */
+[data-new-ui-admin-content="true"] label[id$="Model"] {
+  color: var(--text-secondary) !important; /* override hardcoded #0284c7 / #38bdf8 */
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em !important;
+}
+
+/* * Required span inside "Default Models" heading */
+[data-new-ui-admin-content="true"] [class~="text-\\[\\#0284c7\\]"],
+[data-new-ui-admin-content="true"] span[class*="0284c7"],
+[data-new-ui-admin-content="true"] span[class*="38bdf8"] {
+  color: var(--accent) !important; /* override hardcoded sky-600 / sky-400 */
+}
+
+/* Select inside each model card — already styled by §4 inputs; nudge sizing */
+[data-new-ui-admin-content="true"] div:has(> label[id$="Model"]) select {
+  width: 100% !important;
+  font-size: 13px !important;
+  text-align: center !important;
+  margin-bottom: 0 !important; /* remove mb-2 gap inside card */
+  padding: 6px 8px !important;
+}
+
+/* The outer "Default Models" flex row — use gap instead of justify-between */
+[data-new-ui-admin-content="true"] div:has(> div:has(> label[id$="Model"])) {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  margin-right: 0 !important; /* remove mr-8 from the original */
+  justify-content: flex-start !important;
+}
+
+/* ── 26. Table scroll containers + sticky first column ──────────────────────── */
+/*
+   Amplify Groups table (#groupTable) lives inside:
+     ExpansionComponent → <div class="border-l ... ml-2 pl-4"> → <table id="groupTable">
+   :has() lets us target that wrapper div by looking for its direct child #groupTable.
+   Sticky first column keeps the Group Name in view while scrolling right.
+
+   Supported Models table (#supportedModelsTable) is inside a div that also holds
+   the model-selector row, so we set display:block on the table itself to make it
+   its own scroll box without disturbing the content above it.
+*/
+
+/* Amplify Groups — scroll container */
+[data-new-ui-admin-content="true"] div:has(> #groupTable) {
+  overflow-x: auto !important;  /* overflow:hidden from parent chain was clipping table */
+  max-width: 100% !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* Amplify Groups — sticky Group Name column */
+[data-new-ui-admin-content="true"] #groupTable th:first-child,
+[data-new-ui-admin-content="true"] #groupTable td:first-child {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 2 !important;
+  /* Solid background so scrolling content doesn't bleed through */
+  background-color: var(--bg-raised) !important;
+  /* Right edge separator */
+  box-shadow: 1px 0 0 var(--border-subtle) !important;
+}
+
+/* Sticky header cell on top of sticky body cells */
+[data-new-ui-admin-content="true"] #groupTable th:first-child {
+  background-color: var(--bg-active) !important; /* match gradient-header override */
+  z-index: 3 !important;
+}
+
+/* Supported Models — the table's parent div becomes the scroll container.
+   The same parent holds the default-model-selector row above the table, but
+   those selectors are narrow and won't trigger the scrollbar — only the
+   wide table does. Using :has() avoids touching the DOM.                    */
+[data-new-ui-admin-content="true"] div:has(> #supportedModelsTable) {
+  overflow-x: auto !important;
+  max-width: 100% !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* Supported Models — sticky Name column */
+[data-new-ui-admin-content="true"] #supportedModelsTable th:first-child,
+[data-new-ui-admin-content="true"] #supportedModelsTable td:first-child {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 2 !important;
+  background-color: var(--bg-raised) !important;
+  box-shadow: 1px 0 0 var(--border-subtle) !important;
+}
+
+[data-new-ui-admin-content="true"] #supportedModelsTable th:first-child {
+  background-color: var(--bg-active) !important;
+  z-index: 3 !important;
+}
+
+/* Feature Flags table — same scroll treatment via :has() on parent */
+[data-new-ui-admin-content="true"] div:has(> #featureFlagsTable) {
+  overflow-x: auto !important;
+  max-width: 100% !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+[data-new-ui-admin-content="true"] #featureFlagsTable th:first-child,
+[data-new-ui-admin-content="true"] #featureFlagsTable td:first-child {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 2 !important;
+  background-color: var(--bg-raised) !important;
+  box-shadow: 1px 0 0 var(--border-subtle) !important;
+}
+
+[data-new-ui-admin-content="true"] #featureFlagsTable th:first-child {
+  background-color: var(--bg-active) !important;
+  z-index: 3 !important;
+}
