@@ -64,16 +64,31 @@ function setNativeValue(element: HTMLTextAreaElement, value: string) {
 const SCROLL_THRESHOLD = 200;
 
 /**
- * Phase 41 Fix 1 — where the just-sent prompt is parked, measured from the top
- * of the scroll container.
- *
- * Spec asks for ~24px below the top of the scroll area. The scroll area has
- * `padding-top: 52px` for the header overlay, so the literal value is 52+24=76.
- * We use 80 because `.chatcontainer`'s mask-image only reaches full opacity at
- * 80px (`transparent 0 → #000 80px`) — anchoring at 76 would leave the top few
- * pixels of the bubble inside the fade band. 4px more, fully opaque bubble.
+ * Height of the ConversationHeader overlay, in px. Used to inset the shell so
+ * .chatcontainer starts exactly at the header's bottom edge — keeping the
+ * scrollbar track fully visible (not clipped behind the header).
  */
-const ANCHOR_TOP_OFFSET = 80;
+const HEADER_H = 52;
+
+/**
+ * Phase 41 Fix 1 / scrollbar-clip fix — where the just-sent prompt is parked,
+ * measured from the TOP of .chatcontainer (the scroll container).
+ *
+ * Spec: ~24px below the top of the scroll area.
+ *
+ * Previously (before the scrollbar-clip fix) the shell had no top inset, so
+ * .chatcontainer started at y=0 of the shell and the header (52px) was an
+ * absolute overlay. The padding-top on .chatcontainer was 80px (= 52px header +
+ * 24px spec gap + 4px mask buffer) to push content below both the header and the
+ * fade ramp.
+ *
+ * After the fix, the shell has paddingTop:HEADER_H (52px) so .chatcontainer
+ * starts at y=52 of the shell — exactly at the header's bottom edge. The
+ * chatcontainer padding-top is now 28px (24px spec gap + 4px mask buffer), and
+ * the mask fades to full opacity at 28px. We use 28 so that anchoring at 24
+ * doesn't leave the top 4px of the bubble inside the fade ramp.
+ */
+const ANCHOR_TOP_OFFSET = 28;
 
 /**
  * Slack kept between the anchored position and the very bottom of the scroller,
@@ -183,6 +198,32 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
       shellRef.current.removeAttribute('data-awaiting-first-token');
     }
   }, [showPendingIndicator]);
+
+  // ── Scrollbar-clip fix: inset the shell bottom to match composer height ──
+  //
+  // The shell has paddingTop:HEADER_H (52px) set inline so Chat.tsx starts
+  // below the header. For the bottom, we need paddingBottom to equal the
+  // composer dock's actual rendered height so .chatcontainer ends above the
+  // composer overlay. This is dynamic because the composer grows when the
+  // attachment rail opens.
+  //
+  // We set the value via CSS custom property (--nui-composer-inset) rather than
+  // React state, so ResizeObserver callbacks don't trigger re-renders.
+  useEffect(() => {
+    const shell = shellRef.current;
+    if (!shell) return;
+    const updateInset = () => {
+      const dock = shell.querySelector<HTMLElement>('.new-ui-composer-dock');
+      if (dock) {
+        shell.style.setProperty('--nui-composer-inset', `${dock.offsetHeight}px`);
+      }
+    };
+    updateInset();
+    const ro = new ResizeObserver(updateInset);
+    const dock = shell.querySelector<HTMLElement>('.new-ui-composer-dock');
+    if (dock) ro.observe(dock);
+    return () => ro.disconnect();
+  }, []); // shellRef.current is stable after mount
 
   // ── Pending-message bridge ──────────────────────────────────────────────
   //
@@ -932,6 +973,12 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
+        // Inset Chat.tsx below the header so .chatcontainer's scrollbar track
+        // starts exactly at the header's bottom edge (not behind it).
+        // The bottom inset is managed imperatively via --nui-composer-inset
+        // (set by the ResizeObserver effect above) so the scrollbar track also
+        // ends above the composer, regardless of the composer's height.
+        paddingTop: HEADER_H,
       }}
     >
       {/* Chat fills the entire shell — CSS handles height:100% on .chatcontainer */}

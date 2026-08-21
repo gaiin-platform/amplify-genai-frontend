@@ -3588,6 +3588,59 @@ Added CSS in `conversation-view.css` with compound selectors (2 parts) so they b
 
 ---
 
+### Phase 69 — Scrollbar Track Clip Fix (header + composer ends) ✅ COMPLETE
+
+**Changed files:** `components/NewUI/chat/ConversationViewShell.tsx`, `styles/conversation-view.css`
+
+**Bug:** The scrollbar track in the chat pane was clipped at its top and bottom ends. The ConversationHeader (52px, `position:absolute; top:0`) painted over the first 52px of the track; the ConversationComposer (`position:absolute; bottom:0`, gradient + opaque card) painted over the last ~150-190px of the track. On Firefox (and Windows classic scrollbars), the thumb would disappear behind these overlays as it approached either end.
+
+**Root cause:** `.chatcontainer` spanned the FULL shell height (0 → shell_height). The header and composer were absolute overlays with higher z-index. The scrollbar track is a property of `.chatcontainer`'s border box and runs from its top to its bottom — both ends were covered by the overlays.
+
+**Non-regression constraint:** The Phase 68 fix (overlay scrollbars) must be preserved. No `::webkit-scrollbar { width }` declarations were added.
+
+**Fix — Option 1 (preferred): inset the scroll container**
+
+Add `paddingTop: HEADER_H (52px)` to the shell div's inline style in `ConversationViewShell.tsx`. This pushes Chat.tsx into the shell's CONTENT AREA (y=52 to y=bottom), so `.chatcontainer` starts exactly at the header's bottom edge. `position: absolute; top: 0` on the header still renders at y=0 of the shell's padding area — no conflict.
+
+For the bottom: add a `ResizeObserver` effect on `.new-ui-composer-dock` that writes the composer's actual height as the CSS custom property `--nui-composer-inset` on the shell element. The CSS rule `.new-ui-chat-shell { padding-bottom: var(--nui-composer-inset, 180px) }` consumes this to shrink the shell's content area upward by the exact composer height. This is dynamic — it updates automatically when the attachment rail opens/closes. The CSS custom property approach avoids React state (no re-renders on resize) and no conflict with React's style reconciler (React never manages CSS custom properties).
+
+Result:
+- `.chatcontainer` occupies y=52 (header bottom) to y=(shell_height − composerHeight)
+- Scrollbar track runs within that range: fully visible, no overlap with either overlay ✓
+- On Firefox and Windows, the thumb is visible along its entire travel ✓
+
+**Cascading updates required:**
+
+With `.chatcontainer` starting at y=52 of the shell (not y=0), the `padding-top: 80px` on `.chatcontainer` was over-compensating. It was originally `52px (header) + 24px (spec gap) + 4px (mask buffer) = 80px`. With the structural inset handling the 52px, only `24 + 4 = 28px` is needed:
+
+1. `padding-top: 80px → 28px` on `.chatcontainer` — brings first message 28px from chatcontainer top = 28px below header bottom ✓
+2. `mask-image` fade from `80px → 28px` — matches the new padding-top ✓
+3. `ANCHOR_TOP_OFFSET: 80 → 28` — anchor parks the just-sent prompt 28px from chatcontainer top, same visual position as before ✓
+4. `.h-[300px]` spacer `height: 268px → 48px` — the 268px was needed when the composer overlaid `.chatcontainer` (Phase 39 moved the old `padding-bottom: 220px` there). With the composer now structurally below the chatcontainer, no clearance spacer is needed; the 48px gap is the original pre-Phase-39 visual gap. ScrollIntoView(true/false) convergence preserved: 48px < any viewport height ✓
+
+**Sidebar recents:** Not affected. The recents div is a `flex:1` in-flow child with no position:absolute overlays above or below it. Its scrollbar track is naturally unclipped.
+
+**Code-trace — scrollbar track after fix:**
+
+| Element | y range (shell coordinates) |
+|---|---|
+| Header (absolute, z-index:30) | 0 → 52 (padding area) |
+| `.chatcontainer` content area | 52 → (shell_height − composerHeight) |
+| Scrollbar track | 52 → (shell_height − composerHeight) ← fully between overlays |
+| Composer dock (absolute, z-index:25) | (shell_height − composerHeight) → shell_height |
+
+**Checklist:**
+- [x] `components/NewUI/chat/ConversationViewShell.tsx` — `HEADER_H = 52` constant added
+- [x] `components/NewUI/chat/ConversationViewShell.tsx` — `ANCHOR_TOP_OFFSET: 80 → 28`
+- [x] `components/NewUI/chat/ConversationViewShell.tsx` — shell inline `paddingTop: HEADER_H`
+- [x] `components/NewUI/chat/ConversationViewShell.tsx` — `ResizeObserver` effect sets `--nui-composer-inset` on shell
+- [x] `styles/conversation-view.css` — `.new-ui-chat-shell { padding-bottom: var(--nui-composer-inset, 180px) }` added
+- [x] `styles/conversation-view.css` — `.chatcontainer` `padding-top: 80px → 28px`
+- [x] `styles/conversation-view.css` — mask-image fade `80px → 28px`
+- [x] `styles/conversation-view.css` — `.h-[300px]` spacer `height: 268px → 48px`
+
+---
+
 ### Phase 19 — Remaining Port Work (NEXT)
 - [x] Responsive: icon rail at 760-1099px ✅ resolved
 - [x] Responsive: off-canvas drawer <760px ✅ resolved

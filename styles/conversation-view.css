@@ -128,26 +128,24 @@
   --nui-sb-clear: 0px;  /* overlay scrollbars — no gutter reservation needed */
 }
 
+/* Scrollbar-clip fix: the shell's paddingBottom is controlled by a CSS custom
+   property that the ResizeObserver effect in ConversationViewShell.tsx updates
+   whenever the composer dock grows or shrinks (e.g. attachment rail open/close).
+   The fallback (180px) covers the default composer height on initial paint. */
+.new-ui-chat-shell {
+  padding-bottom: var(--nui-composer-inset, 180px);
+}
+
 [data-new-ui="true"] .chatcontainer {
   /* Layout */
   max-width: 100% !important;
-  /* Phase 41 Fix 1: 52px → 80px. Two reasons, both verified in a headless
-     harness rather than assumed:
-       1. The mask-image below only reaches full opacity at 80px, so content
-          that started at 52px (flush with the header's bottom edge) was being
-          rendered inside the fade ramp — the first line of a message near the
-          top was partially transparent. Starting content at 80px makes the
-          content-start and mask-clear points coincide, so content is never
-          faded on arrival. (Pre-existing issue, fixed incidentally here.)
-       2. It makes the prompt-at-top anchor REACHABLE for the first message of
-          a conversation. The anchor wants `scrollTop = promptTop - 80`; with an
-          empty history promptTop was 52, giving a negative target that clamps
-          to 0 and left the prompt at 54px — jammed under the header and faded.
-          With 80px of top inset, scrollTop 0 already places it at exactly 80px.
-     Net visual effect: a conversation's first message now sits ~28px below the
-     header instead of flush against it — which is the breathing room the spec
-     asked for ("~24px from the top of the scroll area"). */
-  padding-top: 80px !important;       /* header overlay (52px) + 28px gap */
+  /* Phase 41 Fix 1 (updated for scrollbar-clip fix):
+     Previously padding-top was 80px = 52px header overlay + 24px spec gap +
+     4px mask buffer. Now the shell itself has paddingTop:52px (set inline in
+     ConversationViewShell.tsx) so .chatcontainer starts at the header's bottom
+     edge. We only need the 24px spec gap + 4px mask buffer = 28px here.
+     The mask-image also updated to reach full opacity at 28px to match. */
+  padding-top: 28px !important;       /* 24px spec gap + 4px mask buffer */
   /* Phase 39 (send→first-token scroll-jump fix): padding-bottom is now 0.
      Chat.tsx (DO-NOT-CHANGE) runs TWO competing auto-scroll effects while
      messageIsStreaming is true — a 250ms throttled `scrollIntoView(true)`
@@ -187,13 +185,14 @@
      fade (clearing the 52px header overlay) is still needed and kept; only the
      bottom fade is removed. */
   /* Single-layer top-fade mask (spec §2).
-     Phase 58 used a two-layer mask to exempt the scrollbar gutter column from the
-     fade — necessary because a classic-mode scrollbar sat inside the layout and would
-     be clipped by a simple vertical gradient. With overlay scrollbars the thumb
-     floats ABOVE the mask-image in the compositing stack and is unaffected by it,
-     so the horizontal clearance layer is no longer needed. */
-  mask-image: linear-gradient(to bottom, transparent 0, #000 80px, #000 100%) !important;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 80px, #000 100%) !important;
+     Fade point updated from 80px to 28px: previously .chatcontainer started at
+     y=0 of the shell and the 52px header overlay meant visible content only
+     started at y=52, so 80px was chosen to clear both the header (52px) and the
+     fade ramp. Now the shell has paddingTop:52px (ConversationViewShell.tsx), so
+     .chatcontainer starts at y=52 of the shell already — only the 28px gap
+     remains, matching the new padding-top. */
+  mask-image: linear-gradient(to bottom, transparent 0, #000 28px, #000 100%) !important;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 28px, #000 100%) !important;
 }
 
 /* Fix 1 (Phase 34): The .new-ui-actions-overlay is a direct child of
@@ -370,9 +369,14 @@
   margin-right: auto !important;
   width: 100% !important;
   background: transparent !important;
-  height: 268px !important;     /* was 48px; now carries the full composer clearance
-                                   (was 48px spacer + 220px container padding) so
-                                   Chat.tsx's scrollIntoView(true/false) converge */
+  /* Scrollbar-clip fix: restored from 268px back to original 48px. The 220px
+     extra (added in Phase 39) was composer CLEARANCE — reserved so the last
+     message stayed above the absolute-positioned composer overlay. With the shell
+     now having paddingBottom = composer height (structural fix), .chatcontainer
+     ends above the composer dock entirely, so the clearance is provided by layout,
+     not by the spacer. A 48px spacer is still shorter than any viewport, so
+     Chat.tsx's scrollIntoView(true/false) convergence property is preserved. */
+  height: 48px !important;
   display: flex !important;
   align-items: flex-start !important;
   justify-content: flex-start !important;
