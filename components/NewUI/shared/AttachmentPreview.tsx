@@ -10,7 +10,7 @@
  *   §11  keyboard & a11y
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { IconLoader2 } from '@tabler/icons-react';
+import { IconAlertCircle, IconClock, IconLoader2, IconPaperclip } from '@tabler/icons-react';
 import { UIAttachment, formatBytes } from './attachmentTypes';
 
 interface AttachmentPreviewProps {
@@ -366,7 +366,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
           ) : null}
           {previewState === 'too-large' && (
             <UnavailableBlock
-              icon="⚠"
+              icon={<IconAlertCircle size={28} />}
               line1="This file is too large to preview."
               line2="It will still be sent with your message in full."
               showDownload={!!attachment.doc?.raw}
@@ -375,7 +375,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
           )}
           {previewState === 'unsupported' && (
             <UnavailableBlock
-              icon="📎"
+              icon={<IconPaperclip size={28} />}
               line1="Preview isn't available for this file type."
               line2={attachment.ext ? `${attachment.ext} files are sent as-is.` : 'This file is sent as-is.'}
               showDownload={!!attachment.doc?.raw}
@@ -384,7 +384,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
           )}
           {previewState === 'pending' && (
             <UnavailableBlock
-              icon="⏳"
+              icon={<IconClock size={28} />}
               line1="Preparing preview…"
               line2=""
               showDownload={false}
@@ -392,7 +392,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
           )}
           {previewState === 'failed' && (
             <UnavailableBlock
-              icon="⚠"
+              icon={<IconAlertCircle size={28} />}
               line1="This file couldn't be read for preview."
               line2="It will still be sent with your message."
               showDownload={!!attachment.doc?.raw}
@@ -509,7 +509,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
 
               {remoteTextFailed && (
                 <UnavailableBlock
-                  icon="⚠"
+                  icon={<IconAlertCircle size={28} />}
                   line1="This file couldn't be read for preview."
                   line2="Try downloading the file instead."
                   showDownload={false}
@@ -544,7 +544,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
 
 // ── Unavailable placeholder (spec §8) ─────────────────────────────────────────
 interface UnavailableBlockProps {
-  icon: string;
+  icon: React.ReactNode;
   line1: string;
   line2: string;
   showDownload: boolean;

@@ -12,6 +12,7 @@
  *   §13  reduced-motion
  */
 import React, { useRef, useState } from 'react';
+import { IconLoader2 } from '@tabler/icons-react';
 import { UIAttachment, formatBytes } from './attachmentTypes';
 
 interface AttachmentCardProps {
@@ -61,6 +62,7 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
   const progressFraction = progress ?? 0;
   const isIndeterminate = status === 'uploading' && progress === undefined;
   const isUploading = status === 'uploading';
+  const isPreparingPreview = attachment.previewState === 'pending';
 
   // Entry animation: opacity+scale+translateY
   const entryStyle: React.CSSProperties =
@@ -285,6 +287,16 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
                   />
                 )}
               </svg>
+            </div>
+          )}
+          {isPreparingPreview && !isUploading && (
+            <div
+              className="absolute inset-0 flex items-center justify-center"
+              style={{ background: 'rgba(var(--bg-app-rgb, 38,38,36), 0.42)', borderRadius: 12, pointerEvents: 'none', zIndex: 1 }}
+              role="status"
+              aria-label={`Preparing preview for ${name}`}
+            >
+              <IconLoader2 size={30} style={{ color: 'var(--accent)', animation: 'attachment-spinner 1s linear infinite' }} />
             </div>
           )}
         </button>

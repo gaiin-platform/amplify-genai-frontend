@@ -58,6 +58,10 @@ import { AttachmentPreview } from '@/components/NewUI/shared/AttachmentPreview';
 import {
   UIAttachment,
   createPasteAttachment,
+  getAttachmentMime,
+  createUIAttachmentFromDoc,
+  imageResponseToObjectUrl,
+  isTextPreviewable,
   PASTE_AS_FILE_THRESHOLD,
 } from '@/components/NewUI/shared/attachmentTypes';
 import { UploadPendingIndicator } from './UploadPendingIndicator';
@@ -72,6 +76,7 @@ import { newMessage, MessageType } from '@/types/chat';
 import { getActivePlugins } from '@/utils/app/plugin';
 import { getSettings } from '@/utils/app/settings';
 import { setAssistant as setAssistantInMsg } from '@/utils/app/assistants';
+import { getFileDownloadUrl } from '@/services/fileService';
 
 /** Inject value into a React-controlled textarea via native setter. */
 function setNativeValue(el: HTMLTextAreaElement, value: string) {
@@ -204,7 +209,7 @@ export const ConversationComposer: React.FC = () => {
         setUIAttachments((prev) =>
           prev.map((a) =>
             a.id === doc.id
-              ? { ...a, status: 'uploading' as const, progress }
+              ? { ...a, status: 'uploading' as const, progress: Math.min(1, progress / 100) }
               : a,
           ),
         );
@@ -219,6 +224,97 @@ export const ConversationComposer: React.FC = () => {
   const [previewOriginRect, setPreviewOriginRect] = useState<DOMRect | undefined>(undefined);
   // object-URL store for image thumbnails (revoke on remove)
   const thumbUrlsRef = useRef<Record<string, string>>({});
+
+  // Library files are already uploaded and only need to be hydrated into the
+  // new conversation's attachment rail; they must not be uploaded again.
+  useEffect(() => {
+    let pendingDocument: AttachedDocument | undefined;
+    if (typeof window !== 'undefined') {
+      const pendingRaw = sessionStorage.getItem('amplify_pending_library_doc');
+      if (pendingRaw) {
+        try {
+          pendingDocument = JSON.parse(pendingRaw) as AttachedDocument;
+        } catch {
+          sessionStorage.removeItem('amplify_pending_library_doc');
+        }
+      }
+    }
+    if (!pendingDocument) return;
+
+    try {
+      const document = pendingDocument;
+      if (!document?.id || !document.key) return;
+      sessionStorage.removeItem('amplify_pending_library_doc');
+      setAttachedDocs([document]);
+      const mime = getAttachmentMime(document.name, document.type);
+      const isImage = mime.startsWith('image/');
+      const isText = isTextPreviewable(document.name, mime);
+      setUIAttachments([{
+        ...createUIAttachmentFromDoc(document, 1),
+        // A library document has no local data. Its preview is ready only
+        // after the same download used by the library view completes.
+        previewState: 'pending',
+      }]);
+
+      // See the comment in NewHome.tsx's equivalent effect for why there are
+      // no `cancelled` guards on state updates here.  reactStrictMode is true,
+      // so double-invocation in dev would leave the spinner stuck forever if
+      // we bailed on cancelled.  The cleanup is kept solely for object-URL
+      // memory management.
+      void (async () => {
+        try {
+          const result = await getFileDownloadUrl(document.key!, undefined);
+          if (!result.success || !result.downloadUrl) throw new Error('Preview URL unavailable');
+          const response = await fetch(result.downloadUrl);
+          if (!response.ok) throw new Error(`Preview request failed: ${response.status}`);
+
+          if (isImage) {
+            const objectUrl = await imageResponseToObjectUrl(response);
+            thumbUrlsRef.current[document.id] = objectUrl;
+            setUIAttachments((prev) => prev.map((attachment) =>
+              attachment.id === document.id
+                ? { ...attachment, thumbUrl: objectUrl, previewUrl: objectUrl, previewState: 'available' }
+                : attachment,
+            ));
+          } else if (isText) {
+            const text = await response.text();
+            const bytes = new TextEncoder().encode(text).byteLength;
+            const lineCount = text.split('\n').length;
+            setUIAttachments((prev) => prev.map((attachment) =>
+              attachment.id === document.id
+                ? {
+                    ...attachment,
+                    bytes: attachment.bytes || bytes,
+                    bodyPreview: text.slice(0, 400),
+                    fullText: text,
+                    lineCount,
+                    previewState: bytes > 2 * 1024 * 1024 || lineCount > 8000 ? 'too-large' : 'available',
+                  }
+                : attachment,
+            ));
+          } else {
+            setUIAttachments((prev) => prev.map((attachment) =>
+              attachment.id === document.id ? { ...attachment, previewState: 'unsupported' } : attachment,
+            ));
+          }
+        } catch {
+          setUIAttachments((prev) => prev.map((attachment) =>
+            attachment.id === document.id ? { ...attachment, previewState: 'failed' } : attachment,
+          ));
+        }
+      })();
+
+      return () => {
+        const objectUrl = thumbUrlsRef.current[document.id];
+        if (objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+          delete thumbUrlsRef.current[document.id];
+        }
+      };
+    } catch {
+      sessionStorage.removeItem('amplify_pending_library_doc');
+    }
+  }, [selectedConversation?.id]);
 
   // ── Deferred-send state ────────────────────────────────────────────────────
   // Mutable ref: mutated synchronously by handleDocSetKey without triggering renders.

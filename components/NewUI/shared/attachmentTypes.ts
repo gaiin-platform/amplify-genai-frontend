@@ -14,6 +14,7 @@
  */
 
 import { AttachedDocument } from '@/types/attacheddocument';
+import { getMimeTypeFromExtension } from '@/utils/app/fileTypeTranslations';
 
 export type UIAttachmentKind = 'image' | 'file' | 'paste';
 export type UIAttachmentStatus = 'uploading' | 'ready' | 'failed';
@@ -101,6 +102,64 @@ export function getExtBadge(filename: string, mime: string): string | null {
   return ext ? ext.toUpperCase() : null;
 }
 
+/** Use the filename when storage metadata has no useful MIME type. */
+export function getAttachmentMime(filename: string, mime?: string | null): string {
+  const normalized = mime?.trim().toLowerCase();
+  if (normalized && normalized !== 'application/octet-stream') return normalized;
+  return getMimeTypeFromExtension(filename.split('.').pop()?.toLowerCase() || '') || normalized || '';
+}
+
+/**
+ * Returns true if the file should be previewed as text.
+ * Checks both the MIME type and filename extension so that files stored with
+ * application/octet-stream (or no MIME at all) are still handled correctly.
+ */
+export function isTextPreviewable(name: string, mime: string): boolean {
+  return mime.startsWith('text/') || /\.(csv|tsv|json|xml|html?|md)$/i.test(name);
+}
+
+/**
+ * Convert the file-service's response (which may be raw binary, base64 text,
+ * or a JSON envelope wrapping base64) into a browser object-URL suitable for
+ * <img src> or a download link.
+ *
+ * The file service sometimes returns the object as base64 text while labelling
+ * the content-type as application/octet-stream or application/json.  We detect
+ * the base64 representation and decode it; genuine binary responses fall back
+ * to their raw bytes.
+ */
+export async function imageResponseToObjectUrl(response: Response): Promise<string> {
+  const contentType = response.headers.get('content-type') || 'image/png';
+  const payload = await response.arrayBuffer();
+  const text = new TextDecoder().decode(payload).trim();
+  let candidate = text;
+
+  if (contentType.includes('json')) {
+    try {
+      const parsed = JSON.parse(text);
+      candidate = typeof parsed === 'string' ? parsed : parsed?.data ?? parsed?.body ?? text;
+    } catch {
+      // Treat an invalid JSON response as a regular payload.
+    }
+  }
+
+  const comma = candidate.indexOf(',');
+  const base64 = (comma >= 0 ? candidate.slice(comma + 1) : candidate).replace(/\s/g, '');
+  if (base64 && /^[A-Za-z0-9+/]*={0,2}$/.test(base64)) {
+    try {
+      const decoded = window.atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '='));
+      const bytes = Uint8Array.from(decoded, (char) => char.charCodeAt(0));
+      return URL.createObjectURL(
+        new Blob([bytes], { type: contentType.includes('json') ? 'image/png' : contentType }),
+      );
+    } catch {
+      // Fall through to the original binary payload.
+    }
+  }
+
+  return URL.createObjectURL(new Blob([payload], { type: contentType }));
+}
+
 /**
  * Build a UIAttachment from an AttachedDocument after handleFile completes.
  * previewState is computed locally; in production it should come from the server.
@@ -116,7 +175,7 @@ export function createUIAttachmentFromDoc(
   progress = 0,
   prebuiltThumbUrl?: string,
 ): UIAttachment {
-  const mime = doc.type || '';
+  const mime = getAttachmentMime(doc.name, doc.type);
   const isImage = mime.startsWith('image/');
   const ext = getExtBadge(doc.name, mime);
 

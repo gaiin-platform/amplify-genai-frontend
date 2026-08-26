@@ -36,11 +36,14 @@ import {
     IconFileText,
     IconFileCode,
     IconFileSpreadsheet,
+    IconMovie,
     IconChevronDown,
+    IconSelector,
     IconAlertCircle,
     IconCheckbox,
     IconSquare,
     IconEye,
+    IconPaperclip,
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import {
@@ -51,10 +54,11 @@ import {
     getDocumentStatusConfig, getFileAction, startFileStatusPolling,
     startFileReprocessingWithPolling, disableSupportReprocess
 } from '@/utils/app/files';
-import { mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
+import { getMimeTypeFromExtension, mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
 import { embeddingDocumentStatus } from '@/services/adminService';
 import { capitalize } from '@/utils/app/data';
 import { handleFile } from '@/components/Chat/AttachFile';
+import type { AttachedDocument } from '@/types/attacheddocument';
 import AttachmentPreview from '@/components/NewUI/shared/AttachmentPreview';
 import { UIAttachment } from '@/components/NewUI/shared/attachmentTypes';
 
@@ -88,11 +92,13 @@ function getFileBytes(file: FileRecord): number {
         record.contentLength,
         record.bytes,
         file.data?.size,
+        file.data?.file_size,
         file.data?.fileSize,
         file.data?.bytes,
         file.data?.sizeBytes,
         file.data?.contentLength,
         file.data?.metadata?.size,
+        file.data?.metadata?.file_size,
         file.data?.metadata?.fileSize,
         file.data?.metadata?.bytes,
         file.data?.metadata?.sizeBytes,
@@ -106,10 +112,48 @@ function getFileBytes(file: FileRecord): number {
     return typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : 0;
 }
 
+/** Measure a file-download response, including the base64 payload returned by the file service. */
+async function getDownloadPayloadBytes(response: Response): Promise<number> {
+    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+    const payload = await response.arrayBuffer();
+    if (!payload.byteLength) return 0;
+
+    // Some deployments return the object as base64 text while labeling it as
+    // octet-stream. Decode that representation when it is valid base64; binary
+    // responses fall back to their actual byte length.
+    if (contentType.includes('text') || contentType.includes('json') || contentType.includes('octet-stream')) {
+        const text = new TextDecoder().decode(payload).trim();
+        let candidate = text;
+        if (contentType.includes('json')) {
+            try {
+                const parsed = JSON.parse(text);
+                candidate = typeof parsed === 'string' ? parsed : parsed?.data ?? parsed?.body ?? text;
+            } catch {
+                // Continue with the raw response below.
+            }
+        }
+        const candidateText = typeof candidate === 'string' ? candidate : text;
+        const dataUrlPayload = candidateText.indexOf(',');
+        const base64 = (dataUrlPayload >= 0 ? candidateText.slice(dataUrlPayload + 1) : candidateText)
+            .replace(/\s/g, '');
+        if (base64 && /^[A-Za-z0-9+/]*={0,2}$/.test(base64)) {
+            try {
+                return window.atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')).length;
+            } catch {
+                // It was a binary payload despite its response headers.
+            }
+        }
+    }
+    return payload.byteLength;
+}
+
 /** Return the appropriate Tabler file-type icon for a mime type. */
-function FileTypeIcon({ mime, size = 18 }: { mime: string; size?: number }) {
+function FileTypeIcon({ mime, name = '', size = 18 }: { mime: string; name?: string; size?: number }) {
     const color = 'var(--text-muted)';
     const s = size;
+    if (mime.startsWith('video/') || /\.(avi|m4v|mkv|mov|mp4|mpeg|mpg|webm|wmv)$/i.test(name)) {
+        return <IconMovie size={s} style={{ color }} />;
+    }
     if (!mime) return <IconFile size={s} style={{ color }} />;
     if (mime.includes('pdf')) return <IconFileTypePdf size={s} style={{ color }} />;
     if (mime.includes('csv')) return <IconFileTypeCsv size={s} style={{ color }} />;
@@ -216,6 +260,7 @@ interface FileRowProps {
     onDelete: () => void;
     onReprocess: () => void;
     onStatusRefresh: () => void;
+    onAttachToConversation: () => void;
     imagePreviewUrl?: string;
     imagePreviewLoading?: boolean;
     onPreview: (originRect: DOMRect) => void;
@@ -233,6 +278,7 @@ const FileRow: React.FC<FileRowProps> = ({
     onDelete,
     onReprocess,
     onStatusRefresh,
+    onAttachToConversation,
     imagePreviewUrl,
     imagePreviewLoading = false,
     onPreview,
@@ -274,7 +320,7 @@ const FileRow: React.FC<FileRowProps> = ({
                 {imagePreviewUrl ? (
                     <img src={imagePreviewUrl} alt="" className="h-full w-full object-cover" />
                 ) : (
-                    <FileTypeIcon mime={file.type} size={16} />
+                    <FileTypeIcon mime={file.type} name={file.name} size={16} />
                 )}
                 {imagePreviewLoading && (
                     <div
@@ -412,6 +458,23 @@ const FileRow: React.FC<FileRowProps> = ({
                     style={{ color: 'var(--text-muted)' }}
                     onMouseEnter={(e) => {
                         (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
+                        (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+                    }}
+                    onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                        (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                    }}
+                    onClick={onAttachToConversation}
+                    title="Attach to new conversation"
+                    aria-label={'Attach ' + file.name + ' to a new conversation'}
+                >
+                    <IconPaperclip size={14} />
+                </button>
+                <button
+                    className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
+                    style={{ color: 'var(--text-muted)' }}
+                    onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
                         (e.currentTarget as HTMLElement).style.color = '#E05252';
                     }}
                     onMouseLeave={(e) => {
@@ -439,6 +502,10 @@ const ColumnHeader: React.FC<{ children: React.ReactNode; className?: string }> 
     </span>
 );
 
+type LibrarySortKey = 'name' | 'type' | 'createdAt' | 'status';
+
+const SORT_ACTION_WIDTH = 92;
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export const NewLibraryView: React.FC = () => {
@@ -446,6 +513,7 @@ export const NewLibraryView: React.FC = () => {
         state: { featureFlags },
         dispatch,
         setLoadingMessage,
+        handleNewConversation,
     } = useContext(HomeContext);
 
     // ── Data state ─────────────────────────────────────────────────────────────
@@ -476,6 +544,10 @@ export const NewLibraryView: React.FC = () => {
     const [search, setSearch] = useState('');
     const [committedSearch, setCommittedSearch] = useState('');
     const searchRef = useRef<HTMLInputElement>(null);
+    const [sort, setSort] = useState<{ key: LibrarySortKey; direction: 'asc' | 'desc' }>({
+        key: 'createdAt',
+        direction: 'desc',
+    });
 
     // Upload
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -590,6 +662,50 @@ export const NewLibraryView: React.FC = () => {
         Promise.allSettled(promises).finally(() => setIsLoadingStatus(false));
     }, [data]);
 
+    const sortedData = useMemo(() => {
+        const direction = sort.direction === 'asc' ? 1 : -1;
+        return [...data].sort((a, b) => {
+            let comparison = 0;
+            if (sort.key === 'name') {
+                comparison = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+            } else if (sort.key === 'type') {
+                const aType = a.commonType || a.type || '';
+                const bType = b.commonType || b.type || '';
+                comparison = aType.localeCompare(bType, undefined, { numeric: true, sensitivity: 'base' });
+            } else if (sort.key === 'createdAt') {
+                comparison = (Date.parse(a.createdAt) || 0) - (Date.parse(b.createdAt) || 0);
+            } else {
+                const aStatus = embeddingStatus?.[extractKey(a)] || '';
+                const bStatus = embeddingStatus?.[extractKey(b)] || '';
+                comparison = aStatus.localeCompare(bStatus, undefined, { sensitivity: 'base' });
+            }
+            return comparison === 0 ? a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) : comparison * direction;
+        });
+    }, [data, embeddingStatus, sort]);
+
+    const toggleSort = (key: LibrarySortKey) => {
+        setSort((current) => current.key === key
+            ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+            : { key, direction: key === 'createdAt' ? 'desc' : 'asc' });
+    };
+
+    const sortableHeader = (label: string, key: LibrarySortKey) => (
+        <button
+            type="button"
+            onClick={() => toggleSort(key)}
+            className="inline-flex items-center gap-1 uppercase tracking-wider hover:opacity-100"
+            style={{ color: sort.key === key ? 'var(--text-secondary)' : 'var(--text-muted)' }}
+            aria-label={`Sort by ${label}${sort.key === key ? ', currently ' + sort.direction : ''}`}
+        >
+            {label}
+            {sort.key === key ? (
+                <IconChevronDown size={12} style={{ transform: sort.direction === 'asc' ? 'rotate(180deg)' : undefined }} />
+            ) : (
+                <IconSelector size={12} className="opacity-50" />
+            )}
+        </button>
+    );
+
     // Fetch signed URLs so image files can use their type tile as a thumbnail.
     useEffect(() => {
         let active = true;
@@ -642,6 +758,7 @@ export const NewLibraryView: React.FC = () => {
         setPreviewOriginRect(originRect);
         const isImage = file.type.startsWith('image/');
         const isText = file.type.startsWith('text/') || /\.(csv|tsv|json|xml|html?|md)$/i.test(file.name);
+        const isVideo = file.type.startsWith('video/') || /\.(avi|m4v|mkv|mov|mp4|mpeg|mpg|webm|wmv)$/i.test(file.name);
         const bytes = getFileBytes(file);
         const existingUrl = imagePreviewUrls[file.id];
         const knownBytes = previewBytes[file.id];
@@ -662,10 +779,23 @@ export const NewLibraryView: React.FC = () => {
             previewState,
         });
 
-        if (existingUrl || previewState === 'unsupported') return;
+        if (existingUrl) return;
+        if (previewState === 'unsupported' && !isVideo) return;
         try {
             const response = await getFileDownloadUrl(extractKey(file), undefined);
             if (response.success && response.downloadUrl) {
+                if (isVideo) {
+                    // HEAD is unreliable for this endpoint (it may return 0 even
+                    // when the subsequent download contains the full object).
+                    const videoResponse = await fetch(response.downloadUrl);
+                    if (!videoResponse.ok) throw new Error('Preview request failed: ' + videoResponse.status);
+                    const contentLength = await getDownloadPayloadBytes(videoResponse);
+                    if (contentLength > 0) {
+                        setPreviewBytes((current) => ({ ...current, [file.id]: contentLength }));
+                        setPreviewAttachment((current) => current ? { ...current, bytes: contentLength } : current);
+                    }
+                    return;
+                }
                 let previewUrl = response.downloadUrl;
                 let loadedBytes: number | undefined;
                 if (isImage) {
@@ -703,6 +833,26 @@ export const NewLibraryView: React.FC = () => {
 
     const handleDownload = (file: FileRecord & { commonType?: string }) => {
         downloadDataSourceFile({ id: file.id, name: file.name, type: file.type });
+    };
+
+    const handleAttachToConversation = (file: FileRecord & { commonType?: string }) => {
+    const type = file.type || getMimeTypeFromExtension(file.name.split('.').pop()?.toLowerCase() || '') || 'application/octet-stream';
+        const document: AttachedDocument = {
+            id: file.id,
+            name: file.name,
+            raw: { size: getFileBytes(file) },
+            type,
+            data: null,
+            key: extractKey(file),
+            metadata: (file.data?.metadata || {}) as AttachedDocument['metadata'],
+        };
+        // Keep the handoff available while the new conversation is being
+        // created and its composer mounts. The document is already uploaded,
+        // so this is metadata only; the composer reuses its normal send path.
+        if (typeof window !== 'undefined') {
+            sessionStorage.setItem('amplify_pending_library_doc', JSON.stringify(document));
+        }
+        handleNewConversation({});
     };
 
     const handleDelete = async (file: FileRecord) => {
@@ -1018,23 +1168,23 @@ export const NewLibraryView: React.FC = () => {
                 {isDeleteMode && <div className="w-5 flex-shrink-0" />}
                 <div className="w-9 flex-shrink-0" />
                 <div className="flex-1">
-                    <ColumnHeader>Name</ColumnHeader>
+                    <ColumnHeader>{sortableHeader('Name', 'name')}</ColumnHeader>
                 </div>
                 <div className="hidden sm:block w-[80px] text-right flex-shrink-0">
-                    <ColumnHeader>Type</ColumnHeader>
+                    <ColumnHeader>{sortableHeader('Type', 'type')}</ColumnHeader>
                 </div>
                 <div className="hidden md:block w-[90px] text-right flex-shrink-0">
-                    <ColumnHeader>Date</ColumnHeader>
+                    <ColumnHeader>{sortableHeader('Date', 'createdAt')}</ColumnHeader>
                 </div>
                 <div className="w-[100px] text-right flex-shrink-0">
-                    <ColumnHeader>Status</ColumnHeader>
+                    <ColumnHeader>{sortableHeader('Status', 'status')}</ColumnHeader>
                 </div>
                 {/* Actions spacer */}
-                <div className="w-[60px] flex-shrink-0" />
+                <div className="flex-shrink-0" style={{ width: SORT_ACTION_WIDTH }} />
             </div>
 
             {/* ── File list ─────────────────────────────────────────────────── */}
-            <div className="flex-1 overflow-y-auto px-2 py-1">
+            <div className="flex-1 overflow-y-auto py-1">
                 {isLoading ? (
                     /* Skeleton rows */
                     <div className="flex flex-col gap-1 pt-2 px-2">
@@ -1094,7 +1244,7 @@ export const NewLibraryView: React.FC = () => {
                     />
                 ) : (
                     <>
-                        {data.map((file) => (
+                        {sortedData.map((file) => (
                             <FileRow
                                 key={file.id}
                                 file={file}
@@ -1112,6 +1262,7 @@ export const NewLibraryView: React.FC = () => {
                                 onDelete={() => handleDelete(file)}
                                 onReprocess={() => handleReprocess(file)}
                                 onStatusRefresh={() => handleStatusRefresh(file)}
+                                onAttachToConversation={() => handleAttachToConversation(file)}
                             imagePreviewUrl={imagePreviewUrls[file.id]}
                             imagePreviewLoading={file.type.startsWith('image/') && imagePreviewLoading[file.id]}
                             onPreview={(originRect) => handlePreview(file, originRect)}

@@ -37,7 +37,11 @@ import {
   UIAttachment,
   createUIAttachmentFromDoc,
   createPasteAttachment,
+  getAttachmentMime,
+  imageResponseToObjectUrl,
+  isTextPreviewable,
 } from '@/components/NewUI/shared/attachmentTypes';
+import { getFileDownloadUrl } from '@/services/fileService';
 import { PluginID, Plugin, Plugins } from '@/types/plugin';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
@@ -152,19 +156,103 @@ export const NewHome: React.FC = () => {
   // returns. With the doc in NewHome's attachedDocs, handleSend stores it in
   // amplify_pending_docs, and ConversationViewShell.tryInject PATH A picks it
   // up and sends it with the user's first message.
+  //
+  // IMPORTANT: createUIAttachmentFromDoc computes previewState='unsupported'
+  // for library docs because doc.data=null (no local bytes). We override that
+  // to 'pending' and run an async fetch to hydrate the preview — the same
+  // path used by the existing library preview panel.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const raw = sessionStorage.getItem('amplify_pending_library_doc');
     if (!raw) return;
+
+    let doc: AttachedDocument;
     try {
-      const doc = JSON.parse(raw) as AttachedDocument;
+      doc = JSON.parse(raw) as AttachedDocument;
       if (!doc?.id || !doc.key) return;
-      sessionStorage.removeItem('amplify_pending_library_doc');
-      setAttachedDocs([doc]);
-      setUIAttachments([createUIAttachmentFromDoc(doc, 1)]);
     } catch {
       sessionStorage.removeItem('amplify_pending_library_doc');
+      return;
     }
+
+    sessionStorage.removeItem('amplify_pending_library_doc');
+    setAttachedDocs([doc]);
+
+    const mime = getAttachmentMime(doc.name, doc.type);
+    const isImage = mime.startsWith('image/');
+    const isText = isTextPreviewable(doc.name, mime);
+
+    // Show the card immediately with a 'pending' spinner while the preview
+    // data is fetched; the card face updates once the download resolves.
+    setUIAttachments([{ ...createUIAttachmentFromDoc(doc, 1), previewState: 'pending' }]);
+
+    // NOTE: we intentionally do NOT gate state updates on a `cancelled` flag
+    // here.  React 18's reactStrictMode (enabled in next.config.js) double-
+    // invokes effects in development: it runs effect → cleanup → effect again.
+    // The cleanup sets cancelled=true and the second run finds the sessionStorage
+    // key already gone and returns early.  When the async fetch from the first
+    // run finally completes, a cancelled check would bail out and leave the
+    // attachment card showing the spinner forever.
+    //
+    // Instead, we always apply the state update (React 18 silently ignores
+    // setState on genuinely unmounted components) and use the cleanup function
+    // solely for object-URL memory management.
+    void (async () => {
+      try {
+        const result = await getFileDownloadUrl(doc.key!, undefined);
+        if (!result.success || !result.downloadUrl) throw new Error('Preview URL unavailable');
+        const response = await fetch(result.downloadUrl);
+        if (!response.ok) throw new Error(`Preview request failed: ${response.status}`);
+
+        if (isImage) {
+          const objectUrl = await imageResponseToObjectUrl(response);
+          thumbUrlsRef.current[doc.id] = objectUrl;
+          setUIAttachments((prev) => prev.map((a) =>
+            a.id === doc.id
+              ? { ...a, thumbUrl: objectUrl, previewUrl: objectUrl, previewState: 'available' }
+              : a,
+          ));
+        } else if (isText) {
+          const textContent = await response.text();
+          const bytes = new TextEncoder().encode(textContent).byteLength;
+          const lineCount = textContent.split('\n').length;
+          setUIAttachments((prev) => prev.map((a) =>
+            a.id === doc.id
+              ? {
+                  ...a,
+                  bytes: a.bytes || bytes,
+                  bodyPreview: textContent.slice(0, 400),
+                  fullText: textContent,
+                  lineCount,
+                  previewState: bytes > 2 * 1024 * 1024 || lineCount > 8000 ? 'too-large' : 'available',
+                }
+              : a,
+          ));
+        } else {
+          setUIAttachments((prev) => prev.map((a) =>
+            a.id === doc.id ? { ...a, previewState: 'unsupported' } : a,
+          ));
+        }
+      } catch {
+        setUIAttachments((prev) => prev.map((a) =>
+          a.id === doc.id ? { ...a, previewState: 'failed' } : a,
+        ));
+      }
+    })();
+
+    return () => {
+      // Only use the cleanup for object-URL memory management.
+      // In Strict Mode dev the cleanup fires between effect double-invocations
+      // while the component is still alive; at that point the fetch is usually
+      // still in-flight so thumbUrlsRef.current[doc.id] is empty and nothing
+      // is revoked.  The URL stored by the completed fetch will be cleaned up
+      // when the component genuinely unmounts (user sends first message).
+      const objectUrl = thumbUrlsRef.current[doc.id];
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        delete thumbUrlsRef.current[doc.id];
+      }
+    };
     // Empty deps: run once per mount. NewHome re-mounts on each page
     // transition (library → landing), so a fresh effect runs each time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
