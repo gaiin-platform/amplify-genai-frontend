@@ -140,6 +140,36 @@ export const NewHome: React.FC = () => {
     setAttachedDocs((prev) => prev.filter((d) => d.id !== id));
   };
 
+  // ── Hydrate pending library document ──────────────────────────────────────
+  // When the user clicks "Attach to new chat" in the library, the selected
+  // file's AttachedDocument is stored under 'amplify_pending_library_doc' in
+  // sessionStorage and handleNewConversation() is called. The new conversation
+  // has 0 messages, so NewHome is rendered (and ConversationViewShell is
+  // mounted but hidden). React fires sibling effects in JSX order: NewHome
+  // appears before ConversationViewShell, so this effect runs first and
+  // claims the pending doc before ConversationComposer's own effect can. The
+  // key is removed immediately so ConversationComposer finds nothing and
+  // returns. With the doc in NewHome's attachedDocs, handleSend stores it in
+  // amplify_pending_docs, and ConversationViewShell.tryInject PATH A picks it
+  // up and sends it with the user's first message.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raw = sessionStorage.getItem('amplify_pending_library_doc');
+    if (!raw) return;
+    try {
+      const doc = JSON.parse(raw) as AttachedDocument;
+      if (!doc?.id || !doc.key) return;
+      sessionStorage.removeItem('amplify_pending_library_doc');
+      setAttachedDocs([doc]);
+      setUIAttachments([createUIAttachmentFromDoc(doc, 1)]);
+    } catch {
+      sessionStorage.removeItem('amplify_pending_library_doc');
+    }
+    // Empty deps: run once per mount. NewHome re-mounts on each page
+    // transition (library → landing), so a fresh effect runs each time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /**
    * Core helper: generate thumbUrl, stash it, then hand the file to handleFile.
    * Called from both the file-input handler and the image-paste handler.
