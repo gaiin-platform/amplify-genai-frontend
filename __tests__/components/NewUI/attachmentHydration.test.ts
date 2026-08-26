@@ -87,6 +87,12 @@ describe('createUIAttachmentFromDoc — library doc (data=null)', () => {
     expect(result.id).toBe('abc-123');
     expect(result.name).toBe('my-file.txt');
   });
+
+  it('uses the retained upload size when handleFile has cleared raw', () => {
+    const doc = makeLibraryDoc({ raw: '', size: 12_345 });
+    const result = createUIAttachmentFromDoc(doc, 1);
+    expect(result.bytes).toBe(12_345);
+  });
 });
 
 // ─── MIME fallback tests ──────────────────────────────────────────────────────

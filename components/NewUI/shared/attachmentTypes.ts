@@ -207,7 +207,9 @@ export function createUIAttachmentFromDoc(
     }
   }
 
-  const bytes: number = (doc.raw as any)?.size ?? 0;
+  // handleFile intentionally clears doc.raw before upload, so use the size
+  // retained on AttachedDocument and only fall back to raw for older docs.
+  const bytes: number = doc.size ?? (doc.raw as any)?.size ?? 0;
 
   // Local preview-state inference (spec §8)
   let previewState: UIAttachmentPreviewState = 'available';
