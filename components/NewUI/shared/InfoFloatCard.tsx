@@ -19,11 +19,9 @@
  * Strategy is `fixed` + `FloatingPortal`: submenu panels clip their contents
  * (`overflow: hidden` / `overflowY: auto`), so the card must escape them.
  *
- * The card is `pointer-events: none`. That is intentional:
- *   1. it can never swallow a click meant for the row underneath it, and
- *   2. it can never register as an "outside press" for the menu's `useDismiss`,
- *      which would otherwise tear the whole menu down.
- * Show/hide is therefore driven purely by the row's mouse enter/leave.
+ * The card is pointer-interactive so the user can move into it and scroll.
+ * Show/hide still remains driven by the row and card hover intent; the card
+ * does not contain actionable controls.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { autoUpdate, FloatingPortal, useFloating } from '@floating-ui/react';
@@ -53,6 +51,8 @@ export interface InfoCardHover<T> {
   show: (item: T, el: HTMLElement | null) => void;
   /** Call from a row's `onMouseLeave` — hides after the grace period. */
   hide: () => void;
+  /** Cancel a pending hide while the pointer travels into the card. */
+  cancelHide: () => void;
   /** Hide immediately (row clicked, list filtered, submenu closing). */
   hideNow: () => void;
 }
@@ -105,6 +105,10 @@ export function useInfoCardHover<T>(opts?: {
     timerRef.current = setTimeout(() => setItem(null), HIDE_DELAY_MS);
   }, [clearTimer]);
 
+  const cancelHide = useCallback(() => {
+    clearTimer();
+  }, [clearTimer]);
+
   const hideNow = useCallback(() => {
     clearTimer();
     setItem(null);
@@ -117,6 +121,7 @@ export function useInfoCardHover<T>(opts?: {
     anchor: { setFloating: refs.setFloating, x, y, strategy },
     show,
     hide,
+    cancelHide,
     hideNow,
   };
 }
@@ -129,14 +134,17 @@ export const InfoFloatCard: React.FC<{
   anchor: InfoCardAnchor;
   children: React.ReactNode;
   maxWidth?: number;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
   /** Above submenu panels (10000). */
   zIndex?: number;
-}> = ({ anchor, children, maxWidth = 240, zIndex = 10001 }) => (
+}> = ({ anchor, children, maxWidth = 240, onMouseEnter, onMouseLeave, zIndex = 10001 }) => (
   <FloatingPortal>
     <div
       ref={anchor.setFloating}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       role="tooltip"
-      aria-hidden="true"
       // Animation lives in the <style> block below, not inline, so the
       // prefers-reduced-motion media query can actually override it.
       className="new-ui-info-float-card"
@@ -150,13 +158,20 @@ export const InfoFloatCard: React.FC<{
         visibility: anchor.x == null ? 'hidden' : 'visible',
         zIndex,
         width: 'max-content',
-        maxWidth,
+        // Bound both dimensions to the viewport so long previews never run
+        // off-screen. Overflow is intentionally visible as a scrollbar when
+        // metadata exceeds the available height.
+        maxWidth: 'min(' + maxWidth + 'px, calc(100vw - 24px))',
+        maxHeight: 'calc(100dvh - 24px)',
+        overflowY: 'auto',
+        overscrollBehavior: 'contain',
+        scrollbarWidth: 'thin',
         background: 'var(--bg-raised)',
         border: '1px solid var(--border-subtle)',
         borderRadius: 10,
         padding: 14,
         boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-        pointerEvents: 'none',
+        pointerEvents: 'auto',
         display: 'flex',
         flexDirection: 'column',
         gap: 7,
@@ -183,14 +198,6 @@ export const InfoFloatCard: React.FC<{
 // Content primitives — shared so both cards read as one design
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Clamp helper (no Tailwind line-clamp plugin assumptions). */
-const clamp = (lines: number): React.CSSProperties => ({
-  display: '-webkit-box',
-  WebkitBoxOrient: 'vertical',
-  WebkitLineClamp: lines,
-  overflow: 'hidden',
-});
-
 /** Name / heading — 15px bold, primary. */
 export const InfoCardTitle: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div
@@ -199,47 +206,85 @@ export const InfoCardTitle: React.FC<{ children: React.ReactNode }> = ({ childre
       fontWeight: 600,
       lineHeight: 1.3,
       color: 'var(--text-primary)',
-      ...clamp(2),
       wordBreak: 'break-word',
+      overflowWrap: 'anywhere',
     }}
   >
     {children}
   </div>
 );
 
-/** Body copy — 13px secondary, line-clamped. */
-export const InfoCardText: React.FC<{ lines?: number; children: React.ReactNode }> = ({
-  lines = 2,
-  children,
-}) => (
-  <div
-    style={{
-      fontSize: 13,
-      lineHeight: 1.45,
-      color: 'var(--text-secondary)',
-      ...clamp(lines),
-      wordBreak: 'break-word',
-    }}
+const COLLAPSE_AT_CHARS = 400;
+
+const InfoCardExpandableText: React.FC<{
+  children: string;
+  fontSize: number;
+  lineHeight: number;
+  color: string;
+  fontStyle?: 'normal' | 'italic';
+}> = ({ children, fontSize, lineHeight, color, fontStyle = 'normal' }) => {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = children.length > COLLAPSE_AT_CHARS;
+  const visibleText = !isLong || expanded
+    ? children
+    : children.slice(0, COLLAPSE_AT_CHARS).trimEnd() + '...';
+
+  return (
+    <div
+      style={{
+        fontSize,
+        fontStyle,
+        lineHeight,
+        color,
+        wordBreak: 'break-word',
+        overflowWrap: 'anywhere',
+      }}
+    >
+      <span>{visibleText}</span>
+      {isLong && (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+          style={{
+            marginLeft: 4,
+            padding: 0,
+            border: 0,
+            background: 'transparent',
+            color: 'var(--text-link, var(--accent))',
+            font: 'inherit',
+            cursor: 'pointer',
+            textDecoration: 'underline',
+          }}
+        >
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
+    </div>
+  );
+};
+
+/** Body copy — 13px secondary, collapsed after 400 characters. */
+export const InfoCardText: React.FC<{ children: string }> = ({ children }) => (
+  <InfoCardExpandableText
+    fontSize={13}
+    lineHeight={1.45}
+    color="var(--text-secondary)"
   >
     {children}
-  </div>
+  </InfoCardExpandableText>
 );
 
-/** Italic single-line preview (e.g. "Instructions: …"). */
-export const InfoCardItalic: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div
-    style={{
-      fontSize: 12,
-      fontStyle: 'italic',
-      lineHeight: 1.4,
-      color: 'var(--text-muted)',
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap',
-    }}
+/** Italic preview (e.g. "Instructions: …"), collapsed after 400 characters. */
+export const InfoCardItalic: React.FC<{ children: string }> = ({ children }) => (
+  <InfoCardExpandableText
+    fontSize={12}
+    lineHeight={1.4}
+    color="var(--text-muted)"
+    fontStyle="italic"
   >
     {children}
-  </div>
+  </InfoCardExpandableText>
 );
 
 /** Small meta line — 12px muted. */
@@ -266,10 +311,9 @@ export const InfoCardPill: React.FC<{ children: React.ReactNode; muted?: boolean
       borderRadius: 999,
       background: 'var(--bg-active)',
       color: muted ? 'var(--text-muted)' : 'var(--text-secondary)',
-      whiteSpace: 'nowrap',
-      maxWidth: 120,
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
+      whiteSpace: 'normal',
+      maxWidth: '100%',
+      overflowWrap: 'anywhere',
     }}
   >
     {children}

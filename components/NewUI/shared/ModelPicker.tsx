@@ -375,8 +375,6 @@ const ModelCardBody: React.FC<{ model: Model }> = ({ model }) => {
     <>
       <InfoCardTitle>{model.name}</InfoCardTitle>
 
-      {description && <InfoCardText lines={2}>{description}</InfoCardText>}
-
       {capabilities.length > 0 && (
         <InfoCardPills>
           {capabilities.map((c) => (
@@ -389,6 +387,8 @@ const ModelCardBody: React.FC<{ model: Model }> = ({ model }) => {
       {model.inputContextWindow > 0 && (
         <InfoCardMeta>Context: {formatTokenCount(model.inputContextWindow)} tokens</InfoCardMeta>
       )}
+
+      {description && <InfoCardText>{description}</InfoCardText>}
     </>
   );
 };
@@ -486,7 +486,7 @@ const MoreModelsMenu: React.FC<{
 
       {/* Hover-preview card — portalled out so the scroll container can't clip it */}
       {card.item && (
-        <InfoFloatCard anchor={card.anchor}>
+        <InfoFloatCard anchor={card.anchor} onMouseEnter={card.cancelHide} onMouseLeave={card.hide}>
           <ModelCardBody model={card.item} />
         </InfoFloatCard>
       )}
@@ -829,6 +829,8 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
                       isActive ? 'var(--bg-hover)' : 'transparent';
                     primaryCard.hide();
                   }}
+                  onFocus={(e) => primaryCard.show(model, e.currentTarget)}
+                  onBlur={primaryCard.hide}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
@@ -937,7 +939,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
 
             {/* Hover-preview card for the recommended model rows */}
             {primaryCard.item && (
-              <InfoFloatCard anchor={primaryCard.anchor}>
+              <InfoFloatCard anchor={primaryCard.anchor} onMouseEnter={primaryCard.cancelHide} onMouseLeave={primaryCard.hide}>
                 <ModelCardBody model={primaryCard.item} />
               </InfoFloatCard>
             )}

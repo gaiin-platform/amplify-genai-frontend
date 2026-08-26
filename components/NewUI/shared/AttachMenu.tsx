@@ -430,7 +430,6 @@ const ConnectorsSubmenu: React.FC<{ onBrowse: () => void }> = ({ onBrowse }) => 
 // Card shell + positioning live in ./InfoFloatCard — this is only the content.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const INSTRUCTIONS_PREVIEW_CHARS = 120;
 const MAX_TAG_PILLS = 3;
 
 interface AssistantCardInfo {
@@ -450,12 +449,9 @@ interface AssistantCardInfo {
 const accessLabel = (astPath?: string, groupId?: string): AssistantCardInfo['access'] =>
   groupId ? 'Group' : astPath ? 'Shared' : 'Private';
 
-const trimPreview = (raw?: string): string | undefined => {
+const normalizeCardText = (raw?: string): string | undefined => {
   const flat = (raw ?? '').replace(/\s+/g, ' ').trim();
-  if (!flat) return undefined;
-  return flat.length > INSTRUCTIONS_PREVIEW_CHARS
-    ? `${flat.slice(0, INSTRUCTIONS_PREVIEW_CHARS).trimEnd()}…`
-    : flat;
+  return flat || undefined;
 };
 
 const assistantCardInfo = (
@@ -467,7 +463,7 @@ const assistantCardInfo = (
     name: def.name || 'Untitled assistant',
     access: accessLabel(def.astPath, def.groupId),
     description: (def.description ?? '').trim() || undefined,
-    instructions: trimPreview(def.instructions),
+    instructions: normalizeCardText(def.instructions),
     tags: (def.tags ?? []).filter(Boolean),
     toolCount: (def.tools ?? []).length,
     modelName: resolveModelName(def.data?.model),
@@ -482,7 +478,7 @@ const layeredCardInfo = (
   access: accessLabel(la.astPath, la.groupId),
   kind: 'Layered',
   description: (la.description ?? '').trim() || undefined,
-  instructions: trimPreview(la.rootNode?.instructions),
+  instructions: normalizeCardText(la.rootNode?.instructions),
   tags: [],
   toolCount: 0,
   modelName: resolveModelName(la.model),
@@ -497,9 +493,11 @@ const AssistantCardBody: React.FC<{ info: AssistantCardInfo }> = ({ info }) => (
       {info.kind && <InfoCardPill>{info.kind}</InfoCardPill>}
     </InfoCardPills>
 
-    {info.description && <InfoCardText lines={2}>{info.description}</InfoCardText>}
+    {info.modelName && <InfoCardMeta>Uses: {info.modelName}</InfoCardMeta>}
 
-    {info.instructions && <InfoCardItalic>Instructions: {info.instructions}</InfoCardItalic>}
+    {info.toolCount > 0 && (
+      <InfoCardMeta>{info.toolCount === 1 ? '1 tool' : `${info.toolCount} tools`}</InfoCardMeta>
+    )}
 
     {info.tags.length > 0 && (
       <InfoCardPills>
@@ -511,11 +509,9 @@ const AssistantCardBody: React.FC<{ info: AssistantCardInfo }> = ({ info }) => (
       </InfoCardPills>
     )}
 
-    {info.modelName && <InfoCardMeta>Uses: {info.modelName}</InfoCardMeta>}
+    {info.description && <InfoCardText>{info.description}</InfoCardText>}
 
-    {info.toolCount > 0 && (
-      <InfoCardMeta>{info.toolCount === 1 ? '1 tool' : `${info.toolCount} tools`}</InfoCardMeta>
-    )}
+    {info.instructions && <InfoCardItalic>Instructions: {info.instructions}</InfoCardItalic>}
   </>
 );
 
@@ -680,6 +676,8 @@ const AssistantSubmenu: React.FC<{
                 (e.currentTarget as HTMLElement).style.background = isActive ? 'var(--bg-hover)' : 'transparent';
                 card.hide();
               }}
+              onFocus={(e) => card.show(assistantCardInfo(a, resolveModelName), e.currentTarget)}
+              onBlur={card.hide}
             >
               <IconRobot size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -717,6 +715,8 @@ const AssistantSubmenu: React.FC<{
                 (e.currentTarget as HTMLElement).style.background = isActive ? 'var(--bg-hover)' : 'transparent';
                 card.hide();
               }}
+              onFocus={(e) => card.show(layeredCardInfo(la, resolveModelName), e.currentTarget)}
+              onBlur={card.hide}
             >
               <IconRobot size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -745,7 +745,7 @@ const AssistantSubmenu: React.FC<{
 
       {/* Hover-preview card — portalled out so the panel's overflow can't clip it */}
       {card.item && (
-        <InfoFloatCard anchor={card.anchor}>
+        <InfoFloatCard anchor={card.anchor} onMouseEnter={card.cancelHide} onMouseLeave={card.hide}>
           <AssistantCardBody info={card.item} />
         </InfoFloatCard>
       )}
