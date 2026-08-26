@@ -392,8 +392,8 @@ mechanism.*
 
 ## 8. Sharing Overhaul (send + receive)
 
-**Status:** 🚧 Old modal still in use, no new-UI redesign
-**% complete:** ~10%
+**Status:** ⬜ Prompt written — not yet run
+**% complete:** ~10% (share button exists; no new-UI send modal; no received-shares surface)
 **Type:** UX redesign + implementation.
 
 Per `NEW_UI_PORTING_STATUS.md` §2/§7: the Share button in `ConversationHeader.tsx` exists and
@@ -1068,6 +1068,178 @@ From the "Scrollbar auto-hide CSS cascade bug" prompt. Single CSS line change.
 - **Root cause:** Chrome resolves conflicting `!important` rules on `::-webkit-scrollbar-*` by source order (not specificity). The global `[data-new-ui="true"] ::-webkit-scrollbar-thumb { background-color: #93c5fd !important }` rule (~line 1145) appeared AFTER the `.chatcontainer`-specific `transparent !important` rule (~line 269) — Chrome always picked line 1145, making the thumb permanently blue regardless of `data-scrolling`.
 - **Fix:** Removed `!important` from `background-color` on the global rule at ~line 1145 only. Block A (chat-specific) now correctly wins for `.chatcontainer`; all other scrollbars still use Block B's `#93c5fd`.
 - Wiki §9 updated with new Standing Rule §13 documenting the Chrome source-order gotcha.
+
+---
+
+## 24. Assistant Creation Modal Overhaul (CreationModalShell + inline access type)
+
+**Status:** ⬜ Prompt written — not yet run
+**% complete:** 0%
+**Type:** Feature build — UX redesign.
+
+Eliminate the `NewAssistantTypeSelector.tsx` two-step flow. Build a unified creation modal where
+access-type selection (Private / Managed URL / Team) lives at the TOP of the form alongside name,
+description, and all other fields. Also build a shared `CreationModalShell.tsx` reused by both
+assistant and prompt-template creation.
+
+**Key files:**
+- NEW: `components/NewUI/shared/CreationModalShell.tsx` — single-column creation shell (1100px ×
+  min(820px, 90dvh), flex-column header row, scrollable body, optional footer Save/Cancel)
+- NEW: `components/NewUI/views/NewUIAssistantCreationModal.tsx` — unified creation form (access
+  type cards at top + form fields; ports key fields OR CSS-suppresses old AssistantModal body
+  depending on whether AssistantModal portals to document.body — investigation required)
+- MODIFY: `components/NewUI/views/NewAssistantsView.tsx` — replace `NewAssistantTypeSelector` open
+  path with `NewUIAssistantCreationModal`; keep edit path using old `AssistantModal`
+- MODIFY/WRAP: `components/NewUI/settings/PromptTemplatesSection.tsx` — apply same `CreationModalShell`
+  chrome to PromptModal
+
+**Critical investigation first (Step 0):** does AssistantModal portal to `document.body`? If yes → port
+essential fields into the new component. If no → CSS-suppression of its chrome is viable.
+
+Full prompt was written in orchestrator session 2026-08-26.
+
+---
+
+## 25. Assistant Row Hover Actions + ChatsListView Hover Actions
+
+**Status:** ⬜ Prompt written — not yet run
+**% complete:** 0%
+**Type:** Feature build — UX enhancement.
+
+Two surfaces in one session:
+
+**Assistants view (`NewAssistantsView.tsx`):**
+- Edit button → open `NewUIAssistantCreationModal` (if it exists from Task 24) instead of old
+  `AssistantModal`; add edit-mode prop support if needed
+- Add **Share** icon button on hover → `NewUIShareModal` (from Task 8, if built) or old share
+  mechanism as fallback
+- Add **Delete** icon button on hover → `ConfirmDialog.tsx` (Phase 52); calls the regular-assistant
+  delete handler (investigate what it is); only on "My Assistants" tab (not "Shared with Me")
+
+**Chats & Tasks view (`ChatsListView.tsx`):**
+- Add hover state to conversation rows
+- Three icon buttons on hover: **Rename** (inline, same pattern as `ConversationRow.tsx`), **Share**
+  (`NewUIShareModal`), **Delete** (`ConfirmDialog.tsx`)
+- Inline rename: `renamingConversationId` state → replace title with `<input>`, save on Enter/blur,
+  cancel on Escape; calls `handleUpdateConversation`
+- Icon buttons: `e.stopPropagation()` so row click still navigates
+
+**Key files:** `NewAssistantsView.tsx`, `ChatsListView.tsx`, possibly extending `NewUIShareModal.tsx`
+and `NewUIAssistantCreationModal.tsx` if they exist.
+
+Full prompt was written in orchestrator session 2026-08-26.
+
+---
+
+## 26. Sidebar Conversation Title / ⋯ Button Overlap (Bug Fix)
+
+**Status:** ⬜ Prompt written — not yet run
+**% complete:** 0%
+**Type:** Bug fix — CSS/layout.
+
+Long chat titles in the sidebar Recents list overlap the ⋯ (more options) button on hover.
+The title renders at full row width and the button appears on top of it rather than displacing it.
+Also: truncation clips at container edge instead of showing "…" — classic `min-width: 0` / flex
+child symptom.
+
+**Fix approach (3 options, chosen after investigation):**
+- **Option A** (most likely): add `min-width: 0` to the title flex child — allows it to shrink so
+  the flex sibling ⋯ button takes its natural width
+- **Option B**: if button is `position:absolute` — reserve its width as `padding-right` on the title
+  on hover (`transition-[padding] 100ms`)
+- **Option C**: if button is conditionally mounted — always mount it with `opacity-0 pointer-events-none`
+  when not hovered; then apply Option A
+
+**Key file:** `components/NewUI/sidebar/ConversationRow.tsx` (+ `conversation-view.css` if CSS approach)
+
+Full prompt was written in orchestrator session 2026-08-26.
+
+---
+
+## 27. Chat Layout Fixes — 4 Issues (Phase 60 + 3 new)
+
+**Status:** ⬜ Prompt written — not yet run
+**% complete:** 0%
+**Type:** Bug fix — CSS/layout/animation. Incorporates the previously tracked Phase 60 hover-row gap.
+
+Four independently rooted issues combined in one session:
+
+**Issue 1 — Blank gap after send:** Between user message appearing and `messageIsStreaming` becoming
+true, nothing shows below the prompt. Fix: add `sentThisTurnRef` + `showPendingIndicator` derived state
+in `ConversationViewShell.tsx`; render a three-dot breathing placeholder when `true`.
+
+**Issue 2 — Circular loader left edge clipped:** The circular loading animation has its left edge cut
+off. Suspected cause: `mask-image` on `.chatcontainer` (Phase 58) fading the top-left zone where the
+loader sits, or an ancestor `overflow: hidden`. Fix depends on investigation.
+
+**Issue 3 — Hover action row gap (Phase 60):** Too much vertical space between end of AI response and
+hover action row. Three sub-issues: (a) trailing DOM blocks (DataSourcesBlock, AgentLogBlock, etc.)
+have non-zero height when empty → collapse them with CSS `:empty` rules; (b) reasoning block
+`margin-bottom: 10px` → reduce; (c) `padding-bottom` on `.assistant-message` too small to contain
+`GAP + row_height (~24px)` → raise to ≥28px.
+
+**Issue 4 — Amplify logo below AI responses:** An Amplify logo (`icon2.png` or similar) appears under
+the last AI response. Find via grep and either remove from new-UI component or hide via CSS scope.
+
+**Key files:** `ConversationViewShell.tsx`, `conversation-view.css`, `NewUIMessageActionsLayer.tsx`
+
+Full prompt was written in orchestrator session 2026-08-26.
+
+---
+
+## 28. Admin Panel Content Restyle
+
+**Status:** ⬜ Prompt written — not yet run
+**% complete:** 0%
+**Type:** CSS-scope restyle — show everything, change nothing functional.
+
+The `NewAdminModal.tsx` shell is already new-UI. The tab content sections render old-UI components
+with hardcoded Tailwind color classes and old design tokens. Restyle every section to use new-UI
+design tokens — `--bg-app/raised/active`, `--text-primary/secondary/muted`, `--border-subtle`,
+`--accent` — without modifying the underlying admin section components.
+
+**Approach:** Add `data-new-ui-admin-content="true"` to the content area div in `NewAdminModal.tsx`
+(one attribute addition). Write comprehensive CSS override rules in `conversation-view.css` under
+that scope (same pattern as `[data-new-ui-assistants="true"]` from Phase 47). Per-section passes
+for elements not covered by the base scope.
+
+**Base scope covers:** typography, surfaces/backgrounds, form inputs (focus ring with `--accent`),
+buttons (primary/secondary/danger), tables (column headers, row hover), toggles/checkboxes, cards,
+code blocks, status badges (green/red/amber with dark-mode variants), scrollbars.
+
+**Key files:** `NewAdminModal.tsx` (one attribute), `conversation-view.css` (new large block),
+optionally `components/NewUI/settings/admin/AdminSectionWrapper.tsx` for sections needing layout help.
+
+Full prompt was written in orchestrator session 2026-08-26.
+
+---
+
+## 29. Custom Scrollbar Auto-Hide Fix
+
+**Status:** ⬜ Prompt written — not yet run
+**% complete:** 0%
+**Type:** Bug fix — CSS.
+
+Blue scrollbars in sidebar recents and chat pane are permanently visible. Root cause: declaring
+`::webkit-scrollbar { width: Xpx }` opts the element out of OS overlay scrollbar mode entirely,
+making it permanently classic (always-visible, layout-reserving). The Phase 58/59 `data-scrolling`
+transparent-thumb trick cannot restore overlay behavior once classic mode is forced.
+
+**Fix:**
+1. Remove ALL `::webkit-scrollbar { width/height }` declarations from the affected containers in
+   `globals.css` and `conversation-view.css` → restores OS overlay behavior on macOS
+2. Set `--nui-sb-clear: 0px` (overlay scrollbars don't reserve gutter width) → Phase 58 header/
+   composer `right: var(--nui-sb-clear)` evaluates to `right: 0` automatically
+3. Simplify `.chatcontainer` `mask-image` from two-layer back to single-layer top-fade (the
+   horizontal clearance column was only needed to clear the scrollbar gutter that no longer exists)
+4. Keep the `data-scrolling` JS idle-timer mechanism in `ConversationViewShell.tsx` unchanged —
+   it's progressive enhancement for Windows/Linux where OS doesn't auto-hide classic scrollbars
+5. Add equivalent `data-scrolling` idle-timer to sidebar recents in `NewSidebar.tsx`
+
+**Key files:** `globals.css`, `conversation-view.css`, `NewSidebar.tsx`
+(`ConversationViewShell.tsx` unchanged)
+
+Full prompt was written in orchestrator session 2026-08-26.
 
 ---
 

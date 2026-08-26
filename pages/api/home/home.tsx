@@ -63,7 +63,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { WorkflowDefinition } from "@/types/workflow";
 import { saveWorkflowDefinitions } from "@/utils/app/workflows";
 // import { Market } from "@/components/Market/Market";
-import { useSession, signIn, signOut } from "next-auth/react"
+import { useSession, signOut } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
@@ -96,11 +96,11 @@ import { useRouter } from 'next/router';
 import { AdminConfigTypes } from '@/types/admin';
 import { ConversationStorage } from '@/types/conversationStorage';
 import UserMenu from '@/components/Layout/UserMenu';
-import { Logo } from '@/components/Logo/Logo';
 import { ThemeService } from '@/utils/whiteLabel/themeService';
 // New UI imports
 import { NewSidebar } from '@/components/NewUI/sidebar/NewSidebar';
 import { NewHome } from '@/components/NewUI/home/NewHome';
+import { NewLogin } from '@/components/NewUI/home/NewLogin';
 import { ChatsListView } from '@/components/NewUI/views/ChatsListView';
 import { NewLibraryView } from '@/components/NewUI/views/NewLibraryView';
 import { ConversationViewShell } from '@/components/NewUI/chat/ConversationViewShell';
@@ -1804,31 +1804,7 @@ const Home = ({
             <main
                 className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`} 
                 style={{backgroundColor: lightMode === 'dark' ? 'black' : 'white'}}>
-                <div
-                    className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white">
-                    <div className="mb-8">
-                        <Logo width={200} height={60} />
-                    </div>
-                    <button
-                        onClick={() => signIn('cognito')}
-                        id="loginButton"
-                        className="shadow-md"
-                        style={{
-                            backgroundColor: 'white',
-                            border: '2px solid #ccc',
-                            color: 'black',
-                            fontWeight: 'bold',
-                            padding: '10px 20px',
-                            borderRadius: '5px',
-                            cursor: 'pointer',
-                            transition: 'background-color 0.3s ease-in-out',
-                        }}
-                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
-                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
-                    >
-                        Login
-                    </button>
-                </div>
+                <NewLogin />
             </main>
         );
     }
@@ -1865,4 +1841,3 @@ export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
         },
     };
 };
-
