@@ -40,6 +40,7 @@ import {
     IconAlertCircle,
     IconCheckbox,
     IconSquare,
+    IconEye,
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import {
@@ -54,6 +55,8 @@ import { mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
 import { embeddingDocumentStatus } from '@/services/adminService';
 import { capitalize } from '@/utils/app/data';
 import { handleFile } from '@/components/Chat/AttachFile';
+import AttachmentPreview from '@/components/NewUI/shared/AttachmentPreview';
+import { UIAttachment } from '@/components/NewUI/shared/attachmentTypes';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -75,6 +78,32 @@ function formatTime(isoString: string): string {
     } catch {
         return '';
     }
+}
+
+/** Return the byte count stored on a library record by the file service. */
+function getFileBytes(file: FileRecord): number {
+    const record = file as FileRecord & { size?: unknown; contentLength?: unknown; bytes?: unknown };
+    const candidates = [
+        record.size,
+        record.contentLength,
+        record.bytes,
+        file.data?.size,
+        file.data?.fileSize,
+        file.data?.bytes,
+        file.data?.sizeBytes,
+        file.data?.contentLength,
+        file.data?.metadata?.size,
+        file.data?.metadata?.fileSize,
+        file.data?.metadata?.bytes,
+        file.data?.metadata?.sizeBytes,
+        file.data?.metadata?.contentLength,
+    ];
+
+    const value = candidates.find((candidate) => {
+        const numeric = typeof candidate === 'string' ? Number(candidate) : candidate;
+        return typeof numeric === 'number' && Number.isFinite(numeric) && numeric >= 0;
+    });
+    return typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : 0;
 }
 
 /** Return the appropriate Tabler file-type icon for a mime type. */
@@ -187,6 +216,9 @@ interface FileRowProps {
     onDelete: () => void;
     onReprocess: () => void;
     onStatusRefresh: () => void;
+    imagePreviewUrl?: string;
+    imagePreviewLoading?: boolean;
+    onPreview: (originRect: DOMRect) => void;
 }
 
 const FileRow: React.FC<FileRowProps> = ({
@@ -201,6 +233,9 @@ const FileRow: React.FC<FileRowProps> = ({
     onDelete,
     onReprocess,
     onStatusRefresh,
+    imagePreviewUrl,
+    imagePreviewLoading = false,
+    onPreview,
 }) => {
     const [hovered, setHovered] = useState(false);
     const key = extractKey(file);
@@ -231,12 +266,39 @@ const FileRow: React.FC<FileRowProps> = ({
                 </button>
             )}
 
-            {/* File type icon */}
+            {/* File type tile / image preview */}
             <div
-                className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-[8px]"
+                className="group/file-tile relative flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-[8px] overflow-hidden"
                 style={{ backgroundColor: 'var(--bg-raised)' }}
             >
-                <FileTypeIcon mime={file.type} size={16} />
+                {imagePreviewUrl ? (
+                    <img src={imagePreviewUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                    <FileTypeIcon mime={file.type} size={16} />
+                )}
+                {imagePreviewLoading && (
+                    <div
+                        className="absolute inset-0 flex items-center justify-center"
+                        role="status"
+                        aria-label="Loading preview"
+                        style={{ backgroundColor: 'rgba(0, 0, 0, 0.42)', color: 'white' }}
+                    >
+                        <IconLoader2 size={16} className="animate-spin" />
+                    </div>
+                )}
+                <button
+                    type="button"
+                    aria-label={'Preview ' + file.name}
+                    title="Preview"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onPreview(e.currentTarget.parentElement?.getBoundingClientRect() ?? new DOMRect());
+                    }}
+                    className="absolute inset-0 flex items-center justify-center opacity-0 pointer-events-none group-hover/file-tile:opacity-100 group-hover/file-tile:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto transition-opacity duration-100"
+                    style={{ backgroundColor: 'rgba(0, 0, 0, 0.48)', color: 'white' }}
+                >
+                    <IconEye size={17} strokeWidth={2} />
+                </button>
             </div>
 
             {/* Name + tags */}
@@ -418,6 +480,11 @@ export const NewLibraryView: React.FC = () => {
     // Upload
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
+    const [imagePreviewUrls, setImagePreviewUrls] = useState<Record<string, string>>({});
+    const [imagePreviewLoading, setImagePreviewLoading] = useState<Record<string, boolean>>({});
+    const [previewBytes, setPreviewBytes] = useState<Record<string, number>>({});
+    const [previewAttachment, setPreviewAttachment] = useState<UIAttachment | null>(null);
+    const [previewOriginRect, setPreviewOriginRect] = useState<DOMRect | undefined>(undefined);
 
     // ── Fetch ──────────────────────────────────────────────────────────────────
 
@@ -522,6 +589,115 @@ export const NewLibraryView: React.FC = () => {
 
         Promise.allSettled(promises).finally(() => setIsLoadingStatus(false));
     }, [data]);
+
+    // Fetch signed URLs so image files can use their type tile as a thumbnail.
+    useEffect(() => {
+        let active = true;
+        const createdUrls: string[] = [];
+        const imageFiles = data.filter((file) => file.type.startsWith('image/'));
+        if (!imageFiles.length) {
+            setImagePreviewUrls({});
+            setImagePreviewLoading({});
+            return () => { active = false; };
+        }
+        setImagePreviewLoading(Object.fromEntries(imageFiles.map((file) => [file.id, true])));
+
+        Promise.all(
+            imageFiles.map(async (file) => {
+                try {
+                    const response = await getFileDownloadUrl(extractKey(file), undefined);
+                    if (!response.success || !response.downloadUrl) return null;
+
+                    // The file service returns image downloads as base64 text. Convert
+                    // that payload to an object URL before giving it to <img>.
+                    const imageResponse = await fetch(response.downloadUrl);
+                    if (!imageResponse.ok) return null;
+                    const base64 = await imageResponse.text();
+                    const byteCharacters = window.atob(base64);
+                    const byteArray = Uint8Array.from(byteCharacters, (char) => char.charCodeAt(0));
+                    const objectUrl = URL.createObjectURL(new Blob([byteArray], { type: file.type }));
+                    createdUrls.push(objectUrl);
+                    setPreviewBytes((current) => ({ ...current, [file.id]: byteArray.byteLength }));
+                    return [file.id, objectUrl] as const;
+                } catch {
+                    return null;
+                }
+            })
+        ).then((results) => {
+            if (!active) {
+                createdUrls.forEach((url) => URL.revokeObjectURL(url));
+                return;
+            }
+            setImagePreviewUrls(Object.fromEntries(results.filter((result): result is readonly [string, string] => result !== null)));
+            setImagePreviewLoading(Object.fromEntries(imageFiles.map((file) => [file.id, false])));
+        });
+
+        return () => {
+            active = false;
+            createdUrls.forEach((url) => URL.revokeObjectURL(url));
+        };
+    }, [data]);
+
+    const handlePreview = async (file: FileRecord & { commonType?: string }, originRect: DOMRect) => {
+        setPreviewOriginRect(originRect);
+        const isImage = file.type.startsWith('image/');
+        const isText = file.type.startsWith('text/') || /\.(csv|tsv|json|xml|html?|md)$/i.test(file.name);
+        const bytes = getFileBytes(file);
+        const existingUrl = imagePreviewUrls[file.id];
+        const knownBytes = previewBytes[file.id];
+        const previewState = isImage || isText
+            ? (existingUrl ? 'available' : 'pending')
+            : 'unsupported';
+
+        setPreviewAttachment({
+            id: file.id,
+            kind: isImage ? 'image' : 'file',
+            status: 'ready',
+            name: file.name,
+            ext: isImage ? null : (file.name.split('.').pop()?.toUpperCase() ?? null),
+            bytes: knownBytes ?? bytes,
+            mime: file.type || 'application/octet-stream',
+            previewUrl: existingUrl,
+            thumbUrl: existingUrl,
+            previewState,
+        });
+
+        if (existingUrl || previewState === 'unsupported') return;
+        try {
+            const response = await getFileDownloadUrl(extractKey(file), undefined);
+            if (response.success && response.downloadUrl) {
+                let previewUrl = response.downloadUrl;
+                let loadedBytes: number | undefined;
+                if (isImage) {
+                    const imageResponse = await fetch(response.downloadUrl);
+                    if (!imageResponse.ok) throw new Error('Preview request failed: ' + imageResponse.status);
+                    const base64 = await imageResponse.text();
+                    const byteCharacters = window.atob(base64);
+                    const byteArray = Uint8Array.from(byteCharacters, (char) => char.charCodeAt(0));
+                    previewUrl = URL.createObjectURL(new Blob([byteArray], { type: file.type }));
+                    loadedBytes = byteArray.byteLength;
+                    setPreviewBytes((current) => ({ ...current, [file.id]: byteArray.byteLength }));
+                } else {
+                    const textResponse = await fetch(response.downloadUrl);
+                    if (!textResponse.ok) throw new Error('Preview request failed: ' + textResponse.status);
+                    const text = await textResponse.text();
+                    loadedBytes = new TextEncoder().encode(text).byteLength;
+                    setPreviewBytes((current) => ({ ...current, [file.id]: loadedBytes! }));
+                }
+                setPreviewAttachment((current) => current ? {
+                    ...current,
+                    previewUrl,
+                    thumbUrl: isImage ? previewUrl : undefined,
+                    bytes: loadedBytes ?? previewBytes[file.id] ?? bytes,
+                    previewState: 'available',
+                } : current);
+            } else {
+                setPreviewAttachment((current) => current ? { ...current, previewState: 'failed' } : current);
+            }
+        } catch {
+            setPreviewAttachment((current) => current ? { ...current, previewState: 'failed' } : current);
+        }
+    };
 
     // ── Actions ────────────────────────────────────────────────────────────────
 
@@ -936,6 +1112,9 @@ export const NewLibraryView: React.FC = () => {
                                 onDelete={() => handleDelete(file)}
                                 onReprocess={() => handleReprocess(file)}
                                 onStatusRefresh={() => handleStatusRefresh(file)}
+                            imagePreviewUrl={imagePreviewUrls[file.id]}
+                            imagePreviewLoading={file.type.startsWith('image/') && imagePreviewLoading[file.id]}
+                            onPreview={(originRect) => handlePreview(file, originRect)}
                             />
                         ))}
 
@@ -976,6 +1155,14 @@ export const NewLibraryView: React.FC = () => {
                     </>
                 )}
             </div>
+            {previewAttachment && (
+                <AttachmentPreview
+                    attachments={[previewAttachment]}
+                    initialIndex={0}
+                    originRect={previewOriginRect}
+                    onClose={() => { setPreviewAttachment(null); setPreviewOriginRect(undefined); }}
+                />
+            )}
         </div>
     );
 };

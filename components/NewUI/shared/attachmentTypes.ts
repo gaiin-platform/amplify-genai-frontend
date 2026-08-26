@@ -40,6 +40,7 @@ export interface UIAttachment {
 
   // kind-specific
   thumbUrl?: string;            // image — object-URL or base64 data-URL
+  previewUrl?: string;          // library preview URL (revocable by the owner)
   bodyPreview?: string;         // paste — first ~400 chars shown on card
   lineCount?: number;           // text-ish — drives meta line in preview
   dimensions?: { w: number; h: number }; // image

@@ -10,6 +10,7 @@
  *   §11  keyboard & a11y
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { IconLoader2 } from '@tabler/icons-react';
 import { UIAttachment, formatBytes } from './attachmentTypes';
 
 interface AttachmentPreviewProps {
@@ -47,11 +48,47 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
   );
   const [panelMounted, setPanelMounted] = useState(false);
   const [contentVisible, setContentVisible] = useState(false);
+  const [remoteText, setRemoteText] = useState<string | undefined>(undefined);
+  const [remoteTextLoading, setRemoteTextLoading] = useState(false);
+  const [remoteTextFailed, setRemoteTextFailed] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const reduced = prefersReducedMotion();
 
   const attachment = attachments[idx];
+
+  useEffect(() => {
+    let cancelled = false;
+    setRemoteText(undefined);
+    setRemoteTextFailed(false);
+    const isRemoteText = Boolean(
+      attachment?.previewUrl &&
+      attachment.previewState === 'available' &&
+      !attachment.fullText &&
+      !attachment.bodyPreview &&
+      !attachment.mime.startsWith('image/'),
+    );
+    if (!isRemoteText || !attachment?.previewUrl) {
+      setRemoteTextLoading(false);
+      return;
+    }
+    setRemoteTextLoading(true);
+    fetch(attachment.previewUrl)
+      .then((response) => {
+        if (!response.ok) throw new Error(`Preview request failed: ${response.status}`);
+        return response.text();
+      })
+      .then((text) => {
+        if (!cancelled) setRemoteText(text);
+      })
+      .catch(() => {
+        if (!cancelled) setRemoteTextFailed(true);
+      })
+      .finally(() => {
+        if (!cancelled) setRemoteTextLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [attachment]);
 
   // ── FLIP entrance animation ────────────────────────────────────────────────
   useEffect(() => {
@@ -146,7 +183,8 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
 
   if (!attachment) return null;
 
-  const { name, kind, mime, bytes, lineCount, dimensions, previewState, caveat, fullText, thumbUrl, bodyPreview } = attachment;
+  const { name, kind, mime, bytes, lineCount, dimensions, previewState, caveat, fullText, thumbUrl, previewUrl, bodyPreview } = attachment;
+  const previewText = fullText ?? bodyPreview ?? remoteText;
 
   // Meta line items (spec §7.2)
   const metaItems: string[] = [formatBytes(bytes)];
@@ -161,7 +199,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
     name.endsWith('.csv') ||
     name.endsWith('.tsv');
 
-  const csvRows = isCSV && fullText ? parseCSV(fullText) : null;
+  const csvRows = isCSV && previewText ? parseCSV(previewText) : null;
   const csvTruncated = csvRows && csvRows.length > 500;
 
   // Is image?
@@ -307,6 +345,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
             background: 'var(--bg-raised)',
             borderRadius: 12,
             padding: '22px 24px',
+            position: 'relative',
             overflow: 'auto',
             overscrollBehavior: 'contain',
             maskImage: 'linear-gradient(to bottom, #000 0, #000 calc(100% - 20px), transparent 100%)',
@@ -315,6 +354,16 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
             transition: reduced ? 'none' : 'opacity 180ms ease 40ms',
           }}
         >
+          {previewState === 'pending' || (previewState === 'available' && ((isImage && !(thumbUrl || previewUrl)) || remoteTextLoading)) ? (
+            <div
+              className="absolute inset-0 flex items-center justify-center"
+              role="status"
+              aria-label="Loading preview"
+              style={{ backgroundColor: 'rgba(0, 0, 0, 0.16)', color: 'var(--text-secondary)' }}
+            >
+              <IconLoader2 size={24} className="animate-spin" />
+            </div>
+          ) : null}
           {previewState === 'too-large' && (
             <UnavailableBlock
               icon="⚠"
@@ -352,25 +401,18 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
           )}
           {previewState === 'available' && (
             <>
-              {isImage && thumbUrl && (
+              {isImage && (thumbUrl || previewUrl) && (
                 /* Image: letterboxed, object-fit:contain (spec §7.3) */
                 <div
                   className="flex items-center justify-center w-full h-full"
                   style={{
                     minHeight: 200,
-                    /* Checkerboard for transparency */
-                    backgroundImage:
-                      'linear-gradient(45deg, #ccc 25%, transparent 25%), ' +
-                      'linear-gradient(-45deg, #ccc 25%, transparent 25%), ' +
-                      'linear-gradient(45deg, transparent 75%, #ccc 75%), ' +
-                      'linear-gradient(-45deg, transparent 75%, #ccc 75%)',
-                    backgroundSize: '20px 20px',
-                    backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
+                    background: 'var(--bg-raised)',
                     borderRadius: 8,
                   }}
                 >
                   <img
-                    src={thumbUrl}
+                    src={thumbUrl ?? previewUrl}
                     alt={name}
                     style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
                   />
@@ -459,7 +501,22 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
                 </div>
               )}
 
-              {!isImage && !isCSV && (fullText || bodyPreview) && (
+              {remoteTextLoading && (
+                <div role="status" style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
+                  Loading preview…
+                </div>
+              )}
+
+              {remoteTextFailed && (
+                <UnavailableBlock
+                  icon="⚠"
+                  line1="This file couldn't be read for preview."
+                  line2="Try downloading the file instead."
+                  showDownload={false}
+                />
+              )}
+
+              {!isImage && !isCSV && !remoteTextLoading && !remoteTextFailed && previewText && (
                 /* Raw text source (spec §7.3) */
                 <pre
                   style={{
@@ -473,7 +530,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
                     overflowWrap: 'anywhere',
                   }}
                 >
-                  {fullText ?? bodyPreview}
+                  {previewText}
                 </pre>
               )}
             </>
