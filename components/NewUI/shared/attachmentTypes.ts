@@ -128,7 +128,9 @@ export function isTextPreviewable(name: string, mime: string): boolean {
  * the base64 representation and decode it; genuine binary responses fall back
  * to their raw bytes.
  */
-export async function imageResponseToObjectUrl(response: Response): Promise<string> {
+export async function imageResponseToObjectUrlWithBytes(
+  response: Response,
+): Promise<{ objectUrl: string; bytes: number }> {
   const contentType = response.headers.get('content-type') || 'image/png';
   const payload = await response.arrayBuffer();
   const text = new TextDecoder().decode(payload).trim();
@@ -149,15 +151,27 @@ export async function imageResponseToObjectUrl(response: Response): Promise<stri
     try {
       const decoded = window.atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '='));
       const bytes = Uint8Array.from(decoded, (char) => char.charCodeAt(0));
-      return URL.createObjectURL(
-        new Blob([bytes], { type: contentType.includes('json') ? 'image/png' : contentType }),
-      );
+      return {
+        objectUrl: URL.createObjectURL(
+          new Blob([bytes], { type: contentType.includes('json') ? 'image/png' : contentType }),
+        ),
+        bytes: bytes.byteLength,
+      };
     } catch {
       // Fall through to the original binary payload.
     }
   }
 
-  return URL.createObjectURL(new Blob([payload], { type: contentType }));
+  return {
+    objectUrl: URL.createObjectURL(new Blob([payload], { type: contentType })),
+    bytes: payload.byteLength,
+  };
+}
+
+/** Backwards-compatible object-URL-only form for callers that do not need sizing. */
+export async function imageResponseToObjectUrl(response: Response): Promise<string> {
+  const { objectUrl } = await imageResponseToObjectUrlWithBytes(response);
+  return objectUrl;
 }
 
 /**

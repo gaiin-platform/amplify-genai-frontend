@@ -60,7 +60,7 @@ import {
   createPasteAttachment,
   getAttachmentMime,
   createUIAttachmentFromDoc,
-  imageResponseToObjectUrl,
+  imageResponseToObjectUrlWithBytes,
   isTextPreviewable,
   PASTE_AS_FILE_THRESHOLD,
 } from '@/components/NewUI/shared/attachmentTypes';
@@ -269,11 +269,17 @@ export const ConversationComposer: React.FC = () => {
           if (!response.ok) throw new Error(`Preview request failed: ${response.status}`);
 
           if (isImage) {
-            const objectUrl = await imageResponseToObjectUrl(response);
+            const { objectUrl, bytes } = await imageResponseToObjectUrlWithBytes(response);
             thumbUrlsRef.current[document.id] = objectUrl;
             setUIAttachments((prev) => prev.map((attachment) =>
               attachment.id === document.id
-                ? { ...attachment, thumbUrl: objectUrl, previewUrl: objectUrl, previewState: 'available' }
+                ? {
+                    ...attachment,
+                    bytes: attachment.bytes || bytes,
+                    thumbUrl: objectUrl,
+                    previewUrl: objectUrl,
+                    previewState: 'available',
+                  }
                 : attachment,
             ));
           } else if (isText) {

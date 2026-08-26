@@ -38,7 +38,7 @@ import {
   createUIAttachmentFromDoc,
   createPasteAttachment,
   getAttachmentMime,
-  imageResponseToObjectUrl,
+  imageResponseToObjectUrlWithBytes,
   isTextPreviewable,
 } from '@/components/NewUI/shared/attachmentTypes';
 import { getFileDownloadUrl } from '@/services/fileService';
@@ -205,11 +205,17 @@ export const NewHome: React.FC = () => {
         if (!response.ok) throw new Error(`Preview request failed: ${response.status}`);
 
         if (isImage) {
-          const objectUrl = await imageResponseToObjectUrl(response);
+          const { objectUrl, bytes } = await imageResponseToObjectUrlWithBytes(response);
           thumbUrlsRef.current[doc.id] = objectUrl;
           setUIAttachments((prev) => prev.map((a) =>
             a.id === doc.id
-              ? { ...a, thumbUrl: objectUrl, previewUrl: objectUrl, previewState: 'available' }
+              ? {
+                  ...a,
+                  bytes: a.bytes || bytes,
+                  thumbUrl: objectUrl,
+                  previewUrl: objectUrl,
+                  previewState: 'available',
+                }
               : a,
           ));
         } else if (isText) {
