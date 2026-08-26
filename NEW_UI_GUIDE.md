@@ -84,6 +84,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `NewUIMessageActionsLayer.tsx` | Absolute-positioned hover action row (copy/thumbs) |
 | `NewUIShareModal.tsx` | Share conversation/assistant modal |
 | `NewUIUserMessageMarkdownLayer.tsx` | Portal-based markdown render inside user bubbles |
+| `NewUITranscriptAttachmentsLayer.tsx` | Moves post-send attachment cards into a sibling surface above user bubbles |
 | `UploadPendingIndicator.tsx` | Thin progress bar shown while uploads are in flight |
 
 ### `home/`

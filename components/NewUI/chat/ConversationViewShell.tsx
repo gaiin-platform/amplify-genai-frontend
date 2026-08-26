@@ -32,6 +32,7 @@ import { ConversationHeader } from './ConversationHeader';
 import { ConversationComposer } from './ConversationComposer';
 import { NewUIMessageActionsLayer } from './NewUIMessageActionsLayer';
 import { NewUIUserMessageMarkdownLayer } from './NewUIUserMessageMarkdownLayer';
+import { NewUITranscriptAttachmentsLayer } from './NewUITranscriptAttachmentsLayer';
 import HomeContext from '@/pages/api/home/home.context';
 import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
 // Imports for the direct-send path (pending docs with S3 keys)
@@ -1053,6 +1054,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
 
       {/* §4/§5: Markdown rendering + collapse for user messages */}
       <NewUIUserMessageMarkdownLayer />
+      <NewUITranscriptAttachmentsLayer />
     </div>
   );
 };

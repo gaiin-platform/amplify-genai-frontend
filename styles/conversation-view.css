@@ -542,7 +542,8 @@
 ───────────────────────────────────────────────────────────────────────────── */
 [data-new-ui="true"] .enhanced-chat-message.user-message .enhanced-message-content {
   display: flex !important;
-  justify-content: flex-end !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
   width: 100% !important;
 }
 
@@ -557,6 +558,110 @@
   font-size: 16px !important;
   line-height: 1.65 !important;
   color: var(--text-primary) !important;
+}
+
+/* Post-send attachments are moved by NewUITranscriptAttachmentsLayer into a
+   sibling host. The classic DataSourcesBlock remains the source of preview,
+   download, loading, and file metadata behavior. */
+[data-new-ui="true"] .enhanced-chat-message.user-message.new-ui-has-attachments {
+  flex-direction: column !important;
+  align-items: flex-end !important;
+}
+
+/* Keep the moved attachment rail and its text bubble as one compact group.
+   The transcript list has a larger turn rhythm; it must not leak into the
+   two direct children inside this message. */
+[data-new-ui="true"] .enhanced-chat-message.user-message.new-ui-has-attachments .enhanced-message-content {
+  row-gap: 8px !important;
+}
+
+[data-new-ui="true"] .enhanced-chat-message.user-message.new-ui-has-attachments .enhanced-message-content > #chatHover {
+  margin-top: 0 !important;
+}
+
+[data-new-ui="true"] .new-ui-transcript-attachments {
+  align-self: flex-end !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+}
+
+[data-new-ui="true"] .new-ui-transcript-attachments > .mt-5.text-gray-800 {
+  width: auto !important;
+  margin: 0 !important;
+  color: var(--text-primary) !important;
+}
+
+[data-new-ui="true"] .new-ui-transcript-attachments > .mt-5.text-gray-800 > .mr-3:first-child {
+  display: none !important;
+}
+
+[data-new-ui="true"] .new-ui-transcript-attachments > .mt-5.text-gray-800 > .flex.flex-wrap {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  margin: 0 !important;
+}
+
+[data-new-ui="true"] .new-ui-transcript-attachments .flex.flex-wrap > .mr-3.mb-3 {
+  margin: 0 !important;
+  flex: 0 0 144px !important;
+  width: 144px !important;
+  height: 136px !important;
+}
+
+[data-new-ui="true"] .new-ui-transcript-attachments .flex.flex-wrap > .mr-3.mb-3 > .relative.group {
+  width: 144px !important;
+  height: 136px !important;
+}
+
+[data-new-ui="true"] .new-ui-transcript-attachments .rounded-lg.shadow-lg.overflow-hidden.relative {
+  width: 144px !important;
+  height: 136px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+[data-new-ui="true"] .new-ui-transcript-attachments .rounded-lg.shadow-lg.overflow-hidden.relative > .absolute.inset-0 {
+  inset: 0 !important;
+  height: auto !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+}
+
+[data-new-ui="true"] .new-ui-transcript-attachments img {
+  display: block !important;
+}
+
+[data-new-ui="true"] .new-ui-transcript-attachments .rounded-lg.shadow-lg.overflow-hidden.relative > .absolute.inset-0:not(.cursor-pointer) {
+  background: transparent !important;
+}
+
+[data-new-ui="true"] .new-ui-transcript-attachments .rounded-lg.shadow-lg.overflow-hidden.relative > .absolute.bottom-0.left-0.right-0 {
+  display: none !important;
+}
+
+[data-new-ui="true"] .new-ui-transcript-attachments .rounded-lg.shadow-lg.overflow-hidden.relative[role="button"]:hover,
+[data-new-ui="true"] .new-ui-transcript-attachments .rounded-lg.shadow-lg.overflow-hidden.relative[role="button"]:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px !important;
+}
+
+[data-new-ui="true"] .enhanced-chat-message.user-message.new-ui-attachments-only #chatHover {
+  display: none !important;
 }
 
 [data-new-ui="true"] #userMessage {
