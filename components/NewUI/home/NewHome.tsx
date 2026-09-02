@@ -356,8 +356,11 @@ export const NewHome: React.FC = () => {
     // exact message with deleteCount:1 (pop + re-append the same id), so the
     // transcript never shows a duplicate and never blanks.
     //
-    // Only for docs-with-keys sends: those are the ones taking PATH A. Text-only
-    // sends keep their existing (already fast) PATH B behaviour untouched.
+    // Seeded for any send carrying an attachment — docs with S3 keys, or a
+    // pasted-text block (which has no doc and travels inline on the message).
+    // Both take the shell's PATH A, which recognises this message by id and
+    // re-sends it with deleteCount:1. Text-only sends seed nothing and keep
+    // their existing (already fast) PATH B behaviour untouched.
     let optimisticMessage: Message | null = null;
     if (typeof window !== 'undefined' && (docsWithKeys.length > 0 || pastedAttachments.length > 0)) {
       const seeded: Message = newMessage({

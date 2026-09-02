@@ -33,6 +33,7 @@ import { ConversationComposer } from './ConversationComposer';
 import { NewUIMessageActionsLayer } from './NewUIMessageActionsLayer';
 import { NewUIUserMessageMarkdownLayer } from './NewUIUserMessageMarkdownLayer';
 import { NewUITranscriptAttachmentsLayer } from './NewUITranscriptAttachmentsLayer';
+import { NewUITranscriptPastedTextLayer } from './NewUITranscriptPastedTextLayer';
 import { NewUITranscriptPreviewLayer } from './NewUITranscriptPreviewLayer';
 import HomeContext from '@/pages/api/home/home.context';
 import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
@@ -252,14 +253,15 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
   //
   // Two paths:
   //
-  // A) WITH pending docs (images / files already uploaded to S3 by NewHome):
+  // A) WITH an attachment — pending docs uploaded to S3 by NewHome, or a
+  //    pasted-text block carried inline on the seeded message:
   //    - Read amplify_pending_docs, parse AttachedDocument[] with doc.key set
   //    - Call useSendService().handleSend() directly so the docs are included
   //      in the ChatRequest.documents field (ChatInput's internal documents
   //      state is unreachable from outside without modifying ChatInput.tsx).
   //    - Skip the #sendMessage DOM click to avoid a double send.
   //
-  // B) WITHOUT pending docs (text-only send):
+  // B) WITHOUT any attachment (text-only send):
   //    - Use the existing textarea injection + #sendMessage click approach.
   //    - ChatInput handles everything through its own pipeline.
   //
@@ -351,8 +353,17 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
         sessionStorage.removeItem('amplify_pending_skills');
       };
 
-      // ── PATH A: pending docs with S3 keys ──────────────────────────────────
-      if (docsWithKeys.length > 0 && conversation) {
+      // ── PATH A: a seeded message, or pending docs with S3 keys ─────────────
+      //
+      // `optimistic` alone is enough to require this path. A pasted-text send
+      // has no S3 document — the paste travels inline on the message as
+      // `content` plus `data.largeTextBlocks` — so `docsWithKeys` is empty and
+      // the old condition dropped it into PATH B. PATH B re-sends only
+      // `pendingText` (the typed prompt) through ChatInput, which appends a
+      // *second* user message: the transcript then showed the seeded message
+      // (with the paste chip) and ChatInput's plain copy stacked under it, and
+      // the pasted text never reached the model at all.
+      if ((docsWithKeys.length > 0 || optimistic) && conversation) {
         hasFiredRef.current = true;
         applyWebSearch();
         clearPending();
@@ -1170,6 +1181,11 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
       {/* §4/§5: Markdown rendering + collapse for user messages */}
       <NewUIUserMessageMarkdownLayer />
       <NewUITranscriptAttachmentsLayer />
+
+      {/* Sent pasted-text blocks are not dataSources, so the layer above never
+          sees them. This one renders them as shared/AttachmentCard chips in the
+          same rail, replacing the classic inline LargeTextDisplay panel. */}
+      <NewUITranscriptPastedTextLayer />
 
       {/* Routes post-send attachment previews through shared/AttachmentPreview —
           the same component the composer uses — instead of the classic modal,

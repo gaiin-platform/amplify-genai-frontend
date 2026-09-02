@@ -273,6 +273,100 @@ export function createPasteAttachment(text: string): UIAttachment {
   };
 }
 
+// ─── Transcript side of a paste (message.data.largeTextBlocks) ────────────────
+
+/**
+ * A pasted-text block as it travels on `message.data.largeTextBlocks`.
+ *
+ * This is the classic `LargeTextBlock` shape (utils/app/largeText.ts) written by
+ * `buildPastedTextMessage` below and, for the classic composer, by ChatInput.
+ * Every field is optional here because the object round-trips through the
+ * conversation store as untyped `data` and older messages may be missing some.
+ */
+export interface LargeTextBlockLike {
+  id?: string;
+  displayName?: string;
+  placeholderChar?: string;
+  originalText?: string;
+  charCount?: number;
+  lineCount?: number;
+  wordCount?: number;
+  preview?: { start?: string; end?: string };
+}
+
+/**
+ * Every paste placeholder that can appear in a label: the `[TEXT_n]` token
+ * `buildPastedTextMessage` and the classic ChatInput both write
+ * (`PLACEHOLDER_CONFIG.FORMAT`), plus the circled digits legacy messages use
+ * (ChatMessage.renderMessageWithLargeText still special-cases them).
+ */
+const LARGE_TEXT_PLACEHOLDER = /\[TEXT_\d+\]|[⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽]/g;
+
+/**
+ * Strip `[TEXT_n]` placeholders out of a message label.
+ *
+ * `buildPastedTextMessage` joins the typed prompt and one placeholder per paste
+ * with a blank line. Once the pastes render as their own attachment chips the
+ * placeholders are noise, and removing them leaves the blank-line joins behind —
+ * hence the newline collapse.
+ */
+export function stripLargeTextPlaceholders(text: string): string {
+  return text
+    .replace(LARGE_TEXT_PLACEHOLDER, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/** Byte lengths are only needed for display, so cache them per block. */
+const pasteByteCache = new Map<string, number>();
+
+function pasteBytes(cacheKey: string, text: string): number {
+  const cached = pasteByteCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  const bytes = new TextEncoder().encode(text).byteLength;
+  pasteByteCache.set(cacheKey, bytes);
+  return bytes;
+}
+
+/**
+ * Adapt a transcript `largeTextBlocks` entry to the `UIAttachment` shape, so a
+ * sent paste renders through the same `AttachmentCard` / `AttachmentPreview`
+ * pair as a pre-send paste in the composer rail.
+ *
+ * Line and character counts deliberately live only on the attachment (they
+ * surface in the preview overlay header) — never on the transcript chip.
+ */
+export function createUIAttachmentFromLargeTextBlock(
+  block: LargeTextBlockLike,
+  index: number,
+): UIAttachment {
+  const fullText = block.originalText ?? block.preview?.start ?? '';
+  const id = `paste-${block.id ?? block.placeholderChar ?? index}`;
+  const bytes = pasteBytes(id, fullText);
+  const lineCount = block.lineCount ?? (fullText ? fullText.split('\n').length : undefined);
+
+  let previewState: UIAttachmentPreviewState = 'available';
+  if (bytes > TOO_LARGE_TEXT_BYTES || (lineCount ?? 0) > TOO_LARGE_TEXT_LINES) {
+    previewState = 'too-large';
+  }
+
+  return {
+    id,
+    kind: 'paste',
+    status: 'ready',
+    name: block.displayName?.trim() || derivePasteTitle(fullText),
+    ext: null,
+    bytes,
+    mime: 'text/plain',
+    bodyPreview: fullText.slice(0, 400),
+    fullText: block.originalText,
+    lineCount,
+    previewState,
+    caveat: 'Formatting may be inconsistent from source',
+  };
+}
+
 /**
  * Build the message fields for paste attachments. Paste cards have no S3
  * document, so they must travel as inline message content rather than through

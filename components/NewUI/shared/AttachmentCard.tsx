@@ -17,8 +17,8 @@ import { UIAttachment, formatBytes } from './attachmentTypes';
 
 interface AttachmentCardProps {
   attachment: UIAttachment;
-  /** Called when the user clicks × to dismiss the card. */
-  onRemove: (id: string) => void;
+  /** Called when the user clicks × to dismiss the card. Omit for a read-only card. */
+  onRemove?: (id: string) => void;
   /** Called when the user clicks the card face to open the preview overlay. */
   onPreview: (id: string, originRect: DOMRect) => void;
   /** Called when the user clicks "Retry" on a failed card. */
@@ -27,9 +27,23 @@ interface AttachmentCardProps {
   alwaysShowRemove?: boolean;
   /** Animation entry state — used by parent to control enter animation class. */
   enterState?: 'entering' | 'entered';
+  /**
+   * Card footprint. Defaults to the composer rail's 160×160. The transcript
+   * rail passes the smaller card size the moved classic attachment cards use,
+   * so a paste chip and an image chip are the same object in the same row.
+   */
+  width?: number;
+  height?: number;
+  /**
+   * A sent attachment cannot be removed or retried — hide those affordances
+   * without every caller having to pass no-op handlers.
+   */
+  readOnly?: boolean;
 }
 
 const CARD_SIZE = 160;
+/** Below this edge length the 14px inset leaves too little room for text. */
+const COMPACT_BELOW = 150;
 
 export const AttachmentCard: React.FC<AttachmentCardProps> = ({
   attachment,
@@ -38,6 +52,9 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
   onRetry,
   alwaysShowRemove = false,
   enterState = 'entered',
+  width = CARD_SIZE,
+  height = CARD_SIZE,
+  readOnly = false,
 }) => {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -55,8 +72,11 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
     error,
   } = attachment;
 
-  const showRemove = alwaysShowRemove || hovered;
+  const showRemove = !readOnly && Boolean(onRemove) && (alwaysShowRemove || hovered);
   const isFailed = status === 'failed';
+  const compact = Math.min(width, height) < COMPACT_BELOW;
+  const inset = compact ? 10 : 14;
+  const pasteFontSize = compact ? 11.5 : 12.5;
 
   // Progress bar fill: determinate when progress is a number, indeterminate when undefined
   const progressFraction = progress ?? 0;
@@ -84,8 +104,8 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
       role="listitem"
       className="relative flex-shrink-0"
       style={{
-        width: CARD_SIZE,
-        height: CARD_SIZE,
+        width,
+        height,
         scrollSnapAlign: 'start',
       }}
       onMouseEnter={() => setHovered(true)}
@@ -136,7 +156,7 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
           {/* ── Body region ── */}
           <div
             className="relative overflow-hidden"
-            style={{ padding: kind !== 'image' ? 14 : 0 }}
+            style={{ padding: kind !== 'image' ? inset : 0 }}
           >
             {kind === 'image' ? (
               /* Image variant: thumbnail letterboxed in card, no badge */
@@ -175,7 +195,7 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
               >
                 <span
                   style={{
-                    fontSize: 12.5,
+                    fontSize: pasteFontSize,
                     lineHeight: 1.5,
                     color: 'var(--text-muted)',
                     whiteSpace: 'pre-wrap',
@@ -218,7 +238,7 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
 
           {/* ── Badge row ── */}
           {(ext || kind === 'paste' || isFailed) && kind !== 'image' && (
-            <div style={{ padding: '0 14px 14px', display: 'flex', alignItems: 'flex-end' }}>
+            <div style={{ padding: `0 ${inset}px ${inset}px`, display: 'flex', alignItems: 'flex-end' }}>
               <span
                 style={{
                   fontSize: 11,
@@ -302,6 +322,7 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
         </button>
 
         {/* ── Remove button — absolute sibling (not nested in the face button) ── */}
+        {!readOnly && onRemove && (
         <button
           aria-label={`Remove ${name}`}
           onClick={(e) => {
@@ -333,9 +354,10 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
         >
           ×
         </button>
+        )}
 
         {/* ── Retry button — shown on failed cards (absolute, bottom-center) ── */}
-        {isFailed && onRetry && (
+        {!readOnly && isFailed && onRetry && (
           <button
             aria-label={`Retry uploading ${name}`}
             onClick={(e) => {

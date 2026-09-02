@@ -11,10 +11,12 @@
  *   - Scans .chatcontainer for .user-message elements using the same
  *     MutationObserver + message-count fallback pattern as
  *     NewUIMessageActionsLayer.
- *   - For each user message (excluding hasLargeText messages) appends a
- *     .new-ui-user-md-host div to the #chatHover bubble container — the same
- *     div that provides the bubble background/radius/padding — if not already
- *     present.
+ *   - For each user message appends a .new-ui-user-md-host div to the #chatHover
+ *     bubble container — the same div that provides the bubble
+ *     background/radius/padding — if not already present.
+ *   - hasLargeText messages are included, with their `[TEXT_n]` paste
+ *     placeholders stripped: NewUITranscriptPastedTextLayer owns the pastes as
+ *     chips above the bubble, so the bubble renders the typed prompt only.
  *   - Renders ReactDOM.createPortal content into each host div, so the
  *     markdown is rendered inside the bubble's React tree.
  *   - Adds the class .new-ui-has-markdown to each processed .user-message
@@ -51,6 +53,7 @@ import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import HomeContext from '@/pages/api/home/home.context';
 import { Message } from '@/types/chat';
+import { stripLargeTextPlaceholders } from '@/components/NewUI/shared/attachmentTypes';
 
 // ─── Inline remark-breaks plugin ─────────────────────────────────────────────
 
@@ -307,15 +310,20 @@ export const NewUIUserMessageMarkdownLayer: React.FC = () => {
       // Only process user messages.
       if (!msgEl.classList.contains('user-message')) continue;
 
-      // Skip messages with large-text blocks — leave their existing
-      // renderMessageWithLargeText() output and #userMessage intact.
-      if ((message.data as any)?.hasLargeText) {
+      // Pasted-text messages carry a `[TEXT_n]` placeholder per paste in their
+      // label. NewUITranscriptPastedTextLayer renders those pastes as chips
+      // above the bubble, so the bubble owns the typed prompt *only* — strip the
+      // placeholders and let CSS hide #userMessage (whose classic
+      // renderMessageWithLargeText output re-prints the paste inline).
+      const raw = message.label ?? message.content ?? '';
+      const content = (message.data as any)?.hasLargeText
+        ? stripLargeTextPlaceholders(raw)
+        : raw.trim();
+      // Nothing typed alongside the paste — there is no bubble to render.
+      if (!content) {
         msgEl.classList.remove('new-ui-has-markdown');
         continue;
       }
-
-      const content = (message.label ?? message.content ?? '').trim();
-      if (!content) continue;
 
       // #chatHover is the bubble container (--bg-raised bg, 12px 18px padding).
       const chatHover = msgEl.querySelector<HTMLElement>('#chatHover');

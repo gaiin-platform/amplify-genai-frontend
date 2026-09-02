@@ -3924,3 +3924,52 @@
   background-color: var(--bg-active) !important;
   z-index: 3 !important;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Pasted-text attachments in the transcript
+   (NewUITranscriptPastedTextLayer)
+
+   A large paste travels on the message as `data.largeTextBlocks`, not as a
+   dataSource, so the classic UI substitutes each `[TEXT_n]` placeholder in the
+   label with a `LargeTextDisplay` panel *inside* `#userMessage` — a full-width
+   metadata header, a "Show full text" disclosure, and a 500-character reprint
+   of the paste. The New UI renders those blocks as `shared/AttachmentCard`
+   chips in the attachment rail instead, so the inline panel is suppressed.
+
+   Scoped to `.enhanced-chat-message.user-message` on purpose: `ChatInput` also
+   renders `LargeTextDisplay` (its pre-send preview) and lives inside the same
+   `[data-new-ui="true"]` shell.
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .enhanced-chat-message.user-message .large-text-display,
+[data-new-ui="true"] .enhanced-chat-message.user-message .inline-large-text-display {
+  display: none !important;
+}
+
+/* The rail holds a wrapping row of chips. NewUITranscriptAttachmentsLayer
+   writes the same declarations inline when it runs; this covers the paste-only
+   case, where there is no classic block for that layer to move and therefore
+   no inline geometry. */
+[data-new-ui="true"] .new-ui-transcript-attachments {
+  flex-wrap: wrap !important;
+}
+
+[data-new-ui="true"] .new-ui-transcript-attachments > .new-ui-transcript-pastes {
+  display: flex !important;
+  justify-content: flex-end !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Same 6px rail-to-bubble gap the moved classic cards get. */
+[data-new-ui="true"]
+  .enhanced-chat-message.user-message.new-ui-has-pastes:not(.new-ui-attachments-only):not(.new-ui-paste-only)
+  .new-ui-transcript-attachments {
+  margin-bottom: 6px !important;
+}
+
+/* Paste sent with no typed prompt: once the placeholders are stripped the
+   bubble holds nothing but the hidden panel, so it would render as an empty
+   pill under the chip. Mirrors .new-ui-attachments-only for images. */
+[data-new-ui="true"] .enhanced-chat-message.user-message.new-ui-paste-only #chatHover {
+  display: none !important;
+}
