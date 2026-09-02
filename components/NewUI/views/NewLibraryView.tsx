@@ -24,7 +24,6 @@ import {
     IconRefresh,
     IconReload,
     IconLoader2,
-    IconCheck,
     IconFile,
     IconFileTypePdf,
     IconFileTypeCsv,
@@ -60,9 +59,38 @@ import { capitalize } from '@/utils/app/data';
 import { handleFile } from '@/components/Chat/AttachFile';
 import type { AttachedDocument } from '@/types/attacheddocument';
 import AttachmentPreview from '@/components/NewUI/shared/AttachmentPreview';
+import ConfirmDialog from '@/components/NewUI/shared/ConfirmDialog';
+import NewUILoadingStatus from '@/components/NewUI/shared/NewUILoadingStatus';
 import { UIAttachment } from '@/components/NewUI/shared/attachmentTypes';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Strip a pagination cursor down to the attributes DynamoDB accepts as an
+ * ExclusiveStartKey for the index this query runs against.
+ *
+ * The files API synthesises the cursor itself whenever a query carries filters
+ * (the library always filters assistant records out), and that synthesised
+ * cursor carries extra attributes — notably `type`, sometimes null. DynamoDB
+ * rejects a start key containing attributes outside the table/index key
+ * schema, which surfaces to the client as a 502. Sending only
+ * `{id, createdBy, <sort key>}` keeps every page request valid.
+ */
+function sanitizePageKey(pageKey: PageKey | null | undefined, sortIndex: string): PageKey | null {
+    if (!pageKey) return null;
+    const source = pageKey as unknown as Record<string, unknown>;
+    // Table primary key (id) + index partition key (createdBy) + index sort key.
+    const allowed = Array.from(new Set(['id', 'createdBy', sortIndex || 'createdAt']));
+    const cleaned: Record<string, unknown> = {};
+    for (const attr of allowed) {
+        const value = source[attr];
+        if (typeof value === 'string' && value.length > 0) cleaned[attr] = value;
+    }
+    // DynamoDB requires the complete key: every allowed attribute must be present,
+    // otherwise the cursor is unusable and the query should start from the top.
+    if (allowed.some((attr) => !cleaned[attr])) return null;
+    return cleaned as unknown as PageKey;
+}
 
 function formatDate(isoString: string): string {
     try {
@@ -526,6 +554,7 @@ export const NewLibraryView: React.FC = () => {
     // Pagination
     const [pageIndex, setPageIndex] = useState(0);
     const [pageKeys, setPageKeys] = useState<PageKey[]>([]);
+    const pageKeysRef = useRef<PageKey[]>([]);
     const [hasMore, setHasMore] = useState(false);
     const PAGE_SIZE = 50;
 
@@ -539,6 +568,8 @@ export const NewLibraryView: React.FC = () => {
     const [isDeleteMode, setIsDeleteMode] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<FileRecord | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Search
     const [search, setSearch] = useState('');
@@ -555,6 +586,7 @@ export const NewLibraryView: React.FC = () => {
     const [imagePreviewUrls, setImagePreviewUrls] = useState<Record<string, string>>({});
     const [imagePreviewLoading, setImagePreviewLoading] = useState<Record<string, boolean>>({});
     const [previewBytes, setPreviewBytes] = useState<Record<string, number>>({});
+    const imagePreviewUrlsRef = useRef<Record<string, string>>({});
     const [previewAttachment, setPreviewAttachment] = useState<UIAttachment | null>(null);
     const [previewOriginRect, setPreviewOriginRect] = useState<DOMRect | undefined>(undefined);
 
@@ -566,11 +598,14 @@ export const NewLibraryView: React.FC = () => {
 
         try {
             const pageKeyIndex = newPageIndex - 1;
-            const pageKey = pageKeyIndex >= 0 ? keys[pageKeyIndex] : null;
+            const SORT_INDEX = 'createdAt';
+            const pageKey = pageKeyIndex >= 0
+                ? sanitizePageKey(keys[pageKeyIndex], SORT_INDEX)
+                : null;
 
             const query: FileQuery = {
                 pageSize: PAGE_SIZE,
-                sortIndex: 'createdAt',
+                sortIndex: SORT_INDEX,
                 forwardScan: false, // newest first (desc=true → forwardScan=false)
                 filters: [{
                     attribute: 'data.type',
@@ -582,6 +617,7 @@ export const NewLibraryView: React.FC = () => {
             if (newSearch.trim()) query.namePrefix = newSearch.trim();
 
             const result = await queryUserFiles(query, null);
+
             if (!result.success || !result.data) {
                 setIsError(true);
                 return;
@@ -595,12 +631,17 @@ export const NewLibraryView: React.FC = () => {
                 }));
 
             setData(items);
-            setHasMore(!!result.data.pageKey);
 
-            if ((pageKeyIndex >= keys.length - 1 || keys.length === 0) && result.data.pageKey) {
+            // Store the cursor already normalised so every later page request
+            // sends a start key DynamoDB will accept.
+            const nextKey = sanitizePageKey(result.data.pageKey, SORT_INDEX);
+            setHasMore(!!nextKey);
+
+            if ((pageKeyIndex >= keys.length - 1 || keys.length === 0) && nextKey) {
                 setPageKeys((prev) => {
                     const updated = [...prev];
-                    updated[newPageIndex] = result.data.pageKey!;
+                    updated[newPageIndex] = nextKey;
+                    pageKeysRef.current = updated;
                     return updated;
                 });
             }
@@ -618,6 +659,7 @@ export const NewLibraryView: React.FC = () => {
     // Initial + refresh fetch
     useEffect(() => {
         setPageIndex(0);
+        pageKeysRef.current = [];
         setPageKeys([]);
         fetchPage(committedSearch, 0, []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -634,15 +676,15 @@ export const NewLibraryView: React.FC = () => {
 
     useEffect(() => {
         if (data.length === 0 || isLoadingStatus) return;
-        setIsLoadingStatus(true);
-        fetchedStatusKeys.current.clear();
 
         const keys = data.map((f) => ({ key: extractKey(f), type: f.type })).filter((k) => k.key);
-        if (!keys.length) { setIsLoadingStatus(false); return; }
+        const pendingKeys = keys.filter(({ key }) => !fetchedStatusKeys.current.has(key));
+        if (!pendingKeys.length) return;
+        setIsLoadingStatus(true);
 
         const CHUNK = 25;
         const chunks: typeof keys[] = [];
-        for (let i = 0; i < keys.length; i += CHUNK) chunks.push(keys.slice(i, i + CHUNK));
+        for (let i = 0; i < pendingKeys.length; i += CHUNK) chunks.push(pendingKeys.slice(i, i + CHUNK));
 
         const promises = chunks.map((chunk) =>
             embeddingDocumentStatus(chunk)
@@ -660,7 +702,7 @@ export const NewLibraryView: React.FC = () => {
         );
 
         Promise.allSettled(promises).finally(() => setIsLoadingStatus(false));
-    }, [data]);
+    }, [data, isLoadingStatus]);
 
     const sortedData = useMemo(() => {
         const direction = sort.direction === 'asc' ? 1 : -1;
@@ -707,19 +749,37 @@ export const NewLibraryView: React.FC = () => {
     );
 
     // Fetch signed URLs so image files can use their type tile as a thumbnail.
+    // Keep already-fetched URLs when the list changes (for example after a
+    // delete), otherwise every surviving image flashes and downloads again.
     useEffect(() => {
         let active = true;
-        const createdUrls: string[] = [];
         const imageFiles = data.filter((file) => file.type.startsWith('image/'));
-        if (!imageFiles.length) {
-            setImagePreviewUrls({});
-            setImagePreviewLoading({});
-            return () => { active = false; };
-        }
-        setImagePreviewLoading(Object.fromEntries(imageFiles.map((file) => [file.id, true])));
+        const imageIds = new Set(imageFiles.map((file) => file.id));
+        Object.entries(imagePreviewUrlsRef.current).forEach(([id, url]) => {
+            if (!imageIds.has(id)) {
+                URL.revokeObjectURL(url);
+                delete imagePreviewUrlsRef.current[id];
+            }
+        });
+        setImagePreviewUrls((current) => Object.fromEntries(
+            Object.entries(current).filter(([id]) => imageIds.has(id))
+        ));
+        setImagePreviewLoading((current) => Object.fromEntries(
+            Object.entries(current).filter(([id]) => imageIds.has(id))
+        ));
+        setPreviewBytes((current) => Object.fromEntries(
+            Object.entries(current).filter(([id]) => imageIds.has(id))
+        ));
+
+        const missingImageFiles = imageFiles.filter((file) => !imagePreviewUrlsRef.current[file.id]);
+        if (!missingImageFiles.length) return () => { active = false; };
+        setImagePreviewLoading((current) => ({
+            ...current,
+            ...Object.fromEntries(missingImageFiles.map((file) => [file.id, true])),
+        }));
 
         Promise.all(
-            imageFiles.map(async (file) => {
+            missingImageFiles.map(async (file) => {
                 try {
                     const response = await getFileDownloadUrl(extractKey(file), undefined);
                     if (!response.success || !response.downloadUrl) return null;
@@ -732,7 +792,11 @@ export const NewLibraryView: React.FC = () => {
                     const byteCharacters = window.atob(base64);
                     const byteArray = Uint8Array.from(byteCharacters, (char) => char.charCodeAt(0));
                     const objectUrl = URL.createObjectURL(new Blob([byteArray], { type: file.type }));
-                    createdUrls.push(objectUrl);
+                    if (!active) {
+                        URL.revokeObjectURL(objectUrl);
+                        return null;
+                    }
+                    imagePreviewUrlsRef.current[file.id] = objectUrl;
                     setPreviewBytes((current) => ({ ...current, [file.id]: byteArray.byteLength }));
                     return [file.id, objectUrl] as const;
                 } catch {
@@ -740,19 +804,23 @@ export const NewLibraryView: React.FC = () => {
                 }
             })
         ).then((results) => {
-            if (!active) {
-                createdUrls.forEach((url) => URL.revokeObjectURL(url));
-                return;
-            }
-            setImagePreviewUrls(Object.fromEntries(results.filter((result): result is readonly [string, string] => result !== null)));
-            setImagePreviewLoading(Object.fromEntries(imageFiles.map((file) => [file.id, false])));
+            if (!active) return;
+            setImagePreviewUrls((current) => ({
+                ...current,
+                ...Object.fromEntries(results.filter((result): result is readonly [string, string] => result !== null)),
+            }));
+            setImagePreviewLoading((current) => ({
+                ...current,
+                ...Object.fromEntries(missingImageFiles.map((file) => [file.id, false])),
+            }));
         });
 
-        return () => {
-            active = false;
-            createdUrls.forEach((url) => URL.revokeObjectURL(url));
-        };
+        return () => { active = false; };
     }, [data]);
+
+    useEffect(() => () => {
+        Object.values(imagePreviewUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
+    }, []);
 
     const handlePreview = async (file: FileRecord & { commonType?: string }, originRect: DOMRect) => {
         setPreviewOriginRect(originRect);
@@ -856,38 +924,53 @@ export const NewLibraryView: React.FC = () => {
     };
 
     const handleDelete = async (file: FileRecord) => {
-        if (!confirm(`Delete "${file.name}"?`)) return;
-        setLoadingMessage('Deleting file…');
+        setDeleteTarget(file);
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteTarget) return;
+        const file = deleteTarget;
+        setDeleteTarget(null);
+        setIsDeleting(true);
         try {
-            await deleteDatasourceFile({ id: file.id, name: file.name });
-            setRefreshKey((k) => k + 1);
+            const result = await deleteDatasourceFile({ id: file.id, name: file.name });
+            if (result.success) {
+                // Remove the row in place. Cursors stay valid because a page
+                // key only records a position in the index, so there is no need
+                // to refetch the page and re-resolve previews/statuses.
+                setData((current) => current.filter((item) => item.id !== file.id));
+                toast.success('File deleted');
+            } else {
+                toast.error('Failed to delete file');
+            }
         } finally {
-            setLoadingMessage('');
+            setIsDeleting(false);
         }
     };
 
     const handleBatchDelete = async () => {
         if (!selectedIds.size) return;
-        setLoadingMessage(`Deleting ${selectedIds.size} file(s)…`);
+        setIsDeleting(true);
         try {
-            const results = await Promise.all(
+            const deletions = await Promise.all(
                 Array.from(selectedIds).map((id) => {
                     const f = data.find((x) => x.id === id);
-                    return deleteDatasourceFile({ id, name: f?.name }, false);
+                    return deleteDatasourceFile({ id, name: f?.name }, false).then((result) => ({ id, result }));
                 })
             );
-            const failed = results.filter((r) => !r.success);
-            const ok = results.length - failed.length;
+            const failed = deletions.filter(({ result }) => !result.success);
+            const successfulIds = new Set(deletions.filter(({ result }) => result.success).map(({ id }) => id));
+            const ok = successfulIds.size;
             if (!failed.length) toast.success(`Deleted ${ok} file(s)`);
             else toast.error(`Deleted ${ok}, failed ${failed.length}`);
+            setData((current) => current.filter((file) => !successfulIds.has(file.id)));
             setSelectedIds(new Set());
             setShowDeleteConfirm(false);
             setIsDeleteMode(false);
-            setRefreshKey((k) => k + 1);
         } catch (e) {
             toast.error('Unexpected error during batch deletion');
         } finally {
-            setLoadingMessage('');
+            setIsDeleting(false);
         }
     };
 
@@ -1119,44 +1202,14 @@ export const NewLibraryView: React.FC = () => {
                         {selectedIds.size === data.length && data.length > 0 ? 'Deselect all' : 'Select all'}
                     </button>
                     <span style={{ color: 'var(--text-muted)' }}>{selectedIds.size} selected</span>
-                    {!showDeleteConfirm ? (
-                        <button
-                            onClick={() => setShowDeleteConfirm(true)}
-                            disabled={selectedIds.size === 0}
-                            className="flex items-center gap-1 px-3 py-1 rounded-[6px] text-white text-[12px] font-medium transition-opacity disabled:opacity-40"
-                            style={{ backgroundColor: '#c94040' }}
-                        >
-                            <IconTrash size={12} /> Delete {selectedIds.size > 0 ? selectedIds.size : ''} file(s)
-                        </button>
-                    ) : (
-                        <div
-                            className="flex items-center gap-2 px-2 py-1 rounded-[6px]"
-                            style={{ backgroundColor: 'rgba(224,82,82,0.1)' }}
-                        >
-                            <IconAlertCircle size={14} style={{ color: '#E05252' }} />
-                            <span className="text-[12px]" style={{ color: '#E05252' }}>
-                                Delete {selectedIds.size} file(s)?
-                            </span>
-                            <button
-                                onClick={handleBatchDelete}
-                                className="flex items-center justify-center h-5 w-5 rounded transition-colors"
-                                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(80,200,120,0.2)'; }}
-                                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
-                                title="Confirm delete"
-                            >
-                                <IconCheck size={14} style={{ color: '#50C878' }} />
-                            </button>
-                            <button
-                                onClick={() => setShowDeleteConfirm(false)}
-                                className="flex items-center justify-center h-5 w-5 rounded transition-colors"
-                                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(224,82,82,0.2)'; }}
-                                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
-                                title="Cancel"
-                            >
-                                <IconX size={14} style={{ color: '#E05252' }} />
-                            </button>
-                        </div>
-                    )}
+                    <button
+                        onClick={() => setShowDeleteConfirm(true)}
+                        disabled={selectedIds.size === 0}
+                        className="flex items-center gap-1 px-3 py-1 rounded-[6px] text-white text-[12px] font-medium transition-opacity disabled:opacity-40"
+                        style={{ backgroundColor: 'var(--accent)' }}
+                    >
+                        <IconTrash size={12} /> Delete {selectedIds.size > 0 ? selectedIds.size : ''} file(s)
+                    </button>
                 </div>
             )}
 
@@ -1314,6 +1367,21 @@ export const NewLibraryView: React.FC = () => {
                     onClose={() => { setPreviewAttachment(null); setPreviewOriginRect(undefined); }}
                 />
             )}
+            <ConfirmDialog
+                isOpen={!!deleteTarget}
+                title="Delete file?"
+                message={<>Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This cannot be undone.</>}
+                onConfirm={confirmDelete}
+                onCancel={() => setDeleteTarget(null)}
+            />
+            <ConfirmDialog
+                isOpen={showDeleteConfirm}
+                title="Delete files?"
+                message={`Are you sure you want to delete ${selectedIds.size} file(s)? This cannot be undone.`}
+                onConfirm={handleBatchDelete}
+                onCancel={() => setShowDeleteConfirm(false)}
+            />
+            <NewUILoadingStatus open={isDeleting} message="Deleting file…" />
         </div>
     );
 };

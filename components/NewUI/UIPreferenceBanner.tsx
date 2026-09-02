@@ -14,6 +14,7 @@
  *   and forwards to the new-UI target group.
  */
 import React, { useEffect, useState } from 'react';
+import { saveUserSettings, fetchUserSettings } from '@/services/settingsService';
 
 export const UI_PREF_KEY = 'amplify_new_ui_preference';
 export type UIPreference = 'new' | 'classic' | null;
@@ -25,14 +26,34 @@ export function getUIPreference(): UIPreference {
   return null;
 }
 
-export function setUIPreference(pref: 'new' | 'classic') {
+/**
+ * Persist the UI preference to:
+ *   1. localStorage  (immediate, same-device)
+ *   2. A cookie      (for future load-balancer routing)
+ *   3. Server-side user settings (cross-device / cross-browser)
+ *
+ * The server save is fire-and-forget — a failure silently falls back to
+ * localStorage so the user's session isn't interrupted.
+ */
+export async function setUIPreference(pref: 'new' | 'classic'): Promise<void> {
+  // 1. Sync storage (always succeeds locally)
   localStorage.setItem(UI_PREF_KEY, pref);
-  // Set cookie for future load-balancer routing
+
+  // 2. Cookie for load-balancer routing
   if (pref === 'new') {
     document.cookie = 'X-Amplify-UI=new; path=/; SameSite=Lax; max-age=31536000';
   } else {
-    // Clear the cookie
     document.cookie = 'X-Amplify-UI=; path=/; SameSite=Lax; max-age=0';
+  }
+
+  // 3. Server-side persistence (fire-and-forget)
+  try {
+    // Fetch current settings first so we don't overwrite other fields
+    const result = await fetchUserSettings();
+    const current = result?.success && result.data ? result.data : {};
+    await saveUserSettings({ ...current, uiPreference: pref });
+  } catch {
+    // Non-fatal — localStorage already holds the value
   }
 }
 
@@ -56,15 +77,16 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
   if (!visible) return null;
 
   const handleNew = () => {
-    setUIPreference('new');
     setVisible(false);
     onSelectNew();
+    // Fire-and-forget — don't await so the UI switches immediately
+    setUIPreference('new').catch(() => {});
   };
 
   const handleClassic = () => {
-    setUIPreference('classic');
     setVisible(false);
     onSelectClassic();
+    setUIPreference('classic').catch(() => {});
   };
 
   return (

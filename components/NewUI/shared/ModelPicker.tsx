@@ -41,6 +41,7 @@ import {
   IconChevronDown,
   IconChevronRight,
   IconInfoCircle,
+  IconRoute,
 } from '@tabler/icons-react';
 import {
   autoUpdate,
@@ -150,6 +151,19 @@ export interface ModelPickerProps {
   isNewChat?: boolean;
   /** Ref to the composer — focus returned here after selection */
   composerRef?: React.RefObject<{ focus: () => void }>;
+  /**
+   * When true the active assistant enforces a specific model, so Model Router
+   * must be suppressed.  The picker shows the row as disabled with an accessible
+   * explanation rather than hiding it entirely, so keyboard/screen-reader users
+   * understand why it is unavailable.
+   */
+  enforcedByAssistant?: boolean;
+  /**
+   * Called whenever the user changes the Model Router preference.
+   * The picker manages the localStorage value internally; this is an optional
+   * observer for callers that need to synchronise other state.
+   */
+  onAutoRouteChange?: (enabled: boolean) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -246,6 +260,107 @@ const MenuDivider: React.FC = () => (
     }}
   />
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ModelRouterRow
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * "Model Router" row at the top of the primary panel.
+ *
+ * - When active (isActive=true): highlighted with accent colour + checkmark.
+ * - When disabled by an assistant-enforced model: visually dimmed, cursor not-allowed,
+ *   `aria-disabled` set, and a brief accessible description provided.
+ */
+const ModelRouterRow: React.FC<{
+  isActive: boolean;
+  isDisabledByAssistant: boolean;
+  onToggle: () => void;
+}> = ({ isActive, isDisabledByAssistant, onToggle }) => {
+  const disabledReason =
+    'This assistant enforces a specific model. Model Router is unavailable.';
+
+  return (
+    <button
+      role="menuitemradio"
+      aria-checked={isActive}
+      aria-disabled={isDisabledByAssistant}
+      aria-describedby={isDisabledByAssistant ? 'nui-model-router-disabled' : undefined}
+      onClick={isDisabledByAssistant ? undefined : onToggle}
+      className="w-full flex items-center gap-2 text-left"
+      style={{
+        height: 44,
+        padding: '8px 10px',
+        borderRadius: 8,
+        background: isActive ? 'var(--bg-hover)' : 'transparent',
+        cursor: isDisabledByAssistant ? 'not-allowed' : 'pointer',
+        opacity: isDisabledByAssistant ? 0.45 : 1,
+        transition: 'background 120ms',
+      }}
+      onMouseEnter={(e) => {
+        if (!isDisabledByAssistant) {
+          (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+        }
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.background =
+          isActive ? 'var(--bg-hover)' : 'transparent';
+      }}
+    >
+      {/* Icon */}
+      <IconRoute
+        size={15}
+        style={{
+          flexShrink: 0,
+          color: isActive ? 'var(--accent)' : 'var(--text-muted)',
+        }}
+        aria-hidden="true"
+      />
+
+      {/* Text */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 500,
+            color: isActive ? 'var(--accent)' : 'var(--text-primary)',
+            lineHeight: 1.3,
+          }}
+        >
+          Model Router
+        </div>
+        <div
+          style={{
+            fontSize: 12,
+            color: 'var(--text-muted)',
+            lineHeight: 1.3,
+            marginTop: 1,
+          }}
+        >
+          {isDisabledByAssistant
+            ? 'Unavailable — assistant enforces a model'
+            : 'Amplify selects the best model automatically'}
+        </div>
+      </div>
+
+      {/* Checkmark when active */}
+      {isActive && !isDisabledByAssistant && (
+        <IconCheck
+          size={16}
+          style={{ flexShrink: 0, color: 'var(--accent)' }}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Hidden description for screen readers when disabled */}
+      {isDisabledByAssistant && (
+        <span id="nui-model-router-disabled" className="sr-only">
+          {disabledReason}
+        </span>
+      )}
+    </button>
+  );
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EffortMenu
@@ -552,10 +667,21 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
   onEffortChange,
   isNewChat = true,
   composerRef,
+  enforcedByAssistant = false,
+  onAutoRouteChange,
 }) => {
   const {
     state: { availableModels, defaultModelId, featureFlags },
   } = useContext(HomeContext);
+
+  // ── Model Router state (backed by localStorage, matching old ModelSelect) ─
+  const [autoRoute, setAutoRoute] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('autoRouteModel') === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   const allModels: Model[] = filterModels(
     availableModels,
@@ -714,9 +840,29 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
     closeAll();
   };
 
+  // ── Model Router handler (defined after closeAll) ─────────────────────────
+  const handleAutoRouteToggle = useCallback(() => {
+    if (enforcedByAssistant) return;
+    setAutoRoute((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('autoRouteModel', String(next));
+      } catch {
+        // storage unavailable — silently ignore
+      }
+      onAutoRouteChange?.(next);
+      return next;
+    });
+    closeAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enforcedByAssistant, onAutoRouteChange, closeAll]);
+
   // ── Trigger label ─────────────────────────────────────────────────────────
-  const modelName = activeModel?.name ?? 'Select model';
-  const showEffort = activeModel?.supportsReasoning && selectedEffort !== 'off';
+  // When Model Router is active (and not overridden by an enforced assistant
+  // model), show "Model Router" as the picker label instead of the model name.
+  const effectiveAutoRoute = autoRoute && !enforcedByAssistant;
+  const modelName = effectiveAutoRoute ? 'Model Router' : (activeModel?.name ?? 'Select model');
+  const showEffort = !effectiveAutoRoute && activeModel?.supportsReasoning && selectedEffort !== 'off';
   const effortLabel = activeEffortOption.label;
 
   return (
@@ -728,7 +874,11 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
         type="button"
         aria-haspopup="menu"
         aria-expanded={primaryOpen}
-        aria-label={`Model: ${modelName}${showEffort ? `, effort ${effortLabel}` : ''}. Change model`}
+        aria-label={
+          effectiveAutoRoute
+            ? 'Model Router active — Amplify selects the best model automatically. Change model'
+            : `Model: ${modelName}${showEffort ? `, effort ${effortLabel}` : ''}. Change model`
+        }
         className="flex items-center gap-[6px] h-[30px] px-[8px] rounded-[8px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
         style={{
           background: primaryOpen ? 'var(--bg-active)' : 'transparent',
@@ -749,6 +899,14 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
           }
         }}
       >
+        {effectiveAutoRoute && (
+          <IconRoute
+            size={14}
+            className="flex-shrink-0"
+            style={{ color: 'var(--accent)' }}
+            aria-hidden="true"
+          />
+        )}
         <span
           className="text-[13.5px] font-[500] flex-shrink-0"
           style={{
@@ -756,6 +914,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
+            color: effectiveAutoRoute ? 'var(--accent)' : undefined,
           }}
         >
           {modelName}
@@ -804,6 +963,14 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
               animation: 'modelPickerEnter 120ms ease forwards',
             }}
           >
+            {/* ── Model Router row ── */}
+            <ModelRouterRow
+              isActive={effectiveAutoRoute}
+              isDisabledByAssistant={enforcedByAssistant}
+              onToggle={handleAutoRouteToggle}
+            />
+            <MenuDivider />
+
             {/* ── Model block rows ── */}
             {recommendedModels.map((model) => {
               const isActive = model.id === activeModel?.id;

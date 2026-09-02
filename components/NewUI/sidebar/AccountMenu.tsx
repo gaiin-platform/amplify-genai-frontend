@@ -96,10 +96,11 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
   };
 
   const handleSwitchToClassic = () => {
-    setUIPreference('classic');
     setOpen(false);
-    // Reload so home.tsx re-reads the preference
-    window.location.reload();
+    // Persist then reload — server save is fire-and-forget before the reload
+    setUIPreference('classic')
+      .catch(() => {})
+      .finally(() => window.location.reload());
   };
 
   // Shared menu item style

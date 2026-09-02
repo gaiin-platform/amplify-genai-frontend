@@ -7,6 +7,7 @@ import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
 import { SettingsBar } from "@/components/Settings/SettingsBar";
 import { StorageProgressBar } from "@/components/Settings/StorageProgressBar";
 import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
+import { sanitizeHtml } from '@/utils/sanitizeHtml';
 import { getIsLocalStorageSelection, saveStorageSettings, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
 import cloneDeep from 'lodash/cloneDeep';
 import {styled} from "styled-components";
@@ -109,6 +110,7 @@ import { UIPreferenceBanner, getUIPreference, type UIPreference } from '@/compon
 import { NewAssistantsView } from '@/components/NewUI/views/NewAssistantsView';
 import { NewScheduledTasksView } from '@/components/NewUI/views/NewScheduledTasksView';
 import { NewWorkflowsView } from '@/components/NewUI/views/NewWorkflowsView';
+import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -968,18 +970,38 @@ const Home = ({
                 if (result.success) {
                     if (result.data) {
                         const serverSettings = result.data as Settings;
-                        
+
                         // Preserve local theme preference - don't let server override it
                         const localTheme = ThemeService.getInitialTheme();
                         serverSettings.theme = localTheme;
-                        
+
                         saveSettings(serverSettings);
-                        
+
                         // Apply chat color palette from server settings to DOM
                         if (serverSettings.chatColorPalette) {
                             document.body.setAttribute('data-chat-palette', serverSettings.chatColorPalette);
                         }
-                        
+
+                        // ── UI preference sync ─────────────────────────────────────────
+                        // Server is the source of truth for cross-device roaming.
+                        // If the server has a stored preference, apply it — this lets a
+                        // user switch UI on one device and have it reflected everywhere.
+                        if (serverSettings.uiPreference) {
+                            const local = getUIPreference();
+                            if (serverSettings.uiPreference !== local) {
+                                // Update localStorage and cookie to match the server value
+                                localStorage.setItem('amplify_new_ui_preference', serverSettings.uiPreference);
+                                if (serverSettings.uiPreference === 'new') {
+                                    document.cookie = 'X-Amplify-UI=new; path=/; SameSite=Lax; max-age=31536000';
+                                } else {
+                                    document.cookie = 'X-Amplify-UI=; path=/; SameSite=Lax; max-age=0';
+                                }
+                            }
+                            // Update React state — this is what drives the layout switch
+                            setUiPreference(serverSettings.uiPreference);
+                        }
+                        // ──────────────────────────────────────────────────────────────
+
                         window.dispatchEvent(new Event('updateFeatureSettings'));
                     }
                 } else {
@@ -1508,20 +1530,38 @@ const Home = ({
                             <h1 className="text-2xl font-bold dark:text-white">Amplify Data Disclosure Agreement</h1>
                             {dataDisclosure?.url && <a className="hover:text-blue-500" href={dataDisclosure.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', marginBottom: '10px' }}>Download the data disclosure agreement</a>}
                             {dataDisclosure && dataDisclosure.html ? (
-                                <div
-                                    className="data-disclosure dark:bg-[#343541] bg-gray-50 dark:text-white text-black text-left"
-                                    style={{
-                                        overflowY: 'scroll',
-                                        border: '1px solid #ccc',
-                                        padding: '20px',
-                                        marginBottom: '10px',
-                                        height: '500px',
-                                        width: '35%',
-                                    }}
-                                    onScroll={handleScroll}
-                                    dangerouslySetInnerHTML={{ __html: dataDisclosure.html }}
-                                >   
-                                </div>
+                                <>
+                                    {/* Scoped typography for Word-generated MsoNormal markup. */}
+                                    <style>{`
+                                        .disclosure-gate .MsoNormal,
+                                        .disclosure-gate p.MsoNormal,
+                                        .disclosure-gate li.MsoNormal,
+                                        .disclosure-gate div.MsoNormal {
+                                            margin: 0 0 8pt 0; line-height: 115%;
+                                            font-size: 12pt; font-family: "Times New Roman", serif;
+                                        }
+                                        .disclosure-gate h1.MsoNormal,
+                                        .disclosure-gate h2.MsoNormal,
+                                        .disclosure-gate h3.MsoNormal {
+                                            margin: 12pt 0 8pt 0; line-height: 115%;
+                                            font-size: 14pt; font-family: "Times New Roman", serif;
+                                        }
+                                        .disclosure-gate a { color: #467886; text-decoration: underline; }
+                                    `}</style>
+                                    <div
+                                        className="disclosure-gate data-disclosure dark:bg-[#343541] bg-gray-50 dark:text-white text-black text-left"
+                                        style={{
+                                            overflowY: 'scroll',
+                                            border: '1px solid #ccc',
+                                            padding: '20px',
+                                            marginBottom: '10px',
+                                            height: '500px',
+                                            width: '35%',
+                                        }}
+                                        onScroll={handleScroll}
+                                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(dataDisclosure.html ?? '') }}
+                                    />
+                                </>
 
                             ) : (
                                 <div className="flex flex-col items-center justify-center" style={{ height: '500px', width: '30%' }}>
@@ -1776,8 +1816,15 @@ const Home = ({
                             </div>
                         )}
 
+                        {/* Transient operational loading messages (both UI flavours) */}
                         <LoadingDialog open={!!loadingMessage} message={loadingMessage}/>
-                        <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/>
+                        {/* "Setting Up Amplify…" — New UI gets a quiet, accessible treatment;
+                            classic UI keeps the original LoadingDialog unchanged. */}
+                        {uiPreference === 'new' ? (
+                            <NewUILoadingStatus open={loadingAmplify} message="Setting up Amplify…" />
+                        ) : (
+                            <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/>
+                        )}
                     </main>
                 )}
 
