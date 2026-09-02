@@ -272,3 +272,48 @@ export function createPasteAttachment(text: string): UIAttachment {
     caveat: 'Formatting may be inconsistent from source',
   };
 }
+
+/**
+ * Build the message fields for paste attachments. Paste cards have no S3
+ * document, so they must travel as inline message content rather than through
+ * the document-only request path.
+ */
+export function buildPastedTextMessage(
+  messageText: string,
+  attachments: UIAttachment[],
+): { content: string; label: string; data: Record<string, unknown> } {
+  const pastes = attachments.filter(
+    (attachment): attachment is UIAttachment & { fullText: string } =>
+      attachment.kind === 'paste' && typeof attachment.fullText === 'string',
+  );
+  if (pastes.length === 0) {
+    return { content: messageText, label: messageText, data: {} };
+  }
+
+  const blocks = pastes.map((attachment, index) => {
+    const placeholderChar = `[TEXT_${index + 1}]`;
+    const fullText = attachment.fullText;
+    const words = fullText.trim().split(/\s+/).filter(Boolean);
+    return {
+      id: attachment.id,
+      displayName: attachment.name,
+      placeholderChar,
+      charCount: fullText.length,
+      lineCount: fullText.split('\n').length,
+      wordCount: words.length,
+      preview: { start: fullText.slice(0, 500), end: '' },
+      originalText: fullText,
+      pastePosition: messageText.length,
+    };
+  });
+
+  return {
+    content: [messageText, ...pastes.map((attachment) => attachment.fullText)]
+      .filter(Boolean)
+      .join('\n\n'),
+    label: [messageText, ...blocks.map((block) => block.placeholderChar)]
+      .filter(Boolean)
+      .join('\n\n'),
+    data: { hasLargeText: true, largeTextBlocks: blocks },
+  };
+}

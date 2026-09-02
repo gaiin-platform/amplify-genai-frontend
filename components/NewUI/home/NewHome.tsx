@@ -37,6 +37,7 @@ import {
   UIAttachment,
   createUIAttachmentFromDoc,
   createPasteAttachment,
+  buildPastedTextMessage,
   getAttachmentMime,
   imageResponseToObjectUrlWithBytes,
   isTextPreviewable,
@@ -312,6 +313,8 @@ export const NewHome: React.FC = () => {
     const trimmed = markdown.trim();
     const readyAttachments = uiAttachments.filter((a) => a.status !== 'failed');
     if (!trimmed && readyAttachments.length === 0) return;
+    const pastedAttachments = readyAttachments.filter((a) => a.kind === 'paste');
+    const pastedMessage = buildPastedTextMessage(trimmed, pastedAttachments);
     // Docs whose S3 upload finished (doc.key set by handleFile's onSetKey).
     // Same filter ConversationViewShell's PATH A applies, so both sides agree
     // on whether this send travels with documents.
@@ -356,15 +359,17 @@ export const NewHome: React.FC = () => {
     // Only for docs-with-keys sends: those are the ones taking PATH A. Text-only
     // sends keep their existing (already fast) PATH B behaviour untouched.
     let optimisticMessage: Message | null = null;
-    if (typeof window !== 'undefined' && docsWithKeys.length > 0) {
+    if (typeof window !== 'undefined' && (docsWithKeys.length > 0 || pastedAttachments.length > 0)) {
       const seeded: Message = newMessage({
         role: 'user',
-        content: trimmed,
+        content: pastedMessage.content || ' ',
+        label: pastedMessage.label || undefined,
         type: MessageType.PROMPT,
         data: {
           enableWebSearch: webSearchEnabled,
           skills: selectedSkillIds,
           skillSelectionMode: 'auto',
+          ...pastedMessage.data,
           dataSources: docsWithKeys.map((d) => ({
             id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`,
             type: d.type,

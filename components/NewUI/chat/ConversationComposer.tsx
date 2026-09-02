@@ -58,6 +58,7 @@ import { AttachmentPreview } from '@/components/NewUI/shared/AttachmentPreview';
 import {
   UIAttachment,
   createPasteAttachment,
+  buildPastedTextMessage,
   getAttachmentMime,
   createUIAttachmentFromDoc,
   imageResponseToObjectUrlWithBytes,
@@ -99,6 +100,7 @@ function setNativeValue(el: HTMLTextAreaElement, value: string) {
  */
 interface PendingUploadSend {
   msgText: string;
+  pastedAttachments: UIAttachment[];
   /** Docs that already had S3 keys when Send was clicked. */
   readyDocs: AttachedDocument[];
   /** Docs whose uploads completed AFTER Send — accumulates as handleDocSetKey fires. */
@@ -388,7 +390,8 @@ export const ConversationComposer: React.FC = () => {
     if (!pending || !selectedConversation) return;
 
     const allDocs = [...pending.readyDocs, ...pending.newDocs];
-    const { msgText, webSearchEnabled: pendingWebSearch, selectedSkillIds: pendingSkills } = pending;
+    const { msgText, pastedAttachments, webSearchEnabled: pendingWebSearch, selectedSkillIds: pendingSkills } = pending;
+    const pastedMessage = buildPastedTextMessage(msgText, pastedAttachments);
 
     // Clear before firing to prevent any double-fire
     pendingUploadSendRef.current = null;
@@ -400,7 +403,7 @@ export const ConversationComposer: React.FC = () => {
 
     // Edge case: all images failed (timeout) and there's no text either.
     // Nothing to send — silently abort rather than fire an empty message.
-    if (allDocs.length === 0 && !msgText.trim()) {
+    if (allDocs.length === 0 && !pastedMessage.content.trim()) {
       return;
     }
 
@@ -413,7 +416,7 @@ export const ConversationComposer: React.FC = () => {
       const hiddenSend = document.getElementById('sendMessage') as HTMLButtonElement | null;
       if (hiddenTextarea && hiddenSend) {
         setTimeout(() => {
-          setNativeValue(hiddenTextarea, msgText);
+          setNativeValue(hiddenTextarea, pastedMessage.content);
           setTimeout(() => hiddenSend.click(), 60);
         }, 30);
       }
@@ -423,12 +426,14 @@ export const ConversationComposer: React.FC = () => {
     // Build and fire ChatRequest (same construction as PATH A in handleSend)
     let msg = newMessage({
       role: 'user',
-      content: msgText || ' ',
+      content: pastedMessage.content || ' ',
+      label: pastedMessage.label || undefined,
       type: MessageType.PROMPT,
       data: {
         enableWebSearch: pendingWebSearch,
         skills: pendingSkills,
         skillSelectionMode: 'auto',
+        ...pastedMessage.data,
         dataSources: allDocs.map((d) => ({
           id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`,
           type: d.type,
@@ -538,6 +543,8 @@ export const ConversationComposer: React.FC = () => {
     }
 
     const msgText = text;
+    const pastedAttachments = uiAttachments.filter((a) => a.kind === 'paste');
+    const pastedMessage = buildPastedTextMessage(msgText, pastedAttachments);
     setText('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
@@ -545,6 +552,7 @@ export const ConversationComposer: React.FC = () => {
     if (uploadingImages.length > 0) {
       pendingUploadSendRef.current = {
         msgText,
+        pastedAttachments: [...pastedAttachments],
         readyDocs: [...docsWithKeys],
         newDocs: [],
         remainingCount: uploadingImages.length,
@@ -558,7 +566,7 @@ export const ConversationComposer: React.FC = () => {
     }
 
     // ── PATH A: pasted images fully uploaded ─────────────────────────────────
-    if (docsWithKeys.length > 0 && selectedConversation) {
+    if ((docsWithKeys.length > 0 || pastedAttachments.length > 0) && selectedConversation) {
       // Clear local doc + attachment state
       const docsToSend = [...docsWithKeys];
       setAttachedDocs([]);
@@ -569,12 +577,14 @@ export const ConversationComposer: React.FC = () => {
       // Build the message
       let msg = newMessage({
         role: 'user',
-        content: msgText || ' ', // at least one space so the message is non-empty
+        content: pastedMessage.content || ' ', // at least one space so the message is non-empty
+        label: pastedMessage.label || undefined,
         type: MessageType.PROMPT,
         data: {
           enableWebSearch: webSearchEnabled,
           skills: selectedSkillIds,
           skillSelectionMode: 'auto',
+          ...pastedMessage.data,
           dataSources: docsToSend.map((d) => ({
             id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`,
             type: d.type,
