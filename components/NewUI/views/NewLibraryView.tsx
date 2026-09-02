@@ -570,6 +570,9 @@ export const NewLibraryView: React.FC = () => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<FileRecord | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    // Remembers the count in-flight so the loading message stays correct even
+    // after selectedIds is cleared mid-deletion.
+    const [deletingCount, setDeletingCount] = useState(0);
 
     // Search
     const [search, setSearch] = useState('');
@@ -950,6 +953,11 @@ export const NewLibraryView: React.FC = () => {
 
     const handleBatchDelete = async () => {
         if (!selectedIds.size) return;
+        const count = selectedIds.size;
+        setDeletingCount(count);
+        // Close the confirm dialog *before* awaiting so the loading overlay
+        // (z-index 9999) isn't hidden behind the dialog (z-index 10000).
+        setShowDeleteConfirm(false);
         setIsDeleting(true);
         try {
             const deletions = await Promise.all(
@@ -961,11 +969,10 @@ export const NewLibraryView: React.FC = () => {
             const failed = deletions.filter(({ result }) => !result.success);
             const successfulIds = new Set(deletions.filter(({ result }) => result.success).map(({ id }) => id));
             const ok = successfulIds.size;
-            if (!failed.length) toast.success(`Deleted ${ok} file(s)`);
+            if (!failed.length) toast.success(`Deleted ${ok} file${ok !== 1 ? 's' : ''}`);
             else toast.error(`Deleted ${ok}, failed ${failed.length}`);
             setData((current) => current.filter((file) => !successfulIds.has(file.id)));
             setSelectedIds(new Set());
-            setShowDeleteConfirm(false);
             setIsDeleteMode(false);
         } catch (e) {
             toast.error('Unexpected error during batch deletion');
@@ -1381,7 +1388,10 @@ export const NewLibraryView: React.FC = () => {
                 onConfirm={handleBatchDelete}
                 onCancel={() => setShowDeleteConfirm(false)}
             />
-            <NewUILoadingStatus open={isDeleting} message="Deleting file…" />
+            <NewUILoadingStatus
+                open={isDeleting}
+                message={deletingCount > 1 ? `Deleting ${deletingCount} file${deletingCount !== 1 ? 's' : ''}…` : 'Deleting file…'}
+            />
         </div>
     );
 };
