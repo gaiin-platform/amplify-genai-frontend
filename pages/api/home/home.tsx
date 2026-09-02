@@ -111,6 +111,7 @@ import { NewAssistantsView } from '@/components/NewUI/views/NewAssistantsView';
 import { NewScheduledTasksView } from '@/components/NewUI/views/NewScheduledTasksView';
 import { NewWorkflowsView } from '@/components/NewUI/views/NewWorkflowsView';
 import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
+import { BlankConversationCleanup } from '@/components/NewUI/shared/BlankConversationCleanup';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -1695,6 +1696,10 @@ const Home = ({
                         {/* ── NEW UI LAYOUT ── */}
                         {uiPreference === 'new' ? (
                             <div className="flex h-full w-full overflow-hidden" style={{ fontFamily: 'Inter, sans-serif' }} data-new-ui-shell="true">
+                                {/* Renders nothing — prunes leftover empty placeholder chats
+                                    once after load so refreshing never grows Recents. */}
+                                <BlankConversationCleanup />
+
                                 {/* Unified new sidebar */}
                                 {page !== 'notebook' && (
                                     <NewSidebar

@@ -20,6 +20,7 @@ import {
     conversationAssistantName,
     countActiveChatFilters,
     isPinnedConv,
+    isBlankPlaceholderConversation,
 } from '@/components/NewUI/shared/chatFilters';
 
 const conv = (over: Partial<Conversation> & { id: string; name: string }): Conversation =>
@@ -245,5 +246,57 @@ describe('compareConversationsByMode', () => {
             'b',
             'c',
         ]);
+    });
+});
+
+describe('isBlankPlaceholderConversation', () => {
+    it('matches an untouched placeholder from app startup / New Chat', () => {
+        expect(isBlankPlaceholderConversation(conv({ id: 'a', name: 'New Conversation' }))).toBe(true);
+        // A conversation whose name was never set at all is equally contentless.
+        expect(isBlankPlaceholderConversation(conv({ id: 'b', name: '' }))).toBe(true);
+    });
+
+    it('never matches a conversation that holds messages in either representation', () => {
+        expect(
+            isBlankPlaceholderConversation(
+                conv({
+                    id: 'c',
+                    name: 'New Conversation',
+                    messages: [{ role: 'user', content: 'hi', id: 'm1' } as any],
+                })
+            )
+        ).toBe(false);
+
+        // Local conversations keep content in compressedMessages with messages: [].
+        expect(
+            isBlankPlaceholderConversation(
+                conv({ id: 'd', name: 'New Conversation', compressedMessages: [1, 2, 3] })
+            )
+        ).toBe(false);
+    });
+
+    it('never matches a renamed conversation', () => {
+        expect(isBlankPlaceholderConversation(conv({ id: 'e', name: 'Budget planning' }))).toBe(false);
+    });
+
+    it('never matches something the user deliberately marked or attached to', () => {
+        expect(
+            isBlankPlaceholderConversation(
+                conv({ id: 'f', name: 'New Conversation', data: { pinned: true } })
+            )
+        ).toBe(false);
+        expect(
+            isBlankPlaceholderConversation(conv({ id: 'g', name: 'New Conversation', tags: ['work'] }))
+        ).toBe(false);
+        expect(
+            isBlankPlaceholderConversation(
+                conv({ id: 'h', name: 'New Conversation', artifacts: { a1: [] as any } })
+            )
+        ).toBe(false);
+        expect(
+            isBlankPlaceholderConversation(
+                conv({ id: 'i', name: 'New Conversation', codeInterpreterRecordId: 'rec-1' })
+            )
+        ).toBe(false);
     });
 });

@@ -39,6 +39,42 @@ export function isPinnedConv(c: Conversation): boolean {
     return !!(c.data?.pinned) || !!(c as any).pinned;
 }
 
+/**
+ * The name home.tsx (and handleNewConversation) gives a freshly created,
+ * never-used conversation. Chat.tsx renames a conversation off this value once it
+ * has real content, so anything still carrying it and holding no messages is a
+ * placeholder the user never wrote in.
+ */
+export const PLACEHOLDER_CONVERSATION_NAME = 'New Conversation';
+
+/**
+ * True for an untouched placeholder conversation: default (or empty) name, no
+ * messages in either representation, nothing the user could lose.
+ *
+ * Locally stored conversations keep their content in `compressedMessages` with
+ * `messages: []`, so both have to be checked. Remote conversations are stripped to
+ * metadata in local history (see remoteForConversationHistory) and therefore always
+ * look message-less — callers that *delete* based on this predicate must additionally
+ * require isLocalConversation(c); callers that only *hide* rows do not.
+ */
+export function isBlankPlaceholderConversation(c: Conversation): boolean {
+    if (!c) return false;
+
+    const name = (c.name ?? '').trim();
+    if (name !== '' && name !== PLACEHOLDER_CONVERSATION_NAME) return false;
+
+    if ((c.messages?.length ?? 0) > 0) return false;
+    if ((c.compressedMessages?.length ?? 0) > 0) return false;
+
+    // Anything the user deliberately attached to the conversation makes it non-blank.
+    if (isPinnedConv(c)) return false;
+    if ((c.tags?.length ?? 0) > 0) return false;
+    if (c.artifacts && Object.keys(c.artifacts).length > 0) return false;
+    if (c.codeInterpreterRecordId) return false;
+
+    return true;
+}
+
 /** The conversation's assistant name, when it can be determined (local only). */
 export function conversationAssistantName(c: Conversation): string | null {
     const template = c.promptTemplate;

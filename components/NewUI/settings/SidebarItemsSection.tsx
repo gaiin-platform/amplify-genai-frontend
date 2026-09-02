@@ -10,7 +10,7 @@
  * Always-visible (no toggle): New Chat, Customize, Recent conversations.
  */
 
-import React, { useContext, useId, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import {
   IconMessageCircle,
   IconSparkles,
@@ -19,13 +19,13 @@ import {
   IconClock,
   IconLayoutGridAdd,
 } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
 import {
   SidebarVisibility,
   DEFAULT_SIDEBAR_VISIBILITY,
   SIDEBAR_VISIBILITY_KEY,
 } from '@/components/NewUI/shared/sidebarVisibility';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 
 // ── Toggle row component ──────────────────────────────────────────────────────
 
@@ -96,23 +96,39 @@ const ToggleRow: React.FC<ToggleRowProps> = ({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+const readStoredVisibility = (): SidebarVisibility => {
+  try {
+    const stored = localStorage.getItem(SIDEBAR_VISIBILITY_KEY);
+    return stored
+      ? { ...DEFAULT_SIDEBAR_VISIBILITY, ...JSON.parse(stored) }
+      : DEFAULT_SIDEBAR_VISIBILITY;
+  } catch {
+    return DEFAULT_SIDEBAR_VISIBILITY;
+  }
+};
+
 const SidebarItemsSection: React.FC = () => {
-  const {
-    state: { featureFlags },
-  } = useContext(HomeContext);
+  // Cached flags rather than state.featureFlags directly: the raw state is `{}` until
+  // the /feature_flags fetch resolves (and stays `{}` if it fails), which used to make
+  // the Workflows / Scheduled Tasks / Notebook rows missing here — so a user who had
+  // just hidden one of them had no control left to turn it back on.
+  const featureFlags = useStableFeatureFlags();
 
   const uid = useId();
 
-  const [visibility, setVisibility] = useState<SidebarVisibility>(() => {
-    try {
-      const stored = localStorage.getItem(SIDEBAR_VISIBILITY_KEY);
-      return stored
-        ? { ...DEFAULT_SIDEBAR_VISIBILITY, ...JSON.parse(stored) }
-        : DEFAULT_SIDEBAR_VISIBILITY;
-    } catch {
-      return DEFAULT_SIDEBAR_VISIBILITY;
-    }
-  });
+  const [visibility, setVisibility] = useState<SidebarVisibility>(readStoredVisibility);
+
+  // Stay in sync with writes from anywhere else (another tab, or a second mount of
+  // this panel) instead of showing a snapshot taken when the modal opened.
+  useEffect(() => {
+    const handler = () => setVisibility(readStoredVisibility());
+    window.addEventListener('amplifySidebarVisibilityChanged', handler);
+    window.addEventListener('storage', handler);
+    return () => {
+      window.removeEventListener('amplifySidebarVisibilityChanged', handler);
+      window.removeEventListener('storage', handler);
+    };
+  }, []);
 
   const handleChange = (key: keyof SidebarVisibility, value: boolean) => {
     const updated = { ...visibility, [key]: value };

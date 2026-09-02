@@ -71,6 +71,7 @@ import {
     conversationAssistantName,
     countActiveChatFilters,
     isPinnedConv,
+    isBlankPlaceholderConversation,
 } from '@/components/NewUI/shared/chatFilters';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -208,7 +209,18 @@ export const ChatsListView: React.FC = () => {
     // ── "My Chats" tab — which filter groups are meaningful for this list ───
     // Groups that cannot discriminate over the current list are not offered, so the
     // Assistant filter never appears (and so can never mislead) in cloud-only mode.
-    const filterGroups = useMemo(() => buildChatFilterGroups(conversations), [conversations]);
+    // Untouched placeholder chats ("New Conversation" with no messages — one is created
+    // by app startup and by every New Chat press) are never listed: they are contentless
+    // rows the user never wrote in. Same rule as the sidebar's Recents section.
+    const listableConversations = useMemo(
+        () => conversations.filter((c) => !isBlankPlaceholderConversation(c)),
+        [conversations],
+    );
+
+    const filterGroups = useMemo(
+        () => buildChatFilterGroups(listableConversations),
+        [listableConversations],
+    );
     const hasAssistantConvs = filterGroups.some((g) => g.id === 'assistant');
     const activeFilterCount = countActiveChatFilters(filters, filterGroups);
 
@@ -230,7 +242,7 @@ export const ChatsListView: React.FC = () => {
     // conversations, decompressed message content (remote conversations are not
     // searchable by content — same limitation as classic UI).
     const filteredMine = useMemo(() => {
-        let list = applyChatFilters(conversations, filters, filterGroups);
+        let list = applyChatFilters(listableConversations, filters, filterGroups);
 
         const q = search.trim().toLowerCase();
         if (q) {
@@ -248,7 +260,7 @@ export const ChatsListView: React.FC = () => {
         // Same comparator shape as NewLibraryView's sortedData: primary key, then
         // a stable name tie-break.
         return [...list].sort(compareConversations(sort.key, sort.direction));
-    }, [conversations, filters, filterGroups, search, sort]);
+    }, [listableConversations, filters, filterGroups, search, sort]);
 
     // ── "Shared with Me" tab — filter ─────────────────────────────────────
     const filteredShared = useMemo(() => {

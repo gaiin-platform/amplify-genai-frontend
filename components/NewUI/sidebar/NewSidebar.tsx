@@ -58,7 +58,9 @@ import {
   compareConversationsByMode,
   countActiveChatFilters,
   isPinnedConv,
+  isBlankPlaceholderConversation,
 } from '@/components/NewUI/shared/chatFilters';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
 import {
   SidebarVisibility,
@@ -211,7 +213,6 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
       conversations,
       selectedConversation,
       page,
-      featureFlags,
       storageSelection,
       statsService,
       folders,
@@ -223,6 +224,11 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     handleUpdateConversation,
     getDefaultModel,
   } = useContext(HomeContext);
+
+  // Feature flags via the cached wrapper, not state.featureFlags directly: the raw
+  // state is `{}` until the /feature_flags fetch resolves (and stays `{}` if it fails),
+  // which used to make the gated nav rows appear and disappear across refreshes.
+  const featureFlags = useStableFeatureFlags();
 
   const [isOpen, setIsOpen] = useState(() => {
     if (typeof window === 'undefined') return true;
@@ -492,9 +498,19 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
   // ── Recents filters (same vocabulary as the Chats and tasks view) ─────────
   // "Pinned only" is not offered here: the sidebar already surfaces pinned chats
   // as their own section, so the option would only empty out Recents.
-  const chatFilterGroups = useMemo(
-    () => buildChatFilterGroups(conversations, { includePinned: false, includeSort: true }),
+  // Untouched placeholder chats ("New Conversation", no messages) are never listed —
+  // one is created by app startup and by every New Chat press, and showing them puts
+  // contentless rows in Recents. Filtered here, before grouping, so *all* time buckets
+  // and the flat sorted list agree (previously only the Today bucket filtered them,
+  // which let older placeholders surface under "Yesterday"/"Previous N days").
+  const listableConversations = useMemo(
+    () => conversations.filter((c: Conversation) => !isBlankPlaceholderConversation(c)),
     [conversations]
+  );
+
+  const chatFilterGroups = useMemo(
+    () => buildChatFilterGroups(listableConversations, { includePinned: false, includeSort: true }),
+    [listableConversations]
   );
 
   const sortMode = (chatFilters.sort ?? CHAT_FILTER_DEFAULTS.sort) as ChatSortMode;
@@ -507,10 +523,10 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
 
   // Filter conversations by search — show ALL conversations (they all have date-based folderIds)
   const searchedConversations = searchTerm
-    ? conversations.filter((c) =>
+    ? listableConversations.filter((c) =>
         c.name.toLowerCase().includes(searchTerm.toLowerCase())
       )
-    : conversations;
+    : listableConversations;
 
   const filteredConversations = useMemo(
     () => applyChatFilters(searchedConversations, chatFilters, chatFilterGroups),
@@ -535,10 +551,25 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     [unpinned_today, unpinned_yesterday, unpinned_previous, sortMode]
   );
 
-  const navItems = [
+  // One nav definition for both render paths. The collapsed icon rail is built from
+  // this same list (see below) so the two can never drift out of sync — the rail used
+  // to be hand-written, which is how it ended up missing Library and Notebook entirely
+  // and listing Scheduled before Workflows.
+  interface NavItem {
+    icon: React.ReactNode;
+    label: string;
+    /** Tooltip used by the collapsed rail, where there is no visible label. */
+    title: string;
+    id: string;
+    visible: boolean;
+    action: () => void;
+  }
+
+  const navItems: NavItem[] = ([
     {
       icon: <IconMessage2 size={18} />,
       label: 'Chats',
+      title: 'Chats and tasks',
       id: 'chats',
       visible: sidebarVisibility.chats,
       action: () => dispatch({ field: 'page', value: 'chats' as any }),
@@ -546,6 +577,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     {
       icon: <IconSparkles size={18} />,
       label: 'Assistants',
+      title: 'Assistants',
       id: 'assistants',
       visible: sidebarVisibility.assistants,
       action: () => dispatch({ field: 'page', value: 'assistantGallery' }),
@@ -553,6 +585,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     {
       icon: <IconBooks size={18} />,
       label: 'Library',
+      title: 'Library',
       id: 'library',
       visible: sidebarVisibility.library,
       action: () => dispatch({ field: 'page', value: 'library' as any }),
@@ -560,6 +593,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     {
       icon: <IconAdjustments size={18} />,
       label: 'Customize',
+      title: 'Customize',
       id: 'customize',
       visible: true, // always shown — removing it would lock users out of settings
       action: () => setSettingsSection('promptTemplates'),
@@ -567,6 +601,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     ...(featureFlags.createAssistantWorkflows ? [{
       icon: <IconPuzzle size={18} />,
       label: 'Workflows',
+      title: 'Workflows',
       id: 'workflows',
       visible: sidebarVisibility.workflows,
       action: () => dispatch({ field: 'page', value: 'workflows' as any }),
@@ -574,6 +609,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     ...(featureFlags.notebook ? [{
       icon: <IconLayoutGridAdd size={18} />,
       label: 'Notebook',
+      title: 'Notebook',
       id: 'notebook',
       visible: sidebarVisibility.notebook,
       action: () => dispatch({ field: 'page', value: 'notebook' }),
@@ -581,6 +617,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     ...(featureFlags.scheduledTasks ? [{
       icon: <IconClock size={18} />,
       label: 'Scheduled',
+      title: 'Scheduled',
       id: 'scheduled',
       visible: sidebarVisibility.scheduled,
       action: () => {
@@ -588,7 +625,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
         dispatch({ field: 'page', value: 'scheduledTasks' as any });
       },
     }] : []),
-  ].filter(item => item.visible);
+  ] as NavItem[]).filter(item => item.visible);
 
   const currentNavId: string | null =
     settingsSection !== null ? 'customize'
@@ -622,10 +659,19 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
 
   // Collapsed state — icon rail with the specified buttons
   if (!isOpen) {
-    const iconBtn = (onClick: () => void, title: string, icon: React.ReactNode, isActive = false) => (
+    const iconBtn = (
+      onClick: () => void,
+      title: string,
+      icon: React.ReactNode,
+      isActive = false,
+      key?: string,
+    ) => (
       <button
+        key={key}
         onClick={onClick}
         title={title}
+        aria-label={title}
+        aria-current={isActive ? 'page' : undefined}
         className={`
           w-9 h-9 flex items-center justify-center rounded-[8px] transition-colors
           ${isActive
@@ -656,47 +702,10 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
             <IconPlus size={18} />,
           )}
 
-          {/* Chats and tasks */}
-          {sidebarVisibility.chats && iconBtn(
-            () => dispatch({ field: 'page', value: 'chats' as any }),
-            'Chats and tasks',
-            <IconMessage2 size={18} />,
-            currentNavId === 'chats',
-          )}
-
-          {/* Assistants */}
-          {sidebarVisibility.assistants && iconBtn(
-            () => dispatch({ field: 'page', value: 'assistantGallery' }),
-            'Assistants',
-            <IconSparkles size={18} />,
-            currentNavId === 'assistants',
-          )}
-
-          {/* Customize — always shown, opens to Prompt Templates (first item in Customize group) */}
-          {iconBtn(
-            () => setSettingsSection('promptTemplates'),
-            'Customize',
-            <IconAdjustments size={18} />,
-            currentNavId === 'customize',
-          )}
-
-          {/* Scheduled tasks */}
-          {featureFlags.scheduledTasks && sidebarVisibility.scheduled && iconBtn(
-            () => {
-              if (typeof window !== 'undefined') sessionStorage.removeItem(PENDING_SCHEDULED_TASK_KEY);
-              dispatch({ field: 'page', value: 'scheduledTasks' as any });
-            },
-            'Scheduled',
-            <IconClock size={18} />,
-            currentNavId === 'scheduled',
-          )}
-
-          {/* Workflows */}
-          {featureFlags.createAssistantWorkflows && sidebarVisibility.workflows && iconBtn(
-            () => dispatch({ field: 'page', value: 'workflows' as any }),
-            'Workflows',
-            <IconPuzzle size={18} />,
-            currentNavId === 'workflows',
+          {/* Nav — same list, order and gating as the expanded sidebar (navItems is
+              already filtered by feature flags + visibility, Customize always present) */}
+          {navItems.map((item) =>
+            iconBtn(item.action, item.title, item.icon, currentNavId === item.id, item.id),
           )}
 
           {/* Spacer — pushes account to bottom */}
@@ -844,10 +853,10 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
 
             {sortMode === 'recent' ? (
               <>
-                {/* Today — hide "New Conversation" entries that have no messages (placeholder convs) */}
+                {/* Today — placeholder chats are already excluded by listableConversations */}
                 {renderConversationGroup(
-                  unpinned_today.filter(c => c.name !== 'New Conversation' || c.messages?.length > 0),
-                  unpinned_today.filter(c => c.name !== 'New Conversation' || c.messages?.length > 0).length > 0 &&
+                  unpinned_today,
+                  unpinned_today.length > 0 &&
                   (unpinned_yesterday.length > 0 || unpinned_previous.length > 0) ? 'Today' : undefined
                 )}
 
@@ -864,9 +873,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
               </>
             ) : (
               /* Explicit sort — one flat list, no time buckets */
-              renderConversationGroup(
-                unpinned_flat.filter(c => c.name !== 'New Conversation' || c.messages?.length > 0)
-              )
+              renderConversationGroup(unpinned_flat)
             )}
 
             {/* Empty state — only when not loading and nothing visible after filters/archive */}
