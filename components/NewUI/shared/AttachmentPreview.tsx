@@ -10,6 +10,7 @@
  *   §11  keyboard & a11y
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { IconAlertCircle, IconClock, IconLoader2, IconPaperclip } from '@tabler/icons-react';
 import { UIAttachment, formatBytes } from './attachmentTypes';
 
@@ -187,7 +188,9 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
   const previewText = fullText ?? bodyPreview ?? remoteText;
 
   // Meta line items (spec §7.2)
-  const metaItems: string[] = [formatBytes(bytes)];
+  // Size is omitted when unknown rather than rendered as a misleading "0 B":
+  // post-send data sources in the transcript often carry no byte count.
+  const metaItems: string[] = bytes > 0 ? [formatBytes(bytes)] : [];
   if (lineCount) metaItems.push(`${lineCount.toLocaleString()} lines`);
   else if (dimensions) metaItems.push(`${dimensions.w} × ${dimensions.h}`);
   const metaLine = metaItems.join(' • ');
@@ -205,11 +208,16 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
   // Is image?
   const isImage = kind === 'image';
 
-  return (
+  const preview = (
     <>
-      {/* ── Overlay ── */}
+      {/* ── Overlay ──
+          z 10010/10011 sits at the top of the app's overlay band, above the
+          menus portalled to body (AttachMenu 9999, menuPositioning 10000,
+          ModelPicker 10002) and above legacy in-transcript blocks that portal
+          themselves out at z-9999 (Chat/ChatContentBlocks/ApiKeyBlock). A
+          full-screen preview must not be paintable over by any of them. */}
       <div
-        className="fixed inset-0 z-[200]"
+        className="fixed inset-0 z-[10010]"
         style={{
           background: 'rgba(var(--bg-app-rgb, 38,38,36), 0.62)',
           backdropFilter: 'blur(3px)',
@@ -223,7 +231,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
 
       {/* ── Centering wrapper — never transformed, purely layout ── */}
       <div
-        className="fixed inset-0 z-[201] flex items-center justify-center"
+        className="fixed inset-0 z-[10011] flex items-center justify-center"
         style={{ pointerEvents: 'none' }}
       >
       {/* ── Panel — FLIP transforms applied here only ── */}
@@ -234,6 +242,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
         aria-labelledby="attachment-preview-title"
         style={{
           pointerEvents: 'auto',
+          boxSizing: 'border-box',
           width: 'min(1040px, 92vw)',
           height: 'min(760px, 86dvh)',
           background: 'var(--bg-app)',
@@ -346,6 +355,8 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
             borderRadius: 12,
             padding: '22px 24px',
             position: 'relative',
+            minWidth: 0,
+            minHeight: 0,
             overflow: 'auto',
             overscrollBehavior: 'contain',
             maskImage: 'linear-gradient(to bottom, #000 0, #000 calc(100% - 20px), transparent 100%)',
@@ -540,6 +551,11 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
       </div>{/* end centering wrapper */}
     </>
   );
+
+  // Keep the preview outside the chat scroller. The transcript contains legacy
+  // overflow/mask styles, which otherwise let the conversation text paint over
+  // a preview and make the overlay move with the message while it scrolls.
+  return typeof document === 'undefined' ? preview : createPortal(preview, document.body);
 };
 
 // ── Unavailable placeholder (spec §8) ─────────────────────────────────────────

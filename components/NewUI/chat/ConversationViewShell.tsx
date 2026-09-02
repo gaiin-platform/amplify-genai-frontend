@@ -33,6 +33,7 @@ import { ConversationComposer } from './ConversationComposer';
 import { NewUIMessageActionsLayer } from './NewUIMessageActionsLayer';
 import { NewUIUserMessageMarkdownLayer } from './NewUIUserMessageMarkdownLayer';
 import { NewUITranscriptAttachmentsLayer } from './NewUITranscriptAttachmentsLayer';
+import { NewUITranscriptPreviewLayer } from './NewUITranscriptPreviewLayer';
 import HomeContext from '@/pages/api/home/home.context';
 import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
 // Imports for the direct-send path (pending docs with S3 keys)
@@ -1055,6 +1056,11 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
       {/* §4/§5: Markdown rendering + collapse for user messages */}
       <NewUIUserMessageMarkdownLayer />
       <NewUITranscriptAttachmentsLayer />
+
+      {/* Routes post-send attachment previews through shared/AttachmentPreview —
+          the same component the composer uses — instead of the classic modal,
+          which is trapped inside .chatcontainer's mask/stacking context */}
+      <NewUITranscriptPreviewLayer />
     </div>
   );
 };

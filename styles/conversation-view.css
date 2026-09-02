@@ -666,6 +666,23 @@
   outline-offset: 2px !important;
 }
 
+/* ── Classic attachment preview (DataSourcesBlock → ImageModal) ──────────────
+   The classic modal mounts *inside* `.chatcontainer`, whose top-fade
+   `mask-image` (see §"Fade masks" above) clips its whole subtree's paint —
+   `position: fixed` descendants included — and establishes a stacking context.
+   Since `.chatcontainer` is itself `z-index: auto`, everything inside collapses
+   into one band and the composer (z 25), jump-to-latest (z 28) and header
+   (z 30) paint over it at any z-index. It cannot be rescued in place.
+
+   `NewUITranscriptPreviewLayer` mirrors it into `shared/AttachmentPreview` (the
+   component the composer already uses, portalled to document.body) and hides
+   the original inline at `!important`. This rule is the belt-and-braces half:
+   it guarantees the broken overlay can never paint even for one frame, before
+   any script runs. Keep it in sync with LEGACY_MODAL_SELECTOR in that layer. */
+[data-new-ui="true"] .new-ui-transcript-attachments .fixed.inset-0.z-50 {
+  display: none !important;
+}
+
 [data-new-ui="true"] .enhanced-chat-message.user-message.new-ui-attachments-only #chatHover {
   display: none !important;
 }
