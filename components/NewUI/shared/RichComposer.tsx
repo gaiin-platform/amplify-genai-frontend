@@ -66,6 +66,12 @@ interface RichComposerProps {
   /** Additional className for the editable div */
   editorClassName?: string;
   autoFocus?: boolean;
+  /**
+   * When true, Enter sends even if the editor's own text is empty — e.g. the
+   * user pasted a large block that became an attachment chip and typed nothing
+   * else. The parent owns this state; RichComposer just acts on it.
+   */
+  hasExternalContent?: boolean;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -150,7 +156,7 @@ function lineBeforeCursor(range: Range): string {
 // ── Component ──────────────────────────────────────────────────────────────
 
 export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
-  ({ onSend, onChange, onLargePaste, onImagePaste, placeholder = 'Ask anything…', editorClassName = '', autoFocus = false }, ref) => {
+  ({ onSend, onChange, onLargePaste, onImagePaste, placeholder = 'Ask anything…', editorClassName = '', autoFocus = false, hasExternalContent = false }, ref) => {
     const editorRef = useRef<HTMLDivElement>(null);
     const [hasContent, setHasContent] = useState(false);
 
@@ -339,7 +345,10 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
           const editor = editorRef.current;
           if (!editor) return;
           const md = domToMarkdown(editor);
-          if (md.trim()) {
+          // Allow send when the editor has typed text OR when the parent reports
+          // external content (e.g. a pasted-text attachment chip) — in that case
+          // the editor itself is empty but there is still something to send.
+          if (md.trim() || hasExternalContent) {
             onSend(md);
             editor.innerHTML = '';
             setHasContent(false);
@@ -369,7 +378,7 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
           return;
         }
       },
-      [onSend, insertCodeBlock, escapCodeBlock]
+      [onSend, insertCodeBlock, escapCodeBlock, hasExternalContent]
     );
 
     return (

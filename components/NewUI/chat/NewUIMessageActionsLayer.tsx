@@ -185,7 +185,16 @@ function computePosition(
      Fix 3A), so #chatHover.offsetHeight accurately reflects the visible text height.
      GAP=4 provides the desired 4px visual gap between the last prose line and the row. */
   const GAP = role === 'user' ? 2 : 4;
-  const anchor = el.querySelector<HTMLElement>('#chatHover') ?? el;
+
+  // For paste-only user messages, #chatHover is display:none (offsetParent=null,
+  // offsetHeight=0). offsetWithin on a display:none element always returns {0,0},
+  // so the row would land at the very top of the container. Fall back to the chip
+  // rail (.new-ui-transcript-attachments), which is the visible content.
+  const chatHover = el.querySelector<HTMLElement>('#chatHover');
+  const anchor =
+    chatHover && chatHover.offsetHeight > 0
+      ? chatHover
+      : (el.querySelector<HTMLElement>('.new-ui-transcript-attachments') ?? el);
   const { top: anchorTop, left: anchorLeft } = offsetWithin(anchor, container);
   const top = anchorTop + anchor.offsetHeight + GAP;
 
@@ -734,7 +743,17 @@ export const NewUIMessageActionsLayer: React.FC = () => {
   // ── Action handlers ───────────────────────────────────────────────────────
 
   const handleCopy = useCallback(async (slot: Slot): Promise<boolean> => {
-    const text = extractMessageText(slot.el, slot.role);
+    let text = extractMessageText(slot.el, slot.role);
+
+    // For paste-only user messages, #chatHover is hidden and .large-text-display
+    // is also hidden via CSS, so extractMessageText returns "". Fall back to the
+    // concatenated full text of all large-text blocks on the message.
+    if (!text.trim() && slot.role === 'user') {
+      const blocks: any[] = (slot.message.data as any)?.largeTextBlocks ?? [];
+      const pasteText = blocks.map((b: any) => b.originalText ?? '').filter(Boolean).join('\n\n');
+      if (pasteText) text = pasteText;
+    }
+
     try {
       await navigator.clipboard.writeText(text);
       return true;

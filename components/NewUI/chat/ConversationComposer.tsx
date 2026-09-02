@@ -511,8 +511,12 @@ export const ConversationComposer: React.FC = () => {
     const uploadingImages = uiAttachments.filter(
       (a) => a.kind === 'image' && a.status === 'uploading',
     );
+    const pastedAttachmentsEarly = uiAttachments.filter((a) => a.kind === 'paste');
     const hasContentToSend =
-      hasText || docsWithKeys.length > 0 || uploadingImages.length > 0;
+      hasText ||
+      docsWithKeys.length > 0 ||
+      uploadingImages.length > 0 ||
+      pastedAttachmentsEarly.length > 0;
 
     if (!hasContentToSend) return;
     if (messageIsStreaming) return;

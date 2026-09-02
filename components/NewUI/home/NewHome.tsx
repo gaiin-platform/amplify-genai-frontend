@@ -509,6 +509,7 @@ export const NewHome: React.FC = () => {
             placeholder="Ask anything…"
             editorClassName="max-h-[240px] overflow-y-auto"
             autoFocus
+            hasExternalContent={uiAttachments.some((a) => a.status === 'ready')}
           />
 
           {/* Band 3 — Toolbar */}
