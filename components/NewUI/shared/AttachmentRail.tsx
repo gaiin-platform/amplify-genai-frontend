@@ -154,7 +154,7 @@ export const AttachmentRail: React.FC<AttachmentRailProps> = ({
         transition: reduced
           ? 'none'
           : `height 220ms ${railOpen ? EASE_OUT : EASE_OUT}`,
-        paddingBottom: railOpen ? 16 : 0,
+        paddingBottom: railOpen ? 6 : 0,
         // Fade right edge when scrollable (spec §3)
         maskImage:
           'linear-gradient(to right, #000 0, #000 calc(100% - 32px), transparent 100%)',
@@ -169,7 +169,7 @@ export const AttachmentRail: React.FC<AttachmentRailProps> = ({
         role="list"
         aria-label={`${attachments.length} attachment${attachments.length !== 1 ? 's' : ''}`}
         className="flex gap-[16px] items-start"
-        style={{ width: 'max-content', padding: '0 2px' }}
+        style={{ width: 'max-content', padding: '10px 2px 6px' }}
         onKeyDown={handleRailKeyDown}
       >
         {attachments.map((a, idx) => (

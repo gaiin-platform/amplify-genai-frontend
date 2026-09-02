@@ -72,7 +72,6 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
     error,
   } = attachment;
 
-  const showRemove = !readOnly && Boolean(onRemove) && (alwaysShowRemove || hovered);
   const isFailed = status === 'failed';
   const compact = Math.min(width, height) < COMPACT_BELOW;
   const inset = compact ? 10 : 14;
@@ -83,6 +82,10 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
   const isIndeterminate = status === 'uploading' && progress === undefined;
   const isUploading = status === 'uploading';
   const isPreparingPreview = attachment.previewState === 'pending';
+  const showRemove =
+    !readOnly &&
+    Boolean(onRemove) &&
+    (alwaysShowRemove || hovered || isUploading || isPreparingPreview);
 
   // Entry animation: opacity+scale+translateY
   const entryStyle: React.CSSProperties =
@@ -142,16 +145,7 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
             textAlign: 'left',
             transition: 'border-color 120ms, background 120ms',
           }}
-          onMouseEnter={(e) => {
-            if (!isFailed) {
-              (e.currentTarget as HTMLElement).style.borderColor = 'var(--bg-active)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.borderColor = isFailed
-              ? '#6E4540'
-              : 'var(--border-subtle)';
-          }}
+          data-attachment-face="true"
         >
           {/* ── Body region ── */}
           <div
@@ -261,7 +255,12 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
           {isUploading && (
             <div
               className="absolute inset-0 flex items-center justify-center"
-              style={{ borderRadius: 12, pointerEvents: 'none', zIndex: 1 }}
+              style={{
+                borderRadius: 12,
+                pointerEvents: 'none',
+                zIndex: 1,
+                background: 'color-mix(in srgb, var(--bg-app) 42%, transparent)',
+              }}
               role="progressbar"
               aria-valuenow={isIndeterminate ? undefined : Math.round(progressFraction * 100)}
               aria-busy={isIndeterminate || undefined}
@@ -271,6 +270,7 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
                 width="36"
                 height="36"
                 viewBox="0 0 36 36"
+                className="new-ui-attachment-progress"
                 style={{ display: 'block' }}
               >
                 {/* Track */}
@@ -329,25 +329,24 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
             e.stopPropagation();
             onRemove(id);
           }}
-          className="absolute"
+          className="absolute new-ui-attachment-remove"
           style={{
-            top: 6,
-            right: 6,
-            width: 24,
-            height: 24,
+            top: -10,
+            right: -10,
+            width: 20,
+            height: 20,
             borderRadius: '50%',
-            background: 'rgba(var(--bg-active-raw, 58,58,56), 0.9)',
-            backdropFilter: 'blur(4px)',
-            WebkitBackdropFilter: 'blur(4px)',
-            border: 'none',
+            background: 'var(--bg-composer)',
+            border: '1px solid var(--border-subtle)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 12,
+            fontSize: 13,
+            lineHeight: 1,
             color: 'var(--text-primary)',
             opacity: showRemove ? 1 : 0,
-            transition: 'opacity 120ms ease',
+            transition: 'opacity 120ms ease, background-color 120ms ease',
             pointerEvents: showRemove ? 'auto' : 'none',
             zIndex: 2,
           }}
