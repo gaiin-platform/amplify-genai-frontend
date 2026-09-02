@@ -570,9 +570,15 @@
 
 /* Keep the moved attachment rail and its text bubble as one compact group.
    The transcript list has a larger turn rhythm; it must not leak into the
-   two direct children inside this message. */
+   two direct children inside this message.
+
+   The gap itself is owned by an !important inline margin-bottom that
+   NewUITranscriptAttachmentsLayer writes onto the rail — the classic markup it
+   normalizes carries Tailwind utilities and a hard-coded inline card size, so
+   only an inline declaration is guaranteed to win. row-gap is therefore held at
+   0 here: if it also contributed, the two would stack into a double gap. */
 [data-new-ui="true"] .enhanced-chat-message.user-message.new-ui-has-attachments .enhanced-message-content {
-  row-gap: 8px !important;
+  row-gap: 0 !important;
 }
 
 [data-new-ui="true"] .enhanced-chat-message.user-message.new-ui-has-attachments .enhanced-message-content > #chatHover {
